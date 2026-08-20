@@ -26,7 +26,10 @@ authenticated multi-user application として家族・友人等の複数ユー�
 
 ## Main domain concepts
 
-現在採用しているdomain conceptは次の5つです。
+現在採用しているtop-level domain conceptは次の5つです。各conceptの内部構造
+（例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
 
 - **event** — 公演・イベントそのものの情報
 - **participation / personal schedule** — 自分がそのeventにどう関わる予定か
@@ -71,9 +74,9 @@ constraintは、実装agentが従うべき正本として
 event catalog の共有と owner semantics（owner限定更新・owner transfer
 不可・owner spoofing防止）です（詳細は `product-rules.md` を参照）。
 
-invitation semantics・participation visibilityの既定値は
-`product-rules.md` で承認済みのsemanticsですが、対応する schema/RLS 実装は
-まだありません。participation / ticket acquisition / expense / budget の
+invitation semantics・participation visibilityの既定値・eventと公演回
+（occurrence）のtemporal modelは `product-rules.md` で承認済みのsemantics
+ですが、対応する schema/RLS 実装はまだありません。participation / ticket acquisition / expense / budget の
 実装は、今後それぞれ専用のbounded product Taskでscope・semanticsを確定した
 上で進めます（[`docs/roadmap.md`](./roadmap.md) 参照）。
 
