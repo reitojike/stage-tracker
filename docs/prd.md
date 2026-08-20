@@ -34,8 +34,14 @@ authenticated multi-user application として家族・友人等の複数ユー�
 - **expense** — そのeventに関する支出
 - **budget** — 支出を横断した予算
 
-これらのうち、table naming・永続化shape・relation shape・詳細なstatus model
-は本ドキュメントの時点では固定しません。各conceptを扱うbounded product Task
+このうち **event** は、current `public.events` schema / RLS baseline
+としてすでに実装済みです（[`docs/roadmap.md`](./roadmap.md) の
+Completed baseline参照）。これはcurrent baselineとして成立している事実で
+あり、将来の専用product Taskで見直せないことを意味しません。
+
+**participation / personal schedule・ticket acquisition・expense・budget**
+は未実装で、table naming・永続化shape・relation shape・詳細なstatus model
+を本ドキュメントの時点では固定しません。それぞれを扱うbounded product Task
 の中で確定します。
 
 ## Shared catalog と personal concepts の関係
