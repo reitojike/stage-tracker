@@ -1,10 +1,15 @@
 name: Verify
 
-# Deterministic verification floor for this consumer (Issue #1 / PR A).
-# Checks out ai-dev-foundation at a reproducible pinned revision alongside
-# this repository so `npm run verify` can validate the generated adapters
-# and Foundation-managed quality profile against the canonical source, not
-# just against files already committed here.
+# Deterministic verification floor for this consumer (Issue #1 / PR A;
+# extended for Issue #3 / PR B's local Supabase checks). Checks out
+# ai-dev-foundation at a reproducible pinned revision alongside this
+# repository so `npm run verify` can validate the generated adapters and
+# Foundation-managed quality profile against the canonical source, not just
+# against files already committed here. `npm run verify` also starts a
+# local Supabase stack (via the `supabase` npm devDependency, using
+# ubuntu-latest's preinstalled Docker) to run the generated-types drift
+# check and the DB/RLS tests against a real local Postgres - no remote
+# Supabase project or credentials are required.
 
 on:
   push:
@@ -17,7 +22,7 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout stage-tracker
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -4,17 +4,42 @@
 `reitojike/stage-tracker-old` は historical evidence に過ぎず、この source を
 上書きしません。product semantics はここで再承認したものだけを記載します。
 
-現時点では PR A (consumer bootstrap baseline) の範囲であり、product database
-schema / RLS / event CRUD 等の実装は含みません。以下は将来の product task が
-前提とする、既に承認済みの semantics です。
+PR B (shared event catalog minimal slice) の時点で、`public.events` の
+schema / RLS / domain permission matrix が実装済みです。以下はその範囲で
+既に承認済みの semantics です。
 
 ## Event catalog
 
-- Event 情報は authenticated users 間の共有 catalog です。
+- Event 情報は authenticated users 間の共有 catalog です。anonymous user は
+  catalog を閲覧・変更できません。
 - per-user の participation / ticket acquisition / expense は event catalog
   とは分離した personal concept として扱います。
 - Event owner は情報管理者です。owner であることは participant / organizer /
   inviter であることを意味しません。
+
+### Ownership
+
+- event を作成した authenticated user がその event の owner になります。
+- owner だけが event 情報を更新できます。non-owner は更新できません。
+- owner transfer は product operation として提供しません。owner 自身であっても
+  owner を別 user へ変更することはできません。
+- event の作成者と、最終的に persist される owner は一致していなければ
+  なりません（owner spoofing は不可）。
+
+### Mutable / system-managed fields
+
+- owner が変更できるのは event の記述情報（例: title / venue / 開催日時 /
+  参照 URL / memo）です。
+- record の識別子・作成日時・owner とレコードの更新日時は system-managed と
+  し、normal な authenticated client から直接書き換えられる対象にはしません。
+
+### Deletion
+
+- PR B の時点では event deletion を提供しません。存在する event row は
+  すべて current catalog row として扱います。
+- deletion semantics（論理削除の要否を含む）は、それを扱う専用の product
+  task で別途決定します。「将来 migration したくない」という理由だけで
+  deletion 用の schema を先行実装しません。
 
 ## Invitation
 
@@ -65,6 +90,8 @@ schema / RLS / event CRUD 等の実装は含みません。以下は将来の pr
 - local で成立した後に新しい Supabase remote project を作成します。
 - 旧 Supabase project は historical evidence / data reference に限り、新
   schema の authority にはしません。
-- PR A の時点では product schema がまだ無いため、Supabase types / RLS / DB
-  test は導入しません。これらは実際に必要になる最初の real product task で
-  導入します。
+- PR B の時点で、local Supabase 上の `events` migration / RLS / generated
+  TypeScript database types / DB・RLS test が実際に導入済みです。
+- remote Supabase project の provisioning は、local schema/RLS/types/test が
+  成立した後の別 operational step として扱い、product task の merge gate には
+  しません。

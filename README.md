@@ -1,6 +1,7 @@
 # stage-tracker
 
-`ai-dev-foundation` の consumer bootstrap baseline (PR A) です。詳細な開発ルールは
+`ai-dev-foundation` の consumer bootstrap baseline (PR A) と、shared event
+catalog の最初の product slice (Issue #3 / PR B) です。詳細な開発ルールは
 生成された [`AGENTS.md`](./AGENTS.md) を正本とし、product-specific rule は
 [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md)
 に置きます。`AGENTS.md` / `.ai-dev-foundation/quality/` は
@@ -18,6 +19,18 @@ SHA の `ai-dev-foundation` checkout を `FOUNDATION_CHECKOUT` 環境変数(既�
 `../ai-dev-foundation`)で参照します。pin されている SHA は
 `.github/workflows/verify.yml` に記載しています。
 
+### Local Supabase (Docker が必要)
+
+`public.events` の migration / RLS / generated types / DB・RLS test は、
+local-first の Supabase スタックに対して実行します。Docker が起動している
+必要があります。
+
+```bash
+npm run db:start   # ローカル Supabase スタックを起動
+npm run db:reset    # migrations だけを適用してDBを再構築
+npm run db:stop     # 停止
+```
+
 ## Verify
 
 ```bash
@@ -26,4 +39,15 @@ npm run verify
 
 `format:check` / `lint` / `typecheck` / `test:unit` / `build` /
 `foundation:check` (generated adapter と Foundation-managed quality profile の
-drift 検知) を順に実行する one-command verify です。
+drift 検知) に続けて `verify:profile` を実行する one-command verify です。
+`verify:profile` は local Supabase を起動・reset した上で、generated
+database types の exact drift check (`supabase:types:check`) と DB/RLS
+test (`test:rls`) を実行します。remote Supabase project や remote
+credentials は不要です。Docker が起動していない場合、この最後のステップで
+失敗します。
+
+RLS policy の guardrail proof (`test/rls/guardrail-proof.mjs`) は
+`npm run test:rls:guardrail-proof` で手動実行します。実際に policy /
+grant を一時的に壊してnegative testが red になることを確認し、必ず
+restore する one-off の検証スクリプトであり、blocking verify には含めて
+いません。
