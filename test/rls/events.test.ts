@@ -37,16 +37,17 @@ before(async () => {
 });
 
 after(async () => {
-  // Don't let one actor's cleanup failure prevent the other's from being
-  // attempted.
-  await Promise.all(
-    createdActors.map((actor) =>
-      deleteTestActor(actor).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`cleanup failed for test user ${actor.user.id}: ${message}`);
-      }),
-    ),
-  );
+  // Attempt every actor's cleanup even if one fails, but still fail the run
+  // overall if any cleanup failed - a silently-swallowed cleanup failure
+  // would leave stale users/events behind while reporting success.
+  const results = await Promise.allSettled(createdActors.map((actor) => deleteTestActor(actor)));
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length > 0) {
+    const messages = failures.map((failure) =>
+      failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+    );
+    throw new Error(`test actor cleanup failed:\n${messages.join('\n')}`);
+  }
 });
 
 function eventPayload(ownerId: string) {

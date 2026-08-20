@@ -48,9 +48,15 @@ export async function createTestActor(emailPrefix: string, password: string): Pr
   const { error: signInError } = await client.auth.signInWithPassword({ email, password });
   if (signInError) {
     // Don't leave a bare, unusable user behind just because sign-in failed
-    // after creation succeeded.
-    await admin.auth.admin.deleteUser(created.user.id);
-    throw new Error(`failed to sign in as test user ${email}: ${signInError.message}`);
+    // after creation succeeded. Report a cleanup failure here too, rather
+    // than discarding it, so it doesn't go unnoticed.
+    const { error: cleanupError } = await admin.auth.admin.deleteUser(created.user.id);
+    const cleanupSuffix = cleanupError
+      ? ` (cleanup of the orphaned user also failed: ${cleanupError.message})`
+      : '';
+    throw new Error(
+      `failed to sign in as test user ${email}: ${signInError.message}${cleanupSuffix}`,
+    );
   }
 
   return { user: created.user, client };

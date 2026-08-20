@@ -193,15 +193,18 @@ try {
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',
   );
 } finally {
-  // Only clean up actors that were actually created, and don't let one
-  // actor's cleanup failure prevent the other's from being attempted.
-  await Promise.all(
-    [actorA, actorB]
-      .filter((actor) => actor !== undefined)
-      .map((actor) =>
-        deleteTestActor(actor).catch((error) => {
-          console.error(`cleanup failed for test user ${actor.user.id}: ${error.message}`);
-        }),
-      ),
+  // Attempt cleanup for every actor that was actually created, even if one
+  // fails, but still exit non-zero if any cleanup failed - a silently-
+  // swallowed cleanup failure would leave stale users/events behind while
+  // reporting success.
+  const results = await Promise.allSettled(
+    [actorA, actorB].filter((actor) => actor !== undefined).map((actor) => deleteTestActor(actor)),
   );
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length > 0) {
+    const messages = failures.map((failure) =>
+      failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+    );
+    throw new Error(`test actor cleanup failed:\n${messages.join('\n')}`);
+  }
 }
