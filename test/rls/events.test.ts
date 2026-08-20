@@ -195,6 +195,15 @@ void test('updated_at is DB-managed on a real update', async () => {
   assert.ok(new Date(data.updated_at).getTime() > new Date(created.updated_at).getTime());
 });
 
+void test('normal client cannot set updated_at directly', async () => {
+  const created = await insertAsOwner(actorA);
+  const { error } = await actorA.client
+    .from('events')
+    .update({ updated_at: new Date(0).toISOString() })
+    .eq('id', created.id);
+  assert.ok(error, 'expected a permission error for setting updated_at directly');
+});
+
 // --- Negative: DELETE unsupported ---
 
 void test('owner cannot delete an event', async () => {

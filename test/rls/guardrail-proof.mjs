@@ -31,13 +31,16 @@ function eventPayload(ownerId) {
 
 async function withBrokenPolicy(policyName, breakSql, restoreSql, proveRedBehavior) {
   console.log(`\n--- breaking ${policyName} ---`);
-  await db.query(breakSql);
   try {
+    await db.query(breakSql);
     await proveRedBehavior();
     console.log(
       `OK: negative test for ${policyName} goes red without the real policy, as expected.`,
     );
   } finally {
+    // breakSql now runs inside this try too, so a failure partway through a
+    // multi-statement break (e.g. connection drop) still attempts restore
+    // rather than leaving real local RLS state broken.
     await db.query(restoreSql);
     console.log(`restored ${policyName}`);
   }

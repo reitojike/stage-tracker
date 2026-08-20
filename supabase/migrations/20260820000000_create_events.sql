@@ -24,9 +24,12 @@ create table public.events (
 create index events_owner_id_idx on public.events (owner_id);
 
 -- Keep updated_at accurate on every real UPDATE, independent of what the
--- caller supplies for that column.
+-- caller supplies for that column. search_path is pinned empty (Postgres
+-- function_search_path_mutable hardening) since the function body only
+-- touches NEW/now(), which are resolved without any schema lookup.
 create function public.set_events_updated_at() returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   new.updated_at := now();
@@ -54,6 +57,13 @@ alter table public.events enable row level security;
 -- CHECK is what constrains it there (creator ownership); on UPDATE it is
 -- withheld entirely, which blocks owner transfer even before RLS is
 -- evaluated.
+-- service_role's BYPASSRLS role attribute bypasses the policies below, but
+-- table-level privilege grants are a separate, still-enforced check by
+-- PostgREST; without this, backend/admin access (including test fixture
+-- setup/teardown) fails with a plain permission error before RLS is even
+-- relevant.
+grant select, insert, update, delete on public.events to service_role;
+
 grant select on public.events to authenticated;
 grant insert (owner_id, title, venue, starts_at, ends_at, source_url, memo)
   on public.events to authenticated;

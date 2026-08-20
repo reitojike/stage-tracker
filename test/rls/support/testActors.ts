@@ -55,5 +55,23 @@ export async function createTestActor(emailPrefix: string, password: string): Pr
 
 export async function deleteTestActor(actor: TestActor): Promise<void> {
   const admin = createAdminClient();
-  await admin.auth.admin.deleteUser(actor.user.id);
+
+  // events.owner_id references auth.users(id) with no ON DELETE action, so
+  // deleting a user who still owns fixture events would fail the FK check.
+  // Clean those up first via the admin path (setup/teardown, not an RLS
+  // assertion) so teardown actually removes what each test created.
+  const { error: deleteEventsError } = await admin
+    .from('events')
+    .delete()
+    .eq('owner_id', actor.user.id);
+  if (deleteEventsError) {
+    throw new Error(
+      `failed to delete fixture events for test user ${actor.user.id}: ${deleteEventsError.message}`,
+    );
+  }
+
+  const { error: deleteUserError } = await admin.auth.admin.deleteUser(actor.user.id);
+  if (deleteUserError) {
+    throw new Error(`failed to delete test user ${actor.user.id}: ${deleteUserError.message}`);
+  }
 }
