@@ -66,8 +66,11 @@ npm run verify
 ```
 
 `format:check` / `lint` / `typecheck` / `test:unit` / `build` /
-`foundation:check` (generated adapter と Foundation-managed quality profile の
-drift 検知) に続けて `verify:profile` を実行する one-command verify です。
+`build-storybook`（component catalogのstatic build。Storybookのruntime Node
+要件がrepoのNode baselineと非互換化する事態をCIで検知するためblocking checkに
+含めています） / `foundation:check` (generated adapter と Foundation-managed
+quality profile のdrift 検知) に続けて `verify:profile` を実行する
+one-command verify です。
 `verify:profile` は local Supabase を起動・reset した上で、generated
 database types の exact drift check (`supabase:types:check`) と DB/RLS
 test (`test:rls`) を実行します。remote Supabase project や remote

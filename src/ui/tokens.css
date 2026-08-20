@@ -75,6 +75,10 @@
   --color-surface: var(--color-neutral-0);
   --color-surface-subtle: var(--color-neutral-50);
   --color-border: var(--color-neutral-200);
+  /* form control boundary(input/button等)。WCAG 2.2 SC 1.4.11 Non-text
+     Contrastの3:1をwhite surface背景に対して満たす値(neutral-500: 白背景に
+     対し約4.3:1)。generic surface borderとは別tokenとして分離する。 */
+  --color-control-border: var(--color-neutral-500);
   --color-text: var(--color-neutral-900);
   --color-text-secondary: var(--color-neutral-600);
   --color-text-disabled: var(--color-neutral-400);
