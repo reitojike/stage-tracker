@@ -1,22 +1,13 @@
-import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { resolveFoundationCheckout } from './foundation-checkout.mjs';
 
-const foundationRoot = path.resolve(process.env.FOUNDATION_CHECKOUT ?? '../ai-dev-foundation');
+const foundationRoot = resolveFoundationCheckout();
 const source = path.join(foundationRoot, 'profiles', 'next-supabase', 'quality');
 const destination = path.join(process.cwd(), '.ai-dev-foundation', 'quality');
 
-if (!existsSync(source)) {
-  console.error(
-    `Foundation checkout not found at ${foundationRoot}.\n` +
-      'Set FOUNDATION_CHECKOUT to a local ai-dev-foundation checkout pinned to the ' +
-      'SHA recorded in .ai-dev-foundation/product-rules.md / the bootstrap Issue.',
-  );
-  process.exitCode = 1;
-  process.exit();
-}
-
 const drifted = [];
+const sourceFiles = new Set();
 for (const file of await readdir(source, { recursive: true })) {
   const sourcePath = path.join(source, file);
   const destinationPath = path.join(destination, file);
@@ -25,7 +16,17 @@ for (const file of await readdir(source, { recursive: true })) {
     readFile(destinationPath, 'utf8').catch(() => null),
   ]);
   if (sourceContent === null) continue; // directory entry
+  sourceFiles.add(file);
   if (sourceContent !== destinationContent) drifted.push(file);
+}
+
+// A file the pinned Foundation revision removed or renamed would otherwise
+// go undetected: the loop above only walks `source`, so a stale destination
+// entry with no matching source entry never gets compared.
+for (const file of await readdir(destination, { recursive: true }).catch(() => [])) {
+  if (sourceFiles.has(file)) continue;
+  const destinationContent = await readFile(path.join(destination, file), 'utf8').catch(() => null);
+  if (destinationContent !== null) drifted.push(file);
 }
 
 if (drifted.length > 0) {

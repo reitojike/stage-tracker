@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { resolveFoundationCheckout } from './foundation-checkout.mjs';
 
 const tool = process.argv[2];
 if (tool !== 'check' && tool !== 'sync') {
@@ -9,15 +10,11 @@ if (tool !== 'check' && tool !== 'sync') {
   process.exit();
 }
 
-const foundationRoot = path.resolve(process.env.FOUNDATION_CHECKOUT ?? '../ai-dev-foundation');
+const foundationRoot = resolveFoundationCheckout();
 const toolingScript = path.join(foundationRoot, 'tooling', `${tool}.mjs`);
 
 if (!existsSync(toolingScript)) {
-  console.error(
-    `Foundation checkout not found at ${foundationRoot}.\n` +
-      'Set FOUNDATION_CHECKOUT to a local ai-dev-foundation checkout pinned to the ' +
-      'SHA recorded in .ai-dev-foundation/product-rules.md / the bootstrap Issue.',
-  );
+  console.error(`Foundation tooling script not found at ${toolingScript}.`);
   process.exitCode = 1;
   process.exit();
 }
