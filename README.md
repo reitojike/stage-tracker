@@ -14,6 +14,7 @@ catalog の最初の product slice (Issue #3 / PR B) です。
 | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope         |
 | [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）            |
+| [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本       |
 | [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | agentが実装時に守るcurrent-approved product/domain constraintsの正本          |
 | [`AGENTS.md`](./AGENTS.md)                                                     | 開発ルール（Foundation policy + technology profile + product rules から生成） |
 
@@ -45,6 +46,18 @@ npm run db:start   # ローカル Supabase スタックを起動
 npm run db:reset    # migrations だけを適用してDBを再構築
 npm run db:stop     # 停止
 ```
+
+## Component catalog
+
+Shared UI primitiveの examples / states は Storybook で確認できます。
+
+```bash
+npm run storybook        # local起動 (http://localhost:6006)
+npm run build-storybook  # static build (storybook-static/)
+```
+
+Storybookはrendered examples / states catalogであり、UI ruleの正本では
+ありません。ruleの正本は [`docs/ux-ui.md`](./docs/ux-ui.md) です。
 
 ## Verify
 

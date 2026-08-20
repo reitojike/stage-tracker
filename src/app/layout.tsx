@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import '@/ui/globals.css';
 
 export const metadata: Metadata = {
   title: 'stage-tracker',

@@ -1,0 +1,13 @@
+.surface {
+  border-radius: var(--radius-surface);
+  border: 1px solid var(--color-border);
+  padding: var(--space-md);
+}
+
+.default {
+  background-color: var(--color-surface);
+}
+
+.subtle {
+  background-color: var(--color-surface-subtle);
+}

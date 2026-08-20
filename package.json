@@ -24,7 +24,9 @@
     "test:rls": "node --experimental-strip-types --test test/rls/*.test.ts",
     "test:rls:guardrail-proof": "node --experimental-strip-types test/rls/guardrail-proof.mjs",
     "verify:profile": "supabase start && supabase db reset && npm run supabase:types:check && npm run test:rls",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run foundation:check && npm run verify:profile"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run foundation:check && npm run verify:profile",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
@@ -43,6 +45,12 @@
     "prettier": "^3.0.0",
     "supabase": "^2.115.0",
     "typescript": "^5",
-    "typescript-eslint": "^8.0.0"
+    "typescript-eslint": "^8.0.0",
+    "storybook": "^10.5.10",
+    "@storybook/nextjs-vite": "^10.5.10",
+    "@storybook/addon-a11y": "^10.5.10",
+    "@storybook/addon-docs": "^10.5.10",
+    "eslint-plugin-storybook": "^10.5.10",
+    "vite": "^7.0.0"
   }
 }
