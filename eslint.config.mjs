@@ -4,7 +4,7 @@ import {
 } from './.ai-dev-foundation/quality/eslint.config.mjs';
 
 export default [
-  { ignores: ['.next/**', 'node_modules/**'] },
+  { ignores: ['.next/**', 'node_modules/**', '.foundation-checkout/**'] },
   ...nextSupabaseQualityProfile(),
   architectureImportBoundary({
     files: ['src/domain/**/*.{ts,tsx}'],

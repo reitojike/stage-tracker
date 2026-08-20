@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local/CI-only Foundation checkout (see .github/workflows/verify.yml)
+/.foundation-checkout

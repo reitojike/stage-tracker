@@ -1,0 +1,2 @@
+# CI/local-only Foundation checkout (see .github/workflows/verify.yml)
+.foundation-checkout
