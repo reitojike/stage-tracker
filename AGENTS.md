@@ -655,6 +655,22 @@ Completed baseline を参照してください。
 - event の作成者と、最終的に persist される owner は一致していなければ
   なりません（owner spoofing は不可）。
 
+### 公演回の管理権限
+
+- 公演回に独立した owner の概念は設けません。公演回の管理権限は、その
+  公演回が属する event の owner から派生します。
+- authenticated users は、shared event catalog の一部として公演回を閲覧
+  できます。
+- 公演回を作成できるのは、その公演回が属する event の owner だけです。
+- 公演回を更新できるのは、その公演回が属する event の owner だけです。
+- 公演回を別の event へ付け替える operation は提供しません。公演回がどの
+  event に属するかを、通常の更新操作で変更できるようにはしません。
+- 公演回の削除は現時点では提供しません。誤登録の除去と公演の中止を同じ
+  semantics で扱ってよいか、personal な participation が公演回を参照する
+  場合に削除が何を意味するか、そして event 自体の deletion semantics が
+  いずれも未決定であるため、子概念の deletion semantics だけを先行して
+  確定しません。論理削除や中止表現のための schema も先行実装しません。
+
 ### Mutable / system-managed fields
 
 - owner が変更できるのは event の記述情報（例: title / venue / 参照 URL /
@@ -715,6 +731,7 @@ Completed baseline を参照してください。
   対応するか
 - 公演回ごとに会場が異なる興行の扱い
 - 日程が未発表の event の扱い
+- 公演回の deletion / 公演中止の表現
 - PWA scope
 - MCP product scope
 

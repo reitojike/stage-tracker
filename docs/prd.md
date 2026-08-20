@@ -26,7 +26,10 @@ authenticated multi-user application として家族・友人等の複数ユー�
 
 ## Main domain concepts
 
-現在採用しているdomain conceptは次の5つです。
+現在採用しているtop-level domain conceptは次の5つです。各conceptの内部構造
+（例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
 
 - **event** — 公演・イベントそのものの情報
 - **participation / personal schedule** — 自分がそのeventにどう関わる予定か

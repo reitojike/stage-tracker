@@ -20,9 +20,13 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-に従って既に実装済みです。invitation可否・participation visibility既定値
-等のsemanticsは product-rules.md で承認済みですが、対応するschema/RLSは
-まだ実装されていません。次節の participation / personal schedule capability
+に従って既に実装済みです。ただしこのbaselineには、product-rules.mdで
+承認済みのeventと公演回（occurrence）のtemporal model・公演回の管理権限は
+含まれておらず、未実装です。これらは専用のschema taskで実装します。
+
+invitation可否・participation visibility既定値等のsemanticsも
+product-rules.md で承認済みですが、対応するschema/RLSはまだ実装されて
+いません。こちらは次節の participation / personal schedule capability
 の中で実装します。
 
 ## 2. Core product capabilities（成立させたい方向性）
