@@ -16,20 +16,32 @@
     "test:unit": "node --experimental-strip-types --test src/domain/__tests__/*.test.ts",
     "foundation:sync": "node scripts/run-foundation-tool.mjs sync",
     "foundation:check": "node scripts/run-foundation-tool.mjs check && node scripts/check-quality-profile-drift.mjs",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run foundation:check"
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "supabase:types": "supabase gen types typescript --local --schema public > src/infrastructure/supabase/database.types.ts",
+    "supabase:types:check": "node scripts/check-supabase-types-drift.mjs",
+    "test:rls": "node --experimental-strip-types --test test/rls/*.test.ts",
+    "test:rls:guardrail-proof": "node --experimental-strip-types test/rls/guardrail-proof.mjs",
+    "verify:profile": "supabase start && supabase db reset && npm run supabase:types:check && npm run test:rls",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run foundation:check && npm run verify:profile"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.58.0",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "^8.11.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.0.0",
+    "pg": "^8.13.0",
     "prettier": "^3.0.0",
+    "supabase": "^2.115.0",
     "typescript": "^5",
     "typescript-eslint": "^8.0.0"
   }
