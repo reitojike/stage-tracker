@@ -24,15 +24,29 @@ const PASSWORD = 'Str0ng-Test-Passw0rd!';
 
 let actorA: TestActor;
 let actorB: TestActor;
+// Tracks only the actors setup actually finished creating, independent of
+// actorA/actorB's declared (always-defined-by-test-time) type, so a partial
+// `before()` failure doesn't make cleanup dereference an uncreated actor.
+const createdActors: TestActor[] = [];
 
 before(async () => {
   actorA = await createTestActor('rls-owner', PASSWORD);
+  createdActors.push(actorA);
   actorB = await createTestActor('rls-other', PASSWORD);
+  createdActors.push(actorB);
 });
 
 after(async () => {
-  await deleteTestActor(actorA);
-  await deleteTestActor(actorB);
+  // Don't let one actor's cleanup failure prevent the other's from being
+  // attempted.
+  await Promise.all(
+    createdActors.map((actor) =>
+      deleteTestActor(actor).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`cleanup failed for test user ${actor.user.id}: ${message}`);
+      }),
+    ),
+  );
 });
 
 function eventPayload(ownerId: string) {

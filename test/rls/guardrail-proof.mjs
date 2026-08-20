@@ -14,12 +14,10 @@
 
 import assert from 'node:assert/strict';
 import pg from 'pg';
-import { createAnonymousClient, createTestActor, deleteTestActor } from './support/testActors.ts';
+import { createTestActor, deleteTestActor } from './support/testActors.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 const status = readLocalSupabaseStatus();
-const db = new pg.Client({ connectionString: status.dbUrl });
-await db.connect();
 
 function eventPayload(ownerId) {
   return {
@@ -29,28 +27,44 @@ function eventPayload(ownerId) {
   };
 }
 
+async function withPgClient(run) {
+  const client = new pg.Client({ connectionString: status.dbUrl });
+  await client.connect();
+  try {
+    return await run(client);
+  } finally {
+    await client.end();
+  }
+}
+
 async function withBrokenPolicy(policyName, breakSql, restoreSql, proveRedBehavior) {
   console.log(`\n--- breaking ${policyName} ---`);
   try {
-    await db.query(breakSql);
+    // breakSql runs inside this try, so a failure partway through a
+    // multi-statement break (e.g. connection drop) still attempts restore
+    // rather than leaving real local RLS state broken.
+    await withPgClient((client) => client.query(breakSql));
     await proveRedBehavior();
     console.log(
       `OK: negative test for ${policyName} goes red without the real policy, as expected.`,
     );
   } finally {
-    // breakSql now runs inside this try too, so a failure partway through a
-    // multi-statement break (e.g. connection drop) still attempts restore
-    // rather than leaving real local RLS state broken.
-    await db.query(restoreSql);
+    // Restore through a fresh connection: a break-time failure (e.g. a
+    // dropped connection, or an aborted transaction from a failed
+    // statement) can leave the connection that ran breakSql unusable for a
+    // further query.
+    await withPgClient((client) => client.query(restoreSql));
     console.log(`restored ${policyName}`);
   }
 }
 
-const actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!');
-const actorB = await createTestActor('guardrail-b', 'Str0ng-Test-Passw0rd!');
-const anon = createAnonymousClient();
+let actorA;
+let actorB;
 
 try {
+  actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!');
+  actorB = await createTestActor('guardrail-b', 'Str0ng-Test-Passw0rd!');
+
   // 1. events_select_authenticated: without it, RLS default-denies SELECT
   // for authenticated too, so "authenticated user can read another user's
   // event" must start returning zero rows. The fixture row is created
@@ -179,7 +193,15 @@ try {
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',
   );
 } finally {
-  await deleteTestActor(actorA);
-  await deleteTestActor(actorB);
-  await db.end();
+  // Only clean up actors that were actually created, and don't let one
+  // actor's cleanup failure prevent the other's from being attempted.
+  await Promise.all(
+    [actorA, actorB]
+      .filter((actor) => actor !== undefined)
+      .map((actor) =>
+        deleteTestActor(actor).catch((error) => {
+          console.error(`cleanup failed for test user ${actor.user.id}: ${error.message}`);
+        }),
+      ),
+  );
 }
