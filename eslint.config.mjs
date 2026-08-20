@@ -1,3 +1,5 @@
+import storybook from 'eslint-plugin-storybook';
+
 import {
   architectureImportBoundary,
   nextSupabaseQualityProfile,
@@ -39,4 +41,5 @@ export default [
     ],
     message: 'Domain code must not import UI, app entrypoints, or infrastructure.',
   }),
+  ...storybook.configs['flat/recommended'],
 ];

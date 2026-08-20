@@ -1,0 +1,123 @@
+/*
+ * Design tokens: primitive -> semantic の2層構成。
+ * Rule source: docs/ux-ui.md 「Design tokens」節。
+ *
+ * component / feature-local codeはこのファイルのsemantic tokenのみを
+ * 参照し、primitive tokenを直接参照しない（docs/ux-ui.md参照）。
+ */
+
+:root {
+  /* ---- primitive: color (neutral, cool-neutral scale) ---- */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f7f8f9;
+  --color-neutral-100: #eceef0;
+  --color-neutral-200: #dde1e4;
+  --color-neutral-300: #c3c9ce;
+  --color-neutral-400: #9aa2a9;
+  --color-neutral-500: #737b82;
+  --color-neutral-600: #565e65;
+  --color-neutral-700: #3f464b;
+  --color-neutral-800: #282d31;
+  --color-neutral-900: #17191b;
+
+  /*
+   * primitive: color (accent scale)
+   * exact hueはPhase 1 checkpointでintentionally unresolved(docs/ux-ui.md
+   * 「Design tokens」節参照)。restrained cool accentのplaceholderであり、
+   * PO確定後はこの scale の値だけを差し替えれば良い設計とする。
+   */
+  --color-accent-50: #eef1f8;
+  --color-accent-100: #dde3f1;
+  --color-accent-200: #b9c5e3;
+  --color-accent-300: #93a7d3;
+  --color-accent-400: #6f8ac2;
+  --color-accent-500: #4f6db0;
+  --color-accent-600: #3d5590;
+  --color-accent-700: #304472;
+  --color-accent-800: #253455;
+  --color-accent-900: #1a2438;
+
+  /* ---- primitive: color (status, single step each) ---- */
+  --color-status-success-500: #2f7d5a;
+  --color-status-warning-500: #96681c;
+  --color-status-danger-500: #b3413a;
+
+  /* ---- primitive: spacing (4px-based scale, frozen in Phase 1) ---- */
+  --space-scale-1: 4px;
+  --space-scale-2: 8px;
+  --space-scale-3: 12px;
+  --space-scale-4: 16px;
+  --space-scale-5: 24px;
+  --space-scale-6: 32px;
+  --space-scale-7: 48px;
+
+  /* ---- primitive: radius (moderate control, non-oversized surface) ---- */
+  --radius-scale-sm: 6px;
+  --radius-scale-md: 10px;
+  --radius-scale-lg: 16px;
+  --radius-scale-full: 999px;
+
+  /* ---- primitive: typography ---- */
+  --font-family-scale-base:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans',
+    Meiryo, system-ui, sans-serif;
+  --font-size-scale-1: 12px;
+  --font-size-scale-2: 14px;
+  --font-size-scale-3: 16px;
+  --font-weight-scale-regular: 400;
+  --font-weight-scale-medium: 500;
+  --line-height-scale-base: 1.5;
+
+  /* ================= semantic layer ================= */
+
+  /* surface / text / border */
+  --color-bg: var(--color-neutral-0);
+  --color-surface: var(--color-neutral-0);
+  --color-surface-subtle: var(--color-neutral-50);
+  --color-border: var(--color-neutral-200);
+  /* form control boundary(input/button等)。WCAG 2.2 SC 1.4.11 Non-text
+     Contrastの3:1をwhite surface背景に対して満たす値(neutral-500: 白背景に
+     対し約4.3:1)。generic surface borderとは別tokenとして分離する。 */
+  --color-control-border: var(--color-neutral-500);
+  --color-text: var(--color-neutral-900);
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-disabled: var(--color-neutral-400);
+
+  /* accent / interactive */
+  --color-accent: var(--color-accent-600);
+  --color-accent-hover: var(--color-accent-700);
+  --color-accent-foreground: var(--color-neutral-0);
+  --color-focus-ring: var(--color-accent-600);
+
+  /* status roles (statusをcolorだけで表現しないための role分離。
+     使用側はicon/labelを併用する。docs/ux-ui.md「Common states」参照) */
+  --color-success: var(--color-status-success-500);
+  --color-warning: var(--color-status-warning-500);
+  --color-danger: var(--color-status-danger-500);
+  --color-info: var(--color-accent-600);
+
+  /* spacing */
+  --space-xs: var(--space-scale-1);
+  --space-sm: var(--space-scale-2);
+  --space-md: var(--space-scale-4);
+  --space-lg: var(--space-scale-5);
+  --space-xl: var(--space-scale-6);
+
+  /* radius */
+  --radius-control: var(--radius-scale-sm);
+  --radius-surface: var(--radius-scale-md);
+  --radius-pill: var(--radius-scale-full);
+
+  /* typography */
+  --font-family-base: var(--font-family-scale-base);
+  --font-size-caption: var(--font-size-scale-1);
+  --font-size-body-sm: var(--font-size-scale-2);
+  --font-size-body: var(--font-size-scale-3);
+  --font-weight-regular: var(--font-weight-scale-regular);
+  --font-weight-medium: var(--font-weight-scale-medium);
+  --line-height-base: var(--line-height-scale-base);
+
+  /* accessibility: visible focus (docs/ux-ui.md「Accessibility baseline」) */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}
