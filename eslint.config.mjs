@@ -1,0 +1,32 @@
+import {
+  architectureImportBoundary,
+  nextSupabaseQualityProfile,
+} from './.ai-dev-foundation/quality/eslint.config.mjs';
+
+export default [
+  { ignores: ['.next/**', 'node_modules/**', '.foundation-checkout/**'] },
+  ...nextSupabaseQualityProfile(),
+  architectureImportBoundary({
+    files: ['src/domain/**/*.{ts,tsx}'],
+    // Depth-independent, anchored patterns: "../**/ui" (and "/**") matches
+    // "../ui", "../../ui", "../ui/x", "../../ui/x", ... regardless of how
+    // deep the importing domain file is nested, without also matching an
+    // unrelated external package such as "@vendor/ui/button" the way a bare
+    // "**/ui/**" pattern would.
+    restrictedPatterns: [
+      '../**/ui',
+      '../**/ui/**',
+      '../**/app',
+      '../**/app/**',
+      '../**/infrastructure',
+      '../**/infrastructure/**',
+      '@/ui',
+      '@/ui/**',
+      '@/app',
+      '@/app/**',
+      '@/infrastructure',
+      '@/infrastructure/**',
+    ],
+    message: 'Domain code must not import UI, app entrypoints, or infrastructure.',
+  }),
+];
