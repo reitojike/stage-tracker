@@ -60,6 +60,7 @@ async function withBrokenPolicy(policyName, breakSql, restoreSql, proveRedBehavi
 
 let actorA;
 let actorB;
+let primaryError;
 
 try {
   actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!');
@@ -192,6 +193,14 @@ try {
   console.log(
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',
   );
+} catch (error) {
+  // Captured explicitly, rather than left to propagate straight out of this
+  // try, so a cleanup failure in the finally block below can't silently
+  // discard it: a guardrail assertion failing here is exactly the signal
+  // this script exists to surface (a policy that should have gone red
+  // didn't), and standard try/finally semantics would let an unconditional
+  // throw in finally erase it.
+  primaryError = error;
 } finally {
   // Attempt cleanup for every actor that was actually created, even if one
   // fails, but still exit non-zero if any cleanup failed - a silently-
@@ -201,10 +210,27 @@ try {
     [actorA, actorB].filter((actor) => actor !== undefined).map((actor) => deleteTestActor(actor)),
   );
   const failures = results.filter((result) => result.status === 'rejected');
-  if (failures.length > 0) {
-    const messages = failures.map((failure) =>
-      failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+  const cleanupError =
+    failures.length > 0
+      ? new Error(
+          `test actor cleanup failed:\n${failures
+            .map((failure) =>
+              failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+            )
+            .join('\n')}`,
+        )
+      : undefined;
+
+  if (primaryError && cleanupError) {
+    throw new AggregateError(
+      [primaryError, cleanupError],
+      'guardrail proof failed, and test actor cleanup also failed',
     );
-    throw new Error(`test actor cleanup failed:\n${messages.join('\n')}`);
+  }
+  if (primaryError) {
+    throw primaryError;
+  }
+  if (cleanupError) {
+    throw cleanupError;
   }
 }
