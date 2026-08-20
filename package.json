@@ -1,0 +1,36 @@
+{
+  "name": "stage-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "format:check": "prettier --config .ai-dev-foundation/quality/prettier.config.mjs --check .",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --experimental-strip-types --test src/domain/__tests__/*.test.ts",
+    "foundation:sync": "node scripts/run-foundation-tool.mjs sync",
+    "foundation:check": "node scripts/run-foundation-tool.mjs check && node scripts/check-quality-profile-drift.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run foundation:check"
+  },
+  "dependencies": {
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5",
+    "typescript-eslint": "^8.0.0"
+  }
+}

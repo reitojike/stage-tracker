@@ -1,0 +1,49 @@
+name: Verify
+
+# Deterministic verification floor for this consumer (Issue #1 / PR A).
+# Checks out ai-dev-foundation at a reproducible pinned revision alongside
+# this repository so `npm run verify` can validate the generated adapters
+# and Foundation-managed quality profile against the canonical source, not
+# just against files already committed here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Update this SHA only after re-confirming the pin with the Foundation
+# bootstrap Issue (reitojike/ai-dev-foundation#17); do not assume it is
+# still current without checking.
+env:
+  FOUNDATION_SHA: 31abbd087f2ef85494a08b09e116301d4830d98d
+  FOUNDATION_CHECKOUT: ${{ github.workspace }}/.foundation-checkout
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout stage-tracker
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout ai-dev-foundation at pinned SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: reitojike/ai-dev-foundation
+          ref: ${{ env.FOUNDATION_SHA }}
+          path: .foundation-checkout
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.6'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify
+        run: npm run verify
