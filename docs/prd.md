@@ -61,14 +61,15 @@ constraintは、実装agentが従うべき正本として
 
 ## Current committed scope
 
-現在current repositoryで成立しているのは、event catalog の共有・owner
-semantics・invitation semantics・participation visibilityの既定値といった
-constraintと、それらを支えるschema/RLS/permission実装です（詳細は
-`product-rules.md` を参照）。
+現在current repositoryでschema/RLS/permission実装として成立しているのは、
+event catalog の共有と owner semantics（owner限定更新・owner transfer
+不可・owner spoofing防止）です（詳細は `product-rules.md` を参照）。
 
-participation / ticket acquisition / expense / budget の実装は、今後
-それぞれ専用のbounded product Taskでscope・semanticsを確定した上で進めます
-（[`docs/roadmap.md`](./roadmap.md) 参照）。
+invitation semantics・participation visibilityの既定値は
+`product-rules.md` で承認済みのsemanticsですが、対応する schema/RLS 実装は
+まだありません。participation / ticket acquisition / expense / budget の
+実装は、今後それぞれ専用のbounded product Taskでscope・semanticsを確定した
+上で進めます（[`docs/roadmap.md`](./roadmap.md) 参照）。
 
 ## Deferred decisions
 

@@ -15,12 +15,15 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 
 - Foundation v0.1.0 consumer baseline
 - shared event catalog（`public.events` の schema / RLS）
-- event ownership semantics（owner管理・invitation可否・participation
-  visibility既定値を含む permission baseline）
+- event ownership semantics（owner限定更新・owner transfer不可・owner
+  spoofing防止を含む permission baseline）
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-に従って既に実装済みです。
+に従って既に実装済みです。invitation可否・participation visibility既定値
+等のsemanticsは product-rules.md で承認済みですが、対応するschema/RLSは
+まだ実装されていません。次節の participation / personal schedule capability
+の中で実装します。
 
 ## 2. Core product capabilities（成立させたい方向性）
 
