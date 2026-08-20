@@ -1,12 +1,27 @@
 # stage-tracker
 
+複数ジャンルのイベント参加に伴う情報（イベント情報・チケット入手情報・自分の
+参加予定・予算/支出）を一箇所で管理するための authenticated multi-user
+application です。product intentの詳細は [`docs/prd.md`](./docs/prd.md) を
+参照してください。
+
 `ai-dev-foundation` の consumer bootstrap baseline (PR A) と、shared event
-catalog の最初の product slice (Issue #3 / PR B) です。詳細な開発ルールは
-生成された [`AGENTS.md`](./AGENTS.md) を正本とし、product-specific rule は
-[`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md)
-に置きます。`AGENTS.md` / `.ai-dev-foundation/quality/` は
+catalog の最初の product slice (Issue #3 / PR B) です。
+
+## Canonical docs
+
+| Document                                                                       | 内容                                                                          |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope         |
+| [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）            |
+| [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | agentが実装時に守るcurrent-approved product/domain constraintsの正本          |
+| [`AGENTS.md`](./AGENTS.md)                                                     | 開発ルール（Foundation policy + technology profile + product rules から生成） |
+
+`AGENTS.md` / `.ai-dev-foundation/quality/` は
 [reitojike/ai-dev-foundation](https://github.com/reitojike/ai-dev-foundation)
-からの生成物であり、直接編集しません。
+からの生成物であり、直接編集しません。product-specific constraintの追加・
+変更は `.ai-dev-foundation/product-rules.md` を編集した上で Foundation sync
+を行います。
 
 ## Setup
 
