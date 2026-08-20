@@ -244,6 +244,26 @@ review run の状態は少なくとも `none` / `unknown` / `failure` を区別�
   intent-question 等を含む）が残る間は、その review stage の Resolution
   は完了せず、merge / review completion の根拠にしない
 
+### Merge readiness and merge authority
+
+本節における review completion（Resolution Contract の完了を含む）が
+成立した状態を **merge-ready** と呼びます。Review contracts および
+Review stopping rules で `merge` と記述する到達点は、merge-ready の
+成立を指し、merge を実行してよいという判断そのものとは同義ではありません。
+
+merge execution authority は、Review Protocol とは別の contract /
+context として扱います。current Task、Execution Envelope、または
+explicit な authority が merge の実行を許可している場合に限り、agent は
+merge を実行してよいです。
+
+merge authority が明示されていない場合、または別 authority の承認が
+必要な場合、agent は merge を実行せず、merge-ready の状態を報告した
+上で停止し、authority escalation / handoff します。
+
+この分離は、すべての PR で Human diff approval を mandatory にする
+ことを意味しません。GitHub の required approval 数を増やす rule でも
+ありません。provider や model 固有の rule にもしません。
+
 ### Review Adapter boundary
 
 provider 差分は次の 4 つの責務として扱います。Kernel はこの boundary の**形**のみを
@@ -434,6 +454,114 @@ completion evidence が得られない場合は、trigger 前提を疑い、Acqu
 Contract に従って `unknown` として扱います。特定 provider が常に特定の trigger 方法を
 要求するという恒久仕様は Kernel に置かず、observed evidence として capability/profile
 側で再検証可能な形にします。
+
+## Foundation Change Protocol
+
+Foundation 自身の canonical rule を変更する場合の、provider-neutral な
+最小 contract です。この protocol は Skill / Profile へ複製せず、変更を
+検討する際は本節を参照します。
+
+Observation は、そのままでは Issue や mandatory rule へ自動的に昇格しません。
+
+### Observation trigger
+
+Task 実行中に少なくとも次のいずれかを観測した場合、Foundation Observation
+候補として扱います。これらが発火しない限り、Task ごとに Foundation
+改善点を探索する追加工程は要求しません。
+
+1. Foundation の rule / profile / tooling に従っても material correctness
+   が成立しない
+2. Task 完了のため Foundation の迂回・上書き・補完 workaround が必要になる
+3. correctness / security / authority のため、Foundation が定義していない
+   manual step が必要になる
+4. provider / runtime の実挙動が、Task で依拠した前提と食い違う
+5. 同一 root cause と思われる friction / workaround を以前にも観測している
+
+### Observation classification
+
+Observation trigger が発火したら、症状の重大度ではなく root cause /
+ownership を軸に、次の 4 分類のいずれかへ分類します。
+
+- `consumer-local`: product / domain / consumer 固有で自然に閉じる
+- `provider/runtime`: 外部 provider / runtime の挙動で、Foundation
+  contract 自体の欠陥ではない
+- `Foundation candidate`: shared problem / improvement candidate に
+  なり得るが、Foundation-owned な rule / profile / tooling / artifact
+  自体が誤った挙動を要求・生成・許容していると確認されたわけではない
+  （Foundation-owned だと分かっていても、確認された defect ではない
+  改善余地を含む）
+- `canonical defect candidate`: Foundation-owned な rule / profile /
+  tooling / artifact 自体が誤った挙動を要求・生成・許容していると
+  確認できる場合に限る（正しく機能している manual step を自動化・
+  簡略化できるという改善余地だけでは、この分類に含めない）
+
+`provider/runtime` に分類した Observation でも、Foundation がその挙動を
+誤って恒久前提として固定している場合は、Foundation 側の candidate として
+再評価します。
+
+### Observation recording
+
+Observation trigger の発火は、自動的に Foundation Issue を作りません。
+Observation は work item ではありません。
+
+将来の Foundation 判断へ再利用する価値がある場合、発生した consumer Task
+の canonical Issue へ、少なくとも次を短く記録します。
+
+- Observed / evidence locator
+- Classification
+- Impact
+- Local handling
+- Foundation action: `none` / `observe` / `change proposal candidate`
+- Promotion signal（何が起きれば再評価するか）
+
+consumer-local で完結し、将来参照価値もない軽微な事象は、この記録義務の
+対象にしません。専用の ledger / database / schema、GitHub label 体系、
+bot / collector / dashboard / statistics、自動 Issue 生成、定期棚卸しの
+mandatory 化は Observation handling の一部にしません。
+
+### Task closure と Observation
+
+Task closure は新しい Foundation 改善点を探索する工程ではありません。
+Task 中に Observation trigger が発火していた場合、未分類のものは必ず
+classification を完了します。加えて、上記の記録義務があるのに未記録の
+ものがあれば記録してから Task を完了します。記録義務の対象にしない
+軽微な事象について省略できるのは記録だけであり、classification の
+完了は省略しません。
+
+### Foundation Change の正当化条件
+
+mandatory な Foundation change は、原則として次のいずれかで正当化します。
+
+1. 既存の mandatory / manual step を置き換える
+2. material defect を deterministically 防止する
+3. demonstrated recurring / escaped failure へ対処する
+
+Change Proposal は、少なくとも次を表現できるものとします。
+
+- Problem
+- Evidence
+- Proposed Change
+- Expected Effect
+- Trade-off
+- Scope
+- Success Criterion
+
+### Observation から Change Proposal への昇格
+
+Observation classification は、本節の 3 つの Foundation Change 正当化
+条件を置き換えず、緩和しません。特に次は強い promotion signal になり
+得ます。
+
+- Foundation 自身の material defect が実証された
+- material defect を deterministically 防止できる
+- 同一 root cause が recurring / escaped failure になった
+- correctness のための mandatory manual ritual が定着した
+- consumer-local workaround では canonical semantics の fork が必要に
+  なる
+
+change class や review 強度は、固定の provider 名へ結びつけません。単発の
+friction、style、prompt nicety、効率改善のみを理由に、自動的に mandatory
+化しません。
 
 ## Technology profile: Next.js + Supabase
 
