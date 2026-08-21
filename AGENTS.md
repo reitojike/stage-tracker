@@ -871,12 +871,16 @@ Completed baseline を参照してください。
   `attending` の user だけです。`considering` の user は invite できません。
 - event owner であることは invite eligibility を与えません。owner でも
   対象 occurrence で `attending` でなければ invite できません。
-- invite 時、invitee には対象 occurrence の `considering` participation を
-  approval なしで即時反映します。
-- 対象 occurrence で既に `attending` の invitee を再度 invite した場合に、
-  この即時反映が既存の `attending` を `considering` へ降格させてよいかは
-  **未決定です（PO checkpoint 待ち）**。決定するまで、この場合に既存の
-  `attending` を上書きする実装判断を先行して行いません。
+- invite 時の invitee 側 participation の扱いは、invite 対象 occurrence
+  における invitee の現在状態ごとに次のとおりです。
+  - participation row なし → invitation を作成し、`considering`
+    participation を作成します。
+  - 既に `considering` → invitation を作成し、`considering` を維持します。
+  - 既に `attending` → その occurrence への invite 対象外とします。
+    invitation record を新規作成せず、既存の `attending` participation
+    をそのまま維持します。
+- invitation operation によって、invitee 本人が確定した participation
+  status（`attending`）を `considering` へ降格させることはありません。
 - `considering -> attending` への確定は invitee 本人だけが行えます。
   inviter が invitee を `attending` へ確定させることはできません。
 - invitation は participation とは別の、最低限の独立 record を持ちます。
@@ -1034,8 +1038,6 @@ Completed baseline を参照してください。
 - participation / invitation / personal schedule / ticket acquisition /
   ticket / ticket transfer の table naming・永続化 shape・exact
   status/column naming・history retention mechanics
-- 既に `attending` の invitee への再 invite が、既存の `attending` を
-  保持するか降格させるか（PO checkpoint 待ち）
 - Administrator / designated catalog creator の exact permission
   mechanism（application code / migration での表現方法）
 - Post-MVP の Event create 権限拡大に伴う verification / moderation の
