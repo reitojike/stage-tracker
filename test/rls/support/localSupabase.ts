@@ -5,6 +5,13 @@ export interface LocalSupabaseStatus {
   anonKey: string;
   serviceRoleKey: string;
   dbUrl: string;
+  /**
+   * Base URL of the local SMTP capture service ([local_smtp] in
+   * supabase/config.toml). The CLI renamed this key from INBUCKET_URL to
+   * MAILPIT_URL, so both spellings are accepted rather than pinning the
+   * port here where it could silently drift from config.toml.
+   */
+  mailpitUrl: string;
 }
 
 interface RawSupabaseStatus {
@@ -26,6 +33,21 @@ function isRawSupabaseStatus(value: unknown): value is RawSupabaseStatus {
     typeof value.SERVICE_ROLE_KEY === 'string' &&
     'DB_URL' in value &&
     typeof value.DB_URL === 'string'
+  );
+}
+
+function readMailpitUrl(parsed: object): string {
+  for (const key of ['MAILPIT_URL', 'INBUCKET_URL']) {
+    if (key in parsed) {
+      const value: unknown = Reflect.get(parsed, key);
+      if (typeof value === 'string' && value.length > 0) {
+        return value;
+      }
+    }
+  }
+  throw new Error(
+    'Neither MAILPIT_URL nor INBUCKET_URL was reported by "supabase status -o json"; ' +
+      'the local SMTP capture service ([local_smtp]) may be disabled.',
   );
 }
 
@@ -54,5 +76,6 @@ export function readLocalSupabaseStatus(): LocalSupabaseStatus {
     anonKey: parsed.ANON_KEY,
     serviceRoleKey: parsed.SERVICE_ROLE_KEY,
     dbUrl: parsed.DB_URL,
+    mailpitUrl: readMailpitUrl(parsed),
   };
 }

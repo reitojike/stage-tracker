@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { createAnonymousClient, deleteUser, provisionUser } from './support/authActors.ts';
+import {
+  createAnonymousClient,
+  deleteUser,
+  provisionUser,
+  userExists,
+} from './support/authActors.ts';
 import { waitForMagicLinkToken } from './support/mailpit.ts';
+
+function uniqueEmail(prefix: string): string {
+  return `${prefix}-${String(Date.now())}-${Math.random().toString(36).slice(2)}@example.test`;
+}
 
 // Real local Supabase/Mailpit tests for the auth foundation (Issue #11).
 // These exercise the actual product-facing flow: an admin-provisioned
@@ -24,9 +33,23 @@ after(async () => {
   }
 });
 
+void test('public self-service signup is rejected', async () => {
+  const anon = createAnonymousClient();
+  const email = uniqueEmail('selfsignup');
+
+  const { error } = await anon.auth.signUp({ email, password: 'Str0ng-Test-Passw0rd!' });
+
+  assert.ok(error, 'expected signUp to be rejected while public signup is disabled');
+  assert.equal(
+    await userExists(email),
+    false,
+    'a rejected signUp must not leave an account behind',
+  );
+});
+
 void test('sign-in rejects an unknown email without creating an account', async () => {
   const anon = createAnonymousClient();
-  const email = `unknown-${String(Date.now())}-${Math.random().toString(36).slice(2)}@example.test`;
+  const email = uniqueEmail('unknown');
 
   const { error } = await anon.auth.signInWithOtp({
     email,
@@ -34,6 +57,28 @@ void test('sign-in rejects an unknown email without creating an account', async 
   });
 
   assert.ok(error, 'expected signInWithOtp to reject an email with no account');
+  // The rejection alone is not enough: assert the side effect too, so a
+  // silently-created account would fail this test rather than pass it.
+  assert.equal(
+    await userExists(email),
+    false,
+    'shouldCreateUser: false must not silently create an account',
+  );
+});
+
+void test('an invalid magic-link token is a distinguishable failure, not an empty session', async () => {
+  const anon = createAnonymousClient();
+
+  const { data, error } = await anon.auth.verifyOtp({
+    token_hash: 'definitely-not-a-valid-token-hash',
+    type: 'email',
+  });
+
+  // Must surface as an error the app can route to ?error=link_expired -
+  // not as a success carrying a null session, which the UI would render
+  // as an ordinary signed-out state.
+  assert.ok(error, 'expected verifyOtp to reject an invalid token hash');
+  assert.equal(data.session, null);
 });
 
 void test('admin-provisioned user completes a magic-link sign-in and can sign out', async () => {

@@ -39,3 +39,18 @@ export async function deleteUser(userId: string): Promise<void> {
     throw new Error(`failed to delete test user ${userId}: ${error.message}`);
   }
 }
+
+/**
+ * Asks the Auth server (via the service-role admin path) whether any
+ * account exists for `email`. Used to prove a rejected sign-in did not
+ * silently create one - asserting only that the call returned an error
+ * would pass even if an account had been created as a side effect.
+ */
+export async function userExists(email: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) {
+    throw new Error(`failed to list users while checking for ${email}: ${error.message}`);
+  }
+  return data.users.some((candidate) => candidate.email === email);
+}

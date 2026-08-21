@@ -1,15 +1,10 @@
 import { readLocalSupabaseStatus } from '../../rls/support/localSupabase.ts';
 
-// Local Supabase exposes Mailpit (the local SMTP capture UI/API) on the
-// same port configured as [local_smtp] in supabase/config.toml. `supabase
-// status -o json` also reports it as MAILPIT_URL/INBUCKET_URL, but
-// readLocalSupabaseStatus() (shared with the RLS test suite) doesn't
-// surface those fields, so this derives the same host from API_URL
-// instead of hardcoding the port a second time.
+// Mailpit is the local SMTP capture service the Supabase CLI starts for
+// [local_smtp]; its URL comes from `supabase status -o json` so this never
+// pins a port that could drift from supabase/config.toml.
 function mailpitBaseUrl(): string {
-  const { apiUrl } = readLocalSupabaseStatus();
-  const { protocol, hostname } = new URL(apiUrl);
-  return `${protocol}//${hostname}:54324`;
+  return readLocalSupabaseStatus().mailpitUrl.replace(/\/$/, '');
 }
 
 interface MailpitMessageSummary {
@@ -95,15 +90,39 @@ export interface MagicLinkToken {
   type: string;
 }
 
+/**
+ * Pulls the /auth/confirm link out of the rendered email and reads its
+ * query string as a real URL. The href is HTML-escaped in the message
+ * body (`&amp;` between parameters), so it is unescaped before parsing
+ * rather than scraped with per-parameter regexes.
+ */
 function extractMagicLinkToken(html: string): MagicLinkToken | null {
-  const tokenHashMatch = /token_hash=([^&"]+)/.exec(html);
-  const typeMatch = /[?&]type=([^&"]+)/.exec(html);
-  if (tokenHashMatch === null || typeMatch === null) {
+  const hrefMatch = /href="([^"]*\/auth\/confirm[^"]*)"/.exec(html);
+  if (hrefMatch === null) {
     return null;
   }
-  const [, tokenHash] = tokenHashMatch;
-  const [, type] = typeMatch;
-  if (tokenHash === undefined || type === undefined) {
+  const [, rawHref] = hrefMatch;
+  if (rawHref === undefined) {
+    return null;
+  }
+
+  const href = rawHref
+    .replaceAll('&amp;', '&')
+    .replaceAll('&#34;', '"')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>');
+
+  let parsed: URL;
+  try {
+    parsed = new URL(href);
+  } catch {
+    return null;
+  }
+
+  const tokenHash = parsed.searchParams.get('token_hash');
+  const type = parsed.searchParams.get('type');
+  if (tokenHash === null || type === null) {
     return null;
   }
   return { tokenHash, type };

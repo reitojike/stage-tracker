@@ -221,9 +221,13 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project. Kept in sync
-# with the top-level [auth] enable_signup = false (see comment there).
-enable_signup = false
+# Must stay true: despite the name, this maps to GoTrue's
+# GOTRUE_EXTERNAL_EMAIL_ENABLED, which gates email as an auth provider at
+# all. Setting it false rejects magic-link *sign-ins* too
+# (error code `email_provider_disabled`), breaking the selected sign-in
+# flow. Signup is blocked by the top-level [auth] enable_signup = false
+# (GOTRUE_DISABLE_SIGNUP) instead; see the comment there.
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
