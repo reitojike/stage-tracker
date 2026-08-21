@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { createAnonymousClient, deleteUser, provisionUser } from './support/authActors.ts';
 import { waitForMagicLinkToken } from './support/mailpit.ts';
+import { actionRedirectTarget, submitServerAction } from './support/serverAction.ts';
 
 // Route-protection tests that exercise the real Next.js app over HTTP.
 // The authenticated-only boundary lives in src/proxy.ts, so it cannot be
@@ -234,6 +235,54 @@ void test('the confirm route only consumes the magic-link OTP type', async () =>
     0,
     'an unsupported OTP type must not establish a session',
   );
+});
+
+// --- Server Actions, driven the way a browser drives them ---
+
+void test('the sign-in action gives an identical response for known and unknown addresses', async () => {
+  // The enumeration guard lives in the Server Action's handling of the
+  // result, so it has to be exercised through the action itself. Testing
+  // requestMagicLink alone would stay green if the action started
+  // branching on account existence again.
+  const { user, email } = await provisionUser('enum-known');
+  createdUserIds.push(user.id);
+
+  const known = await submitServerAction(app.baseUrl, '/sign-in', { email });
+  const unknown = await submitServerAction(app.baseUrl, '/sign-in', {
+    email: `enum-unknown-${String(Date.now())}@example.test`,
+  });
+
+  assert.equal(known.status, unknown.status, 'status must not distinguish the two');
+
+  const knownTarget = actionRedirectTarget(known);
+  const unknownTarget = actionRedirectTarget(unknown);
+  assert.ok(knownTarget !== null, 'expected the sign-in action to redirect');
+  assert.equal(knownTarget, unknownTarget, 'redirect target must not distinguish the two');
+  assert.match(knownTarget, /sent=1/);
+});
+
+void test('the sign-out action clears the session for subsequent requests', async () => {
+  // Drives the app's own sign-out action rather than the SDK, so a
+  // regression that redirects without clearing cookies is caught.
+  const { cookie } = await signInThroughApp();
+
+  const before = await fetch(`${app.baseUrl}/`, { headers: { cookie }, redirect: 'manual' });
+  assert.equal(before.status, 200, 'sanity: the session should work beforehand');
+
+  const signOut = await submitServerAction(app.baseUrl, '/', {}, cookie);
+  const cleared = signOut.headers
+    .getSetCookie()
+    .map((entry) => entry.split(';')[0])
+    .filter((entry): entry is string => entry !== undefined)
+    .join('; ');
+
+  // Replay the post-sign-out cookies: the session must no longer work.
+  const after = await fetch(`${app.baseUrl}/`, {
+    headers: { cookie: cleared.length > 0 ? cleared : cookie },
+    redirect: 'manual',
+  });
+  assert.equal(after.status, 307, 'a signed-out session must not reach a protected route');
+  assert.equal(new URL(locationOf(after), app.baseUrl).pathname, '/sign-in');
 });
 
 void test('an invalidated session is rejected at the HTTP boundary, not just by the SDK', async () => {

@@ -14,6 +14,32 @@ export interface MagicLinkAuthClient {
 }
 
 /**
+ * `delivered` covers both "sent" and "no such account": the caller must
+ * present them identically, or an unauthenticated visitor could enumerate
+ * which addresses have accounts - which matters because every
+ * authenticated user can read the whole shared event catalog.
+ *
+ * `unavailable` means no verdict was reached (auth service unreachable,
+ * or a server-side fault). That reveals nothing about any account, so it
+ * is safe - and necessary - to surface rather than claim a link was sent.
+ */
+export type MagicLinkOutcome = 'delivered' | 'unavailable';
+
+function isAccountLevelRejection(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  if (!('status' in error)) {
+    return false;
+  }
+  // A 4xx from the Auth API is a verdict about this request (an address
+  // with no account yields status 422 / `otp_disabled`). Status 0 from a
+  // failed fetch, or a 5xx, means the request never got a verdict.
+  const { status } = error;
+  return typeof status === 'number' && status >= 400 && status < 500;
+}
+
+/**
  * Requests a magic-link sign-in email.
  *
  * `shouldCreateUser: false` backstops the account-provisioning decision
@@ -28,11 +54,14 @@ export interface MagicLinkAuthClient {
 export async function requestMagicLink(
   client: MagicLinkAuthClient,
   email: string,
-): Promise<{ ok: boolean }> {
+): Promise<MagicLinkOutcome> {
   const { error } = await client.auth.signInWithOtp({
     email,
     options: { shouldCreateUser: false },
   });
 
-  return { ok: error === null };
+  if (error === null || error === undefined) {
+    return 'delivered';
+  }
+  return isAccountLevelRejection(error) ? 'delivered' : 'unavailable';
 }

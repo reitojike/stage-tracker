@@ -21,6 +21,11 @@ const AUTH_ERRORS: Record<string, { title: string; description: string }> = {
     title: 'メールアドレスを入力してください',
     description: 'サインインリンクの送信先となるメールアドレスが空でした。',
   },
+  unavailable: {
+    title: 'サインインリンクを送信できませんでした',
+    description:
+      '認証サービスへ接続できませんでした。アカウントの有無とは無関係な問題です。しばらくしてからもう一度お試しください。',
+  },
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {

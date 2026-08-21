@@ -38,10 +38,25 @@ void test('requestMagicLink never asks Supabase to create an account', async () 
   assert.equal(call.options?.shouldCreateUser, false);
 });
 
-void test('requestMagicLink reports success only when Supabase returned no error', async () => {
-  const success = recordingClient();
-  assert.deepEqual(await requestMagicLink(success.client, 'a@example.test'), { ok: true });
+void test('requestMagicLink reports delivered when Supabase accepted the request', async () => {
+  const { client } = recordingClient();
+  assert.equal(await requestMagicLink(client, 'a@example.test'), 'delivered');
+});
 
-  const failure = recordingClient(new Error('rejected'));
-  assert.deepEqual(await requestMagicLink(failure.client, 'b@example.test'), { ok: false });
+void test('an account-level rejection is indistinguishable from a delivered link', async () => {
+  // Status 422 / otp_disabled is what an address with no account yields.
+  // Reporting it differently would give an enumeration oracle.
+  const { client } = recordingClient({ status: 422, code: 'otp_disabled' });
+  assert.equal(await requestMagicLink(client, 'nobody@example.test'), 'delivered');
+});
+
+void test('a service failure is reported as unavailable, not as a delivered link', async () => {
+  // status 0 is a failed fetch (auth service unreachable); 5xx is a
+  // server fault. Neither says anything about the address, so telling the
+  // user their link was sent would simply be false.
+  const unreachable = recordingClient({ status: 0, name: 'AuthRetryableFetchError' });
+  assert.equal(await requestMagicLink(unreachable.client, 'a@example.test'), 'unavailable');
+
+  const serverFault = recordingClient({ status: 500 });
+  assert.equal(await requestMagicLink(serverFault.client, 'b@example.test'), 'unavailable');
 });

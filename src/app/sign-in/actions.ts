@@ -15,11 +15,19 @@ export async function requestSignInLink(formData: FormData): Promise<void> {
   }
 
   const supabase = await createSupabaseServerClient();
-  await requestMagicLink(supabase, email);
+  const outcome = await requestMagicLink(supabase, email);
+
+  if (outcome === 'unavailable') {
+    // Only reached when no verdict about the address was obtained at all,
+    // so this cannot be used to distinguish a known from an unknown
+    // address.
+    redirect('/sign-in?error=unavailable');
+  }
 
   // Deliberately the same outcome whether or not an account exists.
-  // Branching here (sent vs error) would let an unauthenticated visitor
-  // enumerate which addresses have accounts - which matters because every
-  // authenticated user can read the whole shared event catalog.
+  // Branching on account existence here would let an unauthenticated
+  // visitor enumerate which addresses have accounts - which matters
+  // because every authenticated user can read the whole shared event
+  // catalog.
   redirect('/sign-in?sent=1');
 }
