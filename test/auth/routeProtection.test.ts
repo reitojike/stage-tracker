@@ -81,6 +81,34 @@ void test('a route with no page still does not bypass the auth boundary', async 
   assert.equal(new URL(locationOf(response), app.baseUrl).pathname, '/sign-in');
 });
 
+void test('an application path ending in an asset extension does not bypass the boundary', async () => {
+  // A file-extension exclusion in the matcher would let these skip the
+  // proxy entirely (404 instead of a redirect), so assert each is still
+  // sent to sign-in while unauthenticated.
+  const paths = [
+    '/events/some-future-page.png',
+    '/events/some-future-page.svg',
+    '/report.jpeg',
+    '/a/b/c.webp',
+  ];
+
+  for (const path of paths) {
+    const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'manual' });
+    assert.equal(response.status, 307, `${path} should be guarded`);
+    assert.equal(new URL(locationOf(response), app.baseUrl).pathname, '/sign-in', path);
+  }
+});
+
+void test('Next internal asset paths remain excluded from the boundary', async () => {
+  // The explicit exclusions must survive: if these started being proxied,
+  // an unauthenticated request would be redirected to /sign-in instead of
+  // being served/404ed by Next itself.
+  for (const path of ['/_next/static/chunks/does-not-exist.js', '/favicon.ico']) {
+    const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'manual' });
+    assert.notEqual(response.status, 307, `${path} should not be redirected by the proxy`);
+  }
+});
+
 void test('the sign-in route is reachable without a session and renders its form', async () => {
   const response = await fetch(`${app.baseUrl}/sign-in`, { redirect: 'manual' });
 

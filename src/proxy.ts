@@ -66,6 +66,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
+// Only explicit, non-application paths are excluded. Deliberately no
+// file-extension rule: a pattern like `.*\.(svg|png|...)$` would also
+// exclude application pathnames that merely end in those characters
+// (e.g. `/events/some-future-page.png`), letting them skip the
+// authenticated boundary entirely. Unknown application paths must
+// default-deny regardless of how they end. If a public asset is ever
+// needed, add it here as an explicit exception.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico$).*)'],
 };
