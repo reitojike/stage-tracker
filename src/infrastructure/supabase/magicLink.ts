@@ -14,29 +14,35 @@ export interface MagicLinkAuthClient {
 }
 
 /**
- * `delivered` covers both "sent" and "no such account": the caller must
- * present them identically, or an unauthenticated visitor could enumerate
- * which addresses have accounts - which matters because every
- * authenticated user can read the whole shared event catalog.
+ * `delivered` covers "sent", "no such account", and any other per-request
+ * verdict: the caller must present them identically, or an
+ * unauthenticated visitor could enumerate which addresses have accounts -
+ * which matters because every authenticated user can read the whole
+ * shared event catalog.
  *
- * `unavailable` means no verdict was reached (auth service unreachable,
- * or a server-side fault). That reveals nothing about any account, so it
- * is safe - and necessary - to surface rather than claim a link was sent.
+ * `unavailable` is reserved for failures that are request-independent by
+ * construction, so it can never correlate with a particular address.
  */
 export type MagicLinkOutcome = 'delivered' | 'unavailable';
 
-function isAccountLevelRejection(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
+/**
+ * True only when the Auth API produced no HTTP response at all (a failed
+ * fetch, reported by supabase-js as status 0).
+ *
+ * Classifying by status *class* is not safe here. Measured against a
+ * local GoTrue with SMTP pointed at a dead port: an address that exists
+ * returns 500 (the mailer fails only after the user is found) while an
+ * address that does not exist returns 422 `otp_disabled`. Treating 5xx as
+ * "request-independent" would therefore have made the 500 an existence
+ * oracle in exactly the situation where it matters. Only "we never got a
+ * response" is genuinely independent of which address was submitted.
+ */
+function reachedTheAuthService(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('status' in error)) {
     return false;
   }
-  if (!('status' in error)) {
-    return false;
-  }
-  // A 4xx from the Auth API is a verdict about this request (an address
-  // with no account yields status 422 / `otp_disabled`). Status 0 from a
-  // failed fetch, or a 5xx, means the request never got a verdict.
   const { status } = error;
-  return typeof status === 'number' && status >= 400 && status < 500;
+  return typeof status === 'number' && status > 0;
 }
 
 /**
@@ -63,5 +69,8 @@ export async function requestMagicLink(
   if (error === null || error === undefined) {
     return 'delivered';
   }
-  return isAccountLevelRejection(error) ? 'delivered' : 'unavailable';
+  // Any HTTP response means the service evaluated this specific address,
+  // so it must be presented identically to success. Only "no response at
+  // all" is safe to surface.
+  return reachedTheAuthService(error) ? 'delivered' : 'unavailable';
 }

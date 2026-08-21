@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { requestMagicLink } from '@/infrastructure/supabase/magicLink.ts';
-import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
+import { createSupabaseCookielessServerClient } from '@/infrastructure/supabase/serverClient.ts';
 
 export async function requestSignInLink(formData: FormData): Promise<void> {
   const emailValue = formData.get('email');
@@ -14,7 +14,9 @@ export async function requestSignInLink(formData: FormData): Promise<void> {
     redirect('/sign-in?error=missing_email');
   }
 
-  const supabase = await createSupabaseServerClient();
+  // Cookieless on purpose: this response must look the same whether or
+  // not the address has an account. See the factory's comment.
+  const supabase = await createSupabaseCookielessServerClient();
   const outcome = await requestMagicLink(supabase, email);
 
   if (outcome === 'unavailable') {

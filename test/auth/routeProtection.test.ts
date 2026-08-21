@@ -3,7 +3,11 @@ import { after, before, test } from 'node:test';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { createAnonymousClient, deleteUser, provisionUser } from './support/authActors.ts';
 import { waitForMagicLinkToken } from './support/mailpit.ts';
-import { actionRedirectTarget, submitServerAction } from './support/serverAction.ts';
+import {
+  actionRedirectTarget,
+  applySetCookies,
+  submitServerAction,
+} from './support/serverAction.ts';
 
 // Route-protection tests that exercise the real Next.js app over HTTP.
 // The authenticated-only boundary lives in src/proxy.ts, so it cannot be
@@ -259,6 +263,29 @@ void test('the sign-in action gives an identical response for known and unknown 
   assert.ok(knownTarget !== null, 'expected the sign-in action to redirect');
   assert.equal(knownTarget, unknownTarget, 'redirect target must not distinguish the two');
   assert.match(knownTarget, /sent=1/);
+
+  // Status and Location alone would miss account state leaking through
+  // another header or the body, so compare the rest of the observable
+  // response too. (Timing is a side channel a deterministic test cannot
+  // close; it is out of scope here rather than silently claimed.)
+  const ignoredHeaders = new Set(['date', 'x-nextjs-date', 'content-length', 'etag']);
+  const comparableHeaders = (response: Response): string =>
+    [...response.headers]
+      .filter(([name]) => !ignoredHeaders.has(name.toLowerCase()))
+      .map(([name, value]) => `${name.toLowerCase()}: ${value}`)
+      .sort()
+      .join('\n');
+
+  assert.equal(
+    comparableHeaders(known),
+    comparableHeaders(unknown),
+    'response headers must not distinguish the two',
+  );
+  assert.equal(
+    await known.text(),
+    await unknown.text(),
+    'response body must not distinguish the two',
+  );
 });
 
 void test('the sign-out action clears the session for subsequent requests', async () => {
@@ -270,15 +297,13 @@ void test('the sign-out action clears the session for subsequent requests', asyn
   assert.equal(before.status, 200, 'sanity: the session should work beforehand');
 
   const signOut = await submitServerAction(app.baseUrl, '/', {}, cookie);
-  const cleared = signOut.headers
-    .getSetCookie()
-    .map((entry) => entry.split(';')[0])
-    .filter((entry): entry is string => entry !== undefined)
-    .join('; ');
+  // Merge Set-Cookie into the existing jar the way a browser does. Using
+  // only the response's cookies would drop the session cookie outright,
+  // so a sign-out that never cleared it would still appear to work.
+  const afterSignOut = applySetCookies(cookie, signOut);
 
-  // Replay the post-sign-out cookies: the session must no longer work.
   const after = await fetch(`${app.baseUrl}/`, {
-    headers: { cookie: cleared.length > 0 ? cleared : cookie },
+    headers: { cookie: afterSignOut },
     redirect: 'manual',
   });
   assert.equal(after.status, 307, 'a signed-out session must not reach a protected route');

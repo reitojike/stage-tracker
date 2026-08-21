@@ -50,13 +50,21 @@ void test('an account-level rejection is indistinguishable from a delivered link
   assert.equal(await requestMagicLink(client, 'nobody@example.test'), 'delivered');
 });
 
-void test('a service failure is reported as unavailable, not as a delivered link', async () => {
-  // status 0 is a failed fetch (auth service unreachable); 5xx is a
-  // server fault. Neither says anything about the address, so telling the
-  // user their link was sent would simply be false.
+void test('a 5xx is also folded into delivered, because it can be address-specific', async () => {
+  // Measured against a local GoTrue with SMTP pointed at a dead port: an
+  // address that EXISTS yields 500 (the mailer fails only after the user
+  // is found) while an unknown address yields 422. Surfacing the 500
+  // would therefore turn it into an existence oracle.
+  const { client } = recordingClient({ status: 500 });
+  assert.equal(await requestMagicLink(client, 'someone@example.test'), 'delivered');
+});
+
+void test('only a failure with no HTTP response at all is reported as unavailable', async () => {
+  // status 0 means the request never reached the auth service, so it
+  // cannot correlate with any particular address.
   const unreachable = recordingClient({ status: 0, name: 'AuthRetryableFetchError' });
   assert.equal(await requestMagicLink(unreachable.client, 'a@example.test'), 'unavailable');
 
-  const serverFault = recordingClient({ status: 500 });
-  assert.equal(await requestMagicLink(serverFault.client, 'b@example.test'), 'unavailable');
+  const noStatus = recordingClient(new Error('connection reset'));
+  assert.equal(await requestMagicLink(noStatus.client, 'b@example.test'), 'unavailable');
 });
