@@ -2,9 +2,16 @@
 // "month calendar -> selected-day list -> event detail" navigation
 // (docs/ux-ui.md primary interaction pattern). Kept free of Next.js types
 // so it is plain, DB-free, unit-testable logic like the rest of src/domain.
+//
+// Validity of a "YYYY-MM"/"YYYY-MM-DD" value is delegated to
+// calendarMonth.ts's isValidYearMonth/isValidCalendarDate (which reuse
+// eventCatalog.ts's Date.UTC round-trip check) rather than a shape-only
+// regex here: a value like "2026-13" or "2026-02-30" is digit-shape-valid
+// but not a real calendar month/date, and treating it as valid would let a
+// malformed query param silently drive the grid to a rolled-over month
+// instead of being ignored like any other malformed value.
 
-const MONTH_PATTERN = /^\d{4}-\d{2}$/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+import { isValidCalendarDate, isValidYearMonth } from './calendarMonth.ts';
 
 export interface CatalogParams {
   yearMonth: string;
@@ -26,11 +33,11 @@ export function resolveCatalogParams(
   todayTokyoDate: string,
 ): CatalogParams {
   const rawDate = firstValue(searchParams.date);
-  const selectedDate = rawDate !== undefined && DATE_PATTERN.test(rawDate) ? rawDate : null;
+  const selectedDate = rawDate !== undefined && isValidCalendarDate(rawDate) ? rawDate : null;
 
   const rawMonth = firstValue(searchParams.month);
   const monthFromDate = selectedDate?.slice(0, 7) ?? null;
-  const monthFromParam = rawMonth !== undefined && MONTH_PATTERN.test(rawMonth) ? rawMonth : null;
+  const monthFromParam = rawMonth !== undefined && isValidYearMonth(rawMonth) ? rawMonth : null;
   const yearMonth = monthFromDate ?? monthFromParam ?? todayTokyoDate.slice(0, 7);
 
   return { yearMonth, selectedDate };
@@ -49,14 +56,10 @@ export function nextYearMonth(yearMonth: string): string {
 }
 
 function shiftYearMonth(yearMonth: string, delta: number): string {
-  const match = /^(\d{4})-(\d{2})$/.exec(yearMonth);
-  if (!match) {
-    throw new Error(`expected a "YYYY-MM" month, got: ${yearMonth}`);
+  if (!isValidYearMonth(yearMonth)) {
+    throw new Error(`expected a valid "YYYY-MM" month, got: ${yearMonth}`);
   }
-  const [, yearStr, monthStr] = match;
-  if (yearStr === undefined || monthStr === undefined) {
-    throw new Error(`expected a "YYYY-MM" month, got: ${yearMonth}`);
-  }
+  const [yearStr, monthStr] = yearMonth.split('-');
   const year = Number(yearStr);
   const month = Number(monthStr);
   // Absolute zero-based month index (from year 0), so both the year carry

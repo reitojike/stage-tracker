@@ -62,8 +62,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  min-height: 40px;
+  /* Matches .navLink's 44px minimum touch target (WCAG 2.5.8). */
+  min-width: 44px;
+  min-height: 44px;
   padding-block: var(--space-xs);
   border-radius: var(--radius-control);
   color: var(--color-text);
@@ -88,6 +91,14 @@
 .daySelected {
   background-color: var(--color-accent);
   color: var(--color-accent-foreground);
+}
+
+/* .dayToday's ring is the same --color-accent as .daySelected's fill, so
+   without this override the ring becomes invisible the moment "today" is
+   also the selected day. Swap to the foreground color, which contrasts
+   against the accent fill instead of blending into it. */
+.dayToday.daySelected {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent-foreground);
 }
 
 .badge {

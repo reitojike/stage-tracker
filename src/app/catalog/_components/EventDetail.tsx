@@ -1,6 +1,10 @@
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
-import { occurrenceTimeRangeLabel, tokyoDateLabel } from '@/domain/catalogFormatting.ts';
+import {
+  isRenderableHttpUrl,
+  occurrenceTimeRangeLabel,
+  tokyoDateLabel,
+} from '@/domain/catalogFormatting.ts';
 import styles from './EventDetail.module.css';
 
 export interface EventDetailProps {
@@ -30,9 +34,13 @@ export function EventDetail({ data }: EventDetailProps) {
           <div className={styles.metaRow}>
             <dt>参照URL</dt>
             <dd>
-              <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer">
-                {event.sourceUrl}
-              </a>
+              {isRenderableHttpUrl(event.sourceUrl) ? (
+                <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  {event.sourceUrl}
+                </a>
+              ) : (
+                event.sourceUrl
+              )}
             </dd>
           </div>
         ) : null}

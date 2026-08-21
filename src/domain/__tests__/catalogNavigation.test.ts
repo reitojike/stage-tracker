@@ -43,6 +43,20 @@ void test('resolveCatalogParams: malformed month/date params are ignored, not su
   });
 });
 
+void test('resolveCatalogParams: a calendar-invalid but shape-valid month (e.g. month 13) is ignored, not accepted', () => {
+  assert.deepEqual(resolveCatalogParams({ month: '2026-13' }, TODAY), {
+    yearMonth: '2026-08',
+    selectedDate: null,
+  });
+});
+
+void test('resolveCatalogParams: a calendar-invalid but shape-valid date (e.g. Feb 30) is ignored, not accepted', () => {
+  assert.deepEqual(resolveCatalogParams({ month: '2026-02', date: '2026-02-30' }, TODAY), {
+    yearMonth: '2026-02',
+    selectedDate: null,
+  });
+});
+
 void test('resolveCatalogParams: an array-valued query param uses its first entry', () => {
   assert.deepEqual(resolveCatalogParams({ month: ['2026-12', '2027-01'] }, TODAY), {
     yearMonth: '2026-12',

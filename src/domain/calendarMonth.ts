@@ -4,9 +4,11 @@
 // eventCatalog.ts / Issue #12) - it never queries Supabase, never persists
 // anything, and never introduces a run-period/category/priority source of
 // truth beyond what is deterministically computable from the occurrence set
-// itself (product-rules.md "Month calendar" C+B hybrid decision).
+// itself.
 //
-// PO decision this module encodes:
+// PO decision this module encodes (Issue #20 Task Contract - "PO-approved
+// calendar / presentation decision", C+B hybrid - this is a checkpoint
+// recorded on the Issue, not a section of .ai-dev-foundation/product-rules.md):
 // - an event is a month-view "band" iff its (fetched) occurrences fall on
 //   >= 2 distinct Asia/Tokyo calendar days - see isBandEvent.
 // - a band is never drawn across a day it has no occurrence evidence for -
@@ -15,9 +17,19 @@
 //   see computeBadgeCounts. A band's own occurrences are already visible as
 //   the band itself, so counting them again would double the same
 //   information.
+//
+// Band/badge classification is derived only from whatever occurrence range
+// the caller fetched for the current view (src/app/catalog/page.tsx fetches
+// the whole displayed grid, including lead/trail days). A run that extends
+// mostly outside that range can therefore classify differently on an
+// adjacent month's page - the same bounded-per-view tradeoff any calendar
+// UI has when it does not fetch every month an event ever touches. Full,
+// range-independent detail for a single event remains available via the
+// event detail page (getEventWithOccurrences).
 
 import {
   compareOccurrencesByStartsAt,
+  parseTokyoCalendarDate,
   tokyoCalendarDateFromInstant,
   type EventCatalogEvent,
   type EventOccurrence,
@@ -33,25 +45,21 @@ import {
 // offset, to decide which calendar date a UTC instant belongs to in the
 // first place. Date.UTC(y, m-1, d) is used purely as calendar arithmetic
 // here, never compared against a real instant.
-
-function parseDate(dateStr: string): { year: number; month: number; day: number } {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (!match) {
-    throw new Error(`expected a "YYYY-MM-DD" date, got: ${dateStr}`);
-  }
-  const [, yearStr, monthStr, dayStr] = match;
-  if (yearStr === undefined || monthStr === undefined || dayStr === undefined) {
-    throw new Error(`expected a "YYYY-MM-DD" date, got: ${dateStr}`);
-  }
-  return { year: Number(yearStr), month: Number(monthStr), day: Number(dayStr) };
-}
+//
+// Parsing/validating a "YYYY-MM-DD" string reuses eventCatalog.ts's
+// parseTokyoCalendarDate rather than a second, shape-only regex: that
+// function's Date.UTC round-trip is what rejects a format-valid but
+// calendar-invalid value (month 13, Feb 30, or a 1-2 digit year that would
+// hit JS's legacy Date.UTC 19xx remap) instead of silently normalizing it
+// into a different real date - see addDaysToDate/monthBounds below, which
+// would otherwise happily compute a boundary for the wrong month/year.
 
 function formatDate(year: number, month: number, day: number): string {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 export function addDaysToDate(dateStr: string, days: number): string {
-  const { year, month, day } = parseDate(dateStr);
+  const { year, month, day } = parseTokyoCalendarDate(dateStr);
   const next = new Date(Date.UTC(year, month - 1, day + days));
   return formatDate(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
 }
@@ -62,17 +70,49 @@ export function compareDates(a: string, b: string): number {
 }
 
 function weekdayOf(dateStr: string): number {
-  const { year, month, day } = parseDate(dateStr);
+  const { year, month, day } = parseTokyoCalendarDate(dateStr);
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
-/** First/last calendar date of a "YYYY-MM" month. */
-export function monthBounds(yearMonth: string): { firstDate: string; lastDate: string } {
+/** True iff `dateStr` is both shape- and calendar-valid ("2026-02-30" and
+ * "2026-13-01" are rejected, not silently rolled over). */
+export function isValidCalendarDate(dateStr: string): boolean {
+  try {
+    parseTokyoCalendarDate(dateStr);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True iff `yearMonth` is a shape- and range-valid "YYYY-MM" (month 01-12;
+ * also rejects a 1-2 digit year that would hit JS's legacy Date.UTC 19xx
+ * remap, via the same round-trip technique parseTokyoCalendarDate uses for
+ * days). */
+export function isValidYearMonth(yearMonth: string): boolean {
   const match = /^(\d{4})-(\d{2})$/.exec(yearMonth);
   if (!match) {
-    throw new Error(`expected a "YYYY-MM" month, got: ${yearMonth}`);
+    return false;
   }
   const [, yearStr, monthStr] = match;
+  if (yearStr === undefined || monthStr === undefined) {
+    return false;
+  }
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const roundTrip = new Date(Date.UTC(year, month - 1, 1));
+  return roundTrip.getUTCFullYear() === year && roundTrip.getUTCMonth() === month - 1;
+}
+
+/** First/last calendar date of a "YYYY-MM" month. Caller must ensure
+ * `yearMonth` is valid (isValidYearMonth) - an invalid month throws here
+ * rather than silently rolling over, since Date.UTC's own month/year
+ * normalization would otherwise compute bounds for a different month. */
+export function monthBounds(yearMonth: string): { firstDate: string; lastDate: string } {
+  if (!isValidYearMonth(yearMonth)) {
+    throw new Error(`expected a valid "YYYY-MM" month, got: ${yearMonth}`);
+  }
+  const [yearStr, monthStr] = yearMonth.split('-');
   const year = Number(yearStr);
   const month = Number(monthStr);
   const firstDate = formatDate(year, month, 1);
@@ -93,8 +133,8 @@ export interface MonthGrid {
   gridFirstDate: string;
   gridLastDate: string;
   /** Sunday-start weeks; each has exactly 7 "YYYY-MM-DD" dates. Feature-local
-   * presentation choice - product-rules.md leaves the exact week-start
-   * convention open. */
+   * presentation choice - the exact week-start convention is left open
+   * upstream (docs/ux-ui.md). */
   weeks: string[][];
 }
 
@@ -145,8 +185,7 @@ export interface BandSegment {
  * Splits one (band) event's occurrence dates into maximal runs of
  * *consecutive* calendar days. A day with no occurrence for this event
  * breaks the run into a separate segment - a band is never drawn across a
- * rest day it has no occurrence evidence for (product-rules.md: 休演日を
- * 「公演あり」と誤認させない／無条件に一本の連続bandを描く実装は不可).
+ * rest day it has no occurrence evidence for.
  */
 export function computeBandSegments(
   event: EventCatalogEvent,
@@ -193,8 +232,12 @@ export function computeBandSegments(
  * Per-day badge count: only occurrences belonging to *non-band* events
  * (isBandEvent === false) count. A band's own occurrences are already
  * visible as the band itself; counting them again here would double the
- * same information on the same day (product-rules.md 明示PO decision:
- * 日付badgeの数字はband対象公演をカウントしない).
+ * same information on the same day (Issue #20 PO decision: 日付badgeの
+ * 数字はband対象公演をカウントしない). This holds regardless of whether
+ * the band actually got a lane that week or overflowed (layoutWeekBands) -
+ * making the badge depend on an unrelated event's lane pressure that week
+ * would be more surprising than a day whose only performance is a band
+ * one, which selectDayOccurrences always still surfaces on demand.
  */
 export function computeBadgeCounts(
   eventsWithOccurrences: readonly EventWithOccurrences[],
@@ -223,25 +266,35 @@ export interface WeekBandLayout {
   weekStartDate: string;
   /** Bounded to at most `maxLanes` entries - see layoutWeekBands. */
   segments: PositionedBandSegment[];
-  /** Count of additional bands active this week beyond the lane cap. Full
+  /** Count of additional *distinct events* active this week beyond the
+   * lane cap (never double-counted when one event's run is itself split
+   * into multiple segments by a rest day - see layoutWeekBands). Full
    * detail for any day in this week remains reachable via
    * selectDayOccurrences regardless of this overflow. */
   overflowCount: number;
 }
 
 /** Bounded lane count for month-view band rendering - mobile scanability
- * over showing every concurrent run (product-rules.md allows a bounded
- * display + overflow indicator here). */
+ * over showing every concurrent run (a bounded display + overflow
+ * indicator is within the feature-local implementation discretion the
+ * Issue #20 Task Contract leaves to this module). */
 export const MAX_BAND_LANES = 3;
 
 /**
  * Lays out the band segments active during one week (7 consecutive dates,
- * Sunday..Saturday) into a bounded number of non-overlapping lanes, using
- * a greedy first-fit-by-longest-then-earliest assignment so a multi-day
- * run is not arbitrarily bumped to overflow behind a segment that happens
- * to sort first. Segments are clipped to the week's own date range: a run
- * spanning a week boundary produces one positioned segment per week it
- * touches.
+ * Sunday..Saturday) into a bounded number of non-overlapping lanes.
+ * Segments are clipped to the week's own date range first: a run spanning
+ * a week boundary produces one positioned segment per week it touches.
+ *
+ * Lane assignment is the standard interval-partitioning greedy: sort by
+ * start column ascending (ties broken by the longer segment first, so a
+ * multi-day run sharing a start column with a single-day one is not
+ * arbitrarily preferred over it), then assign each segment to any lane
+ * whose last-placed segment already ended before it starts, opening a new
+ * lane only when none is free. Sorting by length instead of start (as an
+ * earlier version of this function did) is not optimal for minimizing lane
+ * count: it can force spurious overflow for segments that would fit
+ * cleanly once sorted by start.
  */
 export function layoutWeekBands(
   weekDates: readonly string[],
@@ -274,17 +327,17 @@ export function layoutWeekBands(
       };
     })
     .sort((a, b) => {
+      if (a.startCol !== b.startCol) {
+        return a.startCol - b.startCol;
+      }
       const lengthA = a.endCol - a.startCol;
       const lengthB = b.endCol - b.startCol;
-      if (lengthA !== lengthB) {
-        return lengthB - lengthA;
-      }
-      return a.startCol - b.startCol;
+      return lengthB - lengthA;
     });
 
   const laneEndCols: number[] = [];
   const positioned: PositionedBandSegment[] = [];
-  let overflowCount = 0;
+  const overflowEventIds = new Set<string>();
 
   for (const segment of clipped) {
     let lane = laneEndCols.findIndex((endCol) => endCol < segment.startCol);
@@ -293,7 +346,7 @@ export function layoutWeekBands(
         lane = laneEndCols.length;
         laneEndCols.push(segment.endCol);
       } else {
-        overflowCount += 1;
+        overflowEventIds.add(segment.eventId);
         continue;
       }
     } else {
@@ -302,7 +355,7 @@ export function layoutWeekBands(
     positioned.push({ ...segment, lane });
   }
 
-  return { weekStartDate: weekStart, segments: positioned, overflowCount };
+  return { weekStartDate: weekStart, segments: positioned, overflowCount: overflowEventIds.size };
 }
 
 export interface DayCellViewModel {
@@ -358,11 +411,12 @@ export interface SelectedDayOccurrence {
 
 /**
  * Every occurrence on `date` (Asia/Tokyo calendar day), from both band and
- * non-band events, individually - never collapsed by event or by day
- * (product-rules.md "Selected-day list": same-day multiple occurrences are
- * distinct entries). This is the escape hatch for whatever the month view
- * bounded/omitted for scanability (badge exclusion, band overflow): full
- * detail for any single day is always reachable here.
+ * non-band events, individually - never collapsed by event or by day (same-
+ * day multiple occurrences are distinct entries). This is the escape hatch
+ * for whatever the month view bounded/omitted for scanability (badge
+ * exclusion, band overflow): full detail for any single day is always
+ * reachable here, for the same `eventsWithOccurrences` the month view was
+ * built from.
  */
 export function selectDayOccurrences(
   eventsWithOccurrences: readonly EventWithOccurrences[],

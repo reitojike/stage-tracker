@@ -9,6 +9,20 @@ export interface SignedInSession {
   userId: string;
 }
 
+export interface SignInThroughAppOptions {
+  /** Forwarded to /auth/confirm as the post-sign-in redirect target. */
+  next?: string;
+  /**
+   * Called the instant the Supabase auth user is provisioned - before the
+   * OTP send / mailpit poll / confirm fetch that follow, any of which can
+   * fail (rate limit, mailpit timeout, network error). Register the
+   * user's cleanup here rather than from the returned `userId`, so a
+   * caller's after() still deletes it even when this function throws
+   * partway through.
+   */
+  onUserProvisioned?: (userId: string) => void;
+}
+
 /**
  * Completes a real magic-link sign-in through the app's own /auth/confirm
  * route (not a Supabase SDK shortcut), returning the session cookie a
@@ -16,13 +30,13 @@ export interface SignedInSession {
  * a real signed-in session against the app under test - route-protection
  * assertions (test/auth/routeProtection.test.ts) and feature-level
  * acceptance tests (e.g. test/auth/catalogAccess.test.ts) alike.
- *
- * The caller owns cleanup of the returned `userId` (e.g. via its own
- * `after()`/`deleteUser`), since how many sessions a test creates and when
- * they should be torn down is test-specific.
  */
-export async function signInThroughApp(app: AppServer, next?: string): Promise<SignedInSession> {
+export async function signInThroughApp(
+  app: AppServer,
+  options: SignInThroughAppOptions = {},
+): Promise<SignedInSession> {
   const { user, email } = await provisionUser('app-session');
+  options.onUserProvisioned?.(user.id);
 
   const { error } = await createAnonymousClient().auth.signInWithOtp({
     email,
@@ -34,8 +48,8 @@ export async function signInThroughApp(app: AppServer, next?: string): Promise<S
   const confirmUrl = new URL(`${app.baseUrl}/auth/confirm`);
   confirmUrl.searchParams.set('token_hash', tokenHash);
   confirmUrl.searchParams.set('type', type);
-  if (next !== undefined) {
-    confirmUrl.searchParams.set('next', next);
+  if (options.next !== undefined) {
+    confirmUrl.searchParams.set('next', options.next);
   }
 
   const response = await fetch(confirmUrl, { redirect: 'manual' });

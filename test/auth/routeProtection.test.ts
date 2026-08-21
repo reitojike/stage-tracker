@@ -44,12 +44,18 @@ function locationOf(response: Response): string {
  * This file's own tests create/tear down each session's user via
  * `createdUserIds`, so wrap the shared signInThroughApp (which leaves
  * cleanup to its caller) to track it the same way every call site here
- * already expects.
+ * already expects - registered via onUserProvisioned as soon as the user
+ * exists, not only after the whole sign-in flow succeeds, so a later
+ * failure (OTP send, mailpit timeout) still leaves the user tracked for
+ * cleanup.
  */
 async function signInThroughApp(next?: string) {
-  const session = await signInThroughAppUntracked(app, next);
-  createdUserIds.push(session.userId);
-  return session;
+  return signInThroughAppUntracked(app, {
+    next,
+    onUserProvisioned: (userId) => {
+      createdUserIds.push(userId);
+    },
+  });
 }
 
 // --- Unauthenticated boundary ---

@@ -7,6 +7,8 @@ import {
   computeBadgeCounts,
   computeBandSegments,
   isBandEvent,
+  isValidCalendarDate,
+  isValidYearMonth,
   layoutWeekBands,
   monthBounds,
   selectDayOccurrences,
@@ -62,6 +64,28 @@ void test('monthBounds: February in a leap year', () => {
 void test('addDaysToDate: crosses a month/year boundary', () => {
   assert.equal(addDaysToDate('2026-12-31', 1), '2027-01-01');
   assert.equal(addDaysToDate('2027-01-01', -1), '2026-12-31');
+});
+
+void test('isValidYearMonth: accepts real months, rejects shape-valid-but-invalid ones', () => {
+  assert.equal(isValidYearMonth('2026-08'), true);
+  assert.equal(isValidYearMonth('2026-13'), false); // out-of-range month
+  assert.equal(isValidYearMonth('2026-00'), false);
+  assert.equal(isValidYearMonth('not-a-month'), false);
+  // A 1-2 digit year would trigger JS's legacy Date.UTC 19xx remap if not
+  // caught: Date.UTC(50, ...) resolves to 1950, which the round-trip check
+  // must reject rather than silently accept as "year 50".
+  assert.equal(isValidYearMonth('0050-06'), false);
+});
+
+void test('isValidCalendarDate: accepts real dates, rejects shape-valid-but-invalid ones', () => {
+  assert.equal(isValidCalendarDate('2026-08-21'), true);
+  assert.equal(isValidCalendarDate('2026-02-30'), false);
+  assert.equal(isValidCalendarDate('2026-13-01'), false);
+  assert.equal(isValidCalendarDate('not-a-date'), false);
+});
+
+void test('monthBounds: throws on a calendar-invalid month rather than silently rolling over', () => {
+  assert.throws(() => monthBounds('2026-13'));
 });
 
 void test('buildMonthGrid: every week has 7 days and covers the whole month', () => {
@@ -279,6 +303,40 @@ void test('layoutWeekBands: bands beyond the lane cap overflow instead of being 
   const layout = layoutWeekBands(WEEK, overlapping, 3);
   assert.equal(layout.segments.length, 3);
   assert.equal(layout.overflowCount, 1);
+});
+
+void test('layoutWeekBands: start-ascending lane assignment fits everything a length-first sort would spuriously overflow', () => {
+  // A spans the whole week; B/C/D/E are pairwise non-overlapping with each
+  // other and only conflict with A, so optimal packing needs just 2 lanes
+  // (A alone in one; B, C, D, E sharing the other). A length-descending
+  // sort can instead place a later-starting, shorter segment (E) into the
+  // shared lane before an earlier-starting one (C/D) gets a chance,
+  // artificially forcing C/D into overflow even though 2 lanes suffice.
+  const segments = [
+    seg('A', '2026-08-09', '2026-08-15'),
+    seg('B', '2026-08-09', '2026-08-11'),
+    seg('C', '2026-08-12', '2026-08-12'),
+    seg('D', '2026-08-13', '2026-08-13'),
+    seg('E', '2026-08-14', '2026-08-15'),
+  ];
+  const layout = layoutWeekBands(WEEK, segments, 2);
+  assert.equal(layout.overflowCount, 0, 'expected all 5 segments to fit within 2 lanes');
+  assert.equal(layout.segments.length, 5);
+});
+
+void test('layoutWeekBands: one event split into two segments by a rest day counts as one overflow, not two', () => {
+  // Event X's run is split by a rest day into two segments within the same
+  // week; three unrelated events fill every lane for the whole week, so
+  // both of X's segments overflow - but that is still only one hidden
+  // *event*, not two.
+  const xSegments = [seg('x', '2026-08-09', '2026-08-10'), seg('x', '2026-08-12', '2026-08-13')];
+  const fillers = ['a', 'b', 'c'].map((id) => seg(id, '2026-08-09', '2026-08-15'));
+  const layout = layoutWeekBands(WEEK, [...fillers, ...xSegments], 3);
+  assert.equal(
+    layout.overflowCount,
+    1,
+    'expected one overflowing event (x), not one per overflowing segment',
+  );
 });
 
 void test('layoutWeekBands: a run spanning a week boundary is clipped per week', () => {

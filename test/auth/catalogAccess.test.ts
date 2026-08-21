@@ -42,10 +42,16 @@ after(async () => {
   }
 });
 
-/** A real signed-in session's cookie, via the app's own magic-link flow. */
+/** A real signed-in session's cookie, via the app's own magic-link flow.
+ * The provisioned user is tracked for cleanup as soon as it exists (not
+ * only after this resolves), so a transient failure partway through
+ * sign-in still leaves it tracked. */
 async function signedInCookie(): Promise<string> {
-  const session = await signInThroughApp(app);
-  createdViewerIds.push(session.userId);
+  const session = await signInThroughApp(app, {
+    onUserProvisioned: (userId) => {
+      createdViewerIds.push(userId);
+    },
+  });
   assert.notEqual(session.cookie, '', 'expected a real session cookie');
   return session.cookie;
 }
