@@ -44,16 +44,21 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
 を正本とします。
 
-- **occurrence-level participation / invitation** — `considering` /
-  `attending` のparticipation statusと、attendingなuserによるoccurrence
-  単位のinvitation
-- **event-independent personal schedule** — all-day / time-bounded の
-  personal schedule と、owner限定のexplicit sharing
-- **ticket acquisition / ticket** — acquisitionとticketの分離、複数
-  acquisition attempt、複数ticket、non-user companion assignment、
-  registered inviteeへのticket transfer
-- **minimal Event catalog write UI** — designated catalog creator
-  （Administrator）限定のEvent + occurrence create/update
+- **occurrence-level participation / invitation** — ユーザーごとの
+  occurrence参加予定管理と、そこからのinvitation（詳細は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  参照）
+- **event-independent personal schedule** — eventとは独立したpersonal
+  scheduleと共有（詳細は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  参照）
+- **ticket acquisition / ticket** — チケット入手情報とticketの管理（詳細は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  参照）
+- **minimal Event catalog write UI** — designated catalog creator限定の
+  Event catalog create/update（詳細は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  参照）
 - **calendar weekday / Japanese holiday presentation** — Saturday/
   Sunday/Japanese holidayのglobal calendar presentation（詳細は
   [`docs/ux-ui.md`](./ux-ui.md) 参照）

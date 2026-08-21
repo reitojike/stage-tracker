@@ -931,8 +931,8 @@ Completed baseline を参照してください。
   郵送 / 特定アプリ等の delivery / issuance method は、MVP では別
   vocabulary として先行固定しません。
 - ticket は未割当でもよく、ticket の利用者・同行者を stage-tracker
-  authenticated user である必須の FK にはしません。stage-tracker を
-  利用していない外部同行者を表現できます。
+  authenticated user であることを必須の紐付け対象にはしません。
+  stage-tracker を利用していない外部同行者を表現できます。
 - registered user への invitation と ticket assignment は独立した
   concept です。invite したことは ticket assignment を必須にしません。
   外部同行者へ ticket を割り当てるために account 作成を要求しません。
@@ -986,7 +986,7 @@ Completed baseline を参照してください。
 - MVP では Event の新規作成を一般 authenticated user へ開放せず、
   **designated catalog creator（Administrator）** だけに許可します。
   初期運用は Administrator 1 名で構いません。
-- designated creator が Event を作成した場合、そのユーザーが既存
+- designated catalog creator が Event を作成した場合、そのユーザーが既存
   ownership semantics どおり event owner になります。
 - Event update / occurrence create・update は引き続き event owner だけが
   行えます。

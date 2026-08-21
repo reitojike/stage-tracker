@@ -84,16 +84,17 @@ nullable・occurrence create/updateはparent event ownerのみ）です（詳細
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
-- occurrence-level participation（status: `considering` / `attending`）と
-  occurrence-level invitation
-- event-independent personal schedule（all-day / time-bounded / type /
-  共有）
+- occurrence-level participation / invitation
+- event-independent personal schedule
 - ticket acquisition / ticket の分離、ticket transfer
-- catalog classification / venue のMVP data boundary（persistence/filter
-  UI自体はPost-MVP early）
-- designated catalog creator（Administrator）限定のminimal Event catalog
-  create/update UI
+- catalog classification / venue のMVP data boundary
+- designated catalog creator限定のminimal Event catalog create/update UI
 - calendar上のSaturday/Sunday/Japanese holiday presentation
+
+詳細なsemanticsはいずれも
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+（calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)）を正本とし、
+本PRDでは複製しません。
 
 これらの実装は、今後それぞれ専用のbounded product Taskでscope・詳細
 semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) 参照）。
@@ -104,14 +105,12 @@ semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) �
 uncommitted）です。current committed scopeには含みません。
 
 - event deletion semantics
-- participation / invitation / personal schedule / ticket acquisition /
-  ticket / ticket transfer の table naming・永続化shape・exact
-  status/column naming
-- classification taxonomy の具体形・canonical venue identity の具体形
-- Administrator / designated catalog creator の exact permission
-  mechanism
-- Post-MVPでのEvent create権限拡大に伴うverification / moderationの
-  exact workflow
+- 各domain concept（participation / invitation / personal schedule /
+  ticket acquisition / ticket / ticket transfer / classification /
+  venue / Administrator権限機構）のexact persistence・mechanism詳細
+  （未決定項目の一覧は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
 - budget集計の期間基準
 - MCP product scope
 - sign-in provider（具体的な認証方式）
