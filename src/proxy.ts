@@ -1,0 +1,81 @@
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+import { readPublicSupabaseEnv } from '@/infrastructure/supabase/env.ts';
+
+// Routes reachable without an authenticated session. Everything else is
+// authenticated-only by default so a newly added route can't silently
+// bypass the boundary by omission.
+const PUBLIC_PATHS = new Set(['/sign-in', '/auth/confirm']);
+
+// Exact match only. Treating descendants as public too (`/sign-in/...`)
+// would silently expose any nested route added under one of these
+// prefixes later, without that route ever being added to the allowlist.
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.has(pathname);
+}
+
+function copyCookies(from: NextResponse, to: NextResponse): void {
+  for (const cookie of from.cookies.getAll()) {
+    to.cookies.set(cookie);
+  }
+}
+
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  let response = NextResponse.next({ request });
+  const { url, anonKey } = readPublicSupabaseEnv();
+
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet, headers) {
+        for (const { name, value } of cookiesToSet) {
+          request.cookies.set(name, value);
+        }
+        response = NextResponse.next({ request });
+        for (const { name, value, options } of cookiesToSet) {
+          response.cookies.set(name, value, options);
+        }
+        for (const [key, value] of Object.entries(headers)) {
+          response.headers.set(key, value);
+        }
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const authenticated = user !== null;
+  const { pathname } = request.nextUrl;
+
+  if (!authenticated && !isPublicPath(pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/sign-in';
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    copyCookies(response, redirectResponse);
+    return redirectResponse;
+  }
+
+  if (authenticated && pathname === '/sign-in') {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/';
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    copyCookies(response, redirectResponse);
+    return redirectResponse;
+  }
+
+  return response;
+}
+
+// Only explicit, non-application paths are excluded. Deliberately no
+// file-extension rule: a pattern like `.*\.(svg|png|...)$` would also
+// exclude application pathnames that merely end in those characters
+// (e.g. `/events/some-future-page.png`), letting them skip the
+// authenticated boundary entirely. Unknown application paths must
+// default-deny regardless of how they end. If a public asset is ever
+// needed, add it here as an explicit exception.
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico$).*)'],
+};
