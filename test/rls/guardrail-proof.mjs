@@ -19,12 +19,18 @@ import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 const status = readLocalSupabaseStatus();
 
-function eventPayload(ownerId) {
-  return {
-    owner_id: ownerId,
-    title: `guardrail proof event ${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    starts_at: new Date().toISOString(),
-  };
+// Direct authenticated INSERT into events is unsupported since Issue #17;
+// create_event_with_occurrence is the only supported create path, so every
+// fixture event below goes through it instead of `.insert()`.
+async function createEventAsOwner(client) {
+  const { data, error } = await client.rpc('create_event_with_occurrence', {
+    p_title: `guardrail proof event ${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    p_starts_at: new Date().toISOString(),
+  });
+  if (error || !data) {
+    throw new Error(`fixture create_event_with_occurrence failed: ${error?.message}`);
+  }
+  return data;
 }
 
 async function withPgClient(run) {
@@ -69,17 +75,10 @@ try {
   // 1. events_select_authenticated: without it, RLS default-denies SELECT
   // for authenticated too, so "authenticated user can read another user's
   // event" must start returning zero rows. The fixture row is created
-  // before the policy is broken, since INSERT's RETURNING also needs
+  // before the policy is broken, since the RPC's RETURNING also needs
   // SELECT visibility.
   {
-    const { data: created, error: fixtureError } = await actorA.client
-      .from('events')
-      .insert(eventPayload(actorA.user.id))
-      .select()
-      .single();
-    if (fixtureError || !created) {
-      throw new Error(`fixture insert failed: ${fixtureError?.message}`);
-    }
+    const created = await createEventAsOwner(actorA.client);
     await withBrokenPolicy(
       'events_select_authenticated',
       'drop policy events_select_authenticated on public.events;',
@@ -96,27 +95,36 @@ try {
     );
   }
 
-  // 2. events_insert_own: replacing its WITH CHECK with `true` must let
-  // owner spoofing succeed, proving "user A cannot create an event owned by
-  // user B" depends on this policy.
+  // 2. Direct authenticated INSERT into events is blocked primarily by the
+  // revoked table grant (Issue #17), with events_insert_own's WITH CHECK
+  // kept as defense-in-depth. Breaking the grant alone would not go red
+  // (WITH CHECK would still block a spoofed owner_id), so - mirroring item
+  // 4 below - both layers are relaxed together here to prove that
+  // "authenticated client cannot directly INSERT into events" actually
+  // depends on this combination, not on some other mechanism.
   await withBrokenPolicy(
-    'events_insert_own',
-    `drop policy events_insert_own on public.events;
+    'events INSERT grant + events_insert_own (relaxed together)',
+    `grant insert (owner_id, title, venue, source_url, memo) on public.events to authenticated;
+     drop policy events_insert_own on public.events;
      create policy events_insert_own on public.events
        for insert to authenticated with check (true);`,
-    `drop policy events_insert_own on public.events;
+    `revoke insert on public.events from authenticated;
+     drop policy events_insert_own on public.events;
      create policy events_insert_own on public.events
        for insert to authenticated with check (owner_id = auth.uid());`,
     async () => {
       const { data, error } = await actorA.client
         .from('events')
-        .insert(eventPayload(actorB.user.id))
+        .insert({
+          owner_id: actorB.user.id,
+          title: `guardrail proof direct insert ${Date.now()}`,
+        })
         .select()
         .single();
       assert.equal(
         error,
         null,
-        'expected owner spoofing to go red (succeed) with the insert policy broken',
+        'expected direct INSERT (with a spoofed owner_id) to go red (succeed) with both layers relaxed',
       );
       assert.equal(data.owner_id, actorB.user.id);
     },
@@ -134,11 +142,7 @@ try {
      create policy events_update_own on public.events
        for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
     async () => {
-      const { data: created } = await actorA.client
-        .from('events')
-        .insert(eventPayload(actorA.user.id))
-        .select()
-        .single();
+      const created = await createEventAsOwner(actorA.client);
       const { data, error } = await actorB.client
         .from('events')
         .update({ title: 'hijacked while policy is broken' })
@@ -170,11 +174,7 @@ try {
      create policy events_update_own on public.events
        for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
     async () => {
-      const { data: created } = await actorA.client
-        .from('events')
-        .insert(eventPayload(actorA.user.id))
-        .select()
-        .single();
+      const created = await createEventAsOwner(actorA.client);
       const { data, error } = await actorA.client
         .from('events')
         .update({ owner_id: actorB.user.id })
@@ -187,6 +187,198 @@ try {
         'expected owner transfer to go red (succeed) with both the grant and WITH CHECK relaxed',
       );
       assert.equal(data.owner_id, actorB.user.id);
+    },
+  );
+
+  // 5. create_event_with_occurrence's EXECUTE grant to authenticated: this
+  // is the only thing letting a normal client reach the RPC at all (the
+  // function itself runs SECURITY DEFINER regardless). Revoking it must
+  // make even a legitimate, non-spoofing call fail.
+  await withBrokenPolicy(
+    'create_event_with_occurrence EXECUTE grant',
+    `revoke execute on function public.create_event_with_occurrence(
+       text, timestamptz, text, timestamptz, text, text
+     ) from authenticated;`,
+    `grant execute on function public.create_event_with_occurrence(
+       text, timestamptz, text, timestamptz, text, text
+     ) to authenticated;`,
+    async () => {
+      const { error } = await actorA.client.rpc('create_event_with_occurrence', {
+        p_title: `guardrail proof rpc execute ${Date.now()}`,
+        p_starts_at: new Date().toISOString(),
+      });
+      assert.ok(error, 'expected the create RPC to go red (denied) with its EXECUTE grant revoked');
+    },
+  );
+
+  // 6. event_occurrences_select_authenticated: without it, RLS
+  // default-denies SELECT for authenticated too, so "authenticated user
+  // can read another owner's occurrence" must start returning zero rows.
+  {
+    const created = await createEventAsOwner(actorA.client);
+    const { data: occurrence, error: occurrenceError } = await actorA.client
+      .from('event_occurrences')
+      .select()
+      .eq('event_id', created.id)
+      .single();
+    if (occurrenceError || !occurrence) {
+      throw new Error(`fixture occurrence lookup failed: ${occurrenceError?.message}`);
+    }
+    await withBrokenPolicy(
+      'event_occurrences_select_authenticated',
+      'drop policy event_occurrences_select_authenticated on public.event_occurrences;',
+      `create policy event_occurrences_select_authenticated on public.event_occurrences
+         for select to authenticated using (true);`,
+      async () => {
+        const { data } = await actorB.client
+          .from('event_occurrences')
+          .select()
+          .eq('id', occurrence.id);
+        assert.deepEqual(
+          data,
+          [],
+          'expected read to go red (empty) with the select policy dropped',
+        );
+      },
+    );
+  }
+
+  // 7. event_occurrences_insert_own: replacing its WITH CHECK with `true`
+  // must let a non-owner insert an occurrence for someone else's event,
+  // proving "non-owner cannot insert an occurrence for someone else's
+  // event" depends on this policy.
+  await withBrokenPolicy(
+    'event_occurrences_insert_own',
+    `drop policy event_occurrences_insert_own on public.event_occurrences;
+     create policy event_occurrences_insert_own on public.event_occurrences
+       for insert to authenticated with check (true);`,
+    `drop policy event_occurrences_insert_own on public.event_occurrences;
+     create policy event_occurrences_insert_own on public.event_occurrences
+       for insert to authenticated with check (
+         exists (
+           select 1 from public.events e
+           where e.id = event_id and e.owner_id = auth.uid()
+         )
+       );`,
+    async () => {
+      const created = await createEventAsOwner(actorA.client);
+      const { data, error } = await actorB.client
+        .from('event_occurrences')
+        .insert({ event_id: created.id, starts_at: new Date().toISOString() })
+        .select()
+        .single();
+      assert.equal(
+        error,
+        null,
+        'expected a non-owner occurrence insert to go red (succeed) with the insert policy broken',
+      );
+      assert.equal(data.event_id, created.id);
+    },
+  );
+
+  // 8. event_occurrences_update_own: replacing USING/WITH CHECK with `true`
+  // must let a non-owner update someone else's occurrence, proving
+  // "non-owner cannot update an occurrence" depends on this policy.
+  await withBrokenPolicy(
+    'event_occurrences_update_own',
+    `drop policy event_occurrences_update_own on public.event_occurrences;
+     create policy event_occurrences_update_own on public.event_occurrences
+       for update to authenticated using (true) with check (true);`,
+    `drop policy event_occurrences_update_own on public.event_occurrences;
+     create policy event_occurrences_update_own on public.event_occurrences
+       for update to authenticated using (
+         exists (
+           select 1 from public.events e
+           where e.id = event_id and e.owner_id = auth.uid()
+         )
+       )
+       with check (
+         exists (
+           select 1 from public.events e
+           where e.id = event_id and e.owner_id = auth.uid()
+         )
+       );`,
+    async () => {
+      const created = await createEventAsOwner(actorA.client);
+      const { data: occurrence, error: occurrenceError } = await actorA.client
+        .from('event_occurrences')
+        .select()
+        .eq('event_id', created.id)
+        .single();
+      if (occurrenceError || !occurrence) {
+        throw new Error(`fixture occurrence lookup failed: ${occurrenceError?.message}`);
+      }
+      const { data, error } = await actorB.client
+        .from('event_occurrences')
+        .update({ starts_at: new Date(0).toISOString() })
+        .eq('id', occurrence.id)
+        .select();
+      assert.equal(error, null);
+      assert.equal(
+        data.length,
+        1,
+        'expected a non-owner occurrence update to go red (succeed) with the update policy broken',
+      );
+    },
+  );
+
+  // 9. event_id column grant: reassigning an occurrence to a different
+  // parent event is actually blocked by two independent layers (RLS's
+  // WITH CHECK re-evaluating ownership of the *new* event_id, and the
+  // column-level UPDATE grant that excludes event_id entirely). Mirroring
+  // item 4's owner_id case, both must be broken together here - breaking
+  // only the grant (leaving WITH CHECK intact) would still correctly deny
+  // reassignment to an event the caller doesn't own, which is
+  // defense-in-depth working as designed, not a gap.
+  await withBrokenPolicy(
+    'event_occurrences event_id column grant (with RLS WITH CHECK also relaxed)',
+    `drop policy event_occurrences_update_own on public.event_occurrences;
+     create policy event_occurrences_update_own on public.event_occurrences
+       for update to authenticated using (
+         exists (
+           select 1 from public.events e
+           where e.id = event_id and e.owner_id = auth.uid()
+         )
+       ) with check (true);
+     grant update (event_id) on public.event_occurrences to authenticated;`,
+    `revoke update (event_id) on public.event_occurrences from authenticated;
+     drop policy event_occurrences_update_own on public.event_occurrences;
+     create policy event_occurrences_update_own on public.event_occurrences
+       for update to authenticated using (
+         exists (
+           select 1 from public.events e
+           where e.id = event_id and e.owner_id = auth.uid()
+         )
+       )
+       with check (
+         exists (
+           select 1 from public.events e
+           where e.id = event_id and e.owner_id = auth.uid()
+         )
+       );`,
+    async () => {
+      const createdA = await createEventAsOwner(actorA.client);
+      const createdA2 = await createEventAsOwner(actorA.client);
+      const { data: occurrence, error: occurrenceError } = await actorA.client
+        .from('event_occurrences')
+        .select()
+        .eq('event_id', createdA.id)
+        .single();
+      if (occurrenceError || !occurrence) {
+        throw new Error(`fixture occurrence lookup failed: ${occurrenceError?.message}`);
+      }
+      const { data, error } = await actorA.client
+        .from('event_occurrences')
+        .update({ event_id: createdA2.id })
+        .eq('id', occurrence.id)
+        .select()
+        .single();
+      assert.equal(
+        error,
+        null,
+        'expected occurrence reassignment to go red (succeed) with both the grant and WITH CHECK relaxed',
+      );
+      assert.equal(data.event_id, createdA2.id);
     },
   );
 

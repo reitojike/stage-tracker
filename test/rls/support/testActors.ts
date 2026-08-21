@@ -65,10 +65,37 @@ export async function createTestActor(emailPrefix: string, password: string): Pr
 export async function deleteTestActor(actor: TestActor): Promise<void> {
   const admin = createAdminClient();
 
-  // events.owner_id references auth.users(id) with no ON DELETE action, so
-  // deleting a user who still owns fixture events would fail the FK check.
-  // Clean those up first via the admin path (setup/teardown, not an RLS
-  // assertion) so teardown actually removes what each test created.
+  // events.owner_id references auth.users(id), and event_occurrences.event_id
+  // references events(id), both with no ON DELETE action - so deleting a
+  // user who still owns fixture events, or events that still have fixture
+  // occurrences, would fail the FK check. Clean those up first via the
+  // admin path (setup/teardown, not an RLS assertion), innermost first, so
+  // teardown actually removes what each test created. This ordering is
+  // fixture cleanup only; it does not decide product deletion/cancellation
+  // semantics for events or occurrences.
+  const { data: ownedEvents, error: selectEventsError } = await admin
+    .from('events')
+    .select('id')
+    .eq('owner_id', actor.user.id);
+  if (selectEventsError) {
+    throw new Error(
+      `failed to list fixture events for test user ${actor.user.id}: ${selectEventsError.message}`,
+    );
+  }
+
+  const ownedEventIds = ownedEvents.map((event) => event.id);
+  if (ownedEventIds.length > 0) {
+    const { error: deleteOccurrencesError } = await admin
+      .from('event_occurrences')
+      .delete()
+      .in('event_id', ownedEventIds);
+    if (deleteOccurrencesError) {
+      throw new Error(
+        `failed to delete fixture occurrences for test user ${actor.user.id}: ${deleteOccurrencesError.message}`,
+      );
+    }
+  }
+
   const { error: deleteEventsError } = await admin
     .from('events')
     .delete()

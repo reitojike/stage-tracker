@@ -72,11 +72,16 @@ constraintは、実装agentが従うべき正本として
 
 現在current repositoryでschema/RLS/permission実装として成立しているのは、
 event catalog の共有と owner semantics（owner限定更新・owner transfer
-不可・owner spoofing防止）です（詳細は `product-rules.md` を参照）。
+不可・owner spoofing防止）、およびeventと公演回（occurrence）のtemporal
+model（1 event : N occurrence・occurrence starts_at必須/ends_at
+nullable・occurrence create/updateはparent event ownerのみ）です（詳細は
+`product-rules.md` を参照）。event作成はevent + initial occurrenceを
+1 transactionで作るRPC経由のみをsupported pathとし、直接の`events` INSERT
+は提供しません。
 
-invitation semantics・participation visibilityの既定値・eventと公演回
-（occurrence）のtemporal modelは `product-rules.md` で承認済みのsemantics
-ですが、対応する schema/RLS 実装はまだありません。participation / ticket acquisition / expense / budget の
+invitation semantics・participation visibilityの既定値は
+`product-rules.md` で承認済みのsemanticsですが、対応する schema/RLS 実装は
+まだありません。participation / ticket acquisition / expense / budget の
 実装は、今後それぞれ専用のbounded product Taskでscope・semanticsを確定した
 上で進めます（[`docs/roadmap.md`](./roadmap.md) 参照）。
 
