@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
+import { requestMagicLink } from '../../src/infrastructure/supabase/magicLink.ts';
 import {
   createAnonymousClient,
   deleteUser,
@@ -47,22 +48,23 @@ void test('public self-service signup is rejected', async () => {
   );
 });
 
-void test('sign-in rejects an unknown email without creating an account', async () => {
-  const anon = createAnonymousClient();
+void test('the application sign-in path rejects an unknown email without creating an account', async () => {
   const email = uniqueEmail('unknown');
 
-  const { error } = await anon.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  });
+  // Goes through requestMagicLink - the same function the sign-in Server
+  // Action calls - rather than calling signInWithOtp directly. Supplying
+  // `shouldCreateUser: false` here in the test would prove only that the
+  // Supabase SDK honours the option, and would stay green even if the
+  // application stopped passing it.
+  const { ok } = await requestMagicLink(createAnonymousClient(), email);
 
-  assert.ok(error, 'expected signInWithOtp to reject an email with no account');
+  assert.equal(ok, false, 'expected the sign-in path to reject an email with no account');
   // The rejection alone is not enough: assert the side effect too, so a
   // silently-created account would fail this test rather than pass it.
   assert.equal(
     await userExists(email),
     false,
-    'shouldCreateUser: false must not silently create an account',
+    'the sign-in path must not silently create an account',
   );
 });
 

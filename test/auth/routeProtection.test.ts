@@ -35,7 +35,9 @@ function locationOf(response: Response): string {
 }
 
 /** Completes a real magic-link sign-in through the app's own /auth/confirm route. */
-async function signInThroughApp(next?: string): Promise<{ cookie: string; response: Response }> {
+async function signInThroughApp(
+  next?: string,
+): Promise<{ cookie: string; response: Response; userId: string }> {
   const { user, email } = await provisionUser('route-guard');
   createdUserIds.push(user.id);
 
@@ -60,7 +62,7 @@ async function signInThroughApp(next?: string): Promise<{ cookie: string; respon
     .filter((entry): entry is string => entry !== undefined)
     .join('; ');
 
-  return { cookie, response };
+  return { cookie, response, userId: user.id };
 }
 
 // --- Unauthenticated boundary ---
@@ -93,6 +95,17 @@ void test('an application path ending in an asset extension does not bypass the 
   ];
 
   for (const path of paths) {
+    const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'manual' });
+    assert.equal(response.status, 307, `${path} should be guarded`);
+    assert.equal(new URL(locationOf(response), app.baseUrl).pathname, '/sign-in', path);
+  }
+});
+
+void test('descendants of a public path are not themselves public', async () => {
+  // The allowlist is exact-match. A prefix rule would make any route
+  // added under /sign-in/... or /auth/confirm/... public without ever
+  // being added to the allowlist.
+  for (const path of ['/sign-in/internal', '/auth/confirm/debug']) {
     const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'manual' });
     assert.equal(response.status, 307, `${path} should be guarded`);
     assert.equal(new URL(locationOf(response), app.baseUrl).pathname, '/sign-in', path);
@@ -174,4 +187,74 @@ void test('a confirm link cannot redirect to an external origin', async () => {
   const location = new URL(locationOf(response), app.baseUrl);
   assert.equal(location.origin, new URL(app.baseUrl).origin);
   assert.equal(location.pathname, '/');
+});
+
+void test('a confirm link with control characters in next still signs the user in', async () => {
+  // CR/LF reaching the Location header makes the runtime fail the whole
+  // response (500), which would consume the user's one-time token and
+  // leave them with no session.
+  const { cookie, response } = await signInThroughApp('/\r\nSet-Cookie: evil=1');
+
+  assert.equal(response.status, 307);
+  const location = new URL(locationOf(response), app.baseUrl);
+  assert.equal(location.pathname, '/');
+  assert.equal(
+    response.headers.getSetCookie().some((entry) => entry.includes('evil=1')),
+    false,
+    'no injected cookie may be set',
+  );
+  assert.notEqual(cookie, '', 'the sign-in must still establish a session');
+});
+
+void test('the confirm route only consumes the magic-link OTP type', async () => {
+  // Sign-in must not double as a consumer of recovery / invite /
+  // email_change tokens; those flows need their own route and UI.
+  const { user, email } = await provisionUser('otp-type');
+  createdUserIds.push(user.id);
+
+  const { error } = await createAnonymousClient().auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false },
+  });
+  assert.equal(error, null);
+  const { tokenHash } = await waitForMagicLinkToken(email);
+
+  const confirmUrl = new URL(`${app.baseUrl}/auth/confirm`);
+  confirmUrl.searchParams.set('token_hash', tokenHash);
+  confirmUrl.searchParams.set('type', 'recovery');
+
+  const response = await fetch(confirmUrl, { redirect: 'manual' });
+
+  assert.equal(response.status, 307);
+  const location = new URL(locationOf(response), app.baseUrl);
+  assert.equal(location.pathname, '/sign-in');
+  assert.equal(location.searchParams.get('error'), 'link_expired');
+  assert.equal(
+    response.headers.getSetCookie().length,
+    0,
+    'an unsupported OTP type must not establish a session',
+  );
+});
+
+void test('an invalidated session is rejected at the HTTP boundary, not just by the SDK', async () => {
+  // Guards against the proxy ever trusting a locally-decoded JWT's exp
+  // instead of re-validating on each request: the cookie below is still
+  // unexpired, but the account behind it no longer exists. Asserting this
+  // only through the Supabase SDK would leave the proxy's own behaviour
+  // unproven.
+  const { cookie, userId } = await signInThroughApp();
+
+  const before = await fetch(`${app.baseUrl}/`, { headers: { cookie }, redirect: 'manual' });
+  assert.equal(before.status, 200, 'sanity: the session should work beforehand');
+
+  await deleteUser(userId);
+  // after() must not try to delete it a second time.
+  const index = createdUserIds.indexOf(userId);
+  if (index >= 0) {
+    createdUserIds.splice(index, 1);
+  }
+
+  const after = await fetch(`${app.baseUrl}/`, { headers: { cookie }, redirect: 'manual' });
+  assert.equal(after.status, 307, 'an invalidated session must not reach a protected route');
+  assert.equal(new URL(locationOf(after), app.baseUrl).pathname, '/sign-in');
 });

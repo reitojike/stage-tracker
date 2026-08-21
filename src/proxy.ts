@@ -5,10 +5,13 @@ import { readPublicSupabaseEnv } from '@/infrastructure/supabase/env.ts';
 // Routes reachable without an authenticated session. Everything else is
 // authenticated-only by default so a newly added route can't silently
 // bypass the boundary by omission.
-const PUBLIC_PATHS = ['/sign-in', '/auth/confirm'];
+const PUBLIC_PATHS = new Set(['/sign-in', '/auth/confirm']);
 
+// Exact match only. Treating descendants as public too (`/sign-in/...`)
+// would silently expose any nested route added under one of these
+// prefixes later, without that route ever being added to the allowlist.
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  return PUBLIC_PATHS.has(pathname);
 }
 
 function copyCookies(from: NextResponse, to: NextResponse): void {

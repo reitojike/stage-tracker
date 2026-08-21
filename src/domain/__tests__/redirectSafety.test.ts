@@ -25,6 +25,17 @@ void test('safeRedirectPath rejects backslash variants of a scheme-relative URL'
   assert.equal(safeRedirectPath('/\\/evil.example'), '/');
 });
 
+void test('safeRedirectPath rejects control characters', () => {
+  // These must never reach the Location header: the runtime rejects the
+  // whole response, which would consume the user's one-time token.
+  assert.equal(safeRedirectPath('/\r\nSet-Cookie: evil=1'), '/');
+  assert.equal(safeRedirectPath('/events\r\n'), '/');
+  assert.equal(safeRedirectPath('/events\n'), '/');
+  assert.equal(safeRedirectPath('/events\t'), '/');
+  assert.equal(safeRedirectPath('/events\x00'), '/');
+  assert.equal(safeRedirectPath('/events\x7f'), '/');
+});
+
 void test('safeRedirectPath rejects a relative path that could escape the origin', () => {
   assert.equal(safeRedirectPath('evil.example'), '/');
   assert.equal(safeRedirectPath('../admin'), '/');

@@ -17,10 +17,9 @@ const AUTH_ERRORS: Record<string, { title: string; description: string }> = {
     description:
       'リンクの有効期限が切れているか、すでに使用されています。もう一度サインインリンクを送信してください。',
   },
-  send_failed: {
-    title: 'サインインリンクを送信できませんでした',
-    description:
-      'メールアドレスをご確認ください。アカウントが未登録の場合は、管理者にアカウント作成を依頼してください。',
+  missing_email: {
+    title: 'メールアドレスを入力してください',
+    description: 'サインインリンクの送信先となるメールアドレスが空でした。',
   },
 };
 
@@ -40,7 +39,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
       {sent ? (
         <Surface variant="subtle">
-          <p>サインイン用のリンクをメールで送信しました。届いたメールのリンクを開いてください。</p>
+          {/* Worded so it does not confirm whether an account exists for
+              the submitted address (see requestSignInLink). */}
+          <p>
+            入力されたメールアドレスにアカウントが存在する場合、サインイン用のリンクを送信しました。届いたメールのリンクを開いてください。
+          </p>
         </Surface>
       ) : (
         <form action={requestSignInLink}>

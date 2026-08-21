@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { requestMagicLink } from '@/infrastructure/supabase/magicLink.ts';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 
 export async function requestSignInLink(formData: FormData): Promise<void> {
@@ -8,24 +9,17 @@ export async function requestSignInLink(formData: FormData): Promise<void> {
   const email = typeof emailValue === 'string' ? emailValue.trim() : '';
 
   if (email.length === 0) {
-    redirect('/sign-in?error=send_failed');
+    // About the submitted input, not about whether an account exists, so
+    // this does not leak account existence.
+    redirect('/sign-in?error=missing_email');
   }
 
   const supabase = await createSupabaseServerClient();
-  // shouldCreateUser: false backstops the account-provisioning decision
-  // (public signup disabled - see supabase/config.toml) even if that
-  // project-level setting is ever misconfigured.
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  });
+  await requestMagicLink(supabase, email);
 
-  if (error) {
-    // Deliberately generic: distinguishing "unknown email" from other
-    // failures here would let a caller enumerate which email addresses
-    // have accounts.
-    redirect('/sign-in?error=send_failed');
-  }
-
+  // Deliberately the same outcome whether or not an account exists.
+  // Branching here (sent vs error) would let an unauthenticated visitor
+  // enumerate which addresses have accounts - which matters because every
+  // authenticated user can read the whole shared event catalog.
   redirect('/sign-in?sent=1');
 }
