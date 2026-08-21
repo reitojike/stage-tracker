@@ -151,7 +151,10 @@ void test('create RPC has no input surface for owner spoofing', async () => {
 // it) - which is itself useful evidence that a real TypeScript caller can't
 // accidentally omit it. To prove the *server* also rejects it (not just the
 // generated types), this goes around the typed client with a raw HTTP call.
-void test('RPC create is atomic: a request without starts_at is rejected and rolls back the whole event', async () => {
+// This is a PostgREST function-resolution rejection (no matching overload)
+// - the function body never runs, so this does not exercise rollback; see
+// the next test for that.
+void test('a request omitting starts_at is rejected before the function even runs', async () => {
   const title = eventFixtureTitle();
   const response = await callCreateEventRpcRaw(actorA, { p_title: title });
   assert.equal(response.ok, false, 'expected the RPC call to be rejected without p_starts_at');
@@ -166,6 +169,30 @@ void test('RPC create is atomic: a request without starts_at is rejected and rol
     [],
     'expected no event row to survive a request missing the required starts_at',
   );
+});
+
+// Unlike omitting p_starts_at (above), sending it explicitly as null passes
+// PostgREST's function-resolution step and actually enters the function
+// body: the first insert (into events) succeeds, then the second insert
+// (into event_occurrences) hits its starts_at NOT NULL constraint and
+// raises. This is what actually proves the whole function call - both
+// inserts - rolls back together, not just that the endpoint rejects a
+// malformed request.
+void test('RPC create is atomic: a null starts_at rolls back the whole event, not just the occurrence', async () => {
+  const title = eventFixtureTitle();
+  const response = await callCreateEventRpcRaw(actorA, { p_title: title, p_starts_at: null });
+  assert.equal(
+    response.ok,
+    false,
+    'expected the occurrence NOT NULL constraint to reject a null starts_at',
+  );
+
+  const { data, error: selectError } = await actorA.client
+    .from('events')
+    .select()
+    .eq('title', title);
+  assert.equal(selectError, null);
+  assert.deepEqual(data, [], 'expected no event row to survive a failed initial occurrence insert');
 });
 
 // --- Negative: ownership ---
