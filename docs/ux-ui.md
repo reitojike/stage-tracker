@@ -57,7 +57,9 @@ personal participationを同一semanticとして混在させません。
 1. **Event Catalog** — authenticated users間のshared catalogを見る / 探す
 2. **Favorites / Followed** — follow対象に関連するeventを見逃さず把握する
    （shared catalogのpersonalized view）
-3. **My Calendar** — 自分がparticipation登録したpersonal schedule
+3. **My Calendar** — 自分がparticipation登録したoccurrenceと、
+   event-independentなpersonal schedule entry（`paid_leave` / `work` /
+   `travel` / `other`等）を合わせた自分のpersonal schedule
 
 ## Navigation principle
 
@@ -141,6 +143,28 @@ component側のhard-codeやtoken参照の再設計を必要としません。
 実装は `src/ui/tokens.css` を正本とし、本ファイルはtoken layerの構成
 方針のみを記述します（具体値の重複記載はしません）。
 
+## Calendar weekday / Japanese holiday presentation
+
+month calendar全体に適用するglobal presentation ruleです。個別feature
+screenのcalendar marker semantics（date dot / run period band等）とは
+別concernとして扱います。
+
+- Saturdayはblue roleで表示します。
+- Sundayはred roleで表示します。
+- 日本の祝日（国民の祝日・休日）はred roleで表示します。
+- SaturdayとJapanese holidayが重なる場合は、holiday presentationを
+  優先します。
+- accessibility baselineどおり、色だけを唯一の意味表現にしません。
+
+Holiday dataのauthorityは内閣府「国民の祝日について」掲載データ / CSV
+です（[https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html)）。
+公式に公表されていない将来年の祝日を推測し、確定扱いにしません。祝日
+データの取得・snapshot・update方法はimplementation Taskで決定します。
+
+product上の日付境界（`Asia/Tokyo`）は
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+を正本とし、本節では重複記載しません。
+
 ## Shared / feature-local component boundary
 
 Visual / interaction semanticsがdomain-independentで実際に再利用される
@@ -218,11 +242,15 @@ task / 追加のPO checkpointで確定します。
   `+N` collapsing / rest day表示）
 - event / occurrence persistence shape、run-period persistence、
   rest-day persistence
-- participation persistence / detailed status model
+- participation / invitation / personal schedule / ticket acquisition /
+  ticket のpersistence shape・table naming（status modelそのものの正本は
+  `.ai-dev-foundation/product-rules.md`）
 - ticket acquisition とparticipationのpersistence関係、budget集計の
   期間基準
-- favorite / follow persistence schema、artist / group / troupe /
-  genre taxonomy、category cardinality、saved filter preference
+- favorite / follow persistence schema、classification taxonomyの具体形
+  （classificationのdata boundary自体は
+  `.ai-dev-foundation/product-rules.md`で承認済み）、category
+  cardinality、saved filter preference
 - 正確なnav labels / bottom nav項目数 / Search tab化 / Settings
   placement
 - exact accent hue（「Design tokens」節のplaceholder扱いを参照）

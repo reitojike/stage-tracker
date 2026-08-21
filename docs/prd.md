@@ -43,9 +43,11 @@ Completed baseline参照）。これはcurrent baselineとして成立してい�
 あり、将来の専用product Taskで見直せないことを意味しません。
 
 **participation / personal schedule・ticket acquisition・expense・budget**
-は未実装で、table naming・永続化shape・relation shape・詳細なstatus model
-を本ドキュメントの時点では固定しません。それぞれを扱うbounded product Task
-の中で確定します。
+は未実装です。participation / invitation / personal schedule / ticket
+acquisition / ticket / ticket transferのproduct-level semanticsは
+`product-rules.md`で承認済みですが、table naming・永続化shape・relation
+shapeはそれぞれを扱うbounded product Taskの中で確定します。**expense /
+budget**のsemanticsはまだ未確定です。
 
 ## Shared catalog と personal concepts の関係
 
@@ -79,11 +81,23 @@ nullable・occurrence create/updateはparent event ownerのみ）です（詳細
 1 transactionで作るRPC経由のみをsupported pathとし、直接の`events` INSERT
 は提供しません。
 
-invitation semantics・participation visibilityの既定値は
-`product-rules.md` で承認済みのsemanticsですが、対応する schema/RLS 実装は
-まだありません。participation / ticket acquisition / expense / budget の
-実装は、今後それぞれ専用のbounded product Taskでscope・semanticsを確定した
-上で進めます（[`docs/roadmap.md`](./roadmap.md) 参照）。
+以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
+対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
+
+- occurrence-level participation / invitation
+- event-independent personal schedule
+- ticket acquisition / ticket の分離、ticket transfer
+- catalog classification / venue のMVP data boundary
+- designated catalog creator限定のminimal Event catalog create/update UI
+- calendar上のSaturday/Sunday/Japanese holiday presentation
+
+詳細なsemanticsはいずれも
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+（calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)）を正本とし、
+本PRDでは複製しません。
+
+これらの実装は、今後それぞれ専用のbounded product Taskでscope・詳細
+semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) 参照）。
 
 ## Deferred decisions
 
@@ -91,8 +105,12 @@ invitation semantics・participation visibilityの既定値は
 uncommitted）です。current committed scopeには含みません。
 
 - event deletion semantics
-- participation の persistence / table naming / 詳細status model
-- ticket acquisition と participation の persistence関係
+- 各domain concept（participation / invitation / personal schedule /
+  ticket acquisition / ticket / ticket transfer / classification /
+  venue / Administrator権限機構）のexact persistence・mechanism詳細
+  （未決定項目の一覧は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
 - budget集計の期間基準
 - MCP product scope
 - sign-in provider（具体的な認証方式）
