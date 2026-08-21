@@ -81,10 +81,29 @@ void test('a route with no page still does not bypass the auth boundary', async 
   assert.equal(new URL(locationOf(response), app.baseUrl).pathname, '/sign-in');
 });
 
-void test('the sign-in route is reachable without a session', async () => {
+void test('the sign-in route is reachable without a session and renders its form', async () => {
   const response = await fetch(`${app.baseUrl}/sign-in`, { redirect: 'manual' });
 
   assert.equal(response.status, 200);
+
+  // A 200 alone would still pass if the form failed to render, so assert
+  // the field a user actually needs is present.
+  const html = await response.text();
+  assert.match(html, /name="email"/);
+  assert.match(html, /メールアドレス/);
+});
+
+void test('an auth failure is shown as a distinct error state, not an empty one', async () => {
+  const response = await fetch(`${app.baseUrl}/sign-in?error=link_expired`, {
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  // docs/ux-ui.md requires auth failure to be distinguishable from an
+  // ordinary empty/signed-out state.
+  assert.match(html, /サインインリンクが無効です/);
+  assert.match(html, /role="alert"/);
 });
 
 // --- Authenticated boundary ---
