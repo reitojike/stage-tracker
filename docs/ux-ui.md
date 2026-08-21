@@ -57,7 +57,9 @@ personal participationを同一semanticとして混在させません。
 1. **Event Catalog** — authenticated users間のshared catalogを見る / 探す
 2. **Favorites / Followed** — follow対象に関連するeventを見逃さず把握する
    （shared catalogのpersonalized view）
-3. **My Calendar** — 自分がparticipation登録したpersonal schedule
+3. **My Calendar** — 自分がparticipation登録したoccurrenceと、
+   event-independentなpersonal schedule entry（`paid_leave` / `work` /
+   `travel` / `other`等）を合わせた自分のpersonal schedule
 
 ## Navigation principle
 

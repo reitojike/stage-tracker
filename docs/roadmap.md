@@ -28,12 +28,19 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 に従って既に実装済みです。
 
 occurrence-level participation / invitation、event-independent personal
-schedule、ticket acquisition / ticket / ticket transfer、catalog
-classification / venue のMVP data boundary、designated catalog creator
-限定のEvent catalog write UI、calendar上のSaturday/Sunday/Japanese
-holiday presentationのsemanticsも product-rules.md / `docs/ux-ui.md` で
-承認済みですが、対応するschema/RLS/UIはまだ実装されていません。こちらは
-次節のMVP personal planning capabilityの中で実装します。
+schedule、ticket acquisition / ticket / ticket transfer、designated
+catalog creator限定のEvent catalog write UI、calendar上のSaturday/
+Sunday/Japanese holiday presentationのsemanticsも product-rules.md /
+`docs/ux-ui.md` で承認済みですが、対応するschema/RLS/UIはまだ実装されて
+いません。こちらは次節のMVP personal planning capabilityの中で実装
+します。
+
+catalog classification / venueについては、将来の分類導入を阻害しない
+MVP data boundary（event-level・複数value許容・`troupe`等の
+domain-specific columnを追加しない、venueは現行`events.venue` textを
+維持する等）のみがMVPで承認済みです。classification / venueの
+persistence実装・filter UIは対象外で、下記「Post-MVP direction」に
+含みます。MVPでの実装対象には含めません。
 
 ## 2. MVP personal planning capabilities（成立させたい方向性）
 
