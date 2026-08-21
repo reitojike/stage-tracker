@@ -14,63 +14,48 @@ export interface MagicLinkAuthClient {
 }
 
 /**
- * `delivered` covers "sent", "no such account", and any other per-request
- * verdict: the caller must present them identically, or an
- * unauthenticated visitor could enumerate which addresses have accounts -
- * which matters because every authenticated user can read the whole
- * shared event catalog.
- *
- * `unavailable` is reserved for failures that are request-independent by
- * construction, so it can never correlate with a particular address.
+ * Where failures go instead of into the response. Injected so the sign-in
+ * path stays testable without depending on a logging backend - production
+ * logging infrastructure is deliberately not decided here.
  */
-export type MagicLinkOutcome = 'delivered' | 'unavailable';
-
-/**
- * True only when the Auth API produced no HTTP response at all (a failed
- * fetch, reported by supabase-js as status 0).
- *
- * Classifying by status *class* is not safe here. Measured against a
- * local GoTrue with SMTP pointed at a dead port: an address that exists
- * returns 500 (the mailer fails only after the user is found) while an
- * address that does not exist returns 422 `otp_disabled`. Treating 5xx as
- * "request-independent" would therefore have made the 500 an existence
- * oracle in exactly the situation where it matters. Only "we never got a
- * response" is genuinely independent of which address was submitted.
- */
-function reachedTheAuthService(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null || !('status' in error)) {
-    return false;
-  }
-  const { status } = error;
-  return typeof status === 'number' && status > 0;
+export interface MagicLinkDiagnostics {
+  requestFailed(email: string, error: unknown): void;
 }
 
 /**
  * Requests a magic-link sign-in email.
  *
+ * Returns nothing, deliberately. Earlier revisions returned a classified
+ * outcome so the caller could tell the user why a request failed, and
+ * every classification attempt turned into an account-existence oracle:
+ * the redirect target, then a 4xx/5xx split (a dead SMTP server makes an
+ * existing address return 500 while an unknown one returns 422), then the
+ * presence of `error.status` (`AuthUnknownError` carries none even though
+ * an HTTP response did arrive). Handing the caller no outcome at all is
+ * what makes the response envelope invariant by construction rather than
+ * by careful case analysis.
+ *
+ * Failures are reported to `diagnostics` - a server-side channel an
+ * unauthenticated caller cannot observe.
+ *
  * `shouldCreateUser: false` backstops the account-provisioning decision
  * (public signup disabled - see supabase/config.toml) so a misconfigured
  * project cannot turn a sign-in attempt into a silent account creation.
- *
- * That backstop is deliberately unobservable end-to-end while the project
- * is configured correctly: GoTrue refuses the creation anyway, so removing
- * the option changes nothing an integration test could see. It is
- * therefore asserted directly, against the arguments this function sends.
+ * That backstop is unobservable end-to-end while the project is
+ * configured correctly, so it is asserted directly against the arguments
+ * this function sends.
  */
 export async function requestMagicLink(
   client: MagicLinkAuthClient,
   email: string,
-): Promise<MagicLinkOutcome> {
+  diagnostics?: MagicLinkDiagnostics,
+): Promise<void> {
   const { error } = await client.auth.signInWithOtp({
     email,
     options: { shouldCreateUser: false },
   });
 
-  if (error === null || error === undefined) {
-    return 'delivered';
+  if (error !== null && error !== undefined) {
+    diagnostics?.requestFailed(email, error);
   }
-  // Any HTTP response means the service evaluated this specific address,
-  // so it must be presented identically to success. Only "no response at
-  // all" is safe to surface.
-  return reachedTheAuthService(error) ? 'delivered' : 'unavailable';
 }

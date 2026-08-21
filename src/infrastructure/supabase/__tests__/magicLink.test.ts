@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { requestMagicLink, type MagicLinkAuthClient } from '../magicLink.ts';
+import {
+  requestMagicLink,
+  type MagicLinkAuthClient,
+  type MagicLinkDiagnostics,
+} from '../magicLink.ts';
 
 interface RecordedCall {
   email: string;
@@ -23,6 +27,21 @@ function recordingClient(error: unknown = null): {
   return { client, calls };
 }
 
+function recordingDiagnostics(): {
+  diagnostics: MagicLinkDiagnostics;
+  failures: { email: string; error: unknown }[];
+} {
+  const failures: { email: string; error: unknown }[] = [];
+  return {
+    diagnostics: {
+      requestFailed(email, error) {
+        failures.push({ email, error });
+      },
+    },
+    failures,
+  };
+}
+
 // The sign-in path must never ask Supabase to create an account. With the
 // project configured correctly GoTrue refuses creation regardless, so this
 // backstop cannot be observed end-to-end - assert the request itself.
@@ -38,33 +57,45 @@ void test('requestMagicLink never asks Supabase to create an account', async () 
   assert.equal(call.options?.shouldCreateUser, false);
 });
 
-void test('requestMagicLink reports delivered when Supabase accepted the request', async () => {
-  const { client } = recordingClient();
-  assert.equal(await requestMagicLink(client, 'a@example.test'), 'delivered');
+// The core anti-enumeration property. Every classification attempt became
+// an oracle, so the caller is handed nothing to branch on. The absence of
+// a signal is enforced at compile time by the `Promise<void>` return type;
+// what is asserted here is that no outcome changes how the request itself
+// behaves - it must complete uniformly rather than, say, throwing for some
+// error shapes and resolving for others.
+void test('every Supabase outcome is handled uniformly', async () => {
+  const outcomes: { label: string; error: unknown }[] = [
+    { label: 'sent', error: null },
+    { label: 'address has no account (422)', error: { status: 422, code: 'otp_disabled' } },
+    { label: 'SMTP dead for an address that exists (500)', error: { status: 500 } },
+    { label: 'rate limited (429)', error: { status: 429 } },
+    { label: 'never reached the service', error: { status: 0, name: 'AuthRetryableFetchError' } },
+    { label: 'unparseable body, no status at all', error: new Error('unparseable body') },
+  ];
+
+  for (const { label, error } of outcomes) {
+    const { client, calls } = recordingClient(error);
+    await requestMagicLink(client, 'someone@example.test');
+    assert.equal(calls.length, 1, `${label}: exactly one request`);
+    assert.equal(calls[0]?.options?.shouldCreateUser, false, `${label}: guard still sent`);
+  }
 });
 
-void test('an account-level rejection is indistinguishable from a delivered link', async () => {
-  // Status 422 / otp_disabled is what an address with no account yields.
-  // Reporting it differently would give an enumeration oracle.
-  const { client } = recordingClient({ status: 422, code: 'otp_disabled' });
-  assert.equal(await requestMagicLink(client, 'nobody@example.test'), 'delivered');
-});
-
-void test('a 5xx is also folded into delivered, because it can be address-specific', async () => {
-  // Measured against a local GoTrue with SMTP pointed at a dead port: an
-  // address that EXISTS yields 500 (the mailer fails only after the user
-  // is found) while an unknown address yields 422. Surfacing the 500
-  // would therefore turn it into an existence oracle.
+void test('failures are reported to the server-side diagnostics channel', async () => {
   const { client } = recordingClient({ status: 500 });
-  assert.equal(await requestMagicLink(client, 'someone@example.test'), 'delivered');
+  const { diagnostics, failures } = recordingDiagnostics();
+
+  await requestMagicLink(client, 'someone@example.test', diagnostics);
+
+  assert.equal(failures.length, 1, 'a failure must not be swallowed entirely');
+  assert.equal(failures[0]?.email, 'someone@example.test');
 });
 
-void test('only a failure with no HTTP response at all is reported as unavailable', async () => {
-  // status 0 means the request never reached the auth service, so it
-  // cannot correlate with any particular address.
-  const unreachable = recordingClient({ status: 0, name: 'AuthRetryableFetchError' });
-  assert.equal(await requestMagicLink(unreachable.client, 'a@example.test'), 'unavailable');
+void test('a successful request reports no failure', async () => {
+  const { client } = recordingClient();
+  const { diagnostics, failures } = recordingDiagnostics();
 
-  const noStatus = recordingClient(new Error('connection reset'));
-  assert.equal(await requestMagicLink(noStatus.client, 'b@example.test'), 'unavailable');
+  await requestMagicLink(client, 'someone@example.test', diagnostics);
+
+  assert.equal(failures.length, 0);
 });

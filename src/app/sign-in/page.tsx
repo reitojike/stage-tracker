@@ -21,16 +21,11 @@ const AUTH_ERRORS: Record<string, { title: string; description: string }> = {
     title: 'メールアドレスを入力してください',
     description: 'サインインリンクの送信先となるメールアドレスが空でした。',
   },
-  unavailable: {
-    title: 'サインインリンクを送信できませんでした',
-    description:
-      '認証サービスへ接続できませんでした。アカウントの有無とは無関係な問題です。しばらくしてからもう一度お試しください。',
-  },
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
-  const sent = params.sent === '1';
+  const requested = params.requested === '1';
   const errorKey = typeof params.error === 'string' ? params.error : undefined;
   const authError = errorKey === undefined ? undefined : AUTH_ERRORS[errorKey];
 
@@ -42,12 +37,13 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <StatePanel variant="error" title={authError.title} description={authError.description} />
       ) : null}
 
-      {sent ? (
+      {requested ? (
         <Surface variant="subtle">
-          {/* Worded so it does not confirm whether an account exists for
-              the submitted address (see requestSignInLink). */}
+          {/* Acknowledges the request only. It must not claim an email was
+              sent, nor imply anything about whether the address has an
+              account - see requestSignInLink. */}
           <p>
-            入力されたメールアドレスにアカウントが存在する場合、サインイン用のリンクを送信しました。届いたメールのリンクを開いてください。
+            リクエストを受け付けました。登録済みのメールアドレスで、メール送信が利用可能な場合はサインインリンクが届きます。届かない場合は時間をおいて再試行するか、管理者に連絡してください。
           </p>
         </Surface>
       ) : (
@@ -58,9 +54,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             type="email"
             required
             autoComplete="email"
-            helperText="登録済みのメールアドレスにサインインリンクを送信します。"
+            helperText="登録済みのメールアドレス宛にサインインリンクをリクエストします。"
           />
-          <Button type="submit">サインインリンクを送信</Button>
+          <Button type="submit">サインインリンクをリクエスト</Button>
         </form>
       )}
     </main>

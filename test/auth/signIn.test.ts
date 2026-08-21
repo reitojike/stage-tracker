@@ -56,11 +56,12 @@ void test('the application sign-in path rejects an unknown email without creatin
   // `shouldCreateUser: false` here in the test would prove only that the
   // Supabase SDK honours the option, and would stay green even if the
   // application stopped passing it.
-  const outcome = await requestMagicLink(createAnonymousClient(), email);
+  // Signals nothing on purpose - any outcome signal became an account
+  // existence oracle (enforced at compile time by its `Promise<void>`
+  // return type). What must hold is the side effect: no account may come
+  // into existence.
+  await requestMagicLink(createAnonymousClient(), email);
 
-  // Reported as `delivered` on purpose - see MagicLinkOutcome. What must
-  // hold is the side effect: no account may come into existence.
-  assert.equal(outcome, 'delivered');
   assert.equal(
     await userExists(email),
     false,

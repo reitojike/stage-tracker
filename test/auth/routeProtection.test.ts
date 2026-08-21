@@ -262,7 +262,9 @@ void test('the sign-in action gives an identical response for known and unknown 
   const unknownTarget = actionRedirectTarget(unknown);
   assert.ok(knownTarget !== null, 'expected the sign-in action to redirect');
   assert.equal(knownTarget, unknownTarget, 'redirect target must not distinguish the two');
-  assert.match(knownTarget, /sent=1/);
+  // Acknowledges the request only; it must not claim a link was sent.
+  assert.match(knownTarget, /requested=1/);
+  assert.doesNotMatch(knownTarget, /sent=1/);
 
   // Status and Location alone would miss account state leaking through
   // another header or the body, so compare the rest of the observable
