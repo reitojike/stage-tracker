@@ -188,9 +188,25 @@ export interface UtcInstantRange {
   endUtcExclusive: string;
 }
 
-const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
+/** Asia/Tokyo has a fixed UTC+9 offset, no DST - exported so other domain
+ * modules (e.g. catalogFormatting.ts) that need to shift a UTC instant into
+ * Tokyo local fields do not redefine this constant themselves. */
+export const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-function parseTokyoCalendarDate(dateStr: string): { year: number; month: number; day: number } {
+/**
+ * Parses a "YYYY-MM-DD" calendar date, rejecting anything that is only
+ * shape-valid (e.g. "2026-13-01", "2026-02-30", or a 2-digit year that
+ * would trigger JS's legacy Date.UTC 1900s remap) via a Date.UTC round-trip
+ * - see the comment below. Exported so other domain modules that need the
+ * same validated calendar-date parsing (e.g. calendarMonth.ts's month-grid
+ * arithmetic) share this instead of re-deriving their own, weaker,
+ * shape-only check.
+ */
+export function parseTokyoCalendarDate(dateStr: string): {
+  year: number;
+  month: number;
+  day: number;
+} {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
   if (!match) {
     throw new Error(`expected an Asia/Tokyo calendar date as "YYYY-MM-DD", got: ${dateStr}`);
@@ -256,6 +272,38 @@ export function tokyoCalendarDateRangeUtc(
   const { startUtc } = tokyoCalendarDayRangeUtc(startDateStr);
   const { endUtcExclusive } = tokyoCalendarDayRangeUtc(endDateStrInclusive);
   return { startUtc, endUtcExclusive };
+}
+
+/**
+ * The inverse of tokyoCalendarDayRangeUtc: which Asia/Tokyo calendar day
+ * ("YYYY-MM-DD") a UTC instant falls on. Used to bucket occurrences by
+ * Tokyo calendar day for presentation (e.g. month calendar rendering),
+ * without ever reading the JS runtime's local timezone - Tokyo has a fixed
+ * UTC+9 offset with no DST, so shifting the instant by that fixed constant
+ * and reading its UTC calendar fields back out is exact.
+ */
+export function tokyoCalendarDateFromInstant(instantIso: string): string {
+  const tokyo = tokyoLocalInstant(instantIso);
+  const year = String(tokyo.getUTCFullYear()).padStart(4, '0');
+  const month = String(tokyo.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(tokyo.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Shifts a UTC instant by the fixed Asia/Tokyo offset and returns it as a
+ * Date whose UTC getters (getUTCFullYear/getUTCMonth/getUTCDate/getUTCHours/
+ * getUTCMinutes/...) then read as Tokyo local fields. Exported so any
+ * domain module that needs Tokyo local fields (not just the calendar date -
+ * see catalogFormatting.ts's time-of-day labels) shares this one
+ * parse+shift instead of re-deriving it.
+ */
+export function tokyoLocalInstant(instantIso: string): Date {
+  const instantMs = Date.parse(instantIso);
+  if (Number.isNaN(instantMs)) {
+    throw new Error(`expected a valid ISO 8601 instant, got: ${instantIso}`);
+  }
+  return new Date(instantMs + TOKYO_OFFSET_MS);
 }
 
 /**

@@ -1,6 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
-import { readLocalSupabaseStatus } from '../../rls/support/localSupabase.ts';
+import {
+  readLocalSupabaseStatus,
+  type LocalSupabaseStatus,
+} from '../../rls/support/localSupabase.ts';
 
 async function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -28,24 +31,60 @@ export interface AppServer {
 
 function stopProcess(child: ChildProcess): Promise<void> {
   return new Promise((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) {
+    const alreadyExited = child.exitCode !== null || child.signalCode !== null;
+
+    if (process.platform === 'win32') {
+      // Unchanged from before: child is the npx/next shim; killing only it
+      // would orphan the server process still holding the port. taskkill
+      // /T walks the whole process tree.
+      if (alreadyExited) {
+        resolve();
+        return;
+      }
+      child.once('exit', () => {
+        resolve();
+      });
+      if (typeof child.pid === 'number') {
+        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+          stdio: 'ignore',
+          shell: false,
+        });
+      } else {
+        child.kill('SIGTERM');
+      }
+      return;
+    }
+
+    // POSIX: spawnNextDev spawns with detached: true, making this child the
+    // leader of its own process group (group id == its pid). `next dev`
+    // (via Turbopack) forks a next-server worker as a grandchild, which
+    // survives a SIGTERM sent only to the shim and keeps holding the port
+    // and the project's on-disk dev lock - the very next test file's
+    // startAppServer() then collides with that leftover server instead of
+    // starting a fresh one. Killing the whole group (negative pid) reaches
+    // it too.
+    //
+    // This is attempted even when `child` itself has already exited: Node
+    // only tracks *this* process's exit, not its descendants', and the
+    // group id stays valid as a kill target for as long as any member of
+    // it is still alive - including an already-orphaned next-server whose
+    // immediate parent exited first.
+    if (typeof child.pid === 'number') {
+      try {
+        process.kill(-child.pid, 'SIGTERM');
+      } catch {
+        // ESRCH (group already fully gone) or similar - nothing left to
+        // kill; not a failure of cleanup itself.
+      }
+    }
+
+    if (alreadyExited) {
       resolve();
       return;
     }
     child.once('exit', () => {
       resolve();
     });
-
-    if (process.platform === 'win32' && typeof child.pid === 'number') {
-      // child is the npx/next shim; killing only it would orphan the
-      // server process still holding the port.
-      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-        stdio: 'ignore',
-        shell: false,
-      });
-    } else {
-      child.kill('SIGTERM');
-    }
   });
 }
 
@@ -87,15 +126,14 @@ function nonAgentEnv(): NodeJS.ProcessEnv {
   return { ...filtered, NODE_ENV: process.env.NODE_ENV };
 }
 
-/**
- * Boots the real Next.js app so route protection can be verified over
- * HTTP. `next dev` is used rather than `next start` so this test does not
- * depend on a build artifact having been produced first.
- */
-export async function startAppServer(): Promise<AppServer> {
-  const status = readLocalSupabaseStatus();
-  const port = await findFreePort();
+interface SpawnedNextDev {
+  child: ChildProcess;
+  /** Resolves once the child exits, whenever that happens - readiness
+   * polling in startAppServer races this against becoming ready. */
+  exited: Promise<{ code: number | null; stderr: string }>;
+}
 
+function spawnNextDev(port: number, status: LocalSupabaseStatus): SpawnedNextDev {
   const child = spawn('npx', ['next', 'dev', '--port', String(port), '--hostname', '127.0.0.1'], {
     env: {
       ...nonAgentEnv(),
@@ -106,20 +144,63 @@ export async function startAppServer(): Promise<AppServer> {
     // Windows can only launch node_modules/.bin shims through a shell;
     // the args here are static literals plus a locally chosen port.
     shell: process.platform === 'win32',
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'pipe'],
+    // On POSIX, makes this child the leader of its own process group, so
+    // stopProcess can later kill the whole tree (including the
+    // next-server worker Turbopack forks as a grandchild) via a negative
+    // pid instead of only the immediate npx/next shim.
+    detached: process.platform !== 'win32',
   });
 
+  // Captured only for a clearer error message if the process exits early -
+  // an opaque "exited with code 1" was previously the only signal
+  // available to diagnose a startup failure.
+  let stderr = '';
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString('utf8');
+  });
+
+  const exited = new Promise<{ code: number | null; stderr: string }>((resolve) => {
+    child.once('exit', (code) => {
+      resolve({ code, stderr });
+    });
+  });
+
+  return { child, exited };
+}
+
+/**
+ * Boots the real Next.js app so route protection can be verified over
+ * HTTP. `next dev` is used rather than `next start` so this test does not
+ * depend on a build artifact having been produced first.
+ *
+ * `next dev` refuses to run a second instance against the same project
+ * directory even on a different port ("Another next dev server is already
+ * running") - it is a per-directory on-disk lock, not a per-port one.
+ * Every test file that calls this must therefore not run concurrently with
+ * another that also does; see package.json's `test:auth` script, which
+ * runs with `--test-concurrency=1` for exactly this reason. stopProcess
+ * above is what makes that safe across files: it kills the *entire*
+ * process tree it started (see its own comment), so no leftover
+ * next-server can still be holding that lock by the time the next file's
+ * startAppServer runs.
+ */
+export async function startAppServer(): Promise<AppServer> {
+  const status = readLocalSupabaseStatus();
+  const port = await findFreePort();
+  const { child, exited } = spawnNextDev(port, status);
   const baseUrl = `http://127.0.0.1:${String(port)}`;
   const deadline = Date.now() + 120_000;
 
   for (;;) {
     if (child.exitCode !== null) {
-      throw new Error(`next dev exited early with code ${String(child.exitCode)}`);
+      const { code, stderr } = await exited;
+      throw new Error(`next dev exited early with code ${String(code)}:\n${stderr}`);
     }
     try {
       const response = await fetch(`${baseUrl}/sign-in`, { redirect: 'manual' });
       if (response.status > 0) {
-        break;
+        return { baseUrl, stop: () => stopProcess(child) };
       }
     } catch {
       // not listening yet
@@ -130,9 +211,4 @@ export async function startAppServer(): Promise<AppServer> {
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-
-  return {
-    baseUrl,
-    stop: () => stopProcess(child),
-  };
 }

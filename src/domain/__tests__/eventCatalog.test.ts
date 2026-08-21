@@ -8,6 +8,7 @@ import {
   mapOccurrenceRow,
   mapPostgrestError,
   sortOccurrences,
+  tokyoCalendarDateFromInstant,
   tokyoCalendarDateRangeUtc,
   tokyoCalendarDayRangeUtc,
   type EventCatalogEvent,
@@ -320,6 +321,23 @@ void test('tokyoCalendarDateRangeUtc: a single-day range matches tokyoCalendarDa
   const asRange = tokyoCalendarDateRangeUtc('2026-08-21', '2026-08-21');
   const asDay = tokyoCalendarDayRangeUtc('2026-08-21');
   assert.deepEqual(asRange, asDay);
+});
+
+void test('tokyoCalendarDateFromInstant: inverts tokyoCalendarDayRangeUtc at the day boundary', () => {
+  const { startUtc } = tokyoCalendarDayRangeUtc('2026-08-21');
+  assert.equal(tokyoCalendarDateFromInstant(startUtc), '2026-08-21');
+  // One millisecond before Tokyo midnight still belongs to the previous day.
+  const justBefore = new Date(new Date(startUtc).getTime() - 1).toISOString();
+  assert.equal(tokyoCalendarDateFromInstant(justBefore), '2026-08-20');
+});
+
+void test('tokyoCalendarDateFromInstant: a UTC evening instant can fall on the next Tokyo calendar day', () => {
+  // 2026-08-20T16:00:00Z is 2026-08-21T01:00:00+09:00.
+  assert.equal(tokyoCalendarDateFromInstant('2026-08-20T16:00:00.000Z'), '2026-08-21');
+});
+
+void test('tokyoCalendarDateFromInstant: rejects an unparseable instant', () => {
+  assert.throws(() => tokyoCalendarDateFromInstant('not-an-instant'));
 });
 
 // --- Empty result semantics ---
