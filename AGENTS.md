@@ -35,6 +35,51 @@
 `AGENTS.md` は三つの composition input から生成されます。直接編集しないでください。
 `CLAUDE.md` は `AGENTS.md` を参照する thin adapter であり、canonical rule を複製しません。
 
+## Human-facing output language
+
+human-facing output（人間が読むために agent が作成・編集する成果物）の
+既定言語は、その project が持つ既定言語に従います。少なくとも次を対象と
+します。
+
+- Issue / PR の title・body・comment
+- review finding / triage / Resolution / closure の durable evidence comment
+- planning checkpoint、handoff、completion report
+- セッション中の人間向け progress report・final report
+- agent が生成・編集する Markdown / documentation
+
+一方、次は human-facing output の既定言語に関わらず、無理に翻訳せず原語
+（多くの場合英語）のまま保持します。
+
+- source code / identifier / symbol / API / library / framework name
+- file path / command / script name
+- schema / enum / protocol field 等の machine-facing text
+- error / log / provider-native output の引用
+- externally defined technical term / proper noun
+
+human-facing な地の文の中に、上記の technical vocabulary を原語のまま
+混在させることは許容します。検索性や意味精度を落とす過剰な翻訳はしません。
+
+project が既定言語を明示していない場合、agent は言語を仮定せず、その
+project の既存 human-facing artifact や communication から観測できる
+言語に合わせます。
+
+project 自身の既定言語が何であるかは Foundation Kernel が固定する対象
+ではありません。技術非依存な Foundation policy はこの節の reusable な
+原則までとし、特定の project がどの言語を既定とするかは、その project
+の Consumer product rules、または Foundation 自身のように project が
+自らを consumer として扱う場合は project 自身の repo-local instructions
+へ記録します。Technology profile は technology/provider 向けの具体化に
+限定し、project の既定言語を持ちません。
+
+Review Protocol の Selection Contract / Execution Contract / Acquisition
+& Validity Contract / Resolution Contract、および `target_sha` /
+`finding_count` 等の record schema field 名は、この節の対象外の
+machine-facing structure として英語のまま保持します。これらの contract
+を説明する human-facing な本文は、この節の既定言語に従います。
+provider-native bot 自身が固定言語で出力する内容は、この節に対する
+Foundation violation として扱いません。agent が自ら作成する durable な
+summary / resolution comment は、この節の既定言語に従います。
+
 ## Task Protocol
 
 Task の canonical context は Issue 本文です。downstream agent への handoff は Issue を短く
@@ -98,6 +143,100 @@ handoff を毎 Task で義務化しませんが、High role を終える時点�
 してはいけません。pure technical dispute は原則として technical adjudication で解決し、
 人間を message bus にしません。人間への escalation は、product intent、authority、権限、
 または受容不能な trade-off に限ります。
+
+### Thin invocation over a canonical Task Contract
+
+Task の canonical context は Issue 本文です（本節冒頭）。この canonical
+Task Contract が既に Issue 本文へ存在する場合、agent invocation はその
+内容を原則として再掲せず、Issue を参照します。長い session-local prompt
+がなければ Task を再開できないことを目指すのではなく、durable な Issue
+本文から新しい agent/session が作業を再開できることを目指します。
+
+canonical Task Contract が存在する場合、invocation / handoff prompt へ
+含めるのは原則として次に限定します。
+
+- canonical Task Contract の locator
+- handoff 値を current と仮定せず、current state を再取得する指示
+- Task Contract へまだ materialize されていない session 固有の追加
+  decision / constraint
+- execution authority
+- stopping condition
+- 必要な review / verification への pointer（詳細が canonical guidance に
+  ある場合は再掲しない）
+
+canonical Task Contract に既に存在する background / scope / Acceptance
+Criteria / design constraint 等を、理由なく invocation prompt へ複製しま
+せん。
+
+material な追加 decision が session を跨いで継続的に必要になる場合は、
+可能な限り durable な Issue 本文へ materialize した上で、invocation
+からはそれを参照します。invocation prompt 自体を追加 decision の正本に
+しません。
+
+短い prompt 自体を目的にしません。canonical Task Contract が不十分な場合
+や、緊急の session-local constraint がある場合は、必要な情報を invocation
+へ含めてよく、機械的な短文化のために欠落させてはいけません。canonical
+Task Contract の不足に気付いた場合は、省略ではなく Task Contract 自体の
+更新を優先します。
+
+thin invocation は、受け手の agent/session が Issue 本文へアクセスできる
+ことを前提とします。この access 可否は available tools 等の Execution
+Envelope に属し、Semantic Contract の充足度とは独立です。受け手が Issue
+本文へアクセスできることを保証できない場合、locator の提示だけで済ませ
+ず、必要な Task Contract の内容を invocation へ直接含めます。
+
+この convention は provider-neutral です。特定の CLI、agent runtime、
+または model 向けの invocation format を Kernel に固定しません。新しい
+prompt schema / DSL / generator の導入を要求しません。
+
+### Issue closure and Acceptance Criteria completion
+
+Task Contract の completion は、Review Protocol の merge-readiness（Merge readiness
+and merge authority）とは別の contract です。merge-ready の成立、または実際の merge
+は、canonical Issue 上の Acceptance Criteria が満たされたことの証跡にはなりません。
+Review が完了していても、Issue Task Contract 上の Acceptance Criteria 確認を省略して
+よいことにはなりません。canonical Issue を completed として close する判断は、この
+節に従います。
+
+canonical Issue を completed として close する前に、少なくとも次を行います。
+
+1. **canonical context の再取得** — close しようとする session 自身の記憶や過去の
+   長文 handoff をそのまま正としてはいけません。close 直前に、current Issue 本文
+   （canonical Task Contract）と、merge 済み current main または applicable branch
+   の状態を再取得します。
+2. **Acceptance Criteria evidence 照合** — Acceptance Criteria を 1 項目ずつ、
+   実装・test・PR・review・merge 後の状態等の evidence と個別に照合します。「実装が
+   完了したように見える」という印象だけでは充足の根拠にしません。
+3. **checkbox 更新** — evidence で明確に充足を確認できた項目だけ checkbox を更新
+   します。checkbox 更新は見た目上の cleanup ではなく、Task Contract completion
+   evidence の一部として扱います。
+4. **未達・判断不能な項目の扱い** — evidence 不足または未達で判断できない Acceptance
+   Criteria が 1 件でも残る場合、その項目を勝手に check せず、Issue も close しません。
+   Issue に Acceptance Criteria が存在しない場合、close のために新たな Acceptance
+   Criteria を捏造しません。
+5. **completion comment** — final SHA、verification 結果、review evidence
+   （Review Protocol の Acquisition & Validity Contract に従う record / result
+   locator を含む）、および未解決事項を、Issue 上の completion comment として
+   記録します。
+
+推奨する sequence は次のとおりです。
+
+`merge/current main 確認 -> Acceptance Criteria evidence 照合 -> checkbox 更新 ->
+completion comment -> Issue close`
+
+Issue close の execution authority は、Merge readiness and merge authority と同じ
+分離に従います。current Task、Execution Envelope、または explicit な authority が
+close の実行を許可している場合に限り、agent は Issue を close してよいです。authority
+が明示されていない場合、または別 authority の承認が必要な場合、agent は Issue 本文の
+編集や close を実行せず、どの Acceptance Criteria がどの evidence で満たされているか
+（または未達か）を手順 5 の completion comment として明示的に残した上で停止し、
+authority escalation / handoff します。
+
+auto-close keyword（例: PR 本文の "Closes #N"）によって Acceptance Criteria 確認前に
+Issue が自動 close される運用を、標準運用にしません。
+
+この protocol は、GitHub Issue checkbox 専用 bot、generalized project-management
+workflow engine、または新しい orchestrator を要求しません。
 
 ## Review Protocol
 
@@ -218,6 +357,26 @@ expected target と比較して行います。reviewed target は次のように
 completion していても invalid です。この場合、record は `status: completed`
 かつ `validity: invalid` として表現します。
 intended artifact set が review されていない場合も invalid です。
+
+**acquisition の record は、後続 session から独立に recoverable な場所へ
+persist されて初めて durable evidence です。** review を行った
+agent/session が終了した後、別の後続 session が session の記憶に頼らず、
+本 Contract が定義する Completion と Validity の要求事項を独立に判定
+できるだけの情報が、その後続 session からアクセス可能な場所（PR/Issue
+上の comment 等）に存在しない限り、その run を merge / review completion
+の根拠として扱いません。reviewer mechanism が外部から確認可能な surface
+へ残す結果に、その判定に必要な情報が既に含まれていれば、その surface
+自体をこの record の recoverable な representation として扱ってよく、
+別途 record を post し直す必要はありません。含まれていない場合
+（reviewer mechanism 自身がそのような surface へ結果を残さない場合、
+例えば実装 session 内で動く subagent review を含む）は、上記の record
+schema の各 field に加え、Completion と Validity の要求事項（reviewed
+target の一致、target artifact set の coverage、required context への
+アクセス可否、finding 内容、completion 状態を含む）を独立に判定できる
+情報を、そのような場所へ明示的に persist しない限り、session 終了後には
+recoverable な evidence として扱いません。record schema 自体（特に
+`validity` field）は判定結果の要約であり、その根拠情報の代わりには
+なりません。
 
 **0 findings は positive evidence を必要とします。** reaction なし、comment なし、
 parser 0 件、status success のみを `no findings` へ変換してはいけません。positive
@@ -575,8 +734,10 @@ domain terminology、product-specific security decision は consumer product rul
 - generated Supabase types を database type の source of truth として扱います。
 - stack-specific deterministic quality check は Foundation core policy ではなく、
   この profile または関連 tooling に置きます。
-- quality profile の適用方法とblocking/advisoryの区別は `quality/README.md` を
-  正本とします。product-domain rule はそこへ追加しません。
+- quality profile の適用方法とblocking/advisoryの区別は consumer の
+  `.ai-dev-foundation/quality/README.md`（Foundation リポジトリでは
+  `profiles/next-supabase/quality/README.md`）を正本とします。product-domain
+  rule はそこへ追加しません。
 
 ## Consumer product rules
 
