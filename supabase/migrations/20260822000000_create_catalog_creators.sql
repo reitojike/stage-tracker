@@ -49,6 +49,20 @@ alter table public.catalog_creators enable row level security;
 -- anyone else. authenticated deliberately receives no INSERT/UPDATE/DELETE
 -- grant at all, so even a future permissive policy on this table could not
 -- open a self-promotion path without also re-granting privileges here.
+-- Strip the platform's residual default privileges before granting
+-- anything deliberately. Supabase's default privileges on public leave a
+-- newly created table carrying TRUNCATE, REFERENCES and TRIGGER for anon
+-- and authenticated even though the DML privileges are not present. The
+-- comment above claims this table has no write path for a normal client,
+-- and TRUNCATE would falsify that claim: TRUNCATE is not filtered by RLS
+-- at all, so one statement would empty the whole allowlist regardless of
+-- catalog_creators_select_own. PostgREST exposes no TRUNCATE verb, so
+-- this is defense-in-depth rather than a reachable hole today - but the
+-- privilege posture of the table that gates event creation should be
+-- stated here outright, not inherited from whatever the platform
+-- defaults happen to be.
+revoke all on public.catalog_creators from anon, authenticated;
+
 grant select, insert, update, delete on public.catalog_creators to service_role;
 
 grant select on public.catalog_creators to authenticated;

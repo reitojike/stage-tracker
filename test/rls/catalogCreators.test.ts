@@ -274,7 +274,14 @@ void test('anonymous cannot insert into catalog_creators', async () => {
 // tests above) proving the root cause: authenticated holds no write
 // privilege of any kind on this table, so no future policy change alone
 // could open a self-promotion path.
-void test('authenticated holds no INSERT/UPDATE/DELETE privilege on catalog_creators', async () => {
+//
+// Asserted as an exact set rather than "no INSERT/UPDATE/DELETE" on
+// purpose. Supabase's default privileges leave a new public table
+// carrying TRUNCATE for anon and authenticated, and TRUNCATE is not
+// filtered by RLS - a policy-only reading of this table's safety would
+// miss it. The migration revokes those residual privileges explicitly, so
+// anything reappearing here is a real regression in that posture.
+void test('authenticated holds SELECT and no other privilege on catalog_creators', async () => {
   const status = readLocalSupabaseStatus();
   const client = new pg.Client({ connectionString: status.dbUrl });
   await client.connect();
