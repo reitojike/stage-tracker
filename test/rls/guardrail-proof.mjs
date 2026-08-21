@@ -33,6 +33,29 @@ async function createEventAsOwner(client) {
   return data;
 }
 
+// Issue #31: personal_schedule_entries has no atomicity invariant, so a
+// plain INSERT (unlike events' RPC) is the fixture create path. Takes the
+// full actor (not just its client) because, unlike create_event_with_
+// occurrence, owner_id here is an explicit column the caller supplies.
+async function createScheduleEntryAsOwner(actor) {
+  const startsOn = new Date().toISOString().slice(0, 10);
+  const { data, error } = await actor.client
+    .from('personal_schedule_entries')
+    .insert({
+      owner_id: actor.user.id,
+      schedule_type: 'other',
+      is_all_day: true,
+      starts_on: startsOn,
+      ends_on: startsOn,
+    })
+    .select()
+    .single();
+  if (error || !data) {
+    throw new Error(`fixture personal_schedule_entries insert failed: ${error?.message}`);
+  }
+  return data;
+}
+
 async function withPgClient(run) {
   const client = new pg.Client({ connectionString: status.dbUrl });
   await client.connect();
@@ -66,11 +89,13 @@ async function withBrokenPolicy(policyName, breakSql, restoreSql, proveRedBehavi
 
 let actorA;
 let actorB;
+let stranger;
 let primaryError;
 
 try {
   actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!');
   actorB = await createTestActor('guardrail-b', 'Str0ng-Test-Passw0rd!');
+  stranger = await createTestActor('guardrail-stranger', 'Str0ng-Test-Passw0rd!');
 
   // 1. events_select_authenticated: without it, RLS default-denies SELECT
   // for authenticated too, so "authenticated user can read another user's
@@ -382,6 +407,181 @@ try {
     },
   );
 
+  // 10. personal_schedule_entries_select_owner_or_shared (Issue #31):
+  // without it, RLS default-denies SELECT entirely (there is no
+  // `using (true)` catch-all on this table, unlike events), so even the
+  // owner would lose read access. Restoring to `using (true)` instead
+  // proves the opposite direction: that the private-by-default boundary
+  // (a stranger with no share cannot read) actually depends on this
+  // policy's owner-or-shared condition, not on some other mechanism.
+  {
+    const created = await createScheduleEntryAsOwner(actorA);
+    await withBrokenPolicy(
+      'personal_schedule_entries_select_owner_or_shared',
+      `drop policy personal_schedule_entries_select_owner_or_shared on public.personal_schedule_entries;
+       create policy personal_schedule_entries_select_owner_or_shared
+         on public.personal_schedule_entries for select to authenticated using (true);`,
+      `drop policy personal_schedule_entries_select_owner_or_shared on public.personal_schedule_entries;
+       create policy personal_schedule_entries_select_owner_or_shared
+         on public.personal_schedule_entries for select to authenticated using (
+           owner_id = auth.uid()
+           or exists (
+             select 1 from public.personal_schedule_shares s
+             where s.schedule_entry_id = id and s.shared_with_user_id = auth.uid()
+           )
+         );`,
+      async () => {
+        const { data } = await actorB.client
+          .from('personal_schedule_entries')
+          .select()
+          .eq('id', created.id);
+        assert.equal(
+          data?.length,
+          1,
+          'expected a stranger with no share to go red (able to read) with the select policy broken',
+        );
+      },
+    );
+  }
+
+  // 11. personal_schedule_entries_insert_own: replacing its WITH CHECK with
+  // `true` must let a caller insert an entry with a spoofed owner_id,
+  // proving "owner_id cannot be spoofed on insert" depends on this policy.
+  await withBrokenPolicy(
+    'personal_schedule_entries_insert_own',
+    `drop policy personal_schedule_entries_insert_own on public.personal_schedule_entries;
+     create policy personal_schedule_entries_insert_own
+       on public.personal_schedule_entries for insert to authenticated with check (true);`,
+    `drop policy personal_schedule_entries_insert_own on public.personal_schedule_entries;
+     create policy personal_schedule_entries_insert_own
+       on public.personal_schedule_entries for insert to authenticated with check (owner_id = auth.uid());`,
+    async () => {
+      const startsOn = new Date().toISOString().slice(0, 10);
+      const { data, error } = await actorB.client
+        .from('personal_schedule_entries')
+        .insert({
+          owner_id: actorA.user.id,
+          schedule_type: 'other',
+          is_all_day: true,
+          starts_on: startsOn,
+          ends_on: startsOn,
+        })
+        .select()
+        .single();
+      assert.equal(
+        error,
+        null,
+        'expected a spoofed-owner insert to go red (succeed) with the insert policy broken',
+      );
+      assert.equal(data.owner_id, actorA.user.id);
+    },
+  );
+
+  // 12. personal_schedule_entries_update_own: replacing USING/WITH CHECK
+  // with `true` must let a non-owner (including a recipient the entry was
+  // shared with) update someone else's entry, proving "a recipient cannot
+  // update the shared entry" depends on this policy, not merely on the UI.
+  await withBrokenPolicy(
+    'personal_schedule_entries_update_own',
+    `drop policy personal_schedule_entries_update_own on public.personal_schedule_entries;
+     create policy personal_schedule_entries_update_own
+       on public.personal_schedule_entries for update to authenticated using (true) with check (true);`,
+    `drop policy personal_schedule_entries_update_own on public.personal_schedule_entries;
+     create policy personal_schedule_entries_update_own
+       on public.personal_schedule_entries for update to authenticated
+       using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
+    async () => {
+      const created = await createScheduleEntryAsOwner(actorA);
+      const { data, error } = await actorB.client
+        .from('personal_schedule_entries')
+        .update({ memo: 'hijacked while policy is broken' })
+        .eq('id', created.id)
+        .select();
+      assert.equal(error, null);
+      assert.equal(
+        data.length,
+        1,
+        'expected a non-owner update to go red (succeed) with the update policy broken',
+      );
+    },
+  );
+
+  // 13. personal_schedule_shares_insert_owner: replacing its WITH CHECK
+  // with `true` must let a non-owner add a recipient to someone else's
+  // entry, proving "a recipient cannot add another recipient to an entry
+  // they don't own" depends on this policy.
+  await withBrokenPolicy(
+    'personal_schedule_shares_insert_owner',
+    `drop policy personal_schedule_shares_insert_owner on public.personal_schedule_shares;
+     create policy personal_schedule_shares_insert_owner
+       on public.personal_schedule_shares for insert to authenticated with check (true);`,
+    `drop policy personal_schedule_shares_insert_owner on public.personal_schedule_shares;
+     create policy personal_schedule_shares_insert_owner
+       on public.personal_schedule_shares for insert to authenticated with check (
+         exists (
+           select 1 from public.personal_schedule_entries e
+           where e.id = schedule_entry_id and e.owner_id = auth.uid()
+         )
+       );`,
+    async () => {
+      const created = await createScheduleEntryAsOwner(actorA);
+      const { data, error } = await actorB.client
+        .from('personal_schedule_shares')
+        .insert({ schedule_entry_id: created.id, shared_with_user_id: actorB.user.id })
+        .select()
+        .single();
+      assert.equal(
+        error,
+        null,
+        'expected a non-owner adding a recipient to go red (succeed) with the insert policy broken',
+      );
+      assert.equal(data.schedule_entry_id, created.id);
+    },
+  );
+
+  // 14. personal_schedule_shares_delete_owner_or_self: replacing USING with
+  // `true` must let a stranger (neither the entry owner nor the share's own
+  // recipient) delete someone else's share row, proving "a recipient cannot
+  // remove another recipient's share" depends on this policy's owner-or-self
+  // condition, not on some other mechanism.
+  await withBrokenPolicy(
+    'personal_schedule_shares_delete_owner_or_self',
+    `drop policy personal_schedule_shares_delete_owner_or_self on public.personal_schedule_shares;
+     create policy personal_schedule_shares_delete_owner_or_self
+       on public.personal_schedule_shares for delete to authenticated using (true);`,
+    `drop policy personal_schedule_shares_delete_owner_or_self on public.personal_schedule_shares;
+     create policy personal_schedule_shares_delete_owner_or_self
+       on public.personal_schedule_shares for delete to authenticated using (
+         shared_with_user_id = auth.uid()
+         or exists (
+           select 1 from public.personal_schedule_entries e
+           where e.id = schedule_entry_id and e.owner_id = auth.uid()
+         )
+       );`,
+    async () => {
+      const created = await createScheduleEntryAsOwner(actorA);
+      const { data: share, error: shareError } = await actorA.client
+        .from('personal_schedule_shares')
+        .insert({ schedule_entry_id: created.id, shared_with_user_id: actorB.user.id })
+        .select()
+        .single();
+      if (shareError || !share) {
+        throw new Error(`fixture share insert failed: ${shareError?.message}`);
+      }
+      const { data, error } = await stranger.client
+        .from('personal_schedule_shares')
+        .delete()
+        .eq('id', share.id)
+        .select();
+      assert.equal(error, null);
+      assert.equal(
+        data.length,
+        1,
+        'expected a stranger delete to go red (succeed) with the delete policy broken',
+      );
+    },
+  );
+
   console.log(
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',
   );
@@ -399,7 +599,9 @@ try {
   // swallowed cleanup failure would leave stale users/events behind while
   // reporting success.
   const results = await Promise.allSettled(
-    [actorA, actorB].filter((actor) => actor !== undefined).map((actor) => deleteTestActor(actor)),
+    [actorA, actorB, stranger]
+      .filter((actor) => actor !== undefined)
+      .map((actor) => deleteTestActor(actor)),
   );
   const failures = results.filter((result) => result.status === 'rejected');
   const cleanupError =
