@@ -19,12 +19,18 @@ import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 const status = readLocalSupabaseStatus();
 
-function eventPayload(ownerId) {
-  return {
-    owner_id: ownerId,
-    title: `guardrail proof event ${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    starts_at: new Date().toISOString(),
-  };
+// Direct authenticated INSERT into events is unsupported since Issue #17;
+// create_event_with_occurrence is the only supported create path, so every
+// fixture event below goes through it instead of `.insert()`.
+async function createEventAsOwner(client) {
+  const { data, error } = await client.rpc('create_event_with_occurrence', {
+    p_title: `guardrail proof event ${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    p_starts_at: new Date().toISOString(),
+  });
+  if (error || !data) {
+    throw new Error(`fixture create_event_with_occurrence failed: ${error?.message}`);
+  }
+  return data;
 }
 
 async function withPgClient(run) {
@@ -69,17 +75,10 @@ try {
   // 1. events_select_authenticated: without it, RLS default-denies SELECT
   // for authenticated too, so "authenticated user can read another user's
   // event" must start returning zero rows. The fixture row is created
-  // before the policy is broken, since INSERT's RETURNING also needs
+  // before the policy is broken, since the RPC's RETURNING also needs
   // SELECT visibility.
   {
-    const { data: created, error: fixtureError } = await actorA.client
-      .from('events')
-      .insert(eventPayload(actorA.user.id))
-      .select()
-      .single();
-    if (fixtureError || !created) {
-      throw new Error(`fixture insert failed: ${fixtureError?.message}`);
-    }
+    const created = await createEventAsOwner(actorA.client);
     await withBrokenPolicy(
       'events_select_authenticated',
       'drop policy events_select_authenticated on public.events;',
@@ -96,27 +95,36 @@ try {
     );
   }
 
-  // 2. events_insert_own: replacing its WITH CHECK with `true` must let
-  // owner spoofing succeed, proving "user A cannot create an event owned by
-  // user B" depends on this policy.
+  // 2. Direct authenticated INSERT into events is blocked primarily by the
+  // revoked table grant (Issue #17), with events_insert_own's WITH CHECK
+  // kept as defense-in-depth. Breaking the grant alone would not go red
+  // (WITH CHECK would still block a spoofed owner_id), so - mirroring item
+  // 4 below - both layers are relaxed together here to prove that
+  // "authenticated client cannot directly INSERT into events" actually
+  // depends on this combination, not on some other mechanism.
   await withBrokenPolicy(
-    'events_insert_own',
-    `drop policy events_insert_own on public.events;
+    'events INSERT grant + events_insert_own (relaxed together)',
+    `grant insert (owner_id, title, venue, source_url, memo) on public.events to authenticated;
+     drop policy events_insert_own on public.events;
      create policy events_insert_own on public.events
        for insert to authenticated with check (true);`,
-    `drop policy events_insert_own on public.events;
+    `revoke insert on public.events from authenticated;
+     drop policy events_insert_own on public.events;
      create policy events_insert_own on public.events
        for insert to authenticated with check (owner_id = auth.uid());`,
     async () => {
       const { data, error } = await actorA.client
         .from('events')
-        .insert(eventPayload(actorB.user.id))
+        .insert({
+          owner_id: actorB.user.id,
+          title: `guardrail proof direct insert ${Date.now()}`,
+        })
         .select()
         .single();
       assert.equal(
         error,
         null,
-        'expected owner spoofing to go red (succeed) with the insert policy broken',
+        'expected direct INSERT (with a spoofed owner_id) to go red (succeed) with both layers relaxed',
       );
       assert.equal(data.owner_id, actorB.user.id);
     },
@@ -134,11 +142,7 @@ try {
      create policy events_update_own on public.events
        for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
     async () => {
-      const { data: created } = await actorA.client
-        .from('events')
-        .insert(eventPayload(actorA.user.id))
-        .select()
-        .single();
+      const created = await createEventAsOwner(actorA.client);
       const { data, error } = await actorB.client
         .from('events')
         .update({ title: 'hijacked while policy is broken' })
@@ -170,11 +174,7 @@ try {
      create policy events_update_own on public.events
        for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
     async () => {
-      const { data: created } = await actorA.client
-        .from('events')
-        .insert(eventPayload(actorA.user.id))
-        .select()
-        .single();
+      const created = await createEventAsOwner(actorA.client);
       const { data, error } = await actorA.client
         .from('events')
         .update({ owner_id: actorB.user.id })
@@ -187,6 +187,27 @@ try {
         'expected owner transfer to go red (succeed) with both the grant and WITH CHECK relaxed',
       );
       assert.equal(data.owner_id, actorB.user.id);
+    },
+  );
+
+  // 5. create_event_with_occurrence's EXECUTE grant to authenticated: this
+  // is the only thing letting a normal client reach the RPC at all (the
+  // function itself runs SECURITY DEFINER regardless). Revoking it must
+  // make even a legitimate, non-spoofing call fail.
+  await withBrokenPolicy(
+    'create_event_with_occurrence EXECUTE grant',
+    `revoke execute on function public.create_event_with_occurrence(
+       text, timestamptz, text, timestamptz, text, text
+     ) from authenticated;`,
+    `grant execute on function public.create_event_with_occurrence(
+       text, timestamptz, text, timestamptz, text, text
+     ) to authenticated;`,
+    async () => {
+      const { error } = await actorA.client.rpc('create_event_with_occurrence', {
+        p_title: `guardrail proof rpc execute ${Date.now()}`,
+        p_starts_at: new Date().toISOString(),
+      });
+      assert.ok(error, 'expected the create RPC to go red (denied) with its EXECUTE grant revoked');
     },
   );
 

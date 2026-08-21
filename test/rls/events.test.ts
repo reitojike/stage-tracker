@@ -6,12 +6,23 @@ import {
   deleteTestActor,
   type TestActor,
 } from './support/testActors.ts';
+import {
+  callCreateEventRpcRaw,
+  createEventWithOccurrence,
+  eventFixtureTitle,
+} from './support/eventFixtures.ts';
 
 // Real local Supabase/Postgres RLS tests for public.events (Issue #3 / PR
-// B). Every assertion below runs as an anon-key client with no session
-// (anonymous), or an anon-key client signed in as a real test user
-// (authenticated) - never as service_role. service_role is used only in
-// ./support/testActors.ts to create/delete the fixture users themselves.
+// B, extended by Issue #17). Every assertion below runs as an anon-key
+// client with no session (anonymous), or an anon-key client signed in as a
+// real test user (authenticated) - never as service_role. service_role is
+// used only in ./support/testActors.ts to create/delete the fixture users
+// themselves.
+//
+// Since Issue #17, direct authenticated INSERT into events is revoked:
+// create_event_with_occurrence (test/rls/support/eventFixtures.ts) is the
+// only supported create path, and is what every fixture event below goes
+// through.
 //
 // A denied UPDATE is not always a request error: when RLS's USING clause
 // filters a row out of visibility for the caller, the UPDATE simply matches
@@ -50,102 +61,122 @@ after(async () => {
   }
 });
 
-function eventPayload(ownerId: string) {
-  return {
-    owner_id: ownerId,
-    title: `rls test event ${String(Date.now())}-${Math.random().toString(36).slice(2)}`,
-    starts_at: new Date().toISOString(),
-  };
-}
+// --- Positive: create RPC ---
 
-async function insertAsOwner(actor: TestActor) {
-  const { data, error } = await actor.client
-    .from('events')
-    .insert(eventPayload(actor.user.id))
-    .select()
-    .single();
-  if (error) {
-    throw new Error(`setup insert failed: ${error.message}`);
-  }
-  return data;
-}
+void test('authenticated user creates an event with its initial occurrence via RPC', async () => {
+  const startsAt = new Date().toISOString();
+  const endsAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const { event, occurrence } = await createEventWithOccurrence(actorA, {
+    startsAt,
+    endsAt,
+  });
+  assert.equal(event.owner_id, actorA.user.id);
+  assert.equal(occurrence.event_id, event.id);
+  // Postgres/PostgREST render timestamptz as "+00:00", not "Z" - normalize
+  // through Date before comparing, since both spellings mean the same
+  // instant.
+  assert.equal(new Date(occurrence.starts_at).toISOString(), startsAt);
+  assert.ok(occurrence.ends_at);
+  assert.equal(new Date(occurrence.ends_at).toISOString(), endsAt);
+});
 
-// --- Positive ---
-
-void test('authenticated user creates their own event', async () => {
-  const { data, error } = await actorA.client
-    .from('events')
-    .insert(eventPayload(actorA.user.id))
-    .select()
-    .single();
-  assert.equal(error, null);
-  assert.equal(data.owner_id, actorA.user.id);
+void test('initial occurrence ends_at may be left unset', async () => {
+  const { occurrence } = await createEventWithOccurrence(actorA);
+  assert.equal(occurrence.ends_at, null);
 });
 
 void test('authenticated user can read another user’s event', async () => {
-  const created = await insertAsOwner(actorA);
-  const { data, error } = await actorB.client.from('events').select().eq('id', created.id);
+  const { event } = await createEventWithOccurrence(actorA);
+  const { data, error } = await actorB.client.from('events').select().eq('id', event.id);
   assert.equal(error, null);
   assert.equal(data.length, 1);
   const [row] = data;
   assert.ok(row);
-  assert.equal(row.id, created.id);
+  assert.equal(row.id, event.id);
 });
 
 void test('owner can update mutable event information', async () => {
-  const created = await insertAsOwner(actorA);
+  const { event } = await createEventWithOccurrence(actorA);
   const { data, error } = await actorA.client
     .from('events')
     .update({ title: 'updated title' })
-    .eq('id', created.id)
+    .eq('id', event.id)
     .select()
     .single();
   assert.equal(error, null);
   assert.equal(data.title, 'updated title');
 });
 
-// --- Negative: anonymous ---
+// --- Negative: create boundary ---
 
-void test('anonymous cannot read events', async () => {
-  const anon = createAnonymousClient();
-  const { error } = await anon.from('events').select();
-  assert.ok(error, 'expected a permission error for anonymous select');
+void test('authenticated client cannot directly INSERT into events', async () => {
+  const { error } = await actorA.client.from('events').insert({
+    owner_id: actorA.user.id,
+    title: eventFixtureTitle(),
+  });
+  assert.ok(error, 'expected direct authenticated INSERT into events to be unsupported');
 });
 
-void test('anonymous cannot create events', async () => {
+void test('anonymous cannot directly INSERT into events', async () => {
   const anon = createAnonymousClient();
-  const { error } = await anon.from('events').insert(eventPayload(actorA.user.id));
+  const { error } = await anon.from('events').insert({
+    owner_id: actorA.user.id,
+    title: eventFixtureTitle(),
+  });
   assert.ok(error, 'expected a permission error for anonymous insert');
 });
 
-void test('anonymous cannot update events', async () => {
-  const created = await insertAsOwner(actorA);
+void test('anonymous cannot execute the create_event_with_occurrence RPC', async () => {
   const anon = createAnonymousClient();
-  const { error } = await anon.from('events').update({ title: 'anon edit' }).eq('id', created.id);
-  assert.ok(error, 'expected a permission error for anonymous update');
+  const { error } = await anon.rpc('create_event_with_occurrence', {
+    p_title: eventFixtureTitle(),
+    p_starts_at: new Date().toISOString(),
+  });
+  assert.ok(error, 'expected a permission error for anonymous RPC execution');
 });
 
-void test('anonymous cannot delete events', async () => {
-  const created = await insertAsOwner(actorA);
-  const anon = createAnonymousClient();
-  const { error } = await anon.from('events').delete().eq('id', created.id);
-  assert.ok(error, 'expected a permission error for anonymous delete');
+void test('create RPC has no input surface for owner spoofing', async () => {
+  const { error } = await actorA.client.rpc('create_event_with_occurrence', {
+    p_title: eventFixtureTitle(),
+    p_starts_at: new Date().toISOString(),
+    // owner_id is not a parameter of this function at all - passing it
+    // must be rejected outright, not silently ignored.
+    owner_id: actorB.user.id,
+  });
+  assert.ok(error, 'expected an unknown-parameter error, not a silently-ignored owner_id');
+});
+
+// The typed actor.client.rpc(...) call cannot even express a request
+// missing the required p_starts_at (the generated Args type has no `?` for
+// it) - which is itself useful evidence that a real TypeScript caller can't
+// accidentally omit it. To prove the *server* also rejects it (not just the
+// generated types), this goes around the typed client with a raw HTTP call.
+void test('RPC create is atomic: a request without starts_at is rejected and rolls back the whole event', async () => {
+  const title = eventFixtureTitle();
+  const response = await callCreateEventRpcRaw(actorA, { p_title: title });
+  assert.equal(response.ok, false, 'expected the RPC call to be rejected without p_starts_at');
+
+  const { data, error: selectError } = await actorA.client
+    .from('events')
+    .select()
+    .eq('title', title);
+  assert.equal(selectError, null);
+  assert.deepEqual(
+    data,
+    [],
+    'expected no event row to survive a request missing the required starts_at',
+  );
 });
 
 // --- Negative: ownership ---
 
-void test('user A cannot create an event owned by user B', async () => {
-  const { error } = await actorA.client.from('events').insert(eventPayload(actorB.user.id));
-  assert.ok(error, 'expected an RLS violation for owner spoofing');
-});
-
 void test('user B cannot update user A’s event, and the row stays unchanged', async () => {
-  const created = await insertAsOwner(actorA);
+  const { event } = await createEventWithOccurrence(actorA);
 
   const { data: updateData, error: updateError } = await actorB.client
     .from('events')
     .update({ title: 'hijacked title' })
-    .eq('id', created.id)
+    .eq('id', event.id)
     .select();
   assert.equal(updateError, null);
   assert.deepEqual(updateData, []);
@@ -153,24 +184,24 @@ void test('user B cannot update user A’s event, and the row stays unchanged', 
   const { data: refetched, error: refetchError } = await actorA.client
     .from('events')
     .select()
-    .eq('id', created.id)
+    .eq('id', event.id)
     .single();
   assert.equal(refetchError, null);
-  assert.equal(refetched.title, created.title);
+  assert.equal(refetched.title, event.title);
 });
 
 void test('owner cannot transfer ownership to another user', async () => {
-  const created = await insertAsOwner(actorA);
+  const { event } = await createEventWithOccurrence(actorA);
   const { error } = await actorA.client
     .from('events')
     .update({ owner_id: actorB.user.id })
-    .eq('id', created.id);
+    .eq('id', event.id);
   assert.ok(error, 'expected a permission error for changing owner_id');
 
   const { data: refetched } = await actorA.client
     .from('events')
     .select()
-    .eq('id', created.id)
+    .eq('id', event.id)
     .single();
   assert.equal(refetched?.owner_id, actorA.user.id);
 });
@@ -178,51 +209,73 @@ void test('owner cannot transfer ownership to another user', async () => {
 // --- Negative: system-managed fields ---
 
 void test('normal client cannot mutate id', async () => {
-  const created = await insertAsOwner(actorA);
+  const { event } = await createEventWithOccurrence(actorA);
   const { error } = await actorA.client
     .from('events')
     .update({ id: crypto.randomUUID() })
-    .eq('id', created.id);
+    .eq('id', event.id);
   assert.ok(error, 'expected a permission error for changing id');
 });
 
 void test('normal client cannot mutate created_at', async () => {
-  const created = await insertAsOwner(actorA);
+  const { event } = await createEventWithOccurrence(actorA);
   const { error } = await actorA.client
     .from('events')
     .update({ created_at: new Date(0).toISOString() })
-    .eq('id', created.id);
+    .eq('id', event.id);
   assert.ok(error, 'expected a permission error for changing created_at');
 });
 
 void test('updated_at is DB-managed on a real update', async () => {
-  const created = await insertAsOwner(actorA);
+  const { event } = await createEventWithOccurrence(actorA);
   await new Promise((resolve) => setTimeout(resolve, 20));
   const { data, error } = await actorA.client
     .from('events')
     .update({ title: 'trigger updated_at' })
-    .eq('id', created.id)
+    .eq('id', event.id)
     .select()
     .single();
   assert.equal(error, null);
   assert.ok(data);
-  assert.notEqual(data.updated_at, created.updated_at);
-  assert.ok(new Date(data.updated_at).getTime() > new Date(created.updated_at).getTime());
+  assert.notEqual(data.updated_at, event.updated_at);
+  assert.ok(new Date(data.updated_at).getTime() > new Date(event.updated_at).getTime());
 });
 
 void test('normal client cannot set updated_at directly', async () => {
-  const created = await insertAsOwner(actorA);
+  const { event } = await createEventWithOccurrence(actorA);
   const { error } = await actorA.client
     .from('events')
     .update({ updated_at: new Date(0).toISOString() })
-    .eq('id', created.id);
+    .eq('id', event.id);
   assert.ok(error, 'expected a permission error for setting updated_at directly');
 });
 
 // --- Negative: DELETE unsupported ---
 
 void test('owner cannot delete an event', async () => {
-  const created = await insertAsOwner(actorA);
-  const { error } = await actorA.client.from('events').delete().eq('id', created.id);
+  const { event } = await createEventWithOccurrence(actorA);
+  const { error } = await actorA.client.from('events').delete().eq('id', event.id);
   assert.ok(error, 'expected DELETE to be unsupported for a normal authenticated client');
+});
+
+// --- Negative: anonymous read ---
+
+void test('anonymous cannot read events', async () => {
+  const anon = createAnonymousClient();
+  const { error } = await anon.from('events').select();
+  assert.ok(error, 'expected a permission error for anonymous select');
+});
+
+void test('anonymous cannot update events', async () => {
+  const { event } = await createEventWithOccurrence(actorA);
+  const anon = createAnonymousClient();
+  const { error } = await anon.from('events').update({ title: 'anon edit' }).eq('id', event.id);
+  assert.ok(error, 'expected a permission error for anonymous update');
+});
+
+void test('anonymous cannot delete events', async () => {
+  const { event } = await createEventWithOccurrence(actorA);
+  const anon = createAnonymousClient();
+  const { error } = await anon.from('events').delete().eq('id', event.id);
+  assert.ok(error, 'expected a permission error for anonymous delete');
 });

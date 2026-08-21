@@ -9,39 +9,68 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      events: {
+      event_occurrences: {
         Row: {
           created_at: string
           ends_at: string | null
+          event_id: string
+          id: string
+          starts_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string | null
+          event_id: string
+          id?: string
+          starts_at: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string | null
+          event_id?: string
+          id?: string
+          starts_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_occurrences_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          created_at: string
           id: string
           memo: string | null
           owner_id: string
           source_url: string | null
-          starts_at: string
           title: string
           updated_at: string
           venue: string | null
         }
         Insert: {
           created_at?: string
-          ends_at?: string | null
           id?: string
           memo?: string | null
           owner_id: string
           source_url?: string | null
-          starts_at: string
           title: string
           updated_at?: string
           venue?: string | null
         }
         Update: {
           created_at?: string
-          ends_at?: string | null
           id?: string
           memo?: string | null
           owner_id?: string
           source_url?: string | null
-          starts_at?: string
           title?: string
           updated_at?: string
           venue?: string | null
@@ -53,7 +82,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_event_with_occurrence: {
+        Args: {
+          p_ends_at?: string
+          p_memo?: string
+          p_source_url?: string
+          p_starts_at: string
+          p_title: string
+          p_venue?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          memo: string | null
+          owner_id: string
+          source_url: string | null
+          title: string
+          updated_at: string
+          venue: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never
