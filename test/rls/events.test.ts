@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import pg from 'pg';
 import {
   createAnonymousClient,
   createTestActor,
@@ -11,6 +12,7 @@ import {
   createEventWithOccurrence,
   eventFixtureTitle,
 } from './support/eventFixtures.ts';
+import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 // Real local Supabase/Postgres RLS tests for public.events (Issue #3 / PR
 // B, extended by Issue #17). Every assertion below runs as an anon-key
@@ -109,12 +111,52 @@ void test('owner can update mutable event information', async () => {
 
 // --- Negative: create boundary ---
 
-void test('authenticated client cannot directly INSERT into events', async () => {
+// Sends only owner_id + title - the same narrow column subset the original
+// (pre-Issue #17) migration granted INSERT on - and sets owner_id to the
+// caller's own id, which events_insert_own's WITH CHECK (owner_id =
+// auth.uid()) would happily allow. If any column-level INSERT grant for
+// authenticated had survived the revokes in
+// 20260821000200_create_event_with_occurrence_rpc.sql, this exact request
+// would succeed (RLS would not be the thing stopping it). It doesn't, so
+// this isolates the grant layer specifically, not just "some error
+// occurred".
+void test('authenticated client cannot directly INSERT into events, even with only the old granted columns', async () => {
   const { error } = await actorA.client.from('events').insert({
     owner_id: actorA.user.id,
     title: eventFixtureTitle(),
   });
   assert.ok(error, 'expected direct authenticated INSERT into events to be unsupported');
+});
+
+// Direct privilege inspection (not a PostgREST-level behavioral probe like
+// the test above) proving the actual root cause: no column-level INSERT
+// grant survives for authenticated on any column of events, including the
+// ones the original migration granted (owner_id, title, venue, source_url,
+// memo) and not just the temporal columns dropped in
+// 20260821000100_backfill_and_drop_event_temporal_columns.sql. Connects as
+// the DB superuser (like guardrail-proof.mjs's admin path) since this
+// reads catalog metadata, not RLS-governed application data.
+void test('no column-level INSERT grant survives for authenticated on events', async () => {
+  const status = readLocalSupabaseStatus();
+  const client = new pg.Client({ connectionString: status.dbUrl });
+  await client.connect();
+  try {
+    const { rows } = await client.query(
+      `select column_name
+       from information_schema.role_column_grants
+       where table_schema = 'public'
+         and table_name = 'events'
+         and grantee = 'authenticated'
+         and privilege_type = 'INSERT'`,
+    );
+    assert.deepEqual(
+      rows,
+      [],
+      'expected zero column-level INSERT grants for authenticated on events',
+    );
+  } finally {
+    await client.end();
+  }
 });
 
 void test('anonymous cannot directly INSERT into events', async () => {

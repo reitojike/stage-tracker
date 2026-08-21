@@ -73,4 +73,17 @@ grant execute on function public.create_event_with_occurrence(
 -- than dropped: with no INSERT grant, it is unreachable via this revoke
 -- alone, but it remains a second, independent layer (its WITH CHECK still
 -- requires owner_id = auth.uid()) if that grant is ever loosened again.
+--
+-- The original migration granted INSERT on specific columns (`insert
+-- (owner_id, title, venue, starts_at, ends_at, source_url, memo)`), not at
+-- the table level. starts_at/ends_at's column-level grants were already
+-- cleared when those columns were dropped in
+-- 20260821000100_backfill_and_drop_event_temporal_columns.sql. The
+-- remaining column-level grant (on owner_id, title, venue, source_url,
+-- memo) is revoked explicitly below by column, rather than relying only on
+-- the table-level `revoke insert ... from authenticated` beneath it to
+-- also clear column-level grants - so this migration does not depend on
+-- that being true for every Postgres version to actually close the
+-- direct-INSERT path.
+revoke insert (owner_id, title, venue, source_url, memo) on public.events from authenticated;
 revoke insert on public.events from authenticated;
