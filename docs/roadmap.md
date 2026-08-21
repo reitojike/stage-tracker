@@ -4,7 +4,7 @@
 directional documentです。固定されたMVP bundleや厳密な実装順序を宣言する
 ものではありません。development process（provider/model routing、review
 工程、Issue運用等）はここに含みません。process governanceの正本は
-Foundation v0.1.0 です。
+Foundation v0.2.0 です。
 
 ## Roadmap principle
 
@@ -13,7 +13,7 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 
 ## 1. Completed baseline
 
-- Foundation v0.1.0 consumer baseline
+- Foundation v0.2.0 consumer baseline
 - shared event catalog（`public.events` / `public.event_occurrences` の
   schema / RLS）
 - event ownership semantics（owner限定更新・owner transfer不可・owner
@@ -27,23 +27,57 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
 に従って既に実装済みです。
 
-invitation可否・participation visibility既定値等のsemanticsも
-product-rules.md で承認済みですが、対応するschema/RLSはまだ実装されて
-いません。こちらは次節の participation / personal schedule capability
-の中で実装します。
+occurrence-level participation / invitation、event-independent personal
+schedule、ticket acquisition / ticket / ticket transfer、catalog
+classification / venue のMVP data boundary、designated catalog creator
+限定のEvent catalog write UI、calendar上のSaturday/Sunday/Japanese
+holiday presentationのsemanticsも product-rules.md / `docs/ux-ui.md` で
+承認済みですが、対応するschema/RLS/UIはまだ実装されていません。こちらは
+次節のMVP personal planning capabilityの中で実装します。
 
-## 2. Core product capabilities（成立させたい方向性）
+## 2. MVP personal planning capabilities（成立させたい方向性）
 
 以下は、[`docs/prd.md`](./prd.md) のmain domain conceptsのうち、event
-catalog以外でこれから成立させたい主要capabilityです。列挙順は実装順序の
+catalog以外でMVPとして成立させたい主要capabilityです。列挙順は実装順序の
 固定を意味しません。それぞれ、着手時に専用のbounded product Taskでscope
-とsemanticsを確定してから進めます。
+とsemanticsを確定してから進めます。detailed product semanticsは
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+を正本とします。
 
-- **participation / personal schedule** — ユーザーごとのevent参加予定管理
-- **ticket acquisition** — チケット入手情報の管理
-- **expense / budget** — event単位の支出と横断的な予算管理
+- **occurrence-level participation / invitation** — `considering` /
+  `attending` のparticipation statusと、attendingなuserによるoccurrence
+  単位のinvitation
+- **event-independent personal schedule** — all-day / time-bounded の
+  personal schedule と、owner限定のexplicit sharing
+- **ticket acquisition / ticket** — acquisitionとticketの分離、複数
+  acquisition attempt、複数ticket、non-user companion assignment、
+  registered inviteeへのticket transfer
+- **minimal Event catalog write UI** — designated catalog creator
+  （Administrator）限定のEvent + occurrence create/update
+- **calendar weekday / Japanese holiday presentation** — Saturday/
+  Sunday/Japanese holidayのglobal calendar presentation（詳細は
+  [`docs/ux-ui.md`](./ux-ui.md) 参照）
+- **expense / budget** — event単位の支出と横断的な予算管理（semanticsは
+  未確定）
 
-## 3. Deferred / uncommitted areas
+## 3. Post-MVP direction
+
+以下はMVP scopeには含まれない、方向性としては採用済みだが着手時期を
+決めていない領域です。着手時は専用のproduct Taskでscopeとsemanticsを
+確定します。
+
+- week-start preference
+- photo upload / attendance memory・impression
+- venue filtering / canonical venue identity
+- 宝塚の組filter / visual cue UI、アイドルのグループfilter UI
+- classification persistence / filter UI
+- 宝塚 streaming
+- movie release / admin-curated movie catalog
+- broader Event create permissions（一般authenticated userへの拡大）＋
+  verification / moderation mechanism（[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  のPost-MVP governance gate参照）
+
+## 4. Deferred / uncommitted areas
 
 以下はcurrent committed scopeに含まれない、未決定領域です。必要になった
 時点で専用のproduct Taskで評価します（詳細は
