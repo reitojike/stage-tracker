@@ -199,7 +199,26 @@ function parseTokyoCalendarDate(dateStr: string): { year: number; month: number;
   if (yearStr === undefined || monthStr === undefined || dayStr === undefined) {
     throw new Error(`expected an Asia/Tokyo calendar date as "YYYY-MM-DD", got: ${dateStr}`);
   }
-  return { year: Number(yearStr), month: Number(monthStr), day: Number(dayStr) };
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+
+  // The regex only checks digit-grouping shape, not that month/day are a
+  // real calendar date: Date.UTC silently normalizes out-of-range
+  // components (e.g. month 13, or day 30 in February rolling into March)
+  // instead of erroring, which would otherwise compute a boundary for a
+  // different day/month than the caller wrote. Round-tripping through
+  // Date.UTC and comparing the components back out catches that.
+  const roundTrip = new Date(Date.UTC(year, month - 1, day));
+  if (
+    roundTrip.getUTCFullYear() !== year ||
+    roundTrip.getUTCMonth() !== month - 1 ||
+    roundTrip.getUTCDate() !== day
+  ) {
+    throw new Error(`"${dateStr}" is not a valid Asia/Tokyo calendar date`);
+  }
+
+  return { year, month, day };
 }
 
 /**

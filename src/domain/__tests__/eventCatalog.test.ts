@@ -293,6 +293,23 @@ void test('tokyoCalendarDayRangeUtc rejects a non "YYYY-MM-DD" input rather than
   assert.throws(() => tokyoCalendarDayRangeUtc('21-08-2026'));
 });
 
+void test('tokyoCalendarDayRangeUtc rejects a shape-valid but calendar-invalid date rather than silently rolling over', () => {
+  // Date.UTC normalizes out-of-range components (Feb 30 -> Mar 2, month 13
+  // -> next January, month 00/day 00 -> the previous month/day) instead of
+  // erroring; each of these must be rejected, not silently answer for a
+  // different day than the caller wrote.
+  assert.throws(() => tokyoCalendarDayRangeUtc('2026-02-30'));
+  assert.throws(() => tokyoCalendarDayRangeUtc('2026-13-01'));
+  assert.throws(() => tokyoCalendarDayRangeUtc('2026-00-15'));
+  assert.throws(() => tokyoCalendarDayRangeUtc('2026-08-00'));
+  assert.throws(() => tokyoCalendarDayRangeUtc('2026-08-32'));
+});
+
+void test('tokyoCalendarDayRangeUtc accepts the Feb 29 leap day in a leap year but rejects it otherwise', () => {
+  assert.doesNotThrow(() => tokyoCalendarDayRangeUtc('2028-02-29'));
+  assert.throws(() => tokyoCalendarDayRangeUtc('2026-02-29'));
+});
+
 void test('tokyoCalendarDateRangeUtc: a full month range has no overlap with the next month', () => {
   const august = tokyoCalendarDateRangeUtc('2026-08-01', '2026-08-31');
   const september = tokyoCalendarDateRangeUtc('2026-09-01', '2026-09-30');
