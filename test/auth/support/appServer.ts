@@ -91,6 +91,13 @@ function nonAgentEnv(): NodeJS.ProcessEnv {
  * Boots the real Next.js app so route protection can be verified over
  * HTTP. `next dev` is used rather than `next start` so this test does not
  * depend on a build artifact having been produced first.
+ *
+ * `next dev` refuses to run a second instance against the same project
+ * directory even on a different port ("Another next dev server is already
+ * running") - it is a per-directory lock, not a per-port one. Every test
+ * file that calls this must therefore not run concurrently with another
+ * that also does; see package.json's `test:auth` script, which runs with
+ * `--test-concurrency=1` for exactly this reason.
  */
 export async function startAppServer(): Promise<AppServer> {
   const status = readLocalSupabaseStatus();

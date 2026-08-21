@@ -8,6 +8,7 @@ import {
   applySetCookies,
   submitServerAction,
 } from './support/serverAction.ts';
+import { signInThroughApp as signInThroughAppUntracked } from './support/signInThroughApp.ts';
 
 // Route-protection tests that exercise the real Next.js app over HTTP.
 // The authenticated-only boundary lives in src/proxy.ts, so it cannot be
@@ -39,35 +40,16 @@ function locationOf(response: Response): string {
   return location;
 }
 
-/** Completes a real magic-link sign-in through the app's own /auth/confirm route. */
-async function signInThroughApp(
-  next?: string,
-): Promise<{ cookie: string; response: Response; userId: string }> {
-  const { user, email } = await provisionUser('route-guard');
-  createdUserIds.push(user.id);
-
-  const { error } = await createAnonymousClient().auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  });
-  assert.equal(error, null);
-
-  const { tokenHash, type } = await waitForMagicLinkToken(email);
-  const confirmUrl = new URL(`${app.baseUrl}/auth/confirm`);
-  confirmUrl.searchParams.set('token_hash', tokenHash);
-  confirmUrl.searchParams.set('type', type);
-  if (next !== undefined) {
-    confirmUrl.searchParams.set('next', next);
-  }
-
-  const response = await fetch(confirmUrl, { redirect: 'manual' });
-  const cookie = response.headers
-    .getSetCookie()
-    .map((entry) => entry.split(';')[0])
-    .filter((entry): entry is string => entry !== undefined)
-    .join('; ');
-
-  return { cookie, response, userId: user.id };
+/**
+ * This file's own tests create/tear down each session's user via
+ * `createdUserIds`, so wrap the shared signInThroughApp (which leaves
+ * cleanup to its caller) to track it the same way every call site here
+ * already expects.
+ */
+async function signInThroughApp(next?: string) {
+  const session = await signInThroughAppUntracked(app, next);
+  createdUserIds.push(session.userId);
+  return session;
 }
 
 // --- Unauthenticated boundary ---

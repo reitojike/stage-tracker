@@ -188,7 +188,10 @@ export interface UtcInstantRange {
   endUtcExclusive: string;
 }
 
-const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
+/** Asia/Tokyo has a fixed UTC+9 offset, no DST - exported so other domain
+ * modules (e.g. catalogFormatting.ts) that need to shift a UTC instant into
+ * Tokyo local fields do not redefine this constant themselves. */
+export const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 function parseTokyoCalendarDate(dateStr: string): { year: number; month: number; day: number } {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
@@ -256,6 +259,26 @@ export function tokyoCalendarDateRangeUtc(
   const { startUtc } = tokyoCalendarDayRangeUtc(startDateStr);
   const { endUtcExclusive } = tokyoCalendarDayRangeUtc(endDateStrInclusive);
   return { startUtc, endUtcExclusive };
+}
+
+/**
+ * The inverse of tokyoCalendarDayRangeUtc: which Asia/Tokyo calendar day
+ * ("YYYY-MM-DD") a UTC instant falls on. Used to bucket occurrences by
+ * Tokyo calendar day for presentation (e.g. month calendar rendering),
+ * without ever reading the JS runtime's local timezone - Tokyo has a fixed
+ * UTC+9 offset with no DST, so shifting the instant by that fixed constant
+ * and reading its UTC calendar fields back out is exact.
+ */
+export function tokyoCalendarDateFromInstant(instantIso: string): string {
+  const instantMs = Date.parse(instantIso);
+  if (Number.isNaN(instantMs)) {
+    throw new Error(`expected a valid ISO 8601 instant, got: ${instantIso}`);
+  }
+  const tokyo = new Date(instantMs + TOKYO_OFFSET_MS);
+  const year = String(tokyo.getUTCFullYear()).padStart(4, '0');
+  const month = String(tokyo.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(tokyo.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**

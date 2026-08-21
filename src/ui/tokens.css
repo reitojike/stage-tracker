@@ -88,6 +88,10 @@
   --color-accent-hover: var(--color-accent-700);
   --color-accent-foreground: var(--color-neutral-0);
   --color-focus-ring: var(--color-accent-600);
+  /* low-emphasis accent tint, e.g. a calendar run/band marker (docs/ux-ui.md
+     restrained surface - not a solid accent fill for a large area). */
+  --color-accent-subtle: var(--color-accent-100);
+  --color-accent-subtle-foreground: var(--color-accent-700);
 
   /* status roles (statusをcolorだけで表現しないための role分離。
      使用側はicon/labelを併用する。docs/ux-ui.md「Common states」参照) */
