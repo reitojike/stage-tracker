@@ -61,6 +61,148 @@ function requireOk<T>(result: { ok: true; data: T } | { ok: false; error: unknow
   return result.data;
 }
 
+function secondsAfter(isoStart: string, offsetSeconds: number): string {
+  return new Date(new Date(isoStart).getTime() + offsetSeconds * 1000).toISOString();
+}
+
+/**
+ * Inserts occurrences directly (bypassing create_event_with_occurrence,
+ * which only creates one at a time) in bounded-size batches, so tests can
+ * cheaply produce more rows than supabase/config.toml's `api.max_rows`
+ * (1000) without one request per row.
+ */
+async function bulkInsertOccurrences(
+  actor: TestActor,
+  eventId: string,
+  startTimes: readonly string[],
+): Promise<void> {
+  const INSERT_BATCH_SIZE = 500;
+  for (let start = 0; start < startTimes.length; start += INSERT_BATCH_SIZE) {
+    const batch = startTimes
+      .slice(start, start + INSERT_BATCH_SIZE)
+      .map((startsAt) => ({ event_id: eventId, starts_at: startsAt }));
+    const { error } = await actor.client.from('event_occurrences').insert(batch);
+    if (error !== null) {
+      throw new Error(`bulk occurrence insert failed: ${error.message}`);
+    }
+  }
+}
+
+// --- Pagination past api.max_rows (1000): P1 fix for PR #19 / Issue #12 ---
+//
+// supabase/config.toml caps any single PostgREST response at `api.max_rows`
+// (1000) silently - no error, no indication of truncation. Before the fix,
+// listEventCatalog/listEventCatalogInRange/listEventOccurrences (and
+// getEventWithOccurrences, which calls listEventOccurrences) each did a
+// single unranged `.select()`, so a table/event/period with more than 1000
+// matching rows would silently lose everything past the cap. These tests
+// prove real rows past that boundary are not lost.
+
+void test('listEventOccurrences: returns every occurrence for one event even past api.max_rows (1000)', async () => {
+  const TOTAL = 1200;
+  const baseInstant = '2026-11-01T00:00:00.000Z';
+  const { event, occurrence: first } = await createEventWithOccurrence(actorA, {
+    title: eventFixtureTitle(),
+    startsAt: secondsAfter(baseInstant, 0),
+  });
+  const remainingStartTimes = Array.from({ length: TOTAL - 1 }, (_, i) =>
+    secondsAfter(baseInstant, i + 1),
+  );
+  await bulkInsertOccurrences(actorA, event.id, remainingStartTimes);
+
+  const occurrences = requireOk(await listEventOccurrences(actorB.client, event.id));
+  assert.equal(
+    occurrences.length,
+    TOTAL,
+    'expected every occurrence, not just the first max_rows worth',
+  );
+  assert.ok(occurrences.some((occ) => occ.id === first.id));
+
+  const expectedOrder = [...occurrences]
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id.localeCompare(b.id))
+    .map((occ) => occ.id);
+  assert.deepEqual(
+    occurrences.map((occ) => occ.id),
+    expectedOrder,
+    'expected deterministic starts_at/id ordering to hold across the full, paginated result',
+  );
+});
+
+void test('listEventCatalogInRange: an event whose only in-range occurrence sorts past api.max_rows (1000) earlier ones is still returned', async () => {
+  const date = '2026-11-05';
+  const dayRange = tokyoCalendarDayRangeUtc(date);
+  const FILLER_TOTAL = 1005;
+
+  const { event: fillerEvent, occurrence: fillerFirst } = await createEventWithOccurrence(actorA, {
+    title: eventFixtureTitle(),
+    startsAt: secondsAfter(dayRange.startUtc, 0),
+  });
+  const remainingFillerStartTimes = Array.from({ length: FILLER_TOTAL - 1 }, (_, i) =>
+    secondsAfter(dayRange.startUtc, i + 1),
+  );
+  await bulkInsertOccurrences(actorA, fillerEvent.id, remainingFillerStartTimes);
+
+  // Chronologically last that day - past every filler occurrence above (all
+  // within the first ~17 minutes of the day), and past position 1000 in
+  // starts_at order.
+  const { event: targetEvent, occurrence: targetOccurrence } = await createEventWithOccurrence(
+    actorA,
+    { title: eventFixtureTitle(), startsAt: secondsAfter(dayRange.startUtc, 20 * 60 * 60) },
+  );
+
+  const data = requireOk(await listEventCatalogInRange(actorB.client, dayRange));
+
+  const fillerGroup = data.find((group) => group.event.id === fillerEvent.id);
+  assert.ok(fillerGroup, 'expected the filler event (>1000 occurrences that day) to be present');
+  assert.equal(fillerGroup.occurrences.length, FILLER_TOTAL);
+  assert.ok(fillerGroup.occurrences.some((occ) => occ.id === fillerFirst.id));
+
+  const targetGroup = data.find((group) => group.event.id === targetEvent.id);
+  assert.ok(
+    targetGroup,
+    'expected the event whose only occurrence sorts past the 1000-row cap to still be returned, ' +
+      'not silently dropped by an unpaginated read',
+  );
+  assert.deepEqual(
+    targetGroup.occurrences.map((occ) => occ.id),
+    [targetOccurrence.id],
+  );
+});
+
+void test('listEventCatalogInRange: parent event lookup is batched past the id-batch size and drops none', async () => {
+  const date = '2026-11-06';
+  const dayRange = tokyoCalendarDayRangeUtc(date);
+  const EVENT_COUNT = 250; // > this module's internal id-batch size (200)
+  const CONCURRENCY = 25;
+
+  const created: Awaited<ReturnType<typeof createEventWithOccurrence>>[] = [];
+  for (let start = 0; start < EVENT_COUNT; start += CONCURRENCY) {
+    const indexes = Array.from(
+      { length: Math.min(CONCURRENCY, EVENT_COUNT - start) },
+      (_, i) => start + i,
+    );
+    const batch = await Promise.all(
+      indexes.map((i) =>
+        createEventWithOccurrence(actorA, {
+          title: eventFixtureTitle(),
+          startsAt: secondsAfter(dayRange.startUtc, i),
+        }),
+      ),
+    );
+    created.push(...batch);
+  }
+
+  const data = requireOk(await listEventCatalogInRange(actorB.client, dayRange));
+  const returnedEventIds = new Set(data.map((group) => group.event.id));
+  for (const { event } of created) {
+    assert.ok(
+      returnedEventIds.has(event.id),
+      `expected event ${event.id} to be present - batched parent event lookup must not drop ids past the first batch`,
+    );
+  }
+  assert.equal(data.length, EVENT_COUNT);
+});
+
 // --- listEventCatalog: shared catalog read, authenticated ---
 
 void test('listEventCatalog: authenticated user reads another user’s event and its occurrence through the read layer', async () => {

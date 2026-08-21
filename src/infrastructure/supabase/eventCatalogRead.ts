@@ -8,9 +8,11 @@ import {
   mapPostgrestError,
   sortOccurrences,
   tokyoCalendarDayRangeUtc,
+  type EventCatalogEvent,
   type EventCatalogReadResult,
   type EventOccurrence,
   type EventWithOccurrences,
+  type RawPostgrestError,
   type UtcInstantRange,
 } from '../../domain/eventCatalog.ts';
 
@@ -35,32 +37,157 @@ import {
 export type EventCatalogQueryClient = SupabaseClient<Database>;
 
 /**
+ * PostgREST caps any single response at supabase/config.toml's
+ * `api.max_rows` (currently 1000), silently - a request for more rows than
+ * that just comes back short, with no error and no indication truncation
+ * happened. A collection read that does a single unranged `.select()` is
+ * therefore only ever correct by accident, for tables that happen to stay
+ * under the cap. fetchAllRows below paginates with `.range()` and keeps
+ * requesting pages until the accumulated row count reaches the *reported*
+ * total (from `count: 'exact'`), rather than assuming "a page shorter than
+ * what we asked for means we're done" - that assumption breaks if
+ * max_rows is ever configured below our own page size, silently
+ * reintroducing the same truncation this exists to prevent. PAGE_SIZE
+ * itself does not need to match max_rows exactly for correctness, only for
+ * request-count efficiency.
+ */
+const PAGE_SIZE = 500;
+
+/**
+ * `.in('id', eventIds)` embeds the id list directly in the request URL;
+ * an unbounded list both risks exceeding practical URL/query length limits
+ * and produces a response whose row count is only as safe as PAGE_SIZE
+ * above. Chunking keeps each request's id list bounded independently of
+ * how many distinct events a range/day query happens to touch.
+ */
+const ID_BATCH_SIZE = 200;
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let start = 0; start < items.length; start += size) {
+    chunks.push(items.slice(start, start + size));
+  }
+  return chunks;
+}
+
+interface PageResponse<Row> {
+  data: Row[] | null;
+  error: RawPostgrestError | null;
+  count: number | null;
+}
+
+/**
+ * Drives an arbitrary `.range(from, to)`-based PostgREST query to
+ * completion, accumulating every row regardless of how many pages that
+ * takes. `queryPage` must request `{ count: 'exact' }` so a reported total
+ * is available - without one, this has no reliable way to distinguish "the
+ * last page happened to be short" from "max_rows silently capped this
+ * page below what was asked for", so it fails closed (an error result)
+ * rather than ever returning a possibly-incomplete page set as success.
+ */
+async function fetchAllRows<Row>(
+  queryPage: (from: number, to: number) => PromiseLike<PageResponse<Row>>,
+): Promise<EventCatalogReadResult<Row[]>> {
+  const rows: Row[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error, count } = await queryPage(offset, offset + PAGE_SIZE - 1);
+    if (error !== null) {
+      return { ok: false, error: mapPostgrestError(error) };
+    }
+    if (count === null) {
+      return {
+        ok: false,
+        error: {
+          message: 'Postgrest did not report a total row count for a paginated query',
+          code: 'pagination-count-missing',
+        },
+      };
+    }
+    if (data === null) {
+      return {
+        ok: false,
+        error: {
+          message: 'Postgrest returned no data and no error for a paginated query',
+          code: 'pagination-data-missing',
+        },
+      };
+    }
+    rows.push(...data);
+    offset += data.length;
+    if (data.length === 0 || offset >= count) {
+      break;
+    }
+  }
+  return { ok: true, data: rows };
+}
+
+/**
+ * Fetches events by id in ID_BATCH_SIZE-sized batches (bounding both the
+ * `.in()` list length and, independently, each batch's own response via
+ * fetchAllRows), preserving no particular event ordering - callers that
+ * care about output order (groupOccurrencesByEvent) derive it from the
+ * occurrences, not from this fetch order.
+ */
+async function fetchEventsByIds(
+  client: EventCatalogQueryClient,
+  eventIds: readonly string[],
+): Promise<EventCatalogReadResult<EventCatalogEvent[]>> {
+  const events: EventCatalogEvent[] = [];
+  for (const idBatch of chunk(eventIds, ID_BATCH_SIZE)) {
+    const batchResult = await fetchAllRows((from, to) =>
+      client
+        .from('events')
+        .select('*', { count: 'exact' })
+        .in('id', idBatch)
+        .order('id', { ascending: true })
+        .range(from, to),
+    );
+    if (!batchResult.ok) {
+      return batchResult;
+    }
+    events.push(...batchResult.data.map(mapEventRow));
+  }
+  return { ok: true, data: events };
+}
+
+/**
  * The whole shared catalog: every event with its occurrences, events
  * ordered by created_at (registration order) as the minimal deterministic
  * default, occurrences within each event ordered per
- * domain/eventCatalog.ts's compareOccurrencesByStartsAt.
+ * domain/eventCatalog.ts's compareOccurrencesByStartsAt. Both the event set
+ * and the occurrence set are fetched to completion via fetchAllRows, so
+ * neither silently truncates at api.max_rows.
  */
 export async function listEventCatalog(
   client: EventCatalogQueryClient,
 ): Promise<EventCatalogReadResult<EventWithOccurrences[]>> {
-  const { data: eventRows, error: eventsError } = await client
-    .from('events')
-    .select()
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (eventsError !== null) {
-    return { ok: false, error: mapPostgrestError(eventsError) };
+  const eventsResult = await fetchAllRows((from, to) =>
+    client
+      .from('events')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!eventsResult.ok) {
+    return eventsResult;
   }
 
-  const { data: occurrenceRows, error: occurrencesError } = await client
-    .from('event_occurrences')
-    .select();
-  if (occurrencesError !== null) {
-    return { ok: false, error: mapPostgrestError(occurrencesError) };
+  const occurrencesResult = await fetchAllRows((from, to) =>
+    client
+      .from('event_occurrences')
+      .select('*', { count: 'exact' })
+      .order('starts_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!occurrencesResult.ok) {
+    return occurrencesResult;
   }
 
-  const events = eventRows.map(mapEventRow);
-  const occurrences = occurrenceRows.map(mapOccurrenceRow);
+  const events = eventsResult.data.map(mapEventRow);
+  const occurrences = occurrencesResult.data.map(mapOccurrenceRow);
   return { ok: true, data: attachOccurrencesToEvents(events, occurrences) };
 }
 
@@ -70,39 +197,42 @@ export async function listEventCatalog(
  * actually fall in range are included (an event's occurrences outside the
  * range are not attached), and an event with none in range is simply
  * absent from the result - never fabricated as an empty entry. Result
- * ordering follows each event's soonest in-range occurrence.
+ * ordering follows each event's soonest in-range occurrence. The in-range
+ * occurrence set is fetched to completion via fetchAllRows (so an event
+ * whose only in-range occurrence falls past api.max_rows worth of earlier
+ * occurrences is never dropped), and the resulting event ids are looked up
+ * in ID_BATCH_SIZE-sized batches rather than one unbounded `.in()` call.
  */
 export async function listEventCatalogInRange(
   client: EventCatalogQueryClient,
   range: UtcInstantRange,
 ): Promise<EventCatalogReadResult<EventWithOccurrences[]>> {
-  const { data: occurrenceRows, error: occurrencesError } = await client
-    .from('event_occurrences')
-    .select()
-    .gte('starts_at', range.startUtc)
-    .lt('starts_at', range.endUtcExclusive)
-    .order('starts_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (occurrencesError !== null) {
-    return { ok: false, error: mapPostgrestError(occurrencesError) };
+  const occurrencesResult = await fetchAllRows((from, to) =>
+    client
+      .from('event_occurrences')
+      .select('*', { count: 'exact' })
+      .gte('starts_at', range.startUtc)
+      .lt('starts_at', range.endUtcExclusive)
+      .order('starts_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!occurrencesResult.ok) {
+    return occurrencesResult;
   }
-  if (occurrenceRows.length === 0) {
+  if (occurrencesResult.data.length === 0) {
     return { ok: true, data: [] };
   }
 
-  const occurrences = occurrenceRows.map(mapOccurrenceRow);
+  const occurrences = occurrencesResult.data.map(mapOccurrenceRow);
   const eventIds = [...new Set(occurrences.map((occurrence) => occurrence.eventId))];
 
-  const { data: eventRows, error: eventsError } = await client
-    .from('events')
-    .select()
-    .in('id', eventIds);
-  if (eventsError !== null) {
-    return { ok: false, error: mapPostgrestError(eventsError) };
+  const eventsResult = await fetchEventsByIds(client, eventIds);
+  if (!eventsResult.ok) {
+    return eventsResult;
   }
 
-  const events = eventRows.map(mapEventRow);
-  return { ok: true, data: groupOccurrencesByEvent(events, occurrences) };
+  return { ok: true, data: groupOccurrencesByEvent(eventsResult.data, occurrences) };
 }
 
 /**
@@ -117,26 +247,36 @@ export async function listEventCatalogOnDate(
   return listEventCatalogInRange(client, tokyoCalendarDayRangeUtc(tokyoDate));
 }
 
-/** A single event's occurrences, ordered deterministically by starts_at. */
+/**
+ * A single event's occurrences, ordered deterministically by starts_at.
+ * Fetched to completion via fetchAllRows, so an event with more
+ * occurrences than api.max_rows never has its later ones silently
+ * dropped.
+ */
 export async function listEventOccurrences(
   client: EventCatalogQueryClient,
   eventId: string,
 ): Promise<EventCatalogReadResult<EventOccurrence[]>> {
-  const { data, error } = await client
-    .from('event_occurrences')
-    .select()
-    .eq('event_id', eventId)
-    .order('starts_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (error !== null) {
-    return { ok: false, error: mapPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('event_occurrences')
+      .select('*', { count: 'exact' })
+      .eq('event_id', eventId)
+      .order('starts_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortOccurrences(data.map(mapOccurrenceRow)) };
+  return { ok: true, data: sortOccurrences(result.data.map(mapOccurrenceRow)) };
 }
 
 /**
  * A single event and its occurrences. `data: null` (not an error) means no
- * event exists with that id.
+ * event exists with that id. The event lookup itself is a single-row
+ * `maybeSingle()` (never subject to the multi-row max_rows cap); its
+ * occurrences go through listEventOccurrences above, which is.
  */
 export async function getEventWithOccurrences(
   client: EventCatalogQueryClient,
