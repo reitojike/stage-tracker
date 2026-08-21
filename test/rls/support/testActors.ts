@@ -84,11 +84,17 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   }
 
   const ownedEventIds = ownedEvents.map((event) => event.id);
-  if (ownedEventIds.length > 0) {
+  // Chunked rather than one `.in()` call: event_id is embedded directly in
+  // the request URL, and a fixture actor that owns hundreds of events
+  // (e.g. pagination tests) can otherwise produce a "URI too long" error
+  // that has nothing to do with the RLS behavior under test.
+  const EVENT_ID_BATCH_SIZE = 100;
+  for (let start = 0; start < ownedEventIds.length; start += EVENT_ID_BATCH_SIZE) {
+    const batch = ownedEventIds.slice(start, start + EVENT_ID_BATCH_SIZE);
     const { error: deleteOccurrencesError } = await admin
       .from('event_occurrences')
       .delete()
-      .in('event_id', ownedEventIds);
+      .in('event_id', batch);
     if (deleteOccurrencesError) {
       throw new Error(
         `failed to delete fixture occurrences for test user ${actor.user.id}: ${deleteOccurrencesError.message}`,
