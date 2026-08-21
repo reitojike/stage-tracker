@@ -50,12 +50,22 @@ export async function requestMagicLink(
   email: string,
   diagnostics?: MagicLinkDiagnostics,
 ): Promise<void> {
-  const { error } = await client.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  });
+  // signInWithOtp only *returns* `{ error }` for AuthError; anything else
+  // it rethrows (GoTrueClient: `if (isAuthError(error)) return ...; throw
+  // error`). An escaping rejection would abort the Server Action and
+  // produce an error response instead of the neutral acknowledgement -
+  // a different envelope, which is exactly what must not happen. Swallow
+  // it into the same diagnostics channel as every other failure.
+  try {
+    const { error } = await client.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
 
-  if (error !== null && error !== undefined) {
-    diagnostics?.requestFailed(email, error);
+    if (error !== null && error !== undefined) {
+      diagnostics?.requestFailed(email, error);
+    }
+  } catch (thrown: unknown) {
+    diagnostics?.requestFailed(email, thrown);
   }
 }

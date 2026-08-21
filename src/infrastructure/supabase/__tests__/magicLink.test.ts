@@ -91,6 +91,26 @@ void test('failures are reported to the server-side diagnostics channel', async 
   assert.equal(failures[0]?.email, 'someone@example.test');
 });
 
+void test('a rejected SDK call is absorbed, not allowed to escape', async () => {
+  // signInWithOtp rethrows anything that is not an AuthError. If that
+  // escaped, the Server Action would abort and return an error response
+  // instead of the neutral acknowledgement - a different envelope.
+  const thrown = new TypeError('unexpected client failure');
+  const client: MagicLinkAuthClient = {
+    auth: {
+      signInWithOtp() {
+        return Promise.reject(thrown);
+      },
+    },
+  };
+  const { diagnostics, failures } = recordingDiagnostics();
+
+  await requestMagicLink(client, 'someone@example.test', diagnostics);
+
+  assert.equal(failures.length, 1, 'the rejection must reach diagnostics');
+  assert.equal(failures[0]?.error, thrown);
+});
+
 void test('a successful request reports no failure', async () => {
   const { client } = recordingClient();
   const { diagnostics, failures } = recordingDiagnostics();
