@@ -1,5 +1,5 @@
 import type { TestActor } from './testActors.ts';
-import { readLocalSupabaseStatus } from './localSupabase.ts';
+import { postgrestFetchAs } from './postgrest.ts';
 
 // Direct authenticated INSERT into events is unsupported (Issue #17): the
 // only supported create path is the create_event_with_occurrence RPC. This
@@ -70,22 +70,5 @@ export async function callCreateEventRpcRaw(
   actor: TestActor,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const { data, error } = await actor.client.auth.getSession();
-  if (error) {
-    throw new Error(`failed to read session for raw RPC call: ${error.message}`);
-  }
-  if (!data.session) {
-    throw new Error('actor has no active session for raw RPC call');
-  }
-
-  const status = readLocalSupabaseStatus();
-  return fetch(`${status.apiUrl}/rest/v1/rpc/create_event_with_occurrence`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: status.anonKey,
-      Authorization: `Bearer ${data.session.access_token}`,
-    },
-    body: JSON.stringify(body),
-  });
+  return postgrestFetchAs(actor, 'rest/v1/rpc/create_event_with_occurrence', body);
 }
