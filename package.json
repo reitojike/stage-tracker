@@ -25,6 +25,7 @@
     "test:rls:guardrail-proof": "node --experimental-strip-types test/rls/guardrail-proof.mjs",
     "test:auth": "node --experimental-strip-types --test --test-concurrency=1 test/auth/*.test.ts",
     "auth:provision-user": "node scripts/provision-user.mjs",
+    "catalog:grant-creator": "node scripts/grant-catalog-creator.mjs",
     "verify:profile": "supabase start && supabase db reset && npm run supabase:types:check && npm run test:rls && npm run test:auth",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run build-storybook && npm run foundation:check && npm run verify:profile",
     "storybook": "storybook dev -p 6006",

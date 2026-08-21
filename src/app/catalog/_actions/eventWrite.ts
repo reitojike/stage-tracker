@@ -1,0 +1,194 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
+import {
+  addEventOccurrence,
+  createEventWithInitialOccurrence,
+  updateEventDetails,
+  updateEventOccurrence,
+} from '@/infrastructure/supabase/eventCatalogWrite.ts';
+import {
+  parseEventCreate,
+  parseEventDetails,
+  parseOccurrence,
+  type RawFormValues,
+} from '@/domain/eventCatalogWrite.ts';
+import {
+  rejectedWriteFormState,
+  resolveWriteFeedback,
+  type EventWriteFormState,
+} from '@/domain/eventWriteFeedback.ts';
+
+// Server actions for the MVP Event catalog write boundary (Issue #29).
+//
+// None of these actions decides permission. Authority is enforced by the
+// database - create_event_with_occurrence's designated-creator check, and
+// events / event_occurrences RLS for owner-only update and occurrence
+// management (see supabase/migrations/). What happens here is parsing,
+// dispatch, and turning the database's own outcome into the state the form
+// renders. A denial therefore surfaces as a denial even if a caller
+// bypasses the UI entirely (e.g. by posting a tampered event id), because
+// nothing here is what was stopping them.
+
+const EVENT_FIELDS = ['title', 'venue', 'sourceUrl', 'memo'] as const;
+const OCCURRENCE_FIELDS = ['startsAt', 'endsAt'] as const;
+
+function readFormValues(formData: FormData, keys: readonly string[]): RawFormValues {
+  const values: RawFormValues = {};
+  for (const key of keys) {
+    const value = formData.get(key);
+    if (typeof value === 'string') {
+      values[key] = value;
+    }
+  }
+  return values;
+}
+
+/** A required identifier carried by a hidden input. Absent or non-string
+ * means the request did not come from the form this action serves; it is
+ * reported as a generic failure rather than being guessed at. */
+function readId(formData: FormData, key: string): string | null {
+  const value = formData.get(key);
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+export async function createEventAction(
+  previous: EventWriteFormState,
+  formData: FormData,
+): Promise<EventWriteFormState> {
+  const values = readFormValues(formData, [...EVENT_FIELDS, ...OCCURRENCE_FIELDS]);
+  const parsed = parseEventCreate(values);
+  if (!parsed.ok) {
+    return rejectedWriteFormState(previous, values, parsed.fieldErrors, null);
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await createEventWithInitialOccurrence(client, parsed.value);
+  if (!result.ok) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('create-event', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  // Outside the failure branches above: redirect() signals by throwing, so
+  // it must not run where a catch could absorb it.
+  redirect(`/catalog/events/${result.data.id}`);
+}
+
+export async function updateEventDetailsAction(
+  previous: EventWriteFormState,
+  formData: FormData,
+): Promise<EventWriteFormState> {
+  const values = readFormValues(formData, EVENT_FIELDS);
+  const eventId = readId(formData, 'eventId');
+  if (eventId === null) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('update-event', 'failure'),
+    );
+  }
+
+  const parsed = parseEventDetails(values);
+  if (!parsed.ok) {
+    return rejectedWriteFormState(previous, values, parsed.fieldErrors, null);
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await updateEventDetails(client, eventId, parsed.value);
+  if (!result.ok) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('update-event', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  redirect(`/catalog/events/${eventId}/edit?saved=event`);
+}
+
+export async function addOccurrenceAction(
+  previous: EventWriteFormState,
+  formData: FormData,
+): Promise<EventWriteFormState> {
+  const values = readFormValues(formData, OCCURRENCE_FIELDS);
+  const eventId = readId(formData, 'eventId');
+  if (eventId === null) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('add-occurrence', 'failure'),
+    );
+  }
+
+  const parsed = parseOccurrence(values);
+  if (!parsed.ok) {
+    return rejectedWriteFormState(previous, values, parsed.fieldErrors, null);
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await addEventOccurrence(client, eventId, parsed.value);
+  if (!result.ok) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('add-occurrence', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  redirect(`/catalog/events/${eventId}/edit?saved=occurrence-added`);
+}
+
+export async function updateOccurrenceAction(
+  previous: EventWriteFormState,
+  formData: FormData,
+): Promise<EventWriteFormState> {
+  const values = readFormValues(formData, OCCURRENCE_FIELDS);
+  const eventId = readId(formData, 'eventId');
+  const occurrenceId = readId(formData, 'occurrenceId');
+  if (eventId === null || occurrenceId === null) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('update-occurrence', 'failure'),
+    );
+  }
+
+  const parsed = parseOccurrence(values);
+  if (!parsed.ok) {
+    return rejectedWriteFormState(previous, values, parsed.fieldErrors, null);
+  }
+
+  const client = await createSupabaseServerClient();
+  // event_id is deliberately not part of this update - an occurrence is
+  // never reassigned to another event. eventId above is used only to
+  // navigate back and to revalidate the right paths.
+  const result = await updateEventOccurrence(client, occurrenceId, parsed.value);
+  if (!result.ok) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('update-occurrence', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  redirect(`/catalog/events/${eventId}/edit?saved=occurrence-updated`);
+}

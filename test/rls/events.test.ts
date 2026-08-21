@@ -43,7 +43,10 @@ let actorB: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  actorA = await createTestActor('rls-owner', PASSWORD);
+  // actorA is a designated catalog creator because it produces every
+  // fixture event below; actorB deliberately is not, so the non-owner and
+  // non-creator denials it proves cannot pass for the wrong reason.
+  actorA = await createTestActor('rls-owner', PASSWORD, { designatedCatalogCreator: true });
   createdActors.push(actorA);
   actorB = await createTestActor('rls-other', PASSWORD);
   createdActors.push(actorB);

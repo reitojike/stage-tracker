@@ -14,7 +14,12 @@
 
 import assert from 'node:assert/strict';
 import pg from 'pg';
-import { createTestActor, deleteTestActor } from './support/testActors.ts';
+import {
+  createTestActor,
+  deleteTestActor,
+  grantCatalogCreator,
+  revokeCatalogCreator,
+} from './support/testActors.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 const status = readLocalSupabaseStatus();
@@ -69,7 +74,13 @@ let actorB;
 let primaryError;
 
 try {
-  actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!');
+  // actorA creates every fixture event, so it holds designated catalog
+  // creator membership (Issue #29). actorB deliberately does not - item 10
+  // below injects that membership temporarily to prove the create denial
+  // actually depends on it.
+  actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!', {
+    designatedCatalogCreator: true,
+  });
   actorB = await createTestActor('guardrail-b', 'Str0ng-Test-Passw0rd!');
 
   // 1. events_select_authenticated: without it, RLS default-denies SELECT
@@ -102,6 +113,13 @@ try {
   // 4 below - both layers are relaxed together here to prove that
   // "authenticated client cannot directly INSERT into events" actually
   // depends on this combination, not on some other mechanism.
+  //
+  // The restore below re-creates events_insert_own with its *current*
+  // definition, which since Issue #29 also requires designated catalog
+  // creator membership. Restoring the pre-#29 definition here would
+  // silently drop that layer from the local database after this script
+  // ran - a fault injection that quietly leaves a hole behind is worse
+  // than no proof at all.
   await withBrokenPolicy(
     'events INSERT grant + events_insert_own (relaxed together)',
     `grant insert (owner_id, title, venue, source_url, memo) on public.events to authenticated;
@@ -111,7 +129,12 @@ try {
     `revoke insert on public.events from authenticated;
      drop policy events_insert_own on public.events;
      create policy events_insert_own on public.events
-       for insert to authenticated with check (owner_id = auth.uid());`,
+       for insert to authenticated with check (
+         owner_id = auth.uid()
+         and exists (
+           select 1 from public.catalog_creators cc where cc.user_id = auth.uid()
+         )
+       );`,
     async () => {
       const { data, error } = await actorA.client
         .from('events')
@@ -381,6 +404,53 @@ try {
       assert.equal(data.event_id, createdA2.id);
     },
   );
+
+  // 10. The designated catalog creator gate (Issue #29). Unlike the items
+  // above, the mechanism under test is data (a public.catalog_creators
+  // row), not a policy or grant - so the fault is injected by *granting*
+  // membership to actorB, which must make "a non-creator cannot create an
+  // event" go red. This proves that denial depends on the membership row
+  // rather than on some unrelated failure (a broken RPC, a missing EXECUTE
+  // grant, an invalid session) that would deny actorB anyway.
+  //
+  // Granting/revoking goes through service_role rather than the superuser
+  // connection used elsewhere here, because that is the same path the real
+  // operational script uses.
+  {
+    console.log('\n--- breaking designated catalog creator gate (granting actorB) ---');
+    // Baseline first: without membership, the create must be denied. If
+    // this ever stopped holding, the "red" assertion below would prove
+    // nothing.
+    const { error: deniedBefore } = await actorB.client.rpc('create_event_with_occurrence', {
+      p_title: `guardrail proof creator gate baseline ${Date.now()}`,
+      p_starts_at: new Date().toISOString(),
+    });
+    assert.ok(deniedBefore, 'expected a non-creator to be denied before membership is granted');
+
+    try {
+      await grantCatalogCreator(actorB.user.id);
+      const { data, error } = await actorB.client.rpc('create_event_with_occurrence', {
+        p_title: `guardrail proof creator gate ${Date.now()}`,
+        p_starts_at: new Date().toISOString(),
+      });
+      assert.equal(
+        error,
+        null,
+        'expected event creation to go red (succeed) once catalog creator membership is granted',
+      );
+      assert.equal(
+        data.owner_id,
+        actorB.user.id,
+        'expected the creator to become the owner, unchanged by the membership gate',
+      );
+      console.log(
+        'OK: negative test for the creator gate goes red with membership granted, as expected.',
+      );
+    } finally {
+      await revokeCatalogCreator(actorB.user.id);
+      console.log('restored designated catalog creator gate (revoked actorB)');
+    }
+  }
 
   console.log(
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',

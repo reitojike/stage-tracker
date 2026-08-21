@@ -56,8 +56,15 @@ async function signedInCookie(): Promise<string> {
   return session.cookie;
 }
 
+/** Fixture events are created through create_event_with_occurrence, which
+ * is restricted to designated catalog creators (Issue #29), so the fixture
+ * owner needs that membership. The signed-in *viewers* below deliberately
+ * do not have it - this file's assertions are about what an ordinary
+ * authenticated user can read. */
 async function fixtureActor(): Promise<TestActor> {
-  const actor = await createTestActor('catalog-fixture', 'Str0ng-Test-Passw0rd!');
+  const actor = await createTestActor('catalog-fixture', 'Str0ng-Test-Passw0rd!', {
+    designatedCatalogCreator: true,
+  });
   createdFixtureActors.push(actor);
   return actor;
 }

@@ -22,7 +22,11 @@ let actorB: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  actorA = await createTestActor('rls-occ-owner', PASSWORD);
+  // Only actorA needs designated catalog creator membership (Issue #29):
+  // it creates every fixture event here. Occurrence authority derives from
+  // event ownership, not from that membership, so actorB is left without
+  // it - the denials below must depend on ownership alone.
+  actorA = await createTestActor('rls-occ-owner', PASSWORD, { designatedCatalogCreator: true });
   createdActors.push(actorA);
   actorB = await createTestActor('rls-occ-other', PASSWORD);
   createdActors.push(actorB);
