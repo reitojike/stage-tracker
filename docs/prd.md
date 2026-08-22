@@ -82,9 +82,17 @@ event-independent personal schedule のpersistence / sharing / RLS
 baseline（all-day・multi-day all-day・time-boundedを曖昧なく区別する
 temporal shape・`paid_leave`/`work`/`travel`/`other`のMVP vocabulary・
 creator = owner・default private・entry単位のexplicit share・owner限定の
-recipient追加削除・recipientの自己離脱）です（詳細は `product-rules.md`
-を参照）。event作成はevent + initial occurrenceを1 transactionで作るRPC
-経由のみをsupported pathとし、直接の`events` INSERTは提供しません。
+recipient追加削除・recipientの自己離脱）、および occurrence-level
+participation / invitation のpersistence / RLS baseline
+（participationはoccurrence単位・statusは`considering`/`attending`のみ・
+default private visibility・withdrawはrow削除で表現、invitationは
+occurrence単位でinviterが対象occurrenceで`attending`である場合のみ・
+invitee側3分岐・declineはinvitation側の`declined_at`で表現）です
+（詳細は `product-rules.md` を参照）。event作成はevent + initial
+occurrenceを1 transactionで作るRPC経由のみをsupported pathとし、直接の
+`events` INSERTは提供しません。invitationのcreateとdeclineも同様に
+それぞれ専用RPC経由のみで、直接の`occurrence_invitations`書き込みは
+提供しません。
 
 加えて、designated catalog creator限定のminimal Event catalog
 create/update UIが成立しています。Event作成はdesignated catalog creator
@@ -96,7 +104,8 @@ write pathで検証しますが、`event_occurrences` へのCHECK制約は未導
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
-- occurrence-level participation / invitation
+- occurrence-level participation / invitation の UI journey
+  （schema/RLS baselineは上記のとおり成立済み）
 - ticket acquisition / ticket の分離、ticket transfer
 - catalog classification / venue のMVP data boundary
 - calendar上のSaturday/Sunday/Japanese holiday presentation

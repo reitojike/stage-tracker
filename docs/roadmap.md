@@ -33,16 +33,28 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   creator = owner、default private、entry単位のexplicit share・
   approvalなし即時反映、owner限定のrecipient追加削除、recipientの自己
   離脱）
+- occurrence-level participation / invitationのpersistence / RLS
+  baseline（participationはoccurrence単位・statusは`considering`/
+  `attending`のみで`not_attending`は持たない・default private
+  visibility・withdrawは自分のrow削除で表現、invitationはoccurrence
+  単位でinviterが対象occurrenceで`attending`の場合のみ作成でき、event
+  ownershipはinvite権を与えない・invitee側3分岐（row無し→invitation+
+  `considering` / `considering`→invitationのみ / `attending`→invite
+  対象外）・declineはinvitation側の`declined_at`で表現し
+  `not_attending` participationを作らない。invitationのcreateと
+  declineはそれぞれ専用RPCのみがwrite pathで、`occurrence_invitations`
+  へのINSERT/UPDATE grantもpolicyも持たない）
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
 に従って既に実装済みです。
 
-occurrence-level participation / invitation、ticket acquisition / ticket /
-ticket transfer、calendar上のSaturday/Sunday/Japanese holiday
-presentationのsemanticsも product-rules.md / `docs/ux-ui.md` で承認済み
-ですが、対応するschema/RLS/UIはまだ実装されていません。こちらは次節の
-MVP personal planning capabilityの中で実装します。
+ticket acquisition / ticket / ticket transfer、calendar上のSaturday/
+Sunday/Japanese holiday presentationのsemanticsも product-rules.md /
+`docs/ux-ui.md` で承認済みですが、対応するschema/RLS/UIはまだ実装され
+ていません。occurrence-level participation / invitationはschema/RLS
+baselineのみ成立済みで、UI journeyは未実装です。いずれも次節のMVP
+personal planning capabilityの中で実装します。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
@@ -63,7 +75,8 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
 - **occurrence-level participation / invitation** — ユーザーごとの
   occurrence参加予定管理と、そこからのinvitation（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）
+  参照）。persistence / RLS baselineは Completed baseline のとおり成立
+  済みで、残るのはUI journeyです。
 - **ticket acquisition / ticket** — チケット入手情報とticketの管理（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   参照）
