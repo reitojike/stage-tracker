@@ -90,12 +90,25 @@ create trigger tickets_set_updated_at
 --
 -- Deliberately minimal: it constrains exactly one transition and invents no
 -- lifecycle. It does not stop pending -> secured, does not stop edits to
--- memo, and says nothing about deletion (out of scope for this slice). The
--- escape hatch is to remove the tickets first, which is a real decision
--- rather than a silent status flip.
+-- memo, and says nothing about deletion.
 --
--- A trigger, not an RLS policy: this is a data invariant that must hold for
--- every writer including service_role, which bypasses RLS.
+-- Known consequence, accepted for this slice: there is no escape hatch.
+-- Ticket deletion is out of scope here (no DELETE grant, no DELETE policy -
+-- see the grants below), so an owner who secured an acquisition and created
+-- a ticket by mistake cannot walk either one back. Correcting that needs
+-- ticket deletion semantics, which product-rules.md has not settled; the
+-- alternative - leaving the status freely downgradable - is what this
+-- invariant exists to prevent. Recorded on Issue #32 rather than resolved
+-- by inventing a deletion rule here.
+--
+-- A trigger, not an RLS policy, because this must hold for writers RLS does
+-- not constrain - service_role bypasses RLS entirely. Note the scope: it
+-- closes the *update* direction only. Ticket creation is still gated by
+-- tickets_insert_under_own_secured_acquisition, which is an RLS policy `to
+-- authenticated`, so service_role can still insert a ticket under a
+-- non-secured acquisition. That is the admin/fixture path, not a client
+-- one; closing it too would mean a second trigger, which is more than the
+-- invariant this slice was scoped to.
 create function public.enforce_secured_acquisition_keeps_tickets() returns trigger
 language plpgsql
 set search_path = ''

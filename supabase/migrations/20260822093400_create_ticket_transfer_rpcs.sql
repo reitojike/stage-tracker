@@ -165,15 +165,22 @@ begin
   -- owner's expectation of who would use the ticket, and the new owner
   -- re-decides it.
   --
-  -- This clearing is NOT a disclosure control, and must not be read as one.
-  -- tickets_select_pending_transfer_recipient
-  -- (20260822093200_create_ticket_transfers.sql) already lets a pending
-  -- recipient read the whole ticket row, assignee_external_name included,
-  -- before they accept - and if they never accept, nothing here runs at
-  -- all. Whether offering a ticket should expose the previous holder's
-  -- named external companion is a product question that no current rule in
-  -- product-rules.md answers; it is recorded as a PO checkpoint on Issue
-  -- #32 rather than settled by narrowing the policy here.
+  -- This clearing is the *second* half of the assignment-privacy boundary,
+  -- not the whole of it, and removing either half re-opens the leak. PO
+  -- decision on Issue #32: a pending recipient is not shown the previous
+  -- owner's assignment - neither assigned_to_user_id nor
+  -- assignee_external_name - before they accept.
+  --
+  -- The first half lives in 20260822093200_create_ticket_transfers.sql: a
+  -- pending recipient has no SELECT policy on public.tickets at all, and
+  -- sees only public.pending_ticket_transfer_offer's projection, which
+  -- withholds both columns. Clearing here is what stops the assignment from
+  -- surviving into the row once the recipient *does* gain access to it as
+  -- the new owner.
+  --
+  -- So: do not re-add a recipient-facing SELECT policy on tickets, and do
+  -- not drop this clearing. Either one alone would expose the previous
+  -- holder's named external companion, who never agreed to be disclosed.
   update public.tickets
   set owner_id = v_transfer.recipient_id,
       assigned_to_user_id = null,

@@ -592,6 +592,14 @@ void test('anonymous cannot read transfers or call any transfer RPC', async () =
   });
   assert.ok(cancelError, 'expected a permission error for anonymous cancel_ticket_transfer');
 
+  // The offer projection is the one function in this slice that reads a
+  // ticket row with definer privileges, so its anon boundary is pinned here
+  // too: if the revoke on it were ever lost, this must go red.
+  const { error: offerError } = await anon.rpc('pending_ticket_transfer_offer', {
+    p_transfer_id: transfer.id,
+  });
+  assert.ok(offerError, 'expected a permission error for anonymous pending_ticket_transfer_offer');
+
   const stored = await readTransferAsAdmin(transfer.id);
   assert.equal(stored.status, 'pending');
 });
