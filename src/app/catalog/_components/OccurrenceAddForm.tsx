@@ -29,8 +29,15 @@ export function OccurrenceAddForm({ eventId }: OccurrenceAddFormProps) {
     <form action={formAction} className={styles.form} aria-busy={isPending}>
       <input type="hidden" name="eventId" value={eventId} />
 
+      {/* Keyed by `attempt` for the same reason WriteNotice keys its message:
+          resolveWriteFeedback returns module-level constants, so a second
+          identical failure would re-render StatePanel with referentially
+          identical props and commit no DOM mutation, leaving the retry
+          silent. StatePanel's own role="alert" is announced on insertion,
+          so replacing the node is what makes the retry audible. */}
       {state.feedback ? (
         <StatePanel
+          key={state.attempt}
           variant={state.feedback.variant}
           title={state.feedback.title}
           description={state.feedback.description}
