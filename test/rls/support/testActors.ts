@@ -394,20 +394,29 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   //
   // Retrying is safe precisely because it cannot hide a real problem: a row
   // this teardown genuinely failed to clean up still references
-  // auth.users(id) on every attempt, so a deterministic FK failure is
-  // reported exactly as before - only with the last error attached. What the
-  // retry absorbs is contention, which is not what these tests are about.
-  let deleteUserError;
+  // auth.users(id) on every attempt, so a deterministic FK failure still
+  // fails. Every attempt's message is reported, not just the last one -
+  // otherwise a real leftover-row error on the first attempt could be
+  // replaced by a transient one from the last, which is exactly the
+  // misdiagnosis this retry is supposed to avoid causing.
+  const attemptErrors: string[] = [];
   for (let attempt = 0; attempt < DELETE_USER_ATTEMPTS; attempt += 1) {
-    ({ error: deleteUserError } = await admin.auth.admin.deleteUser(actor.user.id));
-    if (!deleteUserError) {
+    const { error } = await admin.auth.admin.deleteUser(actor.user.id);
+    if (!error) {
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, DELETE_USER_RETRY_BASE_MS * (attempt + 1)));
+    attemptErrors.push(`attempt ${String(attempt + 1)}: ${error.message}`);
+
+    // No sleep after the final attempt - it would only delay the throw.
+    if (attempt < DELETE_USER_ATTEMPTS - 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, DELETE_USER_RETRY_BASE_MS * (attempt + 1)),
+      );
+    }
   }
 
   throw new Error(
-    `failed to delete test user ${actor.user.id} after ${String(DELETE_USER_ATTEMPTS)} attempts: ${deleteUserError?.message ?? 'unknown error'}`,
+    `failed to delete test user ${actor.user.id} after ${String(DELETE_USER_ATTEMPTS)} attempts: ${attemptErrors.join('; ')}`,
   );
 }
 
