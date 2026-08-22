@@ -283,3 +283,60 @@ void test('a past-midnight occurrence round-trips onto the following Tokyo day',
     endsAt: '2026-08-23T01:00',
   });
 });
+
+void test('parseOccurrence rejects an end that precedes its start', () => {
+  const result = parseOccurrence({ startsAt: '2026-08-22T19:00', endsAt: '2026-08-22T18:00' });
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.endsAt);
+  // Reported on 終演日時, the field the owner has to change - not as a
+  // whole-form failure they have to work out for themselves.
+  assert.equal(result.fieldErrors.startsAt, undefined);
+});
+
+void test('parseOccurrence rejects an end on an earlier day', () => {
+  const result = parseOccurrence({ startsAt: '2026-08-22T19:00', endsAt: '2026-08-21T23:00' });
+  assert.equal(result.ok, false);
+});
+
+void test('parseOccurrence accepts an end equal to its start', () => {
+  // A zero-length occurrence is odd but not self-contradictory, and the
+  // product has no rule against it.
+  const result = parseOccurrence({ startsAt: '2026-08-22T19:00', endsAt: '2026-08-22T19:00' });
+  assert.equal(result.ok, true);
+});
+
+void test('parseOccurrence still accepts a performance running past midnight', () => {
+  // The guard must not mistake "next calendar day" for "before the start".
+  const result = parseOccurrence({ startsAt: '2026-08-22T22:00', endsAt: '2026-08-23T01:00' });
+  assert.equal(result.ok, true);
+});
+
+void test('parseOccurrence still treats an unset end as valid', () => {
+  const result = parseOccurrence({ startsAt: '2026-08-22T19:00', endsAt: '' });
+  assert.equal(result.ok, true);
+});
+
+void test('the create path rejects a reversed interval too', () => {
+  // parseEventCreate delegates to parseOccurrence, so the initial
+  // occurrence is guarded by the same boundary as a later one.
+  const result = parseEventCreate({
+    title: 'Show',
+    startsAt: '2026-08-22T19:00',
+    endsAt: '2026-08-22T18:00',
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.endsAt);
+});
+
+void test('a reversed interval is reported alongside the event fields errors', () => {
+  const result = parseEventCreate({
+    title: '',
+    startsAt: '2026-08-22T19:00',
+    endsAt: '2026-08-22T18:00',
+  });
+  assert.equal(result.ok, false);
+  // One pass, both problems: the owner should not fix the title only to be
+  // told about the times on the next attempt.
+  assert.ok(result.fieldErrors.title);
+  assert.ok(result.fieldErrors.endsAt);
+});

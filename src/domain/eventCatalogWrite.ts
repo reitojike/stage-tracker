@@ -205,6 +205,27 @@ export function parseOccurrence(raw: RawFormValues): ParseResult<OccurrenceInput
     return { ok: false, fieldErrors };
   }
 
+  // Both times parsed, so the interval itself can be judged. This is the
+  // single place every supported write path reaches - parseEventCreate
+  // delegates here for the initial occurrence, and the add/update
+  // occurrence actions call it directly - so the check cannot be bypassed
+  // by using a different screen.
+  //
+  // Equal instants are accepted: a zero-length occurrence is odd but not
+  // self-contradictory, and rejecting it would invent a rule the product
+  // does not have. Only an end strictly before its start is refused.
+  //
+  // Note the database does not enforce this yet: event_occurrences carries
+  // no CHECK constraint, so this guards the product's own write paths
+  // rather than the column. Adding the constraint touches existing
+  // persistence and is tracked as its own Task.
+  if (endsAtUtc !== null && Date.parse(endsAtUtc) < Date.parse(startsAtUtc)) {
+    return {
+      ok: false,
+      fieldErrors: { endsAt: '終演日時は開演日時より前にできません。' },
+    };
+  }
+
   return { ok: true, value: { startsAtUtc, endsAtUtc } };
 }
 
