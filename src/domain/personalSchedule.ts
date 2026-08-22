@@ -161,9 +161,43 @@ export function temporalToColumns(temporal: ScheduleTemporal): {
 }
 
 /**
+ * ECMA-262's own representable range for a `Date`/`Date.parse` result: a
+ * timeValue is only defined for instants within ±100,000,000 days of the
+ * epoch (Time Values and Time Range, ECMA-262). `Date.parse` returns `NaN`
+ * for any instant string outside this range, which instantSortKey below
+ * already rejects - so this is the true bound instantSortKey's numeric
+ * encoding needs to cover, independent of (and, as it happens, narrower
+ * than) whatever range PostgreSQL's own `timestamptz` can store.
+ */
+const JS_DATE_MAX_EPOCH_MS = 100_000_000 * 24 * 60 * 60 * 1000;
+
+/**
+ * Shifts any epochMs `Date.parse` can return into a non-negative range
+ * (JS_DATE_MAX_EPOCH_MS is `Date`'s own max magnitude in either direction),
+ * and EPOCH_MS_WIDTH is the exact digit width of the shifted range's upper
+ * bound (2 * JS_DATE_MAX_EPOCH_MS) - not a hand-picked/estimated digit
+ * count, which is what let two earlier revisions of this function each
+ * silently stop being monotonic past a value neither had actually verified
+ * against the true boundary.
+ *
+ * Computed as `BigInt`, not `number`: the shifted upper bound
+ * (2 * JS_DATE_MAX_EPOCH_MS = 17,280,000,000,000,000) exceeds
+ * `Number.MAX_SAFE_INTEGER` (9,007,199,254,740,991), so ordinary `number`
+ * arithmetic on values in that range silently loses precision - two
+ * distinct instants near the top of the representable range collapsed to
+ * the exact same floating-point sum in an earlier revision of this
+ * function, which is exactly the kind of drift this sort key exists to
+ * prevent. `BigInt` addition and `.toString()` are exact at any magnitude.
+ */
+const EPOCH_MS_OFFSET = BigInt(JS_DATE_MAX_EPOCH_MS);
+const EPOCH_MS_WIDTH = (EPOCH_MS_OFFSET * BigInt(2)).toString().length;
+
+/**
  * Normalizes an ISO 8601 UTC instant string to a sort key that string-
  * compares in true chronological order, at full microsecond precision -
- * the precision PostgreSQL's `timestamptz` itself carries.
+ * the precision PostgreSQL's `timestamptz` itself carries - across every
+ * instant `Date.parse` can represent at all (see JS_DATE_MAX_EPOCH_MS
+ * above), not just an arbitrarily assumed "reasonable" range.
  *
  * `Date.parse`/`Date#getTime()` round to millisecond resolution, so two
  * instants less than 1ms apart collapse to the same epoch-millisecond
@@ -171,22 +205,23 @@ export function temporalToColumns(temporal: ScheduleTemporal): {
  * of true chronological order. The fractional-second digits beyond the
  * third (the sub-millisecond, i.e. microsecond, part) are therefore read
  * directly from the source string - never from a parsed `Date` - and
- * appended after a fixed-width, zero-padded millisecond epoch so that
- * plain string comparison of the combined key matches chronological order
+ * appended after a fixed-width, zero-padded, offset epoch so that plain
+ * string comparison of the combined key matches chronological order
  * exactly: equal down to the millisecond compares by the next three
  * (sub-millisecond) digits, and unequal milliseconds always dominate
- * because the epoch-millisecond prefix is fixed-width.
+ * because the shifted-epoch-millisecond prefix is fixed-width and always
+ * non-negative (the offset absorbs pre-1970 instants, which would
+ * otherwise sort backwards through the leading "-" sign as an ordinary
+ * string character).
  */
 function instantSortKey(instantIso: string): string {
   const epochMs = Date.parse(instantIso);
   if (Number.isNaN(epochMs)) {
     throw new Error(`expected a valid ISO 8601 instant, got: ${instantIso}`);
   }
-  // 13 digits comfortably covers every representable date this product
-  // persists (the epoch millisecond count does not reach 14 digits until
-  // the year 5138), and epochMs is always non-negative for any date this
-  // product handles, so plain zero-padding preserves numeric order.
-  const paddedEpochMs = String(epochMs).padStart(13, '0');
+  const paddedEpochMs = (BigInt(epochMs) + EPOCH_MS_OFFSET)
+    .toString()
+    .padStart(EPOCH_MS_WIDTH, '0');
   const fractionMatch = /\.(\d+)/.exec(instantIso);
   const fractionDigits = (fractionMatch?.[1] ?? '').padEnd(6, '0');
   const subMillisecondDigits = fractionDigits.slice(3, 6);

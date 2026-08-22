@@ -174,6 +174,50 @@ void test('comparePersonalScheduleEntriesByStart compares startsAt in PostgRESTâ
   );
 });
 
+// Second follow-up regression (Codex review on PR #52, after the fix
+// above): the sort key's zero-padding width was hand-picked ("13 digits"),
+// not derived from Date's actual representable range, so it silently
+// stopped being monotonic once the epoch millisecond count grew past that
+// guessed width - which happens in the year 2286, not the far future the
+// original comment assumed. 2286-11-20T17:46:39.999Z is the exact instant
+// where a 13-digit epoch millisecond count rolls over to 14 digits
+// (9999999999999 -> 10000000000000).
+void test('comparePersonalScheduleEntriesByStart stays monotonic across the old (hand-picked) 13-digit epoch-millisecond width', () => {
+  const before = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'before', starts_at: '2286-11-20T17:46:39.999Z' }),
+  );
+  const after = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'after', starts_at: '2286-11-20T17:46:40.000Z' }),
+  );
+  assert.ok(
+    comparePersonalScheduleEntriesByStart(before, after) < 0,
+    'a 1ms-later instant must still sort after, even across an epoch-millisecond digit-count rollover',
+  );
+});
+
+// Confirms the sort key also stays monotonic at the actual boundary that
+// matters: the full range Date.parse can represent at all (ECMA-262's
+// Â±100,000,000-day limit), in both directions - not merely "far enough
+// in the future to seem safe".
+void test('comparePersonalScheduleEntriesByStart stays monotonic at the extremes of what Date.parse can represent', () => {
+  const nearMax = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'near-max', starts_at: '+275760-09-12T23:59:59.999Z' }),
+  );
+  const atMax = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'at-max', starts_at: '+275760-09-13T00:00:00.000Z' }),
+  );
+  assert.ok(comparePersonalScheduleEntriesByStart(nearMax, atMax) < 0);
+
+  const atMin = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'at-min', starts_at: '-271821-04-20T00:00:00.000Z' }),
+  );
+  const afterMin = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'after-min', starts_at: '-271821-04-20T00:00:00.001Z' }),
+  );
+  assert.ok(comparePersonalScheduleEntriesByStart(atMin, afterMin) < 0);
+  assert.ok(comparePersonalScheduleEntriesByStart(atMin, atMax) < 0);
+});
+
 void test('sortPersonalScheduleEntries does not mutate its input array', () => {
   const later = mapPersonalScheduleEntryRow(rawAllDayRow({ id: 'later', starts_on: '2026-02-10' }));
   const earlier = mapPersonalScheduleEntryRow(
