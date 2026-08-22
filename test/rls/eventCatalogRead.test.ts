@@ -36,7 +36,11 @@ let actorB: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  actorA = await createTestActor('rls-read-a', PASSWORD);
+  // actorA produces the fixture catalog, so it needs designated catalog
+  // creator membership (Issue #29). actorB reads it without that
+  // membership, which is also the point: shared catalog read stays open to
+  // every authenticated user regardless of who may write.
+  actorA = await createTestActor('rls-read-a', PASSWORD, { designatedCatalogCreator: true });
   createdActors.push(actorA);
   actorB = await createTestActor('rls-read-b', PASSWORD);
   createdActors.push(actorB);

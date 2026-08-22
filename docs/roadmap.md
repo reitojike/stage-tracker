@@ -22,6 +22,11 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   （1 event : N occurrence、occurrence starts_at必須/ends_at nullable、
   create/updateはparent event ownerのみ、event作成はevent + initial
   occurrenceを1 transactionで作るRPC経由のみ）
+- designated catalog creator限定のminimal Event catalog write UI
+  （Event作成は `public.catalog_creators` membershipに限定・作成者が
+  owner・Event更新と公演回のadd/updateはowner限定・deletion/cancellationは
+  対象外・開演/終演の前後関係はwrite pathで検証。`event_occurrences` への
+  CHECK制約は未導入で、DB levelの不変条件ではない）
 - event-independent personal scheduleのpersistence / sharing / RLS
   baseline（all-day・multi-day all-day・time-boundedを曖昧なく区別する
   temporal shape、`paid_leave`/`work`/`travel`/`other`のMVP vocabulary、
@@ -34,11 +39,10 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 に従って既に実装済みです。
 
 occurrence-level participation / invitation、ticket acquisition / ticket /
-ticket transfer、designated catalog creator限定のEvent catalog write UI、
-calendar上のSaturday/Sunday/Japanese holiday presentationのsemanticsも
-product-rules.md / `docs/ux-ui.md` で承認済みですが、対応するschema/RLS/UI
-はまだ実装されていません。こちらは次節のMVP personal planning capability
-の中で実装します。
+ticket transfer、calendar上のSaturday/Sunday/Japanese holiday
+presentationのsemanticsも product-rules.md / `docs/ux-ui.md` で承認済み
+ですが、対応するschema/RLS/UIはまだ実装されていません。こちらは次節の
+MVP personal planning capabilityの中で実装します。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
@@ -61,10 +65,6 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   参照）
 - **ticket acquisition / ticket** — チケット入手情報とticketの管理（詳細は
-  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）
-- **minimal Event catalog write UI** — designated catalog creator限定の
-  Event catalog create/update（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   参照）
 - **calendar weekday / Japanese holiday presentation** — Saturday/

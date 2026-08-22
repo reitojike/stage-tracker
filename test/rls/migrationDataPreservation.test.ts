@@ -60,6 +60,9 @@ async function withPgClient<T>(run: (client: pg.Client) => Promise<T>): Promise<
 let owner: TestActor;
 
 before(async () => {
+  // No designated catalog creator membership needed: this test inserts its
+  // fixture rows directly with a superuser connection into an isolated
+  // scratch schema, never through the create RPC that the membership gates.
   owner = await createTestActor('migration-preservation-owner', 'Str0ng-Test-Passw0rd!');
   await withPgClient(async (client) => {
     await client.query(`drop schema if exists ${SCHEMA} cascade`);

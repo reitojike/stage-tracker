@@ -1,0 +1,31 @@
+/* The field/label/helper/error shell and the control's own token-driven
+   styling are identical to TextInput's - composed from it rather than
+   restated, so the two controls cannot drift apart as tokens change.
+   Only the multi-line specifics are declared here. */
+
+.field {
+  composes: field from './TextInput.module.css';
+}
+
+.label {
+  composes: label from './TextInput.module.css';
+}
+
+.control {
+  composes: input from './TextInput.module.css';
+  /* Vertical-only: free horizontal resize can push a mobile layout wider
+     than the viewport (docs/ux-ui.md smartphone-first / reflow baseline). */
+  resize: vertical;
+}
+
+.controlError {
+  composes: inputError from './TextInput.module.css';
+}
+
+.helperText {
+  composes: helperText from './TextInput.module.css';
+}
+
+.errorText {
+  composes: errorText from './TextInput.module.css';
+}

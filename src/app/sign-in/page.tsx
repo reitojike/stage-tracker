@@ -11,23 +11,33 @@ interface SignInPageProps {
 // docs/ux-ui.md「Common states」に従い、auth failure は empty result と
 // 同一表示にしません。ここでは meaning / message を feature 側が所有し、
 // presentation は shared primitive へ委ねます。
-const AUTH_ERRORS: Record<string, { title: string; description: string }> = {
-  link_expired: {
-    title: 'サインインリンクが無効です',
-    description:
-      'リンクの有効期限が切れているか、すでに使用されています。もう一度サインインリンクを送信してください。',
-  },
-  missing_email: {
-    title: 'メールアドレスを入力してください',
-    description: 'サインインリンクの送信先となるメールアドレスが空でした。',
-  },
-};
+// A Map, not an object literal: `errorKey` comes straight from the query
+// string, and an object lookup would resolve inherited keys - `?error=toString`
+// would hand back Object.prototype.toString and render a blank error panel.
+// Map.get only ever sees entries that were actually put in.
+const AUTH_ERRORS = new Map<string, { title: string; description: string }>([
+  [
+    'link_expired',
+    {
+      title: 'サインインリンクが無効です',
+      description:
+        'リンクの有効期限が切れているか、すでに使用されています。もう一度サインインリンクを送信してください。',
+    },
+  ],
+  [
+    'missing_email',
+    {
+      title: 'メールアドレスを入力してください',
+      description: 'サインインリンクの送信先となるメールアドレスが空でした。',
+    },
+  ],
+]);
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   const requested = params.requested === '1';
   const errorKey = typeof params.error === 'string' ? params.error : undefined;
-  const authError = errorKey === undefined ? undefined : AUTH_ERRORS[errorKey];
+  const authError = errorKey === undefined ? undefined : AUTH_ERRORS.get(errorKey);
 
   return (
     <main>

@@ -26,12 +26,51 @@ export interface TestActor {
   client: SupabaseClient<Database>;
 }
 
+export interface TestActorOptions {
+  /**
+   * Grants designated catalog creator membership (Issue #29) right after
+   * the user is created. Event creation is restricted to that membership,
+   * so any actor a test uses to produce fixture events needs it; actors
+   * used only to prove denial deliberately do not.
+   */
+  designatedCatalogCreator?: boolean;
+}
+
+/**
+ * Grants designated catalog creator membership through the service_role
+ * admin path. `authenticated` has no write privilege on catalog_creators
+ * at all, which is the point - this is setup, and mirrors the operational
+ * grant script (scripts/grant-catalog-creator.mjs), not something a test's
+ * own client could do to itself.
+ */
+export async function grantCatalogCreator(userId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('catalog_creators')
+    .upsert({ user_id: userId }, { onConflict: 'user_id' });
+  if (error) {
+    throw new Error(`failed to grant catalog creator to ${userId}: ${error.message}`);
+  }
+}
+
+export async function revokeCatalogCreator(userId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin.from('catalog_creators').delete().eq('user_id', userId);
+  if (error) {
+    throw new Error(`failed to revoke catalog creator from ${userId}: ${error.message}`);
+  }
+}
+
 /**
  * Creates a confirmed auth user (admin/setup path) and signs in as that user
  * through the anon-key client (the same path a real client uses), returning
  * only the signed-in client for use in assertions.
  */
-export async function createTestActor(emailPrefix: string, password: string): Promise<TestActor> {
+export async function createTestActor(
+  emailPrefix: string,
+  password: string,
+  options: TestActorOptions = {},
+): Promise<TestActor> {
   const admin = createAdminClient();
   const email = `${emailPrefix}-${String(Date.now())}-${Math.random().toString(36).slice(2)}@example.test`;
 
@@ -42,6 +81,10 @@ export async function createTestActor(emailPrefix: string, password: string): Pr
   });
   if (createError) {
     throw new Error(`failed to create test user ${email}: ${createError.message}`);
+  }
+
+  if (options.designatedCatalogCreator === true) {
+    await grantCatalogCreator(created.user.id);
   }
 
   const client = createAnonymousClient();
@@ -120,7 +163,9 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   // events.owner_id references auth.users(id), and event_occurrences.event_id
   // references events(id), both with no ON DELETE action - so deleting a
   // user who still owns fixture events, or events that still have fixture
-  // occurrences, would fail the FK check. Clean those up first via the
+  // occurrences, would fail the FK check. catalog_creators needs no
+  // equivalent step: its user_id FK is ON DELETE CASCADE, so a granted
+  // actor's membership row goes with the user. Clean the rest up first via the
   // admin path (setup/teardown, not an RLS assertion), innermost first, so
   // teardown actually removes what each test created. This ordering is
   // fixture cleanup only; it does not decide product deletion/cancellation

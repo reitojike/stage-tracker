@@ -1,9 +1,16 @@
 import Link from 'next/link';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
+import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
 import { getEventWithOccurrences } from '@/infrastructure/supabase/eventCatalogRead';
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
-import { catalogDayHref, catalogMonthHref, resolveCatalogParams } from '@/domain/catalogNavigation';
+import { canUpdateEvent } from '@/domain/eventPermissions';
+import {
+  catalogDayHref,
+  catalogEditEventHref,
+  catalogMonthHref,
+  resolveCatalogParams,
+} from '@/domain/catalogNavigation';
 import type { EventWithOccurrences } from '@/domain/eventCatalog';
 import { currentTokyoDate } from '../../_lib/today.ts';
 import { EventDetail } from '../../_components/EventDetail.tsx';
@@ -36,6 +43,17 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       ? catalogDayHref(context.yearMonth, context.selectedDate)
       : catalogMonthHref(context.yearMonth);
 
+  // Owner-only edit affordance (Issue #29). Everyone authenticated still
+  // reads the same event; only the link differs. nextOwnerId is the
+  // current owner because this link never offers an ownership change.
+  const user = await getAuthenticatedUser();
+  const event = result.ok ? result.data : null;
+  const editHref =
+    event !== null &&
+    canUpdateEvent(user?.id ?? null, { ownerId: event.event.ownerId }, event.event.ownerId)
+      ? catalogEditEventHref(eventId, context)
+      : null;
+
   return (
     <main>
       <Link href={backHref}>← カレンダーに戻る</Link>
@@ -50,7 +68,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       {state === 'empty' ? (
         <StatePanel variant="empty" title="指定された公演が見つかりません" />
       ) : null}
-      {result.ok && result.data !== null ? <EventDetail data={result.data} /> : null}
+      {event !== null ? <EventDetail data={event} editHref={editHref} /> : null}
     </main>
   );
 }

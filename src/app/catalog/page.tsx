@@ -1,6 +1,9 @@
+import Link from 'next/link';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
+import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
 import { listEventCatalogInRange } from '@/infrastructure/supabase/eventCatalogRead';
+import { isDesignatedCatalogCreator } from '@/infrastructure/supabase/eventCatalogWrite';
 import {
   buildMonthCalendarViewModel,
   buildMonthGrid,
@@ -8,7 +11,7 @@ import {
 } from '@/domain/calendarMonth';
 import { tokyoCalendarDateRangeUtc, type EventWithOccurrences } from '@/domain/eventCatalog';
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
-import { resolveCatalogParams } from '@/domain/catalogNavigation';
+import { catalogNewEventHref, resolveCatalogParams } from '@/domain/catalogNavigation';
 import { currentTokyoDate } from './_lib/today.ts';
 import { MonthCalendar } from './_components/MonthCalendar.tsx';
 import { SelectedDayList } from './_components/SelectedDayList.tsx';
@@ -44,9 +47,22 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   );
   const state = resolveCatalogReadState(result, isEmptyCatalog);
 
+  // The create affordance is shown only to designated catalog creators
+  // (Issue #29). A failed or indeterminate membership check hides the
+  // link rather than showing one that would only lead to a denial - the
+  // shared catalog read above is unaffected either way, so this never
+  // degrades what a non-creator can see.
+  const user = await getAuthenticatedUser();
+  const creatorCheck = user === null ? null : await isDesignatedCatalogCreator(client, user.id);
+  const canCreateEvent = creatorCheck !== null && creatorCheck.ok && creatorCheck.data;
+
   return (
     <main>
       <h1>Event Catalog</h1>
+
+      {canCreateEvent ? (
+        <Link href={catalogNewEventHref({ yearMonth, selectedDate })}>+ イベントを登録</Link>
+      ) : null}
 
       {state === 'error' ? (
         <StatePanel

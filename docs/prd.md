@@ -86,13 +86,19 @@ recipient追加削除・recipientの自己離脱）です（詳細は `product-r
 を参照）。event作成はevent + initial occurrenceを1 transactionで作るRPC
 経由のみをsupported pathとし、直接の`events` INSERTは提供しません。
 
+加えて、designated catalog creator限定のminimal Event catalog
+create/update UIが成立しています。Event作成はdesignated catalog creator
+（`public.catalog_creators` membership）に限り、作成者がevent ownerに
+なります。Event記述情報の更新と公演回のadd/updateはevent ownerのみです。
+deletion / cancellationは提供しません。開演/終演の前後関係は本UIが提供する
+write pathで検証しますが、`event_occurrences` へのCHECK制約は未導入です。
+
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
 - occurrence-level participation / invitation
 - ticket acquisition / ticket の分離、ticket transfer
 - catalog classification / venue のMVP data boundary
-- designated catalog creator限定のminimal Event catalog create/update UI
 - calendar上のSaturday/Sunday/Japanese holiday presentation
 
 詳細なsemanticsはいずれも

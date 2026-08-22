@@ -80,9 +80,26 @@ export function catalogDayHref(yearMonth: string, date: string): string {
 }
 
 export function catalogEventHref(eventId: string, context: CatalogParams): string {
+  return `/catalog/events/${eventId}?${contextParams(context)}`;
+}
+
+/**
+ * The write screens (Issue #29) carry the same month/day context as the
+ * read screens, so returning from them lands on the calendar the user came
+ * from rather than on today's month.
+ */
+export function catalogNewEventHref(context: CatalogParams): string {
+  return `/catalog/events/new?${contextParams(context)}`;
+}
+
+export function catalogEditEventHref(eventId: string, context: CatalogParams): string {
+  return `/catalog/events/${eventId}/edit?${contextParams(context)}`;
+}
+
+function contextParams(context: CatalogParams): string {
   const params = new URLSearchParams({ month: context.yearMonth });
   if (context.selectedDate !== null) {
     params.set('date', context.selectedDate);
   }
-  return `/catalog/events/${eventId}?${params.toString()}`;
+  return params.toString();
 }
