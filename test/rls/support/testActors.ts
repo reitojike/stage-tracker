@@ -108,6 +108,58 @@ export async function createTestActor(
 export async function deleteTestActor(actor: TestActor): Promise<void> {
   const admin = createAdminClient();
 
+  // personal_schedule_entries.owner_id and personal_schedule_shares.
+  // shared_with_user_id both reference auth.users(id) with no ON DELETE
+  // action (Issue #31), and personal_schedule_shares.schedule_entry_id
+  // references personal_schedule_entries(id), also with no ON DELETE
+  // action. A test actor can appear as either an entry owner or a share
+  // recipient (or both), so clean up every angle before the events/
+  // occurrences cleanup below and before deleting the user itself.
+  const { error: deleteSharesAsRecipientError } = await admin
+    .from('personal_schedule_shares')
+    .delete()
+    .eq('shared_with_user_id', actor.user.id);
+  if (deleteSharesAsRecipientError) {
+    throw new Error(
+      `failed to delete fixture schedule shares received by test user ${actor.user.id}: ${deleteSharesAsRecipientError.message}`,
+    );
+  }
+
+  const { data: ownedScheduleEntries, error: selectScheduleEntriesError } = await admin
+    .from('personal_schedule_entries')
+    .select('id')
+    .eq('owner_id', actor.user.id);
+  if (selectScheduleEntriesError) {
+    throw new Error(
+      `failed to list fixture schedule entries for test user ${actor.user.id}: ${selectScheduleEntriesError.message}`,
+    );
+  }
+
+  const ownedScheduleEntryIds = ownedScheduleEntries.map((entry) => entry.id);
+  const SCHEDULE_ENTRY_ID_BATCH_SIZE = 100;
+  for (let start = 0; start < ownedScheduleEntryIds.length; start += SCHEDULE_ENTRY_ID_BATCH_SIZE) {
+    const batch = ownedScheduleEntryIds.slice(start, start + SCHEDULE_ENTRY_ID_BATCH_SIZE);
+    const { error: deleteSharesOnOwnedEntriesError } = await admin
+      .from('personal_schedule_shares')
+      .delete()
+      .in('schedule_entry_id', batch);
+    if (deleteSharesOnOwnedEntriesError) {
+      throw new Error(
+        `failed to delete fixture schedule shares on entries owned by test user ${actor.user.id}: ${deleteSharesOnOwnedEntriesError.message}`,
+      );
+    }
+  }
+
+  const { error: deleteScheduleEntriesError } = await admin
+    .from('personal_schedule_entries')
+    .delete()
+    .eq('owner_id', actor.user.id);
+  if (deleteScheduleEntriesError) {
+    throw new Error(
+      `failed to delete fixture schedule entries for test user ${actor.user.id}: ${deleteScheduleEntriesError.message}`,
+    );
+  }
+
   // events.owner_id references auth.users(id), and event_occurrences.event_id
   // references events(id), both with no ON DELETE action - so deleting a
   // user who still owns fixture events, or events that still have fixture

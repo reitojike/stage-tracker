@@ -92,6 +92,77 @@ export type Database = {
         }
         Relationships: []
       }
+      personal_schedule_entries: {
+        Row: {
+          created_at: string
+          ends_at: string | null
+          ends_on: string | null
+          id: string
+          is_all_day: boolean
+          memo: string | null
+          owner_id: string
+          schedule_type: string
+          starts_at: string | null
+          starts_on: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string | null
+          ends_on?: string | null
+          id?: string
+          is_all_day: boolean
+          memo?: string | null
+          owner_id: string
+          schedule_type: string
+          starts_at?: string | null
+          starts_on?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string | null
+          ends_on?: string | null
+          id?: string
+          is_all_day?: boolean
+          memo?: string | null
+          owner_id?: string
+          schedule_type?: string
+          starts_at?: string | null
+          starts_on?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      personal_schedule_shares: {
+        Row: {
+          created_at: string
+          id: string
+          schedule_entry_id: string
+          shared_with_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          schedule_entry_id: string
+          shared_with_user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          schedule_entry_id?: string
+          shared_with_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_schedule_shares_schedule_entry_id_fkey"
+            columns: ["schedule_entry_id"]
+            isOneToOne: false
+            referencedRelation: "personal_schedule_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -122,6 +193,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      is_personal_schedule_entry_owner: {
+        Args: { p_entry_id: string }
+        Returns: boolean
       }
     }
     Enums: {
