@@ -14,6 +14,8 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
+
 export interface Invitation {
   id: string;
   occurrenceId: string;
@@ -50,17 +52,11 @@ export function mapInvitationRow(row: RawInvitationRow): Invitation {
 }
 
 /** Deterministic ordering: created_at ascending, id as a stable tie-breaker
- * - matching domain/participation.ts's compareParticipationsByCreatedAt. */
+ * - see domain/ordering.ts. */
 export function compareInvitationsByCreatedAt(a: Invitation, b: Invitation): number {
-  if (a.createdAt !== b.createdAt) {
-    return a.createdAt < b.createdAt ? -1 : 1;
-  }
-  if (a.id === b.id) {
-    return 0;
-  }
-  return a.id < b.id ? -1 : 1;
+  return compareByFieldThenId(a, b, (invitation) => invitation.createdAt);
 }
 
 export function sortInvitations(invitations: readonly Invitation[]): Invitation[] {
-  return [...invitations].sort(compareInvitationsByCreatedAt);
+  return sortByFieldThenId(invitations, (invitation) => invitation.createdAt);
 }

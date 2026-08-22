@@ -17,6 +17,8 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
+
 export type TicketMedium = 'paper' | 'electronic';
 
 const TICKET_MEDIA: ReadonlySet<string> = new Set<TicketMedium>(['paper', 'electronic']);
@@ -110,17 +112,11 @@ export function assignmentToColumns(assignment: TicketAssignment): {
 }
 
 /** Deterministic ordering: created_at ascending, id as a stable tie-breaker
- * - matching domain/participation.ts's convention. */
+ * - see domain/ordering.ts. */
 export function compareTicketsByCreatedAt(a: Ticket, b: Ticket): number {
-  if (a.createdAt !== b.createdAt) {
-    return a.createdAt < b.createdAt ? -1 : 1;
-  }
-  if (a.id === b.id) {
-    return 0;
-  }
-  return a.id < b.id ? -1 : 1;
+  return compareByFieldThenId(a, b, (ticket) => ticket.createdAt);
 }
 
 export function sortTickets(tickets: readonly Ticket[]): Ticket[] {
-  return [...tickets].sort(compareTicketsByCreatedAt);
+  return sortByFieldThenId(tickets, (ticket) => ticket.createdAt);
 }

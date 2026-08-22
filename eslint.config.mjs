@@ -72,16 +72,38 @@ export default [
       'no-restricted-syntax': [
         'error',
         {
-          // Catches a raw `.from(...)`/`.rpc(...)` call on any object (the
-          // Supabase client's own methods), even reached through a client
-          // instance app code only received as an opaque parameter/return
-          // value from a typed infrastructure function - the import-based
-          // restriction above cannot see that path, since it never imports
-          // the SDK or the Database type itself.
-          selector:
-            "CallExpression[callee.type='MemberExpression'][callee.property.name=/^(from|rpc)$/]",
+          // A static `import(...)`/`require(...)` of the SDK or generated
+          // types would bypass the import-boundary rule above, since that
+          // rule (no-restricted-imports) only inspects declaration-form
+          // imports, not dynamic import expressions.
+          selector: 'ImportExpression[source.value=/^(@supabase\\/supabase-js|@supabase\\/ssr)$/]',
           message:
-            'App code must not call .from()/.rpc() directly; add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
+            'App code must not dynamically import the Supabase SDK directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
+        },
+        {
+          selector: 'ImportExpression[source.value=/database\\.types(\\.ts)?$/]',
+          message:
+            'App code must not dynamically import the generated Database types directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
+        },
+        {
+          // Targets the `<client>.from(...).select/insert/update/delete/
+          // upsert(...)` chain shape specifically - the Supabase query
+          // builder's own method sequence - rather than any `.from(...)`
+          // call, which would also flag unrelated, legitimate calls such as
+          // Array.from(...) or Buffer.from(...) with no connection to
+          // Supabase. Still catches a raw call reached through a client
+          // instance app code only received as an opaque parameter/return
+          // value from a typed infrastructure function, which the
+          // import-based restriction above cannot see.
+          selector:
+            "MemberExpression[object.type='CallExpression'][object.callee.type='MemberExpression'][object.callee.property.name='from'][property.name=/^(select|insert|update|delete|upsert)$/]",
+          message:
+            'App code must not call .from(...).select/insert/update/delete/upsert(...) directly; add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
+        },
+        {
+          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='rpc']",
+          message:
+            'App code must not call .rpc(...) directly; add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
         },
       ],
     },

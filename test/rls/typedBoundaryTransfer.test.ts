@@ -4,6 +4,8 @@ import {
   acceptTransfer,
   cancelTransfer,
   getPendingTransferOffer,
+  listTransfersForTicket,
+  listVisibleTransfers,
   requestTransfer,
 } from '../../src/infrastructure/supabase/ticketTransfer.ts';
 import { createAcquisition } from '../../src/infrastructure/supabase/ticketAcquisition.ts';
@@ -42,6 +44,7 @@ let catalogOwner: TestActor;
 let acquirer: TestActor;
 let recipient: TestActor;
 let outsider: TestActor;
+let thirdParty: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
@@ -55,6 +58,8 @@ before(async () => {
   createdActors.push(recipient);
   outsider = await createTestActor('rls-typed-xfer-outsider', PASSWORD);
   createdActors.push(outsider);
+  thirdParty = await createTestActor('rls-typed-xfer-third', PASSWORD);
+  createdActors.push(thirdParty);
 });
 
 after(async () => {
@@ -150,6 +155,61 @@ void test('getPendingTransferOffer returns null (not an error) for a non-recipie
 
   const asOutsider = await getPendingTransferOffer(outsider.client, requested.data.id);
   assert.deepEqual(asOutsider, { ok: true, data: null });
+});
+
+void test('listVisibleTransfers shows both parties a pending transfer, and hides it from an outsider', async () => {
+  const { ticketId } = await offerableTicket();
+  const requested = await requestTransfer(acquirer.client, ticketId, recipient.user.id);
+  assert.equal(requested.ok, true);
+
+  const senderView = await listVisibleTransfers(acquirer.client);
+  assert.equal(senderView.ok, true);
+  assert.ok(senderView.data.some((t) => t.id === requested.data.id));
+
+  const recipientView = await listVisibleTransfers(recipient.client);
+  assert.equal(recipientView.ok, true);
+  assert.ok(recipientView.data.some((t) => t.id === requested.data.id));
+
+  const outsiderView = await listVisibleTransfers(outsider.client);
+  assert.equal(outsiderView.ok, true);
+  assert.ok(!outsiderView.data.some((t) => t.id === requested.data.id));
+});
+
+void test('listVisibleTransfers keeps a settled transfer visible to the original acquirer via source-acquirer provenance, even once neither sender nor recipient of a later transfer', async () => {
+  const { occurrenceId, ticketId } = await offerableTicket();
+  const firstTransfer = await requestTransfer(acquirer.client, ticketId, recipient.user.id);
+  assert.equal(firstTransfer.ok, true);
+  const accepted = await acceptTransfer(recipient.client, firstTransfer.data.id);
+  assert.equal(accepted.ok, true);
+
+  // A second transfer between recipient and thirdParty, in which the
+  // original acquirer is neither sender nor recipient - only reachable via
+  // ticket_transfers_select_involved's provenance branch
+  // (can_view_ticket_provenance), not the sender/recipient branches.
+  await makeTransferEligible(recipient, occurrenceId, thirdParty);
+  const secondTransfer = await requestTransfer(recipient.client, ticketId, thirdParty.user.id);
+  assert.equal(secondTransfer.ok, true);
+
+  const acquirerView = await listVisibleTransfers(acquirer.client);
+  assert.equal(acquirerView.ok, true);
+  assert.ok(
+    acquirerView.data.some((t) => t.id === secondTransfer.data.id),
+    'the original acquirer must still see a transfer chain they are not a party to, via provenance',
+  );
+});
+
+void test('listTransfersForTicket returns every transfer visible to the caller for that ticket', async () => {
+  const { ticketId } = await offerableTicket();
+  const requested = await requestTransfer(acquirer.client, ticketId, recipient.user.id);
+  assert.equal(requested.ok, true);
+
+  const forSender = await listTransfersForTicket(acquirer.client, ticketId);
+  assert.equal(forSender.ok, true);
+  assert.ok(forSender.data.some((t) => t.id === requested.data.id));
+
+  const forOutsider = await listTransfersForTicket(outsider.client, ticketId);
+  assert.equal(forOutsider.ok, true);
+  assert.ok(!forOutsider.data.some((t) => t.id === requested.data.id));
 });
 
 // --- Error classification ---

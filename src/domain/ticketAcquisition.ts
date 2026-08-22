@@ -14,6 +14,8 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
+
 export type AcquisitionStatus = 'pending' | 'secured' | 'unsuccessful';
 
 const ACQUISITION_STATUSES: ReadonlySet<string> = new Set<AcquisitionStatus>([
@@ -74,22 +76,16 @@ export function mapTicketAcquisitionRow(row: RawTicketAcquisitionRow): TicketAcq
 }
 
 /** Deterministic ordering: created_at ascending, id as a stable tie-breaker
- * - matching domain/participation.ts's convention. */
+ * - see domain/ordering.ts. */
 export function compareTicketAcquisitionsByCreatedAt(
   a: TicketAcquisition,
   b: TicketAcquisition,
 ): number {
-  if (a.createdAt !== b.createdAt) {
-    return a.createdAt < b.createdAt ? -1 : 1;
-  }
-  if (a.id === b.id) {
-    return 0;
-  }
-  return a.id < b.id ? -1 : 1;
+  return compareByFieldThenId(a, b, (acquisition) => acquisition.createdAt);
 }
 
 export function sortTicketAcquisitions(
   acquisitions: readonly TicketAcquisition[],
 ): TicketAcquisition[] {
-  return [...acquisitions].sort(compareTicketAcquisitionsByCreatedAt);
+  return sortByFieldThenId(acquisitions, (acquisition) => acquisition.createdAt);
 }

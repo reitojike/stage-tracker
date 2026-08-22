@@ -13,7 +13,6 @@ import {
   type PlanningResult,
   type RpcErrorRule,
 } from '../../domain/planningError.ts';
-import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 // Typed feature-level read/write boundary over public.ticket_transfers
 // (Issue #33). request_ticket_transfer / accept_ticket_transfer /
@@ -27,7 +26,7 @@ import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 export type TicketTransferQueryClient = SupabaseClient<Database>;
 
-const REQUEST_ERROR_RULES: readonly RpcErrorRule[] = [
+export const REQUEST_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
   { test: (m) => m.includes('ticket not found'), kind: 'not-found' },
   {
@@ -61,7 +60,7 @@ export async function requestTransfer(
   return { ok: true, data: mapTicketTransferRow(data) };
 }
 
-const ACCEPT_ERROR_RULES: readonly RpcErrorRule[] = [
+export const ACCEPT_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
   { test: (m) => m.includes('not found'), kind: 'not-found' },
   {
@@ -89,7 +88,7 @@ export async function acceptTransfer(
   return { ok: true, data: mapTicketTransferRow(data) };
 }
 
-const CANCEL_ERROR_RULES: readonly RpcErrorRule[] = [
+export const CANCEL_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
   { test: (m) => m.includes('transfer not found'), kind: 'not-found' },
   {
@@ -138,19 +137,16 @@ export async function getPendingTransferOffer(
 
 /** Every transfer visible to the caller: as sender, as recipient, or as the
  * source acquirer of the ticket it moved (ticket_transfers_select_involved,
- * via can_view_ticket_provenance). */
-export async function listMyTransfers(
+ * via can_view_ticket_provenance). Needs no caller id and applies no
+ * client-side filter of its own: RLS's three-way OR (sender, recipient, or
+ * provenance-visible) is the entire authorization, and re-deriving any part
+ * of it here (e.g. filtering to sender/recipient only) would silently
+ * narrow this below what RLS actually grants - see listVisibleTickets in
+ * ./ticket.ts for the same "trust RLS, add nothing on top" convention. */
+export async function listVisibleTransfers(
   client: TicketTransferQueryClient,
 ): Promise<PlanningResult<TicketTransfer[]>> {
-  const callerId = await requireAuthenticatedUserId(client);
-  if (!callerId.ok) {
-    return callerId;
-  }
-
-  const { data, error } = await client
-    .from('ticket_transfers')
-    .select()
-    .or(`sender_id.eq.${callerId.data},recipient_id.eq.${callerId.data}`);
+  const { data, error } = await client.from('ticket_transfers').select();
   if (error !== null) {
     return { ok: false, error: classifyPostgrestError(error) };
   }

@@ -16,6 +16,8 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
+
 export type ParticipationStatus = 'considering' | 'attending';
 export type ParticipationVisibility = 'private' | 'public';
 
@@ -65,18 +67,11 @@ export function mapParticipationRow(row: RawParticipationRow): Participation {
 }
 
 /** Deterministic ordering: created_at ascending, id as a stable tie-breaker
- * - the same pattern domain/eventCatalog.ts's compareOccurrencesByStartsAt
- * uses for occurrences sharing an instant. */
+ * - see domain/ordering.ts. */
 export function compareParticipationsByCreatedAt(a: Participation, b: Participation): number {
-  if (a.createdAt !== b.createdAt) {
-    return a.createdAt < b.createdAt ? -1 : 1;
-  }
-  if (a.id === b.id) {
-    return 0;
-  }
-  return a.id < b.id ? -1 : 1;
+  return compareByFieldThenId(a, b, (participation) => participation.createdAt);
 }
 
 export function sortParticipations(participations: readonly Participation[]): Participation[] {
-  return [...participations].sort(compareParticipationsByCreatedAt);
+  return sortByFieldThenId(participations, (participation) => participation.createdAt);
 }

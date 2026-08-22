@@ -5,7 +5,6 @@ import {
   classifyPostgrestError,
   classifyRpcError,
   type PlanningResult,
-  type RawPostgrestError,
   type RpcErrorRule,
 } from '../../domain/planningError.ts';
 
@@ -27,7 +26,7 @@ export type InvitationQueryClient = SupabaseClient<Database>;
  * message here to match against it, and adding one would just be dead code
  * that could never fire.
  */
-const INVITE_ERROR_RULES: readonly RpcErrorRule[] = [
+export const INVITE_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
   { test: (m) => m.includes('occurrence and invitee are required'), kind: 'validation' },
   { test: (m) => m.includes('cannot invite yourself'), kind: 'validation' },
@@ -60,7 +59,7 @@ export async function inviteToOccurrence(
     p_invitee_id: inviteeId,
   });
   if (error !== null) {
-    return { ok: false, error: classifyRpcError(toRawError(error), INVITE_ERROR_RULES) };
+    return { ok: false, error: classifyRpcError(error, INVITE_ERROR_RULES) };
   }
   return { ok: true, data: undefined };
 }
@@ -81,7 +80,7 @@ export async function listMyReceivedInvitations(
   return { ok: true, data: sortInvitations(data.map(mapInvitationRow)) };
 }
 
-const DECLINE_ERROR_RULES: readonly RpcErrorRule[] = [
+export const DECLINE_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
   { test: (m) => m.includes('invitation is required'), kind: 'validation' },
   // Deliberately the same message (and therefore the same PlanningError
@@ -105,13 +104,7 @@ export async function declineInvitation(
     p_invitation_id: invitationId,
   });
   if (error !== null) {
-    return { ok: false, error: classifyRpcError(toRawError(error), DECLINE_ERROR_RULES) };
+    return { ok: false, error: classifyRpcError(error, DECLINE_ERROR_RULES) };
   }
   return { ok: true, data: mapInvitationRow(data) };
-}
-
-/** Narrows supabase-js's PostgrestError (which carries extra fields this
- * boundary does not use) down to the shape planningError.ts classifies. */
-function toRawError(error: { message: string; code: string }): RawPostgrestError {
-  return { message: error.message, code: error.code };
 }

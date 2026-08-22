@@ -16,6 +16,8 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
+
 export type ScheduleType = 'paid_leave' | 'work' | 'travel' | 'other';
 
 const SCHEDULE_TYPES: ReadonlySet<string> = new Set<ScheduleType>([
@@ -158,10 +160,9 @@ export function temporalToColumns(temporal: ScheduleTemporal): {
 }
 
 /** Deterministic ordering for a personal schedule listing: all-day entries
- * order by startsOn, time-bounded entries by startsAt: both are the
- * "when does this entry begin" field for their shape, ascending, with id as
- * a stable tie-breaker - matching domain/eventCatalog.ts's
- * compareOccurrencesByStartsAt convention. */
+ * order by startsOn, time-bounded entries by startsAt - both are the
+ * "when does this entry begin" field for their shape - with id as a stable
+ * tie-breaker (see domain/ordering.ts). */
 function entryStart(entry: PersonalScheduleEntry): string {
   return entry.temporal.kind === 'all-day' ? entry.temporal.startsOn : entry.temporal.startsAt;
 }
@@ -170,19 +171,11 @@ export function comparePersonalScheduleEntriesByStart(
   a: PersonalScheduleEntry,
   b: PersonalScheduleEntry,
 ): number {
-  const startA = entryStart(a);
-  const startB = entryStart(b);
-  if (startA !== startB) {
-    return startA < startB ? -1 : 1;
-  }
-  if (a.id === b.id) {
-    return 0;
-  }
-  return a.id < b.id ? -1 : 1;
+  return compareByFieldThenId(a, b, entryStart);
 }
 
 export function sortPersonalScheduleEntries(
   entries: readonly PersonalScheduleEntry[],
 ): PersonalScheduleEntry[] {
-  return [...entries].sort(comparePersonalScheduleEntriesByStart);
+  return sortByFieldThenId(entries, entryStart);
 }

@@ -20,6 +20,8 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
+
 export type TransferStatus = 'pending' | 'accepted' | 'cancelled';
 
 const TRANSFER_STATUSES: ReadonlySet<string> = new Set<TransferStatus>([
@@ -107,17 +109,11 @@ export function mapPendingTransferOfferRow(row: RawPendingTransferOfferRow): Pen
 }
 
 /** Deterministic ordering: created_at ascending, id as a stable tie-breaker
- * - matching domain/participation.ts's convention. */
+ * - see domain/ordering.ts. */
 export function compareTicketTransfersByCreatedAt(a: TicketTransfer, b: TicketTransfer): number {
-  if (a.createdAt !== b.createdAt) {
-    return a.createdAt < b.createdAt ? -1 : 1;
-  }
-  if (a.id === b.id) {
-    return 0;
-  }
-  return a.id < b.id ? -1 : 1;
+  return compareByFieldThenId(a, b, (transfer) => transfer.createdAt);
 }
 
 export function sortTicketTransfers(transfers: readonly TicketTransfer[]): TicketTransfer[] {
-  return [...transfers].sort(compareTicketTransfersByCreatedAt);
+  return sortByFieldThenId(transfers, (transfer) => transfer.createdAt);
 }

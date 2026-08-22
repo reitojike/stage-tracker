@@ -170,9 +170,18 @@ export async function setParticipation(
     return updated;
   }
 
+  const insertRow: Database['public']['Tables']['occurrence_participations']['Insert'] = {
+    occurrence_id: occurrenceId,
+    user_id: callerUserId,
+    status: input.status,
+  };
+  if (input.visibility !== undefined) {
+    insertRow.visibility = input.visibility;
+  }
+
   const { data, error } = await client
     .from('occurrence_participations')
-    .insert({ occurrence_id: occurrenceId, user_id: callerUserId, ...patch, status: input.status })
+    .insert(insertRow)
     .select()
     .single();
   if (error === null) {
