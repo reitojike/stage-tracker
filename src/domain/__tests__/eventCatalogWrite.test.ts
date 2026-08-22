@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  eventDetailsToFormValues,
+  occurrenceToFormValues,
   classifyWriteError,
   parseEventCreate,
   parseEventDetails,
@@ -222,4 +224,62 @@ void test('classifyWriteError preserves the original message and code', () => {
   const error = classifyWriteError({ code: '42501', message: 'denied' });
   assert.equal(error.message, 'denied');
   assert.equal(error.code, '42501');
+});
+
+void test('eventDetailsToFormValues renders unset optional fields as empty strings', () => {
+  // Not omitted: an input left out of the values object would keep whatever
+  // the previous render put in it, so clearing a field would not stick.
+  assert.deepEqual(
+    eventDetailsToFormValues({ title: 'Title', venue: null, sourceUrl: null, memo: null }),
+    { title: 'Title', venue: '', sourceUrl: '', memo: '' },
+  );
+});
+
+void test('a parsed event round-trips back to the values a form would show', () => {
+  const parsed = parseEventDetails({
+    title: '  Trimmed Title  ',
+    venue: '   ',
+    sourceUrl: 'https://example.test/show',
+    memo: ' note ',
+  });
+  assert.ok(parsed.ok);
+
+  // The point of the round trip: what the form shows after a save is what
+  // was persisted, not the untrimmed text that was typed.
+  assert.deepEqual(eventDetailsToFormValues(parsed.value), {
+    title: 'Trimmed Title',
+    venue: '',
+    sourceUrl: 'https://example.test/show',
+    memo: 'note',
+  });
+});
+
+void test('an occurrence round-trips through the database shape onto the same wall clock', () => {
+  const parsed = parseOccurrence({ startsAt: '2026-08-22T19:00', endsAt: '2026-08-22T21:30' });
+  assert.ok(parsed.ok);
+
+  assert.deepEqual(occurrenceToFormValues(parsed.value), {
+    startsAt: '2026-08-22T19:00',
+    endsAt: '2026-08-22T21:30',
+  });
+});
+
+void test('an unset end time round-trips as an empty input, not as a fabricated time', () => {
+  const parsed = parseOccurrence({ startsAt: '2026-08-22T19:00', endsAt: '' });
+  assert.ok(parsed.ok);
+
+  assert.deepEqual(occurrenceToFormValues(parsed.value), {
+    startsAt: '2026-08-22T19:00',
+    endsAt: '',
+  });
+});
+
+void test('a past-midnight occurrence round-trips onto the following Tokyo day', () => {
+  const parsed = parseOccurrence({ startsAt: '2026-08-22T22:00', endsAt: '2026-08-23T01:00' });
+  assert.ok(parsed.ok);
+
+  assert.deepEqual(occurrenceToFormValues(parsed.value), {
+    startsAt: '2026-08-22T22:00',
+    endsAt: '2026-08-23T01:00',
+  });
 });

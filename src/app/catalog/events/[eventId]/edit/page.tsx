@@ -6,7 +6,7 @@ import { getEventWithOccurrences } from '@/infrastructure/supabase/eventCatalogR
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
 import { canUpdateEvent } from '@/domain/eventPermissions';
 import { resolveWriteFeedback } from '@/domain/eventWriteFeedback';
-import { tokyoDateTimeLocalFromInstant } from '@/domain/eventCatalogWrite';
+import { eventDetailsToFormValues, occurrenceToFormValues } from '@/domain/eventCatalogWrite';
 import { occurrenceTimeRangeLabel, tokyoDateLabel } from '@/domain/catalogFormatting';
 import { catalogEventHref, resolveCatalogParams } from '@/domain/catalogNavigation';
 import type { EventWithOccurrences } from '@/domain/eventCatalog';
@@ -93,15 +93,7 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
 
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>イベント情報</h2>
-        <EventDetailsEditForm
-          eventId={event.id}
-          initialValues={{
-            title: event.title,
-            venue: event.venue ?? '',
-            sourceUrl: event.sourceUrl ?? '',
-            memo: event.memo ?? '',
-          }}
-        />
+        <EventDetailsEditForm eventId={event.id} initialValues={eventDetailsToFormValues(event)} />
       </section>
 
       <section className={styles.section}>
@@ -119,11 +111,10 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
               occurrence.startsAt,
               occurrence.endsAt,
             )}`}
-            initialValues={{
-              startsAt: tokyoDateTimeLocalFromInstant(occurrence.startsAt),
-              endsAt:
-                occurrence.endsAt === null ? '' : tokyoDateTimeLocalFromInstant(occurrence.endsAt),
-            }}
+            initialValues={occurrenceToFormValues({
+              startsAtUtc: occurrence.startsAt,
+              endsAtUtc: occurrence.endsAt,
+            })}
           />
         ))}
 

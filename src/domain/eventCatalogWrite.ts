@@ -231,6 +231,41 @@ export function parseEventCreate(raw: RawFormValues): ParseResult<EventCreateInp
 }
 
 /**
+ * Renders already-persisted values back into the string shape a form's
+ * inputs take.
+ *
+ * Used from two directions that must not drift apart: an edit screen
+ * pre-filling from what was read, and a completed write echoing what was
+ * actually stored. The second matters because the parse step trims and
+ * maps blanks to null - echoing the raw submission instead would leave a
+ * form showing "  Title  " under a message saying "Title" was saved.
+ *
+ * null becomes an empty string rather than being omitted: an unset
+ * optional field must clear the input, not leave the previous value in it.
+ */
+export function eventDetailsToFormValues(details: EventDetailsInput): RawFormValues {
+  return {
+    title: details.title,
+    venue: details.venue ?? '',
+    sourceUrl: details.sourceUrl ?? '',
+    memo: details.memo ?? '',
+  };
+}
+
+/**
+ * The occurrence counterpart. Instants go back through the same Asia/Tokyo
+ * conversion the form's values came in on, so a value that round-trips
+ * through the database lands on the same wall clock it was entered as.
+ */
+export function occurrenceToFormValues(occurrence: OccurrenceInput): RawFormValues {
+  return {
+    startsAt: tokyoDateTimeLocalFromInstant(occurrence.startsAtUtc),
+    endsAt:
+      occurrence.endsAtUtc === null ? '' : tokyoDateTimeLocalFromInstant(occurrence.endsAtUtc),
+  };
+}
+
+/**
  * Why a write failed, in the terms docs/ux-ui.md's "Common states"
  * requires a UI to distinguish. A permission denial must never be rendered
  * as a generic failure (or, worse, as success), so it is classified from

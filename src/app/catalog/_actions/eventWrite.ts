@@ -10,6 +10,8 @@ import {
   updateEventOccurrence,
 } from '@/infrastructure/supabase/eventCatalogWrite.ts';
 import {
+  eventDetailsToFormValues,
+  occurrenceToFormValues,
   parseEventCreate,
   parseEventDetails,
   parseOccurrence,
@@ -137,9 +139,14 @@ export async function updateEventDetailsAction(
 
   revalidatePath('/catalog');
   revalidatePath(`/catalog/events/${eventId}`);
-  // The saved values, not the raw submission: what persisted is what the
-  // form should now show.
-  return acceptedWriteFormState(previous, values, resolveWriteNotice('update-event'));
+  // What persisted, not what was typed: parsing trimmed the values and
+  // mapped blanks to null, so echoing `values` would show the form a
+  // slightly different string from the one now in the database.
+  return acceptedWriteFormState(
+    previous,
+    eventDetailsToFormValues(parsed.value),
+    resolveWriteNotice('update-event'),
+  );
 }
 
 export async function addOccurrenceAction(
@@ -218,5 +225,9 @@ export async function updateOccurrenceAction(
 
   revalidatePath('/catalog');
   revalidatePath(`/catalog/events/${eventId}`);
-  return acceptedWriteFormState(previous, values, resolveWriteNotice('update-occurrence'));
+  return acceptedWriteFormState(
+    previous,
+    occurrenceToFormValues(parsed.value),
+    resolveWriteNotice('update-occurrence'),
+  );
 }
