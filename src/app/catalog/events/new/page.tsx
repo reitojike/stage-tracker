@@ -81,7 +81,7 @@ export default async function NewEventPage({ searchParams }: NewEventPageProps) 
     <main>
       <Link href={backHref}>← カレンダーに戻る</Link>
       <h1>イベントを登録</h1>
-      <EventCreateForm />
+      <EventCreateForm context={context} />
     </main>
   );
 }

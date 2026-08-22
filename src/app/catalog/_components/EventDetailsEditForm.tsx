@@ -43,6 +43,14 @@ export function EventDetailsEditForm({ eventId, initialValues }: EventDetailsEdi
         />
       ) : null}
 
+      {/* role="status" rather than an alert: a completed save is
+          confirmation, not something demanding attention. */}
+      {state.notice ? (
+        <p role="status" className={styles.notice}>
+          {state.notice}
+        </p>
+      ) : null}
+
       <div key={state.attempt} className={styles.fields}>
         <EventFields values={state.values} fieldErrors={state.fieldErrors} disabled={isPending} />
       </div>

@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { StatePanel } from '@/ui/StatePanel';
-import { Surface } from '@/ui/Surface';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
 import { getEventWithOccurrences } from '@/infrastructure/supabase/eventCatalogRead';
@@ -24,15 +23,6 @@ interface EditEventPageProps {
 
 const isMissingEvent = (data: EventWithOccurrences | null) => data === null;
 
-/** Confirmation text for a completed write, keyed by the `saved` param the
- * write actions redirect with. Unknown values render nothing rather than a
- * generic "保存しました" that might not be true. */
-const SAVED_MESSAGES: Record<string, string> = {
-  event: 'イベント情報を保存しました。',
-  'occurrence-added': '公演回を追加しました。',
-  'occurrence-updated': '公演回を保存しました。',
-};
-
 /**
  * Owner-only Event update and occurrence add/update (Issue #29).
  *
@@ -48,8 +38,6 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
   const rawParams = await searchParams;
   const context = resolveCatalogParams(rawParams, currentTokyoDate());
   const detailHref = catalogEventHref(eventId, context);
-  const savedKey = typeof rawParams.saved === 'string' ? rawParams.saved : undefined;
-  const savedMessage = savedKey === undefined ? undefined : SAVED_MESSAGES[savedKey];
 
   const user = await getAuthenticatedUser();
   const client = await createSupabaseServerClient();
@@ -102,12 +90,6 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
     <main>
       <Link href={detailHref}>← 公演情報に戻る</Link>
       <h1>{event.title} を編集</h1>
-
-      {savedMessage ? (
-        <Surface variant="subtle">
-          <p role="status">{savedMessage}</p>
-        </Surface>
-      ) : null}
 
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>イベント情報</h2>

@@ -64,6 +64,32 @@ const FAILURE: EventWriteFeedback = {
   description: '通信状況を確認し、もう一度お試しください。',
 };
 
+/**
+ * What a *successful* write should tell the person who performed it.
+ *
+ * Kept here beside the failure messages because it is the same kind of
+ * feature-level judgment, and because the alternative - signalling success
+ * through a redirect query parameter - made the receiving page look the
+ * message up by an untrusted string. Success now travels in the action's
+ * own return value, so there is no key to forge and no URL state to keep
+ * in sync.
+ *
+ * 'create-event' has no entry: a successful create navigates to the new
+ * event instead of staying on the form, so it has nothing to announce in
+ * place.
+ */
+const SUCCESS_NOTICES: Record<Exclude<EventWriteOperation, 'create-event'>, string> = {
+  'update-event': 'イベント情報を保存しました。',
+  'add-occurrence': '公演回を追加しました。',
+  'update-occurrence': '公演回を保存しました。',
+};
+
+export function resolveWriteNotice(
+  operation: Exclude<EventWriteOperation, 'create-event'>,
+): string {
+  return SUCCESS_NOTICES[operation];
+}
+
 export function resolveWriteFeedback(
   operation: EventWriteOperation,
   kind: EventCatalogWriteErrorKind,
@@ -92,6 +118,8 @@ export interface EventWriteFormState {
   fieldErrors: FieldErrors;
   feedback: EventWriteFeedback | null;
   values: RawFormValues;
+  /** Confirmation text for a write that succeeded, or null. */
+  notice: string | null;
 }
 
 export const INITIAL_WRITE_FORM_STATE: EventWriteFormState = {
@@ -99,6 +127,7 @@ export const INITIAL_WRITE_FORM_STATE: EventWriteFormState = {
   fieldErrors: {},
   feedback: null,
   values: {},
+  notice: null,
 };
 
 /** Builds the next state after a rejected submission, preserving the
@@ -109,5 +138,27 @@ export function rejectedWriteFormState(
   fieldErrors: FieldErrors,
   feedback: EventWriteFeedback | null,
 ): EventWriteFormState {
-  return { attempt: previous.attempt + 1, fieldErrors, feedback, values };
+  return { attempt: previous.attempt + 1, fieldErrors, feedback, values, notice: null };
+}
+
+/**
+ * Builds the next state after a write that succeeded.
+ *
+ * `attempt` advances here as well as on rejection, and that is load-bearing
+ * rather than incidental: it is the forms' remount key, so a successful
+ * submission re-mounts the fields and the inputs take their new
+ * `defaultValue`. Without it an "add another" form would keep the values
+ * that were just persisted sitting in the DOM under a message saying they
+ * were saved - an easy way to add the same 公演回 twice.
+ *
+ * `values` is passed in rather than cleared unconditionally: an edit form
+ * should keep showing what it just saved, while an add form should start
+ * empty again.
+ */
+export function acceptedWriteFormState(
+  previous: EventWriteFormState,
+  values: RawFormValues,
+  notice: string,
+): EventWriteFormState {
+  return { attempt: previous.attempt + 1, fieldErrors: {}, feedback: null, values, notice };
 }

@@ -16,10 +16,14 @@ import {
   type RawFormValues,
 } from '@/domain/eventCatalogWrite.ts';
 import {
+  acceptedWriteFormState,
   rejectedWriteFormState,
   resolveWriteFeedback,
+  resolveWriteNotice,
   type EventWriteFormState,
 } from '@/domain/eventWriteFeedback.ts';
+import { catalogEventHref, resolveCatalogParams } from '@/domain/catalogNavigation.ts';
+import { currentTokyoDate } from '../_lib/today.ts';
 
 // Server actions for the MVP Event catalog write boundary (Issue #29).
 //
@@ -31,6 +35,16 @@ import {
 // renders. A denial therefore surfaces as a denial even if a caller
 // bypasses the UI entirely (e.g. by posting a tampered event id), because
 // nothing here is what was stopping them.
+
+// Only createEventAction redirects, because only it has somewhere else to
+// be: the event it just created. The three edit-screen actions stay on the
+// page and report success through their returned state instead. That is
+// deliberate - redirecting to the same route with a ?saved= flag kept the
+// URL as the success channel, which meant losing the month/date context
+// the edit screen navigates back with, leaving the just-submitted values
+// in the client component's uncontrolled inputs (the component instance
+// survives a same-route navigation), and having the page look a message up
+// by an untrusted query string.
 
 const EVENT_FIELDS = ['title', 'venue', 'sourceUrl', 'memo'] as const;
 const OCCURRENCE_FIELDS = ['startsAt', 'endsAt'] as const;
@@ -52,6 +66,15 @@ function readFormValues(formData: FormData, keys: readonly string[]): RawFormVal
 function readId(formData: FormData, key: string): string | null {
   const value = formData.get(key);
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/** The month/day the user was browsing, carried through the form so a
+ * completed create returns to the calendar they came from. Re-resolved
+ * through the same validator the pages use, so a tampered or missing value
+ * degrades to the default month rather than producing a malformed URL. */
+function readCatalogContext(formData: FormData) {
+  const raw = readFormValues(formData, ['month', 'date']);
+  return resolveCatalogParams(raw, currentTokyoDate());
 }
 
 export async function createEventAction(
@@ -78,7 +101,7 @@ export async function createEventAction(
   revalidatePath('/catalog');
   // Outside the failure branches above: redirect() signals by throwing, so
   // it must not run where a catch could absorb it.
-  redirect(`/catalog/events/${result.data.id}`);
+  redirect(catalogEventHref(result.data.id, readCatalogContext(formData)));
 }
 
 export async function updateEventDetailsAction(
@@ -114,7 +137,9 @@ export async function updateEventDetailsAction(
 
   revalidatePath('/catalog');
   revalidatePath(`/catalog/events/${eventId}`);
-  redirect(`/catalog/events/${eventId}/edit?saved=event`);
+  // The saved values, not the raw submission: what persisted is what the
+  // form should now show.
+  return acceptedWriteFormState(previous, values, resolveWriteNotice('update-event'));
 }
 
 export async function addOccurrenceAction(
@@ -150,7 +175,10 @@ export async function addOccurrenceAction(
 
   revalidatePath('/catalog');
   revalidatePath(`/catalog/events/${eventId}`);
-  redirect(`/catalog/events/${eventId}/edit?saved=occurrence-added`);
+  // Cleared, unlike the update actions: this form adds *another*
+  // occurrence, so leaving the persisted values in it invites adding the
+  // same one twice.
+  return acceptedWriteFormState(previous, {}, resolveWriteNotice('add-occurrence'));
 }
 
 export async function updateOccurrenceAction(
@@ -190,5 +218,5 @@ export async function updateOccurrenceAction(
 
   revalidatePath('/catalog');
   revalidatePath(`/catalog/events/${eventId}`);
-  redirect(`/catalog/events/${eventId}/edit?saved=occurrence-updated`);
+  return acceptedWriteFormState(previous, values, resolveWriteNotice('update-occurrence'));
 }

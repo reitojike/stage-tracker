@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
+import type { CatalogParams } from '@/domain/catalogNavigation.ts';
 import { createEventAction } from '../_actions/eventWrite.ts';
 import { EventFields } from './EventFields.tsx';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
@@ -19,7 +20,14 @@ import styles from './EventWriteForm.module.css';
  * no permission decision: the page above it decides whether to render this
  * form at all, and the database decides whether the submission persists.
  */
-export function EventCreateForm() {
+export interface EventCreateFormProps {
+  /** The month/day the user was browsing. Carried through the submission so
+   * a completed create lands on the new event with the same calendar
+   * context the surrounding screens navigate with. */
+  context: CatalogParams;
+}
+
+export function EventCreateForm({ context }: EventCreateFormProps) {
   const [state, formAction, isPending] = useActionState(
     createEventAction,
     INITIAL_WRITE_FORM_STATE,
@@ -27,6 +35,11 @@ export function EventCreateForm() {
 
   return (
     <form action={formAction} className={styles.form} aria-busy={isPending}>
+      <input type="hidden" name="month" value={context.yearMonth} />
+      {context.selectedDate !== null ? (
+        <input type="hidden" name="date" value={context.selectedDate} />
+      ) : null}
+
       {state.feedback ? (
         <StatePanel
           variant={state.feedback.variant}

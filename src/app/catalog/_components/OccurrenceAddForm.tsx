@@ -36,6 +36,14 @@ export function OccurrenceAddForm({ eventId }: OccurrenceAddFormProps) {
         />
       ) : null}
 
+      {/* role="status" rather than an alert: a completed save is
+          confirmation, not something demanding attention. */}
+      {state.notice ? (
+        <p role="status" className={styles.notice}>
+          {state.notice}
+        </p>
+      ) : null}
+
       <fieldset key={state.attempt} className={styles.group}>
         <legend className={styles.groupLegend}>公演回を追加</legend>
         <OccurrenceFields
