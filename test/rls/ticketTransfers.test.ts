@@ -323,6 +323,102 @@ void test('the original acquirer can still see the ticket and its transfer chain
   assert.equal(transferView.length, 2, 'the source acquirer can see who the ticket went to');
 });
 
+// A source acquirer normally keeps full-row read on a ticket even after it
+// moves on (see the test above). But when the *current* owner offers that
+// same ticket back to the source acquirer, the source-acquirer branch of
+// tickets_select_owner_or_source_acquirer would otherwise hand them the
+// current owner's assignment before they accept - the same disclosure the
+// recipient-side projection exists to prevent, reached through a different
+// read path (Issue #50).
+void test('a pending recipient who is also the source acquirer cannot read the current owner’s assignment via the source-acquirer path', async () => {
+  const { occurrence } = await createOccurrence(catalogOwner);
+  // Both parties' eligibility is established up front, from a neutral
+  // inviter (catalogOwner), before either becomes the ticket's owner. Doing
+  // it this way - rather than reusing offerTicket()'s pattern of the sender
+  // inviting the recipient - avoids the invite RPC's "already attending"
+  // no-op branch: once acquirer is self-promoted to attending by a later
+  // step, a fresh invite would silently fail to create the invitation row
+  // acquirer needs to be eligible for the second, reverse transfer.
+  await makeTransferEligible(catalogOwner, occurrence.id, acquirer);
+  await makeTransferEligible(catalogOwner, occurrence.id, recipient);
+
+  const acquisition = await createAcquisition(acquirer, occurrence.id, { status: 'secured' });
+  const ticket = await createTicket(acquirer, acquisition.id, {
+    assigneeExternalName: '最初の同行者',
+  });
+
+  const firstTransfer = await requestTransfer(acquirer, ticket.id, recipient.user.id);
+  const { error: acceptError } = await recipient.client.rpc('accept_ticket_transfer', {
+    p_transfer_id: firstTransfer.id,
+  });
+  assert.equal(acceptError, null);
+
+  // recipient (now owner) sets an assignment the original acquirer must not
+  // see before accepting the offer below.
+  const { error: assignError } = await recipient.client
+    .from('tickets')
+    .update({ assignee_external_name: '新しい同行者' })
+    .eq('id', ticket.id);
+  assert.equal(assignError, null);
+
+  // recipient offers the ticket back to the original acquirer, who is both
+  // the source acquirer and the pending recipient of this second transfer.
+  // acquirer's eligibility (the invitation row from catalogOwner above) was
+  // established before any attending-status changes, so it still holds.
+  const secondTransfer = await requestTransfer(recipient, ticket.id, acquirer.user.id);
+
+  // The source-acquirer read path must not disclose the row - and therefore
+  // not the assignment - while this offer is pending.
+  const { data, error } = await acquirer.client.from('tickets').select().eq('id', ticket.id);
+  assert.equal(error, null);
+  assert.deepEqual(
+    data,
+    [],
+    'source-acquirer read must be withheld while a pending transfer offers the ticket back to them',
+  );
+
+  // The existing recipient-side projection also withholds it, as it does for
+  // any other pending recipient.
+  const { data: offerRows, error: offerError } = await acquirer.client.rpc(
+    'pending_ticket_transfer_offer',
+    { p_transfer_id: secondTransfer.id },
+  );
+  assert.equal(offerError, null);
+  assert.equal(offerRows.length, 1);
+  const [offerRow] = offerRows;
+  assert.ok(offerRow);
+  const offerFields = Object.keys(offerRow);
+  assert.ok(!offerFields.includes('assignee_external_name'));
+  assert.ok(!offerFields.includes('assigned_to_user_id'));
+
+  // Provenance itself - the ability to confirm the ticket exists and see its
+  // transfer history - must still work through the channels that do not
+  // depend on the withheld full-row read.
+  const { data: transferHistory, error: historyError } = await acquirer.client
+    .from('ticket_transfers')
+    .select()
+    .eq('ticket_id', ticket.id);
+  assert.equal(historyError, null);
+  assert.equal(
+    transferHistory.length,
+    2,
+    'the source acquirer must still see the full transfer chain',
+  );
+
+  // Sanity: the assignment really is on the row at this point, so the
+  // assertions above are about what is exposed, not about the fixture having
+  // failed to set it.
+  const stored = await readTicketAsAdmin(ticket.id);
+  assert.equal(stored.assignee_external_name, '新しい同行者');
+});
+
+void test('a source acquirer who is not a pending recipient keeps ordinary full-row read', async () => {
+  const { ticket } = await offerTicket();
+  const { data, error } = await acquirer.client.from('tickets').select().eq('id', ticket.id);
+  assert.equal(error, null);
+  assert.equal(data.length, 1, 'the ordinary source-acquirer read path must be unaffected');
+});
+
 // --- Positive: cancellation ---
 
 void test('the sender can cancel a pending transfer, leaving ownership untouched', async () => {
