@@ -1,4 +1,9 @@
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import {
+  createClient,
+  type PostgrestError,
+  type SupabaseClient,
+  type User,
+} from '@supabase/supabase-js';
 import type { Database } from '../../../src/infrastructure/supabase/database.types.ts';
 import { readLocalSupabaseStatus } from './localSupabase.ts';
 
@@ -105,6 +110,20 @@ export async function createTestActor(
   return { user: created.user, client };
 }
 
+// Chunked rather than one `.in()` call: the id list is embedded directly in
+// the request URL, and a fixture actor that owns hundreds of events (e.g.
+// pagination tests) can otherwise produce a "URI too long" error that has
+// nothing to do with the RLS behavior under test.
+const ID_BATCH_SIZE = 100;
+
+function idBatches(ids: readonly string[]): string[][] {
+  const batches: string[][] = [];
+  for (let start = 0; start < ids.length; start += ID_BATCH_SIZE) {
+    batches.push(ids.slice(start, start + ID_BATCH_SIZE));
+  }
+  return batches;
+}
+
 export async function deleteTestActor(actor: TestActor): Promise<void> {
   const admin = createAdminClient();
 
@@ -136,9 +155,7 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   }
 
   const ownedScheduleEntryIds = ownedScheduleEntries.map((entry) => entry.id);
-  const SCHEDULE_ENTRY_ID_BATCH_SIZE = 100;
-  for (let start = 0; start < ownedScheduleEntryIds.length; start += SCHEDULE_ENTRY_ID_BATCH_SIZE) {
-    const batch = ownedScheduleEntryIds.slice(start, start + SCHEDULE_ENTRY_ID_BATCH_SIZE);
+  for (const batch of idBatches(ownedScheduleEntryIds)) {
     const { error: deleteSharesOnOwnedEntriesError } = await admin
       .from('personal_schedule_shares')
       .delete()
@@ -160,16 +177,25 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
     );
   }
 
-  // events.owner_id references auth.users(id), and event_occurrences.event_id
-  // references events(id), both with no ON DELETE action - so deleting a
-  // user who still owns fixture events, or events that still have fixture
-  // occurrences, would fail the FK check. catalog_creators needs no
-  // equivalent step: its user_id FK is ON DELETE CASCADE, so a granted
-  // actor's membership row goes with the user. Clean the rest up first via the
-  // admin path (setup/teardown, not an RLS assertion), innermost first, so
-  // teardown actually removes what each test created. This ordering is
-  // fixture cleanup only; it does not decide product deletion/cancellation
-  // semantics for events or occurrences.
+  // Every FK reaching these tables is declared with no ON DELETE action, so
+  // fixture teardown has to delete innermost-first or the FK check fails:
+  //
+  //   occurrence_invitations -> event_occurrences, auth.users
+  //   occurrence_participations -> event_occurrences, auth.users
+  //   event_occurrences -> events
+  //   events -> auth.users
+  //
+  // catalog_creators (Issue #29) needs no equivalent step: its user_id FK is
+  // ON DELETE CASCADE, so a granted actor’s membership row goes with the
+  // user.
+  //
+  // Two directions matter for this actor. Rows this actor *created*
+  // elsewhere (participations/invitations on someone else's occurrence) are
+  // removed by user id; rows *other* actors created on this actor’s own
+  // occurrences are removed by occurrence id, since those would otherwise
+  // block deleting this actor’s occurrences. This is admin-path
+  // setup/teardown, not an RLS assertion, and it does not decide product
+  // deletion/cancellation semantics for any of these tables.
   const { data: ownedEvents, error: selectEventsError } = await admin
     .from('events')
     .select('id')
@@ -179,35 +205,62 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
       `failed to list fixture events for test user ${actor.user.id}: ${selectEventsError.message}`,
     );
   }
-
   const ownedEventIds = ownedEvents.map((event) => event.id);
-  // Chunked rather than one `.in()` call: event_id is embedded directly in
-  // the request URL, and a fixture actor that owns hundreds of events
-  // (e.g. pagination tests) can otherwise produce a "URI too long" error
-  // that has nothing to do with the RLS behavior under test.
-  const EVENT_ID_BATCH_SIZE = 100;
-  for (let start = 0; start < ownedEventIds.length; start += EVENT_ID_BATCH_SIZE) {
-    const batch = ownedEventIds.slice(start, start + EVENT_ID_BATCH_SIZE);
-    const { error: deleteOccurrencesError } = await admin
+
+  const ownedOccurrenceIds: string[] = [];
+  for (const batch of idBatches(ownedEventIds)) {
+    const { data: occurrences, error: selectOccurrencesError } = await admin
       .from('event_occurrences')
-      .delete()
+      .select('id')
       .in('event_id', batch);
-    if (deleteOccurrencesError) {
+    if (selectOccurrencesError) {
       throw new Error(
-        `failed to delete fixture occurrences for test user ${actor.user.id}: ${deleteOccurrencesError.message}`,
+        `failed to list fixture occurrences for test user ${actor.user.id}: ${selectOccurrencesError.message}`,
       );
     }
+    ownedOccurrenceIds.push(...occurrences.map((occurrence) => occurrence.id));
   }
 
-  const { error: deleteEventsError } = await admin
-    .from('events')
-    .delete()
-    .eq('owner_id', actor.user.id);
-  if (deleteEventsError) {
-    throw new Error(
-      `failed to delete fixture events for test user ${actor.user.id}: ${deleteEventsError.message}`,
+  const failIfError = (label: string, error: PostgrestError | null): void => {
+    if (error) {
+      throw new Error(
+        `failed to delete fixture ${label} for test user ${actor.user.id}: ${error.message}`,
+      );
+    }
+  };
+
+  failIfError(
+    'invitations sent',
+    (await admin.from('occurrence_invitations').delete().eq('inviter_id', actor.user.id)).error,
+  );
+  failIfError(
+    'invitations received',
+    (await admin.from('occurrence_invitations').delete().eq('invitee_id', actor.user.id)).error,
+  );
+  failIfError(
+    'participations',
+    (await admin.from('occurrence_participations').delete().eq('user_id', actor.user.id)).error,
+  );
+
+  for (const batch of idBatches(ownedOccurrenceIds)) {
+    failIfError(
+      'invitations on owned occurrences',
+      (await admin.from('occurrence_invitations').delete().in('occurrence_id', batch)).error,
+    );
+    failIfError(
+      'participations on owned occurrences',
+      (await admin.from('occurrence_participations').delete().in('occurrence_id', batch)).error,
     );
   }
+
+  for (const batch of idBatches(ownedEventIds)) {
+    failIfError(
+      'occurrences',
+      (await admin.from('event_occurrences').delete().in('event_id', batch)).error,
+    );
+  }
+
+  failIfError('events', (await admin.from('events').delete().eq('owner_id', actor.user.id)).error);
 
   const { error: deleteUserError } = await admin.auth.admin.deleteUser(actor.user.id);
   if (deleteUserError) {

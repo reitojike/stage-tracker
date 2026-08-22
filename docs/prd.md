@@ -42,13 +42,18 @@ authenticated multi-user application として家族・友人等の複数ユー�
 Completed baseline参照）。これはcurrent baselineとして成立している事実で
 あり、将来の専用product Taskで見直せないことを意味しません。
 
-**participation・ticket acquisition・expense・budget**は未実装です。
-event-independent **personal schedule** は persistence / sharing / RLS
-baselineが実装済みです（[Current committed scope](#current-committed-scope)
-参照）。participation / invitation / ticket acquisition / ticket / ticket
-transferのproduct-level semanticsは`product-rules.md`で承認済みですが、
-table naming・永続化shape・relation shapeはそれぞれを扱うbounded product
-Taskの中で確定します。**expense / budget**のsemanticsはまだ未確定です。
+**ticket acquisition・expense・budget**は未実装です。
+event-independent **personal schedule** と occurrence-level
+**participation / invitation** は、いずれも persistence / RLS baseline が
+実装済みです（personal schedule は sharing も含む。詳細は
+[Current committed scope](#current-committed-scope) 参照）。ただし
+participation / invitation について実装済みなのは schema / RLS boundary
+までで、UI journey は未実装です。
+
+ticket acquisition / ticket / ticket transferのproduct-level semanticsは
+`product-rules.md`で承認済みですが、table naming・永続化shape・relation
+shapeはそれぞれを扱うbounded product Taskの中で確定します。
+**expense / budget**のsemanticsはまだ未確定です。
 
 ## Shared catalog と personal concepts の関係
 
@@ -82,9 +87,28 @@ event-independent personal schedule のpersistence / sharing / RLS
 baseline（all-day・multi-day all-day・time-boundedを曖昧なく区別する
 temporal shape・`paid_leave`/`work`/`travel`/`other`のMVP vocabulary・
 creator = owner・default private・entry単位のexplicit share・owner限定の
-recipient追加削除・recipientの自己離脱）です（詳細は `product-rules.md`
-を参照）。event作成はevent + initial occurrenceを1 transactionで作るRPC
-経由のみをsupported pathとし、直接の`events` INSERTは提供しません。
+recipient追加削除・recipientの自己離脱）、および occurrence-level
+participation / invitation のpersistence / RLS baseline
+（participationはoccurrence単位・statusは`considering`/`attending`のみ・
+default private visibility・withdrawはrow削除で表現、invitationは
+occurrence単位でinviterが対象occurrenceで`attending`である場合のみ・
+invitee側3分岐・declineはinvitation側の`declined_at`で表現）です
+（詳細は `product-rules.md` を参照）。event作成はevent + initial
+occurrenceを1 transactionで作るRPC経由のみをsupported pathとし、直接の
+`events` INSERTは提供しません。invitationのcreateとdeclineも同様に
+それぞれ専用RPC経由のみで、直接の`occurrence_invitations`書き込みは
+提供しません。
+
+invitationのMVP write/read boundaryには、participation privacyを守る
+ための追加の制約があります。invite操作の結果はinviterに対して不透明
+です。上記3分岐のどれが実行されたかはinvitee本人のparticipation status
+だけで決まるため、これをinviterへ返すことはprivate participationの
+開示にあたります。したがってinvite RPCは3分岐すべてで同一の結果を返し、
+invitee statusを理由とするerrorを返しません。あわせてinvitation rowの
+通常readはinvitee本人に限定します。inviterがrowの有無を観測できると、
+「invitation rowを作らない」分岐から同じ情報が復元できるためです。
+inviter向けのinvitation history表示は現時点のcommitted scopeに含めず、
+必要になった時点でこの境界を壊さないprojectionとして別途設計します。
 
 加えて、designated catalog creator限定のminimal Event catalog
 create/update UIが成立しています。Event作成はdesignated catalog creator
@@ -96,7 +120,8 @@ write pathで検証しますが、`event_occurrences` へのCHECK制約は未導
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
-- occurrence-level participation / invitation
+- occurrence-level participation / invitation の UI journey
+  （schema/RLS baselineは上記のとおり成立済み）
 - ticket acquisition / ticket の分離、ticket transfer
 - catalog classification / venue のMVP data boundary
 - calendar上のSaturday/Sunday/Japanese holiday presentation
@@ -115,11 +140,13 @@ semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) �
 uncommitted）です。current committed scopeには含みません。
 
 - event deletion semantics
-- 各domain concept（participation / invitation / ticket acquisition /
-  ticket / ticket transfer / classification / venue / Administrator権限
-  機構）のexact persistence・mechanism詳細。event-independent personal
-  scheduleはpersistence / sharing / RLS baselineが実装済みのため対象外
-  です（[Current committed scope](#current-committed-scope)参照）
+- 各domain concept（ticket acquisition / ticket / ticket transfer /
+  classification / venue / Administrator権限機構）のexact persistence・
+  mechanism詳細。event-independent personal schedule と occurrence-level
+  participation / invitation は persistence / RLS baseline が実装済みの
+  ため対象外です（[Current committed scope](#current-committed-scope)
+  参照）。participation / invitation について残っているのは UI journey
+  であって persistence shape ではありません
   （未決定項目の一覧は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
