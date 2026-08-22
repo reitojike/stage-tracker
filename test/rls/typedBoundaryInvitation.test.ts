@@ -1,0 +1,170 @@
+import assert from 'node:assert/strict';
+import { after, before, test } from 'node:test';
+import {
+  declineInvitation,
+  inviteToOccurrence,
+  listMyReceivedInvitations,
+} from '../../src/infrastructure/supabase/invitation.ts';
+import {
+  createAnonymousClient,
+  createTestActor,
+  deleteTestActor,
+  type TestActor,
+} from './support/testActors.ts';
+import { createEventWithOccurrence } from './support/eventFixtures.ts';
+import {
+  createOccurrenceWithAttendee,
+  readOwnParticipation,
+  setParticipation,
+} from './support/participationFixtures.ts';
+
+// Real local Supabase/RLS tests for the invitation typed boundary (Issue
+// #33), over public.occurrence_invitations (Issue #30). Unlike
+// test/rls/occurrenceInvitations.test.ts, which exercises the raw RLS
+// policies and RPCs directly, this file exercises src/infrastructure/
+// supabase/invitation.ts - the typed functions #34-#37 will call.
+
+const PASSWORD = 'Str0ng-Test-Passw0rd!';
+
+let catalogOwner: TestActor;
+let inviter: TestActor;
+let invitee: TestActor;
+const createdActors: TestActor[] = [];
+
+before(async () => {
+  catalogOwner = await createTestActor('rls-typed-inv-catalog', PASSWORD, {
+    designatedCatalogCreator: true,
+  });
+  createdActors.push(catalogOwner);
+  inviter = await createTestActor('rls-typed-inv-inviter', PASSWORD);
+  createdActors.push(inviter);
+  invitee = await createTestActor('rls-typed-inv-invitee', PASSWORD);
+  createdActors.push(invitee);
+});
+
+after(async () => {
+  const results = await Promise.allSettled(createdActors.map((actor) => deleteTestActor(actor)));
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length > 0) {
+    const messages = failures.map((failure) =>
+      failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+    );
+    throw new Error(`test actor cleanup failed:\n${messages.join('\n')}`);
+  }
+});
+
+void test('inviteToOccurrence creates an invitation and a considering participation for the invitee', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  const result = await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+  assert.deepEqual(result, { ok: true, data: undefined });
+
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  assert.ok(
+    received.data.some((i) => i.occurrenceId === occurrenceId && i.inviterId === inviter.user.id),
+  );
+
+  const participation = await readOwnParticipation(invitee, occurrenceId);
+  assert.equal(participation?.status, 'considering');
+});
+
+void test('inviteToOccurrence is opaque when the invitee is already attending: no error, no invitation row', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  await setParticipation(invitee, occurrenceId, 'attending');
+
+  const result = await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+  assert.deepEqual(result, { ok: true, data: undefined });
+
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  assert.ok(!received.data.some((i) => i.occurrenceId === occurrenceId));
+
+  const participation = await readOwnParticipation(invitee, occurrenceId);
+  assert.equal(participation?.status, 'attending', 'attending must be left unchanged, not demoted');
+});
+
+void test('inviteToOccurrence reports validation for inviting yourself', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  const result = await inviteToOccurrence(inviter.client, occurrenceId, inviter.user.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'validation');
+});
+
+void test('inviteToOccurrence reports permission-denied when the inviter is only considering', async () => {
+  const { occurrence } = await createEventWithOccurrence(catalogOwner);
+  await setParticipation(inviter, occurrence.id, 'considering');
+
+  const result = await inviteToOccurrence(inviter.client, occurrence.id, invitee.user.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'permission-denied');
+});
+
+void test('inviteToOccurrence reports validation when re-inviting a declined invitee', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  const first = await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+  assert.equal(first.ok, true);
+
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  const invitation = received.data.find((i) => i.occurrenceId === occurrenceId);
+  assert.ok(invitation);
+  const declined = await declineInvitation(invitee.client, invitation.id);
+  assert.equal(declined.ok, true);
+
+  const second = await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+  assert.equal(second.ok, false);
+  assert.equal(second.error.kind, 'validation');
+});
+
+void test('declineInvitation is idempotent: declining twice returns the same declinedAt', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  const invitation = received.data.find((i) => i.occurrenceId === occurrenceId);
+  assert.ok(invitation);
+
+  const firstDecline = await declineInvitation(invitee.client, invitation.id);
+  assert.equal(firstDecline.ok, true);
+  const secondDecline = await declineInvitation(invitee.client, invitation.id);
+  assert.equal(secondDecline.ok, true);
+  assert.equal(secondDecline.data.declinedAt, firstDecline.data.declinedAt);
+});
+
+void test('declineInvitation reports not-found for an id the caller cannot see', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  const invitation = received.data.find((i) => i.occurrenceId === occurrenceId);
+  assert.ok(invitation);
+
+  // The inviter is not the invitee, so this id is invisible to them - the
+  // RPC must report the same "not found" whether the row does not exist or
+  // simply belongs to someone else (see decline_occurrence_invitation's
+  // header comment).
+  const result = await declineInvitation(inviter.client, invitation.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'not-found');
+});
+
+void test('listMyReceivedInvitations never includes an invitation the caller sent', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+
+  const sentByInviter = await listMyReceivedInvitations(inviter.client);
+  assert.equal(sentByInviter.ok, true);
+  assert.ok(!sentByInviter.data.some((i) => i.occurrenceId === occurrenceId));
+});
+
+void test('inviteToOccurrence reports unauthenticated for a client with no session', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  const anonymous = createAnonymousClient();
+  const result = await inviteToOccurrence(anonymous, occurrenceId, invitee.user.id);
+  assert.equal(result.ok, false);
+  // EXECUTE is revoked from anon entirely (see the migration), so this
+  // surfaces as a Postgrest-level permission denial rather than the RPC's
+  // own "authentication required" raise - either way it must not be
+  // reported as success or as a generic failure.
+  assert.ok(result.error.kind === 'unauthenticated' || result.error.kind === 'permission-denied');
+});

@@ -45,5 +45,46 @@ export default [
     ],
     message: 'Domain code must not import UI, app entrypoints, or infrastructure.',
   }),
+  // No ad-hoc Supabase access from app code (Issue #33): src/app must go
+  // through a typed feature-level module in src/infrastructure/supabase/,
+  // never the generated row/RPC shape or the Supabase SDK directly. This is
+  // the other half of the architecture boundary above - that one keeps
+  // domain code out of infrastructure/UI/app, this one keeps app code from
+  // reaching around the typed infrastructure layer back down to raw
+  // Supabase. Both are deterministic, minimal guardrails, not a general
+  // static-analysis framework.
+  architectureImportBoundary({
+    files: ['src/app/**/*.{ts,tsx}'],
+    restrictedPatterns: [
+      '@supabase/supabase-js',
+      '@supabase/ssr',
+      '../**/database.types',
+      '../**/database.types.ts',
+      '@/infrastructure/supabase/database.types',
+      '@/infrastructure/supabase/database.types.ts',
+    ],
+    message:
+      'App code must not import the Supabase SDK or generated Database types directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
+  }),
+  {
+    files: ['src/app/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          // Catches a raw `.from(...)`/`.rpc(...)` call on any object (the
+          // Supabase client's own methods), even reached through a client
+          // instance app code only received as an opaque parameter/return
+          // value from a typed infrastructure function - the import-based
+          // restriction above cannot see that path, since it never imports
+          // the SDK or the Database type itself.
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.property.name=/^(from|rpc)$/]",
+          message:
+            'App code must not call .from()/.rpc() directly; add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
+        },
+      ],
+    },
+  },
   ...storybook.configs['flat/recommended'],
 ];
