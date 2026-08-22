@@ -151,7 +151,16 @@ create policy personal_schedule_entries_select_owner_or_shared
     or exists (
       select 1
       from public.personal_schedule_shares s
-      where s.schedule_entry_id = id
+      -- Qualified as personal_schedule_entries.id, not bare `id`: the
+      -- subquery's own FROM (personal_schedule_shares) also has an `id`
+      -- column (its own PK), and an unqualified `id` here resolves to the
+      -- innermost scope (s.id) per SQL name resolution, not the outer row
+      -- - silently comparing s.schedule_entry_id to s.id and making this
+      -- branch permanently near-always-false instead of correlating to the
+      -- entry actually being selected. Reproduced against real local
+      -- Postgres: a shared recipient could not read the entry at all
+      -- before this qualification.
+      where s.schedule_entry_id = personal_schedule_entries.id
         and s.shared_with_user_id = auth.uid()
     )
   );
@@ -172,6 +181,44 @@ create policy personal_schedule_entries_update_own
   using (owner_id = auth.uid())
   with check (owner_id = auth.uid());
 
+-- The three shares-side policies below need "is auth.uid() the owner of
+-- the referenced entry" as a condition. A raw correlated subquery on
+-- personal_schedule_entries here (as used before this was reproduced
+-- against real local Postgres) re-triggers that table's own SELECT policy
+-- (personal_schedule_entries_select_owner_or_shared above), which itself
+-- subqueries personal_schedule_shares - an unconditional mutual reference
+-- that Postgres detects as "infinite recursion detected in policy for
+-- relation \"personal_schedule_entries\"" on every insert/select/delete
+-- touching either table, not merely a slow query. A SECURITY DEFINER
+-- function resolves ownership by reading personal_schedule_entries as its
+-- owner role (which bypasses RLS on this local/CI setup, matching
+-- create_event_with_occurrence's rationale above), breaking the cycle
+-- without changing what the check requires: still an exact
+-- owner_id = auth.uid() match, nothing more permissive. It intentionally
+-- takes no target-user argument (only entry_id) and reads auth.uid()
+-- internally, so exposing it as a PostgREST RPC (`public` schema, EXECUTE
+-- granted to authenticated below - the same defense-in-depth revoke-then-
+-- grant as the RPC above) only ever answers "do I own this entry", which
+-- callers already know from their own rows and is not a new information
+-- disclosure.
+create function public.is_personal_schedule_entry_owner(p_entry_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.personal_schedule_entries e
+    where e.id = p_entry_id
+      and e.owner_id = auth.uid()
+  );
+$$;
+
+revoke execute on function public.is_personal_schedule_entry_owner(uuid) from public;
+grant execute on function public.is_personal_schedule_entry_owner(uuid) to authenticated;
+
 -- A share is visible to the two parties it actually concerns: the entry
 -- owner (who manages all recipients) and the recipient themselves (who
 -- needs to see their own share rows in order to remove themselves - see the
@@ -182,12 +229,7 @@ create policy personal_schedule_shares_select_owner_or_recipient
   to authenticated
   using (
     shared_with_user_id = auth.uid()
-    or exists (
-      select 1
-      from public.personal_schedule_entries e
-      where e.id = schedule_entry_id
-        and e.owner_id = auth.uid()
-    )
+    or public.is_personal_schedule_entry_owner(schedule_entry_id)
   );
 
 -- Only the owner of the referenced entry can add a recipient - a recipient
@@ -197,14 +239,7 @@ create policy personal_schedule_shares_insert_owner
   on public.personal_schedule_shares
   for insert
   to authenticated
-  with check (
-    exists (
-      select 1
-      from public.personal_schedule_entries e
-      where e.id = schedule_entry_id
-        and e.owner_id = auth.uid()
-    )
-  );
+  with check (public.is_personal_schedule_entry_owner(schedule_entry_id));
 
 -- Two independent grounds for removing a share row: the entry owner can
 -- remove any recipient (including one that isn't the caller), and a
@@ -217,10 +252,5 @@ create policy personal_schedule_shares_delete_owner_or_self
   to authenticated
   using (
     shared_with_user_id = auth.uid()
-    or exists (
-      select 1
-      from public.personal_schedule_entries e
-      where e.id = schedule_entry_id
-        and e.owner_id = auth.uid()
-    )
+    or public.is_personal_schedule_entry_owner(schedule_entry_id)
   );

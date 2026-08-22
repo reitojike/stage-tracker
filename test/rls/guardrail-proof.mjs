@@ -427,7 +427,8 @@ try {
            owner_id = auth.uid()
            or exists (
              select 1 from public.personal_schedule_shares s
-             where s.schedule_entry_id = id and s.shared_with_user_id = auth.uid()
+             where s.schedule_entry_id = personal_schedule_entries.id
+               and s.shared_with_user_id = auth.uid()
            )
          );`,
       async () => {
@@ -457,30 +458,61 @@ try {
        on public.personal_schedule_entries for insert to authenticated with check (owner_id = auth.uid());`,
     async () => {
       const startsOn = new Date().toISOString().slice(0, 10);
-      const { data, error } = await actorB.client
-        .from('personal_schedule_entries')
-        .insert({
-          owner_id: actorA.user.id,
-          schedule_type: 'other',
-          is_all_day: true,
-          starts_on: startsOn,
-          ends_on: startsOn,
-        })
-        .select()
-        .single();
+      // Unique per-run so the direct-connection existence check below
+      // can't match some other fixture row actorA happens to own with the
+      // same shape (e.g. from guardrail item 10 above), which would make
+      // this assertion pass or fail for the wrong reason.
+      const marker = `guardrail-proof spoofed-owner marker ${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      // No .select() here: personal_schedule_entries' SELECT policy
+      // (owner-or-shared, private-by-default) is independent of this
+      // INSERT policy and stays intact throughout this proof, so a
+      // RETURNING clause would correctly deny actorB visibility of a row
+      // it just spoofed to actorA's ownership - entangling that unrelated,
+      // unbroken SELECT policy into this INSERT-only proof via .select()
+      // would fail this assertion for the wrong reason (RLS still working,
+      // just on a different policy than the one under test).
+      const { error } = await actorB.client.from('personal_schedule_entries').insert({
+        owner_id: actorA.user.id,
+        schedule_type: 'other',
+        memo: marker,
+        is_all_day: true,
+        starts_on: startsOn,
+        ends_on: startsOn,
+      });
       assert.equal(
         error,
         null,
         'expected a spoofed-owner insert to go red (succeed) with the insert policy broken',
       );
-      assert.equal(data.owner_id, actorA.user.id);
+
+      // Confirm the spoofed row actually landed via a direct (RLS-
+      // bypassing) connection instead, since actorB's own client can never
+      // read it back.
+      const spoofedRow = await withPgClient((client) =>
+        client.query(`select 1 from public.personal_schedule_entries where owner_id = $1 and memo = $2`, [
+          actorA.user.id,
+          marker,
+        ]),
+      );
+      assert.equal(
+        spoofedRow.rowCount,
+        1,
+        'expected the spoofed-owner row to actually exist once the insert policy is broken',
+      );
     },
   );
 
   // 12. personal_schedule_entries_update_own: replacing USING/WITH CHECK
-  // with `true` must let a non-owner (including a recipient the entry was
-  // shared with) update someone else's entry, proving "a recipient cannot
-  // update the shared entry" depends on this policy, not merely on the UI.
+  // with `true` must let a recipient the entry was shared with update
+  // someone else's entry, proving "a recipient cannot update the shared
+  // entry" depends on this policy, not merely on the UI. The fixture below
+  // must actually share the entry with actorB first: for UPDATE, Postgres
+  // requires a row to also pass the table's SELECT policy (not just the
+  // UPDATE policy's own USING clause) before it can even be found to
+  // update - an actorB with no share at all has no SELECT visibility into
+  // actorA's private entry regardless of this policy, so the UPDATE would
+  // silently match zero rows even with this policy fully broken, proving
+  // nothing about the policy under test.
   await withBrokenPolicy(
     'personal_schedule_entries_update_own',
     `drop policy personal_schedule_entries_update_own on public.personal_schedule_entries;
@@ -492,14 +524,35 @@ try {
        using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
     async () => {
       const created = await createScheduleEntryAsOwner(actorA);
-      const { data, error } = await actorB.client
+      const { error: shareError } = await actorA.client
+        .from('personal_schedule_shares')
+        .insert({ schedule_entry_id: created.id, shared_with_user_id: actorB.user.id });
+      if (shareError) {
+        throw new Error(`fixture share insert failed: ${shareError.message}`);
+      }
+      const hijackedMemo = `hijacked while policy is broken ${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      // No .select() here, for the same reason as guardrail item 11 above:
+      // personal_schedule_entries' SELECT policy stays intact throughout,
+      // and a RETURNING clause would be evaluated against it too - moot
+      // here since actorB does have SELECT visibility via the share, but
+      // kept consistent with the other UPDATE/DELETE proofs in this file.
+      const { error } = await actorB.client
         .from('personal_schedule_entries')
-        .update({ memo: 'hijacked while policy is broken' })
-        .eq('id', created.id)
-        .select();
+        .update({ memo: hijackedMemo })
+        .eq('id', created.id);
       assert.equal(error, null);
+
+      // Confirm the hijacked memo actually landed via a direct (RLS-
+      // bypassing) connection instead, since actorB's own client can never
+      // read the row back.
+      const hijackedRow = await withPgClient((client) =>
+        client.query(`select 1 from public.personal_schedule_entries where id = $1 and memo = $2`, [
+          created.id,
+          hijackedMemo,
+        ]),
+      );
       assert.equal(
-        data.length,
+        hijackedRow.rowCount,
         1,
         'expected a non-owner update to go red (succeed) with the update policy broken',
       );
@@ -517,12 +570,8 @@ try {
        on public.personal_schedule_shares for insert to authenticated with check (true);`,
     `drop policy personal_schedule_shares_insert_owner on public.personal_schedule_shares;
      create policy personal_schedule_shares_insert_owner
-       on public.personal_schedule_shares for insert to authenticated with check (
-         exists (
-           select 1 from public.personal_schedule_entries e
-           where e.id = schedule_entry_id and e.owner_id = auth.uid()
-         )
-       );`,
+       on public.personal_schedule_shares for insert to authenticated
+       with check (public.is_personal_schedule_entry_owner(schedule_entry_id));`,
     async () => {
       const created = await createScheduleEntryAsOwner(actorA);
       const { data, error } = await actorB.client
@@ -539,24 +588,38 @@ try {
     },
   );
 
-  // 14. personal_schedule_shares_delete_owner_or_self: replacing USING with
-  // `true` must let a stranger (neither the entry owner nor the share's own
-  // recipient) delete someone else's share row, proving "a recipient cannot
-  // remove another recipient's share" depends on this policy's owner-or-self
-  // condition, not on some other mechanism.
+  // 14. personal_schedule_shares_delete_owner_or_self (relaxed together with
+  // its SELECT policy, like guardrail item 2 above): replacing DELETE's
+  // USING with `true` must let a stranger (neither the entry owner nor the
+  // share's own recipient) delete someone else's share row, proving "a
+  // recipient cannot remove another recipient's share" depends on this
+  // policy's owner-or-self condition, not on some other mechanism.
+  // personal_schedule_shares_select_owner_or_recipient has to be relaxed
+  // to `true` in the same breakSql: DELETE (like UPDATE - see guardrail
+  // item 12 above) can only affect rows that also pass the table's SELECT
+  // policy, and that policy is the exact same owner-or-recipient condition
+  // - a genuine stranger has no SELECT visibility into someone else's
+  // share row at all, so DELETE would still silently match zero rows with
+  // only its own USING clause broken, proving nothing about this policy.
   await withBrokenPolicy(
     'personal_schedule_shares_delete_owner_or_self',
-    `drop policy personal_schedule_shares_delete_owner_or_self on public.personal_schedule_shares;
+    `drop policy personal_schedule_shares_select_owner_or_recipient on public.personal_schedule_shares;
+     create policy personal_schedule_shares_select_owner_or_recipient
+       on public.personal_schedule_shares for select to authenticated using (true);
+     drop policy personal_schedule_shares_delete_owner_or_self on public.personal_schedule_shares;
      create policy personal_schedule_shares_delete_owner_or_self
        on public.personal_schedule_shares for delete to authenticated using (true);`,
-    `drop policy personal_schedule_shares_delete_owner_or_self on public.personal_schedule_shares;
+    `drop policy personal_schedule_shares_select_owner_or_recipient on public.personal_schedule_shares;
+     create policy personal_schedule_shares_select_owner_or_recipient
+       on public.personal_schedule_shares for select to authenticated using (
+         shared_with_user_id = auth.uid()
+         or public.is_personal_schedule_entry_owner(schedule_entry_id)
+       );
+     drop policy personal_schedule_shares_delete_owner_or_self on public.personal_schedule_shares;
      create policy personal_schedule_shares_delete_owner_or_self
        on public.personal_schedule_shares for delete to authenticated using (
          shared_with_user_id = auth.uid()
-         or exists (
-           select 1 from public.personal_schedule_entries e
-           where e.id = schedule_entry_id and e.owner_id = auth.uid()
-         )
+         or public.is_personal_schedule_entry_owner(schedule_entry_id)
        );`,
     async () => {
       const created = await createScheduleEntryAsOwner(actorA);
