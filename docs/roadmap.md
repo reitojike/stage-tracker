@@ -60,10 +60,6 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
   occurrence参加予定管理と、そこからのinvitation（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   参照）
-- **event-independent personal schedule** — eventとは独立したpersonal
-  scheduleと共有（詳細は
-  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）
 - **ticket acquisition / ticket** — チケット入手情報とticketの管理（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   参照）
