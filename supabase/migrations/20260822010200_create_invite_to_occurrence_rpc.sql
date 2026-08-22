@@ -95,18 +95,36 @@ begin
     raise exception 'only a user attending this occurrence can invite others to it';
   end if;
 
-  -- Idempotent short-circuit, before anything is written. Re-inviting
-  -- someone this inviter already invited returns the existing row untouched
-  -- rather than raising or stacking a duplicate - and, importantly, without
-  -- re-running the participation branch below. That is what stops a repeat
-  -- invite from re-creating a `considering` row for an invitee who has
-  -- already declined and cleared their participation.
+  -- Short-circuit on an invitation this inviter already sent, before
+  -- anything is written - which also skips the participation branch below.
+  --
+  -- Two different situations reach this point and they must not be
+  -- collapsed into one answer:
+  --
+  --   * not declined -> the same act repeated. A duplicate invocation (a
+  --     double-submit, a retry, two concurrent calls) is answered
+  --     idempotently with the existing row. Nothing about the invitation
+  --     lifecycle has moved, so returning it decides nothing.
+  --   * declined -> a *different* product act: re-inviting someone who
+  --     turned this invitation down. product-rules.md does not define
+  --     re-invitation. Answering it silently would pick semantics by
+  --     default - either "success, but nothing happened" (the caller
+  --     believes they re-invited) or, worse, a fresh `considering` row for
+  --     someone who declined. Raising refuses the undecided operation
+  --     instead of implementing it, and leaves the invitee's declined_at
+  --     and participation untouched either way. declined_at is already
+  --     readable by the inviter (occurrence_invitations_select_party), so
+  --     this discloses nothing new.
   select existing.* into v_invitation
   from public.occurrence_invitations existing
   where existing.occurrence_id = p_occurrence_id
     and existing.inviter_id = v_inviter_id
     and existing.invitee_id = p_invitee_id;
   if found then
+    if v_invitation.declined_at is not null then
+      raise exception
+        'this invitation was declined; re-inviting is not a supported operation';
+    end if;
     return v_invitation;
   end if;
 

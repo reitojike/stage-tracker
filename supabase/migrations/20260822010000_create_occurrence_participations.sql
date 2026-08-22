@@ -43,17 +43,17 @@ create table public.occurrence_participations (
 -- that index cannot serve because occurrence_id leads it.
 create index occurrence_participations_user_id_idx on public.occurrence_participations (user_id);
 
--- Shared updated_at trigger function for the tables added by this Task.
--- public.set_events_updated_at() and
--- public.set_event_occurrences_updated_at() are identical in body but
--- predate this one; rewiring their triggers would mean touching tables
--- outside this Task's scope, so they are left as they are rather than
--- migrated here.
+-- One updated_at trigger function per table, matching
+-- public.set_events_updated_at() / public.set_event_occurrences_updated_at()
+-- / public.set_personal_schedule_entries_updated_at(). A single generic
+-- public.set_updated_at() would read as schema-wide infrastructure while
+-- being owned by this Task's migration, and would collide the moment
+-- another lane's migration introduced the same obvious name.
 --
 -- search_path is pinned empty (Postgres function_search_path_mutable
 -- hardening) since the body only touches NEW/now(), which resolve without
 -- any schema lookup.
-create function public.set_updated_at() returns trigger
+create function public.set_occurrence_participations_updated_at() returns trigger
 language plpgsql
 set search_path = ''
 as $$
@@ -66,7 +66,7 @@ $$;
 create trigger occurrence_participations_set_updated_at
   before update on public.occurrence_participations
   for each row
-  execute function public.set_updated_at();
+  execute function public.set_occurrence_participations_updated_at();
 
 alter table public.occurrence_participations enable row level security;
 

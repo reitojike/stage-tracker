@@ -11,8 +11,11 @@ import { createEventWithOccurrence } from './support/eventFixtures.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 import {
   createOccurrenceWithAttendee,
+  declineInvitation,
+  declineInvitationOrThrow,
   inviteToOccurrence,
   inviteToOccurrenceOrThrow,
+  readInvitation,
   readOwnParticipation,
   setParticipation,
   type InvitationRow,
@@ -125,10 +128,10 @@ void test('inviting a considering user creates the invitation and leaves the par
 
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'considering');
-  assert.equal(participation?.id, before.id, 'the existing row must be kept, not replaced');
+  assert.equal(participation.id, before.id, 'the existing row must be kept, not replaced');
   // updated_at only moves on a real UPDATE, so an unchanged value is direct
   // evidence that this branch performed no write against the row at all.
-  assert.equal(participation?.updated_at, before.updated_at);
+  assert.equal(participation.updated_at, before.updated_at);
 });
 
 // --- Branch 3: invitee is already attending ---
@@ -142,7 +145,7 @@ void test('an already-attending user is out of scope for invite: no invitation r
 
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'attending', 'attending must not be demoted');
-  assert.equal(participation?.updated_at, before.updated_at, 'the row must not be rewritten');
+  assert.equal(participation.updated_at, before.updated_at, 'the row must not be rewritten');
 
   assert.deepEqual(
     await invitationsFrom(inviter, occurrence),
@@ -236,20 +239,20 @@ void test('an inviter cannot demote the invitee’s attending back to considerin
 });
 
 // --- Decline ---
+//
+// occurrence_invitations has no UPDATE grant and no UPDATE policy, so
+// declined_at is reachable only through public.decline_occurrence_invitation.
+// These tests pin down both halves of that: the decline itself, and the fact
+// that no client can write the column any other way - which is what keeps
+// un-declining out of the schema while product-rules.md is silent on it.
 
 void test('the invitee can decline, and the inviter can see it', async () => {
   const occurrence = await invitableOccurrence();
   const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
-  const declinedAt = new Date().toISOString();
-  const { data, error } = await invitee.client
-    .from('occurrence_invitations')
-    .update({ declined_at: declinedAt })
-    .eq('id', invitation.id)
-    .select()
-    .single();
-  assert.equal(error, null);
-  assert.ok(data.declined_at);
+  const declined = await declineInvitationOrThrow(invitee, invitation.id);
+  assert.equal(declined.id, invitation.id);
+  assert.ok(declined.declined_at);
 
   const [seenByInviter] = await invitationsFrom(inviter, occurrence);
   assert.ok(seenByInviter?.declined_at, 'the inviter must be able to observe the decline');
@@ -263,44 +266,124 @@ void test('declining does not write anything to the invitee’s participation', 
   const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const before = await readOwnParticipation(invitee, occurrence);
 
-  await invitee.client
-    .from('occurrence_invitations')
-    .update({ declined_at: new Date().toISOString() })
-    .eq('id', invitation.id);
+  await declineInvitationOrThrow(invitee, invitation.id);
 
   const after = await readOwnParticipation(invitee, occurrence);
   assert.equal(after?.status, 'considering');
-  assert.equal(after?.updated_at, before?.updated_at);
+  assert.equal(after.updated_at, before?.updated_at);
 });
 
 void test('the inviter cannot decline on the invitee’s behalf', async () => {
   const occurrence = await invitableOccurrence();
   const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
-  const { data, error } = await inviter.client
-    .from('occurrence_invitations')
-    .update({ declined_at: new Date().toISOString() })
-    .eq('id', invitation.id)
-    .select();
-  assert.equal(error, null);
-  assert.deepEqual(data, []);
+  const { error } = await declineInvitation(inviter, invitation.id);
+  assert.ok(error, 'expected declining an invitation addressed to someone else to fail');
 
-  const [refetched] = await invitationsFrom(inviter, occurrence);
-  assert.equal(refetched?.declined_at, null);
+  assert.equal((await readInvitation(inviter, invitation.id))?.declined_at, null);
 });
 
-void test('re-inviting a declined invitee neither clears the decline nor duplicates the row', async () => {
+void test('an unrelated user cannot decline someone else’s invitation', async () => {
   const occurrence = await invitableOccurrence();
   const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
-  await invitee.client
+
+  const { error } = await declineInvitation(other, invitation.id);
+  assert.ok(error, 'expected a third party decline to fail');
+  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
+});
+
+// The one product fact product-rules.md asks for is *that* the invitee
+// declined. Nothing has decided what un-declining would mean, so the schema
+// must not offer it: declined_at is not writable through the table API at
+// all, in either direction.
+void test('declined_at is not writable through the table API', async () => {
+  const occurrence = await invitableOccurrence();
+  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+
+  const { error: stampError } = await invitee.client
     .from('occurrence_invitations')
     .update({ declined_at: new Date().toISOString() })
     .eq('id', invitation.id);
+  assert.ok(stampError, 'expected a direct declined_at UPDATE to be unsupported');
+  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
 
-  const again = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
-  assert.equal(again.id, invitation.id);
-  assert.ok(again.declined_at, 'a repeat invite must not clear declined_at');
-  assert.equal((await invitationsFrom(inviter, occurrence)).length, 1);
+  const declined = await declineInvitationOrThrow(invitee, invitation.id);
+  assert.ok(declined.declined_at);
+
+  const { error: clearError } = await invitee.client
+    .from('occurrence_invitations')
+    .update({ declined_at: null })
+    .eq('id', invitation.id);
+  assert.ok(clearError, 'expected clearing declined_at to be unsupported');
+  assert.ok(
+    (await readInvitation(invitee, invitation.id))?.declined_at,
+    'a decline must not be undoable',
+  );
+});
+
+// Repeating the same act, not a lifecycle change: the second call must not
+// move the timestamp, or "when they declined" would drift on every retry.
+void test('declining twice is idempotent and does not re-stamp declined_at', async () => {
+  const occurrence = await invitableOccurrence();
+  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+
+  const first = await declineInvitationOrThrow(invitee, invitation.id);
+  const second = await declineInvitationOrThrow(invitee, invitation.id);
+  assert.equal(second.declined_at, first.declined_at);
+});
+
+// Re-inviting after a decline is a product operation nothing has defined.
+// The RPC refuses it rather than answering with a silent no-op or a fresh
+// `considering` row - either of which would settle the undecided semantics
+// by accident. What must hold either way is that the call changes nothing.
+void test('re-inviting a declined invitee is refused and changes nothing', async () => {
+  const occurrence = await invitableOccurrence();
+  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const declined = await declineInvitationOrThrow(invitee, invitation.id);
+
+  const { error } = await inviteToOccurrence(inviter, occurrence, invitee.user.id);
+  assert.ok(error, 'expected re-inviting a declined invitee to be refused');
+
+  const rows = await invitationsFrom(inviter, occurrence);
+  assert.equal(rows.length, 1, 'a refused re-invite must not stack a second invitation');
+  assert.equal(rows[0]?.declined_at, declined.declined_at, 'the decline must be left as it was');
+});
+
+// Same refusal, but with the invitee's participation removed first: the
+// branch that creates a `considering` row must not run for a declined
+// invitation.
+void test('re-inviting a declined invitee does not re-create their participation', async () => {
+  const occurrence = await invitableOccurrence();
+  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await declineInvitationOrThrow(invitee, invitation.id);
+
+  await invitee.client
+    .from('occurrence_participations')
+    .delete()
+    .eq('occurrence_id', occurrence)
+    .eq('user_id', invitee.user.id);
+
+  const { error } = await inviteToOccurrence(inviter, occurrence, invitee.user.id);
+  assert.ok(error);
+  assert.equal(
+    await readOwnParticipation(invitee, occurrence),
+    null,
+    'a refused re-invite must not resurrect a participation',
+  );
+});
+
+// A decline is scoped to the invitation it was made on, not to the invitee:
+// another attendee's invitation is a separate record and a separate act, so
+// it is not blocked by an earlier decline of someone else's invitation.
+void test('a decline does not block a different inviter from inviting', async () => {
+  const occurrence = await invitableOccurrence();
+  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await declineInvitationOrThrow(invitee, invitation.id);
+  await setParticipation(other, occurrence, 'attending');
+
+  const second = await inviteToOccurrenceOrThrow(other, occurrence, invitee.user.id);
+  assert.notEqual(second.id, invitation.id);
+  assert.equal(second.declined_at, null);
 });
 
 // --- Idempotency ---
@@ -399,10 +482,31 @@ void test('an invite racing the invitee’s own confirmation ends with attending
       .select(),
   ]);
   assert.equal(updateResult.error, null);
-  assert.equal(updateResult.data?.length, 1);
+  assert.equal(updateResult.data.length, 1);
 
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'attending');
+});
+
+// decline_occurrence_invitation is also a check-then-act (read the row,
+// decide whether it is already declined, then stamp it). FOR UPDATE is what
+// keeps two concurrent declines from producing two different timestamps.
+void test('concurrent declines settle on a single declined_at', async () => {
+  const occurrence = await invitableOccurrence();
+  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+
+  const results = await Promise.all(
+    Array.from({ length: 4 }, () => declineInvitation(invitee, invitation.id)),
+  );
+  for (const result of results) {
+    assert.equal(result.error, null);
+  }
+  const stamps = new Set(results.map((result) => result.data?.declined_at));
+  assert.equal(stamps.size, 1, 'every concurrent decline must report the same timestamp');
+  assert.equal(
+    (await readInvitation(invitee, invitation.id))?.declined_at,
+    results[0]?.data?.declined_at,
+  );
 });
 
 // --- Negative: anonymous ---
@@ -432,6 +536,17 @@ void test('anonymous cannot update invitations', async () => {
     .update({ declined_at: new Date().toISOString() })
     .eq('id', invitation.id);
   assert.ok(error, 'expected a permission error for anonymous update');
+});
+
+void test('anonymous cannot execute the decline RPC', async () => {
+  const occurrence = await invitableOccurrence();
+  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const anon = createAnonymousClient();
+  const { error } = await anon.rpc('decline_occurrence_invitation', {
+    p_invitation_id: invitation.id,
+  });
+  assert.ok(error, 'expected a permission error for anonymous RPC execution');
+  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
 });
 
 // --- Negative: visibility to third parties ---
@@ -496,13 +611,15 @@ void test('an invitation cannot be deleted by either party', async () => {
 });
 
 // Direct privilege/policy inspection rather than a behavioral probe: this
-// proves *why* the two tests above fail. Unlike events - where an INSERT
-// policy was deliberately left in place as a second layer after the grant
-// was revoked - occurrence_invitations has neither an INSERT grant nor an
-// INSERT policy, so re-adding a grant alone would still not open a direct
-// create path. Connects as the DB superuser since this reads catalog
+// proves *why* the write tests above fail. authenticated holds SELECT and
+// nothing else, and SELECT is the only policy on the table - so every
+// write, including the decline, has to come through a SECURITY DEFINER
+// function. Unlike events - where an INSERT policy was deliberately left in
+// place as a second layer after the grant was revoked - there is no policy
+// here to fall back on, so re-adding a grant alone would still not open a
+// direct write path. Connects as the DB superuser since this reads catalog
 // metadata, not RLS-governed application data.
-void test('occurrence_invitations exposes no INSERT or DELETE surface to authenticated', async () => {
+void test('occurrence_invitations exposes no write surface at all to authenticated', async () => {
   const status = readLocalSupabaseStatus();
   const client = new pg.Client({ connectionString: status.dbUrl });
   await client.connect();
@@ -519,8 +636,8 @@ void test('occurrence_invitations exposes no INSERT or DELETE surface to authent
       grants
         .filter((grant) => grant.privilege_type !== 'SELECT')
         .map((grant) => `${grant.privilege_type} ${grant.column_name}`),
-      ['UPDATE declined_at'],
-      'declined_at UPDATE must be the only non-SELECT grant authenticated holds',
+      [],
+      'authenticated must hold no write grant on occurrence_invitations',
     );
 
     const { rows: policies } = await client.query<{ cmd: string }>(
@@ -532,8 +649,8 @@ void test('occurrence_invitations exposes no INSERT or DELETE surface to authent
     );
     assert.deepEqual(
       policies.map((policy) => policy.cmd),
-      ['SELECT', 'UPDATE'],
-      'expected no INSERT or DELETE policy on occurrence_invitations',
+      ['SELECT'],
+      'expected SELECT to be the only policy on occurrence_invitations',
     );
   } finally {
     await client.end();

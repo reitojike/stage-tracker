@@ -100,6 +100,46 @@ export async function inviteToOccurrenceOrThrow(
   return data;
 }
 
+export async function declineInvitation(
+  actor: TestActor,
+  invitationId: string,
+): Promise<{ data: InvitationRow | null; error: PostgrestError | null }> {
+  return actor.client.rpc('decline_occurrence_invitation', {
+    p_invitation_id: invitationId,
+  });
+}
+
+export async function declineInvitationOrThrow(
+  actor: TestActor,
+  invitationId: string,
+): Promise<InvitationRow> {
+  const { data, error } = await declineInvitation(actor, invitationId);
+  if (error) {
+    throw new Error(`fixture decline_occurrence_invitation failed: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error('fixture decline_occurrence_invitation returned no invitation');
+  }
+  return data;
+}
+
+/**
+ * Reads a single invitation back through one of its parties' own clients.
+ */
+export async function readInvitation(
+  actor: TestActor,
+  invitationId: string,
+): Promise<InvitationRow | null> {
+  const { data, error } = await actor.client
+    .from('occurrence_invitations')
+    .select()
+    .eq('id', invitationId);
+  if (error) {
+    throw new Error(`fixture invitation read failed: ${error.message}`);
+  }
+  return data[0] ?? null;
+}
+
 /**
  * The standard setup for invitation tests: an occurrence owned by
  * `catalogOwner`, with `inviter` already `attending` it - the only state

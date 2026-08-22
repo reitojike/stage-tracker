@@ -92,6 +92,82 @@ export type Database = {
         }
         Relationships: []
       }
+      occurrence_invitations: {
+        Row: {
+          created_at: string
+          declined_at: string | null
+          id: string
+          invitee_id: string
+          inviter_id: string
+          occurrence_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          declined_at?: string | null
+          id?: string
+          invitee_id: string
+          inviter_id: string
+          occurrence_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          declined_at?: string | null
+          id?: string
+          invitee_id?: string
+          inviter_id?: string
+          occurrence_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "occurrence_invitations_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      occurrence_participations: {
+        Row: {
+          created_at: string
+          id: string
+          occurrence_id: string
+          status: Database["public"]["Enums"]["participation_status"]
+          updated_at: string
+          user_id: string
+          visibility: Database["public"]["Enums"]["participation_visibility"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          occurrence_id: string
+          status: Database["public"]["Enums"]["participation_status"]
+          updated_at?: string
+          user_id: string
+          visibility?: Database["public"]["Enums"]["participation_visibility"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          occurrence_id?: string
+          status?: Database["public"]["Enums"]["participation_status"]
+          updated_at?: string
+          user_id?: string
+          visibility?: Database["public"]["Enums"]["participation_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "occurrence_participations_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       personal_schedule_entries: {
         Row: {
           created_at: string
@@ -194,13 +270,50 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      decline_occurrence_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: {
+          created_at: string
+          declined_at: string | null
+          id: string
+          invitee_id: string
+          inviter_id: string
+          occurrence_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "occurrence_invitations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      invite_to_occurrence: {
+        Args: { p_invitee_id: string; p_occurrence_id: string }
+        Returns: {
+          created_at: string
+          declined_at: string | null
+          id: string
+          invitee_id: string
+          inviter_id: string
+          occurrence_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "occurrence_invitations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       is_personal_schedule_entry_owner: {
         Args: { p_entry_id: string }
         Returns: boolean
       }
     }
     Enums: {
-      [_ in never]: never
+      participation_status: "considering" | "attending"
+      participation_visibility: "private" | "public"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -327,7 +440,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      participation_status: ["considering", "attending"],
+      participation_visibility: ["private", "public"],
+    },
   },
 } as const
 

@@ -61,6 +61,40 @@ async function createScheduleEntryAsOwner(actor) {
   return data;
 }
 
+// Issue #30: an occurrence the given actor is attending, i.e. the state
+// every participation/invitation guardrail below starts from. The event is
+// created by the actor themselves only because create_event_with_occurrence
+// is the supported create path - event ownership confers no invite right,
+// so it is irrelevant to what these proofs are testing.
+async function createAttendedOccurrence(actor, visibility) {
+  const event = await createEventAsOwner(actor.client);
+  const { data: occurrences, error: occurrencesError } = await actor.client
+    .from('event_occurrences')
+    .select()
+    .eq('event_id', event.id);
+  if (occurrencesError || occurrences.length !== 1) {
+    throw new Error(
+      `fixture occurrence lookup failed for event ${event.id}: ${occurrencesError?.message ?? `found ${occurrences?.length}`}`,
+    );
+  }
+  const occurrenceId = occurrences[0].id;
+
+  const { data: participation, error } = await actor.client
+    .from('occurrence_participations')
+    .insert({
+      occurrence_id: occurrenceId,
+      user_id: actor.user.id,
+      status: 'attending',
+      visibility,
+    })
+    .select()
+    .single();
+  if (error || !participation) {
+    throw new Error(`fixture participation insert failed: ${error?.message}`);
+  }
+  return { occurrenceId, participation };
+}
+
 async function withPgClient(run) {
   const client = new pg.Client({ connectionString: status.dbUrl });
   await client.connect();
@@ -713,6 +747,199 @@ try {
       console.log('restored designated catalog creator gate (revoked actorB)');
     }
   }
+
+  // 16. occurrence_participations_select_visible (Issue #30): private is
+  // the default, so replacing the owner-or-public condition with `true`
+  // must let a stranger read someone else's private participation, proving
+  // "another authenticated user cannot read a private participation"
+  // depends on this policy rather than on the row simply being hard to
+  // find.
+  await withBrokenPolicy(
+    'occurrence_participations_select_visible',
+    `drop policy occurrence_participations_select_visible on public.occurrence_participations;
+     create policy occurrence_participations_select_visible
+       on public.occurrence_participations for select to authenticated using (true);`,
+    `drop policy occurrence_participations_select_visible on public.occurrence_participations;
+     create policy occurrence_participations_select_visible
+       on public.occurrence_participations for select to authenticated
+       using (user_id = auth.uid() or visibility = 'public');`,
+    async () => {
+      const { participation } = await createAttendedOccurrence(actorA, 'private');
+      const { data, error } = await stranger.client
+        .from('occurrence_participations')
+        .select()
+        .eq('id', participation.id);
+      assert.equal(error, null);
+      assert.equal(
+        data.length,
+        1,
+        'expected a private participation to go red (readable) with the select policy broken',
+      );
+    },
+  );
+
+  // 17. occurrence_participations_insert_own: user_id is deliberately
+  // grantable on INSERT (the column grant is what lets a client state whose
+  // participation it is), so this policy's WITH CHECK is the only thing
+  // stopping a client from recording a participation on somebody else’s
+  // behalf. Replacing it with `true` must let that spoof succeed.
+  await withBrokenPolicy(
+    'occurrence_participations_insert_own',
+    `drop policy occurrence_participations_insert_own on public.occurrence_participations;
+     create policy occurrence_participations_insert_own
+       on public.occurrence_participations for insert to authenticated with check (true);`,
+    `drop policy occurrence_participations_insert_own on public.occurrence_participations;
+     create policy occurrence_participations_insert_own
+       on public.occurrence_participations for insert to authenticated
+       with check (user_id = auth.uid());`,
+    async () => {
+      const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
+      // No .select(): the SELECT policy stays intact throughout this proof
+      // (see guardrail item 11), and actorB has no visibility into a
+      // private row it just spoofed to actorA - a RETURNING clause would
+      // fail this assertion for the wrong reason.
+      const { error } = await actorB.client.from('occurrence_participations').insert({
+        occurrence_id: occurrenceId,
+        user_id: stranger.user.id,
+        status: 'considering',
+      });
+      assert.equal(
+        error,
+        null,
+        'expected an on-behalf-of insert to go red (succeed) with the insert policy broken',
+      );
+
+      const spoofed = await withPgClient((client) =>
+        client.query(
+          `select 1 from public.occurrence_participations where occurrence_id = $1 and user_id = $2`,
+          [occurrenceId, stranger.user.id],
+        ),
+      );
+      assert.equal(
+        spoofed.rowCount,
+        1,
+        'expected the spoofed participation to actually exist once the insert policy is broken',
+      );
+    },
+  );
+
+  // 18. occurrence_participations_update_own: this is what makes
+  // "only the invitee can move considering -> attending" true. Replacing
+  // USING/WITH CHECK with `true` must let another user rewrite someone
+  // else's status. The fixture row is public so the (intact) SELECT policy
+  // gives actorB the visibility UPDATE also requires - see guardrail item
+  // 12 for why that matters.
+  await withBrokenPolicy(
+    'occurrence_participations_update_own',
+    `drop policy occurrence_participations_update_own on public.occurrence_participations;
+     create policy occurrence_participations_update_own
+       on public.occurrence_participations for update to authenticated
+       using (true) with check (true);`,
+    `drop policy occurrence_participations_update_own on public.occurrence_participations;
+     create policy occurrence_participations_update_own
+       on public.occurrence_participations for update to authenticated
+       using (user_id = auth.uid()) with check (user_id = auth.uid());`,
+    async () => {
+      const { participation } = await createAttendedOccurrence(actorA, 'public');
+      const { data, error } = await actorB.client
+        .from('occurrence_participations')
+        .update({ status: 'considering' })
+        .eq('id', participation.id)
+        .select();
+      assert.equal(error, null);
+      assert.equal(
+        data.length,
+        1,
+        'expected a third-party status rewrite to go red (succeed) with the update policy broken',
+      );
+    },
+  );
+
+  // 19. occurrence_invitations_select_party: an invitation is readable only
+  // by its two parties. Replacing that with `true` must let an unrelated
+  // user read it, proving the privacy boundary is this policy.
+  await withBrokenPolicy(
+    'occurrence_invitations_select_party',
+    `drop policy occurrence_invitations_select_party on public.occurrence_invitations;
+     create policy occurrence_invitations_select_party
+       on public.occurrence_invitations for select to authenticated using (true);`,
+    `drop policy occurrence_invitations_select_party on public.occurrence_invitations;
+     create policy occurrence_invitations_select_party
+       on public.occurrence_invitations for select to authenticated
+       using (inviter_id = auth.uid() or invitee_id = auth.uid());`,
+    async () => {
+      const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
+      const { data: invitation, error: inviteError } = await actorA.client.rpc(
+        'invite_to_occurrence',
+        {
+          p_occurrence_id: occurrenceId,
+          p_invitee_id: actorB.user.id,
+        },
+      );
+      if (inviteError || !invitation) {
+        throw new Error(`fixture invite_to_occurrence failed: ${inviteError?.message}`);
+      }
+      const { data, error } = await stranger.client
+        .from('occurrence_invitations')
+        .select()
+        .eq('id', invitation.id);
+      assert.equal(error, null);
+      assert.equal(
+        data.length,
+        1,
+        'expected a third party read to go red (succeed) with the select policy broken',
+      );
+    },
+  );
+
+  // 20. occurrence_invitations has no UPDATE grant and no UPDATE policy at
+  // all: declined_at is written only by decline_occurrence_invitation, which
+  // stamps now() and never clears it. That absence is what keeps decline-undo
+  // - an operation no product rule has decided - out of the schema, so it is
+  // worth proving the negative test depends on it. Both layers have to be
+  // added together (like guardrail items 2 and 4): a grant with no policy
+  // still default-denies, and a policy with no grant is never reached.
+  await withBrokenPolicy(
+    'occurrence_invitations declined_at UPDATE grant + policy (added together)',
+    `grant update (declined_at) on public.occurrence_invitations to authenticated;
+     create policy occurrence_invitations_update_decline_own
+       on public.occurrence_invitations for update to authenticated
+       using (invitee_id = auth.uid()) with check (invitee_id = auth.uid());`,
+    `drop policy occurrence_invitations_update_decline_own on public.occurrence_invitations;
+     revoke update on public.occurrence_invitations from authenticated;`,
+    async () => {
+      const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
+      const { data: invitation, error: inviteError } = await actorA.client.rpc(
+        'invite_to_occurrence',
+        {
+          p_occurrence_id: occurrenceId,
+          p_invitee_id: actorB.user.id,
+        },
+      );
+      if (inviteError || !invitation) {
+        throw new Error(`fixture invite_to_occurrence failed: ${inviteError?.message}`);
+      }
+      const { error: declineError } = await actorB.client.rpc('decline_occurrence_invitation', {
+        p_invitation_id: invitation.id,
+      });
+      if (declineError) {
+        throw new Error(`fixture decline_occurrence_invitation failed: ${declineError.message}`);
+      }
+
+      const { data, error } = await actorB.client
+        .from('occurrence_invitations')
+        .update({ declined_at: null })
+        .eq('id', invitation.id)
+        .select();
+      assert.equal(error, null);
+      assert.equal(data.length, 1);
+      assert.equal(
+        data[0].declined_at,
+        null,
+        'expected un-declining to go red (succeed) once a declined_at UPDATE grant and policy exist',
+      );
+    },
+  );
 
   console.log(
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',

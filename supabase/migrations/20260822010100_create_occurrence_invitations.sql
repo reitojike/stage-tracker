@@ -23,8 +23,9 @@ create table public.occurrence_invitations (
   occurrence_id uuid not null references public.event_occurrences (id),
   inviter_id uuid not null references auth.users (id),
   invitee_id uuid not null references auth.users (id),
-  -- null = not declined. Set by the invitee only (see the UPDATE policy and
-  -- the single-column UPDATE grant below).
+  -- null = not declined. Not directly writable by any client: the invitee
+  -- sets it through public.decline_occurrence_invitation, which stamps
+  -- now() and never clears it. See the grant comment below.
   declined_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -44,10 +45,22 @@ create table public.occurrence_invitations (
 create index occurrence_invitations_inviter_id_idx on public.occurrence_invitations (inviter_id);
 create index occurrence_invitations_invitee_id_idx on public.occurrence_invitations (invitee_id);
 
+-- Per-table, like every other updated_at trigger function in this schema -
+-- see 20260822010000_create_occurrence_participations.sql.
+create function public.set_occurrence_invitations_updated_at() returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
 create trigger occurrence_invitations_set_updated_at
   before update on public.occurrence_invitations
   for each row
-  execute function public.set_updated_at();
+  execute function public.set_occurrence_invitations_updated_at();
 
 alter table public.occurrence_invitations enable row level security;
 
@@ -57,12 +70,21 @@ revoke all on public.occurrence_invitations from public, anon, authenticated;
 
 grant select, insert, update, delete on public.occurrence_invitations to service_role;
 
+-- SELECT is the entire surface a normal client gets on this table. Every
+-- write - including the invitee's own decline - goes through a SECURITY
+-- DEFINER function, so no column here is directly writable.
+--
+-- declined_at could have been exposed as a one-column UPDATE grant, but a
+-- grant can only say "the invitee may write this column"; it cannot say
+-- what they may write. That would let an invitee stamp an arbitrary
+-- timestamp and, more importantly, set declined_at back to null.
+-- product-rules.md requires that a decline be recordable; it says nothing
+-- about undoing one, and invitation history retention mechanics are
+-- explicitly left to be settled by real need. A writable column would
+-- settle undo semantics by accident. public.decline_occurrence_invitation
+-- is therefore the only write path - see
+-- 20260822010300_create_decline_occurrence_invitation_rpc.sql.
 grant select on public.occurrence_invitations to authenticated;
--- declined_at is the only column a normal client may ever write, and only
--- the invitee may write it (occurrence_invitations_update_decline_own).
--- inviter_id/invitee_id/occurrence_id have no UPDATE grant, so an existing
--- invitation cannot be retargeted at a different occurrence or person.
-grant update (declined_at) on public.occurrence_invitations to authenticated;
 
 -- Deliberately no INSERT grant and no INSERT policy. Direct INSERT cannot
 -- enforce the two things an invitation depends on - that the inviter is
@@ -87,16 +109,3 @@ create policy occurrence_invitations_select_party
   for select
   to authenticated
   using (inviter_id = auth.uid() or invitee_id = auth.uid());
-
--- Declining is the invitee's own act. USING excludes the inviter's rows
--- entirely, so an inviter cannot mark their own invitation as declined on
--- the invitee's behalf, nor undo a decline; WITH CHECK is symmetric
--- defense-in-depth. The invitee may also clear declined_at again - this is
--- their own lifecycle state, and making it one-way would be an
--- unrequested retention rule rather than a protected invariant.
-create policy occurrence_invitations_update_decline_own
-  on public.occurrence_invitations
-  for update
-  to authenticated
-  using (invitee_id = auth.uid())
-  with check (invitee_id = auth.uid());
