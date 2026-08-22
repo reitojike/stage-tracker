@@ -1091,7 +1091,10 @@ try {
       'ticket_transfer_recipient_is_eligible',
       { p_occurrence_id: occurrenceId, p_recipient_id: stranger.user.id },
     );
-    assert.ok(deniedBefore, 'expected the eligibility predicate to be unreachable before the grant');
+    assert.ok(
+      deniedBefore,
+      'expected the eligibility predicate to be unreachable before the grant',
+    );
 
     await withBrokenPolicy(
       'ticket_transfer_recipient_is_eligible EXECUTE (withheld from clients)',
