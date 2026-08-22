@@ -152,3 +152,14 @@ void test('createTicket reports unauthenticated for a client with no session', a
   assert.equal(result.ok, false);
   assert.equal(result.error.kind, 'unauthenticated');
 });
+
+void test('updateTicket reports unauthenticated (not permission-denied) for a client with no session', async () => {
+  const acquisitionId = await securedAcquisitionId();
+  const created = await createTicket(actorA.client, acquisitionId);
+  assert.equal(created.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await updateTicket(anonymous, created.data.id, { seatLabel: 'x' });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});

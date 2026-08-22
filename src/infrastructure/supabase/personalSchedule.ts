@@ -105,12 +105,25 @@ export async function createPersonalScheduleEntry(
  * Updates an existing entry's fields. owner_id is deliberately not part of
  * the payload (it carries no UPDATE grant - see the migration), so
  * ownership stays non-transferable without this layer having to police it.
+ *
+ * Checks the caller's session first (requireAuthenticatedUserId), even
+ * though this write needs no id from it, so an unauthenticated caller gets
+ * `unauthenticated` here too - the same as createPersonalScheduleEntry -
+ * rather than whatever a client with no session happens to get from RLS
+ * (typically `permission-denied` from the withheld anon grant), which would
+ * make otherwise-identical failures diverge only because one path is a
+ * create and the other an update.
  */
 export async function updatePersonalScheduleEntry(
   client: PersonalScheduleQueryClient,
   entryId: string,
   input: PersonalScheduleEntryInput,
 ): Promise<PlanningResult<PersonalScheduleEntry>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { data, error } = await client
     .from('personal_schedule_entries')
     .update({
@@ -155,12 +168,18 @@ export async function listScheduleShares(
 }
 
 /** Shares an entry with a recipient, as the entry's owner. Sharing takes
- * effect immediately (no approval flow). */
+ * effect immediately (no approval flow). Checks the caller's session first
+ * - see updatePersonalScheduleEntry above for why. */
 export async function shareScheduleEntry(
   client: PersonalScheduleQueryClient,
   scheduleEntryId: string,
   sharedWithUserId: string,
 ): Promise<PlanningResult<ScheduleShare>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { data, error } = await client
     .from('personal_schedule_shares')
     .insert({ schedule_entry_id: scheduleEntryId, shared_with_user_id: sharedWithUserId })
@@ -180,11 +199,18 @@ export async function shareScheduleEntry(
  * above, there is no "visible but not deletable" gap here, so a zero-rows
  * result is classified `not-found` rather than `permission-denied` -
  * matching domain/participation.ts's withdrawParticipation reasoning.
+ * Checks the caller's session first - see updatePersonalScheduleEntry
+ * above for why.
  */
 export async function removeScheduleShare(
   client: PersonalScheduleQueryClient,
   shareId: string,
 ): Promise<PlanningResult<void>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { data, error } = await client
     .from('personal_schedule_shares')
     .delete()

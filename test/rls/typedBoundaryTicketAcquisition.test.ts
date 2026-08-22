@@ -131,3 +131,14 @@ void test('createAcquisition reports unauthenticated for a client with no sessio
   assert.equal(result.ok, false);
   assert.equal(result.error.kind, 'unauthenticated');
 });
+
+void test('updateAcquisition reports unauthenticated (not not-found) for a client with no session', async () => {
+  const occurrence = await occurrenceId();
+  const created = await createAcquisition(actorA.client, occurrence);
+  assert.equal(created.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await updateAcquisition(anonymous, created.data.id, { status: 'secured' });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});

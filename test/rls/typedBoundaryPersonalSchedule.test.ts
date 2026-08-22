@@ -209,3 +209,51 @@ void test('createPersonalScheduleEntry reports unauthenticated for a client with
   assert.equal(result.ok, false);
   assert.equal(result.error.kind, 'unauthenticated');
 });
+
+void test('updatePersonalScheduleEntry reports unauthenticated (not permission-denied) for a client with no session', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-04-12', endsOn: '2026-04-12' },
+  });
+  assert.equal(created.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await updatePersonalScheduleEntry(anonymous, created.data.id, {
+    scheduleType: 'other',
+    memo: 'hijacked',
+    temporal: { kind: 'all-day', startsOn: '2026-04-12', endsOn: '2026-04-12' },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+void test('shareScheduleEntry reports unauthenticated for a client with no session', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-04-14', endsOn: '2026-04-14' },
+  });
+  assert.equal(created.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await shareScheduleEntry(anonymous, created.data.id, recipient.user.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+void test('removeScheduleShare reports unauthenticated for a client with no session', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-04-16', endsOn: '2026-04-16' },
+  });
+  assert.equal(created.ok, true);
+  const share = await shareScheduleEntry(owner.client, created.data.id, recipient.user.id);
+  assert.equal(share.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await removeScheduleShare(anonymous, share.data.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});

@@ -119,11 +119,23 @@ export async function createTicket(
   return { ok: true, data: mapTicketRow(data) };
 }
 
+/**
+ * Checks the caller's session first (requireAuthenticatedUserId), even
+ * though this write needs no id from it, so an unauthenticated caller gets
+ * `unauthenticated` here too - the same as createTicket - rather than
+ * whatever a client with no session happens to get from RLS (typically
+ * `permission-denied` from the withheld anon grant).
+ */
 export async function updateTicket(
   client: TicketQueryClient,
   ticketId: string,
   input: TicketWriteInput,
 ): Promise<PlanningResult<Ticket>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const patch: Database['public']['Tables']['tickets']['Update'] = {
     ...(input.seatLabel !== undefined ? { seat_label: input.seatLabel } : {}),
     ...(input.queueNumber !== undefined ? { queue_number: input.queueNumber } : {}),

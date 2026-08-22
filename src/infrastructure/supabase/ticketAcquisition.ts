@@ -89,12 +89,23 @@ export async function createAcquisition(
  * caller (whether it never did, or another request already changed the
  * predicate this call matched on), which `not-found` describes more
  * honestly than `permission-denied` would.
+ *
+ * Checks the caller's session first (requireAuthenticatedUserId), even
+ * though this write needs no id from it, so an unauthenticated caller gets
+ * `unauthenticated` here too - the same as createAcquisition - rather than
+ * whatever a client with no session happens to get from RLS (typically
+ * `permission-denied` from the withheld anon grant).
  */
 export async function updateAcquisition(
   client: TicketAcquisitionQueryClient,
   acquisitionId: string,
   input: TicketAcquisitionUpdateInput,
 ): Promise<PlanningResult<TicketAcquisition>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const patch: Database['public']['Tables']['ticket_acquisitions']['Update'] = {};
   if (input.status !== undefined) {
     patch.status = input.status;
