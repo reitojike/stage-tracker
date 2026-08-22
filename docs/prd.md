@@ -42,17 +42,15 @@ authenticated multi-user application として家族・友人等の複数ユー�
 Completed baseline参照）。これはcurrent baselineとして成立している事実で
 あり、将来の専用product Taskで見直せないことを意味しません。
 
-**ticket acquisition・expense・budget**は未実装です。
-event-independent **personal schedule** と occurrence-level
-**participation / invitation** は、いずれも persistence / RLS baseline が
+**expense・budget**は未実装です。
+event-independent **personal schedule**、occurrence-level
+**participation / invitation**、および **ticket acquisition / ticket**
+（ticket transferを含む）は、いずれも persistence / RLS baseline が
 実装済みです（personal schedule は sharing も含む。詳細は
 [Current committed scope](#current-committed-scope) 参照）。ただし
-participation / invitation について実装済みなのは schema / RLS boundary
-までで、UI journey は未実装です。
+participation / invitation、ticket acquisition / ticket について
+実装済みなのは schema / RLS boundary までで、UI journey は未実装です。
 
-ticket acquisition / ticket / ticket transferのproduct-level semanticsは
-`product-rules.md`で承認済みですが、table naming・永続化shape・relation
-shapeはそれぞれを扱うbounded product Taskの中で確定します。
 **expense / budget**のsemanticsはまだ未確定です。
 
 ## Shared catalog と personal concepts の関係
@@ -92,12 +90,24 @@ participation / invitation のpersistence / RLS baseline
 （participationはoccurrence単位・statusは`considering`/`attending`のみ・
 default private visibility・withdrawはrow削除で表現、invitationは
 occurrence単位でinviterが対象occurrenceで`attending`である場合のみ・
-invitee側3分岐・declineはinvitation側の`declined_at`で表現）です
-（詳細は `product-rules.md` を参照）。event作成はevent + initial
+invitee側3分岐・declineはinvitation側の`declined_at`で表現）、および
+ticket acquisition / ticket / ticket transferのpersistence / RLS
+baseline（acquisitionはuser-owned・occurrence-linkedで同一user/occurrence
+に複数attempt可・statusは`pending`/`secured`/`unsuccessful`、ticketは
+secured acquisitionの結果として複数持てseat/queue/mediumはticket単位で
+nullable、registered assigneeとexternal companionの排他assignmentで
+account不要の同行者を表現可能、transferはeligibleなregistered invitee
+向けでrecipientのacceptanceが必須、accept後はownershipがrecipientへ移り
+sourceとのprovenanceは保持、transferはparticipationを自動変更しない）
+です（詳細は `product-rules.md` を参照）。event作成はevent + initial
 occurrenceを1 transactionで作るRPC経由のみをsupported pathとし、直接の
 `events` INSERTは提供しません。invitationのcreateとdeclineも同様に
 それぞれ専用RPC経由のみで、直接の`occurrence_invitations`書き込みは
-提供しません。
+提供しません。ticket transferのownership移転とtransfer lifecycle
+state（request/accept/cancel）の変更も専用RPC経由のみで、`tickets`の
+ownership列や`ticket_transfers`への直接UPDATEは提供しません。一方、
+ticketのseat/queue/medium/assignmentといった通常の詳細編集は、current
+ticket ownerによる直接UPDATEで提供します。
 
 invitationのMVP write/read boundaryには、participation privacyを守る
 ための追加の制約があります。invite操作の結果はinviterに対して不透明
@@ -122,7 +132,8 @@ write pathで検証しますが、`event_occurrences` へのCHECK制約は未導
 
 - occurrence-level participation / invitation の UI journey
   （schema/RLS baselineは上記のとおり成立済み）
-- ticket acquisition / ticket の分離、ticket transfer
+- ticket acquisition / ticket / ticket transfer の UI journey
+  （schema/RLS baselineは上記のとおり成立済み）
 - catalog classification / venue のMVP data boundary
 - calendar上のSaturday/Sunday/Japanese holiday presentation
 
@@ -140,13 +151,18 @@ semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) �
 uncommitted）です。current committed scopeには含みません。
 
 - event deletion semantics
-- 各domain concept（ticket acquisition / ticket / ticket transfer /
-  classification / venue / Administrator権限機構）のexact persistence・
-  mechanism詳細。event-independent personal schedule と occurrence-level
-  participation / invitation は persistence / RLS baseline が実装済みの
-  ため対象外です（[Current committed scope](#current-committed-scope)
-  参照）。participation / invitation について残っているのは UI journey
-  であって persistence shape ではありません
+- Ticket の deletion / correction semantics
+- 各domain concept（classification / venue）の exact persistence・
+  mechanism詳細。event-independent personal schedule、occurrence-level
+  participation / invitation、および ticket acquisition / ticket /
+  ticket transfer は persistence / RLS baseline が実装済みのため対象外
+  です（[Current committed scope](#current-committed-scope)
+  参照）。これらについて残っているのは UI journey であって persistence
+  shape ではありません。designated catalog creator（Administrator）の
+  permission mechanismも、UUID hard-codeでもgenericなadmin/role
+  frameworkでもないmembership allowlistとして確定済みのため対象外です。
+  未決定なのは、Administrator以外へのEvent create権限拡大に伴う
+  verification / moderationのexact workflow（Post-MVP）です
   （未決定項目の一覧は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   の「まだ決めていないもの」を正本とし、本PRDでは複製しません）

@@ -860,8 +860,6 @@ Completed baseline を参照してください。
   concept とし、ticket の結果から participation status を自動変更しません。
 - event-level の「興味がある / 行きたいが回未定」という intention は
   participation へ混ぜず、扱う場合は別途評価します（現時点は Deferred）。
-- participation の table 名・永続化 shape は participation 実装時まで固定
-  しません。
 
 ## Invitation
 
@@ -888,18 +886,25 @@ Completed baseline を参照してください。
   したか」を後から確認できる data boundary を持ちます。
 - invitee が辞退した場合、participation 側に `not_attending` を作るのでは
   なく、invitation lifecycle 側で decline を表現します。
-- invitation record の exact table / column / status naming や history
-  retention mechanics は、上記 product semantics を失わない範囲で schema
-  実装時に決定します。
+- invite 操作の結果は inviter に対して不透明です。対象 occurrence における
+  invitee の現在状態（上記 3 分岐のどれが実行されたか）を inviter へ開示
+  しません。invitee の private な participation status を、invite 操作の
+  結果から間接的に推測できる経路を新たに開かないためです。
+- invitation record の通常 read は invitee 本人に限定します。inviter は、
+  自分が作成した invitation であっても、通常 read で対象 invitee 向けの
+  invitation row の有無を確認できません。row の有無が観測できると、上記の
+  opacity と同じ情報が別経路から復元できるためです。
+- inviter 向けの invitation history 表示は MVP committed scope に含みません。
+  必要になった時点で、上記の opacity / read boundary を壊さない形で別途
+  設計します。
 
 ## Event-independent personal schedule
 
 - event とは独立した personal schedule concept を持ちます。単純な
   `blocked` boolean にはしません。
 - all-day / multi-day all-day / time-bounded の schedule を表現できます。
-- schedule type は MVP で少なくとも `paid_leave` / `work` / `travel` /
-  `other` 相当の canonical vocabulary を持ちます。exact persisted naming は
-  schema 実装時に決定します。
+- schedule type は MVP で `paid_leave` / `work` / `travel` / `other` の
+  canonical vocabulary を持ちます。
 - schedule entry の作成者が owner です。
 - default は private（owner 本人のみ）です。
 - owner は entry 単位で authenticated user を明示指定して共有できます。
@@ -946,12 +951,22 @@ Completed baseline を参照してください。
   外部同行者へ ticket を割り当てるために account 作成を要求しません。
 - ticket assignment は「誰が使う予定か」を表す情報であり、ticket の
   ownership transfer を意味しません。
+- Ticket は secured な acquisition の結果であるという boundary を、作成後も
+  保持します。child Ticket が存在する acquisition を secured 以外の status
+  へ戻すことはできません。
+- Ticket の deletion / correction semantics は未決定です。誤って secured に
+  した、あるいは誤って Ticket を作成した場合の owner 向け訂正手段は、現時点
+  では存在しません。訂正手段の提供には Ticket deletion semantics の決定が
+  必要であり、この決定を待たずに訂正用の escape hatch をここで発明しません。
 
 ### Ticket transfer
 
 - current ticket owner が明示的に transfer を開始します。
 - transfer 先は、同じ occurrence へ invitation された registered user を
-  MVP の eligibility とします。
+  MVP の eligibility とします。invitation を decline した invitee も、この
+  eligibility を維持します（decline は transfer の acceptance を免除しま
+  せん。acceptance 自体が必須であるため、decline した相手へ transfer が
+  強制されることはありません）。
 - recipient の acceptance を必須とします。accept 前は sender が transfer
   を取り消せます。
 - accept 後は ticket の current owner / edit authority が recipient へ
@@ -960,6 +975,15 @@ Completed baseline を参照してください。
   されます。acquisition owner は acquisition 自体を引き続き所有し、どの
   ticket を誰へ transfer したか確認できる data boundary を持ちます。
 - transfer によって participation status を自動変更しません。
+- transfer の宛先が eligible かどうかの判定は、sender 側から見て「対象
+  occurrence へ invitation された registered user かどうか」を 1 bit
+  観測させる side channel になります。これは MVP の accepted trade-off
+  とします。これを隠すために invitation の read boundary を再び緩めたり、
+  fake transfer を作らせたり、invitation の opacity semantics を変更する
+  ことはしません。
+- pending 状態の transfer offer は、recipient が accept するまで、前
+  owner が設定していた assignment 情報（registered user assignee か
+  外部同行者名かを含む）を recipient へ開示しません。
 
 ## Catalog classification / venue boundary
 
@@ -1001,8 +1025,10 @@ Completed baseline を参照してください。
 - deletion / cancellation は、この MVP write slice の対象外です。
 - classification 入力・venue master をこの write UI と同時に追加しません。
 - 「Administrator 1 名だけ」という運用を理由に、特定 user UUID を
-  application code / migration へ場当たり的に hard-code しません。exact
-  permission mechanism は後続の bounded task で最小 shape として決めます。
+  application code / migration へ場当たり的に hard-code しません。
+  permission mechanism は、特定 UUID の hard-code でも generic な
+  admin/role framework でもない、membership 単位の allowlist として
+  確定しています。
 
 ### Post-MVP governance gate
 
@@ -1035,11 +1061,7 @@ Completed baseline を参照してください。
 
 以下は関連する product task が起票されるまで、このファイルへ追記しません。
 
-- participation / invitation / personal schedule / ticket acquisition /
-  ticket / ticket transfer の table naming・永続化 shape・exact
-  status/column naming・history retention mechanics
-- Administrator / designated catalog creator の exact permission
-  mechanism（application code / migration での表現方法）
+- Ticket の deletion / correction semantics
 - Post-MVP の Event create 権限拡大に伴う verification / moderation の
   exact workflow
 - budget 集計の期間基準
