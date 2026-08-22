@@ -42,12 +42,13 @@ authenticated multi-user application として家族・友人等の複数ユー�
 Completed baseline参照）。これはcurrent baselineとして成立している事実で
 あり、将来の専用product Taskで見直せないことを意味しません。
 
-**participation / personal schedule・ticket acquisition・expense・budget**
-は未実装です。participation / invitation / personal schedule / ticket
-acquisition / ticket / ticket transferのproduct-level semanticsは
-`product-rules.md`で承認済みですが、table naming・永続化shape・relation
-shapeはそれぞれを扱うbounded product Taskの中で確定します。**expense /
-budget**のsemanticsはまだ未確定です。
+**participation・ticket acquisition・expense・budget**は未実装です。
+event-independent **personal schedule** は persistence / sharing / RLS
+baselineが実装済みです（[Current committed scope](#current-committed-scope)
+参照）。participation / invitation / ticket acquisition / ticket / ticket
+transferのproduct-level semanticsは`product-rules.md`で承認済みですが、
+table naming・永続化shape・relation shapeはそれぞれを扱うbounded product
+Taskの中で確定します。**expense / budget**のsemanticsはまだ未確定です。
 
 ## Shared catalog と personal concepts の関係
 
@@ -74,18 +75,21 @@ constraintは、実装agentが従うべき正本として
 
 現在current repositoryでschema/RLS/permission実装として成立しているのは、
 event catalog の共有と owner semantics（owner限定更新・owner transfer
-不可・owner spoofing防止）、およびeventと公演回（occurrence）のtemporal
+不可・owner spoofing防止）、eventと公演回（occurrence）のtemporal
 model（1 event : N occurrence・occurrence starts_at必須/ends_at
-nullable・occurrence create/updateはparent event ownerのみ）です（詳細は
-`product-rules.md` を参照）。event作成はevent + initial occurrenceを
-1 transactionで作るRPC経由のみをsupported pathとし、直接の`events` INSERT
-は提供しません。
+nullable・occurrence create/updateはparent event ownerのみ）、および
+event-independent personal schedule のpersistence / sharing / RLS
+baseline（all-day・multi-day all-day・time-boundedを曖昧なく区別する
+temporal shape・`paid_leave`/`work`/`travel`/`other`のMVP vocabulary・
+creator = owner・default private・entry単位のexplicit share・owner限定の
+recipient追加削除・recipientの自己離脱）です（詳細は `product-rules.md`
+を参照）。event作成はevent + initial occurrenceを1 transactionで作るRPC
+経由のみをsupported pathとし、直接の`events` INSERTは提供しません。
 
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
 - occurrence-level participation / invitation
-- event-independent personal schedule
 - ticket acquisition / ticket の分離、ticket transfer
 - catalog classification / venue のMVP data boundary
 - designated catalog creator限定のminimal Event catalog create/update UI
@@ -105,9 +109,11 @@ semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) �
 uncommitted）です。current committed scopeには含みません。
 
 - event deletion semantics
-- 各domain concept（participation / invitation / personal schedule /
-  ticket acquisition / ticket / ticket transfer / classification /
-  venue / Administrator権限機構）のexact persistence・mechanism詳細
+- 各domain concept（participation / invitation / ticket acquisition /
+  ticket / ticket transfer / classification / venue / Administrator権限
+  機構）のexact persistence・mechanism詳細。event-independent personal
+  scheduleはpersistence / sharing / RLS baselineが実装済みのため対象外
+  です（[Current committed scope](#current-committed-scope)参照）
   （未決定項目の一覧は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
