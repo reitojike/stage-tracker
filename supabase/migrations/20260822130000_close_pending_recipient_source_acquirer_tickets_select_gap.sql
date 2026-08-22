@@ -32,6 +32,18 @@
 -- Once accepted (or the offer is cancelled), the exclusion lifts on its own:
 -- there is no pending row left for the condition to match, and if they
 -- became the owner they read via the owner_id branch instead.
+--
+-- Wrapped in an explicit transaction (Codex review on PR #51, mirroring
+-- 20260822120000_harden_public_schema_client_grants.sql - supabase's
+-- migration runner does not itself wrap a migration file's statements in
+-- one): public.tickets is already live and serving authenticated traffic.
+-- Without this, an interruption between the drop and the create below would
+-- leave the table with no SELECT policy at all - closing off every
+-- authenticated read of public.tickets, current owner and source acquirer
+-- alike, until the migration is completed or re-run, rather than merely
+-- leaving the narrower pre-fix policy in place.
+begin;
+
 drop policy tickets_select_owner_or_source_acquirer on public.tickets;
 
 create policy tickets_select_owner_or_source_acquirer
@@ -60,3 +72,5 @@ create policy tickets_select_owner_or_source_acquirer
       )
     )
   );
+
+commit;
