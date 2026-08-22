@@ -35,7 +35,7 @@ begin
 
   -- MVP Event catalog write boundary: creating a shared catalog entry is
   -- restricted to designated catalog creators (see
-  -- 20260822000000_create_catalog_creators.sql). This runs SECURITY
+  -- 20260822000200_create_catalog_creators.sql). This runs SECURITY
   -- DEFINER, so the lookup is not itself filtered by
   -- catalog_creators_select_own - it sees the whole allowlist and checks
   -- the caller's own membership explicitly.

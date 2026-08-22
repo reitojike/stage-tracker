@@ -98,7 +98,13 @@ let stranger;
 let primaryError;
 
 try {
-  actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!');
+  // actorA creates every fixture event, so it holds designated catalog
+  // creator membership (Issue #29). actorB deliberately does not - the
+  // creator gate item below injects that membership temporarily to prove
+  // the create denial actually depends on it.
+  actorA = await createTestActor('guardrail-a', 'Str0ng-Test-Passw0rd!', {
+    designatedCatalogCreator: true,
+  });
   actorB = await createTestActor('guardrail-b', 'Str0ng-Test-Passw0rd!');
   stranger = await createTestActor('guardrail-stranger', 'Str0ng-Test-Passw0rd!');
 
@@ -138,10 +144,21 @@ try {
      drop policy events_insert_own on public.events;
      create policy events_insert_own on public.events
        for insert to authenticated with check (true);`,
+    // The restore below re-creates events_insert_own with its *current*
+    // definition, which since Issue #29 also requires designated catalog
+    // creator membership. Restoring the pre-#29 definition here would
+    // silently drop that layer from the local database after this script
+    // ran - a fault injection that quietly leaves a hole behind is worse
+    // than no proof at all.
     `revoke insert on public.events from authenticated;
      drop policy events_insert_own on public.events;
      create policy events_insert_own on public.events
-       for insert to authenticated with check (owner_id = auth.uid());`,
+       for insert to authenticated with check (
+         owner_id = auth.uid()
+         and exists (
+           select 1 from public.catalog_creators cc where cc.user_id = auth.uid()
+         )
+       );`,
     async () => {
       const { data, error } = await actorA.client
         .from('events')
