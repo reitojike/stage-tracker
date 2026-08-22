@@ -20,7 +20,14 @@ export function createAnonymousClient(): SupabaseClient<Database> {
   return createClient<Database>(status.apiUrl, status.anonKey);
 }
 
-function createAdminClient(): SupabaseClient<Database> {
+/**
+ * service_role client. Setup/teardown and inspection only - see this
+ * module's header for why no assertion goes through it. Fixtures that need
+ * to look at a row the acting user is (correctly) not allowed to read use
+ * this rather than relaxing the policy under test; the assertion itself
+ * still runs on the user's own client.
+ */
+export function createAdminClient(): SupabaseClient<Database> {
   return createClient<Database>(status.apiUrl, status.serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -116,12 +123,44 @@ export async function createTestActor(
 // nothing to do with the RLS behavior under test.
 const ID_BATCH_SIZE = 100;
 
+// See the retry loop at the end of deleteTestActor for why user deletion,
+// and only user deletion, is retried.
+const DELETE_USER_ATTEMPTS = 3;
+const DELETE_USER_RETRY_BASE_MS = 200;
+
 function idBatches(ids: readonly string[]): string[][] {
   const batches: string[][] = [];
   for (let start = 0; start < ids.length; start += ID_BATCH_SIZE) {
     batches.push(ids.slice(start, start + ID_BATCH_SIZE));
   }
   return batches;
+}
+
+interface IdQueryResult {
+  data: { id: string }[] | null;
+  error: PostgrestError | null;
+}
+
+/**
+ * Runs `query` once per id batch and flattens the returned ids. The query
+ * is a callback rather than (table, column) arguments so each call site
+ * keeps literal table/column names and stays checked against the generated
+ * Database types.
+ */
+async function collectIds(
+  values: readonly string[],
+  query: (batch: string[]) => PromiseLike<IdQueryResult>,
+  what: string,
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (const batch of idBatches(values)) {
+    const { data, error } = await query(batch);
+    if (error) {
+      throw new Error(`failed to list ${what}: ${error.message}`);
+    }
+    ids.push(...(data ?? []).map((row) => row.id));
+  }
+  return ids;
 }
 
 export async function deleteTestActor(actor: TestActor): Promise<void> {
@@ -253,6 +292,89 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
     );
   }
 
+  // Ticket domain (Issue #32), innermost-first for the same reason:
+  //
+  //   ticket_transfers -> tickets, auth.users
+  //   tickets -> ticket_acquisitions, auth.users
+  //   ticket_acquisitions -> event_occurrences, auth.users
+  //
+  // Two things make this wider than "rows this actor owns". A transfer moves
+  // tickets.owner_id to another actor, so a ticket from this actor's
+  // acquisition may now be owned by someone else (and vice versa); and this
+  // actor's occurrences can carry other actors' acquisitions. Both
+  // directions are collected below.
+  const acquisitionIds = new Set(
+    await collectIds(
+      [actor.user.id],
+      (batch) => admin.from('ticket_acquisitions').select('id').in('owner_id', batch),
+      `fixture acquisitions for test user ${actor.user.id}`,
+    ),
+  );
+  for (const id of await collectIds(
+    ownedOccurrenceIds,
+    (batch) => admin.from('ticket_acquisitions').select('id').in('occurrence_id', batch),
+    `fixture acquisitions on test user ${actor.user.id}'s occurrences`,
+  )) {
+    acquisitionIds.add(id);
+  }
+
+  const ticketIds = new Set(
+    await collectIds(
+      [actor.user.id],
+      (batch) => admin.from('tickets').select('id').in('owner_id', batch),
+      `fixture tickets for test user ${actor.user.id}`,
+    ),
+  );
+  for (const id of await collectIds(
+    [...acquisitionIds],
+    (batch) => admin.from('tickets').select('id').in('acquisition_id', batch),
+    `fixture tickets under test user ${actor.user.id}'s acquisitions`,
+  )) {
+    ticketIds.add(id);
+  }
+
+  for (const batch of idBatches([...ticketIds])) {
+    failIfError(
+      'ticket transfers',
+      (await admin.from('ticket_transfers').delete().in('ticket_id', batch)).error,
+    );
+  }
+
+  // Transfers where this actor is a party but the ticket belongs to someone
+  // else's cleanup set - those rows still reference auth.users(id) here.
+  failIfError(
+    'sent ticket transfers',
+    (await admin.from('ticket_transfers').delete().eq('sender_id', actor.user.id)).error,
+  );
+  failIfError(
+    'received ticket transfers',
+    (await admin.from('ticket_transfers').delete().eq('recipient_id', actor.user.id)).error,
+  );
+
+  for (const batch of idBatches([...ticketIds])) {
+    failIfError('tickets', (await admin.from('tickets').delete().in('id', batch)).error);
+  }
+
+  // Surviving tickets owned by other actors may still name this actor as
+  // their expected user; clear that reference rather than deleting someone
+  // else's row.
+  failIfError(
+    'ticket assignments',
+    (
+      await admin
+        .from('tickets')
+        .update({ assigned_to_user_id: null })
+        .eq('assigned_to_user_id', actor.user.id)
+    ).error,
+  );
+
+  for (const batch of idBatches([...acquisitionIds])) {
+    failIfError(
+      'ticket acquisitions',
+      (await admin.from('ticket_acquisitions').delete().in('id', batch)).error,
+    );
+  }
+
   for (const batch of idBatches(ownedEventIds)) {
     failIfError(
       'occurrences',
@@ -262,8 +384,58 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
 
   failIfError('events', (await admin.from('events').delete().eq('owner_id', actor.user.id)).error);
 
-  const { error: deleteUserError } = await admin.auth.admin.deleteUser(actor.user.id);
-  if (deleteUserError) {
-    throw new Error(`failed to delete test user ${actor.user.id}: ${deleteUserError.message}`);
+  // Deleting the user itself is retried, unlike every step above. Auth user
+  // deletion is a multi-table write inside the auth schema (identities,
+  // sessions, refresh tokens), and `node --test` runs every DB/RLS test file
+  // as its own process, so the whole suite creates and deletes users against
+  // one local stack at once. That has been observed to surface as GoTrue's
+  // generic "Database error deleting user" in one file's teardown while the
+  // same suite passes on the next run.
+  //
+  // Retrying is safe precisely because it cannot hide a real problem: a row
+  // this teardown genuinely failed to clean up still references
+  // auth.users(id) on every attempt, so a deterministic FK failure still
+  // fails. Every attempt's message is reported, not just the last one -
+  // otherwise a real leftover-row error on the first attempt could be
+  // replaced by a transient one from the last, which is exactly the
+  // misdiagnosis this retry is supposed to avoid causing.
+  const attemptErrors: string[] = [];
+  for (let attempt = 0; attempt < DELETE_USER_ATTEMPTS; attempt += 1) {
+    const { error } = await admin.auth.admin.deleteUser(actor.user.id);
+    if (!error) {
+      return;
+    }
+    attemptErrors.push(`attempt ${String(attempt + 1)}: ${error.message}`);
+
+    // No sleep after the final attempt - it would only delay the throw.
+    if (attempt < DELETE_USER_ATTEMPTS - 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, DELETE_USER_RETRY_BASE_MS * (attempt + 1)),
+      );
+    }
+  }
+
+  throw new Error(
+    `failed to delete test user ${actor.user.id} after ${String(DELETE_USER_ATTEMPTS)} attempts: ${attemptErrors.join('; ')}`,
+  );
+}
+
+/**
+ * Tears actors down one at a time. The ticket-domain cleanup above spans
+ * rows two actors can both reach (a transferred ticket, an acquisition on
+ * another actor's occurrence), so running teardown concurrently can have one
+ * actor delete a parent row while another is still deleting its children.
+ */
+export async function deleteTestActorsSequentially(actors: TestActor[]): Promise<void> {
+  const messages: string[] = [];
+  for (const actor of actors) {
+    try {
+      await deleteTestActor(actor);
+    } catch (error) {
+      messages.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  if (messages.length > 0) {
+    throw new Error(`test actor cleanup failed:\n${messages.join('\n')}`);
   }
 }
