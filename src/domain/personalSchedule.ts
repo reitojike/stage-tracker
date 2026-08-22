@@ -193,11 +193,23 @@ const EPOCH_MS_OFFSET = BigInt(JS_DATE_MAX_EPOCH_MS);
 const EPOCH_MS_WIDTH = (EPOCH_MS_OFFSET * BigInt(2)).toString().length;
 
 /**
+ * A sort key guaranteed to compare greater than every key
+ * instantSortKey's normal path can produce (which are always exactly
+ * `EPOCH_MS_WIDTH + 3` characters of decimal digits): one digit longer,
+ * and every digit '9'. Any string that shares this one's first
+ * `EPOCH_MS_WIDTH + 3` characters is by definition a prefix of it, and a
+ * strict prefix always compares less in a plain codepoint-by-codepoint
+ * string comparison - so this sorts after every normally-computed key
+ * regardless of that key's own digits.
+ */
+const UNORDERABLE_INSTANT_SORT_KEY = '9'.repeat(EPOCH_MS_WIDTH + 3 + 1);
+
+/**
  * Normalizes an ISO 8601 UTC instant string to a sort key that string-
  * compares in true chronological order, at full microsecond precision -
  * the precision PostgreSQL's `timestamptz` itself carries - across every
  * instant `Date.parse` can represent at all (see JS_DATE_MAX_EPOCH_MS
- * above), not just an arbitrarily assumed "reasonable" range.
+ * above).
  *
  * `Date.parse`/`Date#getTime()` round to millisecond resolution, so two
  * instants less than 1ms apart collapse to the same epoch-millisecond
@@ -213,11 +225,24 @@ const EPOCH_MS_WIDTH = (EPOCH_MS_OFFSET * BigInt(2)).toString().length;
  * non-negative (the offset absorbs pre-1970 instants, which would
  * otherwise sort backwards through the leading "-" sign as an ordinary
  * string character).
+ *
+ * PostgreSQL's own `timestamptz` range (4713 BC - 294276 AD) is wider than
+ * what `Date.parse` can represent at all, and this column carries no CHECK
+ * constraint bounding it to a narrower range (Issue #31; adding one is out
+ * of this Task's scope). A row holding such a value cannot be placed in
+ * true chronological order by this function - doing so would need a
+ * hand-written parser for PostgREST's own timestamp serialization independent
+ * of `Date`, which is disproportionate to a range no realistic use of this
+ * product's Asia/Tokyo-scoped personal-schedule feature would ever produce.
+ * What this function must still do is not crash the read path over it: an
+ * unparseable instant sorts last via a reserved sentinel key, deterministic
+ * and stable, rather than throwing past listVisiblePersonalSchedule's
+ * PlanningResult boundary.
  */
 function instantSortKey(instantIso: string): string {
   const epochMs = Date.parse(instantIso);
   if (Number.isNaN(epochMs)) {
-    throw new Error(`expected a valid ISO 8601 instant, got: ${instantIso}`);
+    return UNORDERABLE_INSTANT_SORT_KEY;
   }
   const paddedEpochMs = (BigInt(epochMs) + EPOCH_MS_OFFSET)
     .toString()

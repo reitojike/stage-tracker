@@ -218,6 +218,34 @@ void test('comparePersonalScheduleEntriesByStart stays monotonic at the extremes
   assert.ok(comparePersonalScheduleEntriesByStart(atMin, atMax) < 0);
 });
 
+// Third follow-up regression (Codex review on PR #52, after the fix
+// above): personal_schedule_entries.starts_at carries no CHECK constraint
+// bounding it to a range Date.parse can represent (PostgreSQL's own
+// timestamptz range extends to 294276 AD, and PostgREST serializes a
+// 5+-digit year without the leading "+" Date.parse's ISO grammar requires
+// - e.g. "10000-01-01T00:00:00+00:00" - which Date.parse cannot read at
+// all). Comparing such a row must not throw past this function - a value
+// outside what this product's Asia/Tokyo-scoped personal-schedule feature
+// could ever realistically produce sorts last instead of crashing the
+// read path.
+void test('comparePersonalScheduleEntriesByStart does not throw for a starts_at Date.parse cannot read, and sorts it last', () => {
+  const ordinary = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'ordinary', starts_at: '2026-02-01T09:00:00Z' }),
+  );
+  // PostgREST's own serialization of a valid PostgreSQL timestamptz whose
+  // year has 5+ digits omits the leading "+" ISO 8601 (and Date.parse)
+  // requires for such years.
+  const farFuture = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'far-future', starts_at: '10000-01-01T00:00:00+00:00' }),
+  );
+  assert.doesNotThrow(() => comparePersonalScheduleEntriesByStart(ordinary, farFuture));
+  assert.ok(comparePersonalScheduleEntriesByStart(ordinary, farFuture) < 0);
+  assert.deepEqual(
+    sortPersonalScheduleEntries([farFuture, ordinary]).map((e) => e.id),
+    ['ordinary', 'far-future'],
+  );
+});
+
 void test('sortPersonalScheduleEntries does not mutate its input array', () => {
   const later = mapPersonalScheduleEntryRow(rawAllDayRow({ id: 'later', starts_on: '2026-02-10' }));
   const earlier = mapPersonalScheduleEntryRow(
