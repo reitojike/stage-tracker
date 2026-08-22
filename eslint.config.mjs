@@ -86,19 +86,23 @@ export default [
             'App code must not dynamically import the generated Database types directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
         },
         {
-          // Targets the `<client>.from(...).select/insert/update/delete/
-          // upsert(...)` chain shape specifically - the Supabase query
-          // builder's own method sequence - rather than any `.from(...)`
-          // call, which would also flag unrelated, legitimate calls such as
-          // Array.from(...) or Buffer.from(...) with no connection to
-          // Supabase. Still catches a raw call reached through a client
-          // instance app code only received as an opaque parameter/return
-          // value from a typed infrastructure function, which the
-          // import-based restriction above cannot see.
+          // Blocks any `<receiver>.from(...)` call, which is the entry
+          // point into the Supabase query builder chain - not just the
+          // `.from(...).select(...)` direct-chain shape, which a caller
+          // could dodge by storing the builder in a variable first
+          // (`const q = client.from('tickets'); await q.select()`) and
+          // still reach `.select()`/`.insert()`/etc. with no chain for a
+          // narrower selector to see. `Array`/`Buffer` are excluded so
+          // their own unrelated `.from(...)` static methods keep working;
+          // src/app has no other legitimate use of `.from(...)` today.
+          // Still catches a raw call reached through a client instance app
+          // code only received as an opaque parameter/return value from a
+          // typed infrastructure function, which the import-based
+          // restriction above cannot see.
           selector:
-            "MemberExpression[object.type='CallExpression'][object.callee.type='MemberExpression'][object.callee.property.name='from'][property.name=/^(select|insert|update|delete|upsert)$/]",
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='from']:not([callee.object.name='Array']):not([callee.object.name='Buffer'])",
           message:
-            'App code must not call .from(...).select/insert/update/delete/upsert(...) directly; add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
+            'App code must not call .from(...) directly (the entry point into the Supabase query builder); add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
         },
         {
           selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='rpc']",
