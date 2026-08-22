@@ -42,13 +42,18 @@ authenticated multi-user application として家族・友人等の複数ユー�
 Completed baseline参照）。これはcurrent baselineとして成立している事実で
 あり、将来の専用product Taskで見直せないことを意味しません。
 
-**participation・ticket acquisition・expense・budget**は未実装です。
-event-independent **personal schedule** は persistence / sharing / RLS
-baselineが実装済みです（[Current committed scope](#current-committed-scope)
-参照）。participation / invitation / ticket acquisition / ticket / ticket
-transferのproduct-level semanticsは`product-rules.md`で承認済みですが、
-table naming・永続化shape・relation shapeはそれぞれを扱うbounded product
-Taskの中で確定します。**expense / budget**のsemanticsはまだ未確定です。
+**ticket acquisition・expense・budget**は未実装です。
+event-independent **personal schedule** と occurrence-level
+**participation / invitation** は、いずれも persistence / RLS baseline が
+実装済みです（personal schedule は sharing も含む。詳細は
+[Current committed scope](#current-committed-scope) 参照）。ただし
+participation / invitation について実装済みなのは schema / RLS boundary
+までで、UI journey は未実装です。
+
+ticket acquisition / ticket / ticket transferのproduct-level semanticsは
+`product-rules.md`で承認済みですが、table naming・永続化shape・relation
+shapeはそれぞれを扱うbounded product Taskの中で確定します。
+**expense / budget**のsemanticsはまだ未確定です。
 
 ## Shared catalog と personal concepts の関係
 
@@ -135,11 +140,13 @@ semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) �
 uncommitted）です。current committed scopeには含みません。
 
 - event deletion semantics
-- 各domain concept（participation / invitation / ticket acquisition /
-  ticket / ticket transfer / classification / venue / Administrator権限
-  機構）のexact persistence・mechanism詳細。event-independent personal
-  scheduleはpersistence / sharing / RLS baselineが実装済みのため対象外
-  です（[Current committed scope](#current-committed-scope)参照）
+- 各domain concept（ticket acquisition / ticket / ticket transfer /
+  classification / venue / Administrator権限機構）のexact persistence・
+  mechanism詳細。event-independent personal schedule と occurrence-level
+  participation / invitation は persistence / RLS baseline が実装済みの
+  ため対象外です（[Current committed scope](#current-committed-scope)
+  参照）。participation / invitation について残っているのは UI journey
+  であって persistence shape ではありません
   （未決定項目の一覧は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
