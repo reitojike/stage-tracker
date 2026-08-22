@@ -7,6 +7,7 @@ import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { RawFormValues } from '@/domain/eventCatalogWrite.ts';
 import { updateOccurrenceAction } from '../_actions/eventWrite.ts';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
+import { WriteNotice } from './WriteNotice.tsx';
 import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceUpdateFormProps {
@@ -47,13 +48,7 @@ export function OccurrenceUpdateForm({
         />
       ) : null}
 
-      {/* role="status" rather than an alert: a completed save is
-          confirmation, not something demanding attention. */}
-      {state.notice ? (
-        <p role="status" className={styles.notice}>
-          {state.notice}
-        </p>
-      ) : null}
+      <WriteNotice notice={state.notice} attempt={state.attempt} />
 
       <fieldset key={state.attempt} className={styles.group}>
         <legend className={styles.groupLegend}>{label}</legend>
