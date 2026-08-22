@@ -25,7 +25,8 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 - designated catalog creator限定のminimal Event catalog write UI
   （Event作成は `public.catalog_creators` membershipに限定・作成者が
   owner・Event更新と公演回のadd/updateはowner限定・deletion/cancellationは
-  対象外・開演/終演の前後関係はwrite pathで検証）
+  対象外・開演/終演の前後関係はwrite pathで検証。`event_occurrences` への
+  CHECK制約は未導入で、DB levelの不変条件ではない）
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
@@ -35,8 +36,8 @@ occurrence-level participation / invitation、event-independent personal
 schedule、ticket acquisition / ticket / ticket transfer、calendar上の
 Saturday/Sunday/Japanese holiday presentationのsemanticsも
 product-rules.md / `docs/ux-ui.md` で承認済みですが、対応する
-schema/RLS/UIはまだ実装されていません。こちらは次節のMVP personal planning capabilityの中で実装
-します。
+schema/RLS/UIはまだ実装されていません。こちらは次節のMVP personal
+planning capabilityの中で実装します。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
