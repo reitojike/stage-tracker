@@ -1121,6 +1121,125 @@ try {
     );
   }
 
+  // 24. The "an acquisition with tickets stays secured" invariant (Issue
+  // #32) is a trigger, not a policy or a grant - status is legitimately in
+  // the authenticated UPDATE column grant, because an acquisition without
+  // tickets moves through the lifecycle normally. Dropping the trigger must
+  // let the owner walk a ticket-bearing acquisition back to 'pending',
+  // proving the denial comes from this invariant rather than from the
+  // column grant or an RLS policy.
+  {
+    const { acquisition } = await createSecuredTicket(actorB, actorA);
+    await withBrokenPolicy(
+      'ticket_acquisitions_keep_secured_with_tickets (trigger)',
+      'drop trigger ticket_acquisitions_keep_secured_with_tickets on public.ticket_acquisitions;',
+      `create trigger ticket_acquisitions_keep_secured_with_tickets
+         before update of status on public.ticket_acquisitions
+         for each row
+         when (old.status is distinct from new.status)
+         execute function public.enforce_secured_acquisition_keeps_tickets();`,
+      async () => {
+        const { data, error } = await actorB.client
+          .from('ticket_acquisitions')
+          .update({ status: 'pending' })
+          .eq('id', acquisition.id)
+          .select();
+        assert.equal(
+          error,
+          null,
+          'expected the downgrade to go red (succeed) with the trigger dropped',
+        );
+        assert.equal(data.length, 1);
+        assert.equal(data[0].status, 'pending');
+      },
+    );
+
+    // Put the fixture row back where the invariant expects it, so the
+    // restored trigger is not left guarding an already-violating row.
+    await withPgClient((client) =>
+      client.query(`update public.ticket_acquisitions set status = 'secured' where id = $1`, [
+        acquisition.id,
+      ]),
+    );
+  }
+
+  // 25. The pending-offer projection (Issue #32) is what a transfer
+  // recipient gets instead of row-level SELECT on the ticket. Its WHERE
+  // clause is the whole authorization - it is SECURITY DEFINER, so relaxing
+  // the recipient/status predicate must let a complete outsider read an
+  // offer that was never addressed to them.
+  {
+    const { ticket } = await createSecuredTicket(actorB, actorA);
+    const { error: assignError } = await actorB.client
+      .from('tickets')
+      .update({ assignee_external_name: 'guardrail companion' })
+      .eq('id', ticket.id);
+    if (assignError) {
+      throw new Error(`fixture ticket assignment failed: ${assignError.message}`);
+    }
+
+    // Seeded through the superuser connection: request_ticket_transfer would
+    // require invitation eligibility, which is a different mechanism from
+    // the one under test here.
+    const seeded = await withPgClient((client) =>
+      client.query(
+        `insert into public.ticket_transfers (ticket_id, sender_id, recipient_id)
+         values ($1, $2, $3) returning id`,
+        [ticket.id, actorB.user.id, stranger.user.id],
+      ),
+    );
+    const transferId = seeded.rows[0].id;
+
+    // Baseline: the outsider is not the recipient, so they get nothing.
+    const { data: deniedBefore } = await actorA.client.rpc('pending_ticket_transfer_offer', {
+      p_transfer_id: transferId,
+    });
+    assert.deepEqual(deniedBefore, [], 'expected a non-recipient to get no offer rows');
+
+    await withBrokenPolicy(
+      'pending_ticket_transfer_offer recipient/status predicate',
+      `create or replace function public.pending_ticket_transfer_offer(p_transfer_id uuid)
+       returns table (
+         transfer_id uuid, ticket_id uuid, occurrence_id uuid,
+         seat_label text, queue_number text, medium text
+       )
+       language sql stable security definer set search_path = ''
+       as $fn$
+         select tr.id, t.id, a.occurrence_id, t.seat_label, t.queue_number, t.medium
+         from public.ticket_transfers tr
+         join public.tickets t on t.id = tr.ticket_id
+         join public.ticket_acquisitions a on a.id = t.acquisition_id
+         where tr.id = p_transfer_id;
+       $fn$;`,
+      `create or replace function public.pending_ticket_transfer_offer(p_transfer_id uuid)
+       returns table (
+         transfer_id uuid, ticket_id uuid, occurrence_id uuid,
+         seat_label text, queue_number text, medium text
+       )
+       language sql stable security definer set search_path = ''
+       as $fn$
+         select tr.id, t.id, a.occurrence_id, t.seat_label, t.queue_number, t.medium
+         from public.ticket_transfers tr
+         join public.tickets t on t.id = tr.ticket_id
+         join public.ticket_acquisitions a on a.id = t.acquisition_id
+         where tr.id = p_transfer_id
+           and tr.recipient_id = auth.uid()
+           and tr.status = 'pending';
+       $fn$;`,
+      async () => {
+        const { data, error } = await actorA.client.rpc('pending_ticket_transfer_offer', {
+          p_transfer_id: transferId,
+        });
+        assert.equal(error, null);
+        assert.equal(
+          data.length,
+          1,
+          'expected an unrelated user to go red (see the offer) without the predicate',
+        );
+      },
+    );
+  }
+
   console.log(
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',
   );

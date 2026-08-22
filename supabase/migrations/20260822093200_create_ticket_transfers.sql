@@ -89,12 +89,14 @@ grant select on public.ticket_transfers to authenticated;
 -- policy below: the ticket's current owner, or the owner of the acquisition
 -- the ticket came from.
 --
--- This is SECURITY DEFINER specifically so the lookup does not re-enter
--- tickets' RLS. tickets has a policy that reads ticket_transfers (added
--- below), so a policy on ticket_transfers that read tickets under RLS would
--- form a mutual-recursion cycle between the two. Running as the definer
--- (the table owner, which bypasses RLS) breaks that cycle by construction
--- rather than by relying on Postgres to stop expanding it.
+-- SECURITY DEFINER so the lookup answers from the actual rows rather than
+-- from what the caller's own policies happen to expose. Evaluated under the
+-- caller's RLS, "can I see the provenance of this transfer" would be
+-- decided by whether tickets' SELECT policy already showed them the ticket,
+-- which is the question being asked - the definer context keeps the two
+-- separate. It also keeps this side free of any dependency on tickets'
+-- policy set, so a future permissive policy on tickets that consulted
+-- ticket_transfers could not turn this into a mutual-recursion cycle.
 --
 -- The subject is always the caller. An earlier revision took the user id as
 -- a parameter, which - because this is SECURITY DEFINER and authenticated
@@ -143,31 +145,54 @@ create policy ticket_transfers_select_involved
     or public.can_view_ticket_provenance(ticket_id)
   );
 
--- A pending recipient can read the ticket they are being offered. This is a
--- second permissive SELECT policy on tickets rather than an edit of
--- tickets_select_owner_or_source_acquirer: permissive policies for the same
--- command are OR'd, so adding one here keeps the ticket-side rule in the
--- tickets migration and the transfer-side rule with the transfers it
--- depends on.
+-- A pending recipient needs enough about the offered ticket to decide
+-- whether to accept, and nothing more. There is deliberately NO SELECT
+-- policy on public.tickets for them.
 --
--- This is not a silent widening of ticket privacy: it is scoped to a ticket
--- whose owner has explicitly offered it to this exact user, and it lapses
--- the moment the transfer stops being pending. Accepting a ticket you are
--- structurally unable to look at would make the required acceptance step
--- meaningless.
+-- An earlier revision granted the pending recipient row-level SELECT on the
+-- ticket. That handed them the whole row, including the previous owner's
+-- assignment - assigned_to_user_id, and assignee_external_name, which names
+-- an external companion who never agreed to be disclosed to a prospective
+-- recipient. accept_ticket_transfer clears both, but only on acceptance:
+-- an offer that is never accepted (or is cancelled) leaves the disclosure
+-- already made. RLS grants or denies whole rows and cannot express "these
+-- columns but not those" per policy, so the boundary is a projection
+-- instead of a policy (PO decision, Issue #32).
 --
--- No recursion: ticket_transfers' own policy above resolves the ticket side
--- through the SECURITY DEFINER function, which does not re-enter RLS.
-create policy tickets_select_pending_transfer_recipient
-  on public.tickets
-  for select
-  to authenticated
-  using (
-    exists (
-      select 1
-      from public.ticket_transfers tr
-      where tr.ticket_id = tickets.id
-        and tr.recipient_id = auth.uid()
-        and tr.status = 'pending'
-    )
-  );
+-- What the recipient gets is exactly the accept/decline decision surface:
+-- which occurrence, and the ticket's own seat / queue / medium. Owner,
+-- acquisition and assignment are all withheld.
+--
+-- SECURITY DEFINER so the projection can read a ticket the caller has no
+-- policy for; the WHERE clause is what authorizes, and it pins the caller
+-- to their own pending offers. It cannot be used to probe arbitrary
+-- tickets: the argument is a transfer id, and rows are returned only when
+-- that transfer is pending and addressed to auth.uid().
+create function public.pending_ticket_transfer_offer(p_transfer_id uuid)
+returns table (
+  transfer_id uuid,
+  ticket_id uuid,
+  occurrence_id uuid,
+  seat_label text,
+  queue_number text,
+  medium text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select tr.id, t.id, a.occurrence_id, t.seat_label, t.queue_number, t.medium
+  from public.ticket_transfers tr
+  join public.tickets t on t.id = tr.ticket_id
+  join public.ticket_acquisitions a on a.id = t.acquisition_id
+  where tr.id = p_transfer_id
+    and tr.recipient_id = auth.uid()
+    and tr.status = 'pending';
+$$;
+
+-- Postgres grants EXECUTE to PUBLIC by default on function creation; every
+-- role (including anon) is implicitly a member of PUBLIC, so this must be
+-- revoked explicitly before granting only to authenticated.
+revoke execute on function public.pending_ticket_transfer_offer(uuid) from public;
+grant execute on function public.pending_ticket_transfer_offer(uuid) to authenticated;

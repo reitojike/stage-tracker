@@ -74,6 +74,53 @@ create trigger tickets_set_updated_at
   for each row
   execute function public.set_tickets_updated_at();
 
+-- "ticket は secured な acquisition の結果として表現される" has to keep
+-- holding after the ticket exists, not only at the moment it is created.
+-- tickets_insert_under_own_secured_acquisition gates creation, but nothing
+-- stopped the owner from afterwards moving the acquisition back to
+-- 'pending' / 'unsuccessful' - leaving tickets hanging off an acquisition
+-- that, by its own status, never produced any. `status` is in the
+-- authenticated UPDATE column grant (an acquisition legitimately moves
+-- pending -> secured -> unsuccessful while it has no tickets), so a grant
+-- cannot express this; it depends on whether child rows exist.
+--
+-- This lives in the tickets migration rather than the acquisitions one
+-- purely because it reads public.tickets, which does not exist yet at that
+-- point.
+--
+-- Deliberately minimal: it constrains exactly one transition and invents no
+-- lifecycle. It does not stop pending -> secured, does not stop edits to
+-- memo, and says nothing about deletion (out of scope for this slice). The
+-- escape hatch is to remove the tickets first, which is a real decision
+-- rather than a silent status flip.
+--
+-- A trigger, not an RLS policy: this is a data invariant that must hold for
+-- every writer including service_role, which bypasses RLS.
+create function public.enforce_secured_acquisition_keeps_tickets() returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.status is distinct from 'secured'
+    and exists (select 1 from public.tickets t where t.acquisition_id = new.id)
+  then
+    raise exception
+      'acquisition % has tickets and cannot leave secured status', new.id
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+-- Only fires when status actually changes, so unrelated edits (memo) on an
+-- acquisition that already has tickets stay cheap and unaffected.
+create trigger ticket_acquisitions_keep_secured_with_tickets
+  before update of status on public.ticket_acquisitions
+  for each row
+  when (old.status is distinct from new.status)
+  execute function public.enforce_secured_acquisition_keeps_tickets();
+
 alter table public.tickets enable row level security;
 
 -- Column-level grants are the system-managed-field boundary, and here they

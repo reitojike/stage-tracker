@@ -8,8 +8,10 @@ import {
   type TestActor,
 } from './support/testActors.ts';
 import {
+  createAcquisition,
   createOccurrence,
   createSecuredTicket,
+  createTicket,
   makeTransferEligible,
   readAcquisitionAsAdmin,
   readTicketAsAdmin,
@@ -94,12 +96,112 @@ void test('an uninvolved user cannot read a transfer', async () => {
   assert.deepEqual(data, []);
 });
 
-void test('a pending recipient can read the ticket being offered to them', async () => {
-  const { ticket } = await offerTicket({ seatLabel: 'S席 1列 1番' });
-  const { data, error } = await recipient.client.from('tickets').select().eq('id', ticket.id);
+void test('a pending recipient can see the offer’s decision surface', async () => {
+  const { occurrence, ticket, transfer } = await offerTicket({
+    seatLabel: 'S席 1列 1番',
+    queueNumber: '12',
+    medium: 'electronic',
+  });
+
+  const { data, error } = await recipient.client.rpc('pending_ticket_transfer_offer', {
+    p_transfer_id: transfer.id,
+  });
   assert.equal(error, null);
   assert.equal(data.length, 1);
-  assert.equal(data[0]?.seat_label, 'S席 1列 1番');
+  assert.deepEqual(data[0], {
+    transfer_id: transfer.id,
+    ticket_id: ticket.id,
+    occurrence_id: occurrence.id,
+    seat_label: 'S席 1列 1番',
+    queue_number: '12',
+    medium: 'electronic',
+  });
+});
+
+// The whole reason the offer is a projection rather than a SELECT policy:
+// the previous owner's assignment - and especially an external companion's
+// name - must not reach a prospective recipient. accept_ticket_transfer
+// clears it, but an offer that is never accepted would already have leaked.
+void test('a pending recipient is not shown the previous owner’s assignment', async () => {
+  const { ticket, transfer } = await offerTicket({
+    assigneeExternalName: '同行者A',
+    seatLabel: 'A-1',
+  });
+
+  const { data, error } = await recipient.client.rpc('pending_ticket_transfer_offer', {
+    p_transfer_id: transfer.id,
+  });
+  assert.equal(error, null);
+  assert.equal(data.length, 1);
+  const [offer] = data;
+  assert.ok(offer);
+  assert.equal(offer.seat_label, 'A-1', 'the decision surface itself is still returned');
+
+  // Asserting on the returned column set, not on a typed property: the
+  // point is that these fields are absent from the projection entirely.
+  const offerFields = Object.keys(offer);
+  assert.ok(
+    !offerFields.includes('assignee_external_name'),
+    `the offer must not carry the external companion name (got ${offerFields.join(', ')})`,
+  );
+  assert.ok(
+    !offerFields.includes('assigned_to_user_id'),
+    `the offer must not carry the registered assignee either (got ${offerFields.join(', ')})`,
+  );
+
+  // Belt and braces: the value really is still on the row at this point, so
+  // the assertions above are about what the offer exposes - not about the
+  // fixture having failed to set it.
+  const stored = await readTicketAsAdmin(ticket.id);
+  assert.equal(stored.assignee_external_name, '同行者A');
+});
+
+void test('a pending recipient still cannot read the ticket row itself', async () => {
+  const { ticket } = await offerTicket({ assigneeExternalName: '同行者B' });
+  const { data, error } = await recipient.client.from('tickets').select().eq('id', ticket.id);
+  assert.equal(error, null);
+  assert.deepEqual(data, [], 'the offer projection is the only ticket surface a recipient gets');
+});
+
+// A registered assignee is withheld for the same reason as the external
+// name, and this also pins that assignment confers no visibility of its own.
+void test('a pending recipient is not shown a registered assignee', async () => {
+  const { occurrence } = await createOccurrence(catalogOwner);
+  const acquisition = await createAcquisition(acquirer, occurrence.id, { status: 'secured' });
+  const ticket = await createTicket(acquirer, acquisition.id, {
+    assignedToUserId: outsider.user.id,
+  });
+  await makeTransferEligible(acquirer, occurrence.id, recipient);
+  const transfer = await requestTransfer(acquirer, ticket.id, recipient.user.id);
+
+  const { data, error } = await recipient.client.rpc('pending_ticket_transfer_offer', {
+    p_transfer_id: transfer.id,
+  });
+  assert.equal(error, null);
+  assert.equal(data.length, 1);
+  const [offer] = data;
+  assert.ok(offer);
+  assert.ok(!Object.keys(offer).includes('assigned_to_user_id'));
+});
+
+void test('the offer projection is scoped to the caller’s own pending offers', async () => {
+  const { transfer } = await offerTicket();
+
+  // The sender is a party to this transfer, but the offer surface belongs to
+  // the recipient - it is not a general transfer read.
+  const { data: senderView, error: senderError } = await acquirer.client.rpc(
+    'pending_ticket_transfer_offer',
+    { p_transfer_id: transfer.id },
+  );
+  assert.equal(senderError, null);
+  assert.deepEqual(senderView, []);
+
+  const { data: outsiderView, error: outsiderError } = await outsider.client.rpc(
+    'pending_ticket_transfer_offer',
+    { p_transfer_id: transfer.id },
+  );
+  assert.equal(outsiderError, null);
+  assert.deepEqual(outsiderView, []);
 });
 
 void test('a pending recipient still cannot edit the ticket before accepting', async () => {
@@ -239,18 +341,17 @@ void test('the sender can cancel a pending transfer, leaving ownership untouched
 });
 
 void test('a cancelled offer stops exposing the ticket to the would-be recipient', async () => {
-  const { ticket, transfer } = await offerTicket();
+  const { transfer } = await offerTicket();
   const { error } = await acquirer.client.rpc('cancel_ticket_transfer', {
     p_transfer_id: transfer.id,
   });
   assert.equal(error, null);
 
-  const { data, error: readError } = await recipient.client
-    .from('tickets')
-    .select()
-    .eq('id', ticket.id);
+  const { data, error: readError } = await recipient.client.rpc('pending_ticket_transfer_offer', {
+    p_transfer_id: transfer.id,
+  });
   assert.equal(readError, null);
-  assert.deepEqual(data, []);
+  assert.deepEqual(data, [], 'the offer surface lapses once the transfer stops being pending');
 });
 
 void test('a cancelled transfer can no longer be accepted', async () => {

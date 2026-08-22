@@ -464,6 +464,17 @@ export type Database = {
         Args: { p_entry_id: string }
         Returns: boolean
       }
+      pending_ticket_transfer_offer: {
+        Args: { p_transfer_id: string }
+        Returns: {
+          medium: string
+          occurrence_id: string
+          queue_number: string
+          seat_label: string
+          ticket_id: string
+          transfer_id: string
+        }[]
+      }
       request_ticket_transfer: {
         Args: { p_recipient_id: string; p_ticket_id: string }
         Returns: {

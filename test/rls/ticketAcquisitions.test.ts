@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import {
+  createAdminClient,
   createAnonymousClient,
   createTestActor,
   deleteTestActorsSequentially,
@@ -9,6 +10,7 @@ import {
 import {
   createAcquisition,
   createOccurrence,
+  createTicket,
   readAcquisitionAsAdmin,
 } from './support/ticketFixtures.ts';
 
@@ -301,6 +303,80 @@ void test('updated_at is DB-managed and not settable by a normal client', async 
     .update({ updated_at: new Date(0).toISOString() })
     .eq('id', acquisition.id);
   assert.ok(setError, 'expected a permission error for setting updated_at directly');
+});
+
+// --- Invariant: an acquisition with tickets stays secured ---
+
+// "ticket は secured な acquisition の結果として表現される" has to survive
+// the ticket's creation, not just gate it. Without the DB invariant the
+// owner could walk the acquisition back afterwards and leave tickets under
+// an acquisition that never produced any.
+
+void test('an acquisition with no tickets moves freely through the lifecycle', async () => {
+  const { occurrence } = await createOccurrence(catalogOwner);
+  const acquisition = await createAcquisition(acquirer, occurrence.id);
+
+  for (const status of ['secured', 'pending', 'unsuccessful', 'secured'] as const) {
+    const { error } = await acquirer.client
+      .from('ticket_acquisitions')
+      .update({ status })
+      .eq('id', acquisition.id);
+    assert.equal(error, null, `expected an empty acquisition to accept ${status}`);
+  }
+});
+
+void test('an acquisition that has tickets cannot leave secured', async () => {
+  const { occurrence } = await createOccurrence(catalogOwner);
+  const acquisition = await createAcquisition(acquirer, occurrence.id, { status: 'secured' });
+  await createTicket(acquirer, acquisition.id);
+
+  for (const status of ['pending', 'unsuccessful'] as const) {
+    const { error } = await acquirer.client
+      .from('ticket_acquisitions')
+      .update({ status })
+      .eq('id', acquisition.id);
+    assert.ok(error, `expected ${status} to be rejected while tickets exist`);
+    assert.match(error.message, /cannot leave secured status/);
+  }
+
+  const stored = await readAcquisitionAsAdmin(acquisition.id);
+  assert.equal(stored.status, 'secured', 'the rejected updates must not have taken effect');
+});
+
+// The invariant is about status, not about the row being frozen: an
+// acquisition with tickets is still an editable personal record.
+void test('an acquisition that has tickets can still be edited otherwise', async () => {
+  const { occurrence } = await createOccurrence(catalogOwner);
+  const acquisition = await createAcquisition(acquirer, occurrence.id, { status: 'secured' });
+  await createTicket(acquirer, acquisition.id);
+
+  const { error } = await acquirer.client
+    .from('ticket_acquisitions')
+    .update({ memo: '座席は当日引換' })
+    .eq('id', acquisition.id);
+  assert.equal(error, null, 'expected a memo edit to be unaffected by the status invariant');
+
+  // Re-asserting the current status is not a transition, so it stays allowed.
+  const { error: sameStatusError } = await acquirer.client
+    .from('ticket_acquisitions')
+    .update({ status: 'secured' })
+    .eq('id', acquisition.id);
+  assert.equal(sameStatusError, null);
+});
+
+// A data invariant, not an RLS rule: it has to hold for every writer,
+// including the service_role path that bypasses RLS entirely.
+void test('the secured invariant holds even for service_role', async () => {
+  const { occurrence } = await createOccurrence(catalogOwner);
+  const acquisition = await createAcquisition(acquirer, occurrence.id, { status: 'secured' });
+  await createTicket(acquirer, acquisition.id);
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('ticket_acquisitions')
+    .update({ status: 'pending' })
+    .eq('id', acquisition.id);
+  assert.ok(error, 'expected the trigger to reject a service_role downgrade too');
 });
 
 // --- Negative: DELETE unsupported ---
