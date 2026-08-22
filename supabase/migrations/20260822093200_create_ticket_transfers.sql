@@ -71,10 +71,12 @@ create trigger ticket_transfers_set_updated_at
 alter table public.ticket_transfers enable row level security;
 
 -- The blanket revoke first makes the column-level boundary below exact
--- rather than merely additive: whatever a future Supabase default-privilege
--- change might hand to PUBLIC/anon/authenticated on table creation, the
--- privileges that survive this migration are only the ones granted
--- explicitly underneath it. Matches the convention established by
+-- rather than merely additive. This is load-bearing today, not a guard
+-- against some future default-privilege change: on this stack a new public
+-- table is created with anon=Dxtm/authenticated=Dxtm, so without this line
+-- both roles would keep TRUNCATE - which bypasses RLS entirely - along with
+-- REFERENCES/TRIGGER/MAINTAIN. What survives this migration is only what is
+-- granted explicitly underneath it. Matches the convention established by
 -- 20260822010000_create_occurrence_participations.sql. anon is named here
 -- so it is visibly closed, not closed by omission.
 revoke all on public.ticket_transfers from public, anon, authenticated;
