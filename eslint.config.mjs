@@ -5,6 +5,89 @@ import {
   nextSupabaseQualityProfile,
 } from './.ai-dev-foundation/quality/eslint.config.mjs';
 
+/**
+ * Deliberately a dedicated rule (its own plugin/rule name), not another
+ * `no-restricted-syntax` entry for src/app: ESLint flat config replaces a
+ * rule's option array wholesale when a later config for the same files sets
+ * the same rule key, rather than merging it. An earlier revision put these
+ * checks in `no-restricted-syntax` for `files: ['src/app/**']`, which
+ * silently discarded nextSupabaseQualityProfile()'s own `no-restricted-
+ * syntax` entries (the TSAsExpression/TSTypeAssertion type-assertion ban)
+ * for every file under src/app - weakening the blocking quality profile
+ * exactly where the ban still needs to apply. A distinct rule name cannot
+ * collide with (or silently replace) the profile's, however it changes.
+ *
+ * Checks (Issue #33 - src/app must go through a typed feature-level module
+ * in src/infrastructure/supabase/, never the generated row/RPC shape or the
+ * Supabase SDK directly):
+ *   - dynamic `import(...)` of the Supabase SDK or generated Database types
+ *     (a static import is already caught by the no-restricted-imports
+ *     architectureImportBoundary below; that rule does not inspect dynamic
+ *     import expressions at all)
+ *   - any `<receiver>.from(...)` call - the entry point into the Supabase
+ *     query builder chain, not just a direct `.from(...).select(...)`
+ *     chain, which a caller could dodge by storing the builder in a
+ *     variable first (`const q = client.from('tickets'); await
+ *     q.select()`). `Array`/`Buffer` are exempted so their own unrelated
+ *     `.from(...)` static methods keep working; src/app has no other
+ *     legitimate use of `.from(...)` today. Still catches a raw call
+ *     reached through a client instance app code only received as an
+ *     opaque parameter/return value from a typed infrastructure function,
+ *     which the import-based restriction cannot see.
+ *   - any `.rpc(...)` call
+ */
+const noAppSupabaseAccess = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'Disallow ad-hoc Supabase access from app code (Issue #33).' },
+    schema: [],
+    messages: {
+      dynamicImportSdk:
+        'App code must not dynamically import the Supabase SDK directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
+      dynamicImportTypes:
+        'App code must not dynamically import the generated Database types directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
+      rawFrom:
+        'App code must not call .from(...) directly (the entry point into the Supabase query builder); add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
+      rawRpc:
+        'App code must not call .rpc(...) directly; add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
+    },
+  },
+  create(context) {
+    return {
+      ImportExpression(node) {
+        if (node.source.type !== 'Literal' || typeof node.source.value !== 'string') {
+          return;
+        }
+        const value = node.source.value;
+        if (value === '@supabase/supabase-js' || value === '@supabase/ssr') {
+          context.report({ node, messageId: 'dynamicImportSdk' });
+        } else if (/database\.types(\.ts)?$/.test(value)) {
+          context.report({ node, messageId: 'dynamicImportTypes' });
+        }
+      },
+      CallExpression(node) {
+        if (node.callee.type !== 'MemberExpression' || node.callee.property.type !== 'Identifier') {
+          return;
+        }
+        const name = node.callee.property.name;
+        if (name === 'rpc') {
+          context.report({ node, messageId: 'rawRpc' });
+          return;
+        }
+        if (name === 'from') {
+          const receiver = node.callee.object;
+          const isExemptStatic =
+            receiver.type === 'Identifier' &&
+            (receiver.name === 'Array' || receiver.name === 'Buffer');
+          if (!isExemptStatic) {
+            context.report({ node, messageId: 'rawFrom' });
+          }
+        }
+      },
+    };
+  },
+};
+
 export default [
   {
     ignores: [
@@ -68,48 +151,9 @@ export default [
   }),
   {
     files: ['src/app/**/*.{ts,tsx}'],
+    plugins: { app: { rules: { 'no-supabase-access': noAppSupabaseAccess } } },
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          // A static `import(...)`/`require(...)` of the SDK or generated
-          // types would bypass the import-boundary rule above, since that
-          // rule (no-restricted-imports) only inspects declaration-form
-          // imports, not dynamic import expressions.
-          selector: 'ImportExpression[source.value=/^(@supabase\\/supabase-js|@supabase\\/ssr)$/]',
-          message:
-            'App code must not dynamically import the Supabase SDK directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
-        },
-        {
-          selector: 'ImportExpression[source.value=/database\\.types(\\.ts)?$/]',
-          message:
-            'App code must not dynamically import the generated Database types directly; call a typed feature-level module in src/infrastructure/supabase/ instead.',
-        },
-        {
-          // Blocks any `<receiver>.from(...)` call, which is the entry
-          // point into the Supabase query builder chain - not just the
-          // `.from(...).select(...)` direct-chain shape, which a caller
-          // could dodge by storing the builder in a variable first
-          // (`const q = client.from('tickets'); await q.select()`) and
-          // still reach `.select()`/`.insert()`/etc. with no chain for a
-          // narrower selector to see. `Array`/`Buffer` are excluded so
-          // their own unrelated `.from(...)` static methods keep working;
-          // src/app has no other legitimate use of `.from(...)` today.
-          // Still catches a raw call reached through a client instance app
-          // code only received as an opaque parameter/return value from a
-          // typed infrastructure function, which the import-based
-          // restriction above cannot see.
-          selector:
-            "CallExpression[callee.type='MemberExpression'][callee.property.name='from']:not([callee.object.name='Array']):not([callee.object.name='Buffer'])",
-          message:
-            'App code must not call .from(...) directly (the entry point into the Supabase query builder); add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
-        },
-        {
-          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='rpc']",
-          message:
-            'App code must not call .rpc(...) directly; add or use a typed feature-level function in src/infrastructure/supabase/ instead.',
-        },
-      ],
+      'app/no-supabase-access': 'error',
     },
   },
   ...storybook.configs['flat/recommended'],
