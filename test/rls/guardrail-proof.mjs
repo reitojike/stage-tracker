@@ -489,10 +489,10 @@ try {
       // bypassing) connection instead, since actorB's own client can never
       // read it back.
       const spoofedRow = await withPgClient((client) =>
-        client.query(`select 1 from public.personal_schedule_entries where owner_id = $1 and memo = $2`, [
-          actorA.user.id,
-          marker,
-        ]),
+        client.query(
+          `select 1 from public.personal_schedule_entries where owner_id = $1 and memo = $2`,
+          [actorA.user.id, marker],
+        ),
       );
       assert.equal(
         spoofedRow.rowCount,
