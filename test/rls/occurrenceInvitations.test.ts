@@ -13,19 +13,20 @@ import {
   createOccurrenceWithAttendee,
   declineInvitation,
   declineInvitationOrThrow,
+  invitationReceived,
+  invitationsReceived,
   inviteToOccurrence,
   inviteToOccurrenceOrThrow,
   readInvitation,
   readOwnParticipation,
   setParticipation,
-  type InvitationRow,
 } from './support/participationFixtures.ts';
 
-// Real local Supabase/Postgres tests for public.occurrence_invitations and
-// public.invite_to_occurrence (Issue #30). See test/rls/events.test.ts's
-// header comment for the anon/service_role/authenticated client conventions,
-// and for why a denied UPDATE surfaces as an empty result set rather than an
-// error.
+// Real local Supabase/Postgres tests for public.occurrence_invitations,
+// public.invite_to_occurrence and public.decline_occurrence_invitation
+// (Issue #30). See test/rls/events.test.ts's header comment for the
+// anon/service_role/authenticated client conventions, and for why a denied
+// UPDATE surfaces as an empty result set rather than an error.
 //
 // The three-branch invitation semantics in product-rules.md are what most of
 // this file exists to pin down:
@@ -34,10 +35,16 @@ import {
 //   invitee is `considering`     -> invitation, participation untouched
 //   invitee is `attending`       -> no invitation at all, `attending` intact
 //
-// Every assertion about the invitee's participation reads it back through
-// the invitee's own client, never service_role: those rows are private by
-// default, and reading them any other way would not be evidence about what
-// a real client can observe.
+// The second thing it pins down is that the *inviter cannot tell which of
+// those three happened*. Which branch runs is decided entirely by the
+// invitee's participation, and participation is private by default, so
+// invite_to_occurrence returns void in every branch and only the invitee can
+// read an invitation back. See the "Opacity" section below.
+//
+// Every assertion about the invitee's participation or invitations reads it
+// back through the invitee's own client, never service_role: those rows are
+// private, and reading them any other way would not be evidence about what a
+// real client can observe.
 
 const PASSWORD = 'Str0ng-Test-Passw0rd!';
 
@@ -81,21 +88,20 @@ async function invitableOccurrence(): Promise<string> {
   return occurrenceId;
 }
 
-async function invitationsFrom(actor: TestActor, occurrence: string): Promise<InvitationRow[]> {
-  const { data, error } = await actor.client
-    .from('occurrence_invitations')
-    .select()
-    .eq('occurrence_id', occurrence);
-  assert.equal(error, null);
-  return data;
+/** The invitation the invitee received, failing the test if there is none. */
+async function requireInvitation(occurrence: string) {
+  const invitation = await invitationReceived(invitee, occurrence);
+  assert.ok(invitation, 'expected the invitee to have received an invitation');
+  return invitation;
 }
 
 // --- Branch 1: invitee has no participation row ---
 
 void test('inviting a user with no participation creates the invitation and a considering participation', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
+  const invitation = await requireInvitation(occurrence);
   assert.equal(invitation.occurrence_id, occurrence);
   assert.equal(invitation.inviter_id, inviter.user.id);
   assert.equal(invitation.invitee_id, invitee.user.id);
@@ -132,6 +138,9 @@ void test('inviting a considering user creates the invitation and leaves the par
 
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
+  const invitation = await requireInvitation(occurrence);
+  assert.equal(invitation.inviter_id, inviter.user.id);
+
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'considering');
   assert.equal(participation.id, before.id, 'the existing row must be kept, not replaced');
@@ -146,18 +155,104 @@ void test('an already-attending user is out of scope for invite: no invitation r
   const occurrence = await invitableOccurrence();
   const before = await setParticipation(invitee, occurrence, 'attending');
 
+  // No error: the caller is told nothing, because "which branch ran" is the
+  // invitee's private participation state. What must still hold is that
+  // nothing was written.
   const { error } = await inviteToOccurrence(inviter, occurrence, invitee.user.id);
-  assert.ok(error, 'expected inviting an already-attending user to be rejected');
+  assert.equal(error, null);
 
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'attending', 'attending must not be demoted');
   assert.equal(participation.updated_at, before.updated_at, 'the row must not be rewritten');
 
   assert.deepEqual(
-    await invitationsFrom(inviter, occurrence),
+    await invitationsReceived(invitee, occurrence),
     [],
-    'the rejected call must leave no invitation behind',
+    'no invitation row may be created for an already-attending invitee',
   );
+});
+
+// --- Opacity: the branch taken must not be observable by the inviter ---
+//
+// Which of the three branches runs is decided by the invitee's participation
+// status, and product-rules.md makes participation private by default
+// (`private` = 本人のみ). An inviter who could tell "already attending" apart
+// from the other two branches would have a one-bit oracle over any user id
+// they knew, for any occurrence they attend - which is exactly the privacy
+// boundary RLS otherwise enforces. These tests are the regression guard for
+// that (Issue #30 PO decision).
+
+void test('all three invitee branches produce an identical RPC result', async () => {
+  const noRow = await invitableOccurrence();
+
+  const considering = await invitableOccurrence();
+  await setParticipation(invitee, considering, 'considering');
+
+  const attending = await invitableOccurrence();
+  await setParticipation(invitee, attending, 'attending');
+
+  const results = [];
+  for (const occurrence of [noRow, considering, attending]) {
+    const result = await inviter.client.rpc('invite_to_occurrence', {
+      p_occurrence_id: occurrence,
+      p_invitee_id: invitee.user.id,
+    });
+    results.push({ data: result.data, error: result.error, status: result.status });
+  }
+
+  const [first] = results;
+  for (const result of results) {
+    assert.deepEqual(
+      result,
+      first,
+      'every branch must answer identically, or the branch taken is observable',
+    );
+  }
+  assert.equal(first?.error, null);
+});
+
+// The response being identical is only half of it: the already-attending
+// branch is also the only one that writes no invitation row, so an inviter
+// who could list their own invitations would recover the same bit from the
+// row's absence. That is why SELECT belongs to the invitee alone.
+void test('the inviter cannot read back an invitation they created', async () => {
+  const occurrence = await invitableOccurrence();
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+
+  // The row really does exist - the invitee can see it.
+  await requireInvitation(occurrence);
+
+  const { data, error } = await inviter.client
+    .from('occurrence_invitations')
+    .select()
+    .eq('occurrence_id', occurrence);
+  assert.equal(error, null);
+  assert.deepEqual(data, [], 'an inviter must not be able to observe their own invitation rows');
+});
+
+// The two halves combined, stated as the property that actually matters: an
+// attending invitee and a considering one must look the same from outside.
+void test('an inviter cannot distinguish an attending invitee from a considering one', async () => {
+  const considering = await invitableOccurrence();
+  await setParticipation(invitee, considering, 'considering');
+  const attending = await invitableOccurrence();
+  await setParticipation(invitee, attending, 'attending');
+
+  async function observableOutcome(occurrence: string) {
+    const { error } = await inviteToOccurrence(inviter, occurrence, invitee.user.id);
+    const { data: visibleInvitations } = await inviter.client
+      .from('occurrence_invitations')
+      .select()
+      .eq('occurrence_id', occurrence);
+    const { data: visibleParticipations } = await inviter.client
+      .from('occurrence_participations')
+      .select()
+      .eq('occurrence_id', occurrence)
+      .eq('user_id', invitee.user.id);
+    return { error, visibleInvitations, visibleParticipations };
+  }
+
+  assert.deepEqual(await observableOutcome(considering), await observableOutcome(attending));
 });
 
 // --- Inviter eligibility ---
@@ -168,7 +263,7 @@ void test('a considering user cannot invite', async () => {
 
   const { error } = await inviteToOccurrence(inviter, occurrence.id, invitee.user.id);
   assert.ok(error, 'expected considering to be insufficient for invite eligibility');
-  assert.deepEqual(await invitationsFrom(inviter, occurrence.id), []);
+  assert.deepEqual(await invitationsReceived(invitee, occurrence.id), []);
   assert.equal(await readOwnParticipation(invitee, occurrence.id), null);
 });
 
@@ -177,7 +272,7 @@ void test('a user with no participation cannot invite', async () => {
 
   const { error } = await inviteToOccurrence(inviter, occurrence.id, invitee.user.id);
   assert.ok(error, 'expected a non-participant to be ineligible to invite');
-  assert.deepEqual(await invitationsFrom(inviter, occurrence.id), []);
+  assert.deepEqual(await invitationsReceived(invitee, occurrence.id), []);
 });
 
 // product-rules.md is explicit that owning the event is an
@@ -188,7 +283,7 @@ void test('the parent event owner cannot invite without attending', async () => 
 
   const { error } = await inviteToOccurrence(catalogOwner, occurrence.id, invitee.user.id);
   assert.ok(error, 'expected event ownership alone to be insufficient for invite eligibility');
-  assert.deepEqual(await invitationsFrom(catalogOwner, occurrence.id), []);
+  assert.deepEqual(await invitationsReceived(invitee, occurrence.id), []);
   assert.equal(await readOwnParticipation(invitee, occurrence.id), null);
 });
 
@@ -199,8 +294,10 @@ void test('the parent event owner can invite once they are attending', async () 
   const { occurrence } = await createEventWithOccurrence(catalogOwner);
   await setParticipation(catalogOwner, occurrence.id, 'attending');
 
-  const invitation = await inviteToOccurrenceOrThrow(catalogOwner, occurrence.id, invitee.user.id);
-  assert.equal(invitation.inviter_id, catalogOwner.user.id);
+  await inviteToOccurrenceOrThrow(catalogOwner, occurrence.id, invitee.user.id);
+
+  const invitation = await invitationReceived(invitee, occurrence.id);
+  assert.equal(invitation?.inviter_id, catalogOwner.user.id);
 });
 
 void test('a user cannot invite themselves', async () => {
@@ -252,16 +349,19 @@ void test('an inviter cannot demote the invitee’s attending back to considerin
 // that no client can write the column any other way - which is what keeps
 // un-declining out of the schema while product-rules.md is silent on it.
 
-void test('the invitee can decline, and the inviter can see it', async () => {
+void test('the invitee can decline their own invitation', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const declined = await declineInvitationOrThrow(invitee, invitation.id);
   assert.equal(declined.id, invitation.id);
   assert.ok(declined.declined_at);
 
-  const [seenByInviter] = await invitationsFrom(inviter, occurrence);
-  assert.ok(seenByInviter?.declined_at, 'the inviter must be able to observe the decline');
+  assert.ok(
+    (await invitationReceived(invitee, occurrence))?.declined_at,
+    'the decline must be persisted on the invitation',
+  );
 });
 
 // Declining is expressed entirely on the invitation. product-rules.md rules
@@ -269,7 +369,8 @@ void test('the invitee can decline, and the inviter can see it', async () => {
 // the participation side is genuinely left alone rather than mirrored.
 void test('declining does not write anything to the invitee’s participation', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
   const before = await readOwnParticipation(invitee, occurrence);
 
   await declineInvitationOrThrow(invitee, invitation.id);
@@ -281,17 +382,19 @@ void test('declining does not write anything to the invitee’s participation', 
 
 void test('the inviter cannot decline on the invitee’s behalf', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const { error } = await declineInvitation(inviter, invitation.id);
   assert.ok(error, 'expected declining an invitation addressed to someone else to fail');
 
-  assert.equal((await readInvitation(inviter, invitation.id))?.declined_at, null);
+  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
 });
 
 void test('an unrelated user cannot decline someone else’s invitation', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const { error } = await declineInvitation(other, invitation.id);
   assert.ok(error, 'expected a third party decline to fail');
@@ -304,7 +407,8 @@ void test('an unrelated user cannot decline someone else’s invitation', async 
 // all, in either direction.
 void test('declined_at is not writable through the table API', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const { error: stampError } = await invitee.client
     .from('occurrence_invitations')
@@ -331,7 +435,8 @@ void test('declined_at is not writable through the table API', async () => {
 // move the timestamp, or "when they declined" would drift on every retry.
 void test('declining twice is idempotent and does not re-stamp declined_at', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const first = await declineInvitationOrThrow(invitee, invitation.id);
   const second = await declineInvitationOrThrow(invitee, invitation.id);
@@ -341,16 +446,21 @@ void test('declining twice is idempotent and does not re-stamp declined_at', asy
 // Re-inviting after a decline is a product operation nothing has defined.
 // The RPC refuses it rather than answering with a silent no-op or a fresh
 // `considering` row - either of which would settle the undecided semantics
-// by accident. What must hold either way is that the call changes nothing.
+// by accident.
+//
+// This refusal is not a hole in the opacity guarantee above: it fires on the
+// inviter's own prior invitation, before the participation branch runs, so
+// it says nothing about the invitee's current status.
 void test('re-inviting a declined invitee is refused and changes nothing', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
   const declined = await declineInvitationOrThrow(invitee, invitation.id);
 
   const { error } = await inviteToOccurrence(inviter, occurrence, invitee.user.id);
   assert.ok(error, 'expected re-inviting a declined invitee to be refused');
 
-  const rows = await invitationsFrom(inviter, occurrence);
+  const rows = await invitationsReceived(invitee, occurrence);
   assert.equal(rows.length, 1, 'a refused re-invite must not stack a second invitation');
   assert.equal(rows[0]?.declined_at, declined.declined_at, 'the decline must be left as it was');
 });
@@ -360,7 +470,8 @@ void test('re-inviting a declined invitee is refused and changes nothing', async
 // invitation.
 void test('re-inviting a declined invitee does not re-create their participation', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
   await declineInvitationOrThrow(invitee, invitation.id);
 
   await invitee.client
@@ -383,20 +494,26 @@ void test('re-inviting a declined invitee does not re-create their participation
 // it is not blocked by an earlier decline of someone else's invitation.
 void test('a decline does not block a different inviter from inviting', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
   await declineInvitationOrThrow(invitee, invitation.id);
   await setParticipation(other, occurrence, 'attending');
 
-  const second = await inviteToOccurrenceOrThrow(other, occurrence, invitee.user.id);
-  assert.notEqual(second.id, invitation.id);
-  assert.equal(second.declined_at, null);
+  await inviteToOccurrenceOrThrow(other, occurrence, invitee.user.id);
+
+  const rows = await invitationsReceived(invitee, occurrence);
+  assert.equal(rows.length, 2);
+  const fromOther = rows.find((row) => row.inviter_id === other.user.id);
+  assert.ok(fromOther, 'the second attendee’s invitation must exist');
+  assert.equal(fromOther.declined_at, null);
 });
 
 // --- Idempotency ---
 
 void test('re-inviting after the invitee withdrew does not re-create their participation', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   await invitee.client
     .from('occurrence_participations')
@@ -405,8 +522,8 @@ void test('re-inviting after the invitee withdrew does not re-create their parti
     .eq('user_id', invitee.user.id);
   assert.equal(await readOwnParticipation(invitee, occurrence), null);
 
-  const again = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
-  assert.equal(again.id, invitation.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  assert.equal((await requireInvitation(occurrence)).id, invitation.id);
   assert.equal(
     await readOwnParticipation(invitee, occurrence),
     null,
@@ -418,9 +535,15 @@ void test('two different attendees can each invite the same user', async () => {
   const occurrence = await invitableOccurrence();
   await setParticipation(other, occurrence, 'attending');
 
-  const first = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
-  const second = await inviteToOccurrenceOrThrow(other, occurrence, invitee.user.id);
-  assert.notEqual(first.id, second.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(other, occurrence, invitee.user.id);
+
+  const rows = await invitationsReceived(invitee, occurrence);
+  assert.equal(rows.length, 2, 'each inviter gets their own invitation record');
+  assert.deepEqual(
+    rows.map((row) => row.inviter_id).sort(),
+    [inviter.user.id, other.user.id].sort(),
+  );
 
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'considering');
@@ -437,10 +560,8 @@ void test('concurrent identical invites settle on one invitation and one partici
   for (const result of results) {
     assert.equal(result.error, null);
   }
-  const ids = new Set(results.map((result) => result.data?.id));
-  assert.equal(ids.size, 1, 'every concurrent call must resolve to the same invitation');
 
-  assert.equal((await invitationsFrom(inviter, occurrence)).length, 1);
+  assert.equal((await invitationsReceived(invitee, occurrence)).length, 1);
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'considering');
 });
@@ -499,7 +620,8 @@ void test('an invite racing the invitee’s own confirmation ends with attending
 // keeps two concurrent declines from producing two different timestamps.
 void test('concurrent declines settle on a single declined_at', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const results = await Promise.all(
     Array.from({ length: 4 }, () => declineInvitation(invitee, invitation.id)),
@@ -535,7 +657,8 @@ void test('anonymous cannot read invitations', async () => {
 
 void test('anonymous cannot update invitations', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
   const anon = createAnonymousClient();
   const { error } = await anon
     .from('occurrence_invitations')
@@ -546,7 +669,8 @@ void test('anonymous cannot update invitations', async () => {
 
 void test('anonymous cannot execute the decline RPC', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
   const anon = createAnonymousClient();
   const { error } = await anon.rpc('decline_occurrence_invitation', {
     p_invitation_id: invitation.id,
@@ -555,23 +679,25 @@ void test('anonymous cannot execute the decline RPC', async () => {
   assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
 });
 
-// --- Negative: visibility to third parties ---
+// --- Negative: visibility ---
 
 void test('an unrelated authenticated user cannot read someone else’s invitation', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const { data, error } = await other.client
     .from('occurrence_invitations')
     .select()
     .eq('id', invitation.id);
   assert.equal(error, null);
-  assert.deepEqual(data, [], 'invitations are visible only to the inviter and the invitee');
+  assert.deepEqual(data, [], 'an invitation is visible only to its invitee');
 });
 
 void test('the invitee can read the invitation addressed to them', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const { data, error } = await invitee.client
     .from('occurrence_invitations')
@@ -594,12 +720,13 @@ void test('an authenticated client cannot directly INSERT an invitation', async 
     error,
     'expected direct authenticated INSERT into occurrence_invitations to be unsupported',
   );
-  assert.deepEqual(await invitationsFrom(inviter, occurrence), []);
+  assert.deepEqual(await invitationsReceived(invitee, occurrence), []);
 });
 
 void test('an invitation cannot be deleted by either party', async () => {
   const occurrence = await invitableOccurrence();
-  const invitation = await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
 
   const { error: inviterError } = await inviter.client
     .from('occurrence_invitations')
@@ -613,7 +740,7 @@ void test('an invitation cannot be deleted by either party', async () => {
     .eq('id', invitation.id);
   assert.ok(inviteeError, 'expected DELETE to be unsupported for the invitee');
 
-  assert.equal((await invitationsFrom(inviter, occurrence)).length, 1);
+  assert.equal((await invitationsReceived(invitee, occurrence)).length, 1);
 });
 
 // Direct privilege/policy inspection rather than a behavioral probe: this
@@ -623,8 +750,13 @@ void test('an invitation cannot be deleted by either party', async () => {
 // function. Unlike events - where an INSERT policy was deliberately left in
 // place as a second layer after the grant was revoked - there is no policy
 // here to fall back on, so re-adding a grant alone would still not open a
-// direct write path. Connects as the DB superuser since this reads catalog
-// metadata, not RLS-governed application data.
+// direct write path.
+//
+// The SELECT policy's own predicate is asserted too: a future edit that
+// added `inviter_id = auth.uid()` back would reopen the invite side channel
+// while every behavioral test above still passed except one, so it is worth
+// failing loudly and specifically here. Connects as the DB superuser since
+// this reads catalog metadata, not RLS-governed application data.
 void test('occurrence_invitations exposes no write surface at all to authenticated', async () => {
   const status = readLocalSupabaseStatus();
   const client = new pg.Client({ connectionString: status.dbUrl });
@@ -646,8 +778,8 @@ void test('occurrence_invitations exposes no write surface at all to authenticat
       'authenticated must hold no write grant on occurrence_invitations',
     );
 
-    const { rows: policies } = await client.query<{ cmd: string }>(
-      `select distinct cmd
+    const { rows: policies } = await client.query<{ cmd: string; qual: string | null }>(
+      `select cmd, qual
        from pg_policies
        where schemaname = 'public'
          and tablename = 'occurrence_invitations'
@@ -657,6 +789,13 @@ void test('occurrence_invitations exposes no write surface at all to authenticat
       policies.map((policy) => policy.cmd),
       ['SELECT'],
       'expected SELECT to be the only policy on occurrence_invitations',
+    );
+    const [selectPolicy] = policies;
+    assert.ok(selectPolicy, 'expected a SELECT policy to exist');
+    assert.ok(selectPolicy.qual?.includes('invitee_id'));
+    assert.ok(
+      !selectPolicy.qual?.includes('inviter_id'),
+      'the SELECT policy must not grant the inviter read access - that would reopen the invite side channel',
     );
   } finally {
     await client.end();

@@ -35,16 +35,37 @@
 --      status parameter on this function, so there is no input surface
 --      through which an inviter could choose the invitee's status.
 --
+--   3. The outcome is opaque to the caller. The three branches above are
+--      product semantics, but *which one was taken* is private
+--      participation state: only the invitee's own status decides it, and
+--      product-rules.md says `private` = 本人のみ. So this function returns
+--      void - the same nothing - in all three cases, and never names the
+--      invitee's status in an exception. An earlier revision raised
+--      "invitee is already attending this occurrence" here, which handed
+--      any co-attendee a one-bit oracle over any user id they knew.
+--
+--      A generic message alone would not have closed it: the
+--      already-attending branch is also the branch that writes no
+--      invitation row, so an inviter who could read their own invitations
+--      would recover the same bit from the row's absence. That is why
+--      occurrence_invitations_select_invitee restricts SELECT to the
+--      invitee - response and record are closed together or not at all.
+--
+--      Errors that remain are about the *caller* (not authenticated, null
+--      arguments, inviting yourself, not attending this occurrence) or
+--      about the caller's own prior invitation being declined. None of
+--      them are a function of the invitee's participation.
+--
 -- Concurrency: the branch decision above is a check-then-act, so it takes
 -- the invitee's participation row under SELECT ... FOR UPDATE before
 -- acting. A concurrent `considering -> attending` by the invitee therefore
--- either lands first (and this call raises, leaving `attending` alone) or
--- waits until this call has committed - it can never interleave between the
--- read and the write. When the invitee has no row yet there is nothing to
--- lock, so the (occurrence_id, user_id) unique constraint is the backstop:
--- a losing concurrent INSERT surfaces as unique_violation, and the loop
--- re-reads under lock and re-branches rather than assuming its stale read
--- still holds.
+-- either lands first (and this call returns having written nothing,
+-- leaving `attending` alone) or waits until this call has committed - it
+-- can never interleave between the read and the write. When the invitee
+-- has no row yet there is nothing to lock, so the (occurrence_id, user_id)
+-- unique constraint is the backstop: a losing concurrent INSERT surfaces as
+-- unique_violation, and the loop re-reads under lock and re-branches rather
+-- than assuming its stale read still holds.
 --
 -- Only the invitee's row is locked, never the inviter's. Locking both would
 -- let two users invite each other concurrently and deadlock, and would buy
@@ -52,14 +73,14 @@
 create function public.invite_to_occurrence(
   p_occurrence_id uuid,
   p_invitee_id uuid
-) returns public.occurrence_invitations
+) returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
   v_inviter_id uuid := auth.uid();
-  v_invitation public.occurrence_invitations;
+  v_existing_declined_at timestamptz;
   v_invitee_status public.participation_status;
   v_settled boolean := false;
 begin
@@ -102,30 +123,35 @@ begin
   -- collapsed into one answer:
   --
   --   * not declined -> the same act repeated. A duplicate invocation (a
-  --     double-submit, a retry, two concurrent calls) is answered
-  --     idempotently with the existing row. Nothing about the invitation
-  --     lifecycle has moved, so returning it decides nothing.
+  --     double-submit, a retry, two concurrent calls) settles on the
+  --     existing row and returns the same void every other branch returns.
+  --     Nothing about the invitation lifecycle has moved.
   --   * declined -> a *different* product act: re-inviting someone who
   --     turned this invitation down. product-rules.md does not define
   --     re-invitation. Answering it silently would pick semantics by
   --     default - either "success, but nothing happened" (the caller
   --     believes they re-invited) or, worse, a fresh `considering` row for
   --     someone who declined. Raising refuses the undecided operation
-  --     instead of implementing it, and leaves the invitee's declined_at
-  --     and participation untouched either way. declined_at is already
-  --     readable by the inviter (occurrence_invitations_select_party), so
-  --     this discloses nothing new.
-  select existing.* into v_invitation
+  --     instead of implementing it.
+  --
+  --     This raise does not reopen the side channel invariant 3 closes. It
+  --     is a function of this inviter's own prior invitation and the
+  --     invitee's decline of it, never of the invitee's participation:
+  --     it fires before the participation branch runs, so an
+  --     already-attending invitee and a `considering` one produce exactly
+  --     the same result here. What it reveals is that the caller invited
+  --     this person before and was turned down.
+  select existing.declined_at into v_existing_declined_at
   from public.occurrence_invitations existing
   where existing.occurrence_id = p_occurrence_id
     and existing.inviter_id = v_inviter_id
     and existing.invitee_id = p_invitee_id;
   if found then
-    if v_invitation.declined_at is not null then
+    if v_existing_declined_at is not null then
       raise exception
         'this invitation was declined; re-inviting is not a supported operation';
     end if;
-    return v_invitation;
+    return;
   end if;
 
   -- Bounded rather than unbounded: each retry is caused by a *committed*
@@ -142,14 +168,19 @@ begin
 
     if found then
       if v_invitee_status = 'attending'::public.participation_status then
-        -- Out of scope for invite. Raising (rather than returning quietly)
-        -- rolls the whole call back, which is what guarantees no invitation
-        -- row survives this branch. It does disclose one bit about the
-        -- invitee's otherwise-private participation, but only to a caller
-        -- already proven to be attending the same occurrence, and the
-        -- product rule that makes this branch "invite 対象外" cannot be
-        -- honoured by the caller without it.
-        raise exception 'invitee is already attending this occurrence';
+        -- Out of scope for invite (product-rules.md): write no invitation
+        -- row, and leave the `attending` participation exactly as it is.
+        -- Nothing has been written at this point - the participation
+        -- INSERT is in the else branch below and the invitation INSERT is
+        -- after the loop - so returning here leaves no trace, which is what
+        -- an earlier `raise` was relied on to guarantee.
+        --
+        -- Returning (rather than raising) is what makes this branch
+        -- indistinguishable from the other two: see invariant 3 in this
+        -- file's header. The caller learns nothing about the invitee's
+        -- status either way, because all three branches return void and
+        -- none of them is observable through occurrence_invitations.
+        return;
       end if;
       -- `considering`: keep it exactly as it is.
       v_settled := true;
@@ -177,23 +208,25 @@ begin
   -- rewritten by an invite (that is how declined_at stays the invitee's).
   insert into public.occurrence_invitations (occurrence_id, inviter_id, invitee_id)
   values (p_occurrence_id, v_inviter_id, p_invitee_id)
-  on conflict (occurrence_id, inviter_id, invitee_id) do nothing
-  returning * into v_invitation;
+  on conflict (occurrence_id, inviter_id, invitee_id) do nothing;
 
+  -- ON CONFLICT DO NOTHING leaves FOUND false when the row was already
+  -- there, which is the only way this INSERT writes nothing.
   if not found then
     -- Reachable only if an identical invitation was committed since the
-    -- short-circuit above. Re-read it rather than returning a null record.
-    select existing.* into v_invitation
-    from public.occurrence_invitations existing
-    where existing.occurrence_id = p_occurrence_id
-      and existing.inviter_id = v_inviter_id
-      and existing.invitee_id = p_invitee_id;
-    if not found then
+    -- short-circuit above, i.e. a concurrent duplicate of this same call.
+    -- Confirm the row really is there rather than reporting success for a
+    -- write that silently did nothing.
+    if not exists (
+      select 1
+      from public.occurrence_invitations existing
+      where existing.occurrence_id = p_occurrence_id
+        and existing.inviter_id = v_inviter_id
+        and existing.invitee_id = p_invitee_id
+    ) then
       raise exception 'invitation could not be created or resolved';
     end if;
   end if;
-
-  return v_invitation;
 end;
 $$;
 

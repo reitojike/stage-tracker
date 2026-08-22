@@ -74,30 +74,69 @@ export async function readOwnParticipation(
   return data[0] ?? null;
 }
 
+/**
+ * invite_to_occurrence returns void: the caller is told nothing about which
+ * product branch was taken, because that is the invitee's private
+ * participation state. Tests therefore assert on what the *invitee* can see,
+ * never on a return value.
+ */
 export async function inviteToOccurrence(
   actor: TestActor,
   occurrenceId: string,
   inviteeId: string,
-): Promise<{ data: InvitationRow | null; error: PostgrestError | null }> {
-  return actor.client.rpc('invite_to_occurrence', {
+): Promise<{ error: PostgrestError | null }> {
+  const { error } = await actor.client.rpc('invite_to_occurrence', {
     p_occurrence_id: occurrenceId,
     p_invitee_id: inviteeId,
   });
+  return { error };
 }
 
 export async function inviteToOccurrenceOrThrow(
   actor: TestActor,
   occurrenceId: string,
   inviteeId: string,
-): Promise<InvitationRow> {
-  const { data, error } = await inviteToOccurrence(actor, occurrenceId, inviteeId);
+): Promise<void> {
+  const { error } = await inviteToOccurrence(actor, occurrenceId, inviteeId);
   if (error) {
     throw new Error(`fixture invite_to_occurrence failed: ${error.message}`);
   }
-  if (!data) {
-    throw new Error('fixture invite_to_occurrence returned no invitation');
+}
+
+/**
+ * Reads the invitations an invitee has received for an occurrence, through
+ * their own client. Only the invitee can read an invitation
+ * (occurrence_invitations_select_invitee), so this is the only non-admin way
+ * to observe that an invite actually created a row.
+ */
+export async function invitationsReceived(
+  invitee: TestActor,
+  occurrenceId: string,
+): Promise<InvitationRow[]> {
+  const { data, error } = await invitee.client
+    .from('occurrence_invitations')
+    .select()
+    .eq('occurrence_id', occurrenceId);
+  if (error) {
+    throw new Error(`fixture invitation read failed: ${error.message}`);
   }
   return data;
+}
+
+/**
+ * The single invitation an invitee received for an occurrence, or null. Throws
+ * if there is more than one, so a test that means "the invitation" cannot pass
+ * by silently picking one of several.
+ */
+export async function invitationReceived(
+  invitee: TestActor,
+  occurrenceId: string,
+): Promise<InvitationRow | null> {
+  const rows = await invitationsReceived(invitee, occurrenceId);
+  if (rows.length > 1) {
+    throw new Error(`expected at most one invitation, found ${String(rows.length)}`);
+  }
+  return rows[0] ?? null;
 }
 
 export async function declineInvitation(
@@ -124,7 +163,9 @@ export async function declineInvitationOrThrow(
 }
 
 /**
- * Reads a single invitation back through one of its parties' own clients.
+ * Reads a single invitation by id through the given actor's own client.
+ * Returns null when that actor cannot see it - which, since only the invitee
+ * has SELECT, is the expected result for everyone else.
  */
 export async function readInvitation(
   actor: TestActor,

@@ -5,6 +5,10 @@
 --   which occurrence" plus "did the invitee decline".
 -- - Decline lives on the invitation lifecycle, not on participation: an
 --   invitee who declines does NOT get a `not_attending` participation.
+-- - product-rules.md asks for a *data boundary* that can answer those two
+--   questions later; it does not say who may read the row. In MVP only the
+--   invitee can, and the reason is the invite flow rather than the record
+--   itself - see the SELECT policy at the bottom of this file.
 --
 -- Why `declined_at timestamptz` and not a status enum: the only lifecycle
 -- fact product-rules.md requires is whether the invitee declined. A
@@ -33,7 +37,7 @@ create table public.occurrence_invitations (
   -- One invitation per (occurrence, inviter, invitee). This is both the
   -- natural identity of "A invited B to this occurrence" and what keeps
   -- public.invite_to_occurrence idempotent under concurrent calls: a repeat
-  -- invite resolves to the existing row instead of stacking duplicates, so
+  -- invite settles on the existing row instead of stacking duplicates, so
   -- re-inviting can never quietly clear an invitee's declined_at.
   constraint occurrence_invitations_occurrence_inviter_invitee_key
     unique (occurrence_id, inviter_id, invitee_id)
@@ -100,12 +104,29 @@ grant select on public.occurrence_invitations to authenticated;
 -- leaves invitation history retention mechanics to be settled by real need
 -- rather than pre-built here.
 
--- Invitations are not part of the shared catalog: only the two parties can
--- read one. A third authenticated user learning that A invited B would be a
--- privacy leak that no product rule asks for, and participation visibility
--- already defaults to private.
-create policy occurrence_invitations_select_party
+-- Invitations are not part of the shared catalog, and in MVP not even the
+-- inviter can read one back: SELECT is the invitee’s alone.
+--
+-- Letting the inviter read their own invitations sounds harmless, but it is
+-- what would re-open the side channel public.invite_to_occurrence exists to
+-- close. That function is deliberately opaque about which of the three
+-- product branches it took, because "invitee is already attending" is
+-- private participation state (product-rules.md: `private` = 本人のみ) and
+-- the already-attending branch is the one that writes no invitation row. An
+-- inviter who could list their own invitations would recover exactly that
+-- bit from the row’s presence or absence, making the opaque return value
+-- cosmetic. Response and record therefore have to be closed together.
+--
+-- What this gives up is inviter-facing invitation history, which no current
+-- product rule asks for. It is not worth weakening a stated privacy
+-- boundary to pre-build; when a real need appears it can be served by a
+-- projection designed not to leak the branch (Issue #30 PO decision).
+--
+-- product-rules.md still holds: "誰が誰をどの occurrence へ招待したか" and
+-- "invitee が辞退したか" remain answerable from this table - that is a data
+-- boundary, and this policy governs read access, not what is recorded.
+create policy occurrence_invitations_select_invitee
   on public.occurrence_invitations
   for select
   to authenticated
-  using (inviter_id = auth.uid() or invitee_id = auth.uid());
+  using (invitee_id = auth.uid());

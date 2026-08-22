@@ -43,7 +43,10 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   対象外）・declineはinvitation側の`declined_at`で表現し
   `not_attending` participationを作らない。invitationのcreateと
   declineはそれぞれ専用RPCのみがwrite pathで、`occurrence_invitations`
-  へのINSERT/UPDATE grantもpolicyも持たない）
+  へのINSERT/UPDATE grantもpolicyも持たない。invite結果はinviterに
+  対して不透明で、3分岐すべてが同一の結果を返し、invitation rowの
+  通常readはinvitee本人に限定する。inviter向けinvitation historyは
+  committed scope外）
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)

@@ -855,34 +855,76 @@ try {
     },
   );
 
-  // 19. occurrence_invitations_select_party: an invitation is readable only
-  // by its two parties. Replacing that with `true` must let an unrelated
-  // user read it, proving the privacy boundary is this policy.
+  // 19. occurrence_invitations_select_invitee: SELECT belongs to the invitee
+  // alone, and that is load-bearing twice over. Obviously it keeps third
+  // parties out. Less obviously it is half of what makes
+  // public.invite_to_occurrence opaque: the already-attending branch is the
+  // one that writes no invitation row, so an inviter who could list their own
+  // invitations would recover the invitee's private participation status from
+  // the row's presence or absence, no matter what the RPC returned.
+  //
+  // The fault injected here is therefore the tempting-looking widening -
+  // adding `inviter_id = auth.uid()` back - and the red behavior proved is
+  // that the inviter can then read the row, which is exactly the observation
+  // the opacity tests in occurrenceInvitations.test.ts assert is impossible.
   await withBrokenPolicy(
-    'occurrence_invitations_select_party',
-    `drop policy occurrence_invitations_select_party on public.occurrence_invitations;
-     create policy occurrence_invitations_select_party
-       on public.occurrence_invitations for select to authenticated using (true);`,
-    `drop policy occurrence_invitations_select_party on public.occurrence_invitations;
-     create policy occurrence_invitations_select_party
+    'occurrence_invitations_select_invitee',
+    `drop policy occurrence_invitations_select_invitee on public.occurrence_invitations;
+     create policy occurrence_invitations_select_invitee
        on public.occurrence_invitations for select to authenticated
        using (inviter_id = auth.uid() or invitee_id = auth.uid());`,
+    `drop policy occurrence_invitations_select_invitee on public.occurrence_invitations;
+     create policy occurrence_invitations_select_invitee
+       on public.occurrence_invitations for select to authenticated
+       using (invitee_id = auth.uid());`,
     async () => {
       const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
-      const { data: invitation, error: inviteError } = await actorA.client.rpc(
-        'invite_to_occurrence',
-        {
-          p_occurrence_id: occurrenceId,
-          p_invitee_id: actorB.user.id,
-        },
-      );
-      if (inviteError || !invitation) {
-        throw new Error(`fixture invite_to_occurrence failed: ${inviteError?.message}`);
+      const { error: inviteError } = await actorA.client.rpc('invite_to_occurrence', {
+        p_occurrence_id: occurrenceId,
+        p_invitee_id: actorB.user.id,
+      });
+      if (inviteError) {
+        throw new Error(`fixture invite_to_occurrence failed: ${inviteError.message}`);
       }
+
+      const { data, error } = await actorA.client
+        .from('occurrence_invitations')
+        .select()
+        .eq('occurrence_id', occurrenceId);
+      assert.equal(error, null);
+      assert.equal(
+        data.length,
+        1,
+        'expected the inviter to go red (able to read their own invitation) with the select policy widened',
+      );
+    },
+  );
+
+  // 19b. The same boundary from the third-party side: a stranger must not be
+  // able to read an invitation they are not the invitee of.
+  await withBrokenPolicy(
+    'occurrence_invitations_select_invitee (widened to all authenticated)',
+    `drop policy occurrence_invitations_select_invitee on public.occurrence_invitations;
+     create policy occurrence_invitations_select_invitee
+       on public.occurrence_invitations for select to authenticated using (true);`,
+    `drop policy occurrence_invitations_select_invitee on public.occurrence_invitations;
+     create policy occurrence_invitations_select_invitee
+       on public.occurrence_invitations for select to authenticated
+       using (invitee_id = auth.uid());`,
+    async () => {
+      const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
+      const { error: inviteError } = await actorA.client.rpc('invite_to_occurrence', {
+        p_occurrence_id: occurrenceId,
+        p_invitee_id: actorB.user.id,
+      });
+      if (inviteError) {
+        throw new Error(`fixture invite_to_occurrence failed: ${inviteError.message}`);
+      }
+
       const { data, error } = await stranger.client
         .from('occurrence_invitations')
         .select()
-        .eq('id', invitation.id);
+        .eq('occurrence_id', occurrenceId);
       assert.equal(error, null);
       assert.equal(
         data.length,
@@ -909,15 +951,23 @@ try {
      revoke update on public.occurrence_invitations from authenticated;`,
     async () => {
       const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
-      const { data: invitation, error: inviteError } = await actorA.client.rpc(
-        'invite_to_occurrence',
-        {
-          p_occurrence_id: occurrenceId,
-          p_invitee_id: actorB.user.id,
-        },
-      );
-      if (inviteError || !invitation) {
-        throw new Error(`fixture invite_to_occurrence failed: ${inviteError?.message}`);
+      const { error: inviteError } = await actorA.client.rpc('invite_to_occurrence', {
+        p_occurrence_id: occurrenceId,
+        p_invitee_id: actorB.user.id,
+      });
+      if (inviteError) {
+        throw new Error(`fixture invite_to_occurrence failed: ${inviteError.message}`);
+      }
+
+      // invite_to_occurrence returns void, and only the invitee can read the
+      // row back - so the invitation id comes from actorB's own client.
+      const { data: invitation, error: readError } = await actorB.client
+        .from('occurrence_invitations')
+        .select()
+        .eq('occurrence_id', occurrenceId)
+        .single();
+      if (readError || !invitation) {
+        throw new Error(`fixture invitation read failed: ${readError?.message}`);
       }
       const { error: declineError } = await actorB.client.rpc('decline_occurrence_invitation', {
         p_invitation_id: invitation.id,

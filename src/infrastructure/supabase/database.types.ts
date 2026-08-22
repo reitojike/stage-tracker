@@ -290,21 +290,7 @@ export type Database = {
       }
       invite_to_occurrence: {
         Args: { p_invitee_id: string; p_occurrence_id: string }
-        Returns: {
-          created_at: string
-          declined_at: string | null
-          id: string
-          invitee_id: string
-          inviter_id: string
-          occurrence_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "occurrence_invitations"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        Returns: undefined
       }
       is_personal_schedule_entry_owner: {
         Args: { p_entry_id: string }

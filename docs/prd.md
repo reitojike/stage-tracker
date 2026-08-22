@@ -94,6 +94,17 @@ occurrenceを1 transactionで作るRPC経由のみをsupported pathとし、直�
 それぞれ専用RPC経由のみで、直接の`occurrence_invitations`書き込みは
 提供しません。
 
+invitationのMVP write/read boundaryには、participation privacyを守る
+ための追加の制約があります。invite操作の結果はinviterに対して不透明
+です。上記3分岐のどれが実行されたかはinvitee本人のparticipation status
+だけで決まるため、これをinviterへ返すことはprivate participationの
+開示にあたります。したがってinvite RPCは3分岐すべてで同一の結果を返し、
+invitee statusを理由とするerrorを返しません。あわせてinvitation rowの
+通常readはinvitee本人に限定します。inviterがrowの有無を観測できると、
+「invitation rowを作らない」分岐から同じ情報が復元できるためです。
+inviter向けのinvitation history表示は現時点のcommitted scopeに含めず、
+必要になった時点でこの境界を壊さないprojectionとして別途設計します。
+
 加えて、designated catalog creator限定のminimal Event catalog
 create/update UIが成立しています。Event作成はdesignated catalog creator
 （`public.catalog_creators` membership）に限り、作成者がevent ownerに
