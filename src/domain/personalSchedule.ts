@@ -161,34 +161,68 @@ export function temporalToColumns(temporal: ScheduleTemporal): {
 }
 
 /**
+ * Normalizes an ISO 8601 UTC instant string to a sort key that string-
+ * compares in true chronological order, at full microsecond precision -
+ * the precision PostgreSQL's `timestamptz` itself carries.
+ *
+ * `Date.parse`/`Date#getTime()` round to millisecond resolution, so two
+ * instants less than 1ms apart collapse to the same epoch-millisecond
+ * value and would otherwise fall through to the `id` tie-breaker instead
+ * of true chronological order. The fractional-second digits beyond the
+ * third (the sub-millisecond, i.e. microsecond, part) are therefore read
+ * directly from the source string - never from a parsed `Date` - and
+ * appended after a fixed-width, zero-padded millisecond epoch so that
+ * plain string comparison of the combined key matches chronological order
+ * exactly: equal down to the millisecond compares by the next three
+ * (sub-millisecond) digits, and unequal milliseconds always dominate
+ * because the epoch-millisecond prefix is fixed-width.
+ */
+function instantSortKey(instantIso: string): string {
+  const epochMs = Date.parse(instantIso);
+  if (Number.isNaN(epochMs)) {
+    throw new Error(`expected a valid ISO 8601 instant, got: ${instantIso}`);
+  }
+  // 13 digits comfortably covers every representable date this product
+  // persists (the epoch millisecond count does not reach 14 digits until
+  // the year 5138), and epochMs is always non-negative for any date this
+  // product handles, so plain zero-padding preserves numeric order.
+  const paddedEpochMs = String(epochMs).padStart(13, '0');
+  const fractionMatch = /\.(\d+)/.exec(instantIso);
+  const fractionDigits = (fractionMatch?.[1] ?? '').padEnd(6, '0');
+  const subMillisecondDigits = fractionDigits.slice(3, 6);
+  return `${paddedEpochMs}${subMillisecondDigits}`;
+}
+
+/**
  * Deterministic ordering for a personal schedule listing: all-day entries
  * order by startsOn, time-bounded entries by startsAt - both are the
  * "when does this entry begin" field for their shape - with id as a stable
  * tie-breaker (see domain/ordering.ts).
  *
- * Resolved to a numeric epoch-millisecond instant (Date.parse), not
- * compared as strings. An all-day entry's startsOn ("YYYY-MM-DD") is first
- * converted to the UTC instant its Asia/Tokyo calendar day begins at -
- * comparing it as a bare date string against a full ISO timestamp directly
- * is not equivalent to chronological order whenever they fall close
- * together: Tokyo's UTC+9 offset means a UTC timestamp from 15:00 onward
- * already belongs to the *next* Tokyo calendar day, so e.g. all-day
- * "2026-01-01" (Tokyo midnight = instant 2025-12-31T15:00:00Z) would sort
- * after the time-bounded instant "2025-12-31T16:00:00Z" as bare strings
- * ("2026-..." > "2025-...") even though 15:00Z is earlier than 16:00Z.
- * Beyond that, even after converting startsOn to an ISO instant, comparing
- * it *as a string* against startsAt is still not safe: startsAt is
- * whatever format PostgREST happens to return a persisted timestamptz in
- * (typically "+00:00", not "Z", and a variable number of fractional-second
- * digits), which does not sort identically to a client-computed
- * `.toISOString()` string even for nearby instants. Parsing both sides
- * down to the same numeric representation sidesteps every such formatting
- * difference at once.
+ * Both sides go through instantSortKey, not a direct string or `Date.parse`
+ * comparison. An all-day entry's startsOn ("YYYY-MM-DD") is first converted
+ * to the UTC instant its Asia/Tokyo calendar day begins at - comparing it
+ * as a bare date string against a full ISO timestamp directly is not
+ * equivalent to chronological order whenever they fall close together:
+ * Tokyo's UTC+9 offset means a UTC timestamp from 15:00 onward already
+ * belongs to the *next* Tokyo calendar day, so e.g. all-day "2026-01-01"
+ * (Tokyo midnight = instant 2025-12-31T15:00:00Z) would sort after the
+ * time-bounded instant "2025-12-31T16:00:00Z" as bare strings ("2026-..." >
+ * "2025-...") even though 15:00Z is earlier than 16:00Z. Beyond that, even
+ * after converting startsOn to an ISO instant, comparing it directly
+ * against startsAt is still not safe: startsAt is whatever format
+ * PostgREST happens to return a persisted timestamptz in (typically
+ * "+00:00", not "Z", and a variable number of fractional-second digits),
+ * which does not sort identically to a client-computed `.toISOString()`
+ * string even for nearby instants - and a plain millisecond-resolution
+ * `Date.parse` comparison loses PostgreSQL's microsecond precision,
+ * collapsing sub-millisecond-apart instants into ties. instantSortKey
+ * normalizes both formatting differences and precision loss at once.
  */
-function entryStart(entry: PersonalScheduleEntry): number {
+function entryStart(entry: PersonalScheduleEntry): string {
   return entry.temporal.kind === 'all-day'
-    ? Date.parse(tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startUtc)
-    : Date.parse(entry.temporal.startsAt);
+    ? instantSortKey(tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startUtc)
+    : instantSortKey(entry.temporal.startsAt);
 }
 
 export function comparePersonalScheduleEntriesByStart(

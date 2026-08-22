@@ -152,21 +152,25 @@ void test('comparePersonalScheduleEntriesByStart converts an all-day startsOn to
 // which is not safe either - PostgREST returns a persisted timestamptz as
 // e.g. "+00:00" with a variable number of fractional-second digits, not the
 // "Z"-suffixed, fixed millisecond-precision format `.toISOString()`
-// produces. Two instants a single millisecond apart, in those two different
+// produces. Two instants a single microsecond apart, in those two different
 // string shapes, do not necessarily string-compare in chronological order.
 void test('comparePersonalScheduleEntriesByStart compares startsAt in PostgREST’s own timestamp format correctly against a converted startsOn', () => {
   const allDay = mapPersonalScheduleEntryRow(
     rawAllDayRow({ id: 'all-day', starts_on: '2026-01-01', ends_on: '2026-01-01' }),
   );
-  // One millisecond after the all-day entry's instant (2025-12-31T15:00:00.000Z),
-  // in PostgREST's own "+00:00"-suffixed shape - not the "Z"-suffixed shape
-  // toISOString() produces.
+  // One microsecond after the all-day entry's instant (2025-12-31T15:00:00.000000Z),
+  // in PostgREST's own "+00:00"-suffixed, microsecond-precision shape - not
+  // the "Z"-suffixed, millisecond-only shape toISOString() produces. A
+  // plain `Date.parse` comparison would round both to the same epoch
+  // millisecond and fall through to the (here, wrong-direction) `id`
+  // tie-breaker; only reading the sub-millisecond digits from the string
+  // itself preserves this difference.
   const timed = mapPersonalScheduleEntryRow(
-    rawTimedRow({ id: 'timed', starts_at: '2025-12-31T15:00:00.001+00:00' }),
+    rawTimedRow({ id: 'timed', starts_at: '2025-12-31T15:00:00.000001+00:00' }),
   );
   assert.ok(
     comparePersonalScheduleEntriesByStart(allDay, timed) < 0,
-    'the all-day entry must sort before a timed entry one millisecond later, regardless of timestamp string format',
+    'the all-day entry must sort before a timed entry one microsecond later, regardless of timestamp string format or Date precision',
   );
 });
 
