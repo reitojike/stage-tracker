@@ -22,11 +22,22 @@ export interface Identified {
  * broken by `id`, and equal ids compare equal - never returned by this
  * module's callers for genuinely distinct rows, but kept exact rather than
  * assumed.
+ *
+ * `field` may return either a `string` or a `number`, but every call site
+ * must pick one consistently: a plain `createdAt` ISO string is safe to
+ * compare as a string only because a single table's timestamptz column is
+ * always serialized the same way by the one query that read it - comparing
+ * two *different* fields that went through different formatting paths
+ * (e.g. a client-computed ISO string against a raw PostgREST timestamp
+ * string, which may differ in offset notation or fractional-second digit
+ * count) is not equivalent to chronological order even after normalizing
+ * one side, so such a field must resolve to a numeric instant (e.g. via
+ * `Date.parse`) instead - see domain/personalSchedule.ts's entryStart.
  */
 export function compareByFieldThenId<T extends Identified>(
   a: T,
   b: T,
-  field: (item: T) => string,
+  field: (item: T) => string | number,
 ): number {
   const fieldA = field(a);
   const fieldB = field(b);
@@ -41,7 +52,7 @@ export function compareByFieldThenId<T extends Identified>(
 
 export function sortByFieldThenId<T extends Identified>(
   items: readonly T[],
-  field: (item: T) => string,
+  field: (item: T) => string | number,
 ): T[] {
   return [...items].sort((a, b) => compareByFieldThenId(a, b, field));
 }

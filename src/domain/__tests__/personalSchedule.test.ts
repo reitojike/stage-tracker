@@ -147,6 +147,29 @@ void test('comparePersonalScheduleEntriesByStart converts an all-day startsOn to
   );
 });
 
+// Follow-up regression (Codex review on PR #52, after the fix above):
+// startsOn's conversion still compared as a *string* against startsAt,
+// which is not safe either - PostgREST returns a persisted timestamptz as
+// e.g. "+00:00" with a variable number of fractional-second digits, not the
+// "Z"-suffixed, fixed millisecond-precision format `.toISOString()`
+// produces. Two instants a single millisecond apart, in those two different
+// string shapes, do not necessarily string-compare in chronological order.
+void test('comparePersonalScheduleEntriesByStart compares startsAt in PostgREST’s own timestamp format correctly against a converted startsOn', () => {
+  const allDay = mapPersonalScheduleEntryRow(
+    rawAllDayRow({ id: 'all-day', starts_on: '2026-01-01', ends_on: '2026-01-01' }),
+  );
+  // One millisecond after the all-day entry's instant (2025-12-31T15:00:00.000Z),
+  // in PostgREST's own "+00:00"-suffixed shape - not the "Z"-suffixed shape
+  // toISOString() produces.
+  const timed = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'timed', starts_at: '2025-12-31T15:00:00.001+00:00' }),
+  );
+  assert.ok(
+    comparePersonalScheduleEntriesByStart(allDay, timed) < 0,
+    'the all-day entry must sort before a timed entry one millisecond later, regardless of timestamp string format',
+  );
+});
+
 void test('sortPersonalScheduleEntries does not mutate its input array', () => {
   const later = mapPersonalScheduleEntryRow(rawAllDayRow({ id: 'later', starts_on: '2026-02-10' }));
   const earlier = mapPersonalScheduleEntryRow(

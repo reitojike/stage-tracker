@@ -166,23 +166,29 @@ export function temporalToColumns(temporal: ScheduleTemporal): {
  * "when does this entry begin" field for their shape - with id as a stable
  * tie-breaker (see domain/ordering.ts).
  *
- * An all-day entry's startsOn ("YYYY-MM-DD") is converted to the UTC
- * instant its Asia/Tokyo calendar day begins at before comparing, rather
- * than compared as a bare date string against a full ISO timestamp
- * directly. Naive string comparison of the two different formats is not
- * equivalent to chronological order whenever they fall close together:
- * Tokyo's UTC+9 offset means a UTC timestamp from 15:00 onward already
- * belongs to the *next* Tokyo calendar day, so e.g. all-day "2026-01-01"
- * (Tokyo midnight = instant 2025-12-31T15:00:00Z) sorts after the
- * time-bounded instant "2025-12-31T16:00:00Z" as bare strings ("2026-..." >
- * "2025-...") even though 15:00Z is earlier than 16:00Z - the reverse of
- * the correct order. Converting both sides to actual UTC instants first
- * avoids that.
+ * Resolved to a numeric epoch-millisecond instant (Date.parse), not
+ * compared as strings. An all-day entry's startsOn ("YYYY-MM-DD") is first
+ * converted to the UTC instant its Asia/Tokyo calendar day begins at -
+ * comparing it as a bare date string against a full ISO timestamp directly
+ * is not equivalent to chronological order whenever they fall close
+ * together: Tokyo's UTC+9 offset means a UTC timestamp from 15:00 onward
+ * already belongs to the *next* Tokyo calendar day, so e.g. all-day
+ * "2026-01-01" (Tokyo midnight = instant 2025-12-31T15:00:00Z) would sort
+ * after the time-bounded instant "2025-12-31T16:00:00Z" as bare strings
+ * ("2026-..." > "2025-...") even though 15:00Z is earlier than 16:00Z.
+ * Beyond that, even after converting startsOn to an ISO instant, comparing
+ * it *as a string* against startsAt is still not safe: startsAt is
+ * whatever format PostgREST happens to return a persisted timestamptz in
+ * (typically "+00:00", not "Z", and a variable number of fractional-second
+ * digits), which does not sort identically to a client-computed
+ * `.toISOString()` string even for nearby instants. Parsing both sides
+ * down to the same numeric representation sidesteps every such formatting
+ * difference at once.
  */
-function entryStart(entry: PersonalScheduleEntry): string {
+function entryStart(entry: PersonalScheduleEntry): number {
   return entry.temporal.kind === 'all-day'
-    ? tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startUtc
-    : entry.temporal.startsAt;
+    ? Date.parse(tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startUtc)
+    : Date.parse(entry.temporal.startsAt);
 }
 
 export function comparePersonalScheduleEntriesByStart(
