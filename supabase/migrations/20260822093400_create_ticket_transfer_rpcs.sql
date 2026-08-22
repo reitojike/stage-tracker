@@ -130,6 +130,14 @@ begin
   from public.ticket_transfers tr
   where tr.id = p_transfer_id
   for update;
+  -- Symmetric with the ticket lookup above, and for the same reason: the
+  -- unlocked read that found this id ran before either lock was held.
+  -- Without this guard a vanished row would leave v_transfer null, every
+  -- comparison below would evaluate to null rather than false, and control
+  -- would reach the ownership update with a null recipient.
+  if not found then
+    raise exception 'transfer not found';
+  end if;
 
   if v_transfer.recipient_id <> v_actor then
     raise exception 'only the transfer recipient can accept this transfer';

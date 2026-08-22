@@ -20,7 +20,14 @@ export function createAnonymousClient(): SupabaseClient<Database> {
   return createClient<Database>(status.apiUrl, status.anonKey);
 }
 
-function createAdminClient(): SupabaseClient<Database> {
+/**
+ * service_role client. Setup/teardown and inspection only - see this
+ * module's header for why no assertion goes through it. Fixtures that need
+ * to look at a row the acting user is (correctly) not allowed to read use
+ * this rather than relaxing the policy under test; the assertion itself
+ * still runs on the user's own client.
+ */
+export function createAdminClient(): SupabaseClient<Database> {
   return createClient<Database>(status.apiUrl, status.serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });

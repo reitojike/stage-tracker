@@ -30,7 +30,9 @@ let companion: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  catalogOwner = await createTestActor('rls-ticket-catalog', PASSWORD);
+  catalogOwner = await createTestActor('rls-ticket-catalog', PASSWORD, {
+    designatedCatalogCreator: true,
+  });
   createdActors.push(catalogOwner);
   owner = await createTestActor('rls-ticket-owner', PASSWORD);
   createdActors.push(owner);

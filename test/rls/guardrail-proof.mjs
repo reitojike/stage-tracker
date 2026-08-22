@@ -21,6 +21,7 @@ import {
   revokeCatalogCreator,
 } from './support/testActors.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
+import { createSecuredTicket } from './support/ticketFixtures.ts';
 
 const status = readLocalSupabaseStatus();
 
@@ -990,6 +991,132 @@ try {
       );
     },
   );
+
+  // 21. Ownership on public.tickets moves only through
+  // accept_ticket_transfer (Issue #32), and two layers enforce that:
+  // owner_id has no UPDATE column grant, and tickets_update_own's WITH
+  // CHECK requires the resulting row to still be the caller's. Granting the
+  // column alone does not go red - the WITH CHECK rejects the new row - so,
+  // mirroring items 2 and 4, both are relaxed together to prove the denial
+  // depends on that combination rather than on one layer that could be
+  // removed unnoticed.
+  {
+    const { ticket } = await createSecuredTicket(actorB, actorA);
+    await withBrokenPolicy(
+      'tickets owner_id UPDATE grant + tickets_update_own WITH CHECK (relaxed together)',
+      `grant update (owner_id) on public.tickets to authenticated;
+       drop policy tickets_update_own on public.tickets;
+       create policy tickets_update_own on public.tickets
+         for update to authenticated using (owner_id = auth.uid()) with check (true);`,
+      `revoke update (owner_id) on public.tickets from authenticated;
+       drop policy tickets_update_own on public.tickets;
+       create policy tickets_update_own on public.tickets
+         for update to authenticated
+         using (owner_id = auth.uid())
+         with check (owner_id = auth.uid());`,
+      async () => {
+        const { data, error } = await actorB.client
+          .from('tickets')
+          .update({ owner_id: stranger.user.id })
+          .eq('id', ticket.id)
+          .select();
+        assert.equal(
+          error,
+          null,
+          'expected a direct ownership move to go red (succeed) once owner_id is grantable',
+        );
+        assert.equal(data.length, 1);
+        assert.equal(
+          data[0].owner_id,
+          stranger.user.id,
+          'expected ownership to actually move once the column grant exists',
+        );
+      },
+    );
+  }
+
+  // 22. ticket_transfers has no INSERT grant and no INSERT policy at all
+  // (Issue #32): the ledger is writable only through the SECURITY DEFINER
+  // RPCs. Both layers have to be added together for the denial to go red,
+  // mirroring items 2 and 4 - a grant alone would still be default-denied
+  // by RLS, so relaxing only one would prove nothing about the other.
+  {
+    const { ticket } = await createSecuredTicket(actorB, actorA);
+    await withBrokenPolicy(
+      'ticket_transfers INSERT grant + policy (added together)',
+      `grant insert (ticket_id, sender_id, recipient_id, status) on public.ticket_transfers
+         to authenticated;
+       create policy ticket_transfers_insert_guardrail_proof on public.ticket_transfers
+         for insert to authenticated with check (true);`,
+      `drop policy ticket_transfers_insert_guardrail_proof on public.ticket_transfers;
+       revoke insert on public.ticket_transfers from authenticated;`,
+      async () => {
+        // A transfer actorB never requested, to a recipient who was never
+        // invited - i.e. bypassing both the RPC and the eligibility rule.
+        const { error } = await actorB.client.from('ticket_transfers').insert({
+          ticket_id: ticket.id,
+          sender_id: actorB.user.id,
+          recipient_id: stranger.user.id,
+        });
+        assert.equal(
+          error,
+          null,
+          'expected a fabricated transfer to go red (succeed) once INSERT is granted and allowed',
+        );
+      },
+    );
+  }
+
+  // 23. public.ticket_transfer_recipient_is_eligible is SECURITY DEFINER
+  // with EXECUTE granted to no client role (Issue #32). It answers "was
+  // this user invited to this occurrence?", which is exactly the read
+  // Issue #30's occurrence_invitations_select_invitee withholds from
+  // everyone but the invitee. Granting EXECUTE must make it callable, and
+  // must make it answer about a third party - proving the privacy boundary
+  // rests on the withheld grant rather than on the function being obscure.
+  {
+    const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
+    const { error: inviteError } = await actorA.client.rpc('invite_to_occurrence', {
+      p_occurrence_id: occurrenceId,
+      p_invitee_id: stranger.user.id,
+    });
+    if (inviteError) {
+      throw new Error(`fixture invite_to_occurrence failed: ${inviteError.message}`);
+    }
+
+    // Baseline: unreachable while the grant is withheld. Without this, the
+    // "red" assertion below could pass against a function that was always
+    // callable.
+    const { error: deniedBefore } = await actorB.client.rpc(
+      'ticket_transfer_recipient_is_eligible',
+      { p_occurrence_id: occurrenceId, p_recipient_id: stranger.user.id },
+    );
+    assert.ok(deniedBefore, 'expected the eligibility predicate to be unreachable before the grant');
+
+    await withBrokenPolicy(
+      'ticket_transfer_recipient_is_eligible EXECUTE (withheld from clients)',
+      `grant execute on function public.ticket_transfer_recipient_is_eligible(uuid, uuid)
+         to authenticated;`,
+      `revoke execute on function public.ticket_transfer_recipient_is_eligible(uuid, uuid)
+         from authenticated;`,
+      async () => {
+        const { data, error } = await actorB.client.rpc('ticket_transfer_recipient_is_eligible', {
+          p_occurrence_id: occurrenceId,
+          p_recipient_id: stranger.user.id,
+        });
+        assert.equal(
+          error,
+          null,
+          'expected the predicate to go red (become callable) once EXECUTE is granted',
+        );
+        assert.equal(
+          data,
+          true,
+          'expected a granted caller to learn a third party’s invitation state - the leak this grant would open',
+        );
+      },
+    );
+  }
 
   console.log(
     '\nAll guardrail proofs complete. Every broken mechanism produced red behavior, and all were restored.',

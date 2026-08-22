@@ -1,17 +1,20 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import {
+  createAdminClient,
   createAnonymousClient,
   createTestActor,
   deleteTestActorsSequentially,
   type TestActor,
 } from './support/testActors.ts';
 import {
+  createOccurrence,
   createSecuredTicket,
+  makeTransferEligible,
   readAcquisitionAsAdmin,
   readTicketAsAdmin,
   readTransferAsAdmin,
-  seedPendingTransfer,
+  requestTransfer,
   type TicketOverrides,
 } from './support/ticketFixtures.ts';
 
@@ -19,13 +22,11 @@ import {
 // acceptance, cancellation and ownership-transition rules, plus the
 // concurrency guards around them.
 //
-// Pending transfers are seeded through the service_role path rather than
-// request_ticket_transfer: that RPC currently fails closed on recipient
-// eligibility, which needs the invitation persistence Issue #30 establishes.
-// See seedPendingTransfer in support/ticketFixtures.ts for why that is a
-// state-only seam, and the "eligibility" section at the bottom of this file
-// for what is asserted about request_ticket_transfer today. Every
-// accept/cancel assertion still runs through the real authenticated RPC.
+// Every transfer below is started through the real request_ticket_transfer
+// RPC as the ticket's owner, and recipients become eligible only by being
+// invited to the occurrence through Issue #30's invite_to_occurrence - there
+// is no service_role shortcut around either. See the "eligibility" section
+// at the bottom for what that rule admits and refuses.
 
 const PASSWORD = 'Str0ng-Test-Passw0rd!';
 
@@ -36,7 +37,9 @@ let outsider: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  catalogOwner = await createTestActor('rls-xfer-catalog', PASSWORD);
+  catalogOwner = await createTestActor('rls-xfer-catalog', PASSWORD, {
+    designatedCatalogCreator: true,
+  });
   createdActors.push(catalogOwner);
   acquirer = await createTestActor('rls-xfer-acquirer', PASSWORD);
   createdActors.push(acquirer);
@@ -56,7 +59,8 @@ async function offerTicket(overrides: TicketOverrides = {}) {
     catalogOwner,
     overrides,
   );
-  const transfer = await seedPendingTransfer(ticket.id, acquirer.user.id, recipient.user.id);
+  await makeTransferEligible(acquirer, occurrence.id, recipient);
+  const transfer = await requestTransfer(acquirer, ticket.id, recipient.user.id);
   return { occurrence, acquisition, ticket, transfer };
 }
 
@@ -186,14 +190,16 @@ void test('the source acquisition is unchanged and still belongs to the original
 });
 
 void test('the original acquirer can still see the ticket and its transfer chain after it moves on', async () => {
-  const { ticket, transfer } = await offerTicket();
+  const { occurrence, ticket, transfer } = await offerTicket();
   const { error: firstAcceptError } = await recipient.client.rpc('accept_ticket_transfer', {
     p_transfer_id: transfer.id,
   });
   assert.equal(firstAcceptError, null);
 
-  // A second hop the original acquirer is not a party to at all.
-  const secondTransfer = await seedPendingTransfer(ticket.id, recipient.user.id, outsider.user.id);
+  // A second hop the original acquirer is not a party to at all. The new
+  // owner starts it, so eligibility is established for the new recipient.
+  await makeTransferEligible(recipient, occurrence.id, outsider);
+  const secondTransfer = await requestTransfer(recipient, ticket.id, outsider.user.id);
   const { error: secondAcceptError } = await outsider.client.rpc('accept_ticket_transfer', {
     p_transfer_id: secondTransfer.id,
   });
@@ -406,11 +412,30 @@ void test('a concurrent acceptance and cancellation cannot both take effect', as
 });
 
 void test('a ticket cannot have two pending offers outstanding', async () => {
+  const { occurrence, ticket } = await offerTicket();
+  await makeTransferEligible(acquirer, occurrence.id, outsider);
+
+  const { error } = await acquirer.client.rpc('request_ticket_transfer', {
+    p_ticket_id: ticket.id,
+    p_recipient_id: outsider.user.id,
+  });
+  assert.ok(error, 'expected a second live offer to be refused');
+  assert.match(error.message, /already has a pending transfer/);
+});
+
+// The RPC check above is the one a client meets. This asserts the structural
+// backstop underneath it: even a writer that bypasses the RPC entirely
+// (here, service_role) cannot produce two live offers for one ticket, which
+// is what makes "accepted twice into two different owners" unreachable
+// rather than merely unlikely.
+void test('the one-pending-offer rule holds structurally, not just in the RPC', async () => {
   const { ticket } = await offerTicket();
-  await assert.rejects(
-    seedPendingTransfer(ticket.id, acquirer.user.id, outsider.user.id),
-    'expected the one-pending-transfer-per-ticket index to reject a second live offer',
-  );
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from('ticket_transfers')
+    .insert({ ticket_id: ticket.id, sender_id: acquirer.user.id, recipient_id: outsider.user.id });
+  assert.ok(error, 'expected the partial unique index to reject a second pending row');
 });
 
 // --- Negative: the transfer ledger is RPC-only ---
@@ -502,20 +527,17 @@ void test('an unknown recipient is refused before eligibility is consulted', asy
   assert.match(error.message, /registered user/);
 });
 
-// This asserts the *interim* fail-closed state of the Issue #30 integration
-// seam, not a durable product rule: no transfer may be requested while
-// recipient eligibility cannot be evaluated against real invitation
-// persistence. When #30 merges and
-// 20260822093300_create_ticket_transfer_eligibility.sql is wired to the real
-// contract, this test is replaced by the eligibility positive/negative pair
-// (an invited recipient is accepted, an uninvited one is refused).
-void test('transfer requests fail closed while recipient eligibility is unwired (Issue #30 blocker)', async () => {
+// "transfer 先は、同じ occurrence へ invitation された registered user を MVP の
+// eligibility とします" - the negative half. A registered user who was never
+// invited to this occurrence is refused, so the rule is doing work rather
+// than admitting anyone with an account.
+void test('a registered user who was never invited to the occurrence is refused', async () => {
   const { ticket } = await createSecuredTicket(acquirer, catalogOwner);
   const { error } = await acquirer.client.rpc('request_ticket_transfer', {
     p_ticket_id: ticket.id,
     p_recipient_id: recipient.user.id,
   });
-  assert.ok(error, 'expected the eligibility seam to refuse the request');
+  assert.ok(error, 'expected an uninvited recipient to be refused');
   assert.match(error.message, /not eligible/);
 
   const { data } = await acquirer.client
@@ -523,4 +545,59 @@ void test('transfer requests fail closed while recipient eligibility is unwired 
     .select()
     .eq('ticket_id', ticket.id);
   assert.deepEqual(data, [], 'a refused request must not leave a transfer row behind');
+});
+
+// Eligibility is scoped to *this* occurrence: an invitation to a different
+// occurrence must not carry over, or the rule would degrade into "has been
+// invited to anything, ever".
+void test('an invitation to a different occurrence does not make a recipient eligible', async () => {
+  const { ticket } = await createSecuredTicket(acquirer, catalogOwner);
+  const { occurrence: unrelated } = await createOccurrence(catalogOwner);
+  await makeTransferEligible(acquirer, unrelated.id, recipient);
+
+  const { error } = await acquirer.client.rpc('request_ticket_transfer', {
+    p_ticket_id: ticket.id,
+    p_recipient_id: recipient.user.id,
+  });
+  assert.ok(error, 'expected an invitation to another occurrence not to count');
+  assert.match(error.message, /not eligible/);
+});
+
+// The positive half. The occurrence scope comes from the ticket's source
+// acquisition, not from the ticket, so this also covers that resolution.
+void test('a recipient invited to this occurrence can be offered the ticket', async () => {
+  const { occurrence, ticket } = await createSecuredTicket(acquirer, catalogOwner);
+  await makeTransferEligible(acquirer, occurrence.id, recipient);
+
+  const transfer = await requestTransfer(acquirer, ticket.id, recipient.user.id);
+  assert.equal(transfer.ticket_id, ticket.id);
+  assert.equal(transfer.sender_id, acquirer.user.id);
+  assert.equal(transfer.recipient_id, recipient.user.id);
+  assert.equal(transfer.status, 'pending');
+  assert.equal(transfer.responded_at, null);
+});
+
+// Whoever sent the invitation, the recipient is an invited participant of
+// the occurrence - the rule is about the recipient, not about the ticket
+// owner having been the inviter.
+void test('an invitation from a third party also makes a recipient eligible', async () => {
+  const { occurrence, ticket } = await createSecuredTicket(acquirer, catalogOwner);
+  await makeTransferEligible(outsider, occurrence.id, recipient);
+
+  const transfer = await requestTransfer(acquirer, ticket.id, recipient.user.id);
+  assert.equal(transfer.recipient_id, recipient.user.id);
+});
+
+// The eligibility predicate is SECURITY DEFINER precisely so it can see
+// invitation rows the caller's RLS hides. Handing it to clients would let
+// any authenticated user ask "was X invited to Y?" directly, which is the
+// read Issue #30's SELECT policy withholds. It is definer-only, so this must
+// stay refused.
+void test('the eligibility predicate is not callable by an authenticated client', async () => {
+  const { occurrence } = await createSecuredTicket(acquirer, catalogOwner);
+  const { error } = await acquirer.client.rpc('ticket_transfer_recipient_is_eligible', {
+    p_occurrence_id: occurrence.id,
+    p_recipient_id: recipient.user.id,
+  });
+  assert.ok(error, 'expected the eligibility predicate to be unreachable from a client');
 });

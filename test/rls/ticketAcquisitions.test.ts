@@ -26,7 +26,9 @@ let otherUser: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  catalogOwner = await createTestActor('rls-acq-catalog', PASSWORD);
+  catalogOwner = await createTestActor('rls-acq-catalog', PASSWORD, {
+    designatedCatalogCreator: true,
+  });
   createdActors.push(catalogOwner);
   acquirer = await createTestActor('rls-acq-owner', PASSWORD);
   createdActors.push(acquirer);

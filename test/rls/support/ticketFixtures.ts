@@ -1,11 +1,17 @@
 import { createAdminClient, type TestActor } from './testActors.ts';
 import { createEventWithOccurrence } from './eventFixtures.ts';
+import {
+  inviteToOccurrenceOrThrow,
+  readOwnParticipation,
+  setParticipation,
+} from './participationFixtures.ts';
 
 // Shared fixture helpers for the ticket acquisition / ticket / transfer
 // slice (Issue #32). Everything here that an end user could legitimately do
 // goes through that user's own anon-key client, so the RLS/grant boundary is
-// still the thing being exercised; the one place that deliberately uses the
-// service_role path is documented at seedPendingTransfer below.
+// still the thing being exercised. service_role appears only in the
+// read*AsAdmin helpers, which exist to inspect rows the acting user is
+// (correctly) not allowed to read.
 
 export type AcquisitionStatus = 'pending' | 'secured' | 'unsuccessful';
 
@@ -93,33 +99,65 @@ export async function createSecuredTicket(
 }
 
 /**
- * Inserts a pending transfer through the service_role path instead of
- * request_ticket_transfer.
+ * Makes `recipient` an eligible transfer target for `occurrenceId` the only
+ * way product-rules.md allows: by being invited to that occurrence. The
+ * inviter has to be `attending` it first (Issue #30), so this establishes
+ * that too.
  *
- * This is a deliberate, temporary fixture seam. request_ticket_transfer
- * currently fails closed on recipient eligibility, because that predicate
- * needs the invitation persistence Issue #30 establishes and #30 is not on
- * main yet (see
- * supabase/migrations/20260822093300_create_ticket_transfer_eligibility.sql).
- * Seeding the pending row directly is what lets the acceptance /
- * cancellation / ownership-transition rules - the genuinely dangerous part
- * of this slice - be tested now rather than after #30 lands.
- *
- * It seeds *state*, never behavior: every accept/cancel assertion below
- * still runs through the real authenticated RPC path. When #30 merges and
- * the eligibility body is wired up, this helper is replaced by a
- * request_ticket_transfer call and the eligibility positive/negative tests
- * land with it.
+ * Eligibility deliberately has no test-only backdoor - the same
+ * invite_to_occurrence path a real inviter uses is what these fixtures use,
+ * so a change to #30's invite rules surfaces here rather than being masked.
  */
-export async function seedPendingTransfer(ticketId: string, senderId: string, recipientId: string) {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from('ticket_transfers')
-    .insert({ ticket_id: ticketId, sender_id: senderId, recipient_id: recipientId })
-    .select()
-    .single();
+export async function makeTransferEligible(
+  inviter: TestActor,
+  occurrenceId: string,
+  recipient: TestActor,
+): Promise<void> {
+  await ensureAttending(inviter, occurrenceId);
+  await inviteToOccurrenceOrThrow(inviter, occurrenceId, recipient.user.id);
+}
+
+/**
+ * Brings an actor to `attending` for an occurrence whether or not they
+ * already have a participation row. Participation is unique per (occurrence,
+ * user), and an invitee handed a `considering` row by a previous invite is
+ * exactly the actor a later fixture may need to promote - so a plain insert
+ * would fail on the unique constraint rather than express the intent.
+ *
+ * Both branches run as the participant themselves, which is also the only
+ * way `considering -> attending` is allowed to happen.
+ */
+async function ensureAttending(actor: TestActor, occurrenceId: string): Promise<void> {
+  const existing = await readOwnParticipation(actor, occurrenceId);
+  if (existing === null) {
+    await setParticipation(actor, occurrenceId, 'attending');
+    return;
+  }
+  if (existing.status === 'attending') {
+    return;
+  }
+
+  const { error } = await actor.client
+    .from('occurrence_participations')
+    .update({ status: 'attending' })
+    .eq('id', existing.id);
   if (error) {
-    throw new Error(`fixture pending transfer insert failed: ${error.message}`);
+    throw new Error(`fixture participation promotion failed: ${error.message}`);
+  }
+}
+
+/**
+ * Starts a transfer through the real authenticated RPC path and returns the
+ * created row. Errors are surfaced rather than swallowed so a fixture that
+ * stopped working cannot quietly turn a positive test into a vacuous one.
+ */
+export async function requestTransfer(sender: TestActor, ticketId: string, recipientId: string) {
+  const { data, error } = await sender.client.rpc('request_ticket_transfer', {
+    p_ticket_id: ticketId,
+    p_recipient_id: recipientId,
+  });
+  if (error) {
+    throw new Error(`fixture request_ticket_transfer failed: ${error.message}`);
   }
   return data;
 }
