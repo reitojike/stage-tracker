@@ -7,6 +7,7 @@ import {
   type RpcErrorRule,
 } from '../../domain/planningError.ts';
 import { fetchAllRows } from './pagedFetch.ts';
+import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 // Typed feature-level read/write boundary over public.occurrence_invitations
 // (Issue #33). invite_to_occurrence and decline_occurrence_invitation are the
@@ -48,12 +49,26 @@ export const INVITE_ERROR_RULES: readonly RpcErrorRule[] = [
  * call's outcome), so a caller cannot distinguish "invitation created",
  * "invitation created, invitee already `considering`", and "invitee already
  * `attending`, nothing written" - by design.
+ *
+ * Checks the caller's session first (requireAuthenticatedUserId): EXECUTE
+ * on this RPC is revoked from anon (see the migration), so an anon caller
+ * would otherwise reach the database and get a generic 42501, which
+ * classifyRpcError falls through to `permission-denied` rather than
+ * `unauthenticated` - unlike a session that reaches the RPC body and hits
+ * its own `authentication required` raise (defense-in-depth, normally
+ * unreachable). Checking first makes both paths report the same
+ * `unauthenticated` kind.
  */
 export async function inviteToOccurrence(
   client: InvitationQueryClient,
   occurrenceId: string,
   inviteeId: string,
 ): Promise<PlanningResult<void>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { error } = await client.rpc('invite_to_occurrence', {
     p_occurrence_id: occurrenceId,
     p_invitee_id: inviteeId,
@@ -104,11 +119,18 @@ export const DECLINE_ERROR_RULES: readonly RpcErrorRule[] = [
  * Declines an invitation as its invitee. Idempotent: declining an
  * already-declined invitation returns it unchanged rather than erroring or
  * re-stamping declined_at.
+ *
+ * Checks the caller's session first - see inviteToOccurrence above for why.
  */
 export async function declineInvitation(
   client: InvitationQueryClient,
   invitationId: string,
 ): Promise<PlanningResult<Invitation>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { data, error } = await client.rpc('decline_occurrence_invitation', {
     p_invitation_id: invitationId,
   });

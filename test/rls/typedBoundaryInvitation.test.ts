@@ -162,9 +162,23 @@ void test('inviteToOccurrence reports unauthenticated for a client with no sessi
   const anonymous = createAnonymousClient();
   const result = await inviteToOccurrence(anonymous, occurrenceId, invitee.user.id);
   assert.equal(result.ok, false);
-  // EXECUTE is revoked from anon entirely (see the migration), so this
-  // surfaces as a Postgrest-level permission denial rather than the RPC's
-  // own "authentication required" raise - either way it must not be
-  // reported as success or as a generic failure.
-  assert.ok(result.error.kind === 'unauthenticated' || result.error.kind === 'permission-denied');
+  // requireAuthenticatedUserId checks the session before this ever reaches
+  // the RPC, so a missing session is `unauthenticated` even though EXECUTE
+  // is also revoked from anon entirely (which would otherwise surface as a
+  // generic Postgrest permission denial instead).
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+void test('declineInvitation reports unauthenticated for a client with no session', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  const invitation = received.data.find((i) => i.occurrenceId === occurrenceId);
+  assert.ok(invitation);
+
+  const anonymous = createAnonymousClient();
+  const result = await declineInvitation(anonymous, invitation.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
 });

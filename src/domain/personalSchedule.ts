@@ -16,6 +16,7 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { tokyoCalendarDayRangeUtc } from './eventCatalog.ts';
 import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
 
 export type ScheduleType = 'paid_leave' | 'work' | 'travel' | 'other';
@@ -159,12 +160,29 @@ export function temporalToColumns(temporal: ScheduleTemporal): {
   };
 }
 
-/** Deterministic ordering for a personal schedule listing: all-day entries
+/**
+ * Deterministic ordering for a personal schedule listing: all-day entries
  * order by startsOn, time-bounded entries by startsAt - both are the
  * "when does this entry begin" field for their shape - with id as a stable
- * tie-breaker (see domain/ordering.ts). */
+ * tie-breaker (see domain/ordering.ts).
+ *
+ * An all-day entry's startsOn ("YYYY-MM-DD") is converted to the UTC
+ * instant its Asia/Tokyo calendar day begins at before comparing, rather
+ * than compared as a bare date string against a full ISO timestamp
+ * directly. Naive string comparison of the two different formats is not
+ * equivalent to chronological order whenever they fall close together:
+ * Tokyo's UTC+9 offset means a UTC timestamp from 15:00 onward already
+ * belongs to the *next* Tokyo calendar day, so e.g. all-day "2026-01-01"
+ * (Tokyo midnight = instant 2025-12-31T15:00:00Z) sorts after the
+ * time-bounded instant "2025-12-31T16:00:00Z" as bare strings ("2026-..." >
+ * "2025-...") even though 15:00Z is earlier than 16:00Z - the reverse of
+ * the correct order. Converting both sides to actual UTC instants first
+ * avoids that.
+ */
 function entryStart(entry: PersonalScheduleEntry): string {
-  return entry.temporal.kind === 'all-day' ? entry.temporal.startsOn : entry.temporal.startsAt;
+  return entry.temporal.kind === 'all-day'
+    ? tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startUtc
+    : entry.temporal.startsAt;
 }
 
 export function comparePersonalScheduleEntriesByStart(

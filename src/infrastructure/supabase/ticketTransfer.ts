@@ -14,6 +14,7 @@ import {
   type RpcErrorRule,
 } from '../../domain/planningError.ts';
 import { fetchAllRows } from './pagedFetch.ts';
+import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 // Typed feature-level read/write boundary over public.ticket_transfers
 // (Issue #33). request_ticket_transfer / accept_ticket_transfer /
@@ -46,11 +47,24 @@ export const REQUEST_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('this ticket already has a pending transfer'), kind: 'validation' },
 ];
 
+/**
+ * Checks the caller's session first (requireAuthenticatedUserId): EXECUTE
+ * on this RPC is revoked from anon, so an anon caller would otherwise reach
+ * the database and get a generic 42501 (`permission-denied` via
+ * classifyRpcError's fallback) instead of the `unauthenticated` a missing
+ * session should report - see invitation.ts's inviteToOccurrence for the
+ * same reasoning.
+ */
 export async function requestTransfer(
   client: TicketTransferQueryClient,
   ticketId: string,
   recipientId: string,
 ): Promise<PlanningResult<TicketTransfer>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { data, error } = await client.rpc('request_ticket_transfer', {
     p_ticket_id: ticketId,
     p_recipient_id: recipientId,
@@ -76,10 +90,16 @@ export const ACCEPT_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('transfer sender no longer owns this ticket'), kind: 'failure' },
 ];
 
+/** Checks the caller's session first - see requestTransfer above for why. */
 export async function acceptTransfer(
   client: TicketTransferQueryClient,
   transferId: string,
 ): Promise<PlanningResult<TicketTransfer>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { data, error } = await client.rpc('accept_ticket_transfer', {
     p_transfer_id: transferId,
   });
@@ -99,10 +119,16 @@ export const CANCEL_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('transfer is no longer pending'), kind: 'validation' },
 ];
 
+/** Checks the caller's session first - see requestTransfer above for why. */
 export async function cancelTransfer(
   client: TicketTransferQueryClient,
   transferId: string,
 ): Promise<PlanningResult<TicketTransfer>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
   const { data, error } = await client.rpc('cancel_ticket_transfer', {
     p_transfer_id: transferId,
   });

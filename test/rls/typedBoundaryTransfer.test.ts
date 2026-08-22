@@ -291,7 +291,29 @@ void test('requestTransfer reports unauthenticated for a client with no session'
   const anonymous = createAnonymousClient();
   const result = await requestTransfer(anonymous, ticketId, recipient.user.id);
   assert.equal(result.ok, false);
-  assert.ok(result.error.kind === 'unauthenticated' || result.error.kind === 'permission-denied');
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+void test('acceptTransfer reports unauthenticated for a client with no session', async () => {
+  const { ticketId } = await offerableTicket();
+  const requested = await requestTransfer(acquirer.client, ticketId, recipient.user.id);
+  assert.equal(requested.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await acceptTransfer(anonymous, requested.data.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+void test('cancelTransfer reports unauthenticated for a client with no session', async () => {
+  const { ticketId } = await offerableTicket();
+  const requested = await requestTransfer(acquirer.client, ticketId, recipient.user.id);
+  assert.equal(requested.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await cancelTransfer(anonymous, requested.data.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
 });
 
 // --- Required regression (Issue #33 Acceptance Criteria): transfer never

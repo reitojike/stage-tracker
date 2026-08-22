@@ -120,6 +120,33 @@ void test('comparePersonalScheduleEntriesByStart orders all-day and time-bounded
   assert.ok(comparePersonalScheduleEntriesByStart(timed, allDay) < 0);
 });
 
+// Regression (Codex review on PR #52): naive string comparison of an
+// all-day entry's bare "YYYY-MM-DD" against a full ISO timestamp gets the
+// order backwards whenever they fall close together, because Asia/Tokyo's
+// UTC+9 offset means a UTC afternoon/evening instant already belongs to the
+// *next* Tokyo calendar day. All-day "2026-01-01" begins at the UTC instant
+// 2025-12-31T15:00:00Z; a time-bounded entry at 2025-12-31T16:00:00Z is one
+// hour *later* than that, so the all-day entry must sort first - but
+// comparing the raw strings "2026-01-01" vs "2025-12-31T16:00:00Z" would
+// rank the all-day entry *after* the timed one (since "2026-..." >
+// "2025-..." lexicographically), the reverse of the correct order.
+void test('comparePersonalScheduleEntriesByStart converts an all-day startsOn to its Tokyo-day UTC instant before comparing', () => {
+  const allDay = mapPersonalScheduleEntryRow(
+    rawAllDayRow({ id: 'all-day', starts_on: '2026-01-01', ends_on: '2026-01-01' }),
+  );
+  const timed = mapPersonalScheduleEntryRow(
+    rawTimedRow({ id: 'timed', starts_at: '2025-12-31T16:00:00Z' }),
+  );
+  assert.ok(
+    comparePersonalScheduleEntriesByStart(allDay, timed) < 0,
+    'all-day 2026-01-01 (starts 2025-12-31T15:00:00Z in Tokyo) must sort before the 16:00Z timed entry',
+  );
+  assert.deepEqual(
+    sortPersonalScheduleEntries([timed, allDay]).map((e) => e.id),
+    ['all-day', 'timed'],
+  );
+});
+
 void test('sortPersonalScheduleEntries does not mutate its input array', () => {
   const later = mapPersonalScheduleEntryRow(rawAllDayRow({ id: 'later', starts_on: '2026-02-10' }));
   const earlier = mapPersonalScheduleEntryRow(
