@@ -31,7 +31,13 @@ let actorB: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  catalogOwner = await createTestActor('rls-part-catalog', PASSWORD);
+  // Event creation is restricted to designated catalog creators (Issue
+  // #29), and every occurrence here needs a parent event. That gate is
+  // orthogonal to participation: owning the event confers no participation
+  // or invite right, which the tests below rely on.
+  catalogOwner = await createTestActor('rls-part-catalog', PASSWORD, {
+    designatedCatalogCreator: true,
+  });
   createdActors.push(catalogOwner);
   actorA = await createTestActor('rls-part-a', PASSWORD);
   createdActors.push(actorA);

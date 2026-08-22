@@ -144,6 +144,9 @@ export async function readInvitation(
  * The standard setup for invitation tests: an occurrence owned by
  * `catalogOwner`, with `inviter` already `attending` it - the only state
  * that makes someone eligible to invite.
+ *
+ * `catalogOwner` must be a designated catalog creator (Issue #29), since
+ * creating the parent event goes through create_event_with_occurrence.
  */
 export async function createOccurrenceWithAttendee(
   catalogOwner: TestActor,

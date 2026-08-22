@@ -48,7 +48,13 @@ let other: TestActor;
 const createdActors: TestActor[] = [];
 
 before(async () => {
-  catalogOwner = await createTestActor('rls-inv-catalog', PASSWORD);
+  // Event creation is restricted to designated catalog creators (Issue
+  // #29), and every occurrence here needs a parent event. That gate is
+  // orthogonal to invite eligibility: 'the parent event owner cannot invite
+  // without attending' below is exactly the point.
+  catalogOwner = await createTestActor('rls-inv-catalog', PASSWORD, {
+    designatedCatalogCreator: true,
+  });
   createdActors.push(catalogOwner);
   inviter = await createTestActor('rls-inv-inviter', PASSWORD);
   createdActors.push(inviter);
