@@ -57,12 +57,18 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   必須・accept前はsenderがcancel可・accept後はownershipがrecipientへ
   移りsourceとのprovenanceは保持・participationを自動変更しない。
   invitationをdeclineしたinviteeもtransfer eligibilityを維持する。
-  pending中のtransfer offerはaccept前まで前ownerのassignment情報を
-  recipientへ開示しない）
+  pending中のtransfer offerは、accept前まで前ownerのassignment情報を
+  recipientへ開示しない設計です）
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-に従って既に実装済みです。
+に従って既に実装済みです。ただし pending recipient への assignment
+非開示については既知の gap があります。ticket が一度他 owner へ移った後、
+再度元の acquisition owner へ pending offer される edge case では、
+provenance read（元の acquisition owner がその ticket を引き続き read
+できる data boundary）により、現行実装は accept 前の非開示 semantics を
+満たしません。この edge case を除く通常の transfer 経路では非開示は
+成立しています。gap の解消は別途 bounded implementation task で扱います。
 
 calendar上のSaturday/Sunday/Japanese holiday presentationのsemanticsも
 `docs/ux-ui.md` で承認済みですが、対応するUIはまだ実装されていません。

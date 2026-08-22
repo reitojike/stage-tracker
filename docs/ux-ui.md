@@ -240,13 +240,14 @@ task / 追加のPO checkpointで確定します。
 - feature-specific calendar marker semantics（date dot / run period band /
   occurrence marker / 同日複数公演の件数表示 / overlapping runsのstack /
   `+N` collapsing / rest day表示）
-- event / occurrence persistence shape、run-period persistence、
-  rest-day persistence
-- participation / invitation / personal schedule / ticket acquisition /
-  ticket のpersistence shape・table naming（status modelそのものの正本は
-  `.ai-dev-foundation/product-rules.md`）
-- ticket acquisition とparticipationのpersistence関係、budget集計の
-  期間基準
+- event / occurrence / participation / invitation / personal schedule /
+  ticket acquisition / ticket のpersistence shape・table naming。これら
+  のdomain persistenceの正本は `.ai-dev-foundation/product-rules.md` と
+  current implementationであり、本ドキュメントでは固定しません（将来の
+  変更もこのdocumentが決めるものではありません）
+- run-period / rest-dayのcalendar上の表示方法（`.ai-dev-foundation/product-rules.md`
+  が定める「公演回から導出する派生情報」をどう表示するか）
+- budget集計の期間基準
 - favorite / follow persistence schema、classification taxonomyの具体形
   （classificationのdata boundary自体は
   `.ai-dev-foundation/product-rules.md`で承認済み）、category

@@ -103,8 +103,11 @@ sourceとのprovenanceは保持、transferはparticipationを自動変更しな�
 occurrenceを1 transactionで作るRPC経由のみをsupported pathとし、直接の
 `events` INSERTは提供しません。invitationのcreateとdeclineも同様に
 それぞれ専用RPC経由のみで、直接の`occurrence_invitations`書き込みは
-提供しません。ticket transferのrequest/accept/cancelも専用RPC経由のみで、
-`tickets` / `ticket_transfers`への直接UPDATEは提供しません。
+提供しません。ticket transferのownership移転とtransfer lifecycle
+state（request/accept/cancel）の変更も専用RPC経由のみで、`tickets`の
+ownership列や`ticket_transfers`への直接UPDATEは提供しません。一方、
+ticketのseat/queue/medium/assignmentといった通常の詳細編集は、current
+ticket ownerによる直接UPDATEで提供します。
 
 invitationのMVP write/read boundaryには、participation privacyを守る
 ための追加の制約があります。invite操作の結果はinviterに対して不透明
@@ -149,13 +152,17 @@ uncommitted）です。current committed scopeには含みません。
 
 - event deletion semantics
 - Ticket の deletion / correction semantics
-- 各domain concept（classification / venue / Administrator権限機構）の
-  exact persistence・mechanism詳細。event-independent personal schedule、
-  occurrence-level participation / invitation、および ticket acquisition /
-  ticket / ticket transfer は persistence / RLS baseline が実装済みの
-  ため対象外です（[Current committed scope](#current-committed-scope)
+- 各domain concept（classification / venue）の exact persistence・
+  mechanism詳細。event-independent personal schedule、occurrence-level
+  participation / invitation、および ticket acquisition / ticket /
+  ticket transfer は persistence / RLS baseline が実装済みのため対象外
+  です（[Current committed scope](#current-committed-scope)
   参照）。これらについて残っているのは UI journey であって persistence
-  shape ではありません
+  shape ではありません。designated catalog creator（Administrator）の
+  permission mechanismも、UUID hard-codeでもgenericなadmin/role
+  frameworkでもないmembership allowlistとして確定済みのため対象外です。
+  未決定なのは、Administrator以外へのEvent create権限拡大に伴う
+  verification / moderationのexact workflow（Post-MVP）です
   （未決定項目の一覧は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
