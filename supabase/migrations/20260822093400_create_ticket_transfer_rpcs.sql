@@ -161,10 +161,19 @@ begin
   -- Ownership and edit authority move together: owner_id is what
   -- tickets_update_own gates on.
   --
-  -- Assignment is cleared rather than inherited. It records the *previous*
-  -- owner's expectation of who would use the ticket, and for an external
-  -- companion it is a named third party who never agreed to be disclosed to
-  -- the recipient. The new owner re-decides it.
+  -- Assignment is cleared rather than inherited: it records the *previous*
+  -- owner's expectation of who would use the ticket, and the new owner
+  -- re-decides it.
+  --
+  -- This clearing is NOT a disclosure control, and must not be read as one.
+  -- tickets_select_pending_transfer_recipient
+  -- (20260822093200_create_ticket_transfers.sql) already lets a pending
+  -- recipient read the whole ticket row, assignee_external_name included,
+  -- before they accept - and if they never accept, nothing here runs at
+  -- all. Whether offering a ticket should expose the previous holder's
+  -- named external companion is a product question that no current rule in
+  -- product-rules.md answers; it is recorded as a PO checkpoint on Issue
+  -- #32 rather than settled by narrowing the policy here.
   update public.tickets
   set owner_id = v_transfer.recipient_id,
       assigned_to_user_id = null,

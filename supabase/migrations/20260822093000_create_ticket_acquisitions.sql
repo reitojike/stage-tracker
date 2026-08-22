@@ -66,6 +66,15 @@ alter table public.ticket_acquisitions enable row level security;
 -- another user. occurrence_id is likewise INSERT-only, so an acquisition
 -- cannot be re-pointed at a different occurrence after the fact - the same
 -- boundary event_occurrences draws for event_id.
+-- The blanket revoke first makes the column-level boundary below exact
+-- rather than merely additive: whatever a future Supabase default-privilege
+-- change might hand to PUBLIC/anon/authenticated on table creation, the
+-- privileges that survive this migration are only the ones granted
+-- explicitly underneath it. Matches the convention established by
+-- 20260822010000_create_occurrence_participations.sql. anon is named here
+-- so it is visibly closed, not closed by omission.
+revoke all on public.ticket_acquisitions from public, anon, authenticated;
+
 grant select, insert, update, delete on public.ticket_acquisitions to service_role;
 
 grant select on public.ticket_acquisitions to authenticated;

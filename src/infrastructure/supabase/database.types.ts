@@ -390,7 +390,7 @@ export type Database = {
         }
       }
       can_view_ticket_provenance: {
-        Args: { p_ticket_id: string; p_user_id: string }
+        Args: { p_ticket_id: string }
         Returns: boolean
       }
       cancel_ticket_transfer: {

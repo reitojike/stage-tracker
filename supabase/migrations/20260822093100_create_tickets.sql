@@ -81,6 +81,15 @@ alter table public.tickets enable row level security;
 -- INSERT-only. Ownership therefore cannot be reassigned by a normal client
 -- under any RLS outcome, and a ticket cannot be re-pointed at a different
 -- acquisition to launder its provenance.
+-- The blanket revoke first makes the column-level boundary below exact
+-- rather than merely additive: whatever a future Supabase default-privilege
+-- change might hand to PUBLIC/anon/authenticated on table creation, the
+-- privileges that survive this migration are only the ones granted
+-- explicitly underneath it. Matches the convention established by
+-- 20260822010000_create_occurrence_participations.sql. anon is named here
+-- so it is visibly closed, not closed by omission.
+revoke all on public.tickets from public, anon, authenticated;
+
 grant select, insert, update, delete on public.tickets to service_role;
 
 grant select on public.tickets to authenticated;

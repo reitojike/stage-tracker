@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import pg from 'pg';
 import {
   createTestActor,
-  deleteTestActor,
+  deleteTestActorsSequentially,
   grantCatalogCreator,
   revokeCatalogCreator,
 } from './support/testActors.ts';
@@ -1137,22 +1137,21 @@ try {
   // fails, but still exit non-zero if any cleanup failed - a silently-
   // swallowed cleanup failure would leave stale users/events behind while
   // reporting success.
-  const results = await Promise.allSettled(
-    [actorA, actorB, stranger]
-      .filter((actor) => actor !== undefined)
-      .map((actor) => deleteTestActor(actor)),
-  );
-  const failures = results.filter((result) => result.status === 'rejected');
-  const cleanupError =
-    failures.length > 0
-      ? new Error(
-          `test actor cleanup failed:\n${failures
-            .map((failure) =>
-              failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
-            )
-            .join('\n')}`,
-        )
-      : undefined;
+  //
+  // Sequential, not concurrent: since Issue #32 these actors share rows one
+  // another's teardown reaches (a ticket under another actor's acquisition,
+  // an acquisition on another actor's occurrence), so running the deletes
+  // together can have one actor remove a parent row while another is still
+  // deleting its children. deleteTestActorsSequentially exists for exactly
+  // that reason and already aggregates per-actor failures.
+  let cleanupError;
+  try {
+    await deleteTestActorsSequentially(
+      [actorA, actorB, stranger].filter((actor) => actor !== undefined),
+    );
+  } catch (error) {
+    cleanupError = error instanceof Error ? error : new Error(String(error));
+  }
 
   if (primaryError && cleanupError) {
     throw new AggregateError(

@@ -70,6 +70,15 @@ create trigger ticket_transfers_set_updated_at
 
 alter table public.ticket_transfers enable row level security;
 
+-- The blanket revoke first makes the column-level boundary below exact
+-- rather than merely additive: whatever a future Supabase default-privilege
+-- change might hand to PUBLIC/anon/authenticated on table creation, the
+-- privileges that survive this migration are only the ones granted
+-- explicitly underneath it. Matches the convention established by
+-- 20260822010000_create_occurrence_participations.sql. anon is named here
+-- so it is visibly closed, not closed by omission.
+revoke all on public.ticket_transfers from public, anon, authenticated;
+
 grant select, insert, update, delete on public.ticket_transfers to service_role;
 grant select on public.ticket_transfers to authenticated;
 
@@ -84,13 +93,20 @@ grant select on public.ticket_transfers to authenticated;
 -- (the table owner, which bypasses RLS) breaks that cycle by construction
 -- rather than by relying on Postgres to stop expanding it.
 --
--- Widening this to something a caller can use as an oracle is the risk to
--- watch: it takes an explicit user id but returns true only for rows that
--- user is already entitled to, so a caller learns nothing about tickets
--- that are not theirs.
+-- The subject is always the caller. An earlier revision took the user id as
+-- a parameter, which - because this is SECURITY DEFINER and authenticated
+-- needs EXECUTE for the policy to work - let any client holding a ticket
+-- uuid ask "does user X own, or did X acquire, ticket T?" about an
+-- arbitrary X. A cancelled transfer's former recipient keeps such a uuid,
+-- so that was reachable, and it is the same leak class this slice
+-- deliberately closes for
+-- public.ticket_transfer_recipient_is_eligible. Reading auth.uid() inside
+-- the body removes the parameter that made it an oracle: a caller can now
+-- only ask about themselves, which is what the SELECT policies already tell
+-- them. auth.uid() reads a session GUC, so SECURITY DEFINER does not change
+-- what it returns.
 create function public.can_view_ticket_provenance(
-  p_ticket_id uuid,
-  p_user_id uuid
+  p_ticket_id uuid
 ) returns boolean
 language sql
 stable
@@ -102,7 +118,7 @@ as $$
     from public.tickets t
     join public.ticket_acquisitions a on a.id = t.acquisition_id
     where t.id = p_ticket_id
-      and (t.owner_id = p_user_id or a.owner_id = p_user_id)
+      and (t.owner_id = auth.uid() or a.owner_id = auth.uid())
   );
 $$;
 
@@ -111,8 +127,8 @@ $$;
 -- before granting. RLS policy expressions are evaluated as the calling
 -- role, so authenticated genuinely needs EXECUTE for the policy below to
 -- work at all.
-revoke execute on function public.can_view_ticket_provenance(uuid, uuid) from public;
-grant execute on function public.can_view_ticket_provenance(uuid, uuid) to authenticated;
+revoke execute on function public.can_view_ticket_provenance(uuid) from public;
+grant execute on function public.can_view_ticket_provenance(uuid) to authenticated;
 
 create policy ticket_transfers_select_involved
   on public.ticket_transfers
@@ -121,7 +137,7 @@ create policy ticket_transfers_select_involved
   using (
     sender_id = auth.uid()
     or recipient_id = auth.uid()
-    or public.can_view_ticket_provenance(ticket_id, auth.uid())
+    or public.can_view_ticket_provenance(ticket_id)
   );
 
 -- A pending recipient can read the ticket they are being offered. This is a
