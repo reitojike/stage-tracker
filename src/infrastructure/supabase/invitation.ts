@@ -2,11 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types.ts';
 import { mapInvitationRow, sortInvitations, type Invitation } from '../../domain/invitation.ts';
 import {
-  classifyPostgrestError,
   classifyRpcError,
   type PlanningResult,
   type RpcErrorRule,
 } from '../../domain/planningError.ts';
+import { fetchAllRows } from './pagedFetch.ts';
 
 // Typed feature-level read/write boundary over public.occurrence_invitations
 // (Issue #33). invite_to_occurrence and decline_occurrence_invitation are the
@@ -69,15 +69,24 @@ export async function inviteToOccurrence(
  * occurrence_invitations_select_invitee restricts SELECT to invitee_id =
  * auth.uid(), so this can never surface an invitation the caller sent - see
  * this module's header for why there is deliberately no such operation.
+ * Paginated via fetchAllRows so a caller with more rows than PostgREST's
+ * api.max_rows never silently loses the rest (see pagedFetch.ts).
  */
 export async function listMyReceivedInvitations(
   client: InvitationQueryClient,
 ): Promise<PlanningResult<Invitation[]>> {
-  const { data, error } = await client.from('occurrence_invitations').select();
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('occurrence_invitations')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortInvitations(data.map(mapInvitationRow)) };
+  return { ok: true, data: sortInvitations(result.data.map(mapInvitationRow)) };
 }
 
 export const DECLINE_ERROR_RULES: readonly RpcErrorRule[] = [

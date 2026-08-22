@@ -8,6 +8,7 @@ import {
   type TicketWriteInput,
 } from '../../domain/ticket.ts';
 import { classifyPostgrestError, type PlanningResult } from '../../domain/planningError.ts';
+import { fetchAllRows } from './pagedFetch.ts';
 import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 // Typed feature-level read/write boundary over public.tickets (Issue #33).
@@ -45,26 +46,44 @@ function deniedTicketUpdate(): PlanningResult<never> {
 }
 
 /** Every ticket visible to the caller: current owner, or source acquirer of
- * a ticket not presently pending transfer *to* the caller (Issue #50). */
+ * a ticket not presently pending transfer *to* the caller (Issue #50).
+ * Paginated via fetchAllRows so a caller with more rows than PostgREST's
+ * api.max_rows never silently loses the rest (see pagedFetch.ts). */
 export async function listVisibleTickets(
   client: TicketQueryClient,
 ): Promise<PlanningResult<Ticket[]>> {
-  const { data, error } = await client.from('tickets').select();
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('tickets')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortTickets(data.map(mapTicketRow)) };
+  return { ok: true, data: sortTickets(result.data.map(mapTicketRow)) };
 }
 
+/** Paginated via fetchAllRows - see listVisibleTickets above. */
 export async function listTicketsForAcquisition(
   client: TicketQueryClient,
   acquisitionId: string,
 ): Promise<PlanningResult<Ticket[]>> {
-  const { data, error } = await client.from('tickets').select().eq('acquisition_id', acquisitionId);
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('tickets')
+      .select('*', { count: 'exact' })
+      .eq('acquisition_id', acquisitionId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortTickets(data.map(mapTicketRow)) };
+  return { ok: true, data: sortTickets(result.data.map(mapTicketRow)) };
 }
 
 /** Creates a ticket under an acquisition the caller owns and has secured -

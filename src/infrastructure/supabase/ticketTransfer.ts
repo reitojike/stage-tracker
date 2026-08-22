@@ -13,6 +13,7 @@ import {
   type PlanningResult,
   type RpcErrorRule,
 } from '../../domain/planningError.ts';
+import { fetchAllRows } from './pagedFetch.ts';
 
 // Typed feature-level read/write boundary over public.ticket_transfers
 // (Issue #33). request_ticket_transfer / accept_ticket_transfer /
@@ -142,24 +143,42 @@ export async function getPendingTransferOffer(
  * provenance-visible) is the entire authorization, and re-deriving any part
  * of it here (e.g. filtering to sender/recipient only) would silently
  * narrow this below what RLS actually grants - see listVisibleTickets in
- * ./ticket.ts for the same "trust RLS, add nothing on top" convention. */
+ * ./ticket.ts for the same "trust RLS, add nothing on top" convention.
+ * Paginated via fetchAllRows so a caller with more rows than PostgREST's
+ * api.max_rows never silently loses the rest (see pagedFetch.ts). */
 export async function listVisibleTransfers(
   client: TicketTransferQueryClient,
 ): Promise<PlanningResult<TicketTransfer[]>> {
-  const { data, error } = await client.from('ticket_transfers').select();
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('ticket_transfers')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortTicketTransfers(data.map(mapTicketTransferRow)) };
+  return { ok: true, data: sortTicketTransfers(result.data.map(mapTicketTransferRow)) };
 }
 
+/** Paginated via fetchAllRows - see listVisibleTransfers above. */
 export async function listTransfersForTicket(
   client: TicketTransferQueryClient,
   ticketId: string,
 ): Promise<PlanningResult<TicketTransfer[]>> {
-  const { data, error } = await client.from('ticket_transfers').select().eq('ticket_id', ticketId);
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('ticket_transfers')
+      .select('*', { count: 'exact' })
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortTicketTransfers(data.map(mapTicketTransferRow)) };
+  return { ok: true, data: sortTicketTransfers(result.data.map(mapTicketTransferRow)) };
 }

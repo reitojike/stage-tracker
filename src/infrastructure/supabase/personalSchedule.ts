@@ -10,6 +10,7 @@ import {
   type ScheduleShare,
 } from '../../domain/personalSchedule.ts';
 import { classifyPostgrestError, type PlanningResult } from '../../domain/planningError.ts';
+import { fetchAllRows } from './pagedFetch.ts';
 import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 // Typed feature-level read/write boundary over public.personal_schedule_
@@ -51,16 +52,28 @@ function deniedEntryUpdate(): PlanningResult<never> {
  * set (personal_schedule_entries_select_owner_or_shared) - splitting it here
  * would just be re-deriving that union from two round trips instead of one.
  * Callers that need to label an entry "owner" vs. "shared" compare
- * `entry.ownerId` against their own id.
+ * `entry.ownerId` against their own id. Paginated via fetchAllRows so a
+ * caller with more rows than PostgREST's api.max_rows never silently loses
+ * the rest (see pagedFetch.ts).
  */
 export async function listVisiblePersonalSchedule(
   client: PersonalScheduleQueryClient,
 ): Promise<PlanningResult<PersonalScheduleEntry[]>> {
-  const { data, error } = await client.from('personal_schedule_entries').select();
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('personal_schedule_entries')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortPersonalScheduleEntries(data.map(mapPersonalScheduleEntryRow)) };
+  return {
+    ok: true,
+    data: sortPersonalScheduleEntries(result.data.map(mapPersonalScheduleEntryRow)),
+  };
 }
 
 export async function createPersonalScheduleEntry(
@@ -120,19 +133,25 @@ export async function updatePersonalScheduleEntry(
 /** Every share row visible to the caller for one entry: the full recipient
  * list when the caller is the entry's owner, or just their own share row
  * when they are a recipient (personal_schedule_shares_select_owner_or_
- * recipient scopes it exactly that way). */
+ * recipient scopes it exactly that way). Paginated via fetchAllRows - see
+ * listVisiblePersonalSchedule above. */
 export async function listScheduleShares(
   client: PersonalScheduleQueryClient,
   scheduleEntryId: string,
 ): Promise<PlanningResult<ScheduleShare[]>> {
-  const { data, error } = await client
-    .from('personal_schedule_shares')
-    .select()
-    .eq('schedule_entry_id', scheduleEntryId);
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('personal_schedule_shares')
+      .select('*', { count: 'exact' })
+      .eq('schedule_entry_id', scheduleEntryId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: data.map(mapScheduleShareRow) };
+  return { ok: true, data: result.data.map(mapScheduleShareRow) };
 }
 
 /** Shares an entry with a recipient, as the entry's owner. Sharing takes

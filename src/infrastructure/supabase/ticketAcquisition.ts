@@ -8,6 +8,7 @@ import {
   type TicketAcquisitionUpdateInput,
 } from '../../domain/ticketAcquisition.ts';
 import { classifyPostgrestError, type PlanningResult } from '../../domain/planningError.ts';
+import { fetchAllRows } from './pagedFetch.ts';
 import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 // Typed feature-level read/write boundary over public.ticket_acquisitions
@@ -21,6 +22,8 @@ import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 export type TicketAcquisitionQueryClient = SupabaseClient<Database>;
 
+/** Paginated via fetchAllRows so a caller with more rows than PostgREST's
+ * api.max_rows never silently loses the rest (see pagedFetch.ts). */
 export async function listMyAcquisitions(
   client: TicketAcquisitionQueryClient,
   occurrenceId?: string,
@@ -30,15 +33,23 @@ export async function listMyAcquisitions(
     return callerId;
   }
 
-  let query = client.from('ticket_acquisitions').select().eq('owner_id', callerId.data);
-  if (occurrenceId !== undefined) {
-    query = query.eq('occurrence_id', occurrenceId);
+  const result = await fetchAllRows((from, to) => {
+    let query = client
+      .from('ticket_acquisitions')
+      .select('*', { count: 'exact' })
+      .eq('owner_id', callerId.data);
+    if (occurrenceId !== undefined) {
+      query = query.eq('occurrence_id', occurrenceId);
+    }
+    return query
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+  });
+  if (!result.ok) {
+    return result;
   }
-  const { data, error } = await query;
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
-  }
-  return { ok: true, data: sortTicketAcquisitions(data.map(mapTicketAcquisitionRow)) };
+  return { ok: true, data: sortTicketAcquisitions(result.data.map(mapTicketAcquisitionRow)) };
 }
 
 export async function createAcquisition(

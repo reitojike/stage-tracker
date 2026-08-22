@@ -7,6 +7,7 @@ import {
   type ParticipationInput,
 } from '../../domain/participation.ts';
 import { classifyPostgrestError, type PlanningResult } from '../../domain/planningError.ts';
+import { fetchAllRows } from './pagedFetch.ts';
 import { requireAuthenticatedUserId } from './planningAuth.ts';
 
 // Typed feature-level read/write boundary over public.occurrence_participations
@@ -74,7 +75,9 @@ export async function getMyParticipation(
 }
 
 /** Every participation the caller themselves recorded, across all
- * occurrences - the read a personal calendar journey needs. */
+ * occurrences - the read a personal calendar journey needs. Paginated via
+ * fetchAllRows so a caller with more rows than PostgREST's api.max_rows
+ * never silently loses the rest (see pagedFetch.ts). */
 export async function listMyParticipations(
   client: ParticipationQueryClient,
 ): Promise<PlanningResult<Participation[]>> {
@@ -83,32 +86,43 @@ export async function listMyParticipations(
     return callerId;
   }
 
-  const { data, error } = await client
-    .from('occurrence_participations')
-    .select()
-    .eq('user_id', callerId.data);
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('occurrence_participations')
+      .select('*', { count: 'exact' })
+      .eq('user_id', callerId.data)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortParticipations(data.map(mapParticipationRow)) };
+  return { ok: true, data: sortParticipations(result.data.map(mapParticipationRow)) };
 }
 
 /** Every participation visible to the caller for one occurrence: their own
  * (any visibility) plus every other user's `public` row - exactly what
  * occurrence_participations_select_visible allows through. Needs no caller
- * id: RLS alone decides what this query returns. */
+ * id: RLS alone decides what this query returns. Paginated via
+ * fetchAllRows - see listMyParticipations above. */
 export async function listVisibleParticipationsForOccurrence(
   client: ParticipationQueryClient,
   occurrenceId: string,
 ): Promise<PlanningResult<Participation[]>> {
-  const { data, error } = await client
-    .from('occurrence_participations')
-    .select()
-    .eq('occurrence_id', occurrenceId);
-  if (error !== null) {
-    return { ok: false, error: classifyPostgrestError(error) };
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('occurrence_participations')
+      .select('*', { count: 'exact' })
+      .eq('occurrence_id', occurrenceId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: sortParticipations(data.map(mapParticipationRow)) };
+  return { ok: true, data: sortParticipations(result.data.map(mapParticipationRow)) };
 }
 
 /**
