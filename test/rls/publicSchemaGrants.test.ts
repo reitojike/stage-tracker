@@ -21,49 +21,69 @@ import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 // authenticated" step this migration and #29/#30/#32 established, not just
 // a regression on the four tables fixed here.
 
+const status = readLocalSupabaseStatus();
+
+async function withPgClient<T>(run: (client: pg.Client) => Promise<T>): Promise<T> {
+  const client = new pg.Client({ connectionString: status.dbUrl });
+  await client.connect();
+  try {
+    return await run(client);
+  } finally {
+    await client.end();
+  }
+}
+
 const RESIDUAL_PRIVILEGES = ['TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'] as const;
 const CLIENT_ROLES = ['anon', 'authenticated'] as const;
 
 void test('no current public table grants anon or authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN', async () => {
-  const status = readLocalSupabaseStatus();
-  const client = new pg.Client({ connectionString: status.dbUrl });
-  await client.connect();
-  try {
+  // One batched query (cross join over the role/privilege arrays, joined
+  // against every current public table) rather than a per-(table, role,
+  // privilege) round trip - the schema keeps growing new tables, and this
+  // test is meant to run unconditionally on every verify pass.
+  const { residual, tableCount } = await withPgClient(async (client) => {
     const { rows: tables } = await client.query<{ tablename: string }>(
-      `select tablename from pg_tables where schemaname = 'public' order by tablename`,
+      `select tablename from pg_tables where schemaname = 'public'`,
     );
-    assert.ok(tables.length > 0, 'expected at least one table in the public schema to inventory');
-
-    const residual: string[] = [];
-    for (const { tablename } of tables) {
-      for (const role of CLIENT_ROLES) {
-        for (const privilege of RESIDUAL_PRIVILEGES) {
-          const { rows } = await client.query<{ has: boolean }>(
-            `select has_table_privilege($1, $2, $3) as has`,
-            [role, `public.${tablename}`, privilege],
-          );
-          if (rows[0]?.has) {
-            residual.push(`${role} -> ${tablename}: ${privilege}`);
-          }
-        }
-      }
-    }
-
-    assert.deepEqual(
-      residual,
-      [],
-      `expected no residual TRUNCATE/REFERENCES/TRIGGER/MAINTAIN for anon/authenticated on any ` +
-        `public table, found:\n${residual.join('\n')}`,
+    const { rows } = await client.query<{ tablename: string; role: string; privilege: string }>(
+      `select t.tablename, r.role, p.privilege
+       from pg_tables t
+       cross join unnest($1::text[]) as r(role)
+       cross join unnest($2::text[]) as p(privilege)
+       where t.schemaname = 'public'
+         and has_table_privilege(r.role, 'public.' || t.tablename, p.privilege)
+       order by t.tablename, r.role, p.privilege`,
+      [CLIENT_ROLES, RESIDUAL_PRIVILEGES],
     );
-  } finally {
-    await client.end();
-  }
+    return { residual: rows, tableCount: tables.length };
+  });
+
+  assert.ok(tableCount > 0, 'expected at least one table in the public schema to inventory');
+
+  assert.deepEqual(
+    residual.map((row) => `${row.role} -> ${row.tablename}: ${row.privilege}`),
+    [],
+    `expected no residual TRUNCATE/REFERENCES/TRIGGER/MAINTAIN for anon/authenticated on any ` +
+      `public table, found:\n${residual.map((row) => `${row.role} -> ${row.tablename}: ${row.privilege}`).join('\n')}`,
+  );
 });
 
 interface ExactGrantExpectation {
   table: string;
   grantee: 'anon' | 'authenticated';
+  // Every privilege_type this grantee should hold on this table, whether
+  // table-level (SELECT, DELETE here) or column-level (INSERT, UPDATE
+  // here) - information_schema.role_table_grants and role_column_grants
+  // are unioned below, so both kinds land in the same set.
   privileges: string[];
+  // For column-scoped privileges (INSERT/UPDATE on these four tables),
+  // the exact column list that privilege_type set alone cannot express.
+  // Without this, a future edit that widened e.g. `grant update (...)` to
+  // include owner_id - reopening the system-managed-field boundary these
+  // tables' own creating migrations deliberately withhold it from - would
+  // still pass a privilege_type-only check, since UPDATE would already be
+  // in the expected set regardless of which column carries it.
+  columns?: Partial<Record<'INSERT' | 'UPDATE', string[]>>;
 }
 
 // Exact-set assertions for the four tables 20260822120000 hardens
@@ -80,34 +100,62 @@ interface ExactGrantExpectation {
 // expected set is always empty.
 const EXACT_GRANTS: ExactGrantExpectation[] = [
   { table: 'events', grantee: 'anon', privileges: [] },
-  { table: 'events', grantee: 'authenticated', privileges: ['SELECT', 'UPDATE'] },
+  {
+    table: 'events',
+    grantee: 'authenticated',
+    privileges: ['SELECT', 'UPDATE'],
+    columns: { UPDATE: ['title', 'venue', 'source_url', 'memo'] },
+  },
   { table: 'event_occurrences', grantee: 'anon', privileges: [] },
   {
     table: 'event_occurrences',
     grantee: 'authenticated',
     privileges: ['SELECT', 'INSERT', 'UPDATE'],
+    columns: {
+      INSERT: ['event_id', 'starts_at', 'ends_at'],
+      UPDATE: ['starts_at', 'ends_at'],
+    },
   },
   { table: 'personal_schedule_entries', grantee: 'anon', privileges: [] },
   {
     table: 'personal_schedule_entries',
     grantee: 'authenticated',
     privileges: ['SELECT', 'INSERT', 'UPDATE'],
+    columns: {
+      INSERT: [
+        'owner_id',
+        'schedule_type',
+        'memo',
+        'is_all_day',
+        'starts_on',
+        'ends_on',
+        'starts_at',
+        'ends_at',
+      ],
+      UPDATE: [
+        'schedule_type',
+        'memo',
+        'is_all_day',
+        'starts_on',
+        'ends_on',
+        'starts_at',
+        'ends_at',
+      ],
+    },
   },
   { table: 'personal_schedule_shares', grantee: 'anon', privileges: [] },
   {
     table: 'personal_schedule_shares',
     grantee: 'authenticated',
     privileges: ['SELECT', 'INSERT', 'DELETE'],
+    columns: { INSERT: ['schedule_entry_id', 'shared_with_user_id'] },
   },
 ];
 
 for (const expectation of EXACT_GRANTS) {
   void test(`${expectation.grantee} holds exactly [${expectation.privileges.join(', ')}] on ${expectation.table}`, async () => {
-    const status = readLocalSupabaseStatus();
-    const client = new pg.Client({ connectionString: status.dbUrl });
-    await client.connect();
-    try {
-      const { rows } = await client.query<{ privilege_type: string }>(
+    await withPgClient(async (client) => {
+      const { rows: privilegeRows } = await client.query<{ privilege_type: string }>(
         `select distinct privilege_type
          from information_schema.role_table_grants
          where table_schema = 'public'
@@ -122,12 +170,31 @@ for (const expectation of EXACT_GRANTS) {
         [expectation.table, expectation.grantee],
       );
       assert.deepEqual(
-        rows.map((row) => row.privilege_type).sort(),
+        privilegeRows.map((row) => row.privilege_type).sort(),
         [...expectation.privileges].sort(),
         `expected ${expectation.grantee} to hold exactly [${expectation.privileges.join(', ')}] on ${expectation.table}`,
       );
-    } finally {
-      await client.end();
-    }
+
+      for (const privilege of ['INSERT', 'UPDATE'] as const) {
+        const expectedColumns = expectation.columns?.[privilege];
+        if (expectedColumns === undefined) {
+          continue;
+        }
+        const { rows: columnRows } = await client.query<{ column_name: string }>(
+          `select column_name
+           from information_schema.role_column_grants
+           where table_schema = 'public'
+             and table_name = $1
+             and grantee = $2
+             and privilege_type = $3`,
+          [expectation.table, expectation.grantee, privilege],
+        );
+        assert.deepEqual(
+          columnRows.map((row) => row.column_name).sort(),
+          [...expectedColumns].sort(),
+          `expected ${expectation.grantee} to hold ${privilege} on exactly [${expectedColumns.join(', ')}] on ${expectation.table}`,
+        );
+      }
+    });
   });
 }

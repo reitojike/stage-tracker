@@ -39,6 +39,18 @@
 -- any intended access boundary. `revoke all` clears column-level grants
 -- too, so every column-scoped INSERT/UPDATE grant below is re-stated in
 -- full, not just the table-level SELECT/DELETE ones.
+--
+-- Wrapped in an explicit transaction (mirroring
+-- 20260821000100_backfill_and_drop_event_temporal_columns.sql - supabase's
+-- migration runner does not itself wrap a migration file's statements in
+-- one): unlike the revoke-then-grant sequences in #29/#30/#32, which act on
+-- a table just created earlier in the same migration file, these four
+-- tables are already live and serving authenticated traffic. Without this,
+-- an interruption between a `revoke all` and its matching `grant`
+-- statements below would leave that table's PostgREST-visible privileges
+-- at nothing - not even SELECT - for anon/authenticated until the
+-- migration is completed or re-run.
+begin;
 
 revoke all on public.events from public, anon, authenticated;
 revoke all on public.event_occurrences from public, anon, authenticated;
@@ -82,3 +94,5 @@ grant delete on public.personal_schedule_shares to authenticated;
 -- `revoke all` above did not touch service_role (it was scoped to public,
 -- anon, authenticated), so no re-grant is needed here; this is stated only
 -- to make that omission legible rather than accidental.
+
+commit;
