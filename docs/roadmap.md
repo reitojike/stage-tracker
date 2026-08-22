@@ -47,17 +47,29 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   対して不透明で、3分岐すべてが同一の結果を返し、invitation rowの
   通常readはinvitee本人に限定する。inviter向けinvitation historyは
   committed scope外）
+- ticket acquisition / ticket / ticket transferのpersistence / RLS
+  baseline（acquisitionはuser-owned・occurrence-linkedで同一user/
+  occurrenceに複数attempt可・statusは`pending`/`secured`/
+  `unsuccessful`のみ、ticketはsecured acquisitionの結果として複数持て
+  seat/queue/mediumはticket単位でnullable、registered assigneeと
+  外部同行者名の排他assignmentでaccount不要の同行者を表現可能、
+  transferはeligibleなregistered invitee向け・recipientのacceptance
+  必須・accept前はsenderがcancel可・accept後はownershipがrecipientへ
+  移りsourceとのprovenanceは保持・participationを自動変更しない。
+  invitationをdeclineしたinviteeもtransfer eligibilityを維持する。
+  pending中のtransfer offerはaccept前まで前ownerのassignment情報を
+  recipientへ開示しない）
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
 に従って既に実装済みです。
 
-ticket acquisition / ticket / ticket transfer、calendar上のSaturday/
-Sunday/Japanese holiday presentationのsemanticsも product-rules.md /
-`docs/ux-ui.md` で承認済みですが、対応するschema/RLS/UIはまだ実装され
-ていません。occurrence-level participation / invitationはschema/RLS
-baselineのみ成立済みで、UI journeyは未実装です。いずれも次節のMVP
-personal planning capabilityの中で実装します。
+calendar上のSaturday/Sunday/Japanese holiday presentationのsemanticsも
+`docs/ux-ui.md` で承認済みですが、対応するUIはまだ実装されていません。
+occurrence-level participation / invitation と ticket acquisition /
+ticket / ticket transferはいずれもschema/RLS baselineのみ成立済みで、
+UI journeyは未実装です。いずれも次節のMVP personal planning
+capabilityの中で実装します。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
@@ -80,9 +92,11 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   参照）。persistence / RLS baselineは Completed baseline のとおり成立
   済みで、残るのはUI journeyです。
-- **ticket acquisition / ticket** — チケット入手情報とticketの管理（詳細は
+- **ticket acquisition / ticket** — チケット入手情報とticketの管理、
+  ticket transferを含む（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）
+  参照）。persistence / RLS baselineは Completed baseline のとおり成立
+  済みで、残るのはUI journeyです。
 - **calendar weekday / Japanese holiday presentation** — Saturday/
   Sunday/Japanese holidayのglobal calendar presentation（詳細は
   [`docs/ux-ui.md`](./ux-ui.md) 参照）
