@@ -1,9 +1,5 @@
 import { LoadingIndicator } from '@/ui/LoadingIndicator';
 
 export default function EditScheduleEntryLoading() {
-  return (
-    <main>
-      <LoadingIndicator label="読み込み中" />
-    </main>
-  );
+  return <LoadingIndicator label="読み込み中" />;
 }

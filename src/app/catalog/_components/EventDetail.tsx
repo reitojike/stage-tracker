@@ -1,4 +1,6 @@
-import Link from 'next/link';
+import { ActionRow } from '@/ui/ActionRow';
+import { LinkButton } from '@/ui/LinkButton';
+import { PageHeading } from '@/ui/PageHeading';
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import type { Participation } from '@/domain/participation.ts';
@@ -50,9 +52,15 @@ export function EventDetail({
 
   return (
     <article className={styles.detail}>
-      <h1 className={styles.title}>{event.title}</h1>
+      <PageHeading>{event.title}</PageHeading>
 
-      {editHref !== null ? <Link href={editHref}>この公演情報を編集</Link> : null}
+      {editHref !== null ? (
+        <ActionRow>
+          <LinkButton href={editHref} variant="secondary">
+            この公演情報を編集
+          </LinkButton>
+        </ActionRow>
+      ) : null}
 
       <dl className={styles.meta}>
         {event.venue !== null ? (

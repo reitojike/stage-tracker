@@ -1,4 +1,6 @@
-import Link from 'next/link';
+import { ActionRow } from '@/ui/ActionRow';
+import { LinkButton } from '@/ui/LinkButton';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
@@ -82,10 +84,10 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
 
   if (!callerResult.ok) {
     return (
-      <main>
-        <h1>My Calendar</h1>
+      <>
+        <PageHeading>My Calendar</PageHeading>
         {authOrReadErrorPanel(callerResult.error)}
-      </main>
+      </>
     );
   }
   const callerId = callerResult.data;
@@ -110,10 +112,10 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
     !acquisitionsResult.ok
   ) {
     return (
-      <main>
-        <h1>My Calendar</h1>
+      <>
+        <PageHeading>My Calendar</PageHeading>
         {firstError !== null ? authOrReadErrorPanel(firstError) : null}
-      </main>
+      </>
     );
   }
 
@@ -127,14 +129,14 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
       : await getOccurrencesByIds(client, occurrenceIds);
   if (!occurrencesResult.ok) {
     return (
-      <main>
-        <h1>My Calendar</h1>
+      <>
+        <PageHeading>My Calendar</PageHeading>
         <StatePanel
           variant="error"
           title="My Calendarを読み込めませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
-      </main>
+      </>
     );
   }
 
@@ -161,14 +163,14 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
       : await getEventsByIds(client, eventIds);
   if (!eventsResult.ok) {
     return (
-      <main>
-        <h1>My Calendar</h1>
+      <>
+        <PageHeading>My Calendar</PageHeading>
         <StatePanel
           variant="error"
           title="My Calendarを読み込めませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
-      </main>
+      </>
     );
   }
 
@@ -224,9 +226,13 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
     .some((m) => !m.holidayDataConfirmed);
 
   return (
-    <main>
-      <h1>My Calendar</h1>
-      <Link href="/catalog">Event Catalogを見る</Link>
+    <>
+      <PageHeading>My Calendar</PageHeading>
+      <ActionRow>
+        <LinkButton href="/schedule" variant="secondary">
+          個人予定を管理
+        </LinkButton>
+      </ActionRow>
 
       <MyMonthCalendar
         yearMonth={yearMonth}
@@ -255,6 +261,6 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
           eventDetailContext={{ yearMonth, selectedDate }}
         />
       ) : null}
-    </main>
+    </>
   );
 }

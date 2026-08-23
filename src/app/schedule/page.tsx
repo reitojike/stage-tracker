@@ -1,5 +1,8 @@
 import Link from 'next/link';
+import { ActionRow } from '@/ui/ActionRow';
 import { Badge } from '@/ui/Badge';
+import { LinkButton } from '@/ui/LinkButton';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
@@ -35,10 +38,12 @@ export default async function SchedulePage() {
   const callerId = callerResult.ok ? callerResult.data : null;
 
   return (
-    <main>
-      <h1>Personal Schedule</h1>
+    <>
+      <PageHeading>Personal Schedule</PageHeading>
 
-      <Link href="/schedule/new">+ 予定を追加</Link>
+      <ActionRow>
+        <LinkButton href="/schedule/new">+ 予定を追加</LinkButton>
+      </ActionRow>
 
       {state === 'error' ? (
         <StatePanel
@@ -73,6 +78,6 @@ export default async function SchedulePage() {
           })}
         </ul>
       ) : null}
-    </main>
+    </>
   );
 }

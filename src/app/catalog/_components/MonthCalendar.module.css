@@ -30,13 +30,18 @@
   font-size: var(--font-size-body);
 }
 
+.navLink,
+.day {
+  touch-action: manipulation;
+}
+
 .navLink:hover {
   background-color: var(--color-surface-subtle);
 }
 
 .weekdayRow {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 2px;
 }
 
@@ -50,7 +55,7 @@
 .week {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-auto-rows: min-content;
   gap: 2px;
   border-top: 1px solid var(--color-border);
@@ -64,8 +69,11 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
-  /* Matches .navLink's 44px minimum touch target (WCAG 2.5.8). */
-  min-width: 44px;
+  /* Height keeps the 44px comfortable target; width follows the 1fr column
+     so a narrow viewport (320px, with the shell's own padding) reflows
+     instead of overflowing horizontally - docs/ux-ui.md accessibility
+     baseline requires zoom/reflow support, and the resulting ~39px cell is
+     still well past WCAG 2.2 AA SC 2.5.8's 24px floor. */
   min-height: 44px;
   padding-block: var(--space-xs);
   border-radius: var(--radius-control);
@@ -178,4 +186,22 @@
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
   padding-inline: var(--space-xs);
+}
+
+/*
+ * Pressed feedback (#70). Gate A's remote navigation can take a few
+ * seconds, so a tap has to be acknowledged at the moment it happens rather
+ * than only when the next screen arrives.
+ */
+.navLink:active,
+.day:active:not(.daySelected) {
+  background-color: var(--color-surface-active);
+}
+
+/* The selected day carries an accent fill with --color-accent-foreground
+   text, so the neutral pressed background above would leave white text on a
+   near-white surface. Press it one step darker along the accent scale
+   instead, keeping the pair's contrast. */
+.daySelected:active {
+  background-color: var(--color-accent-active);
 }

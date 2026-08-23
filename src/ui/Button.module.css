@@ -12,6 +12,11 @@
   border: 1px solid transparent;
   cursor: pointer;
   min-height: 44px;
+  /* Suppresses the mobile double-tap-zoom delay so the pressed state below
+     appears immediately on tap (docs/ux-ui.md: native-feeling mobile
+     organizer). The platform's own tap highlight is deliberately left in
+     place as a second, always-available cue. */
+  touch-action: manipulation;
 }
 
 .button:disabled {
@@ -36,4 +41,26 @@
 
 .secondary:hover:not(:disabled) {
   background-color: var(--color-surface-subtle);
+}
+
+/*
+ * Pressed feedback. Gate A's remote navigation can take a few seconds
+ * (#69/#70), so "did this register" has to be answerable at the moment of
+ * the press, not only once the response arrives.
+ */
+.primary:active:not(:disabled) {
+  background-color: var(--color-accent-active);
+}
+
+.secondary:active:not(:disabled) {
+  background-color: var(--color-surface-active);
+}
+
+/*
+ * LinkButton renders an <a> carrying these same classes, so it needs the
+ * link defaults a <button> never had neutralised. Kept here rather than in
+ * a parallel stylesheet so the two cannot drift apart.
+ */
+.asLink {
+  text-decoration: none;
 }

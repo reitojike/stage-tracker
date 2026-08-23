@@ -1,4 +1,5 @@
 import { Button } from '@/ui/Button';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { Surface } from '@/ui/Surface';
 import { TextInput } from '@/ui/TextInput';
@@ -40,8 +41,8 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const authError = errorKey === undefined ? undefined : AUTH_ERRORS.get(errorKey);
 
   return (
-    <main>
-      <h1>stage-tracker サインイン</h1>
+    <>
+      <PageHeading>stage-tracker サインイン</PageHeading>
 
       {authError ? (
         <StatePanel variant="error" title={authError.title} description={authError.description} />
@@ -69,6 +70,6 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           <Button type="submit">サインインリンクをリクエスト</Button>
         </form>
       )}
-    </main>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { BackLink } from '@/ui/BackLink';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
@@ -92,8 +92,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   }
 
   return (
-    <main>
-      <Link href={backHref}>← カレンダーに戻る</Link>
+    <>
+      <BackLink href={backHref}>カレンダーに戻る</BackLink>
 
       {state === 'error' ? (
         <StatePanel
@@ -119,6 +119,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           participationsByOccurrenceId={participationsByOccurrenceId}
         />
       ) : null}
-    </main>
+    </>
   );
 }

@@ -1,5 +1,6 @@
-import Link from 'next/link';
 import { ScheduleEntryCreateForm } from '../_components/ScheduleEntryCreateForm.tsx';
+import { BackLink } from '@/ui/BackLink';
+import { PageHeading } from '@/ui/PageHeading';
 
 /**
  * Personal schedule entry creation (Issue #37). Any authenticated user may
@@ -11,10 +12,10 @@ import { ScheduleEntryCreateForm } from '../_components/ScheduleEntryCreateForm.
  */
 export default function NewSchedulePage() {
   return (
-    <main>
-      <Link href="/schedule">← Personal Scheduleに戻る</Link>
-      <h1>予定を追加</h1>
+    <>
+      <BackLink href="/schedule">Personal Scheduleに戻る</BackLink>
+      <PageHeading>予定を追加</PageHeading>
       <ScheduleEntryCreateForm />
-    </main>
+    </>
   );
 }

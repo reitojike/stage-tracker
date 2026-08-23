@@ -1,0 +1,26 @@
+/*
+ * The detail screen's own sub-sections. globals.css removes the UA heading
+ * margins (the shell's content column and each component's flex gap own the
+ * page rhythm instead), so a section that groups a heading with its content
+ * has to state that spacing itself - the same pattern
+ * EventWriteForm.module.css already uses for its sections.
+ */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.sectionHeading {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.recipientList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

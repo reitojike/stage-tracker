@@ -1,6 +1,9 @@
-import Link from 'next/link';
-import { StatePanel } from '@/ui/StatePanel';
+import { ActionRow } from '@/ui/ActionRow';
+import { BackLink } from '@/ui/BackLink';
 import { Badge } from '@/ui/Badge';
+import { LinkButton } from '@/ui/LinkButton';
+import { PageHeading } from '@/ui/PageHeading';
+import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import {
@@ -18,6 +21,7 @@ import {
 import { LeaveShareForm } from '../_components/LeaveShareForm.tsx';
 import { RemoveRecipientForm } from '../_components/RemoveRecipientForm.tsx';
 import { ShareAddForm } from '../_components/ShareAddForm.tsx';
+import styles from '../_components/ScheduleDetail.module.css';
 
 interface ScheduleEntryPageProps {
   params: Promise<{ entryId: string }>;
@@ -94,8 +98,8 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
       : null;
 
   return (
-    <main>
-      <Link href="/schedule">← Personal Scheduleに戻る</Link>
+    <>
+      <BackLink href="/schedule">Personal Scheduleに戻る</BackLink>
 
       {state === 'error' ? (
         <StatePanel
@@ -115,13 +119,19 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
               {isOwner ? '自分の予定' : '共有されている予定'}
             </Badge>
           ) : null}
-          <h1>{scheduleTypeLabel(entry.scheduleType)}</h1>
+          <PageHeading>{scheduleTypeLabel(entry.scheduleType)}</PageHeading>
           <p>{scheduleTemporalLabel(entry.temporal)}</p>
           {entry.memo !== null ? <p>{entry.memo}</p> : null}
 
           {callerResult.ok ? (
             <>
-              {isOwner ? <Link href={`/schedule/${entry.id}/edit`}>編集する</Link> : null}
+              {isOwner ? (
+                <ActionRow>
+                  <LinkButton href={`/schedule/${entry.id}/edit`} variant="secondary">
+                    編集する
+                  </LinkButton>
+                </ActionRow>
+              ) : null}
               {!isOwner && ownShareReadFailed ? (
                 <StatePanel
                   variant="error"
@@ -132,8 +142,8 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
               {!isOwner && ownShareId !== null ? <LeaveShareForm shareId={ownShareId} /> : null}
 
               {isOwner ? (
-                <section>
-                  <h2>共有</h2>
+                <section className={styles.section}>
+                  <h2 className={styles.sectionHeading}>共有</h2>
 
                   {recipientsState === 'error' ? (
                     <StatePanel
@@ -146,7 +156,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
                     <StatePanel variant="empty" title="まだ誰とも共有していません" />
                   ) : null}
                   {recipientsResult?.ok && recipientsResult.data.length > 0 ? (
-                    <ul>
+                    <ul className={styles.recipientList}>
                       {recipientsResult.data.map((recipient) => (
                         <li key={recipient.shareId}>
                           <RemoveRecipientForm
@@ -172,6 +182,6 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
           )}
         </>
       ) : null}
-    </main>
+    </>
   );
 }

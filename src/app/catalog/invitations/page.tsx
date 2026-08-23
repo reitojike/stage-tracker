@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { BackLink } from '@/ui/BackLink';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
 import { listMyReceivedInvitations } from '@/infrastructure/supabase/invitation';
@@ -65,9 +66,9 @@ export default async function InvitationsPage() {
   }
 
   return (
-    <main>
-      <Link href={catalogMonthHref(currentTokyoDate().slice(0, 7))}>← カレンダーに戻る</Link>
-      <h1>招待一覧</h1>
+    <>
+      <BackLink href={catalogMonthHref(currentTokyoDate().slice(0, 7))}>カレンダーに戻る</BackLink>
+      <PageHeading>招待一覧</PageHeading>
 
       {state === 'error' ? (
         <StatePanel
@@ -98,6 +99,6 @@ export default async function InvitationsPage() {
           ))}
         </ul>
       ) : null}
-    </main>
+    </>
   );
 }

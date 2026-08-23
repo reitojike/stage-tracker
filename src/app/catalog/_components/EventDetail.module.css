@@ -4,12 +4,6 @@
   gap: var(--space-md);
 }
 
-.title {
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
-  margin: 0;
-}
-
 .meta {
   display: flex;
   flex-direction: column;

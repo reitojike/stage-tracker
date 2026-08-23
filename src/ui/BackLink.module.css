@@ -1,0 +1,29 @@
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  /* Sits at the start of the shell's content column rather than stretching
+     across it, so its tap target matches its visible extent. */
+  align-self: flex-start;
+  gap: var(--space-xs);
+  /* WCAG 2.5.8 target size, matched to the calendar's own 44px cells. */
+  min-height: 44px;
+  padding-inline: var(--space-sm);
+  /* Cancels the padding above so the label still aligns with the page's
+     other content, while the tap target keeps its full width. */
+  margin-inline-start: calc(var(--space-sm) * -1);
+  border-radius: var(--radius-control);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.backLink:hover {
+  background-color: var(--color-surface-subtle);
+  color: var(--color-text);
+}
+
+.backLink:active {
+  background-color: var(--color-surface-active);
+  color: var(--color-text);
+}
