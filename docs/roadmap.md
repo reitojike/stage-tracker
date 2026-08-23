@@ -66,11 +66,14 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   6 domainについて、UIがad-hocなSupabase table/RPC accessをせずに済む
   typed feature-level read/write boundary（generated `Database` types
   をinfrastructure層でconsumeするadapterと、それを返すdomain model）。
-  unauthenticated / not-found / permission / validation / infrastructure
-  failureを意味を失わず区別し、app UIからのdirect Supabase table/RPC
-  accessはlint guardrailで抑止されています。ticket transferの
-  request/accept/cancelがparticipationを自動変更しないことは
-  behavioral regressionとしてpin済みです
+  write / RPC operationはunauthenticatedを明示的に検出したうえで
+  not-found / permission / validation / infrastructure failureを意味を
+  失わず区別し、read operationはpermission / infrastructure failureを
+  区別します（read operationは事前のsession精査を行わず、未認証呼び出しは
+  RLS/grant拒否としてpermission-deniedに分類されます）。app UIからの
+  direct Supabase table/RPC accessはlint guardrailで抑止されています。
+  ticket transferのrequest/accept/cancelがparticipationを自動変更
+  しないことはbehavioral regressionとしてpin済みです
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
