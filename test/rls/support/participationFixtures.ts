@@ -103,6 +103,44 @@ export async function inviteToOccurrenceOrThrow(
   }
 }
 
+/** Same shape as inviteToOccurrence above, but for the email-based RPC
+ * (Issue #36). Returns void in every invitee-dependent branch - see
+ * supabase/migrations/20260823000000_create_invite_to_occurrence_by_email_rpc.sql. */
+export async function inviteToOccurrenceByEmail(
+  actor: TestActor,
+  occurrenceId: string,
+  inviteeEmail: string,
+): Promise<{ error: PostgrestError | null }> {
+  const { error } = await actor.client.rpc('invite_to_occurrence_by_email', {
+    p_occurrence_id: occurrenceId,
+    p_invitee_email: inviteeEmail,
+  });
+  return { error };
+}
+
+export async function inviteToOccurrenceByEmailOrThrow(
+  actor: TestActor,
+  occurrenceId: string,
+  inviteeEmail: string,
+): Promise<void> {
+  const { error } = await inviteToOccurrenceByEmail(actor, occurrenceId, inviteeEmail);
+  if (error) {
+    throw new Error(`fixture invite_to_occurrence_by_email failed: ${error.message}`);
+  }
+}
+
+/** Supabase's User type declares `email` optional; every test actor here is
+ * created with an explicit email (see createTestActor), so this is always
+ * present in practice. Narrows with a runtime check rather than a type
+ * assertion, throwing loudly if that assumption is ever wrong. */
+export function requireActorEmail(actor: TestActor): string {
+  const email = actor.user.email;
+  if (email === undefined) {
+    throw new Error(`test actor ${actor.user.id} has no email`);
+  }
+  return email;
+}
+
 /**
  * Reads the invitations an invitee has received for an occurrence, through
  * their own client. Only the invitee can read an invitation

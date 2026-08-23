@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classifyRpcError } from '../../../domain/planningError.ts';
-import { DECLINE_ERROR_RULES, INVITE_ERROR_RULES } from '../invitation.ts';
+import {
+  DECLINE_ERROR_RULES,
+  INVITE_BY_EMAIL_ERROR_RULES,
+  INVITE_ERROR_RULES,
+} from '../invitation.ts';
 
 // Pure classification tests for invite_to_occurrence's / decline_occurrence_
 // invitation's `raise exception` message rules (Issue #33). Every message
@@ -21,6 +25,10 @@ function classifyInvite(message: string) {
 
 function classifyDecline(message: string) {
   return classifyRpcError({ message, code: 'P0001' }, DECLINE_ERROR_RULES).kind;
+}
+
+function classifyInviteByEmail(message: string) {
+  return classifyRpcError({ message, code: 'P0001' }, INVITE_BY_EMAIL_ERROR_RULES).kind;
 }
 
 void test('invite_to_occurrence: "authentication required" -> unauthenticated', () => {
@@ -64,3 +72,38 @@ void test('decline_occurrence_invitation: "invitation is required" -> validation
 void test('decline_occurrence_invitation: "invitation not found" -> not-found', () => {
   assert.equal(classifyDecline('invitation not found'), 'not-found');
 });
+
+void test('invite_to_occurrence_by_email: "authentication required" -> unauthenticated', () => {
+  assert.equal(classifyInviteByEmail('authentication required'), 'unauthenticated');
+});
+
+void test('invite_to_occurrence_by_email: "occurrence and invitee email are required" -> validation', () => {
+  assert.equal(classifyInviteByEmail('occurrence and invitee email are required'), 'validation');
+});
+
+void test('invite_to_occurrence_by_email: "invitee email is not a valid email address" -> validation', () => {
+  assert.equal(classifyInviteByEmail('invitee email is not a valid email address'), 'validation');
+});
+
+void test('invite_to_occurrence_by_email: "cannot invite yourself" -> validation', () => {
+  assert.equal(classifyInviteByEmail('cannot invite yourself'), 'validation');
+});
+
+void test('invite_to_occurrence_by_email: not-attending message -> permission-denied', () => {
+  assert.equal(
+    classifyInviteByEmail('only a user attending this occurrence can invite others to it'),
+    'permission-denied',
+  );
+});
+
+void test('invite_to_occurrence_by_email: an unrecognized message falls back to classifyPostgrestError', () => {
+  assert.equal(
+    classifyInviteByEmail('some future message this rule set does not know about'),
+    'failure',
+  );
+});
+
+// Deliberately no test for a "declined" or "not found" message here, unlike
+// classifyInvite above: invite_to_occurrence_by_email never raises for
+// anything about the invitee (see its migration's header) - a rule for
+// either would be dead code that could never fire.

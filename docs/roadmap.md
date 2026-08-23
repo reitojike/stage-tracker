@@ -100,10 +100,16 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 
 calendar上のSaturday/Sunday/Japanese holiday presentationのsemanticsも
 `docs/ux-ui.md` で承認済みですが、対応するUIはまだ実装されていません。
-occurrence-level participation / invitation と ticket acquisition /
-ticket / ticket transferはいずれもschema/RLS baselineとtyped read/write
-boundaryが成立済みで、user-facing UI journeyは未実装です。いずれも
-次節のMVP personal planning capabilityの中で実装します。
+occurrence-level participation / invitationはschema/RLS baseline・typed
+read/write boundaryに加え、MVP user-facing UI journeyも実装済みです
+（Issue #36。event詳細画面からのconsidering/attending登録・切替・
+participation解除、attending occurrenceからのinvite-by-email、
+`/catalog/invitations`でのinvitee側一覧・decline）。招待の宛先選択は
+上記「Authenticated-user targeting」節のとおり登録済みemail address
+のexact inputで、`invite_to_occurrence_by_email`で解決します。ticket
+acquisition / ticket / ticket transferはschema/RLS baselineとtyped
+read/write boundaryのみ成立済みで、user-facing UI journeyは次節のMVP
+personal planning capabilityの中で実装します。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
@@ -121,12 +127,6 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
 を正本とします。
 
-- **occurrence-level participation / invitation** — ユーザーごとの
-  occurrence参加予定管理と、そこからのinvitation（詳細は
-  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）。persistence / RLS baselineとtyped read/write boundaryは
-  Completed baseline のとおり成立済みで、残るのはuser-facing UI
-  journeyです。
 - **ticket acquisition / ticket** — チケット入手情報とticketの管理、
   ticket transferを含む（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)

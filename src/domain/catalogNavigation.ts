@@ -96,6 +96,14 @@ export function catalogEditEventHref(eventId: string, context: CatalogParams): s
   return `/catalog/events/${eventId}/edit?${contextParams(context)}`;
 }
 
+/** The viewer's own received-invitations list (Issue #36). Carries no
+ * month/day context: unlike the calendar-rooted screens above, this is not
+ * reached by navigating a particular month, and returning from it has
+ * nowhere calendar-specific to go back to. */
+export function catalogInvitationsHref(): string {
+  return '/catalog/invitations';
+}
+
 function contextParams(context: CatalogParams): string {
   const params = new URLSearchParams({ month: context.yearMonth });
   if (context.selectedDate !== null) {

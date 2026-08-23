@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import {
   getMyParticipation,
+  getMyParticipationsForOccurrences,
   listMyParticipations,
   listVisibleParticipationsForOccurrence,
   setParticipation,
@@ -150,6 +151,45 @@ void test('withdrawParticipation reports not-found for a nonexistent id', async 
   const result = await withdrawParticipation(actorA.client, '00000000-0000-0000-0000-000000000000');
   assert.equal(result.ok, false);
   assert.equal(result.error.kind, 'not-found');
+});
+
+// --- getMyParticipationsForOccurrences (Issue #36 batched read) ---
+
+void test('getMyParticipationsForOccurrences returns only the caller’s own rows, keyed by occurrence id, with none for a row-less occurrence', async () => {
+  const withRow = await occurrenceId();
+  const withoutRow = await occurrenceId();
+  await setParticipation(actorA.client, withRow, { status: 'attending' });
+  await setParticipation(actorB.client, withoutRow, { status: 'attending' });
+
+  const result = await getMyParticipationsForOccurrences(actorA.client, [withRow, withoutRow]);
+  assert.equal(result.ok, true);
+  assert.equal(result.data.size, 1);
+  assert.equal(result.data.get(withRow)?.status, 'attending');
+  assert.equal(result.data.get(withoutRow), undefined);
+});
+
+void test('getMyParticipationsForOccurrences matches getMyParticipation for the same occurrence', async () => {
+  const occurrence = await occurrenceId();
+  await setParticipation(actorA.client, occurrence, { status: 'considering' });
+
+  const single = await getMyParticipation(actorA.client, occurrence);
+  const batched = await getMyParticipationsForOccurrences(actorA.client, [occurrence]);
+  assert.equal(single.ok, true);
+  assert.equal(batched.ok, true);
+  assert.deepEqual(batched.data.get(occurrence), single.data);
+});
+
+void test('getMyParticipationsForOccurrences returns an empty map for an empty occurrence list', async () => {
+  const result = await getMyParticipationsForOccurrences(actorA.client, []);
+  assert.deepEqual(result, { ok: true, data: new Map() });
+});
+
+void test('getMyParticipationsForOccurrences reports unauthenticated for a client with no session', async () => {
+  const anonymous = createAnonymousClient();
+  const occurrence = await occurrenceId();
+  const result = await getMyParticipationsForOccurrences(anonymous, [occurrence]);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
 });
 
 void test('setParticipation reports unauthenticated for a client with no session', async () => {

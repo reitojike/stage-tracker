@@ -107,3 +107,20 @@ export function classifyRpcError(
   }
   return classifyPostgrestError(error);
 }
+
+/**
+ * Pure classification of a typed planning-boundary read into the UI state a
+ * screen must render distinctly (docs/ux-ui.md "Common states"): a read
+ * failure (RLS/auth/network) must never be presented the same way as a
+ * successful read that simply found nothing.
+ *
+ * A re-export rather than a second implementation: this is the exact same
+ * classification domain/catalogReadState.ts's resolveCatalogReadState
+ * performs for EventCatalogReadResult, and PlanningResult<T> satisfies that
+ * function's parameter type structurally (PlanningError carries every field
+ * EventCatalogReadError does, plus `kind`, which resolveCatalogReadState
+ * never inspects) - so there is nothing feature-specific left to duplicate
+ * a second `if (!result.ok) return 'error'; ...` body for.
+ */
+export { resolveCatalogReadState as resolvePlanningReadState } from './catalogReadState.ts';
+export type { CatalogReadStateKind as PlanningReadStateKind } from './catalogReadState.ts';

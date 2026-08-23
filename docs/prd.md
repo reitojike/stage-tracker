@@ -119,8 +119,15 @@ typed feature-level read/write boundaryも実装済みです。generated
 domain modelを返します。app UIからのdirect Supabase table/RPC accessは
 lint guardrailで抑止されています。これはUI-facing boundaryの実装状態
 であり、user-facing UI journey自体（My Calendar統合・ticket管理・
-participation/invitation操作・personal schedule共有操作等）はまだ
-実装されていません。
+personal schedule共有操作等）はまだ実装されていません。
+
+occurrence-level participation / invitationについては、上記typed
+boundaryに加えてMVP user-facing UI journeyも実装済みです（Issue #36）。
+event catalogのevent詳細画面から、公演回ごとに`considering`/`attending`
+participationの登録・切替と参加予定の解除（row削除）ができ、`attending`
+状態の occurrence では invite-by-email affordance が表示されます。invitee側は
+`/catalog/invitations`で自分が受け取ったinvitationを一覧・declineできます。
+RLS/auth failureはempty stateへ潰さず、読み込み失敗を区別して表示します。
 
 invitationのMVP write/read boundaryには、participation privacyを守る
 ための追加の制約があります。invite操作の結果はinviterに対して不透明
@@ -133,6 +140,16 @@ invitee statusを理由とするerrorを返しません。あわせてinvitation
 inviter向けのinvitation history表示は現時点のcommitted scopeに含めず、
 必要になった時点でこの境界を壊さないprojectionとして別途設計します。
 
+招待の宛先選択（invitee selection）は、`.ai-dev-foundation/
+product-rules.md`の「Authenticated-user targeting（identity boundary）」
+節（Issue #55）が定めるMVP共通decisionに従い、user directory/search/UUID
+inputではなく登録済みemail addressのexact inputです。email resolutionは
+trusted server/DB boundary内（`invite_to_occurrence_by_email` RPC）で行い、
+account existence自体を含むopacity requirementを維持します（invitee-
+dependentな分岐はaccount不存在を含め、inviterから見てすべて同一の結果を
+返します）。実装・product decisionの詳細はIssue #55 / PR #57を正本とし、
+本PRDでは複製しません。
+
 加えて、designated catalog creator限定のminimal Event catalog
 create/update UIが成立しています。Event作成はdesignated catalog creator
 （`public.catalog_creators` membership）に限り、作成者がevent ownerに
@@ -143,8 +160,6 @@ write pathで検証しますが、`event_occurrences` へのCHECK制約は未導
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
-- occurrence-level participation / invitation の user-facing UI journey
-  （schema/RLS baselineとtyped read/write boundaryは上記のとおり成立済み）
 - ticket acquisition / ticket / ticket transfer の user-facing UI journey
   （schema/RLS baselineとtyped read/write boundaryは上記のとおり成立済み）
 - catalog classification / venue のMVP data boundary
