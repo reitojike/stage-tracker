@@ -138,7 +138,10 @@ remote 専用の `config.toml`（または別の config-as-code 手段）を用�
   emails/month 制限の記述含む）を Resend 向けに書き換える必要があります。
 - `src/infrastructure/supabase/serverClient.ts` の 39 行目・57 行目のコメント
   は「`middleware.ts` がセッションのリフレッシュを担う」と記述しています
-  が、現在のリポジトリに `middleware.ts` は存在しません
+  が、Next.js 16.3 の規約変更により実際のファイル名は `src/proxy.ts` です。
+  機能自体（毎リクエストでのセッションリフレッシュと認証境界の強制）は
+  `proxy.ts` によって正しく行われており、欠落はありません。ずれているのは
+  コメント中のファイル名の呼称のみです
   （[docs/architecture/authentication.md](authentication.md) の「Session
   確立までの流れ」節を参照）。
 
@@ -150,8 +153,8 @@ remote 専用の `config.toml`（または別の config-as-code 手段）を用�
   すること。
 - **Drift 検知**: `supabase db diff --linked` は手動実行が前提であり、
   スキーマ drift を継続的に検知する自動化は存在しません。
-- **`middleware.ts` の不在**: 上記「既知の記載ずれ」参照。実際のセッション
-  リフレッシュ経路を明文化するか、`middleware.ts` を追加するかの判断が
-  必要です。
+- **`serverClient.ts` コメントの呼称修正**: 上記「既知の記載ずれ」参照。
+  `middleware.ts` という古い呼称を `proxy.ts` に合わせて修正するかどうかの
+  判断が必要です（機能上の欠落ではないため優先度は低い）。
 - **Postmark 関連記述の是正**: `docs/runbooks/gate-a-remote-environment.md`
   の Resend への書き換え。

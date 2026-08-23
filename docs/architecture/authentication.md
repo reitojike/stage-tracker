@@ -126,26 +126,36 @@ sequenceDiagram
 1. `verifyOtp()` 成功時、`@supabase/ssr` の `createServerClient` が
    `setAll()` コールバック経由でセッション Cookie を Response へ書き込みます
    （`createSupabaseServerClient()` 内、通常の Cookie 書き込みパス）。
-2. 以降のリクエストでは、Server Component / Route Handler / Server Action が
-   都度 `createSupabaseServerClient()` を呼び、Cookie からセッションを
-   読み取ります。
+2. 以降の全リクエストは、[src/proxy.ts](../../src/proxy.ts) の `proxy()` を
+   経由します。Next.js 16.3 以降で `middleware.ts` に代わって使われる規約
+   （`proxy()` エクスポート + `config.matcher`）で書かれた、この
+   プロダクトにおける Middleware 相当の実体です。
+   - `matcher` は `_next/static` / `_next/image` / `favicon.ico` 以外の
+     ほぼ全パスを対象にします。
+   - 毎リクエストで `supabase.auth.getUser()` を呼び、`@supabase/ssr` の
+     `setAll()` コールバック経由でリフレッシュ後のセッション Cookie を
+     Response（および redirect 発生時はその redirect レスポンス）へ
+     書き戻します。**セッションの確実なリフレッシュはここで行われています。**
+   - 同時に認証境界そのものも強制します。`PUBLIC_PATHS`
+     （`/sign-in` / `/auth/confirm` のみ、exact match）以外は認証済みで
+     ない限り `/sign-in` へ redirect し、認証済みユーザーが `/sign-in` へ
+     来た場合は `/` へ redirect します。新しく追加された route は、明示的に
+     `PUBLIC_PATHS` へ追加しない限りデフォルトで認証必須になる設計です。
+3. Server Component / Route Handler / Server Action は、都度
+   `createSupabaseServerClient()` を呼び、`proxy.ts` によって既にリフレッシュ
+   済みの Cookie からセッションを読み取ります。
    [src/infrastructure/supabase/session.ts](../../src/infrastructure/supabase/session.ts)
    の `getAuthenticatedUser()` がこの読み取りの主な呼び出し口です。
 
-### 既知のギャップ：`middleware.ts` は存在しない
+### コメント上の呼称のずれ（記録目的）
 
-`serverClient.ts` の 39 行目・57 行目のコメントは、いずれも
-「`middleware.ts` が毎リクエストでセッションをリフレッシュする」ことを前提に
-書かれています。しかし、現在のリポジトリには `src/middleware.ts` も
-ルート直下の `middleware.ts` も **存在しません**。
-
-このドキュメントはこのギャップを実装の追加提案なしに事実として記録します。
-現状、セッションのリフレッシュは Server Component の render 中に発生した
-`setAll()` の書き込みが（読み取り専用の Cookie ストアであるため）
-サイレントに破棄される経路に依存しており、`middleware.ts` が担うはずだった
-「毎リクエストでの確実なリフレッシュ」は行われていません。この扱いを
-どうするか（`middleware.ts` を追加するか、コメントを実態に合わせて修正
-するか）は別途の product task として判断が必要です。
+`serverClient.ts` の 39 行目・57 行目のコメントは、この Middleware 相当の
+実体を `middleware.ts` という名前で参照しています。しかし実際のファイル名は
+`src/proxy.ts` です（Next.js 16.3 で規約が `middleware.ts` から `proxy.ts` /
+`proxy()` へ変わったことによるもの）。機能自体は上記の通り正しく働いており、
+セッションリフレッシュが行われていないという欠落は **ありません**。ずれて
+いるのはコメント中のファイル名の呼称のみです。コメントを `proxy.ts` を指す
+よう修正するかどうかは、別途の判断とします。
 
 ## なぜ `token_hash` 方式を維持しているか
 
