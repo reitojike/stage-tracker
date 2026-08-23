@@ -1,0 +1,67 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-md);
+  margin: 0;
+  min-width: 0;
+}
+
+.groupLegend {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  padding: 0 var(--space-xs);
+}
+
+.radioRow {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.radioOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-body-sm);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.notice {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
+/* Kept in the DOM (and in the accessibility tree) while it has nothing to
+   say, so a message arriving later lands in a region that already exists -
+   see WriteNotice.tsx / EventWriteForm.module.css's identical comment. */
+.noticeRegion:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}

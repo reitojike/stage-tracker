@@ -19,6 +19,7 @@ export default async function Home() {
       <HomePage />
       <nav>
         <Link href="/catalog">Event Catalogを見る</Link>
+        <Link href="/schedule">Personal Scheduleを見る</Link>
       </nav>
       <form action={signOut}>
         <Button type="submit" variant="secondary">
