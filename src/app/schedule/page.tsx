@@ -4,7 +4,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session.ts';
 import { listVisiblePersonalSchedule } from '@/infrastructure/supabase/personalSchedule.ts';
-import { resolvePersonalScheduleReadState } from '@/domain/personalScheduleReadState.ts';
+import { resolvePlanningReadState } from '@/domain/planningError.ts';
 import { scheduleTemporalLabel, scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
 import type { PersonalScheduleEntry } from '@/domain/personalSchedule.ts';
 import styles from './_components/ScheduleList.module.css';
@@ -23,7 +23,7 @@ export default async function SchedulePage() {
     listVisiblePersonalSchedule(client),
     getAuthenticatedUser(),
   ]);
-  const state = resolvePersonalScheduleReadState(result, isEmptySchedule);
+  const state = resolvePlanningReadState(result, isEmptySchedule);
 
   return (
     <main>

@@ -3,7 +3,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import { getVisiblePersonalScheduleEntry } from '@/infrastructure/supabase/personalSchedule.ts';
-import { resolvePersonalScheduleReadState } from '@/domain/personalScheduleReadState.ts';
+import { resolvePlanningReadState } from '@/domain/planningError.ts';
 import { resolveWriteFeedback } from '@/domain/personalScheduleWriteFeedback.ts';
 import { personalScheduleEntryToFormValues } from '@/domain/personalScheduleWrite.ts';
 import type { PersonalScheduleEntry } from '@/domain/personalSchedule.ts';
@@ -42,7 +42,7 @@ export default async function EditScheduleEntryPage({ params }: EditScheduleEntr
     getVisiblePersonalScheduleEntry(client, entryId),
     requireAuthenticatedUserId(client),
   ]);
-  const state = resolvePersonalScheduleReadState(result, isMissingEntry);
+  const state = resolvePlanningReadState(result, isMissingEntry);
 
   if (state === 'error') {
     return (

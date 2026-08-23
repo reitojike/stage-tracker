@@ -8,7 +8,7 @@ import {
   listScheduleShareRecipientEmails,
   listScheduleShares,
 } from '@/infrastructure/supabase/personalSchedule.ts';
-import { resolvePersonalScheduleReadState } from '@/domain/personalScheduleReadState.ts';
+import { resolvePlanningReadState } from '@/domain/planningError.ts';
 import { scheduleTemporalLabel, scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
 import {
   findOwnScheduleShare,
@@ -32,7 +32,7 @@ const isEmptyRecipientList = (data: ScheduleShareRecipient[]) => data.length ===
  * targeting boundary). A non-existent or not-visible id is a distinct
  * "empty" result (RLS makes the two indistinguishable - see
  * getVisiblePersonalScheduleEntry), never an "error"; a genuine read
- * failure is the reverse (see resolvePersonalScheduleReadState).
+ * failure is the reverse (see resolvePlanningReadState).
  *
  * The owner's recipient projection (listScheduleShareRecipientEmails) is
  * bounded to this entry's actual shares only - never a general user
@@ -61,7 +61,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
     getVisiblePersonalScheduleEntry(client, entryId),
     requireAuthenticatedUserId(client),
   ]);
-  const state = resolvePersonalScheduleReadState(result, isMissingEntry);
+  const state = resolvePlanningReadState(result, isMissingEntry);
   const entry = result.ok ? result.data : null;
 
   let isOwner = false;
@@ -83,7 +83,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
   }
   const recipientsState =
     recipientsResult !== null
-      ? resolvePersonalScheduleReadState(recipientsResult, isEmptyRecipientList)
+      ? resolvePlanningReadState(recipientsResult, isEmptyRecipientList)
       : null;
 
   return (
