@@ -10,6 +10,16 @@
   gap: var(--space-md);
 }
 
+/* The `[hidden] { display: none }` rule that makes `hidden` collapse an
+   element lives in the UA stylesheet, and author-origin rules always beat
+   UA-origin rules in the cascade regardless of specificity - so `.fields`'s
+   own `display: flex` always wins over it unless overridden by an
+   author-origin rule of its own, as below. Without this, a hidden `.fields`
+   group stays visible - see ScheduleFields.tsx's temporalMode toggle. */
+.fields[hidden] {
+  display: none;
+}
+
 .group {
   display: flex;
   flex-direction: column;
