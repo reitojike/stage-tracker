@@ -201,9 +201,17 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   );
   const markersByDate = new Map(dayMarkers.map((m) => [m.date, m] as const));
 
-  const isEmpty = dayMarkers.every(
-    (m) => m.occurrenceCount === 0 && m.ownScheduleCount === 0 && m.sharedScheduleCount === 0,
-  );
+  // Emptiness is judged only over dates actually inside the displayed
+  // month, not the lead/trail adjacent-month cells `dayMarkers` also
+  // carries (see buildMyCalendarDayMarkers's own header - it spans the
+  // whole grid, including days outside `yearMonth`). A marker on an
+  // adjacent-month lead/trail cell must not suppress "この月に登録され
+  // ている予定はありません" for an otherwise-empty displayed month.
+  const isEmpty = dayMarkers
+    .filter((m) => m.date.startsWith(yearMonth))
+    .every(
+      (m) => m.occurrenceCount === 0 && m.ownScheduleCount === 0 && m.sharedScheduleCount === 0,
+    );
 
   return (
     <main>
