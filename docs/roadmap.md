@@ -58,24 +58,37 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   移りsourceとのprovenanceは保持・participationを自動変更しない。
   invitationをdeclineしたinviteeもtransfer eligibilityを維持する。
   pending中のtransfer offerは、accept前まで前ownerのassignment情報を
-  recipientへ開示しない設計です）
+  recipientへ開示しません。recipientがsource acquisition ownerを兼ねる
+  場合も同様に非開示で、source acquisition provenance read自体は維持
+  されます）
+- occurrence-level participation / invitation・event-independent
+  personal schedule・ticket acquisition / ticket / ticket transferの
+  6 domainについて、UIがad-hocなSupabase table/RPC accessをせずに済む
+  typed feature-level read/write boundary（generated `Database` types
+  をinfrastructure層でconsumeするadapterと、それを返すdomain model）。
+  write / RPC operationはすべて、呼び出し元idを値として必要とするかに
+  かかわらず、事前にunauthenticatedを明示的に検出したうえでnot-found /
+  permission / validation / infrastructure failureを意味を失わず区別
+  します。read operationのうち、自分のacquisition/participationのように
+  呼び出し元idで絞り込むものは同様に事前検出しますが、RLS自身の
+  auth.uid()判定だけで可視範囲や結果が決まり呼び出し元idを必要としない
+  read・読み取り専用RPCは事前session精査を行わず、未認証呼び出しは
+  RLS/grant拒否によりpermission-deniedへ分類されます。app UIからの
+  direct Supabase table/RPC accessはlint
+  guardrailで抑止されています。ticket transferのrequest/accept/cancelが
+  participationを自動変更しないことはbehavioral regressionとして
+  pin済みです
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-に従って既に実装済みです。ただし pending recipient への assignment
-非開示については既知の gap があります。ticket が一度他 owner へ移った後、
-再度元の acquisition owner へ pending offer される edge case では、
-provenance read（元の acquisition owner がその ticket を引き続き read
-できる data boundary）により、現行実装は accept 前の非開示 semantics を
-満たしません。この edge case を除く通常の transfer 経路では非開示は
-成立しています。gap の解消は別途 bounded implementation task で扱います。
+に従って既に実装済みです。
 
 calendar上のSaturday/Sunday/Japanese holiday presentationのsemanticsも
 `docs/ux-ui.md` で承認済みですが、対応するUIはまだ実装されていません。
 occurrence-level participation / invitation と ticket acquisition /
-ticket / ticket transferはいずれもschema/RLS baselineのみ成立済みで、
-UI journeyは未実装です。いずれも次節のMVP personal planning
-capabilityの中で実装します。
+ticket / ticket transferはいずれもschema/RLS baselineとtyped read/write
+boundaryが成立済みで、user-facing UI journeyは未実装です。いずれも
+次節のMVP personal planning capabilityの中で実装します。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
@@ -96,13 +109,15 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
 - **occurrence-level participation / invitation** — ユーザーごとの
   occurrence参加予定管理と、そこからのinvitation（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）。persistence / RLS baselineは Completed baseline のとおり成立
-  済みで、残るのはUI journeyです。
+  参照）。persistence / RLS baselineとtyped read/write boundaryは
+  Completed baseline のとおり成立済みで、残るのはuser-facing UI
+  journeyです。
 - **ticket acquisition / ticket** — チケット入手情報とticketの管理、
   ticket transferを含む（詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）。persistence / RLS baselineは Completed baseline のとおり成立
-  済みで、残るのはUI journeyです。
+  参照）。persistence / RLS baselineとtyped read/write boundaryは
+  Completed baseline のとおり成立済みで、残るのはuser-facing UI
+  journeyです。
 - **calendar weekday / Japanese holiday presentation** — Saturday/
   Sunday/Japanese holidayのglobal calendar presentation（詳細は
   [`docs/ux-ui.md`](./ux-ui.md) 参照）

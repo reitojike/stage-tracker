@@ -47,9 +47,11 @@ event-independent **personal schedule**、occurrence-level
 **participation / invitation**、および **ticket acquisition / ticket**
 （ticket transferを含む）は、いずれも persistence / RLS baseline が
 実装済みです（personal schedule は sharing も含む。詳細は
-[Current committed scope](#current-committed-scope) 参照）。ただし
-participation / invitation、ticket acquisition / ticket について
-実装済みなのは schema / RLS boundary までで、UI journey は未実装です。
+[Current committed scope](#current-committed-scope) 参照）。
+participation / invitation、ticket acquisition / ticket については、
+UIがad-hocなSupabase table/RPC accessをせずに済むtyped feature-level
+read/write boundaryも実装済みです。ただしいずれもuser-facing UI
+journeyは未実装です。
 
 **expense / budget**のsemanticsはまだ未確定です。
 
@@ -109,6 +111,17 @@ ownership列や`ticket_transfers`への直接UPDATEは提供しません。一�
 ticketのseat/queue/medium/assignmentといった通常の詳細編集は、current
 ticket ownerによる直接UPDATEで提供します。
 
+上記6 domain（participation / invitation / personal schedule /
+ticket acquisition / ticket / ticket transfer）は、persistence / RLS
+baselineに加えて、UIがad-hocなSupabase table/RPC accessをせずに済む
+typed feature-level read/write boundaryも実装済みです。generated
+`Database` typesはinfrastructure層だけがconsumeし、UI-facing boundaryは
+domain modelを返します。app UIからのdirect Supabase table/RPC accessは
+lint guardrailで抑止されています。これはUI-facing boundaryの実装状態
+であり、user-facing UI journey自体（My Calendar統合・ticket管理・
+participation/invitation操作・personal schedule共有操作等）はまだ
+実装されていません。
+
 invitationのMVP write/read boundaryには、participation privacyを守る
 ための追加の制約があります。invite操作の結果はinviterに対して不透明
 です。上記3分岐のどれが実行されたかはinvitee本人のparticipation status
@@ -130,10 +143,10 @@ write pathで検証しますが、`event_occurrences` へのCHECK制約は未導
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
-- occurrence-level participation / invitation の UI journey
-  （schema/RLS baselineは上記のとおり成立済み）
-- ticket acquisition / ticket / ticket transfer の UI journey
-  （schema/RLS baselineは上記のとおり成立済み）
+- occurrence-level participation / invitation の user-facing UI journey
+  （schema/RLS baselineとtyped read/write boundaryは上記のとおり成立済み）
+- ticket acquisition / ticket / ticket transfer の user-facing UI journey
+  （schema/RLS baselineとtyped read/write boundaryは上記のとおり成立済み）
 - catalog classification / venue のMVP data boundary
 - calendar上のSaturday/Sunday/Japanese holiday presentation
 
