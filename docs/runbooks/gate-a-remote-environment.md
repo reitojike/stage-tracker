@@ -36,16 +36,19 @@ credentials. Record completion here by editing this file's checklist, not
 by recording the actual identifiers.
 
 1. Create a new Vercel project (Hobby plan) from this GitHub repository,
-   with `main` as the production branch. Do not let it build yet — step 2
+   with `main` as the production branch. Do not let it build yet — step 5
    must supply required env vars first, or the first build throws on the
-   missing values (see step 5).
+   missing values.
 2. Create a new hosted Supabase project (Free plan is acceptable for Gate A).
    Note its project ref for `supabase link`.
 3. Create a Postmark account, a Server, and one verified Sender Signature
    (the Developer plan's 100 emails/month allowance is the accepted Gate A
    starting limit — see Issue #61's bounded provider decision).
-4. In the Supabase Dashboard, under Auth → SMTP, enable custom SMTP and
-   fill in the Postmark server's SMTP credentials.
+4. In the Supabase Dashboard, under Auth → SMTP, enable custom SMTP, fill
+   in the Postmark server's SMTP credentials, and set the sender / default
+   From address to the verified Sender Signature from step 3. An
+   unverified or mismatched From address makes Postmark reject the send
+   outright, so magic-link mail silently never arrives.
 5. In the Vercel project's Production environment variables, set
    `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the
    hosted Supabase project's API settings (Project Settings → API). Both
@@ -104,9 +107,18 @@ remote schema を無秩序に mutate しない").
   local development does, instead of Supabase's default template that
   bypasses this app's route handler.
 
-There is no CLI command that applies Auth configuration or email templates
-from `supabase/config.toml` to a hosted project — these are Dashboard-only
-settings and must be re-applied by hand if the project is ever recreated.
+The Supabase CLI does have a `supabase config push` command that can apply
+`supabase/config.toml`'s `[auth]` section (and template references) to a
+linked hosted project. This runbook does not use it: this repository's
+`config.toml` is written for the local dev stack (`site_url =
+"http://127.0.0.1:3000"`, local-only sections such as `[studio]` /
+`[local_smtp]` / `[db]` ports), not for Gate A's hosted project, so a blind
+`config push` would push the wrong Site URL and other local-only settings
+at the Gate A project. Materializing the Dashboard settings above by hand
+is the accepted Gate A bounded choice; building a remote-specific
+`config.toml` (or another config-as-code path) to make `config push` safe
+here is out of this runbook's scope. Re-apply these settings by hand if
+the project is ever recreated.
 
 ## Deploy / update
 
