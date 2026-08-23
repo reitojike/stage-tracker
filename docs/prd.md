@@ -118,9 +118,10 @@ baselineに加えて、UIがad-hocなSupabase table/RPC accessをせずに済む
 typed feature-level read/write boundaryも実装済みです。generated
 `Database` typesはinfrastructure層だけがconsumeし、UI-facing boundaryは
 domain modelを返します。app UIからのdirect Supabase table/RPC accessは
-lint guardrailで抑止されています。これはUI-facing boundaryの実装状態
-であり、My Calendar統合・ticket管理等のuser-facing UI journeyはまだ
-実装されていません。
+lint guardrailで抑止されています。これはUI-facing boundaryの実装状態で
+あり、My Calendar統合（下記参照）は実装済みですが、ticket管理
+（acquisition/ticketの作成・編集）等のuser-facing UI journeyはまだ
+実装されていません（Issue #35）。
 
 occurrence-level participation / invitationについては、上記typed
 boundaryに加えてMVP user-facing UI journeyも実装済みです（Issue #36）。
@@ -141,6 +142,22 @@ generic user directoryには広げていません。RLS/auth failureはempty/
 not-found stateへ潰さず、識別できないauth check失敗はfail-closedな
 error stateとして扱います（owner/shareeの判定を否定推論で行わない -
 詳細は該当実装のコメントを参照）。
+
+**My Calendar**（Issue #34）は、participation登録済みoccurrence・
+event-independent personal schedule（own/shared）・ticket acquisitionの
+状態表示を統合したuser-facing UI journeyです。`/calendar`で月表示と
+selected-day詳細を提供し、参加登録済みのoccurrenceにはparticipation
+statusとticket状態（`pending`/`secured`/`unsuccessful`、または未取得）を
+色だけに依存せず表示します。personal scheduleは自分の予定と共有された
+予定を区別して表示し、共有されたentryはrecipient側My Calendarにも
+反映されます。calendar上のSaturday blue / Sunday red / Japanese holiday
+red（holiday優先、色のみに依存しない表示）は
+[`docs/ux-ui.md`](./ux-ui.md)のglobal ruleに従い、内閣府「国民の祝日に
+ついて」CSVをsnapshot化したデータ（更新手順は
+[`docs/holiday-data.md`](./holiday-data.md)参照）で判定します。My
+Calendarはこれら3 domainの既存read boundaryを合成する読み取り専用の
+統合UIであり、ticket acquisitionの新規作成・編集（Issue #35）は含み
+ません。
 
 invitationのMVP write/read boundaryには、participation privacyを守る
 ための追加の制約があります。invite操作の結果はinviterに対して不透明
@@ -174,9 +191,10 @@ write pathで検証しますが、`event_occurrences` へのCHECK制約は未導
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
 
 - ticket acquisition / ticket / ticket transfer の user-facing UI journey
-  （schema/RLS baselineとtyped read/write boundaryは上記のとおり成立済み）
+  （schema/RLS baselineとtyped read/write boundaryは上記のとおり成立済み。
+  My CalendarはticketのMVP statusを表示しますが、acquisition/ticketの
+  新規作成・編集UIはIssue #35で別途扱います）
 - catalog classification / venue のMVP data boundary
-- calendar上のSaturday/Sunday/Japanese holiday presentation
 
 詳細なsemanticsはいずれも
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)

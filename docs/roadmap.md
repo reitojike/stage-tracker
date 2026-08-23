@@ -98,8 +98,9 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
 に従って既に実装済みです。
 
-calendar上のSaturday/Sunday/Japanese holiday presentationのsemanticsも
-`docs/ux-ui.md` で承認済みですが、対応するUIはまだ実装されていません。
+calendar上のSaturday/Sunday/Japanese holiday presentation（`docs/ux-ui.md`
+で承認済みのglobal rule）は、My Calendar（下記参照）で実装済みです。
+
 occurrence-level participation / invitationはschema/RLS baseline・typed
 read/write boundaryに加え、MVP user-facing UI journeyも実装済みです
 （Issue #36。event詳細画面からのconsidering/attending登録・切替・
@@ -119,8 +120,21 @@ targeting」節のとおり登録済みemail addressのexact inputで、
 済みのrecipientのみのbounded projectionです。
 
 ticket acquisition / ticket / ticket transferはschema/RLS baselineとtyped
-read/write boundaryのみ成立済みで、user-facing UI journeyは次節のMVP
-personal planning capabilityの中で実装します。
+read/write boundaryのみ成立済みで、acquisition/ticketの新規作成・編集
+user-facing UI journeyは次節のMVP personal planning capabilityの中で
+実装します。
+
+**My Calendar**（Issue #34）は、participation登録済みoccurrence・
+event-independent personal schedule（own/shared）・ticket acquisitionの
+状態表示、およびcalendar上のSaturday/Sunday/Japanese holiday
+presentationを統合したuser-facing UI journeyとして実装済みです。`/calendar`
+で月表示とselected-day詳細を提供し、ticket状態（pending/secured/
+unsuccessful/未取得）を色だけに依存せず表示します。共有されたpersonal
+scheduleはrecipient側My Calendarにも反映されます。祝日データは内閣府
+「国民の祝日について」CSVのsnapshotを正本とし、更新手順は
+[`docs/holiday-data.md`](./holiday-data.md)に記録されています。My
+Calendarはticket acquisitionの状態を表示するのみで、新規作成・編集は
+含みません（次節のticket acquisition / ticket capability参照）。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
@@ -143,10 +157,8 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   参照）。persistence / RLS baselineとtyped read/write boundaryは
   Completed baseline のとおり成立済みで、残るのはuser-facing UI
-  journeyです。
-- **calendar weekday / Japanese holiday presentation** — Saturday/
-  Sunday/Japanese holidayのglobal calendar presentation（詳細は
-  [`docs/ux-ui.md`](./ux-ui.md) 参照）
+  journeyです。My Calendarはticket状態の表示までを含み、acquisition/
+  ticketの新規作成・編集UIは残っています。
 - **expense / budget** — event単位の支出と横断的な予算管理（semanticsは
   未確定）
 
