@@ -256,5 +256,11 @@ task / 追加のPO checkpointで確定します。
   placement
 - exact accent hue（「Design tokens」節のplaceholder扱いを参照）
 - event deletion semantics
-- auth provider、production hosting、PWA scope、MCP scope、broader
-  rollout
+- production hosting（Gate A dogfood限定のVercel Hobby採用を除き
+  broader/general production hosting platformは引き続きuncommitted）、
+  PWA scope、MCP scope、broader rollout（現時点の実runtimeはGate Aの
+  本人 + 妻の bounded 2-user dogfood）
+
+auth providerはEmail magic link + Supabase Auth cookie-based session
+として決定済みです（Issue #11）。production hosting等の他のdeferred
+項目とは別に扱います。

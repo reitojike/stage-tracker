@@ -1,5 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import { spawnSync } from 'node:child_process';
+import { resolveAdminTarget } from './lib/adminTarget.mjs';
 
 // Grants (or revokes) designated catalog creator membership for an
 // existing account - the operational half of Issue #29's MVP Event catalog
@@ -12,37 +11,26 @@ import { spawnSync } from 'node:child_process';
 // creator is therefore an operational fact about a given environment, not
 // a fact about this repository.
 //
-// Mirrors scripts/provision-user.mjs: an admin-only path against a running
-// local Supabase, resolving the address to a user id rather than taking a
-// UUID on the command line.
+// Mirrors scripts/provision-user.mjs: an admin-only path, resolving the
+// address to a user id rather than taking a UUID on the command line.
+//
+// Local:  node scripts/grant-catalog-creator.mjs <email> [grant|revoke]
+// Remote: node scripts/grant-catalog-creator.mjs <email> [grant|revoke] --remote
+//   (requires STAGE_TRACKER_REMOTE_SUPABASE_URL /
+//   STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY - see scripts/lib/adminTarget.mjs)
 
-const [, , email, mode = 'grant'] = process.argv;
+const args = process.argv.slice(2);
+const remote = args.includes('--remote');
+const positional = args.filter((arg) => arg !== '--remote');
+const [email, mode = 'grant'] = positional;
 
 if (typeof email !== 'string' || email.length === 0 || (mode !== 'grant' && mode !== 'revoke')) {
-  console.error('Usage: node scripts/grant-catalog-creator.mjs <email> [grant|revoke]');
+  console.error('Usage: node scripts/grant-catalog-creator.mjs <email> [grant|revoke] [--remote]');
   process.exitCode = 1;
   process.exit();
 }
 
-// Windows can only launch node_modules/.bin's supabase.cmd shim through a
-// shell (Node throws EINVAL otherwise); the args below are static
-// literals, not external input, so shell:true carries no injection risk
-// here.
-const statusResult = spawnSync('supabase', ['status', '-o', 'json'], {
-  encoding: 'utf8',
-  shell: process.platform === 'win32',
-});
-if (statusResult.status !== 0) {
-  console.error('Failed to read local Supabase status. Is `supabase start` running?');
-  console.error(statusResult.stderr);
-  process.exitCode = 1;
-  process.exit();
-}
-const status = JSON.parse(statusResult.stdout);
-
-const admin = createClient(status.API_URL, status.SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+const admin = resolveAdminTarget(remote);
 
 // listUsers is paginated; walk it rather than assuming the address is on
 // the first page, so this does not silently report "no such account" for a
@@ -67,7 +55,7 @@ async function findUserByEmail(target) {
 const user = await findUserByEmail(email);
 if (user === null) {
   console.error(
-    `No account found for ${email}. Provision it first: node scripts/provision-user.mjs ${email}`,
+    `No account found for ${email}. Provision it first: node scripts/provision-user.mjs ${email}${remote ? ' --remote' : ''}`,
   );
   process.exitCode = 1;
   process.exit();

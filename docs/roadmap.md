@@ -175,5 +175,12 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
 
 - MCP product scope
 - PWA scope（installability / offline capability）
-- sign-in provider / production hosting provider
-- 家族・友人への本格展開時期
+- production hosting provider（Gate A dogfood限定でVercel Hobbyを
+  bounded operational choiceとして採用済み。broader/general production
+  hosting platformの恒久決定は引き続きuncommitted）
+- 家族・友人への本格展開時期（現時点の実runtimeはGate Aの本人 + 妻の
+  bounded 2-user dogfoodであり、broader rolloutは確約していません）
+
+sign-in providerはEmail magic link + Supabase Auth cookie-based session
+として決定済みです（詳細は[`docs/prd.md`](./prd.md#deferred-decisions)
+参照）。production hosting providerとは別項目として扱います。
