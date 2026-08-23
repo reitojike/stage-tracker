@@ -78,6 +78,21 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   guardrailで抑止されています。ticket transferのrequest/accept/cancelが
   participationを自動変更しないことはbehavioral regressionとして
   pin済みです
+- MVPのauthenticated-user targeting（Issue #55, #36/#37共通prerequisite）
+  はStage Tracker登録emailのexact input成立です。raw UUIDのuser-facing
+  input・generic user directory・partial/fuzzy search・client-readableな
+  generic `email -> user_id` lookup APIは持たず、resolutionはoperation
+  ごとにinternalizeされたtyped boundary RPC
+  （`invite_to_occurrence_by_email` / `share_schedule_entry_by_email` /
+  `list_schedule_share_recipient_emails`）の内部でのみ行います。
+  invitationのemail-based invite entrypointは、id-based
+  `invite_to_occurrence`と同一のcanonical 3分岐dispatch・opacity要件を
+  維持し、no-such-account分岐を含むinvitee-dependentな分岐すべてが
+  inviter向けに区別不能です。personal schedule sharingのemail-based
+  share entrypointは、対応する第三者private stateがないためこの
+  opacity要件を持たず、未登録emailをownerへ明示できます。owner向けの
+  share済みrecipient emailのbounded read projectionは、そのownerが
+  管理権限を持つ既存share relationに限定されます
 
 これらは [`docs/prd.md`](./prd.md) が指す
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
