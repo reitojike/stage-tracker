@@ -106,8 +106,19 @@ read/write boundaryに加え、MVP user-facing UI journeyも実装済みです
 participation解除、attending occurrenceからのinvite-by-email、
 `/catalog/invitations`でのinvitee側一覧・decline）。招待の宛先選択は
 上記「Authenticated-user targeting」節のとおり登録済みemail address
-のexact inputで、`invite_to_occurrence_by_email`で解決します。ticket
-acquisition / ticket / ticket transferはschema/RLS baselineとtyped
+のexact inputで、`invite_to_occurrence_by_email`で解決します。
+
+event-independent personal scheduleも同様に、schema/RLS baseline・typed
+read/write boundaryに加え、MVP user-facing UI journeyが実装済みです
+（Issue #37。`/schedule`での一覧、all-day・multi-day all-day・
+time-boundedの作成/編集、owner向けrecipient追加/一覧/削除、shared user
+自身によるself-remove）。recipient追加は上記「Authenticated-user
+targeting」節のとおり登録済みemail addressのexact inputで、
+`share_schedule_entry_by_email`で解決します。owner向けrecipient一覧は
+`list_schedule_share_recipient_emails`が返す、そのentryに実際にshare
+済みのrecipientのみのbounded projectionです。
+
+ticket acquisition / ticket / ticket transferはschema/RLS baselineとtyped
 read/write boundaryのみ成立済みで、user-facing UI journeyは次節のMVP
 personal planning capabilityの中で実装します。
 

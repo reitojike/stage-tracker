@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import {
   createPersonalScheduleEntry,
+  getVisiblePersonalScheduleEntry,
   listScheduleShareRecipientEmails,
   listScheduleShares,
   listVisiblePersonalSchedule,
@@ -98,6 +99,32 @@ void test('listVisiblePersonalSchedule shows the owner their own entry, and a st
   const strangerView = await listVisiblePersonalSchedule(stranger.client);
   assert.equal(strangerView.ok, true);
   assert.ok(!strangerView.data.some((e) => e.id === created.data.id));
+});
+
+void test('getVisiblePersonalScheduleEntry returns the entry to its owner, and null for a stranger', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: 'single-entry read',
+    temporal: { kind: 'all-day', startsOn: '2026-03-11', endsOn: '2026-03-11' },
+  });
+  assert.ok(created.ok);
+
+  const ownerRead = await getVisiblePersonalScheduleEntry(owner.client, created.data.id);
+  assert.ok(ownerRead.ok);
+  assert.equal(ownerRead.data?.id, created.data.id);
+
+  const strangerRead = await getVisiblePersonalScheduleEntry(stranger.client, created.data.id);
+  assert.ok(strangerRead.ok);
+  assert.equal(strangerRead.data, null);
+});
+
+void test('getVisiblePersonalScheduleEntry returns null (not an error) for a non-existent id', async () => {
+  const result = await getVisiblePersonalScheduleEntry(
+    owner.client,
+    '00000000-0000-0000-0000-000000000000',
+  );
+  assert.ok(result.ok);
+  assert.equal(result.data, null);
 });
 
 void test('sharing an entry makes it visible to the recipient too', async () => {

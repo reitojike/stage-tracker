@@ -47,11 +47,12 @@ event-independent **personal schedule**、occurrence-level
 **participation / invitation**、および **ticket acquisition / ticket**
 （ticket transferを含む）は、いずれも persistence / RLS baseline が
 実装済みです（personal schedule は sharing も含む。詳細は
-[Current committed scope](#current-committed-scope) 参照）。
-participation / invitation、ticket acquisition / ticket については、
-UIがad-hocなSupabase table/RPC accessをせずに済むtyped feature-level
-read/write boundaryも実装済みです。ただしいずれもuser-facing UI
-journeyは未実装です。
+[Current committed scope](#current-committed-scope) 参照）。この3
+domainはいずれも、UIがad-hocなSupabase table/RPC accessをせずに済む
+typed feature-level read/write boundaryも実装済みです。このうち
+**personal schedule** と **participation / invitation** は
+user-facing UI journeyも実装済みです。**ticket acquisition / ticket**
+（ticket transferを含む）のみ、user-facing UI journeyが未実装です。
 
 **expense / budget**のsemanticsはまだ未確定です。
 
@@ -118,8 +119,8 @@ typed feature-level read/write boundaryも実装済みです。generated
 `Database` typesはinfrastructure層だけがconsumeし、UI-facing boundaryは
 domain modelを返します。app UIからのdirect Supabase table/RPC accessは
 lint guardrailで抑止されています。これはUI-facing boundaryの実装状態
-であり、user-facing UI journey自体（My Calendar統合・ticket管理・
-personal schedule共有操作等）はまだ実装されていません。
+であり、My Calendar統合・ticket管理等のuser-facing UI journeyはまだ
+実装されていません。
 
 occurrence-level participation / invitationについては、上記typed
 boundaryに加えてMVP user-facing UI journeyも実装済みです（Issue #36）。
@@ -128,6 +129,18 @@ participationの登録・切替と参加予定の解除（row削除）ができ�
 状態の occurrence では invite-by-email affordance が表示されます。invitee側は
 `/catalog/invitations`で自分が受け取ったinvitationを一覧・declineできます。
 RLS/auth failureはempty stateへ潰さず、読み込み失敗を区別して表示します。
+
+event-independent personal scheduleについても、上記typed boundaryに加えて
+MVP user-facing UI journeyが実装済みです（Issue #37）。`/schedule`で
+自分の予定と共有された予定を一覧・詳細表示でき、all-day・multi-day
+all-day・time-boundedの作成・編集ができます。entry owner は`/schedule/
+[entryId]`のdetail画面からrecipientを登録済みemailで追加・一覧・削除
+でき、共有されたuserは自分自身をshareから外せます（self-remove）。
+recipientのbounded一覧はそのentryに実際にshare済みの相手のみを示し、
+generic user directoryには広げていません。RLS/auth failureはempty/
+not-found stateへ潰さず、識別できないauth check失敗はfail-closedな
+error stateとして扱います（owner/shareeの判定を否定推論で行わない -
+詳細は該当実装のコメントを参照）。
 
 invitationのMVP write/read boundaryには、participation privacyを守る
 ための追加の制約があります。invite操作の結果はinviterに対して不透明

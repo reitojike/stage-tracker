@@ -164,6 +164,31 @@ export function mapScheduleShareRow(row: RawScheduleShareRow): ScheduleShare {
 }
 
 /**
+ * Finds the caller's own share row within a list of shares, by explicit
+ * positive match against their confirmed id - never by inferring "this
+ * caller isn't the owner, so any share row in the list must be theirs".
+ *
+ * That distinction matters because listScheduleShares' result set differs
+ * by who is asking: the *owner* sees every recipient's share row (the full
+ * list), while a *recipient* sees only their own. A caller who picks
+ * `shares[0]` whenever it believes it is not the owner would, if that
+ * belief were ever wrong (e.g. an unrelated auth check failed and the
+ * caller silently fell back to treating itself as "not the owner"), hand
+ * back an arbitrary *other* recipient's share id - and the owner's DELETE
+ * grant on any of their entry's share rows (personal_schedule_shares_
+ * delete_owner_or_self) would let that id actually be removed, even though
+ * the UI presented the action as the caller "leaving" a share of their
+ * own. Matching by id is safe regardless of how the caller's role was
+ * determined.
+ */
+export function findOwnScheduleShare(
+  shares: readonly ScheduleShare[],
+  callerId: string,
+): ScheduleShare | null {
+  return shares.find((share) => share.sharedWithUserId === callerId) ?? null;
+}
+
+/**
  * Converts a ScheduleTemporal into the four persistence columns it maps to.
  * The unused shape's columns are explicit nulls (not omitted), matching the
  * CHECK constraint's expectation that the *other* shape's columns are null,

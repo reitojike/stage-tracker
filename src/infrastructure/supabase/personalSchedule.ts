@@ -83,6 +83,29 @@ export async function listVisiblePersonalSchedule(
   };
 }
 
+/**
+ * A single entry, if visible to the caller (their own, or shared with
+ * them) - the same visibility set listVisiblePersonalSchedule reads, just
+ * narrowed to one id for the schedule detail/edit UI journey (Issue #37)
+ * instead of the whole list. A non-existent or not-visible id is `ok: true,
+ * data: null` (RLS makes the two indistinguishable, matching
+ * eventCatalogRead.ts's getEventWithOccurrences), not an error.
+ */
+export async function getVisiblePersonalScheduleEntry(
+  client: PersonalScheduleQueryClient,
+  entryId: string,
+): Promise<PlanningResult<PersonalScheduleEntry | null>> {
+  const { data, error } = await client
+    .from('personal_schedule_entries')
+    .select('*')
+    .eq('id', entryId)
+    .maybeSingle();
+  if (error !== null) {
+    return { ok: false, error: classifyPostgrestError(error) };
+  }
+  return { ok: true, data: data === null ? null : mapPersonalScheduleEntryRow(data) };
+}
+
 export async function createPersonalScheduleEntry(
   client: PersonalScheduleQueryClient,
   input: PersonalScheduleEntryInput,
