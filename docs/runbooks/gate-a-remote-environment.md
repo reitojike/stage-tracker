@@ -36,7 +36,9 @@ credentials. Record completion here by editing this file's checklist, not
 by recording the actual identifiers.
 
 1. Create a new Vercel project (Hobby plan) from this GitHub repository,
-   with `main` as the production branch.
+   with `main` as the production branch. Do not let it build yet — step 2
+   must supply required env vars first, or the first build throws on the
+   missing values (see step 5).
 2. Create a new hosted Supabase project (Free plan is acceptable for Gate A).
    Note its project ref for `supabase link`.
 3. Create a Postmark account, a Server, and one verified Sender Signature
@@ -44,6 +46,13 @@ by recording the actual identifiers.
    starting limit — see Issue #61's bounded provider decision).
 4. In the Supabase Dashboard, under Auth → SMTP, enable custom SMTP and
    fill in the Postmark server's SMTP credentials.
+5. In the Vercel project's Production environment variables, set
+   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the
+   hosted Supabase project's API settings (Project Settings → API). Both
+   are read at request time by `src/infrastructure/supabase/env.ts`, which
+   throws on any missing value — the first production deploy must happen
+   after these are set, and any deploy that ran before they were set must
+   be redeployed once they are.
 
 ## Schema migration to the hosted project
 
@@ -102,14 +111,26 @@ settings and must be re-applied by hand if the project is ever recreated.
 ## Deploy / update
 
 Vercel auto-deploys `main` on every push once the project is connected
-(step 1 above). There is no separate manual deploy step. To roll out a
-change:
+(step 1 above). There is no separate manual deploy step. Migration
+ordering depends on whether the change is backward-compatible with the
+already-deployed build:
 
-1. Merge to `main` (normal PR flow, Foundation v0.3.0 Review Protocol).
-2. Confirm the Vercel deployment for that commit succeeds and the
-   production URL serves the new build.
-3. If the change included a new migration, run the schema migration steps
-   above against the hosted project.
+- **No new migration, or a backward-compatible one** (new nullable
+  column, new table/RPC nothing yet references): merge, let Vercel deploy,
+  then run the schema migration steps against the hosted project. The
+  already-deployed build never depends on the new shape, so serving it
+  briefly against the old schema is safe.
+- **A migration the new build requires immediately** (a column/table/RPC
+  the new code reads or writes as soon as it runs): apply the schema
+  migration steps against the hosted project **before** merging /
+  deploying, not after. Deploying the new build first would point it at a
+  schema that does not have what it needs yet, and every request that
+  touches that path fails until the migration lands.
+
+In both cases: merge to `main` (normal PR flow, Foundation v0.3.0 Review
+Protocol), confirm the Vercel deployment for that commit succeeds and the
+production URL serves the new build, and run the schema migration steps
+above at the point the case you're in calls for.
 
 ## Account provisioning (2 dogfood accounts)
 
