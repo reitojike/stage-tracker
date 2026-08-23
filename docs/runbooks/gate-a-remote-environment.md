@@ -102,7 +102,7 @@ sessions が同じ remote schema を無秩序に mutate しない」）。
 - **URL Configuration → Site URL**: この project の canonical Vercel
   production URL。
 - **URL Configuration → Redirect URLs**: 同一 origin の `/auth/confirm`
-  path を追加します（magic-link template がリンクする route — 
+  path を追加します（magic-link template がリンクする route —
   `src/app/auth/confirm/route.ts` と `supabase/config.toml` の
   `[auth.email.template.magic_link]` 配下のコメント参照）。
 - **Providers → Email**: 有効化し、confirmations は off にします
