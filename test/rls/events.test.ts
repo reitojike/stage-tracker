@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import pg from 'pg';
 import {
+  createAdminClient,
   createAnonymousClient,
   createTestActor,
   deleteTestActor,
@@ -425,4 +426,107 @@ void test('source_key is unique among imported events but repeatable as null', a
   } finally {
     await client.end();
   }
+});
+
+// --- import_event_with_occurrences: atomic operator create path (Issue #73) ---
+//
+// The operator import writes an event and its occurrences in one call so a
+// half-finished create cannot leave a zero-occurrence event in the shared
+// catalog (product-rules.md D4). These tests pin the two things that makes
+// depend on: only service_role can reach it, and any failure inside it takes
+// the event row with it.
+
+const IMPORT_RPC = 'import_event_with_occurrences';
+
+function importArgs(ownerId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    p_owner_id: ownerId,
+    p_source_key: `test:import:${crypto.randomUUID()}`,
+    p_title: eventFixtureTitle(),
+    p_occurrences: [{ startsAt: new Date().toISOString(), endsAt: null }],
+    ...overrides,
+  };
+}
+
+void test('anonymous cannot execute import_event_with_occurrences', async () => {
+  const anon = createAnonymousClient();
+  const { error } = await anon.rpc(IMPORT_RPC, importArgs(actorA.user.id));
+  assert.ok(error, 'expected a permission error for anonymous execute');
+});
+
+void test('an authenticated catalog creator cannot execute import_event_with_occurrences', async () => {
+  // actorA *is* a designated catalog creator, so a failure here is about the
+  // EXECUTE grant and nothing else - the operator path stays operator-only
+  // even for the account allowed to create events through the UI.
+  const { error } = await actorA.client.rpc(IMPORT_RPC, importArgs(actorA.user.id));
+  assert.ok(error, 'expected a permission error for authenticated execute');
+});
+
+void test('service_role can create an event and its occurrences in one call', async () => {
+  const admin = createAdminClient();
+  const startsAt = new Date().toISOString();
+  const { data, error } = await admin.rpc(
+    IMPORT_RPC,
+    importArgs(actorA.user.id, {
+      p_occurrences: [
+        { startsAt, endsAt: null },
+        { startsAt: new Date(Date.parse(startsAt) + 3_600_000).toISOString(), endsAt: null },
+      ],
+    }),
+  );
+  assert.equal(error, null);
+  assert.ok(data);
+  assert.equal(data.owner_id, actorA.user.id);
+
+  const { data: occurrences } = await admin
+    .from('event_occurrences')
+    .select('id')
+    .eq('event_id', data.id);
+  assert.equal(occurrences?.length, 2);
+});
+
+void test('import_event_with_occurrences rejects an owner who is not a catalog creator', async () => {
+  // Defence in depth: service_role bypasses RLS and the designated-creator
+  // check inside create_event_with_occurrence, so without this the boundary
+  // would rest on the calling script alone.
+  const admin = createAdminClient();
+  const { error } = await admin.rpc(IMPORT_RPC, importArgs(actorB.user.id));
+  assert.ok(error, 'expected a permission error for a non-creator owner');
+});
+
+void test('import_event_with_occurrences rejects an empty occurrence list without creating an event', async () => {
+  const admin = createAdminClient();
+  const sourceKey = `test:import:${crypto.randomUUID()}`;
+  const { error } = await admin.rpc(
+    IMPORT_RPC,
+    importArgs(actorA.user.id, { p_source_key: sourceKey, p_occurrences: [] }),
+  );
+  assert.ok(error, 'expected an error for an empty occurrence list');
+
+  const { data } = await admin.from('events').select('id').eq('source_key', sourceKey);
+  assert.deepEqual(data, [], 'expected no event row to have been created');
+});
+
+void test('a failure while inserting occurrences rolls the event row back', async () => {
+  // The whole reason this function exists: the event and its occurrences
+  // must not be separable. A malformed timestamp makes the occurrence INSERT
+  // raise *after* the event row has been inserted within the same call, so
+  // this proves the rollback comes from the transaction rather than from any
+  // client-side compensation.
+  const admin = createAdminClient();
+  const sourceKey = `test:import:${crypto.randomUUID()}`;
+  const { error } = await admin.rpc(
+    IMPORT_RPC,
+    importArgs(actorA.user.id, {
+      p_source_key: sourceKey,
+      p_occurrences: [
+        { startsAt: new Date().toISOString(), endsAt: null },
+        { startsAt: 'not-a-timestamp', endsAt: null },
+      ],
+    }),
+  );
+  assert.ok(error, 'expected the malformed occurrence to fail the call');
+
+  const { data } = await admin.from('events').select('id').eq('source_key', sourceKey);
+  assert.deepEqual(data, [], 'expected no zero-occurrence event to survive the failure');
 });

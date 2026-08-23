@@ -460,6 +460,34 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      import_event_with_occurrences: {
+        Args: {
+          p_memo?: string
+          p_occurrences: Json
+          p_owner_id: string
+          p_source_key: string
+          p_source_url?: string
+          p_title: string
+          p_venue?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          memo: string | null
+          owner_id: string
+          source_key: string | null
+          source_url: string | null
+          title: string
+          updated_at: string
+          venue: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       invite_to_occurrence: {
         Args: { p_invitee_id: string; p_occurrence_id: string }
         Returns: undefined

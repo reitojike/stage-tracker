@@ -440,29 +440,46 @@ if (!apply) {
 
 // ------------------------------------------------------------------ apply
 
-// There is no transaction spanning these statements - supabase-js has no
-// way to open one, and adding an RPC purely to wrap an operator import
-// would be a larger write surface than this Task needs. Partial
-// application is safe because the whole script is idempotent: re-running
-// it after a failure resumes rather than duplicates. That property is what
-// source_key and (event_id, starts_at) matching exist for.
+// No transaction spans the whole run, and it does not need to: partial
+// application is safe because the script is idempotent - re-running after a
+// failure resumes rather than duplicates, which is what source_key and
+// (event_id, starts_at) matching exist for.
+//
+// One step does need real atomicity, and gets it from the database rather
+// than from this loop: creating an event together with its occurrences.
+// Every other write here leaves a state that is either already correct or
+// repaired by the next run, but a half-finished *create* would leave an
+// event with no occurrences at all - a product invariant violation visible
+// in the shared catalog. That step goes through
+// import_event_with_occurrences (one call, one transaction) instead of
+// being sequenced here. Client-side compensation was tried first and is
+// insufficient: it cannot run at all if the response is lost after the
+// event INSERT commits, or if the process dies between two requests.
 for (const plan of plans) {
   const { entry } = plan;
   let eventId = plan.event?.id ?? null;
 
   if (plan.action === 'create') {
-    const { data, error } = await admin
-      .from('events')
-      .insert({
-        owner_id: owner.id,
-        title: entry.title,
-        venue: entry.venue,
-        source_url: entry.sourceUrl,
-        memo: entry.memo,
-        source_key: entry.sourceKey,
-      })
-      .select('id')
-      .single();
+    // One call, one transaction: the event row and every occurrence are
+    // written together or not at all (see
+    // 20260823040000_create_import_event_with_occurrences_rpc.sql). Writing
+    // them as two requests and compensating on error was not enough - a lost
+    // response after the event INSERT commits, or the process being killed
+    // between the two requests, would leave a zero-occurrence event in the
+    // shared catalog with nothing left running to undo it. Nothing in this
+    // script deletes any more.
+    const { data, error } = await admin.rpc('import_event_with_occurrences', {
+      p_owner_id: owner.id,
+      p_source_key: entry.sourceKey,
+      p_title: entry.title,
+      p_occurrences: plan.newOccurrences.map((occurrence) => ({
+        startsAt: occurrence.startsAt,
+        endsAt: occurrence.endsAt,
+      })),
+      p_venue: entry.venue,
+      p_source_url: entry.sourceUrl,
+      p_memo: entry.memo,
+    });
     if (error) {
       fail(`Failed to create ${entry.sourceKey}: ${error.message}`);
     }
@@ -482,7 +499,13 @@ for (const plan of plans) {
     }
   }
 
-  if (plan.newOccurrences.length > 0) {
+  // Only for events that already existed: a create plan's occurrences went
+  // in with the event itself, inside the RPC above. Adding occurrences to an
+  // event that already has some cannot produce a zero-occurrence event, so
+  // this path needs no atomicity beyond the per-statement kind - a failure
+  // here leaves the event exactly as complete as it was, and re-running
+  // resumes.
+  if (plan.action !== 'create' && plan.newOccurrences.length > 0) {
     const { error } = await admin.from('event_occurrences').insert(
       plan.newOccurrences.map((occurrence) => ({
         event_id: eventId,
@@ -491,35 +514,6 @@ for (const plan of plans) {
       })),
     );
     if (error) {
-      // The event row and its occurrences go in as two separate requests,
-      // so a failure here on a *newly created* event would leave a
-      // zero-occurrence event in the shared catalog - visible to every
-      // authenticated user and violating the "an event has >= 1 occurrence"
-      // invariant that create_event_with_occurrence enforces for the UI
-      // path. Re-running would eventually repair it, but the catalog is
-      // wrong until then, so the event this run just created is removed
-      // again rather than left behind. That RPC cannot be reused here: it
-      // derives owner_id from auth.uid(), which is null for service_role.
-      //
-      // This is the one place this script deletes, and it is a compensating
-      // rollback, not a deletion path: the target is an event created
-      // seconds earlier in this same run, with no occurrences and therefore
-      // nothing that can reference it. Events that existed before this run
-      // are never deleted, whatever fails.
-      if (plan.action === 'create') {
-        const { error: rollbackError } = await admin.from('events').delete().eq('id', eventId);
-        if (rollbackError) {
-          fail(
-            `Failed to add occurrences for ${entry.sourceKey}: ${error.message}\n` +
-              `Additionally, rolling back the event row just created failed: ${rollbackError.message}\n` +
-              `A zero-occurrence event (id ${eventId}) may be visible in the catalog. Re-run this import to repair it.`,
-          );
-        }
-        fail(
-          `Failed to add occurrences for ${entry.sourceKey}: ${error.message}\n` +
-            'The event row created for it was rolled back; nothing from this entry remains.',
-        );
-      }
       fail(`Failed to add occurrences for ${entry.sourceKey}: ${error.message}`);
     }
   }

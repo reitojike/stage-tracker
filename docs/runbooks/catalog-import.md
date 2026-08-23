@@ -138,7 +138,9 @@ catalog UI で対象 event を開き、公演回が日時順に並ぶこと、pa
 
 script が守るもの:
 
-- **削除しない。** event も公演回も削除・更新による除去を行いません。
+- **削除しない（例外なし）。** event も公演回も削除・更新による除去を行いません。
+  script に削除経路は 1 つも存在しません（新規 event の中断時 rollback も
+  DB transaction 側で行われます。下記参照）。
   seed file に載っていない既存の公演回は、そのまま残します。貸切回の
   チケットが取れて手動で公演回を追加した場合、その後の再 import が
   それを壊さないのはこの性質によります。
@@ -153,14 +155,15 @@ script が守るもの:
 - **designated catalog creator 以外を owner にしない。** service_role で
   書き込むため RLS と RPC の creator check を迂回します。script 自身が
   `public.catalog_creators` membership を検証します。
-- **公演回 0 件の event を作らない・残さない。** UI 経路では
+- **公演回 0 件の event を作らない・残さない。** UI 経路で
   `create_event_with_occurrence` が atomic に保証する不変条件を、
-  service_role 経路でも保持します。seed 側は事前 validation で公演回 0 件
-  を reject し、書き込み時は event row と公演回の INSERT が別 request に
-  なるため、新規作成した event の公演回 INSERT が失敗した場合はその
-  event row を rollback します。これは script が削除を行う唯一の箇所で、
-  対象は直前に自分が作成した公演回 0 件の event のみです（既存 event は
-  何が失敗しても削除しません）。
+  operator 経路でも DB level で保証します。新規 event の作成は
+  `import_event_with_occurrences` RPC を 1 回呼ぶだけで、event row と
+  その全公演回が **1 transaction** で書かれます。どこか 1 件でも失敗すれば
+  event row ごと rollback されます。client 側の補償削除には依存しません
+  （event INSERT の commit 後に応答が失われた場合やプロセスが強制終了した
+  場合、補償処理はそもそも走らないため）。この RPC は `service_role` のみ
+  実行可能で、`anon` / `authenticated` からは実行できません。
 
 ## 既知の制約
 
@@ -178,9 +181,13 @@ script が守るもの:
 - **`--apply` を同時に 2 つ実行しないでください。** `(event_id,
 starts_at)` に DB の UNIQUE 制約が無いため、同時実行すると双方が同じ
   日時を未登録と判断して二重に INSERT する可能性があります。通常の逐次
-  再実行では発生しません。DB 制約による恒久対処は
-  `event_occurrences` の invariant を扱う専用 Task（#46 と同種）の対象と
-  し、この Task では入れていません。
+  再実行では発生しません。恒久対処（同一 `(event_id, starts_at)` の重複を
+  許容するかの product 判断と、その DB invariant 化）は **#79** が扱います。
+  同じ table の DB invariant としては #46（`ends_at >= starts_at`）も
+  ありますが、別の invariant です。
+  - 上記の `import_event_with_occurrences` による atomicity は、**1 回の
+    event 作成が中途半端に終わらないこと**を保証するものであって、
+    **並行実行どうしの重複**を防ぐものではありません。両者は別の問題です。
 - 同一 event 内に同じ開始時刻の公演回が既に 2 件以上ある場合、その日時
   については終演時刻の更新を行わず、dry run / apply の出力に警告として
   表示します（どちらの row を指しているか決定できないため推測しません）。
