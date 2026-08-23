@@ -209,10 +209,19 @@ uncommitted）です。current committed scopeには含みません。
   の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
 - budget集計の期間基準
 - MCP product scope
-- sign-in provider（具体的な認証方式）
-- production hosting provider
+- production hosting provider（Gate A dogfood限定でVercel Hobbyを
+  bounded operational choiceとして採用済み。broader/general production
+  hosting platformの恒久決定は引き続きuncommitted。詳細は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+  および Issue #61）
 - PWA scope（installability / offline capability）
-- 家族・友人への本格展開時期
+- 家族・友人への本格展開時期（現時点の実runtimeはGate Aの本人 + 妻の
+  bounded 2-user dogfoodであり、broader rolloutは確約していません）
+
+sign-in provider（具体的な認証方式）はEmail magic link + Supabase Auth
+cookie-based sessionとして決定済みです（Issue #11）。現時点でdeferredな
+のはproduction hosting providerとPWA scopeのみで、sign-in providerを
+これらと同一のdeferred項目として扱いません。
 
 ## Canonical constraints
 

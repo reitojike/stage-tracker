@@ -1,5 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import { spawnSync } from 'node:child_process';
+import { resolveAdminTarget } from './lib/adminTarget.mjs';
 
 // Public signup is disabled (supabase/config.toml [auth] enable_signup =
 // false) because the event catalog is shared with every authenticated
@@ -7,33 +6,23 @@ import { spawnSync } from 'node:child_process';
 // path that replaces self-service signup: it only creates the account.
 // Signing in afterwards always goes through the normal magic-link flow at
 // /sign-in - accounts here have no password.
+//
+// Local:  node scripts/provision-user.mjs <email>
+// Remote: node scripts/provision-user.mjs <email> --remote
+//   (requires STAGE_TRACKER_REMOTE_SUPABASE_URL /
+//   STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY - see scripts/lib/adminTarget.mjs)
 
-const email = process.argv[2];
+const args = process.argv.slice(2);
+const remote = args.includes('--remote');
+const email = args.find((arg) => arg !== '--remote');
+
 if (typeof email !== 'string' || email.length === 0) {
-  console.error('Usage: node scripts/provision-user.mjs <email>');
+  console.error('Usage: node scripts/provision-user.mjs <email> [--remote]');
   process.exitCode = 1;
   process.exit();
 }
 
-// Windows can only launch node_modules/.bin's supabase.cmd shim through a
-// shell (Node throws EINVAL otherwise); the args below are static
-// literals, not external input, so shell:true carries no injection risk
-// here.
-const statusResult = spawnSync('supabase', ['status', '-o', 'json'], {
-  encoding: 'utf8',
-  shell: process.platform === 'win32',
-});
-if (statusResult.status !== 0) {
-  console.error('Failed to read local Supabase status. Is `supabase start` running?');
-  console.error(statusResult.stderr);
-  process.exitCode = 1;
-  process.exit();
-}
-const status = JSON.parse(statusResult.stdout);
-
-const admin = createClient(status.API_URL, status.SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+const admin = resolveAdminTarget(remote);
 
 const { data, error } = await admin.auth.admin.createUser({
   email,
