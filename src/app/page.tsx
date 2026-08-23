@@ -1,32 +1,27 @@
-import Link from 'next/link';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session.ts';
-import { Button } from '@/ui/Button';
-import { HomePage } from '@/ui/HomePage';
-import { signOut } from './sign-out/actions.ts';
+import { AppShell } from '@/ui/AppShell';
+import { PageHeading } from '@/ui/PageHeading';
+import { HomeAccount } from './_components/HomeAccount.tsx';
+import { HomeNav } from './_components/HomeNav.tsx';
 
+/**
+ * Home is the entry point for the Gate A journeys: it names the two
+ * primary destinations and their difference, keeps Personal Schedule
+ * management reachable as a secondary path, and ends with the account
+ * block (#70 bounded IA decision).
+ *
+ * Navigation lives in HomeNav rather than here, and the shell owns layout;
+ * this page only resolves the signed-in identity. The exact bottom-nav IA
+ * is still intentionally unresolved by docs/ux-ui.md - see PrimaryNav.
+ */
 export default async function Home() {
   const user = await getAuthenticatedUser();
 
-  // The signed-in identity, Catalog entry point, and sign-out control are
-  // auth/navigation concerns, so they live here rather than inside the
-  // shared HomePage component (#10 owns src/ui/). Presentation still comes
-  // from the shared primitives; exact bottom-nav IA is intentionally
-  // unresolved by docs/ux-ui.md, so this is a minimal entry link, not a
-  // full nav shell.
   return (
-    <>
-      {user === null ? null : <p>サインイン中: {user.email}</p>}
-      <HomePage />
-      <nav>
-        <Link href="/catalog">Event Catalogを見る</Link>
-        <Link href="/schedule">Personal Scheduleを見る</Link>
-        <Link href="/calendar">My Calendarを見る</Link>
-      </nav>
-      <form action={signOut}>
-        <Button type="submit" variant="secondary">
-          サインアウト
-        </Button>
-      </form>
-    </>
+    <AppShell>
+      <PageHeading>ホーム</PageHeading>
+      <HomeNav />
+      <HomeAccount email={user?.email ?? null} />
+    </AppShell>
   );
 }

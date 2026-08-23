@@ -1,6 +1,9 @@
-import Link from 'next/link';
-import { StatePanel } from '@/ui/StatePanel';
+import { ActionRow } from '@/ui/ActionRow';
+import { BackLink } from '@/ui/BackLink';
 import { Badge } from '@/ui/Badge';
+import { LinkButton } from '@/ui/LinkButton';
+import { PageHeading } from '@/ui/PageHeading';
+import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import {
@@ -94,8 +97,8 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
       : null;
 
   return (
-    <main>
-      <Link href="/schedule">← Personal Scheduleに戻る</Link>
+    <>
+      <BackLink href="/schedule">Personal Scheduleに戻る</BackLink>
 
       {state === 'error' ? (
         <StatePanel
@@ -115,13 +118,19 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
               {isOwner ? '自分の予定' : '共有されている予定'}
             </Badge>
           ) : null}
-          <h1>{scheduleTypeLabel(entry.scheduleType)}</h1>
+          <PageHeading>{scheduleTypeLabel(entry.scheduleType)}</PageHeading>
           <p>{scheduleTemporalLabel(entry.temporal)}</p>
           {entry.memo !== null ? <p>{entry.memo}</p> : null}
 
           {callerResult.ok ? (
             <>
-              {isOwner ? <Link href={`/schedule/${entry.id}/edit`}>編集する</Link> : null}
+              {isOwner ? (
+                <ActionRow>
+                  <LinkButton href={`/schedule/${entry.id}/edit`} variant="secondary">
+                    編集する
+                  </LinkButton>
+                </ActionRow>
+              ) : null}
               {!isOwner && ownShareReadFailed ? (
                 <StatePanel
                   variant="error"
@@ -172,6 +181,6 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
           )}
         </>
       ) : null}
-    </main>
+    </>
   );
 }

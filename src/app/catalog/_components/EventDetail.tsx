@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { ActionRow } from '@/ui/ActionRow';
+import { LinkButton } from '@/ui/LinkButton';
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import type { Participation } from '@/domain/participation.ts';
@@ -52,7 +53,13 @@ export function EventDetail({
     <article className={styles.detail}>
       <h1 className={styles.title}>{event.title}</h1>
 
-      {editHref !== null ? <Link href={editHref}>この公演情報を編集</Link> : null}
+      {editHref !== null ? (
+        <ActionRow>
+          <LinkButton href={editHref} variant="secondary">
+            この公演情報を編集
+          </LinkButton>
+        </ActionRow>
+      ) : null}
 
       <dl className={styles.meta}>
         {event.venue !== null ? (

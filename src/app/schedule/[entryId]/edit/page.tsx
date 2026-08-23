@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { BackLink } from '@/ui/BackLink';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
@@ -46,36 +47,36 @@ export default async function EditScheduleEntryPage({ params }: EditScheduleEntr
 
   if (state === 'error') {
     return (
-      <main>
-        <Link href={detailHref}>← 予定に戻る</Link>
+      <>
+        <BackLink href={detailHref}>予定に戻る</BackLink>
         <StatePanel
           variant="error"
           title="予定を読み込めませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
-      </main>
+      </>
     );
   }
 
   if (state === 'empty' || !result.ok || result.data === null) {
     return (
-      <main>
-        <Link href={detailHref}>← 予定に戻る</Link>
+      <>
+        <BackLink href={detailHref}>予定に戻る</BackLink>
         <StatePanel variant="empty" title="指定された予定が見つかりません" />
-      </main>
+      </>
     );
   }
 
   if (!callerResult.ok) {
     return (
-      <main>
-        <Link href={detailHref}>← 予定に戻る</Link>
+      <>
+        <BackLink href={detailHref}>予定に戻る</BackLink>
         <StatePanel
           variant="error"
           title="権限を確認できませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
-      </main>
+      </>
     );
   }
 
@@ -85,21 +86,21 @@ export default async function EditScheduleEntryPage({ params }: EditScheduleEntr
   if (!canEdit) {
     const denial = resolveWriteFeedback('update-schedule-entry', 'permission-denied');
     return (
-      <main>
-        <Link href={detailHref}>← 予定に戻る</Link>
+      <>
+        <BackLink href={detailHref}>予定に戻る</BackLink>
         <StatePanel
           variant={denial.variant}
           title={denial.title}
           description={denial.description}
         />
-      </main>
+      </>
     );
   }
 
   return (
-    <main>
-      <Link href={detailHref}>← 予定に戻る</Link>
-      <h1>予定を編集</h1>
+    <>
+      <BackLink href={detailHref}>予定に戻る</BackLink>
+      <PageHeading>予定を編集</PageHeading>
       <ScheduleEntryEditForm
         entryId={entry.id}
         initialValues={personalScheduleEntryToFormValues({
@@ -108,6 +109,6 @@ export default async function EditScheduleEntryPage({ params }: EditScheduleEntr
           temporal: entry.temporal,
         })}
       />
-    </main>
+    </>
   );
 }

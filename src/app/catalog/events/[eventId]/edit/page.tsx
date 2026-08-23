@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { BackLink } from '@/ui/BackLink';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
@@ -46,23 +47,23 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
 
   if (state === 'error') {
     return (
-      <main>
-        <Link href={detailHref}>← 公演情報に戻る</Link>
+      <>
+        <BackLink href={detailHref}>公演情報に戻る</BackLink>
         <StatePanel
           variant="error"
           title="公演情報を読み込めませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
-      </main>
+      </>
     );
   }
 
   if (state === 'empty' || !result.ok || result.data === null) {
     return (
-      <main>
-        <Link href={detailHref}>← 公演情報に戻る</Link>
+      <>
+        <BackLink href={detailHref}>公演情報に戻る</BackLink>
         <StatePanel variant="empty" title="指定された公演が見つかりません" />
-      </main>
+      </>
     );
   }
 
@@ -75,21 +76,21 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
   if (!canEdit) {
     const denial = resolveWriteFeedback('update-event', 'permission-denied');
     return (
-      <main>
-        <Link href={detailHref}>← 公演情報に戻る</Link>
+      <>
+        <BackLink href={detailHref}>公演情報に戻る</BackLink>
         <StatePanel
           variant={denial.variant}
           title={denial.title}
           description={denial.description}
         />
-      </main>
+      </>
     );
   }
 
   return (
-    <main>
-      <Link href={detailHref}>← 公演情報に戻る</Link>
-      <h1>{event.title} を編集</h1>
+    <>
+      <BackLink href={detailHref}>公演情報に戻る</BackLink>
+      <PageHeading>{event.title} を編集</PageHeading>
 
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>イベント情報</h2>
@@ -120,6 +121,6 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
 
         <OccurrenceAddForm eventId={event.id} />
       </section>
-    </main>
+    </>
   );
 }

@@ -1,4 +1,6 @@
-import Link from 'next/link';
+import { ActionRow } from '@/ui/ActionRow';
+import { LinkButton } from '@/ui/LinkButton';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
@@ -61,14 +63,19 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const canCreateEvent = creatorCheck !== null && creatorCheck.ok && creatorCheck.data;
 
   return (
-    <main>
-      <h1>Event Catalog</h1>
+    <>
+      <PageHeading>Event Catalog</PageHeading>
 
-      <Link href={catalogInvitationsHref()}>招待一覧を見る</Link>
-
-      {canCreateEvent ? (
-        <Link href={catalogNewEventHref({ yearMonth, selectedDate })}>+ イベントを登録</Link>
-      ) : null}
+      <ActionRow>
+        {canCreateEvent ? (
+          <LinkButton href={catalogNewEventHref({ yearMonth, selectedDate })}>
+            + イベントを登録
+          </LinkButton>
+        ) : null}
+        <LinkButton href={catalogInvitationsHref()} variant="secondary">
+          招待一覧を見る
+        </LinkButton>
+      </ActionRow>
 
       {state === 'error' ? (
         <StatePanel
@@ -99,6 +106,6 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
           ) : null}
         </>
       ) : null}
-    </main>
+    </>
   );
 }

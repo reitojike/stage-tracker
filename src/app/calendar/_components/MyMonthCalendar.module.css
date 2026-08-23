@@ -30,6 +30,11 @@
   font-size: var(--font-size-body);
 }
 
+.navLink,
+.day {
+  touch-action: manipulation;
+}
+
 .navLink:hover {
   background-color: var(--color-surface-subtle);
 }
@@ -178,4 +183,14 @@
   border: 1px dashed var(--color-text-secondary);
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium);
+}
+
+/*
+ * Pressed feedback (#70). Gate A's remote navigation can take a few
+ * seconds, so a tap has to be acknowledged at the moment it happens rather
+ * than only when the next screen arrives.
+ */
+.navLink:active,
+.day:active {
+  background-color: var(--color-surface-active);
 }

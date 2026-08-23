@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { BackLink } from '@/ui/BackLink';
+import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
@@ -36,14 +37,14 @@ export default async function NewEventPage({ searchParams }: NewEventPageProps) 
   const user = await getAuthenticatedUser();
   if (user === null) {
     return (
-      <main>
-        <Link href={backHref}>← カレンダーに戻る</Link>
+      <>
+        <BackLink href={backHref}>カレンダーに戻る</BackLink>
         <StatePanel
           variant="error"
           title="サインイン状態を確認できませんでした"
           description="お手数ですが、もう一度サインインしてからお試しください。"
         />
-      </main>
+      </>
     );
   }
 
@@ -52,36 +53,36 @@ export default async function NewEventPage({ searchParams }: NewEventPageProps) 
 
   if (!creatorCheck.ok) {
     return (
-      <main>
-        <Link href={backHref}>← カレンダーに戻る</Link>
+      <>
+        <BackLink href={backHref}>カレンダーに戻る</BackLink>
         <StatePanel
           variant="error"
           title="権限を確認できませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
-      </main>
+      </>
     );
   }
 
   if (!creatorCheck.data) {
     const denial = resolveWriteFeedback('create-event', 'permission-denied');
     return (
-      <main>
-        <Link href={backHref}>← カレンダーに戻る</Link>
+      <>
+        <BackLink href={backHref}>カレンダーに戻る</BackLink>
         <StatePanel
           variant={denial.variant}
           title={denial.title}
           description={denial.description}
         />
-      </main>
+      </>
     );
   }
 
   return (
-    <main>
-      <Link href={backHref}>← カレンダーに戻る</Link>
-      <h1>イベントを登録</h1>
+    <>
+      <BackLink href={backHref}>カレンダーに戻る</BackLink>
+      <PageHeading>イベントを登録</PageHeading>
       <EventCreateForm context={context} />
-    </main>
+    </>
   );
 }

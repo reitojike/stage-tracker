@@ -1,0 +1,79 @@
+/*
+ * Sticky rather than fixed: the shell is a full-height flex column, so the
+ * nav both pins to the viewport bottom while scrolling and settles at the
+ * end of a short page - without the content-side bottom padding a fixed
+ * bar would need every page to remember.
+ */
+.nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  /* Keeps the row clear of the iOS home indicator. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.items {
+  display: flex;
+  /* Same column width as AppShell's content, so the nav items line up with
+     the page above them on wider viewports. */
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  flex: 1 1 0;
+}
+
+.link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  /* WCAG 2.5.8 target size, with room for a two-line label on narrow
+     viewports. */
+  min-height: 56px;
+  padding: var(--space-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  text-align: center;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.link:hover {
+  background-color: var(--color-surface-subtle);
+}
+
+.link:active {
+  background-color: var(--color-surface-active);
+}
+
+.linkCurrent {
+  color: var(--color-accent);
+  font-weight: var(--font-weight-medium);
+}
+
+/*
+ * Non-color cues for the current destination - a top rule, plus the
+ * heavier weight above - so the state survives without color
+ * (docs/ux-ui.md "Accessibility baseline"). aria-current="page" carries
+ * the same fact to assistive technology.
+ */
+.linkCurrent::before {
+  content: '';
+  position: absolute;
+  inset-inline: var(--space-sm);
+  top: 0;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+}
+
+.label {
+  overflow-wrap: anywhere;
+}

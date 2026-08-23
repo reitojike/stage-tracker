@@ -5,7 +5,7 @@
 }
 
 .title {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-heading);
   font-weight: var(--font-weight-medium);
   margin: 0;
 }

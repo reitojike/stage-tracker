@@ -1,0 +1,82 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sectionHeading {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * A destination is one bordered row with its own label, description and
+ * chevron - not a bare text link. Three adjacent unstyled links were read
+ * as a single run of text on a smartphone (#69), which is the specific
+ * failure this replaces.
+ */
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* WCAG 2.5.8 target size; in practice the two-line rows are taller. */
+  min-height: 44px;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-surface);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.link:hover {
+  background-color: var(--color-surface-subtle);
+}
+
+.link:active {
+  background-color: var(--color-surface-active);
+}
+
+/*
+ * Secondary rows are visibly lighter than the primary destinations above:
+ * Personal Schedule management stays fully reachable without competing
+ * with My Calendar as an equal-weight top-level choice (#70 bounded IA).
+ */
+.linkSecondary {
+  padding-block: var(--space-sm);
+  border-color: transparent;
+  background-color: var(--color-surface-subtle);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  /* Lets a long description wrap instead of stretching the row. */
+  min-width: 0;
+}
+
+.label {
+  font-weight: var(--font-weight-medium);
+}
+
+.description {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+}
+
+.chevron {
+  color: var(--color-text-secondary);
+}

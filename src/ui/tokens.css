@@ -64,6 +64,7 @@
   --font-size-scale-1: 12px;
   --font-size-scale-2: 14px;
   --font-size-scale-3: 16px;
+  --font-size-scale-4: 20px;
   --font-weight-scale-regular: 400;
   --font-weight-scale-medium: 500;
   --line-height-scale-base: 1.5;
@@ -74,6 +75,8 @@
   --color-bg: var(--color-neutral-0);
   --color-surface: var(--color-neutral-0);
   --color-surface-subtle: var(--color-neutral-50);
+  /* Pressed state for neutral/secondary controls (see --color-accent-active). */
+  --color-surface-active: var(--color-neutral-100);
   --color-border: var(--color-neutral-200);
   /* form control boundary(input/button等)。WCAG 2.2 SC 1.4.11 Non-text
      Contrastの3:1をwhite surface背景に対して満たす値(neutral-500: 白背景に
@@ -86,6 +89,9 @@
   /* accent / interactive */
   --color-accent: var(--color-accent-600);
   --color-accent-hover: var(--color-accent-700);
+  /* Pressed state, one step past hover so a press reads as distinct from a
+     hover on pointer devices and is visible on its own on touch devices. */
+  --color-accent-active: var(--color-accent-800);
   --color-accent-foreground: var(--color-neutral-0);
   --color-focus-ring: var(--color-accent-600);
   /* low-emphasis accent tint, e.g. a calendar run/band marker (docs/ux-ui.md
@@ -123,6 +129,9 @@
 
   /* typography */
   --font-family-base: var(--font-family-scale-base);
+  /* Page-level heading. Restrained on purpose - one step above body, not a
+     marketing display size (docs/ux-ui.md "Typography"). */
+  --font-size-heading: var(--font-size-scale-4);
   --font-size-caption: var(--font-size-scale-1);
   --font-size-body-sm: var(--font-size-scale-2);
   --font-size-body: var(--font-size-scale-3);

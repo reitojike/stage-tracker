@@ -13,3 +13,11 @@
     transform: rotate(360deg);
   }
 }
+
+/* Inline size, sitting next to a control's own label rather than standing
+   alone in a page/section slot. */
+.small {
+  width: var(--space-md);
+  height: var(--space-md);
+  border-width: 1.5px;
+}

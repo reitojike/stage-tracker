@@ -23,6 +23,22 @@
   display: block;
   text-decoration: none;
   color: inherit;
+  touch-action: manipulation;
+}
+
+/*
+ * The row's own Surface is what shows hover/pressed state (#70): the link
+ * itself has no background of its own, and .subtle would otherwise keep
+ * the row looking untouched for the whole navigation.
+ */
+.itemLink:hover .item {
+  background-color: var(--color-surface-subtle);
+  border-color: var(--color-control-border);
+}
+
+.itemLink:active .item {
+  background-color: var(--color-surface-active);
+  border-color: var(--color-control-border);
 }
 
 .item {
