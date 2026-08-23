@@ -18,7 +18,7 @@ export interface LeaveShareFormProps {
  * (Issue #37 "shared user self-remove"). This needs no recipient
  * identification: the caller already knows only their own share id, so
  * unlike owner-side recipient add/remove (blocked pending a cross-cutting
- * identity-targeting prerequisite - see Issue #37/#36 coordination), this
+ * identity-targeting prerequisite - see Issue #55/PR #57), this
  * self-service action is independent of that gap and safe to ship now.
  */
 export function LeaveShareForm({ shareId }: LeaveShareFormProps) {

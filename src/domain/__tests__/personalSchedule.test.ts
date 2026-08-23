@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   comparePersonalScheduleEntriesByStart,
+  findOwnScheduleShare,
   mapPersonalScheduleEntryRow,
   sortPersonalScheduleEntries,
   temporalToColumns,
   type RawPersonalScheduleEntryRow,
+  type ScheduleShare,
 } from '../personalSchedule.ts';
 
 function rawAllDayRow(
@@ -261,4 +263,39 @@ void test('sortPersonalScheduleEntries does not mutate its input array', () => {
     sorted.map((e) => e.id),
     ['earlier', 'later'],
   );
+});
+
+function share(overrides: Partial<ScheduleShare> = {}): ScheduleShare {
+  return {
+    id: 'share-1',
+    scheduleEntryId: 'entry-1',
+    sharedWithUserId: 'user-1',
+    createdAt: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+void test('findOwnScheduleShare returns the share matching the caller, among several recipients', () => {
+  // Regression for the owner-view case: listScheduleShares returns every
+  // recipient's row to the owner, and picking the first one regardless of
+  // who is actually asking would hand back a *different* recipient's share
+  // id (see findOwnScheduleShare's own comment in personalSchedule.ts).
+  const shares = [
+    share({ id: 'share-a', sharedWithUserId: 'recipient-a' }),
+    share({ id: 'share-b', sharedWithUserId: 'recipient-b' }),
+    share({ id: 'share-c', sharedWithUserId: 'recipient-c' }),
+  ];
+  assert.equal(findOwnScheduleShare(shares, 'recipient-b')?.id, 'share-b');
+});
+
+void test('findOwnScheduleShare returns null when the caller has no share in the list, never falling back to another one', () => {
+  const shares = [
+    share({ id: 'share-a', sharedWithUserId: 'recipient-a' }),
+    share({ id: 'share-b', sharedWithUserId: 'recipient-b' }),
+  ];
+  assert.equal(findOwnScheduleShare(shares, 'someone-else'), null);
+});
+
+void test('findOwnScheduleShare returns null for an empty list', () => {
+  assert.equal(findOwnScheduleShare([], 'recipient-a'), null);
 });

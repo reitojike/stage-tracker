@@ -1,5 +1,5 @@
 import { tokyoDateLabel, tokyoTimeLabel, UNKNOWN_END_TIME_LABEL } from './catalogFormatting.ts';
-import { parseTokyoCalendarDate } from './eventCatalog.ts';
+import { parseTokyoCalendarDate, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
 import type { ScheduleTemporal, ScheduleType } from './personalSchedule.ts';
 
 // Pure display formatting for the personal schedule feature (Issue #37).
@@ -37,17 +37,33 @@ function allDayLabel(startsOn: string, endsOn: string): string {
 }
 
 /** "2026年8月10日 19:00〜21:00" (or "…（終了時刻未定）" when unset), for a
- * time-bounded entry - deliberately always includes the date, unlike
+ * time-bounded entry - deliberately always includes the start date, unlike
  * catalogFormatting.ts's occurrenceTimeRangeLabel, since a personal
  * schedule listing (unlike a single day's occurrence list) is not already
- * grouped under a date heading. */
+ * grouped under a date heading.
+ *
+ * When the end instant falls on a *different* Tokyo calendar day than the
+ * start (e.g. an overnight trip, or a work shift starting 23:00), the end
+ * time alone would read as earlier than the start ("23:00〜01:00" looks
+ * backwards) and could be misread as same-day. Unlike
+ * occurrenceTimeRangeLabel (which only ever needs a "next day" suffix,
+ * since a single performance never spans more than one extra day), a
+ * personal schedule entry can span an arbitrary number of days, so this
+ * shows the end's own date instead of a "+N日" label that would need to
+ * count them - unambiguous regardless of how many days apart the two
+ * instants are. */
 function timeBoundedLabel(startsAt: string, endsAt: string | null): string {
   const dateLabel = tokyoDateLabel(startsAt);
   const startTimeLabel = tokyoTimeLabel(startsAt);
   if (endsAt === null) {
     return `${dateLabel} ${startTimeLabel}〜（${UNKNOWN_END_TIME_LABEL}）`;
   }
-  return `${dateLabel} ${startTimeLabel}〜${tokyoTimeLabel(endsAt)}`;
+  const endTimeLabel = tokyoTimeLabel(endsAt);
+  const spansToAnotherDay =
+    tokyoCalendarDateFromInstant(endsAt) !== tokyoCalendarDateFromInstant(startsAt);
+  return spansToAnotherDay
+    ? `${dateLabel} ${startTimeLabel}〜${tokyoDateLabel(endsAt)} ${endTimeLabel}`
+    : `${dateLabel} ${startTimeLabel}〜${endTimeLabel}`;
 }
 
 export function scheduleTemporalLabel(temporal: ScheduleTemporal): string {

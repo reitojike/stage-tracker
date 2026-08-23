@@ -37,7 +37,7 @@ import {
 // it is blocked pending a cross-cutting authenticated-user identity-
 // targeting prerequisite (no email/user_id resolution mechanism exists
 // anywhere in this codebase yet - confirmed absent from every RPC/table,
-// including invite_to_occurrence). See Issue #37/#36 coordination.
+// including invite_to_occurrence). See Issue #55/PR #57 (cross-cutting identity-targeting prerequisite).
 
 const SCHEDULE_FIELDS = [
   'scheduleType',

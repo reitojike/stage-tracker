@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
-import { getAuthenticatedUser } from '@/infrastructure/supabase/session.ts';
+import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import { getVisiblePersonalScheduleEntry } from '@/infrastructure/supabase/personalSchedule.ts';
 import { resolvePersonalScheduleReadState } from '@/domain/personalScheduleReadState.ts';
 import { resolveWriteFeedback } from '@/domain/personalScheduleWriteFeedback.ts';
@@ -26,15 +26,21 @@ const isMissingEntry = (data: PersonalScheduleEntry | null) => data === null;
  * infrastructure/supabase/personalSchedule.ts's deniedEntryUpdate comment)
  * but never reaches an editable form here: ownership alone gates rendering
  * this screen, exactly mirroring the read/write policy gap itself.
+ *
+ * Identity is resolved via requireAuthenticatedUserId, which distinguishes
+ * a genuine auth-check failure from "not signed in" - unlike session.ts's
+ * getAuthenticatedUser, which collapses both into `null` and would
+ * misreport a transient failure as "not the owner" (see the detail page's
+ * identical reasoning at ../page.tsx).
  */
 export default async function EditScheduleEntryPage({ params }: EditScheduleEntryPageProps) {
   const { entryId } = await params;
   const detailHref = `/schedule/${entryId}`;
 
   const client = await createSupabaseServerClient();
-  const [result, user] = await Promise.all([
+  const [result, callerResult] = await Promise.all([
     getVisiblePersonalScheduleEntry(client, entryId),
-    getAuthenticatedUser(),
+    requireAuthenticatedUserId(client),
   ]);
   const state = resolvePersonalScheduleReadState(result, isMissingEntry);
 
@@ -60,8 +66,21 @@ export default async function EditScheduleEntryPage({ params }: EditScheduleEntr
     );
   }
 
+  if (!callerResult.ok) {
+    return (
+      <main>
+        <Link href={detailHref}>← 予定に戻る</Link>
+        <StatePanel
+          variant="error"
+          title="権限を確認できませんでした"
+          description="通信状況を確認し、もう一度お試しください。"
+        />
+      </main>
+    );
+  }
+
   const entry = result.data;
-  const canEdit = user !== null && entry.ownerId === user.id;
+  const canEdit = entry.ownerId === callerResult.data;
 
   if (!canEdit) {
     const denial = resolveWriteFeedback('update-schedule-entry', 'permission-denied');
