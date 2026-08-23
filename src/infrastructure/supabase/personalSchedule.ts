@@ -2,14 +2,21 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types.ts';
 import {
   mapPersonalScheduleEntryRow,
+  mapScheduleShareRecipientRow,
   mapScheduleShareRow,
   sortPersonalScheduleEntries,
   temporalToColumns,
   type PersonalScheduleEntry,
   type PersonalScheduleEntryInput,
   type ScheduleShare,
+  type ScheduleShareRecipient,
 } from '../../domain/personalSchedule.ts';
-import { classifyPostgrestError, type PlanningResult } from '../../domain/planningError.ts';
+import {
+  classifyPostgrestError,
+  classifyRpcError,
+  type PlanningResult,
+  type RpcErrorRule,
+} from '../../domain/planningError.ts';
 import { fetchAllRows } from './pagedFetch.ts';
 import { requireAuthenticatedUserId } from './planningAuth.ts';
 
@@ -167,9 +174,124 @@ export async function listScheduleShares(
   return { ok: true, data: result.data.map(mapScheduleShareRow) };
 }
 
+/**
+ * Message-text rules for public.share_schedule_entry_by_email's `raise
+ * exception` calls (supabase/migrations/20260823020000_create_schedule_
+ * share_email_boundary.sql, Issue #55). Unlike invitation's email-based RPC,
+ * this one is not required to stay opaque about account existence - see
+ * that migration's header - so "recipient email is not a registered
+ * account" gets its own distinct kind rather than collapsing into a no-op.
+ */
+export const SHARE_BY_EMAIL_ERROR_RULES: readonly RpcErrorRule[] = [
+  { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
+  {
+    test: (m) => m.includes('schedule entry and recipient email are required'),
+    kind: 'validation',
+  },
+  {
+    test: (m) => m.includes('only the schedule entry owner can add a recipient'),
+    kind: 'permission-denied',
+  },
+  { test: (m) => m.includes('recipient email is not a valid email address'), kind: 'validation' },
+  { test: (m) => m.includes('cannot share with yourself'), kind: 'validation' },
+  { test: (m) => m.includes('recipient email is not a registered account'), kind: 'validation' },
+];
+
+/**
+ * Shares an entry with a recipient identified by their exact registered
+ * email address (Issue #55: MVP recipient targeting is exact email input,
+ * not a user directory/search, and never a raw user id from a client).
+ * Sharing takes effect immediately (no approval flow) and is idempotent -
+ * re-sharing with an already-shared recipient returns the existing row
+ * rather than erroring. Checks the caller's session first - see
+ * updatePersonalScheduleEntry above for why.
+ */
+export async function shareScheduleEntryByEmail(
+  client: PersonalScheduleQueryClient,
+  scheduleEntryId: string,
+  recipientEmail: string,
+): Promise<PlanningResult<ScheduleShare>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
+  const { data, error } = await client.rpc('share_schedule_entry_by_email', {
+    p_schedule_entry_id: scheduleEntryId,
+    p_recipient_email: recipientEmail,
+  });
+  if (error !== null) {
+    return { ok: false, error: classifyRpcError(error, SHARE_BY_EMAIL_ERROR_RULES) };
+  }
+  return { ok: true, data: mapScheduleShareRow(data) };
+}
+
+/**
+ * Message-text rules for public.list_schedule_share_recipient_emails's
+ * `raise exception` calls (same migration as share_schedule_entry_by_email
+ * above).
+ */
+export const LIST_SHARE_RECIPIENT_EMAILS_ERROR_RULES: readonly RpcErrorRule[] = [
+  { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
+  {
+    test: (m) => m.includes('only the schedule entry owner can view recipient emails'),
+    kind: 'permission-denied',
+  },
+];
+
+/**
+ * The email of every recipient a schedule entry has actually been shared
+ * with, for that entry's owner only (Issue #55: the bounded, owner-scoped
+ * projection #37's recipient-removal UI needs - not a general user
+ * directory, see public.list_schedule_share_recipient_emails's header). A
+ * non-owner caller (including a recipient who is not the owner) gets
+ * `permission-denied`, not an empty/`not-found` result, so a UI cannot
+ * mistake "denied" for "nobody shared with yet". Checks the caller's
+ * session first - see updatePersonalScheduleEntry above for why.
+ *
+ * Paginated via fetchAllRows, exactly like listVisiblePersonalSchedule and
+ * listScheduleShares above: PostgREST caps a single RPC response at
+ * supabase/config.toml's api.max_rows the same way it caps a plain table
+ * read (client.rpc(...).range(...) hits the same limit
+ * client.from(...).range(...) does), so an owner with more than max_rows
+ * recipients on one entry would otherwise have this silently, and
+ * indistinguishably from a genuinely short list, truncated.
+ */
+export async function listScheduleShareRecipientEmails(
+  client: PersonalScheduleQueryClient,
+  scheduleEntryId: string,
+): Promise<PlanningResult<ScheduleShareRecipient[]>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
+  const result = await fetchAllRows(
+    (from, to) =>
+      client
+        .rpc(
+          'list_schedule_share_recipient_emails',
+          { p_schedule_entry_id: scheduleEntryId },
+          { count: 'exact' },
+        )
+        .range(from, to),
+    (error) => classifyRpcError(error, LIST_SHARE_RECIPIENT_EMAILS_ERROR_RULES),
+  );
+  if (!result.ok) {
+    return result;
+  }
+  return { ok: true, data: result.data.map(mapScheduleShareRecipientRow) };
+}
+
 /** Shares an entry with a recipient, as the entry's owner. Sharing takes
  * effect immediately (no approval flow). Checks the caller's session first
- * - see updatePersonalScheduleEntry above for why. */
+ * - see updatePersonalScheduleEntry above for why.
+ *
+ * Not used by any UI (Issue #55 PO decision): MVP recipient selection is
+ * exact registered email input, never a raw id - see
+ * shareScheduleEntryByEmail above, which is what the sharing UI calls. This
+ * function remains as the Issue #33 typed boundary primitive.
+ */
 export async function shareScheduleEntry(
   client: PersonalScheduleQueryClient,
   scheduleEntryId: string,

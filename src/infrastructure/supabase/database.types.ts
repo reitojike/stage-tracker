@@ -460,9 +460,21 @@ export type Database = {
         Args: { p_invitee_id: string; p_occurrence_id: string }
         Returns: undefined
       }
+      invite_to_occurrence_by_email: {
+        Args: { p_invitee_email: string; p_occurrence_id: string }
+        Returns: undefined
+      }
       is_personal_schedule_entry_owner: {
         Args: { p_entry_id: string }
         Returns: boolean
+      }
+      list_schedule_share_recipient_emails: {
+        Args: { p_schedule_entry_id: string }
+        Returns: {
+          recipient_email: string
+          share_id: string
+          shared_at: string
+        }[]
       }
       pending_ticket_transfer_offer: {
         Args: { p_transfer_id: string }
@@ -490,6 +502,21 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "ticket_transfers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      share_schedule_entry_by_email: {
+        Args: { p_recipient_email: string; p_schedule_entry_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          schedule_entry_id: string
+          shared_with_user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "personal_schedule_shares"
           isOneToOne: true
           isSetofReturn: false
         }

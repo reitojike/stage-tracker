@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import {
   createPersonalScheduleEntry,
+  listScheduleShareRecipientEmails,
   listScheduleShares,
   listVisiblePersonalSchedule,
   removeScheduleShare,
   shareScheduleEntry,
+  shareScheduleEntryByEmail,
   updatePersonalScheduleEntry,
 } from '../../src/infrastructure/supabase/personalSchedule.ts';
 import {
@@ -25,6 +27,7 @@ const PASSWORD = 'Str0ng-Test-Passw0rd!';
 
 let owner: TestActor;
 let recipient: TestActor;
+let recipient2: TestActor;
 let stranger: TestActor;
 const createdActors: TestActor[] = [];
 
@@ -33,6 +36,8 @@ before(async () => {
   createdActors.push(owner);
   recipient = await createTestActor('rls-typed-sched-recipient', PASSWORD);
   createdActors.push(recipient);
+  recipient2 = await createTestActor('rls-typed-sched-recipient2', PASSWORD);
+  createdActors.push(recipient2);
   stranger = await createTestActor('rls-typed-sched-stranger', PASSWORD);
   createdActors.push(stranger);
 });
@@ -254,6 +259,244 @@ void test('removeScheduleShare reports unauthenticated for a client with no sess
 
   const anonymous = createAnonymousClient();
   const result = await removeScheduleShare(anonymous, share.data.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+// Issue #55: shareScheduleEntryByEmail / listScheduleShareRecipientEmails
+// are the actual sharing-UI entrypoints - exact registered email input,
+// never a raw id, plus the bounded owner-only recipient-email read
+// projection #37's recipient-removal UI needs.
+
+void test('shareScheduleEntryByEmail shares an entry with a recipient identified by exact email', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'paid_leave',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-01', endsOn: '2026-05-02' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+
+  const share = await shareScheduleEntryByEmail(
+    owner.client,
+    created.data.id,
+    recipient.user.email,
+  );
+  assert.equal(share.ok, true);
+  assert.equal(share.data.sharedWithUserId, recipient.user.id);
+
+  const recipientView = await listVisiblePersonalSchedule(recipient.client);
+  assert.equal(recipientView.ok, true);
+  assert.ok(recipientView.data.some((e) => e.id === created.data.id));
+});
+
+void test('shareScheduleEntryByEmail is case-insensitive on the registered email', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-03', endsOn: '2026-05-03' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+
+  const share = await shareScheduleEntryByEmail(
+    owner.client,
+    created.data.id,
+    recipient.user.email.toUpperCase(),
+  );
+  assert.equal(share.ok, true);
+  assert.equal(share.data.sharedWithUserId, recipient.user.id);
+});
+
+void test('shareScheduleEntryByEmail is idempotent: re-sharing the same recipient returns the existing row', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-04', endsOn: '2026-05-04' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+
+  const first = await shareScheduleEntryByEmail(
+    owner.client,
+    created.data.id,
+    recipient.user.email,
+  );
+  assert.equal(first.ok, true);
+  const second = await shareScheduleEntryByEmail(
+    owner.client,
+    created.data.id,
+    recipient.user.email,
+  );
+  assert.equal(second.ok, true);
+  assert.equal(second.data.id, first.data.id);
+});
+
+void test(
+  'shareScheduleEntryByEmail reports validation (not permission-denied) for an unregistered email - ' +
+    'unlike invitation, sharing is not required to hide account existence',
+  async () => {
+    const created = await createPersonalScheduleEntry(owner.client, {
+      scheduleType: 'other',
+      memo: null,
+      temporal: { kind: 'all-day', startsOn: '2026-05-05', endsOn: '2026-05-05' },
+    });
+    assert.equal(created.ok, true);
+
+    const result = await shareScheduleEntryByEmail(
+      owner.client,
+      created.data.id,
+      'no-such-stage-tracker-account@example.com',
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.error.kind, 'validation');
+  },
+);
+
+void test('shareScheduleEntryByEmail reports validation for a malformed email', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-06', endsOn: '2026-05-06' },
+  });
+  assert.equal(created.ok, true);
+
+  const result = await shareScheduleEntryByEmail(owner.client, created.data.id, 'not-an-email');
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'validation');
+});
+
+void test('shareScheduleEntryByEmail reports validation for sharing with your own email', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-07', endsOn: '2026-05-07' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(owner.user.email);
+
+  const result = await shareScheduleEntryByEmail(owner.client, created.data.id, owner.user.email);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'validation');
+});
+
+void test('shareScheduleEntryByEmail reports permission-denied for a non-owner caller, even a shared recipient', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-08', endsOn: '2026-05-08' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+  assert.ok(stranger.user.email);
+  const share = await shareScheduleEntryByEmail(
+    owner.client,
+    created.data.id,
+    recipient.user.email,
+  );
+  assert.equal(share.ok, true);
+
+  // A shared recipient can see the entry, but cannot manage other
+  // recipients on it - mirrors updatePersonalScheduleEntry's "visible but
+  // not writable" boundary above.
+  const result = await shareScheduleEntryByEmail(
+    recipient.client,
+    created.data.id,
+    stranger.user.email,
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'permission-denied');
+});
+
+void test('shareScheduleEntryByEmail reports unauthenticated for a client with no session', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-09', endsOn: '2026-05-09' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+
+  const anonymous = createAnonymousClient();
+  const result = await shareScheduleEntryByEmail(anonymous, created.data.id, recipient.user.email);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+void test('listScheduleShareRecipientEmails lets the owner identify recipients by email', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-10', endsOn: '2026-05-10' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+  await shareScheduleEntryByEmail(owner.client, created.data.id, recipient.user.email);
+
+  const result = await listScheduleShareRecipientEmails(owner.client, created.data.id);
+  assert.equal(result.ok, true);
+  assert.ok(result.data.some((r) => r.recipientEmail === recipient.user.email?.toLowerCase()));
+});
+
+void test('listScheduleShareRecipientEmails returns every recipient of one entry, not just the first', async () => {
+  // A real (not mocked) round trip through client.rpc(...).range(...) with
+  // more than one row - src/infrastructure/supabase/__tests__/pagedFetch.
+  // test.ts proves fetchAllRows itself accumulates pages correctly with a
+  // mocked queryPage; this proves the real RPC + fetchAllRows wiring
+  // returns every row against the actual local PostgREST/Postgres, not
+  // just what a single unranged request happens to return.
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-10', endsOn: '2026-05-10' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+  assert.ok(recipient2.user.email);
+  await shareScheduleEntryByEmail(owner.client, created.data.id, recipient.user.email);
+  await shareScheduleEntryByEmail(owner.client, created.data.id, recipient2.user.email);
+
+  const result = await listScheduleShareRecipientEmails(owner.client, created.data.id);
+  assert.equal(result.ok, true);
+  const emails = result.data.map((r) => r.recipientEmail);
+  assert.equal(emails.length, 2);
+  assert.ok(emails.includes(recipient.user.email.toLowerCase()));
+  assert.ok(emails.includes(recipient2.user.email.toLowerCase()));
+});
+
+void test(
+  'listScheduleShareRecipientEmails reports permission-denied for a non-owner - ' +
+    'privacy-negative: a shared recipient cannot read this projection, and neither can a stranger',
+  async () => {
+    const created = await createPersonalScheduleEntry(owner.client, {
+      scheduleType: 'other',
+      memo: null,
+      temporal: { kind: 'all-day', startsOn: '2026-05-11', endsOn: '2026-05-11' },
+    });
+    assert.equal(created.ok, true);
+    assert.ok(recipient.user.email);
+    await shareScheduleEntryByEmail(owner.client, created.data.id, recipient.user.email);
+
+    const asRecipient = await listScheduleShareRecipientEmails(recipient.client, created.data.id);
+    assert.equal(asRecipient.ok, false);
+    assert.equal(asRecipient.error.kind, 'permission-denied');
+
+    const asStranger = await listScheduleShareRecipientEmails(stranger.client, created.data.id);
+    assert.equal(asStranger.ok, false);
+    assert.equal(asStranger.error.kind, 'permission-denied');
+  },
+);
+
+void test('listScheduleShareRecipientEmails reports unauthenticated for a client with no session', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-12', endsOn: '2026-05-12' },
+  });
+  assert.equal(created.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await listScheduleShareRecipientEmails(anonymous, created.data.id);
   assert.equal(result.ok, false);
   assert.equal(result.error.kind, 'unauthenticated');
 });

@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test';
 import {
   declineInvitation,
   inviteToOccurrence,
+  inviteToOccurrenceByEmail,
   listMyReceivedInvitations,
 } from '../../src/infrastructure/supabase/invitation.ts';
 import {
@@ -179,6 +180,131 @@ void test('declineInvitation reports unauthenticated for a client with no sessio
 
   const anonymous = createAnonymousClient();
   const result = await declineInvitation(anonymous, invitation.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+// Issue #55: inviteToOccurrenceByEmail is the actual invite UI entrypoint -
+// exact registered email input, never a raw id. These tests exercise the
+// three-branch dispatch exactly like the id-based tests above, plus the
+// privacy-negative requirement Issue #55 adds: every invitee-dependent
+// branch (no account, no participation row, considering, attending,
+// previously declined) must be indistinguishable from the inviter's side.
+
+void test('inviteToOccurrenceByEmail creates an invitation and a considering participation for the invitee', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  assert.ok(invitee.user.email);
+  const result = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, invitee.user.email);
+  assert.deepEqual(result, { ok: true, data: undefined });
+
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  assert.ok(
+    received.data.some((i) => i.occurrenceId === occurrenceId && i.inviterId === inviter.user.id),
+  );
+
+  const participation = await readOwnParticipation(invitee, occurrenceId);
+  assert.equal(participation?.status, 'considering');
+});
+
+void test('inviteToOccurrenceByEmail is case-insensitive on the registered email', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  assert.ok(invitee.user.email);
+  const shouted = invitee.user.email.toUpperCase();
+  const result = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, shouted);
+  assert.deepEqual(result, { ok: true, data: undefined });
+
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  assert.ok(received.data.some((i) => i.occurrenceId === occurrenceId));
+});
+
+void test(
+  'inviteToOccurrenceByEmail is opaque (ok:true, no invitation row) for an unregistered email - ' +
+    'privacy-negative: identical outcome to every other invitee-dependent branch',
+  async () => {
+    const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+    const noAccount = await inviteToOccurrenceByEmail(
+      inviter.client,
+      occurrenceId,
+      'no-such-stage-tracker-account@example.com',
+    );
+    assert.deepEqual(noAccount, { ok: true, data: undefined });
+
+    const received = await listMyReceivedInvitations(invitee.client);
+    assert.equal(received.ok, true);
+    assert.ok(!received.data.some((i) => i.occurrenceId === occurrenceId));
+  },
+);
+
+void test('inviteToOccurrenceByEmail is opaque when the invitee is already attending: no error, no invitation row', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  await setParticipation(invitee, occurrenceId, 'attending');
+  assert.ok(invitee.user.email);
+
+  const result = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, invitee.user.email);
+  assert.deepEqual(result, { ok: true, data: undefined });
+
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  assert.ok(!received.data.some((i) => i.occurrenceId === occurrenceId));
+
+  const participation = await readOwnParticipation(invitee, occurrenceId);
+  assert.equal(participation?.status, 'attending', 'attending must be left unchanged, not demoted');
+});
+
+void test('inviteToOccurrenceByEmail is opaque (ok:true, void) for a previously declined invitee - unlike the id-based RPC', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  assert.ok(invitee.user.email);
+  const first = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, invitee.user.email);
+  assert.equal(first.ok, true);
+
+  const received = await listMyReceivedInvitations(invitee.client);
+  assert.equal(received.ok, true);
+  const invitation = received.data.find((i) => i.occurrenceId === occurrenceId);
+  assert.ok(invitation);
+  const declined = await declineInvitation(invitee.client, invitation.id);
+  assert.equal(declined.ok, true);
+
+  // The id-based RPC raises a distinct `validation` exception for this
+  // branch (see typedBoundaryInvitation's earlier "re-inviting a declined
+  // invitee" test) - the email-based RPC must not, since that would let an
+  // inviter who only has an email confirm the address belongs to a real,
+  // previously-invited account.
+  const second = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, invitee.user.email);
+  assert.deepEqual(second, { ok: true, data: undefined });
+});
+
+void test('inviteToOccurrenceByEmail reports validation for a malformed email', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  const result = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, 'not-an-email');
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'validation');
+});
+
+void test('inviteToOccurrenceByEmail reports validation for inviting your own email', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  assert.ok(inviter.user.email);
+  const result = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, inviter.user.email);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'validation');
+});
+
+void test('inviteToOccurrenceByEmail reports permission-denied when the inviter is only considering', async () => {
+  const { occurrence } = await createEventWithOccurrence(catalogOwner);
+  await setParticipation(inviter, occurrence.id, 'considering');
+  assert.ok(invitee.user.email);
+
+  const result = await inviteToOccurrenceByEmail(inviter.client, occurrence.id, invitee.user.email);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'permission-denied');
+});
+
+void test('inviteToOccurrenceByEmail reports unauthenticated for a client with no session', async () => {
+  const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
+  assert.ok(invitee.user.email);
+  const anonymous = createAnonymousClient();
+  const result = await inviteToOccurrenceByEmail(anonymous, occurrenceId, invitee.user.email);
   assert.equal(result.ok, false);
   assert.equal(result.error.kind, 'unauthenticated');
 });

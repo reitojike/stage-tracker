@@ -80,6 +80,57 @@ export async function inviteToOccurrence(
 }
 
 /**
+ * Message-text rules for public.invite_to_occurrence_by_email's `raise
+ * exception` calls (supabase/migrations/20260823010000_create_invite_to_
+ * occurrence_by_email_rpc.sql, Issue #55). Deliberately has no rule for a
+ * "declined" or "not found" message: unlike INVITE_ERROR_RULES above, that
+ * RPC never raises for anything about the invitee - see its header. Every
+ * rule here is about the caller (auth, missing/malformed input, self-invite,
+ * not attending).
+ */
+export const INVITE_BY_EMAIL_ERROR_RULES: readonly RpcErrorRule[] = [
+  { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
+  { test: (m) => m.includes('occurrence and invitee email are required'), kind: 'validation' },
+  { test: (m) => m.includes('invitee email is not a valid email address'), kind: 'validation' },
+  { test: (m) => m.includes('cannot invite yourself'), kind: 'validation' },
+  {
+    test: (m) => m.includes('only a user attending this occurrence can invite others to it'),
+    kind: 'permission-denied',
+  },
+];
+
+/**
+ * Invites a user to an occurrence by their exact registered email address
+ * (Issue #55: MVP invitee targeting is exact email input, not a user
+ * directory/search, and never a raw user id from a client). Opaque in the
+ * same spirit as inviteToOccurrence above, but stricter: every
+ * invitee-dependent outcome - no such account, no participation row,
+ * `considering`, `attending`, or a previously declined invitation - returns
+ * the same void. See invite_to_occurrence_by_email's header for why the
+ * declined case cannot raise the distinct exception inviteToOccurrence's RPC
+ * does here.
+ */
+export async function inviteToOccurrenceByEmail(
+  client: InvitationQueryClient,
+  occurrenceId: string,
+  inviteeEmail: string,
+): Promise<PlanningResult<void>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
+  const { error } = await client.rpc('invite_to_occurrence_by_email', {
+    p_occurrence_id: occurrenceId,
+    p_invitee_email: inviteeEmail,
+  });
+  if (error !== null) {
+    return { ok: false, error: classifyRpcError(error, INVITE_BY_EMAIL_ERROR_RULES) };
+  }
+  return { ok: true, data: undefined };
+}
+
+/**
  * Every invitation the caller has received, across all occurrences.
  * occurrence_invitations_select_invitee restricts SELECT to invitee_id =
  * auth.uid(), so this can never surface an invitation the caller sent - see

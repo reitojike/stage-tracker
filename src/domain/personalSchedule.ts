@@ -65,6 +65,40 @@ export interface ScheduleShare {
   createdAt: string;
 }
 
+/**
+ * One recipient of a schedule entry's share, identified by email rather
+ * than raw id - the owner-facing projection Issue #55 adds over
+ * ScheduleShare so the recipient-removal UI can show and match on the same
+ * exact email the owner used to add them, instead of an opaque id. Sourced
+ * from public.list_schedule_share_recipient_emails, which enforces (at the
+ * DB layer) that only the entry's owner can ever resolve these emails - see
+ * that function's header.
+ */
+export interface ScheduleShareRecipient {
+  shareId: string;
+  recipientEmail: string;
+  sharedAt: string;
+}
+
+/** The persistence row shape mapScheduleShareRecipientRow expects: the
+ * columns list_schedule_share_recipient_emails returns, declared locally
+ * matching the convention in domain/eventCatalog.ts's RawEventRow. */
+export interface RawScheduleShareRecipientRow {
+  share_id: string;
+  recipient_email: string;
+  shared_at: string;
+}
+
+export function mapScheduleShareRecipientRow(
+  row: RawScheduleShareRecipientRow,
+): ScheduleShareRecipient {
+  return {
+    shareId: row.share_id,
+    recipientEmail: row.recipient_email,
+    sharedAt: row.shared_at,
+  };
+}
+
 /** The persistence row shape mapPersonalScheduleEntryRow expects, declared
  * locally matching the convention in domain/eventCatalog.ts's RawEventRow. */
 export interface RawPersonalScheduleEntryRow {

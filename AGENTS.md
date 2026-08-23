@@ -861,6 +861,32 @@ Completed baseline を参照してください。
 - event-level の「興味がある / 行きたいが回未定」という intention は
   participation へ混ぜず、扱う場合は別途評価します（現時点は Deferred）。
 
+## Authenticated-user targeting（identity boundary）
+
+- MVP で他の authenticated user を明示指定する operation（Invitation の
+  invitee 指定、personal schedule sharing の recipient 指定）は、相手の
+  **Stage Tracker 登録 email address の exact input** で行います。
+- raw internal user UUID を user-facing input として要求しません。
+- generic user directory / user list は提供しません。autocomplete /
+  partial-match search / fuzzy search も提供しません。
+- client-readable な generic `email -> user_id` lookup API は提供しません。
+  `auth.users` 等の privileged identity data を normal client から broad
+  read 可能にはしません。
+- email → internal user id の resolution は、trusted DB/server boundary
+  内で operation-specific に行います（例: `security definer` な RPC が
+  当該 operation の権限確認を行った後にのみ resolve する）。generic な
+  reusable lookup surface は作りません。
+- 未登録 email への external email delivery / pending account invitation /
+  contact system は MVP scope に含めません。
+- この identity boundary は operation ごとに opacity 要件が異なり得ます。
+  Invitation は invitee の private participation state を inviter へ
+  開示しないための opacity を維持します（下記 Invitation 節）。personal
+  schedule sharing にはそれに相当する第三者 private state がないため、
+  対象 email が未登録であることをその operation の呼び出し元（= owner
+  本人）へ知らせて構いません（下記 Event-independent personal schedule
+  節）。
+- reusable な profiles / people / social subsystem は先行構築しません。
+
 ## Invitation
 
 - invitation の対象は **公演回（occurrence）単位** です。event 単位の
@@ -897,6 +923,11 @@ Completed baseline を参照してください。
 - inviter 向けの invitation history 表示は MVP committed scope に含みません。
   必要になった時点で、上記の opacity / read boundary を壊さない形で別途
   設計します。
+- invitee 指定は「Authenticated-user targeting」節のとおり exact 登録
+  email input です。email から invitee を resolve した後の 3 分岐
+  dispatch・opacity 要件は上記と同一で、resolution を追加したことを
+  理由に緩めません。「no such account」を含む invitee-dependent な分岐は
+  すべて同一の結果を返し、inviter からは区別できません。
 
 ## Event-independent personal schedule
 
@@ -918,6 +949,16 @@ Completed baseline を参照してください。
   見せます。
 - collaborative editing、field 単位の privacy、共有相手ごとの権限差は
   Post-MVP です。
+- recipient 指定は「Authenticated-user targeting」節のとおり exact 登録
+  email input です。未登録 email への pending/external share は作成せず、
+  この operation は対象 email が未登録であることを owner へ知らせて
+  構いません（Invitation の opacity 要件とは異なります。理由は
+  「Authenticated-user targeting」節を参照）。
+- owner は、自分が recipient 管理権限を持つ schedule entry について、
+  実際に share 済みの recipient を email で識別できる bounded read
+  projection を持ちます。これは global user directory ではなく、その
+  owner が管理する既存 share relation に限定されます。non-owner /
+  unrelated user はこの projection を読めません。
 
 ## Ticket acquisition / Ticket
 
