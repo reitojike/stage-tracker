@@ -36,7 +36,7 @@ export async function createSupabaseCookielessServerClient(): Promise<SupabaseCl
 /**
  * For use in Server Components, Route Handlers, and Server Actions. In a
  * Server Component render, cookies() is read-only, so a refreshed session
- * cannot be written back here - middleware.ts owns that refresh instead.
+ * cannot be written back here - proxy.ts owns that refresh instead.
  */
 export async function createSupabaseServerClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
@@ -54,7 +54,7 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient<Datab
           }
         } catch {
           // Called from a Server Component render, where the cookie store
-          // is read-only. Safe to ignore: middleware.ts refreshes the
+          // is read-only. Safe to ignore: proxy.ts refreshes the
           // session on every request.
         }
       },

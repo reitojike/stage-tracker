@@ -2,9 +2,16 @@
 
 Canonical Task Contract: Issue #61. This runbook covers only the Gate A
 bounded 2-user dogfood remote environment (Vercel Hobby + a new hosted
-Supabase project + Postmark Developer SMTP). It is not a general production
+Supabase project + Resend custom SMTP). It is not a general production
 deployment guide — see `docs/roadmap.md` / `docs/prd.md` for what remains
 deferred beyond Gate A.
+
+Gate A's bounded provider decision originally named Postmark Developer as
+the SMTP provider (see Issue #61's "Bounded provider decision for Gate A").
+The actual Production environment uses **Resend** instead — this runbook
+was updated to match. The switch is operator history only (not re-litigated
+here); it does not change any other bounded Gate A decision (Vercel Hobby,
+new hosted Supabase project, magic-link-only auth).
 
 Repository migrations are the only schema authority. Never hand-edit
 schema/RLS/RPCs in the Supabase Dashboard SQL editor — every schema change
@@ -22,15 +29,15 @@ remote project from this repository.
   `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY`
   (see `scripts/lib/adminTarget.mjs`) or the Supabase CLI's own linked-project
   auth.
-- Postmark server tokens live only in the Supabase Dashboard's Auth SMTP
+- Resend server tokens live only in the Supabase Dashboard's Auth SMTP
   settings, not in this repository or in Vercel.
-- Do not paste actual dogfood email addresses, service role keys, Postmark
+- Do not paste actual dogfood email addresses, service role keys, Resend
   tokens, or Vercel/Supabase project identifiers into an Issue, PR, or
   commit message. Refer to the two dogfood accounts as `A` / `B`.
 
 ## One-time provider setup (operator-only, outside this repository)
 
-These steps require interactive login to Vercel/Supabase/Postmark and are
+These steps require interactive login to Vercel/Supabase/Resend and are
 not something an agent session can perform without the operator's own
 credentials. Record completion here by editing this file's checklist, not
 by recording the actual identifiers.
@@ -41,14 +48,15 @@ by recording the actual identifiers.
    missing values.
 2. Create a new hosted Supabase project (Free plan is acceptable for Gate A).
    Note its project ref for `supabase link`.
-3. Create a Postmark account, a Server, and one verified Sender Signature
-   (the Developer plan's 100 emails/month allowance is the accepted Gate A
-   starting limit — see Issue #61's bounded provider decision).
+3. Create a Resend account, verify a sending domain (Production uses the
+   `stage-tracker.com` root domain, registered and DNS-managed via
+   Cloudflare, with SPF/DKIM/DMARC records added there), and note the
+   Resend SMTP credentials for that domain.
 4. In the Supabase Dashboard, under Auth → SMTP, enable custom SMTP, fill
-   in the Postmark server's SMTP credentials, and set the sender / default
-   From address to the verified Sender Signature from step 3. An
-   unverified or mismatched From address makes Postmark reject the send
-   outright, so magic-link mail silently never arrives.
+   in the Resend SMTP credentials, and set the sender / default From
+   address to an address on the verified Resend domain. An unverified or
+   mismatched From address makes Resend reject the send outright, so
+   magic-link mail silently never arrives.
 5. In the Vercel project's Production environment variables, set
    `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the
    hosted Supabase project's API settings (Project Settings → API). Both
@@ -187,6 +195,6 @@ Issue's own merge-ready fence.
   This is an accepted Gate A limitation, not something this runbook works
   around with a keepalive job. If it causes real friction, re-evaluate a
   Pro upgrade rather than adding automation to dodge the pause.
-- Postmark Developer plan allows 100 emails/month. If 2-user dogfood usage
-  exceeds that, re-evaluate the plan rather than switching SMTP providers
-  ad hoc.
+- Check the active Resend plan's sending limits if 2-user dogfood usage
+  ever runs into them; re-evaluate the plan rather than switching SMTP
+  providers ad hoc.
