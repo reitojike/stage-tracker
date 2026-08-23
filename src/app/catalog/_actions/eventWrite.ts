@@ -26,6 +26,7 @@ import {
 } from '@/domain/eventWriteFeedback.ts';
 import { catalogEventHref, resolveCatalogParams } from '@/domain/catalogNavigation.ts';
 import { currentTokyoDate } from '../_lib/today.ts';
+import { readId } from './formHelpers.ts';
 
 // Server actions for the MVP Event catalog write boundary (Issue #29).
 //
@@ -60,14 +61,6 @@ function readFormValues(formData: FormData, keys: readonly string[]): RawFormVal
     }
   }
   return values;
-}
-
-/** A required identifier carried by a hidden input. Absent or non-string
- * means the request did not come from the form this action serves; it is
- * reported as a generic failure rather than being guessed at. */
-function readId(formData: FormData, key: string): string | null {
-  const value = formData.get(key);
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 /** The month/day the user was browsing, carried through the form so a

@@ -11,7 +11,11 @@ import {
 } from '@/domain/calendarMonth';
 import { tokyoCalendarDateRangeUtc, type EventWithOccurrences } from '@/domain/eventCatalog';
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
-import { catalogNewEventHref, resolveCatalogParams } from '@/domain/catalogNavigation';
+import {
+  catalogInvitationsHref,
+  catalogNewEventHref,
+  resolveCatalogParams,
+} from '@/domain/catalogNavigation';
 import { currentTokyoDate } from './_lib/today.ts';
 import { MonthCalendar } from './_components/MonthCalendar.tsx';
 import { SelectedDayList } from './_components/SelectedDayList.tsx';
@@ -59,6 +63,8 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   return (
     <main>
       <h1>Event Catalog</h1>
+
+      <Link href={catalogInvitationsHref()}>招待一覧を見る</Link>
 
       {canCreateEvent ? (
         <Link href={catalogNewEventHref({ yearMonth, selectedDate })}>+ イベントを登録</Link>

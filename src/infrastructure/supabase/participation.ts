@@ -74,6 +74,53 @@ export async function getMyParticipation(
   return { ok: true, data: data === null ? null : mapParticipationRow(data) };
 }
 
+/**
+ * The caller's own participation for a given set of occurrences, keyed by
+ * occurrence id - one round trip (one auth check, one query) rather than
+ * one getMyParticipation call per occurrence (Issue #36: an event detail
+ * screen needs this for every occurrence it displays, and N separate calls
+ * each pay their own requireAuthenticatedUserId round trip on top of their
+ * own select). An occurrence with no row for the caller simply has no
+ * entry in the returned map - callers distinguish "no participation" from
+ * "not requested" the same way a Map does, by key presence.
+ *
+ * Chunked at ID_BATCH_SIZE for the same reason eventCatalogRead.ts chunks
+ * `.in()` id lists: the ids are embedded directly in the request URL, so
+ * an unbounded list risks exceeding practical URL length limits.
+ */
+const ID_BATCH_SIZE = 200;
+
+export async function getMyParticipationsForOccurrences(
+  client: ParticipationQueryClient,
+  occurrenceIds: readonly string[],
+): Promise<PlanningResult<Map<string, Participation>>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
+  const byOccurrenceId = new Map<string, Participation>();
+  for (let start = 0; start < occurrenceIds.length; start += ID_BATCH_SIZE) {
+    const idBatch = occurrenceIds.slice(start, start + ID_BATCH_SIZE);
+    const result = await fetchAllRows((from, to) =>
+      client
+        .from('occurrence_participations')
+        .select('*', { count: 'exact' })
+        .eq('user_id', callerId.data)
+        .in('occurrence_id', idBatch)
+        .order('id', { ascending: true })
+        .range(from, to),
+    );
+    if (!result.ok) {
+      return result;
+    }
+    for (const row of result.data.map(mapParticipationRow)) {
+      byOccurrenceId.set(row.occurrenceId, row);
+    }
+  }
+  return { ok: true, data: byOccurrenceId };
+}
+
 /** Every participation the caller themselves recorded, across all
  * occurrences - the read a personal calendar journey needs. Paginated via
  * fetchAllRows so a caller with more rows than PostgREST's api.max_rows

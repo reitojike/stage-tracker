@@ -152,6 +152,49 @@ async function fetchEventsByIds(
 }
 
 /**
+ * Events by id, in ID_BATCH_SIZE-sized batches - the exported form of
+ * fetchEventsByIds above, for callers outside this module that already have
+ * a set of event ids from elsewhere (Issue #36: the received-invitations
+ * screen resolves occurrence -> event this way, since an invitation only
+ * carries an occurrence id).
+ */
+export async function getEventsByIds(
+  client: EventCatalogQueryClient,
+  eventIds: readonly string[],
+): Promise<EventCatalogReadResult<EventCatalogEvent[]>> {
+  return fetchEventsByIds(client, eventIds);
+}
+
+/**
+ * Occurrences by id, in ID_BATCH_SIZE-sized batches (Issue #36: same need as
+ * getEventsByIds above, but for occurrences - an invitation names an
+ * occurrence id directly). Preserves no particular ordering; callers that
+ * care derive their own order the way listEventCatalog's callers derive
+ * theirs.
+ */
+export async function getOccurrencesByIds(
+  client: EventCatalogQueryClient,
+  occurrenceIds: readonly string[],
+): Promise<EventCatalogReadResult<EventOccurrence[]>> {
+  const occurrences: EventOccurrence[] = [];
+  for (const idBatch of chunk(occurrenceIds, ID_BATCH_SIZE)) {
+    const batchResult = await fetchAllRows((from, to) =>
+      client
+        .from('event_occurrences')
+        .select('*', { count: 'exact' })
+        .in('id', idBatch)
+        .order('id', { ascending: true })
+        .range(from, to),
+    );
+    if (!batchResult.ok) {
+      return batchResult;
+    }
+    occurrences.push(...batchResult.data.map(mapOccurrenceRow));
+  }
+  return { ok: true, data: occurrences };
+}
+
+/**
  * The whole shared catalog: every event with its occurrences, events
  * ordered by created_at (registration order) as the minimal deterministic
  * default, occurrences within each event ordered per
