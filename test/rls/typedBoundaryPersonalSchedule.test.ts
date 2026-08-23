@@ -27,6 +27,7 @@ const PASSWORD = 'Str0ng-Test-Passw0rd!';
 
 let owner: TestActor;
 let recipient: TestActor;
+let recipient2: TestActor;
 let stranger: TestActor;
 const createdActors: TestActor[] = [];
 
@@ -35,6 +36,8 @@ before(async () => {
   createdActors.push(owner);
   recipient = await createTestActor('rls-typed-sched-recipient', PASSWORD);
   createdActors.push(recipient);
+  recipient2 = await createTestActor('rls-typed-sched-recipient2', PASSWORD);
+  createdActors.push(recipient2);
   stranger = await createTestActor('rls-typed-sched-stranger', PASSWORD);
   createdActors.push(stranger);
 });
@@ -433,6 +436,32 @@ void test('listScheduleShareRecipientEmails lets the owner identify recipients b
   const result = await listScheduleShareRecipientEmails(owner.client, created.data.id);
   assert.equal(result.ok, true);
   assert.ok(result.data.some((r) => r.recipientEmail === recipient.user.email?.toLowerCase()));
+});
+
+void test('listScheduleShareRecipientEmails returns every recipient of one entry, not just the first', async () => {
+  // A real (not mocked) round trip through client.rpc(...).range(...) with
+  // more than one row - src/infrastructure/supabase/__tests__/pagedFetch.
+  // test.ts proves fetchAllRows itself accumulates pages correctly with a
+  // mocked queryPage; this proves the real RPC + fetchAllRows wiring
+  // returns every row against the actual local PostgREST/Postgres, not
+  // just what a single unranged request happens to return.
+  const created = await createPersonalScheduleEntry(owner.client, {
+    scheduleType: 'other',
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-05-10', endsOn: '2026-05-10' },
+  });
+  assert.equal(created.ok, true);
+  assert.ok(recipient.user.email);
+  assert.ok(recipient2.user.email);
+  await shareScheduleEntryByEmail(owner.client, created.data.id, recipient.user.email);
+  await shareScheduleEntryByEmail(owner.client, created.data.id, recipient2.user.email);
+
+  const result = await listScheduleShareRecipientEmails(owner.client, created.data.id);
+  assert.equal(result.ok, true);
+  const emails = result.data.map((r) => r.recipientEmail);
+  assert.equal(emails.length, 2);
+  assert.ok(emails.includes(recipient.user.email.toLowerCase()));
+  assert.ok(emails.includes(recipient2.user.email.toLowerCase()));
 });
 
 void test(

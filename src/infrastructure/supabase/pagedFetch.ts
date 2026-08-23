@@ -1,4 +1,9 @@
-import { classifyPostgrestError, type PlanningResult } from '../../domain/planningError.ts';
+import {
+  classifyPostgrestError,
+  type PlanningError,
+  type PlanningResult,
+  type RawPostgrestError,
+} from '../../domain/planningError.ts';
 
 // Shared pagination helper for the MVP personal planning typed boundary
 // (Issue #33), mirroring src/infrastructure/supabase/eventCatalogRead.ts's
@@ -37,16 +42,26 @@ interface PageResponse<Row> {
  * last page happened to be short" from "max_rows silently capped this page
  * below what was asked for", so it fails closed (an error result) rather
  * than ever returning a possibly-incomplete page set as success.
+ *
+ * `classifyError` defaults to classifyPostgrestError (every `.from(...)`
+ * table read this is used for wants that), but a paginated *RPC* read - see
+ * listScheduleShareRecipientEmails (Issue #55), the first collection read
+ * this helper backs that goes through client.rpc(...).range(...) rather
+ * than client.from(...) - needs its own `raise exception` message rules the
+ * same way every other RPC call in this codebase does (classifyRpcError),
+ * so this accepts an override rather than hard-coding table-only
+ * classification into shared pagination logic.
  */
 export async function fetchAllRows<Row>(
   queryPage: (from: number, to: number) => PromiseLike<PageResponse<Row>>,
+  classifyError: (error: RawPostgrestError) => PlanningError = classifyPostgrestError,
 ): Promise<PlanningResult<Row[]>> {
   const rows: Row[] = [];
   let offset = 0;
   for (;;) {
     const { data, error, count } = await queryPage(offset, offset + PAGE_SIZE - 1);
     if (error !== null) {
-      return { ok: false, error: classifyPostgrestError(error) };
+      return { ok: false, error: classifyError(error) };
     }
     if (count === null) {
       return {

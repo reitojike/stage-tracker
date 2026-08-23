@@ -33,6 +33,20 @@
 -- invitee, so none of them reopen the occurrence_invitations_select_invitee
 -- side channel the opaque return value closes.
 --
+-- This includes the two backstops past the point v_invitee_id has already
+-- resolved to a real account (the settle-loop retry-exhaustion check and
+-- the post-insert not-found recheck below): both are reachable *only* when
+-- an invitee account exists, so an exception there - even one meant only
+-- to signal "this should never happen" - would itself be an
+-- account-existence oracle: an inviter could tell "no such account" apart
+-- from "account exists" purely from whether the call raised at all, with
+-- no need to ever see the void/non-void distinction the rest of this
+-- function is built around. Both backstops therefore return the same void
+-- as every other invitee-dependent branch, and log via `raise warning`
+-- (visible in server logs for operators, never surfaced to the client)
+-- instead of `raise exception`, so genuine contention is still observable
+-- without reopening the oracle.
+--
 -- Concurrency/settle-loop shape mirrors invite_to_occurrence(uuid, uuid)
 -- exactly (see that function's header). Duplicated here rather than
 -- factored into a shared helper because the two functions' opacity
@@ -117,6 +131,18 @@ begin
     return;
   end if;
 
+  -- Backstop, independent of the email-based check above: that check is
+  -- skipped when the inviter has no email on file (v_inviter_email is
+  -- null - e.g. phone/OAuth auth with no email), which would otherwise let
+  -- such a caller "invite" an address that resolves back to their own
+  -- account. Comparing resolved ids rather than emails covers that gap and
+  -- needs no email at all. Raising here is safe (not an oracle): it fires
+  -- only when the invitee *is* the caller, a fact the caller already knows
+  -- - it reveals nothing about any third party's account.
+  if v_invitee_id = v_inviter_id then
+    raise exception 'cannot invite yourself';
+  end if;
+
   select existing.id into v_existing_invitation_id
   from public.occurrence_invitations existing
   where existing.occurrence_id = p_occurrence_id
@@ -160,7 +186,12 @@ begin
   end loop;
 
   if not v_settled then
-    raise exception 'could not settle invitee participation state for this occurrence';
+    -- Opaque backstop - see this function's header for why this cannot
+    -- `raise exception` (v_invitee_id is already a resolved, existing
+    -- account by this point). Logged server-side only.
+    raise warning 'invite_to_occurrence_by_email: could not settle invitee participation state (occurrence=%, inviter=%)',
+      p_occurrence_id, v_inviter_id;
+    return;
   end if;
 
   insert into public.occurrence_invitations (occurrence_id, inviter_id, invitee_id)
@@ -175,7 +206,11 @@ begin
         and existing.inviter_id = v_inviter_id
         and existing.invitee_id = v_invitee_id
     ) then
-      raise exception 'invitation could not be created or resolved';
+      -- Opaque backstop - see this function's header for why this cannot
+      -- `raise exception` either.
+      raise warning 'invite_to_occurrence_by_email: invitation could not be created or resolved (occurrence=%, inviter=%)',
+        p_occurrence_id, v_inviter_id;
+      return;
     end if;
   end if;
 end;

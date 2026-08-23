@@ -248,6 +248,14 @@ export const LIST_SHARE_RECIPIENT_EMAILS_ERROR_RULES: readonly RpcErrorRule[] = 
  * `permission-denied`, not an empty/`not-found` result, so a UI cannot
  * mistake "denied" for "nobody shared with yet". Checks the caller's
  * session first - see updatePersonalScheduleEntry above for why.
+ *
+ * Paginated via fetchAllRows, exactly like listVisiblePersonalSchedule and
+ * listScheduleShares above: PostgREST caps a single RPC response at
+ * supabase/config.toml's api.max_rows the same way it caps a plain table
+ * read (client.rpc(...).range(...) hits the same limit
+ * client.from(...).range(...) does), so an owner with more than max_rows
+ * recipients on one entry would otherwise have this silently, and
+ * indistinguishably from a genuinely short list, truncated.
  */
 export async function listScheduleShareRecipientEmails(
   client: PersonalScheduleQueryClient,
@@ -258,13 +266,21 @@ export async function listScheduleShareRecipientEmails(
     return callerId;
   }
 
-  const { data, error } = await client.rpc('list_schedule_share_recipient_emails', {
-    p_schedule_entry_id: scheduleEntryId,
-  });
-  if (error !== null) {
-    return { ok: false, error: classifyRpcError(error, LIST_SHARE_RECIPIENT_EMAILS_ERROR_RULES) };
+  const result = await fetchAllRows(
+    (from, to) =>
+      client
+        .rpc(
+          'list_schedule_share_recipient_emails',
+          { p_schedule_entry_id: scheduleEntryId },
+          { count: 'exact' },
+        )
+        .range(from, to),
+    (error) => classifyRpcError(error, LIST_SHARE_RECIPIENT_EMAILS_ERROR_RULES),
+  );
+  if (!result.ok) {
+    return result;
   }
-  return { ok: true, data: data.map(mapScheduleShareRecipientRow) };
+  return { ok: true, data: result.data.map(mapScheduleShareRecipientRow) };
 }
 
 /** Shares an entry with a recipient, as the entry's owner. Sharing takes

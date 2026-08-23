@@ -97,17 +97,32 @@ begin
     raise exception 'recipient email is not a registered account';
   end if;
 
+  -- Backstop, independent of the email-based check above - see
+  -- invite_to_occurrence_by_email's identical backstop for why the
+  -- email-based check alone is not enough (v_owner_email can be null), and
+  -- for why raising here is safe: it fires only when the recipient *is*
+  -- the caller.
+  if v_recipient_id = v_owner_id then
+    raise exception 'cannot share with yourself';
+  end if;
+
+  -- `on conflict ... do update` rather than `do nothing`, so this always
+  -- returns exactly one row from the single atomic statement: `do nothing`
+  -- returns no row on conflict, which previously required a follow-up
+  -- `select` to fetch the existing row - and if a concurrent
+  -- removeScheduleShare deleted that row in the gap between the failed
+  -- insert and that select, v_share stayed null and this function
+  -- returned null instead of a row, crashing the caller
+  -- (mapScheduleShareRow dereferences the row unconditionally). The
+  -- `set shared_with_user_id = excluded.shared_with_user_id` is a
+  -- no-op (writing back the same value the conflict matched on) purely to
+  -- give `on conflict` an UPDATE to perform, since `do nothing` cannot
+  -- return a row via `returning`.
   insert into public.personal_schedule_shares (schedule_entry_id, shared_with_user_id)
   values (p_schedule_entry_id, v_recipient_id)
-  on conflict (schedule_entry_id, shared_with_user_id) do nothing
+  on conflict (schedule_entry_id, shared_with_user_id)
+  do update set shared_with_user_id = excluded.shared_with_user_id
   returning * into v_share;
-
-  if not found then
-    select s.* into v_share
-    from public.personal_schedule_shares s
-    where s.schedule_entry_id = p_schedule_entry_id
-      and s.shared_with_user_id = v_recipient_id;
-  end if;
 
   return v_share;
 end;
