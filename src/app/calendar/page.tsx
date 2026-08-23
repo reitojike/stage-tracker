@@ -213,6 +213,16 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
       (m) => m.occurrenceCount === 0 && m.ownScheduleCount === 0 && m.sharedScheduleCount === 0,
     );
 
+  // Same displayed-month scoping as isEmpty above (not the lead/trail
+  // adjacent-month cells): true when any date actually inside `yearMonth`
+  // falls outside the Japanese-holiday snapshot's confirmed coverage, so
+  // MyMonthCalendar can show a non-color "holiday status unconfirmed"
+  // notice rather than silently rendering those dates as ordinary/
+  // confirmed-non-holiday days (PO adjudication, Issue #34).
+  const hasUnconfirmedHolidayCoverage = dayMarkers
+    .filter((m) => m.date.startsWith(yearMonth))
+    .some((m) => !m.holidayDataConfirmed);
+
   return (
     <main>
       <h1>My Calendar</h1>
@@ -224,6 +234,7 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
         markersByDate={markersByDate}
         selectedDate={selectedDate}
         todayDate={today}
+        hasUnconfirmedHolidayCoverage={hasUnconfirmedHolidayCoverage}
       />
 
       {isEmpty && selectedDate === null ? (

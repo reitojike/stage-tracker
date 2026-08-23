@@ -150,3 +150,32 @@
 .markerScheduleShared {
   color: var(--color-accent);
 }
+
+/* Non-color notice for a month that includes at least one date outside
+   the Japanese-holiday snapshot's confirmed coverage (see
+   MyMonthCalendar.tsx's hasUnconfirmedHolidayCoverage prop) - plain text,
+   not conveyed by color alone. */
+.coverageNotice {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  border: 1px dashed var(--color-control-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+/* Per-cell "祝日未確認" badge for a date outside confirmed holiday-data
+   coverage - a distinct "?" glyph (not a color-only cue) so an
+   out-of-coverage date is never presentation-equivalent to a confirmed
+   ordinary day. */
+.markerHolidayUnconfirmed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px dashed var(--color-text-secondary);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}

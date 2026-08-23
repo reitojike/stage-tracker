@@ -21,7 +21,11 @@
 // this day" and "how many", not "how to lay out a multi-day band".
 
 import { addDaysToDate, compareDates } from './calendarMonth.ts';
-import { calendarDayRole, type CalendarDayRole } from './calendarDayRole.ts';
+import {
+  calendarDayRole,
+  isWithinJapaneseHolidayDataCoverage,
+  type CalendarDayRole,
+} from './calendarDayRole.ts';
 import {
   compareOccurrencesByStartsAt,
   tokyoCalendarDateFromInstant,
@@ -234,6 +238,13 @@ export function selectMyCalendarScheduleEntries(
 export interface MyCalendarDayMarkers {
   date: string;
   role: CalendarDayRole;
+  /** False when `date` falls outside the Japanese-holiday snapshot's
+   * confirmed coverage range (`isWithinJapaneseHolidayDataCoverage`) - i.e.
+   * `role` for this date could still change to `'holiday'` once the
+   * Cabinet Office publishes that year, so presentation must show holiday
+   * status as unconfirmed rather than silently rendering it as an
+   * ordinary/confirmed-non-holiday day (PO adjudication, Issue #34). */
+  holidayDataConfirmed: boolean;
   occurrenceCount: number;
   /** True when at least one occurrence on this day has a `'none'` or
    * `'pending'` ticketStatus (Issue #34 acceptance: "ticket pending/
@@ -276,6 +287,7 @@ export function buildMyCalendarDayMarkers(
     return {
       date,
       role: calendarDayRole(date),
+      holidayDataConfirmed: isWithinJapaneseHolidayDataCoverage(date),
       occurrenceCount: dayOccurrences.length,
       hasUnconfirmedTicket: dayOccurrences.some(
         (entry) => entry.ticketStatus === 'none' || entry.ticketStatus === 'pending',

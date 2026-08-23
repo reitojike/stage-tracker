@@ -299,4 +299,22 @@ void test('buildMyCalendarDayMarkers reports weekday role, occurrence/ticket sta
   assert.ok(day9);
   assert.equal(day9.occurrenceCount, 0);
   assert.equal(day9.hasUnconfirmedTicket, false);
+
+  // 2026-08-09..11 are all within the Japanese-holiday snapshot's
+  // confirmed coverage.
+  assert.equal(day10.holidayDataConfirmed, true);
+  assert.equal(day9.holidayDataConfirmed, true);
+});
+
+void test('buildMyCalendarDayMarkers reports holidayDataConfirmed=false for a date outside the snapshot coverage, without fabricating a holiday role for it (PO adjudication, Issue #34)', () => {
+  const markers = buildMyCalendarDayMarkers(['2027-11-23', '2027-11-24'], [], [], 'caller');
+
+  const inCoverage = markers.find((m) => m.date === '2027-11-23');
+  assert.ok(inCoverage);
+  assert.equal(inCoverage.holidayDataConfirmed, true);
+
+  const outOfCoverage = markers.find((m) => m.date === '2027-11-24');
+  assert.ok(outOfCoverage);
+  assert.equal(outOfCoverage.holidayDataConfirmed, false);
+  assert.notEqual(outOfCoverage.role, 'holiday');
 });

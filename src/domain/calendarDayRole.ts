@@ -18,9 +18,19 @@
 // boundary in eslint.config.mjs).
 
 import { parseTokyoCalendarDate } from './eventCatalog.ts';
-import { isJapaneseHoliday, japaneseHolidayName } from './japaneseHolidays.ts';
+import {
+  isJapaneseHoliday,
+  isWithinJapaneseHolidayDataCoverage,
+  japaneseHolidayName,
+} from './japaneseHolidays.ts';
 
 export type CalendarDayRole = 'holiday' | 'saturday' | 'sunday' | 'weekday';
+
+/** Re-exported from japaneseHolidays.ts so callers of this module (the
+ * *presentation role* boundary) don't also need a separate import from the
+ * *holiday data* module just to know whether a date's holiday status is
+ * confirmed - see that module's own header for what "confirmed" means. */
+export { isWithinJapaneseHolidayDataCoverage };
 
 /** Plain proleptic-Gregorian weekday-of, matching calendarMonth.ts's own
  * (private) weekdayOf - this is calendar arithmetic, independent of any
@@ -39,9 +49,23 @@ function weekdayOf(tokyoDate: string): number {
  * priority over Saturday (docs/ux-ui.md: "SaturdayとJapanese holidayが
  * 重なる場合は、holiday presentationを優先"), so a holiday that falls on a
  * Saturday reports `'holiday'`, never `'saturday'`.
+ *
+ * `'holiday'` is only ever reported for a date within the snapshot's
+ * confirmed coverage (`isWithinJapaneseHolidayDataCoverage`) - this is an
+ * explicit guard, not merely relying on `isJapaneseHoliday` already
+ * returning `false` outside coverage, so this function can never fabricate
+ * a holiday for a date the snapshot hasn't confirmed one way or the other
+ * (PO adjudication on Issue #34: "Do NOT compute/guess/infer holiday
+ * status for out-of-coverage dates"). Saturday/Sunday are still reported
+ * for an out-of-coverage date - weekday-of-week is plain calendar
+ * arithmetic, independent of the holiday snapshot - but callers that need
+ * to know whether *this date's holiday status itself* is confirmed must
+ * separately consult `isWithinJapaneseHolidayDataCoverage` (re-exported
+ * above), since an out-of-coverage Saturday could still turn out to be a
+ * holiday once the Cabinet Office publishes that year.
  */
 export function calendarDayRole(tokyoDate: string): CalendarDayRole {
-  if (isJapaneseHoliday(tokyoDate)) {
+  if (isWithinJapaneseHolidayDataCoverage(tokyoDate) && isJapaneseHoliday(tokyoDate)) {
     return 'holiday';
   }
   const weekday = weekdayOf(tokyoDate);

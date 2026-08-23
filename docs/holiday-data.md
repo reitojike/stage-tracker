@@ -56,6 +56,11 @@ pure domain logic with no network access of its own.
 A date outside the snapshot's recorded coverage range is not treated as
 "confirmed not a holiday" by anything that needs to draw that distinction -
 see `isWithinJapaneseHolidayDataCoverage` in
-`src/domain/japaneseHolidays.ts`. Ordinary calendar rendering (My Calendar)
-does not currently branch on this distinction; it is exposed for any future
-screen that needs to warn about querying past the known-published range.
+`src/domain/japaneseHolidays.ts`. My Calendar's ordinary calendar rendering
+does branch on this distinction: `src/domain/calendarDayRole.ts`'s
+`calendarDayRole` never reports `'holiday'` for a date outside coverage
+(so it is never silently rendered as a confirmed ordinary day), and
+`src/app/calendar/_components/MyMonthCalendar.tsx` shows a non-color
+"祝日未確認" (holiday status unconfirmed) notice - both a per-cell badge/
+aria-label and a month-level notice when the displayed month includes any
+out-of-coverage date.

@@ -16,6 +16,14 @@ export interface MyMonthCalendarProps {
   markersByDate: ReadonlyMap<string, MyCalendarDayMarkers>;
   selectedDate: string | null;
   todayDate: string;
+  /** True when any date actually inside `yearMonth` falls outside the
+   * Japanese-holiday snapshot's confirmed coverage range (page.tsx
+   * computes this from each marker's `holidayDataConfirmed`). Drives a
+   * month-level non-color notice - see the accessibility baseline in
+   * calendarDayRole.ts's header: color is never the sole carrier of
+   * meaning, and an unconfirmed date must not be presentation-equivalent
+   * to a confirmed ordinary day. */
+  hasUnconfirmedHolidayCoverage: boolean;
 }
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -53,6 +61,7 @@ export function MyMonthCalendar({
   markersByDate,
   selectedDate,
   todayDate,
+  hasUnconfirmedHolidayCoverage,
 }: MyMonthCalendarProps) {
   return (
     <section className={styles.calendar} aria-label={`${monthLabel(yearMonth)}のMy Calendar`}>
@@ -73,6 +82,18 @@ export function MyMonthCalendar({
           ›
         </Link>
       </div>
+
+      {hasUnconfirmedHolidayCoverage ? (
+        // Non-color notice (text, not a color-only cue) - this month
+        // includes at least one date the Japanese-holiday snapshot hasn't
+        // confirmed one way or the other (see japaneseHolidaysData.ts's
+        // coverage range), so holiday presentation for those dates is
+        // marked "祝日未確認" per-cell below rather than silently shown as
+        // an ordinary/confirmed-non-holiday day.
+        <p className={styles.coverageNotice} role="note">
+          この月の一部の日付は祝日データの公表範囲外のため、祝日表示が未確認です（「祝日未確認」の日付を参照）。
+        </p>
+      ) : null}
 
       <div className={styles.weekdayRow} aria-hidden="true">
         {WEEKDAY_LABELS.map((label, index) => (
@@ -130,6 +151,14 @@ export function MyMonthCalendar({
               if (markers && markers.sharedScheduleCount > 0) {
                 labelParts.push(`共有された予定${String(markers.sharedScheduleCount)}件`);
               }
+              if (markers && !markers.holidayDataConfirmed) {
+                // Accessibility baseline (calendarDayRole.ts's header):
+                // an out-of-coverage date must not be
+                // presentation-equivalent to a confirmed ordinary day, so
+                // this survives even without the .markerHolidayUnconfirmed
+                // badge's own color/border cue.
+                labelParts.push('祝日未確認');
+              }
 
               return (
                 <Link
@@ -172,6 +201,14 @@ export function MyMonthCalendar({
                       {markers.sharedScheduleCount > 0 ? (
                         <span className={styles.markerScheduleShared} title="共有された予定">
                           共
+                        </span>
+                      ) : null}
+                      {!markers.holidayDataConfirmed ? (
+                        <span
+                          className={styles.markerHolidayUnconfirmed}
+                          title="祝日データ公表範囲外（祝日未確認）"
+                        >
+                          ?
                         </span>
                       ) : null}
                     </span>
