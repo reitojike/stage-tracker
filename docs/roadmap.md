@@ -4,7 +4,7 @@
 directional documentです。固定されたMVP bundleや厳密な実装順序を宣言する
 ものではありません。development process（provider/model routing、review
 工程、Issue運用等）はここに含みません。process governanceの正本は
-Foundation v0.2.0 です。
+Foundation v0.3.0 です。
 
 ## Roadmap principle
 
@@ -13,7 +13,7 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 
 ## 1. Completed baseline
 
-- Foundation v0.2.0 consumer baseline
+- Foundation v0.3.0 consumer baseline
 - shared event catalog（`public.events` / `public.event_occurrences` の
   schema / RLS）
 - event ownership semantics（owner限定更新・owner transfer不可・owner
