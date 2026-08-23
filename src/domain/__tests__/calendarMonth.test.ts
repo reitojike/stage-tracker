@@ -414,6 +414,36 @@ void test('buildMonthCalendarViewModel: multiple concurrent bands can appear the
   assert.ok(lanes.size >= 2, 'expected both concurrent bands to be laid out');
 });
 
+void test('buildMonthCalendarViewModel: applies the global weekday/holiday role to each day cell, reusing calendarDayRole.ts rather than a Catalog-local rule', () => {
+  const model = buildMonthCalendarViewModel('2026-01', []);
+  const days = model.weeks.flatMap((w) => w.days);
+  // 2026-01-01 (元日) is a Thursday - holiday role wins over the plain
+  // weekday, matching calendarDayRole.ts's own priority.
+  assert.equal(days.find((d) => d.date === '2026-01-01')?.role, 'holiday');
+  // 2026-01-03 is a Saturday, 2026-01-04 is a Sunday, and neither is a
+  // holiday.
+  assert.equal(days.find((d) => d.date === '2026-01-03')?.role, 'saturday');
+  assert.equal(days.find((d) => d.date === '2026-01-04')?.role, 'sunday');
+  assert.equal(days.find((d) => d.date === '2026-01-05')?.role, 'weekday');
+});
+
+void test('buildMonthCalendarViewModel: hasUnconfirmedHolidayCoverage is false for a month fully inside the Japanese-holiday snapshot coverage', () => {
+  const model = buildMonthCalendarViewModel('2026-08', []);
+  assert.equal(model.hasUnconfirmedHolidayCoverage, false);
+  const days = model.weeks.flatMap((w) => w.days);
+  assert.ok(days.every((d) => d.holidayDataConfirmed));
+});
+
+void test("buildMonthCalendarViewModel: hasUnconfirmedHolidayCoverage is true once an in-month date falls outside the holiday snapshot coverage, matching My Calendar's own convention", () => {
+  // JAPANESE_HOLIDAY_DATA_COVERAGE_END is late 2027 (see
+  // calendarDayRole.test.ts); December 2027 therefore has at least one
+  // in-current-month date past coverage.
+  const model = buildMonthCalendarViewModel('2027-12', []);
+  assert.equal(model.hasUnconfirmedHolidayCoverage, true);
+  const inMonthDays = model.weeks.flatMap((w) => w.days).filter((d) => d.inCurrentMonth);
+  assert.ok(inMonthDays.some((d) => !d.holidayDataConfirmed));
+});
+
 // --- selectDayOccurrences (full, lossless day detail) ---
 
 void test('selectDayOccurrences: same-day multiple occurrences are listed individually, not collapsed', () => {

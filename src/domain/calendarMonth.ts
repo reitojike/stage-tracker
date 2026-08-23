@@ -28,6 +28,11 @@
 // event detail page (getEventWithOccurrences).
 
 import {
+  calendarDayRole,
+  isWithinJapaneseHolidayDataCoverage,
+  type CalendarDayRole,
+} from './calendarDayRole.ts';
+import {
   compareOccurrencesByStartsAt,
   parseTokyoCalendarDate,
   tokyoCalendarDateFromInstant,
@@ -362,6 +367,16 @@ export interface DayCellViewModel {
   date: string;
   inCurrentMonth: boolean;
   badgeCount: number;
+  /** Global weekday/Japanese-holiday presentation role (docs/ux-ui.md
+   * "Calendar weekday / Japanese holiday presentation"), from the same
+   * calendarDayRole.ts authority My Calendar already wires in - this
+   * module never re-derives the classification itself. */
+  role: CalendarDayRole;
+  /** False when `date` falls outside the Japanese-holiday snapshot's
+   * confirmed coverage range - matching MyCalendarDayMarkers.holidayDataConfirmed
+   * (myCalendar.ts), so a presentation layer must not show holiday status
+   * for this date as a confirmed ordinary day. */
+  holidayDataConfirmed: boolean;
 }
 
 export interface WeekViewModel {
@@ -372,6 +387,12 @@ export interface WeekViewModel {
 export interface MonthCalendarViewModel {
   yearMonth: string;
   weeks: WeekViewModel[];
+  /** True when any date actually inside `yearMonth` (not a lead/trail cell)
+   * falls outside the Japanese-holiday snapshot's confirmed coverage -
+   * matching My Calendar's page.tsx-level hasUnconfirmedHolidayCoverage
+   * filter/convention, computed here instead since this view model already
+   * has every day's holidayDataConfirmed available. */
+  hasUnconfirmedHolidayCoverage: boolean;
 }
 
 /**
@@ -396,11 +417,17 @@ export function buildMonthCalendarViewModel(
       date,
       inCurrentMonth: date.slice(0, 7) === yearMonth,
       badgeCount: badgeCounts.get(date) ?? 0,
+      role: calendarDayRole(date),
+      holidayDataConfirmed: isWithinJapaneseHolidayDataCoverage(date),
     })),
     bandLayout: layoutWeekBands(weekDates, allSegments),
   }));
 
-  return { yearMonth, weeks };
+  const hasUnconfirmedHolidayCoverage = weeks.some((week) =>
+    week.days.some((day) => day.inCurrentMonth && !day.holidayDataConfirmed),
+  );
+
+  return { yearMonth, weeks, hasUnconfirmedHolidayCoverage };
 }
 
 export interface SelectedDayOccurrence {
