@@ -101,6 +101,59 @@
   box-shadow: inset 0 0 0 1.5px var(--color-accent-foreground);
 }
 
+.dayNumberRow {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.dayRoleMark {
+  font-size: var(--font-size-caption);
+}
+
+/* Weekday/holiday roles (docs/ux-ui.md "Calendar weekday / Japanese
+   holiday presentation") - same convention as My Calendar's own
+   MyMonthCalendar.module.css: color is paired with the role's own text
+   marker (.dayRoleMark) rather than used alone, and .daySelected's fill
+   intentionally overrides these text colors so the selected state's own
+   contrast (--color-accent-foreground) always wins. */
+.roleSaturday:not(.daySelected) {
+  color: var(--color-calendar-saturday);
+}
+
+.roleSunday:not(.daySelected),
+.roleHoliday:not(.daySelected) {
+  color: var(--color-calendar-sunday);
+}
+
+/* Per-cell "祝日未確認" badge for a date outside confirmed holiday-data
+   coverage - matching MyMonthCalendar.module.css's .markerHolidayUnconfirmed:
+   a distinct "?" glyph (not a color-only cue) so an out-of-coverage date is
+   never presentation-equivalent to a confirmed ordinary day. */
+.markerHolidayUnconfirmed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px dashed var(--color-text-secondary);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Non-color notice for a month that includes at least one date outside the
+   Japanese-holiday snapshot's confirmed coverage - matching
+   MyMonthCalendar.module.css's .coverageNotice. */
+.coverageNotice {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  border: 1px dashed var(--color-control-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-xs) var(--space-sm);
+}
+
 .badge {
   font-size: var(--font-size-caption);
 }
