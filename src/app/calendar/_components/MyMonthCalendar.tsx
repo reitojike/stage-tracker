@@ -102,7 +102,12 @@ export function MyMonthCalendar({
               const markers = markersByDate.get(date);
               const marker = markers ? roleMarker(markers.role) : null;
 
-              const labelParts = [`${monthLabel(yearMonth)}${String(dayNumber)}日`];
+              // Lead/trail cells (inCurrentMonth === false) belong to an
+              // adjacent month - their own date's month, never the
+              // displayed yearMonth, so the aria-label doesn't announce a
+              // mismatched month for those cells (e.g. an August grid's
+              // trailing "2026-09-01" cell must read as 9月, not 8月).
+              const labelParts = [`${monthLabel(date.slice(0, 7))}${String(dayNumber)}日`];
               if (date === todayDate) {
                 labelParts.push('今日');
               }

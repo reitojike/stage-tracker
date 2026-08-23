@@ -19,6 +19,12 @@
   gap: var(--space-sm);
 }
 
+.itemLink {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
 .item {
   display: flex;
   flex-direction: column;

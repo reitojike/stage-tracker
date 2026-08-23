@@ -1,8 +1,10 @@
+import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
 import { Surface } from '@/ui/Surface';
 import { StatePanel } from '@/ui/StatePanel';
 import type { MyCalendarOccurrenceEntry, MyCalendarScheduleEntry } from '@/domain/myCalendar.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
+import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import {
   participationStatusLabel,
   ticketDisplayStatusBadgeVariant,
@@ -16,6 +18,12 @@ export interface MySelectedDayListProps {
   date: string;
   occurrenceEntries: readonly MyCalendarOccurrenceEntry[];
   scheduleEntries: readonly MyCalendarScheduleEntry[];
+  /** Month/day context to carry into the linked event detail page (docs/ux-ui.md
+   * primary interaction pattern: "month calendar -> selected-day list ->
+   * event detail"). Reuses catalogEventHref's own CatalogParams shape - the
+   * event detail page itself is the shared Event Catalog one, not a
+   * My-Calendar-specific copy. */
+  eventDetailContext: CatalogParams;
 }
 
 function dayLabel(date: string): string {
@@ -41,6 +49,7 @@ export function MySelectedDayList({
   date,
   occurrenceEntries,
   scheduleEntries,
+  eventDetailContext,
 }: MySelectedDayListProps) {
   const isEmpty = occurrenceEntries.length === 0 && scheduleEntries.length === 0;
 
@@ -54,21 +63,28 @@ export function MySelectedDayList({
         <ul className={styles.items}>
           {occurrenceEntries.map(({ event, occurrence, participation, ticketStatus }) => (
             <li key={occurrence.id}>
-              <Surface variant="subtle" className={styles.item}>
-                <span className={styles.time}>
-                  {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
-                </span>
-                <span className={styles.title}>{event.title}</span>
-                {event.venue !== null ? <span className={styles.venue}>{event.venue}</span> : null}
-                <span className={styles.badgeRow}>
-                  <Badge variant={participation.status === 'attending' ? 'success' : 'info'}>
-                    {participationStatusLabel(participation.status)}
-                  </Badge>
-                  <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
-                    {ticketDisplayStatusLabel(ticketStatus)}
-                  </Badge>
-                </span>
-              </Surface>
+              <Link
+                href={catalogEventHref(event.id, eventDetailContext)}
+                className={styles.itemLink}
+              >
+                <Surface variant="subtle" className={styles.item}>
+                  <span className={styles.time}>
+                    {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
+                  </span>
+                  <span className={styles.title}>{event.title}</span>
+                  {event.venue !== null ? (
+                    <span className={styles.venue}>{event.venue}</span>
+                  ) : null}
+                  <span className={styles.badgeRow}>
+                    <Badge variant={participation.status === 'attending' ? 'success' : 'info'}>
+                      {participationStatusLabel(participation.status)}
+                    </Badge>
+                    <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
+                      {ticketDisplayStatusLabel(ticketStatus)}
+                    </Badge>
+                  </span>
+                </Surface>
+              </Link>
             </li>
           ))}
 

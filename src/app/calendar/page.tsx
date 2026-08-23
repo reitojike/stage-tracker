@@ -233,6 +233,7 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
             gridFirstDate,
             gridLastDate,
           )}
+          eventDetailContext={{ yearMonth, selectedDate }}
         />
       ) : null}
     </main>
