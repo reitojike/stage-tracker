@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { readId } from '@/app/catalog/_actions/formHelpers.ts';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import {
   createPersonalScheduleEntry,
@@ -66,14 +67,6 @@ function readFormValues(formData: FormData, keys: readonly string[]): RawFormVal
     }
   }
   return values;
-}
-
-/** A required identifier carried by a hidden input. Absent or non-string
- * means the request did not come from the form this action serves - see
- * catalog's eventWrite.ts readId for the same reasoning. */
-function readId(formData: FormData, key: string): string | null {
-  const value = formData.get(key);
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 export async function createScheduleEntryAction(
@@ -211,7 +204,12 @@ export async function removeScheduleShareAsOwnerAction(
 ): Promise<ScheduleShareRemoveFormState> {
   const shareId = readId(formData, 'shareId');
   const entryId = readId(formData, 'entryId');
-  if (shareId === null) {
+  // Both are required up front - entryId is needed to revalidate the page
+  // this action just changed, and a request missing it did not come from
+  // RemoveRecipientForm's normal rendering. Checked before the mutation so a
+  // malformed request never both mutates and reports success without being
+  // able to invalidate the now-stale cached page.
+  if (shareId === null || entryId === null) {
     return rejectedShareRemoveFormState(previous, resolveOwnerRemoveShareFeedback('failure'));
   }
 
@@ -228,8 +226,6 @@ export async function removeScheduleShareAsOwnerAction(
   // on this entry's detail page after removing a *different* recipient's
   // share, so this stays on the page (revalidating it) rather than
   // redirecting.
-  if (entryId !== null) {
-    revalidatePath(`/schedule/${entryId}`);
-  }
+  revalidatePath(`/schedule/${entryId}`);
   return { attempt: previous.attempt + 1, feedback: null };
 }

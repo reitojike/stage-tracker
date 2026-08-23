@@ -66,6 +66,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
 
   let isOwner = false;
   let ownShareId: string | null = null;
+  let ownShareReadFailed = false;
   let recipientsResult: Awaited<ReturnType<typeof listScheduleShareRecipientEmails>> | null = null;
   if (entry !== null && callerResult.ok) {
     isOwner = entry.ownerId === callerResult.data;
@@ -76,9 +77,15 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
       // Matched by the caller's confirmed id, not "the first row" - see
       // findOwnScheduleShare's comment. Necessary because the *owner's*
       // read of this table returns every recipient's row, not just one.
-      ownShareId = shares.ok
-        ? (findOwnScheduleShare(shares.data, callerResult.data)?.id ?? null)
-        : null;
+      if (shares.ok) {
+        ownShareId = findOwnScheduleShare(shares.data, callerResult.data)?.id ?? null;
+      } else {
+        // A read failure here must not be indistinguishable from "you have
+        // no share on this entry" - that would silently hide the
+        // self-remove affordance instead of telling the recipient
+        // something went wrong (docs/ux-ui.md "Common states").
+        ownShareReadFailed = true;
+      }
     }
   }
   const recipientsState =
@@ -115,6 +122,13 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
           {callerResult.ok ? (
             <>
               {isOwner ? <Link href={`/schedule/${entry.id}/edit`}>編集する</Link> : null}
+              {!isOwner && ownShareReadFailed ? (
+                <StatePanel
+                  variant="error"
+                  title="共有状態を確認できませんでした"
+                  description="通信状況を確認し、もう一度お試しください。"
+                />
+              ) : null}
               {!isOwner && ownShareId !== null ? <LeaveShareForm shareId={ownShareId} /> : null}
 
               {isOwner ? (

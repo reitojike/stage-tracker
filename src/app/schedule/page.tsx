@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
-import { getAuthenticatedUser } from '@/infrastructure/supabase/session.ts';
+import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import { listVisiblePersonalSchedule } from '@/infrastructure/supabase/personalSchedule.ts';
 import { resolvePlanningReadState } from '@/domain/planningError.ts';
 import { scheduleTemporalLabel, scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
@@ -16,14 +16,23 @@ const isEmptySchedule = (data: PersonalScheduleEntry[]) => data.length === 0;
  * - their own, plus every entry explicitly shared with them
  * (listVisiblePersonalSchedule already merges both via RLS). Reachability
  * is enforced by the existing default-deny boundary (src/proxy.ts).
+ *
+ * Identity for the owner/shared badge is resolved via
+ * requireAuthenticatedUserId, not session.ts's getAuthenticatedUser -
+ * mirroring [entryId]/page.tsx's reasoning: getAuthenticatedUser collapses
+ * a genuine auth-check failure into the same `null` as "not signed in",
+ * which would mislabel the caller's own entries as "共有されている予定"
+ * during a transient failure rather than surfacing that the identity check
+ * itself failed.
  */
 export default async function SchedulePage() {
   const client = await createSupabaseServerClient();
-  const [result, user] = await Promise.all([
+  const [result, callerResult] = await Promise.all([
     listVisiblePersonalSchedule(client),
-    getAuthenticatedUser(),
+    requireAuthenticatedUserId(client),
   ]);
   const state = resolvePlanningReadState(result, isEmptySchedule);
+  const callerId = callerResult.ok ? callerResult.data : null;
 
   return (
     <main>
@@ -45,13 +54,15 @@ export default async function SchedulePage() {
       {result.ok && result.data.length > 0 ? (
         <ul className={styles.list}>
           {result.data.map((entry) => {
-            const isOwner = user !== null && entry.ownerId === user.id;
+            const isOwner = callerId !== null && entry.ownerId === callerId;
             return (
               <li key={entry.id} className={styles.item}>
                 <Link href={`/schedule/${entry.id}`} className={styles.itemLink}>
-                  <Badge variant={isOwner ? 'neutral' : 'info'}>
-                    {isOwner ? '自分の予定' : '共有されている予定'}
-                  </Badge>
+                  {callerId !== null ? (
+                    <Badge variant={isOwner ? 'neutral' : 'info'}>
+                      {isOwner ? '自分の予定' : '共有されている予定'}
+                    </Badge>
+                  ) : null}
                   <span className={styles.itemType}>{scheduleTypeLabel(entry.scheduleType)}</span>
                   <span className={styles.itemTemporal}>
                     {scheduleTemporalLabel(entry.temporal)}

@@ -233,33 +233,39 @@ export function resolveOwnerRemoveShareFeedback(kind: PlanningErrorKind): Schedu
  * such registered account" directly) to read as its own field error, not
  * a generic "something about this input is wrong".
  */
+function shareByEmailValidationFieldError(message: string): string {
+  if (message.includes('not a registered account')) {
+    return 'このメールアドレスで登録されているユーザーが見つかりません。正しいメールアドレスを確認してください。';
+  }
+  if (message.includes('cannot share with yourself')) {
+    return '自分自身とは共有できません。';
+  }
+  if (message.includes('not a valid email address')) {
+    return 'メールアドレスの形式が正しくありません。';
+  }
+  return 'メールアドレスを入力してください。';
+}
+
 export function resolveShareByEmailOutcome(error: PlanningError): {
   fieldError: string | null;
   feedback: ScheduleWriteFeedback | null;
 } {
-  if (error.kind === 'validation') {
-    if (error.message.includes('not a registered account')) {
-      return {
-        fieldError:
-          'このメールアドレスで登録されているユーザーが見つかりません。正しいメールアドレスを確認してください。',
-        feedback: null,
-      };
-    }
-    if (error.message.includes('cannot share with yourself')) {
-      return { fieldError: '自分自身とは共有できません。', feedback: null };
-    }
-    if (error.message.includes('not a valid email address')) {
-      return { fieldError: 'メールアドレスの形式が正しくありません。', feedback: null };
-    }
-    return { fieldError: 'メールアドレスを入力してください。', feedback: null };
+  // An exhaustive switch over PlanningErrorKind - not an if/else chain -
+  // so that if this RPC's error rules (SHARE_BY_EMAIL_ERROR_RULES in
+  // infrastructure/supabase/personalSchedule.ts) are ever extended to
+  // produce a `not-found`, this stops compiling instead of silently
+  // falling through to the generic FAILURE panel below.
+  switch (error.kind) {
+    case 'validation':
+      return { fieldError: shareByEmailValidationFieldError(error.message), feedback: null };
+    case 'permission-denied':
+      return { fieldError: null, feedback: SHARE_ADD_PERMISSION_DENIED };
+    case 'unauthenticated':
+      return { fieldError: null, feedback: UNAUTHENTICATED };
+    case 'not-found':
+    case 'failure':
+      return { fieldError: null, feedback: FAILURE };
   }
-  if (error.kind === 'permission-denied') {
-    return { fieldError: null, feedback: SHARE_ADD_PERMISSION_DENIED };
-  }
-  if (error.kind === 'unauthenticated') {
-    return { fieldError: null, feedback: UNAUTHENTICATED };
-  }
-  return { fieldError: null, feedback: FAILURE };
 }
 
 const SHARE_ADD_NOTICE = 'recipientを追加しました。';

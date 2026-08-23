@@ -16,10 +16,9 @@ export interface LeaveShareFormProps {
 /**
  * Lets a shared recipient remove themselves from an entry's share list
  * (Issue #37 "shared user self-remove"). This needs no recipient
- * identification: the caller already knows only their own share id, so
- * unlike owner-side recipient add/remove (blocked pending a cross-cutting
- * identity-targeting prerequisite - see Issue #55/PR #57), this
- * self-service action is independent of that gap and safe to ship now.
+ * identification: the caller already knows only their own share id, unlike
+ * owner-side recipient add/remove (ShareAddForm.tsx / RemoveRecipientForm.tsx),
+ * which targets a specific recipient by exact email over #55's boundary.
  */
 export function LeaveShareForm({ shareId }: LeaveShareFormProps) {
   const [state, formAction, isPending] = useActionState(
