@@ -119,6 +119,38 @@ export function selectMyCalendarOccurrenceEntries(
     .sort((a, b) => compareOccurrencesByStartsAt(a.occurrence, b.occurrence));
 }
 
+/**
+ * A cheap, UTC-date-slice pre-filter callers (src/app/calendar/page.tsx)
+ * can apply *before* fetching event/occurrence detail for a set of
+ * occurrence ids, to avoid resolving occurrences far outside the displayed
+ * grid. This is deliberately a superset, never exact: the authoritative
+ * per-day membership is always tokyoCalendarDateFromInstant, applied by
+ * selectMyCalendarOccurrenceEntries/buildMyCalendarDayMarkers once the full
+ * occurrence set is available - this function only needs to never exclude
+ * an occurrence that truly belongs in the grid.
+ *
+ * Since Asia/Tokyo is UTC+9, an instant's true Tokyo calendar date is
+ * always its UTC-sliced date or one day *later* (never earlier) - e.g.
+ * `startsAt = "2026-07-31T16:30:00Z"` has UTC date "2026-07-31" but Tokyo
+ * date "2026-08-01" (01:30 JST). So the lower bound must be widened by one
+ * day to remain a safe superset (an occurrence starting between
+ * 00:00-08:59 JST on `gridFirstDate` has a UTC-sliced date of
+ * `gridFirstDate` minus one day); the upper bound needs no such widening,
+ * since a UTC-sliced date can never be *later* than the true Tokyo date. A
+ * previous revision of this check compared the UTC-sliced date directly
+ * against `gridFirstDate` with no widening, which silently excluded any
+ * occurrence starting 00:00-08:59 JST on the grid's first displayed day.
+ */
+export function isOccurrenceStartUtcDateInGridSuperset(
+  occurrenceStartsAtUtc: string,
+  gridFirstDate: string,
+  gridLastDate: string,
+): boolean {
+  const occurrenceUtcDate = occurrenceStartsAtUtc.slice(0, 10);
+  const lowerBound = addDaysToDate(gridFirstDate, -1);
+  return occurrenceUtcDate >= lowerBound && occurrenceUtcDate <= gridLastDate;
+}
+
 // --- Event-independent personal schedule ---
 
 /**

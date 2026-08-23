@@ -11,6 +11,7 @@ import { buildMonthGrid } from '@/domain/calendarMonth.ts';
 import {
   buildMyCalendarDayMarkers,
   buildMyCalendarOccurrenceEntries,
+  isOccurrenceStartUtcDateInGridSuperset,
   selectMyCalendarOccurrenceEntries,
   selectMyCalendarScheduleEntries,
 } from '@/domain/myCalendar.ts';
@@ -144,20 +145,14 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   // derived the same way calendarMonth.ts derives grid dates.
   const gridFirstDate = grid.gridFirstDate;
   const gridLastDate = grid.gridLastDate;
-  const occurrencesInGrid = occurrencesResult.data.filter((occurrence) => {
-    const occurrenceDate = occurrence.startsAt.slice(0, 10);
-    return occurrenceDate >= gridFirstDate && occurrenceDate <= gridLastDate;
-  });
-  // The Tokyo-vs-UTC date-slice above is a coarse pre-filter only (UTC
-  // date can differ from the Asia/Tokyo date near midnight); the
+  // A coarse pre-filter only (see isOccurrenceStartUtcDateInGridSuperset's
+  // own header for why this needs to be a safe superset, not exact) - the
   // authoritative per-day membership used for rendering is always
   // tokyoCalendarDateFromInstant, applied inside
-  // selectMyCalendarOccurrenceEntries/buildMyCalendarDayMarkers below - so
-  // this filter only needs to be a safe *superset*, never exact. It is: a
-  // UTC-slice date is always within +/-1 day of the true Tokyo date, and
-  // widening by a day in each direction here would only include a few
-  // extra occurrences that the exact Tokyo-date check downstream then
-  // excludes - it can never exclude one that truly belongs in the grid.
+  // selectMyCalendarOccurrenceEntries/buildMyCalendarDayMarkers below.
+  const occurrencesInGrid = occurrencesResult.data.filter((occurrence) =>
+    isOccurrenceStartUtcDateInGridSuperset(occurrence.startsAt, gridFirstDate, gridLastDate),
+  );
 
   const eventIds = [...new Set(occurrencesInGrid.map((occurrence) => occurrence.eventId))];
   const eventsResult =

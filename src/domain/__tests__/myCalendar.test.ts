@@ -5,6 +5,7 @@ import {
   buildMyCalendarDayMarkers,
   buildMyCalendarOccurrenceEntries,
   scheduleEntryDatesInRange,
+  isOccurrenceStartUtcDateInGridSuperset,
   selectMyCalendarOccurrenceEntries,
   selectMyCalendarScheduleEntries,
 } from '../myCalendar.ts';
@@ -206,6 +207,41 @@ void test('scheduleEntryDatesInRange: entirely outside the range yields no dates
     temporal: { kind: 'all-day', startsOn: '2026-06-01', endsOn: '2026-06-02' },
   });
   assert.deepEqual(scheduleEntryDatesInRange(entry, '2026-08-01', '2026-08-31'), []);
+});
+
+// --- isOccurrenceStartUtcDateInGridSuperset ---
+
+void test('isOccurrenceStartUtcDateInGridSuperset includes an occurrence whose UTC date equals gridFirstDate', () => {
+  assert.equal(
+    isOccurrenceStartUtcDateInGridSuperset('2026-08-01T10:00:00Z', '2026-08-01', '2026-08-31'),
+    true,
+  );
+});
+
+void test('isOccurrenceStartUtcDateInGridSuperset includes an early-morning-JST occurrence whose UTC date is one day before gridFirstDate (regression: was silently excluded)', () => {
+  // startsAt = "2026-07-31T16:30:00Z" is 2026-08-01 01:30 JST - true Tokyo
+  // date is gridFirstDate itself, but the raw UTC-sliced date is
+  // "2026-07-31", one day earlier. A prior revision of this filter
+  // compared the UTC-sliced date directly against gridFirstDate with no
+  // widening, which silently dropped this occurrence from My Calendar.
+  assert.equal(
+    isOccurrenceStartUtcDateInGridSuperset('2026-07-31T16:30:00Z', '2026-08-01', '2026-08-31'),
+    true,
+  );
+});
+
+void test('isOccurrenceStartUtcDateInGridSuperset excludes a UTC date two days before gridFirstDate', () => {
+  assert.equal(
+    isOccurrenceStartUtcDateInGridSuperset('2026-07-30T10:00:00Z', '2026-08-01', '2026-08-31'),
+    false,
+  );
+});
+
+void test('isOccurrenceStartUtcDateInGridSuperset excludes a UTC date after gridLastDate', () => {
+  assert.equal(
+    isOccurrenceStartUtcDateInGridSuperset('2026-09-01T10:00:00Z', '2026-08-01', '2026-08-31'),
+    false,
+  );
 });
 
 // --- selectMyCalendarScheduleEntries / buildMyCalendarDayMarkers ---
