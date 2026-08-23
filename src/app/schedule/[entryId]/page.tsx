@@ -5,31 +5,40 @@ import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClie
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import {
   getVisiblePersonalScheduleEntry,
+  listScheduleShareRecipientEmails,
   listScheduleShares,
 } from '@/infrastructure/supabase/personalSchedule.ts';
 import { resolvePersonalScheduleReadState } from '@/domain/personalScheduleReadState.ts';
 import { scheduleTemporalLabel, scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
-import { findOwnScheduleShare, type PersonalScheduleEntry } from '@/domain/personalSchedule.ts';
+import {
+  findOwnScheduleShare,
+  type PersonalScheduleEntry,
+  type ScheduleShareRecipient,
+} from '@/domain/personalSchedule.ts';
 import { LeaveShareForm } from '../_components/LeaveShareForm.tsx';
+import { RemoveRecipientForm } from '../_components/RemoveRecipientForm.tsx';
+import { ShareAddForm } from '../_components/ShareAddForm.tsx';
 
 interface ScheduleEntryPageProps {
   params: Promise<{ entryId: string }>;
 }
 
 const isMissingEntry = (data: PersonalScheduleEntry | null) => data === null;
+const isEmptyRecipientList = (data: ScheduleShareRecipient[]) => data.length === 0;
 
 /**
- * Read-only single-entry detail surface (Issue #37). A non-existent or
- * not-visible id is a distinct "empty" result (RLS makes the two
- * indistinguishable - see getVisiblePersonalScheduleEntry), never an
- * "error"; a genuine read failure is the reverse (see
- * resolvePersonalScheduleReadState).
+ * Read-only single-entry detail surface, plus owner-side recipient
+ * management (Issue #37, over #55's exact-email authenticated-user
+ * targeting boundary). A non-existent or not-visible id is a distinct
+ * "empty" result (RLS makes the two indistinguishable - see
+ * getVisiblePersonalScheduleEntry), never an "error"; a genuine read
+ * failure is the reverse (see resolvePersonalScheduleReadState).
  *
- * Owner-side recipient management (add/remove, or even a read-only
- * recipient list) is deliberately not rendered here: it is blocked pending
- * #55's cross-cutting identity-targeting prerequisite (see
- * _actions/scheduleWrite.ts). Only the shared recipient's own self-remove
- * affordance is offered, since that needs no identity resolution.
+ * The owner's recipient projection (listScheduleShareRecipientEmails) is
+ * bounded to this entry's actual shares only - never a general user
+ * directory or lookup surface - and adding a recipient
+ * (shareScheduleEntryByEmail) takes an exact registered email, never a raw
+ * user id, autocomplete, or search (see #55/PR #57, product-rules.md).
  *
  * Identity is resolved via requireAuthenticatedUserId (which distinguishes
  * a genuine auth failure from "not signed in"), not
@@ -57,19 +66,25 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
 
   let isOwner = false;
   let ownShareId: string | null = null;
+  let recipientsResult: Awaited<ReturnType<typeof listScheduleShareRecipientEmails>> | null = null;
   if (entry !== null && callerResult.ok) {
     isOwner = entry.ownerId === callerResult.data;
-    if (!isOwner) {
+    if (isOwner) {
+      recipientsResult = await listScheduleShareRecipientEmails(client, entry.id);
+    } else {
       const shares = await listScheduleShares(client, entry.id);
       // Matched by the caller's confirmed id, not "the first row" - see
-      // findOwnScheduleShare's comment. Necessary because a *owner's* read
-      // of this table (not this caller, but relevant if isOwner were ever
-      // miscomputed) returns every recipient's row, not just one.
+      // findOwnScheduleShare's comment. Necessary because the *owner's*
+      // read of this table returns every recipient's row, not just one.
       ownShareId = shares.ok
         ? (findOwnScheduleShare(shares.data, callerResult.data)?.id ?? null)
         : null;
     }
   }
+  const recipientsState =
+    recipientsResult !== null
+      ? resolvePersonalScheduleReadState(recipientsResult, isEmptyRecipientList)
+      : null;
 
   return (
     <main>
@@ -101,6 +116,38 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
             <>
               {isOwner ? <Link href={`/schedule/${entry.id}/edit`}>編集する</Link> : null}
               {!isOwner && ownShareId !== null ? <LeaveShareForm shareId={ownShareId} /> : null}
+
+              {isOwner ? (
+                <section>
+                  <h2>共有</h2>
+
+                  {recipientsState === 'error' ? (
+                    <StatePanel
+                      variant="error"
+                      title="共有中のrecipientを読み込めませんでした"
+                      description="通信状況を確認し、もう一度お試しください。"
+                    />
+                  ) : null}
+                  {recipientsState === 'empty' ? (
+                    <StatePanel variant="empty" title="まだ誰とも共有していません" />
+                  ) : null}
+                  {recipientsResult?.ok && recipientsResult.data.length > 0 ? (
+                    <ul>
+                      {recipientsResult.data.map((recipient) => (
+                        <li key={recipient.shareId}>
+                          <RemoveRecipientForm
+                            entryId={entry.id}
+                            shareId={recipient.shareId}
+                            recipientEmail={recipient.recipientEmail}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  <ShareAddForm entryId={entry.id} />
+                </section>
+              ) : null}
             </>
           ) : (
             <StatePanel

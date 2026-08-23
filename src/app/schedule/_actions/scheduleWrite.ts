@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClie
 import {
   createPersonalScheduleEntry,
   removeScheduleShare,
+  shareScheduleEntryByEmail,
   updatePersonalScheduleEntry,
 } from '@/infrastructure/supabase/personalSchedule.ts';
 import {
@@ -14,12 +15,17 @@ import {
   type RawFormValues,
 } from '@/domain/personalScheduleWrite.ts';
 import {
+  acceptedShareAddFormState,
   acceptedWriteFormState,
+  rejectedShareAddFormState,
   rejectedShareRemoveFormState,
   rejectedWriteFormState,
+  resolveOwnerRemoveShareFeedback,
   resolveRemoveShareFeedback,
+  resolveShareByEmailOutcome,
   resolveWriteFeedback,
   resolveWriteNotice,
+  type ScheduleShareAddFormState,
   type ScheduleShareRemoveFormState,
   type ScheduleWriteFormState,
 } from '@/domain/personalScheduleWriteFeedback.ts';
@@ -28,16 +34,18 @@ import {
 //
 // None of these actions decides permission. Authority is enforced by the
 // database - personal_schedule_entries_insert_own / _update_own,
-// personal_schedule_shares_delete_owner_or_self RLS (see supabase/
-// migrations/20260822000000_create_personal_schedule.sql). What happens
-// here is parsing, dispatch, and turning the typed boundary's own outcome
+// personal_schedule_shares_delete_owner_or_self RLS, and
+// share_schedule_entry_by_email / list_schedule_share_recipient_emails's
+// own owner-only checks (see supabase/migrations/). What happens here is
+// parsing, dispatch, and turning the typed boundary's own outcome
 // (PlanningResult) into the state the form renders.
 //
-// Owner-side recipient add/remove is intentionally not implemented here:
-// it is blocked pending a cross-cutting authenticated-user identity-
-// targeting prerequisite (no email/user_id resolution mechanism exists
-// anywhere in this codebase yet - confirmed absent from every RPC/table,
-// including invite_to_occurrence). See Issue #55/PR #57 (cross-cutting identity-targeting prerequisite).
+// Owner-side recipient add/remove now consumes #55's exact-email
+// authenticated-user targeting boundary (shareScheduleEntryByEmail /
+// listScheduleShareRecipientEmails) - no raw user id, generic email
+// lookup, autocomplete, or user directory is added here; the RPCs
+// themselves resolve an exact registered email to a user id server-side
+// and scope the recipient projection to this entry's actual shares only.
 
 const SCHEDULE_FIELDS = [
   'scheduleType',
@@ -160,4 +168,68 @@ export async function removeScheduleShareAction(
   // shared no longer matches), so there is nothing left on the detail page
   // to return to.
   redirect('/schedule');
+}
+
+/** Reads the trimmed raw email a form submitted, defaulting to '' rather
+ * than throwing on a missing/non-string field - shareScheduleEntryByEmail's
+ * own RPC validates presence/format and reports a proper `validation`
+ * PlanningError, so this only needs to hand it *something*. */
+function readEmail(formData: FormData): string {
+  const value = formData.get('email');
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+export async function addScheduleShareByEmailAction(
+  previous: ScheduleShareAddFormState,
+  formData: FormData,
+): Promise<ScheduleShareAddFormState> {
+  const entryId = readId(formData, 'entryId');
+  const email = readEmail(formData);
+  if (entryId === null) {
+    const outcome = resolveShareByEmailOutcome({
+      kind: 'failure',
+      message: 'missing entryId',
+      code: 'missing-entry-id',
+    });
+    return rejectedShareAddFormState(previous, email, outcome.fieldError, outcome.feedback);
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await shareScheduleEntryByEmail(client, entryId, email);
+  if (!result.ok) {
+    const outcome = resolveShareByEmailOutcome(result.error);
+    return rejectedShareAddFormState(previous, email, outcome.fieldError, outcome.feedback);
+  }
+
+  revalidatePath(`/schedule/${entryId}`);
+  return acceptedShareAddFormState(previous);
+}
+
+export async function removeScheduleShareAsOwnerAction(
+  previous: ScheduleShareRemoveFormState,
+  formData: FormData,
+): Promise<ScheduleShareRemoveFormState> {
+  const shareId = readId(formData, 'shareId');
+  const entryId = readId(formData, 'entryId');
+  if (shareId === null) {
+    return rejectedShareRemoveFormState(previous, resolveOwnerRemoveShareFeedback('failure'));
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await removeScheduleShare(client, shareId);
+  if (!result.ok) {
+    return rejectedShareRemoveFormState(
+      previous,
+      resolveOwnerRemoveShareFeedback(result.error.kind),
+    );
+  }
+
+  // Unlike the self-remove action above, the owner is still allowed to be
+  // on this entry's detail page after removing a *different* recipient's
+  // share, so this stays on the page (revalidating it) rather than
+  // redirecting.
+  if (entryId !== null) {
+    revalidatePath(`/schedule/${entryId}`);
+  }
+  return { attempt: previous.attempt + 1, feedback: null };
 }
