@@ -121,7 +121,12 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
                   (segment) => segment.startCol <= colIndex && colIndex <= segment.endCol,
                 );
                 const marker = roleMarker(day.role);
-                const labelParts = [`${monthLabel(viewModel.yearMonth)}${String(dayNumber)}日`];
+                // Lead/trail cells (inCurrentMonth === false) belong to an
+                // adjacent month - their own date's month, never the
+                // displayed viewModel.yearMonth, so the aria-label doesn't
+                // announce a mismatched month for those cells (same
+                // convention as MyMonthCalendar.tsx's labelParts).
+                const labelParts = [`${monthLabel(day.date.slice(0, 7))}${String(dayNumber)}日`];
                 if (day.date === todayDate) {
                   labelParts.push('今日');
                 }
