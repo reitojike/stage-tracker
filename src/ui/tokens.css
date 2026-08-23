@@ -100,6 +100,15 @@
   --color-danger: var(--color-status-danger-500);
   --color-info: var(--color-accent-600);
 
+  /* calendar weekday / Japanese holiday roles (docs/ux-ui.md「Calendar
+     weekday / Japanese holiday presentation」- Saturday blue / Sunday red /
+     holiday red, holiday優先). Reuses the existing accent/danger primitives
+     rather than introducing a new hue scale - usage side always pairs this
+     with a non-color cue (text/icon), never color alone. */
+  --color-calendar-saturday: var(--color-accent-600);
+  --color-calendar-sunday: var(--color-status-danger-500);
+  --color-calendar-holiday: var(--color-status-danger-500);
+
   /* spacing */
   --space-xs: var(--space-scale-1);
   --space-sm: var(--space-scale-2);
