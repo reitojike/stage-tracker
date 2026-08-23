@@ -21,6 +21,7 @@ import {
 import { LeaveShareForm } from '../_components/LeaveShareForm.tsx';
 import { RemoveRecipientForm } from '../_components/RemoveRecipientForm.tsx';
 import { ShareAddForm } from '../_components/ShareAddForm.tsx';
+import styles from '../_components/ScheduleDetail.module.css';
 
 interface ScheduleEntryPageProps {
   params: Promise<{ entryId: string }>;
@@ -141,8 +142,8 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
               {!isOwner && ownShareId !== null ? <LeaveShareForm shareId={ownShareId} /> : null}
 
               {isOwner ? (
-                <section>
-                  <h2>共有</h2>
+                <section className={styles.section}>
+                  <h2 className={styles.sectionHeading}>共有</h2>
 
                   {recipientsState === 'error' ? (
                     <StatePanel
@@ -155,7 +156,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
                     <StatePanel variant="empty" title="まだ誰とも共有していません" />
                   ) : null}
                   {recipientsResult?.ok && recipientsResult.data.length > 0 ? (
-                    <ul>
+                    <ul className={styles.recipientList}>
                       {recipientsResult.data.map((recipient) => (
                         <li key={recipient.shareId}>
                           <RemoveRecipientForm

@@ -1,5 +1,6 @@
 import { ActionRow } from '@/ui/ActionRow';
 import { LinkButton } from '@/ui/LinkButton';
+import { PageHeading } from '@/ui/PageHeading';
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import type { Participation } from '@/domain/participation.ts';
@@ -51,7 +52,7 @@ export function EventDetail({
 
   return (
     <article className={styles.detail}>
-      <h1 className={styles.title}>{event.title}</h1>
+      <PageHeading>{event.title}</PageHeading>
 
       {editHref !== null ? (
         <ActionRow>

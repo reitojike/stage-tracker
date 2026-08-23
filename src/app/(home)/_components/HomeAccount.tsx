@@ -1,6 +1,6 @@
 import { Button } from '@/ui/Button';
 import { Surface } from '@/ui/Surface';
-import { signOut } from '../sign-out/actions.ts';
+import { signOut } from '../../sign-out/actions.ts';
 import styles from './HomeAccount.module.css';
 
 export interface HomeAccountProps {
