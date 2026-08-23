@@ -351,3 +351,78 @@ void test('anonymous cannot delete events', async () => {
   const { error } = await anon.from('events').delete().eq('id', event.id);
   assert.ok(error, 'expected a permission error for anonymous delete');
 });
+
+// --- source_key: imported-entry identity (Issue #73) ---
+//
+// source_key exists so an operator import can recognise what it already
+// created; events has no DELETE path, so an import that could not do that
+// would produce permanently un-removable duplicates. These tests pin the
+// two properties the import relies on: a normal client cannot write the
+// column (it is operator/system-managed, like created_at), and the value
+// is unique among imported events while staying absent for manual ones.
+
+void test('normal client cannot set source_key', async () => {
+  const { event } = await createEventWithOccurrence(actorA);
+  const { error } = await actorA.client
+    .from('events')
+    .update({ source_key: 'takarazuka:2026:forged:takarazuka' })
+    .eq('id', event.id);
+  assert.ok(error, 'expected a permission error for setting source_key');
+});
+
+void test('an event created through the supported UI path has no source_key', async () => {
+  // create_event_with_occurrence takes no source_key parameter, so events
+  // created by hand are manual by construction - "imported" is exactly
+  // "source_key is not null", with no second mechanism to keep in sync.
+  const { event } = await createEventWithOccurrence(actorA);
+  const { data, error } = await actorA.client
+    .from('events')
+    .select('source_key')
+    .eq('id', event.id)
+    .single();
+  assert.equal(error, null);
+  assert.equal(data.source_key, null);
+});
+
+void test('source_key is readable by an authenticated non-owner', async () => {
+  // The shared catalog is readable by every authenticated user and
+  // source_key is derived from public production pages, so it rides along
+  // with the existing table-level SELECT grant rather than being hidden.
+  const { event } = await createEventWithOccurrence(actorA);
+  const { data, error } = await actorB.client
+    .from('events')
+    .select('id, source_key')
+    .eq('id', event.id)
+    .single();
+  assert.equal(error, null);
+  assert.equal(data.id, event.id);
+});
+
+void test('source_key is unique among imported events but repeatable as null', async () => {
+  const status = readLocalSupabaseStatus();
+  const client = new pg.Client({ connectionString: status.dbUrl });
+  await client.connect();
+  try {
+    const key = `test:unique:${crypto.randomUUID()}`;
+    const insert = (sourceKey: string | null) =>
+      client.query(
+        `insert into public.events (owner_id, title, source_key) values ($1, $2, $3) returning id`,
+        [actorA.user.id, eventFixtureTitle(), sourceKey],
+      );
+
+    const first = await insert(key);
+    assert.equal(first.rows.length, 1);
+    await assert.rejects(
+      () => insert(key),
+      /duplicate key value|unique constraint/i,
+      'expected a second event with the same source_key to be rejected',
+    );
+
+    // Manual events all share the absent value, so the index has to be
+    // partial rather than treating "no source" as a colliding value.
+    await insert(null);
+    await insert(null);
+  } finally {
+    await client.end();
+  }
+});

@@ -1,0 +1,71 @@
+-- Imported catalog entry identity (Issue #73).
+--
+-- Gate A needs real 公演 data in the shared catalog, and the volume makes
+-- one-at-a-time UI entry unworkable (the first import alone is ~430
+-- 公演回 across 10 events). The import path is operator-assisted: an
+-- agent reads the official schedule pages and writes a reviewed seed
+-- file, and an operator script applies it. Nothing in the application
+-- fetches or parses those pages.
+--
+-- Why this column has to exist before that script can be safe:
+-- events and event_occurrences have no DELETE policy and no DELETE grant
+-- (see 20260820000000_create_events.sql and
+-- 20260821000000_create_event_occurrences.sql - deletion semantics are
+-- deliberately undecided). A second run of an import that cannot
+-- recognise what it already created would therefore add a duplicate
+-- catalog entry that no supported operation can remove. source_key is
+-- what lets the script answer "is this event already here?" without
+-- guessing, so re-running an import is idempotent rather than
+-- irreversible.
+--
+-- source_url cannot serve that purpose. One production page covers
+-- multiple venues - 宝塚's 『ポーの一族』 has one 公演概要 page but
+-- separate 宝塚大劇場 and 東京宝塚劇場 runs, which are separate events
+-- because venue is event-level information. Both events therefore carry
+-- the same source_url, and only source_key distinguishes them.
+--
+-- The value is derived from the official URL structure rather than
+-- invented, so the same 興行 resolves to the same key on every import:
+--   takarazuka:2026:ponoichizoku:takarazuka-daigekijo
+--   takarazuka:2026:ponoichizoku:tokyo-takarazuka-gekijo
+--   kabukiza:play:977          (977 is the official production id)
+--
+-- Deliberately NOT here:
+-- - An occurrence-level source column. Within one event, no two
+--   occurrences share a start instant in any of the real schedules
+--   checked, so (event_id, starts_at) already identifies an occurrence.
+--   Adding a second identity mechanism would be speculative.
+-- - A snapshot/fetched-at timestamp. updated_at already records when a
+--   row last changed, and no approved product semantics reads a capture
+--   time. Staleness handling is not part of this Task.
+-- - Any notion of "imported" as a distinct record type. An imported
+--   event is an ordinary event owned by the designated catalog creator;
+--   source_key being non-null is the only distinction, and it exists for
+--   idempotency first.
+alter table public.events
+  add column source_key text;
+
+-- Partial, because manual events legitimately share the absent value:
+-- a plain unique constraint would be satisfied by multiple NULLs in
+-- Postgres anyway, but stating the predicate makes the intent explicit -
+-- uniqueness is a claim about imported entries only.
+create unique index events_source_key_key
+  on public.events (source_key)
+  where source_key is not null;
+
+-- No grant is added for authenticated, and that is the whole access
+-- decision for writes. events' INSERT/UPDATE grants are column-level
+-- (see 20260820000000_create_events.sql), and INSERT was revoked
+-- entirely in 20260821000200_create_event_with_occurrence_rpc.sql, so a
+-- new column is not writable by a normal client unless a future
+-- migration names it - which this one does not. create_event_with_occurrence
+-- is likewise left untouched: the UI create path does not set source_key,
+-- so an event created through the UI is a manual event by construction.
+--
+-- SELECT is table-level (`grant select on public.events to authenticated`),
+-- so authenticated users can read source_key. That is intended: the value
+-- is derived from public production pages and carries nothing private.
+-- service_role needs no new grant: its privileges on this table are
+-- table-level (20260820000000_create_events.sql), which covers columns
+-- added later, whereas authenticated's are enumerated per column
+-- and therefore do not.
