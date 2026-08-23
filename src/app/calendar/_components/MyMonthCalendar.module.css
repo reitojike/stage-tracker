@@ -88,6 +88,13 @@
   background-color: var(--color-surface-subtle);
 }
 
+/* Companion to the :not(.daySelected) scoping above: without this, the
+   selected day would be the only cell with no hover response at all on
+   pointer devices (same pairing convention as .daySelected:active below). */
+.daySelected:hover {
+  background-color: var(--color-accent-hover);
+}
+
 .dayOutside {
   color: var(--color-text-disabled);
 }
