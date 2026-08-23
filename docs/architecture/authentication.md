@@ -147,15 +147,14 @@ sequenceDiagram
    [src/infrastructure/supabase/session.ts](../../src/infrastructure/supabase/session.ts)
    の `getAuthenticatedUser()` がこの読み取りの主な呼び出し口です。
 
-### コメント上の呼称のずれ（記録目的）
+### コメント上の呼称のずれ（解消済み・履歴記録）
 
-`serverClient.ts` の 39 行目・57 行目のコメントは、この Middleware 相当の
-実体を `middleware.ts` という名前で参照しています。しかし実際のファイル名は
-`src/proxy.ts` です（Next.js 16.3 で規約が `middleware.ts` から `proxy.ts` /
-`proxy()` へ変わったことによるもの）。機能自体は上記の通り正しく働いており、
-セッションリフレッシュが行われていないという欠落は **ありません**。ずれて
-いるのはコメント中のファイル名の呼称のみです。コメントを `proxy.ts` を指す
-よう修正するかどうかは、別途の判断とします。
+Issue #66 完了時点では `serverClient.ts` の 39 行目・57 行目のコメントが、
+この Middleware 相当の実体を古い `middleware.ts` という名前で参照していま
+した。Next.js 16.3 で規約が `middleware.ts` から `proxy.ts` / `proxy()` へ
+変わったためのずれで、機能自体（セッションリフレッシュ）は当時から正しく
+`proxy.ts` によって行われていました。Issue #61 の docs consistency 対応で
+コメントを `proxy.ts` を指すよう修正済みです。
 
 ## なぜ `token_hash` 方式を維持しているか
 

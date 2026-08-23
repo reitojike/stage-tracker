@@ -127,23 +127,20 @@ remote 専用の `config.toml`（または別の config-as-code 手段）を用�
 `config push` を安全に使えるようにすることは、将来の改善候補として
 「将来的な改善領域」節に記録します。
 
-## 既知の記載ずれ（記録目的）
+## 既知の記載ずれ（解消済み・履歴記録）
 
-- `docs/runbooks/gate-a-remote-environment.md` は本文中で SMTP provider を
-  **Postmark** と記載していますが、実際に Production で稼働している SMTP
-  provider は **Resend** です（このドキュメント作成にあたり運用者へ確認済
-  み）。runbook 側の更新は本 Issue のスコープ外のため、この食い違いをここに
-  明示的に記録します。runbook を更新する場合は、Postmark 関連の記述
-  （Postmark アカウント作成手順、Postmark Developer plan の 100
-  emails/month 制限の記述含む）を Resend 向けに書き換える必要があります。
-- `src/infrastructure/supabase/serverClient.ts` の 39 行目・57 行目のコメント
-  は「`middleware.ts` がセッションのリフレッシュを担う」と記述しています
-  が、Next.js 16.3 の規約変更により実際のファイル名は `src/proxy.ts` です。
-  機能自体（毎リクエストでのセッションリフレッシュと認証境界の強制）は
-  `proxy.ts` によって正しく行われており、欠落はありません。ずれているのは
-  コメント中のファイル名の呼称のみです
-  （[docs/architecture/authentication.md](authentication.md) の「Session
-  確立までの流れ」節を参照）。
+Issue #66 完了時点では以下 2 件の記載ずれが未解消として記録されていました。
+Issue #61 の docs consistency 対応で両方とも解消済みです。履歴として残します。
+
+- `docs/runbooks/gate-a-remote-environment.md` は当初 SMTP provider を
+  Postmark と記載していましたが、実際に Production で稼働している SMTP
+  provider は Resend であり、runbook 側を Resend 向けに書き換え済みです。
+  runbook 冒頭に「Gate A の bounded provider decision は当初 Postmark
+  Developer だったが、実際の Production 運用では Resend に変更された」
+  という履歴注記を残しています。
+- `src/infrastructure/supabase/serverClient.ts` の該当コメントは
+  `middleware.ts` という古い呼称を使っていましたが、`proxy.ts` を指すよう
+  修正済みです。
 
 ## 将来的な改善領域
 
@@ -153,8 +150,3 @@ remote 専用の `config.toml`（または別の config-as-code 手段）を用�
   すること。
 - **Drift 検知**: `supabase db diff --linked` は手動実行が前提であり、
   スキーマ drift を継続的に検知する自動化は存在しません。
-- **`serverClient.ts` コメントの呼称修正**: 上記「既知の記載ずれ」参照。
-  `middleware.ts` という古い呼称を `proxy.ts` に合わせて修正するかどうかの
-  判断が必要です（機能上の欠落ではないため優先度は低い）。
-- **Postmark 関連記述の是正**: `docs/runbooks/gate-a-remote-environment.md`
-  の Resend への書き換え。

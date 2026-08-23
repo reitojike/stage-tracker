@@ -1,153 +1,165 @@
 # Gate A remote environment runbook
 
-Canonical Task Contract: Issue #61. This runbook covers only the Gate A
-bounded 2-user dogfood remote environment (Vercel Hobby + a new hosted
-Supabase project + Postmark Developer SMTP). It is not a general production
-deployment guide — see `docs/roadmap.md` / `docs/prd.md` for what remains
-deferred beyond Gate A.
+Canonical Task Contract: Issue #61。この runbook は Gate A の bounded な
+2-user dogfood remote environment（Vercel Hobby + 新規 hosted Supabase
+project + Resend custom SMTP）のみを対象とします。一般的な production
+deployment guide ではありません — Gate A を超えて deferred のまま残っている
+事項は `docs/roadmap.md` / `docs/prd.md` を参照してください。
 
-Repository migrations are the only schema authority. Never hand-edit
-schema/RLS/RPCs in the Supabase Dashboard SQL editor — every schema change
-ships as a migration in `supabase/migrations/**` and is applied to the
-remote project from this repository.
+Gate A の bounded provider decision は当初 SMTP provider として Postmark
+Developer を採用する想定でした（Issue #61 の「Bounded provider decision for
+Gate A」参照）。実際の Production environment は代わりに **Resend** を
+使っており、この runbook もそれに合わせて更新済みです。この切り替えは
+operator 側の履歴に過ぎず（ここで再検討はしません）、他の Gate A bounded
+decision（Vercel Hobby、新規 hosted Supabase project、magic-link-only
+auth）を変更するものではありません。
+
+Repository migrations が唯一の schema authority です。Supabase Dashboard の
+SQL editor で schema/RLS/RPCs を手編集しないでください — すべての schema
+変更は `supabase/migrations/**` の migration として出荷し、この repository
+から remote project へ適用します。
 
 ## Secret boundary
 
-- The deployed app only ever receives `NEXT_PUBLIC_SUPABASE_URL` and
-  `NEXT_PUBLIC_SUPABASE_ANON_KEY` as Vercel production environment
-  variables. Both are public by design (see `src/infrastructure/supabase/env.ts`).
-- The Supabase **service role key** is never set as a Vercel environment
-  variable and never committed. It is only used from an operator's own
-  shell, for the duration of one command, via
+- deploy された app が受け取るのは `NEXT_PUBLIC_SUPABASE_URL` と
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` のみで、いずれも Vercel production
+  environment variables です。両方とも public であることを前提に設計されて
+  います（`src/infrastructure/supabase/env.ts` 参照）。
+- Supabase の **service role key** は Vercel の environment variable として
+  設定することも commit することもありません。operator 自身の shell から、
+  一回のコマンド実行時にのみ
   `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY`
-  (see `scripts/lib/adminTarget.mjs`) or the Supabase CLI's own linked-project
-  auth.
-- Postmark server tokens live only in the Supabase Dashboard's Auth SMTP
-  settings, not in this repository or in Vercel.
-- Do not paste actual dogfood email addresses, service role keys, Postmark
-  tokens, or Vercel/Supabase project identifiers into an Issue, PR, or
-  commit message. Refer to the two dogfood accounts as `A` / `B`.
+  経由で使用します（`scripts/lib/adminTarget.mjs` 参照）。あるいは Supabase
+  CLI 自身の linked-project auth を使います。
+- Resend server tokens は Supabase Dashboard の Auth SMTP settings にのみ
+  存在し、この repository にも Vercel にも存在しません。
+- 実際の dogfood email address / service role key / Resend tokens /
+  Vercel・Supabase project identifier を Issue / PR / commit message へ
+  貼り付けないでください。2 名の dogfood account は `A` / `B` として記録
+  します。
 
-## One-time provider setup (operator-only, outside this repository)
+## One-time provider setup（operator-only、この repository の外での作業）
 
-These steps require interactive login to Vercel/Supabase/Postmark and are
-not something an agent session can perform without the operator's own
-credentials. Record completion here by editing this file's checklist, not
-by recording the actual identifiers.
+これらの手順は Vercel/Supabase/Resend への対話的な login を必要とし、agent
+session が operator 自身の credential なしに実行できるものではありません。
+完了の記録はこのファイルの checklist を編集して行い、実際の identifier は
+記録しないでください。
 
-1. Create a new Vercel project (Hobby plan) from this GitHub repository,
-   with `main` as the production branch. Do not let it build yet — step 5
-   must supply required env vars first, or the first build throws on the
-   missing values.
-2. Create a new hosted Supabase project (Free plan is acceptable for Gate A).
-   Note its project ref for `supabase link`.
-3. Create a Postmark account, a Server, and one verified Sender Signature
-   (the Developer plan's 100 emails/month allowance is the accepted Gate A
-   starting limit — see Issue #61's bounded provider decision).
-4. In the Supabase Dashboard, under Auth → SMTP, enable custom SMTP, fill
-   in the Postmark server's SMTP credentials, and set the sender / default
-   From address to the verified Sender Signature from step 3. An
-   unverified or mismatched From address makes Postmark reject the send
-   outright, so magic-link mail silently never arrives.
-5. In the Vercel project's Production environment variables, set
-   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from the
-   hosted Supabase project's API settings (Project Settings → API). Both
-   are read at request time by `src/infrastructure/supabase/env.ts`, which
-   throws on any missing value — the first production deploy must happen
-   after these are set, and any deploy that ran before they were set must
-   be redeployed once they are.
+1. この GitHub repository から新規 Vercel project（Hobby plan）を作成し、
+   `main` を production branch にします。まだ build させないでください —
+   手順 5 で必須の env var を先に投入する必要があり、投入前の最初の build は
+   欠落値で throw します。
+2. 新規 hosted Supabase project を作成します（Gate A では Free plan で
+   問題ありません）。`supabase link` 用に project ref を控えておきます。
+3. Resend account を作成し、送信 domain を verify します（Production では
+   `stage-tracker.com` ルートドメインを使用しており、Cloudflare で登録・
+   DNS 管理され、SPF/DKIM/DMARC レコードもそこに追加されています）。その
+   domain の Resend SMTP credentials を控えます。
+4. Supabase Dashboard の Auth → SMTP で custom SMTP を有効化し、Resend の
+   SMTP credentials を入力し、sender / default From address を verify 済み
+   の Resend domain 上のアドレスに設定します。unverified もしくは
+   mismatched な From address だと Resend が送信を拒否し、magic-link mail
+   が無言で届かなくなります。
+5. Vercel project の Production environment variables に、hosted Supabase
+   project の API settings（Project Settings → API）から
+   `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定
+   します。両方とも request 時に `src/infrastructure/supabase/env.ts` が
+   読み、値が欠けていると throw します — 最初の production deploy はこれら
+   を設定した後に行う必要があり、設定前に走った deploy は設定後に再 deploy
+   する必要があります。
 
 ## Schema migration to the hosted project
 
-Run from a machine with the Supabase CLI installed and authenticated
-(`supabase login`):
+Supabase CLI がインストールされ authenticate 済み（`supabase login`）の
+マシンから実行します。
 
 ```bash
 supabase link --project-ref <the-project-ref-from-step-2>
 supabase db push
 ```
 
-`supabase db push` applies `supabase/migrations/**` in order and records
-migration history on the remote project. After it completes, confirm there
-is no drift:
+`supabase db push` は `supabase/migrations/**` を順番に適用し、remote
+project 上に migration history を記録します。完了後、drift がないことを
+確認します。
 
 ```bash
 supabase db diff --linked
 ```
 
-An empty diff means the remote schema matches the repository exactly. Any
-non-empty diff means something was changed outside a migration (most
-commonly a Dashboard hand-edit) and must be investigated before proceeding
-— do not paper over it with a new migration that just re-states the
-drifted state.
+diff が空であれば remote schema は repository と完全に一致しています。
+非空の diff は、migration の外側で何かが変更されたこと（多くの場合
+Dashboard での手編集）を意味し、先へ進む前に調査が必要です — drift した
+状態をそのまま re-state するだけの新しい migration で覆い隠さないで
+ください。
 
-Re-run `supabase db push` after every merge that adds a migration. There is
-no automatic CI step that pushes migrations to the hosted project; this is
-a manual operator action by design (Issue #61: "multiple sessions が同じ
-remote schema を無秩序に mutate しない").
+migration を追加する merge の後は毎回 `supabase db push` を re-run します。
+hosted project へ migration を push する自動 CI ステップは存在しません。
+これは意図的な manual operator action です（Issue #61: 「multiple
+sessions が同じ remote schema を無秩序に mutate しない」）。
 
-## Auth configuration (Supabase Dashboard → Authentication)
+## Auth configuration（Supabase Dashboard → Authentication）
 
-- **URL Configuration → Site URL**: the canonical Vercel production URL
-  for this project.
-- **URL Configuration → Redirect URLs**: add the same origin's
-  `/auth/confirm` path (the route the magic-link template points at — see
-  `src/app/auth/confirm/route.ts` and the comment in
-  `supabase/config.toml` under `[auth.email.template.magic_link]`).
-- **Providers → Email**: enabled, confirmations off (matches
-  `supabase/config.toml`'s local baseline).
-- **Auth settings → Allow new users to sign up**: **disabled**. This is
-  the remote equivalent of `supabase/config.toml`'s `enable_signup = false`
-  and is the actual enforcement point once local `config.toml` no longer
-  applies. Verify this is off after every Dashboard visit — it is the
-  single most important setting in this section.
-- **Email Templates → Magic Link**: paste the contents of
-  `supabase/templates/magic_link.html` (this repository's source of truth)
-  so the hosted project's link routes through `/auth/confirm` the same way
-  local development does, instead of Supabase's default template that
-  bypasses this app's route handler.
+- **URL Configuration → Site URL**: この project の canonical Vercel
+  production URL。
+- **URL Configuration → Redirect URLs**: 同一 origin の `/auth/confirm`
+  path を追加します（magic-link template がリンクする route —
+  `src/app/auth/confirm/route.ts` と `supabase/config.toml` の
+  `[auth.email.template.magic_link]` 配下のコメント参照）。
+- **Providers → Email**: 有効化し、confirmations は off にします
+  （`supabase/config.toml` の local baseline と一致）。
+- **Auth settings → Allow new users to sign up**: **無効化**します。これは
+  `supabase/config.toml` の `enable_signup = false` の remote 相当であり、
+  local `config.toml` が適用されなくなった後の実際の enforcement point
+  です。Dashboard へアクセスするたびに off になっていることを確認して
+  ください — この節で最も重要な設定です。
+- **Email Templates → Magic Link**: `supabase/templates/magic_link.html`
+  （この repository の source of truth）の内容を貼り付け、hosted project
+  のリンクも local development と同様に `/auth/confirm` を経由するように
+  します。Supabase の default template は、この app の route handler を
+  bypass してしまいます。
 
-The Supabase CLI does have a `supabase config push` command that can apply
-`supabase/config.toml`'s `[auth]` section (and template references) to a
-linked hosted project. This runbook does not use it: this repository's
-`config.toml` is written for the local dev stack (`site_url =
-"http://127.0.0.1:3000"`, local-only sections such as `[studio]` /
-`[local_smtp]` / `[db]` ports), not for Gate A's hosted project, so a blind
-`config push` would push the wrong Site URL and other local-only settings
-at the Gate A project. Materializing the Dashboard settings above by hand
-is the accepted Gate A bounded choice; building a remote-specific
-`config.toml` (or another config-as-code path) to make `config push` safe
-here is out of this runbook's scope. Re-apply these settings by hand if
-the project is ever recreated.
+Supabase CLI には `supabase config push` という、`supabase/config.toml` の
+`[auth]` section（および template 参照）を linked hosted project へ適用
+できるコマンドがあります。この runbook はそれを使いません。この
+repository の `config.toml` は local dev stack 向けに書かれており
+（`site_url = "http://127.0.0.1:3000"`、`[studio]` / `[local_smtp]` /
+`[db]` の port 設定など local 専用の section を含む）、Gate A の hosted
+project 向けではないため、blind な `config push` は誤った Site URL や他の
+local 専用設定を Gate A project へ push してしまいます。上記の Dashboard
+設定を手で materialize することが Gate A の accepted bounded choice です。
+`config push` をここで安全に使えるようにするための remote 専用
+`config.toml`（または他の config-as-code 手段）の構築は、この runbook の
+scope 外です。project が再作成された場合は、これらの設定を手で re-apply
+してください。
 
 ## Deploy / update
 
-Vercel auto-deploys `main` on every push once the project is connected
-(step 1 above). There is no separate manual deploy step. Migration
-ordering depends on whether the change is backward-compatible with the
-already-deployed build:
+Vercel は project が接続済み（上記手順 1）であれば、push のたびに `main`
+を auto-deploy します。個別の manual deploy ステップはありません。
+migration の適用順序は、その変更が既に deploy 済みの build と
+backward-compatible かどうかで決まります。
 
-- **No new migration, or a backward-compatible one** (new nullable
-  column, new table/RPC nothing yet references): merge, let Vercel deploy,
-  then run the schema migration steps against the hosted project. The
-  already-deployed build never depends on the new shape, so serving it
-  briefly against the old schema is safe.
-- **A migration the new build requires immediately** (a column/table/RPC
-  the new code reads or writes as soon as it runs): apply the schema
-  migration steps against the hosted project **before** merging /
-  deploying, not after. Deploying the new build first would point it at a
-  schema that does not have what it needs yet, and every request that
-  touches that path fails until the migration lands.
+- **新しい migration がない、または backward-compatible な migration**
+  （新規 nullable column、まだ何も参照していない新規 table/RPC 等）:
+  merge して Vercel に deploy させ、その後 hosted project に対して schema
+  migration の手順を実行します。既に deploy 済みの build は新しい shape に
+  依存しないため、一時的に古い schema に対して serve しても安全です。
+- **新しい build が即座に必要とする migration**（新しいコードが実行直後に
+  read/write する column/table/RPC）: schema migration の手順を merge /
+  deploy の**前**に hosted project へ適用します。先に新しい build を
+  deploy すると、まだ必要なものが揃っていない schema を参照することに
+  なり、そのパスに触れるすべての request が migration が着地するまで
+  失敗します。
 
-In both cases: merge to `main` (normal PR flow, Foundation v0.3.0 Review
-Protocol), confirm the Vercel deployment for that commit succeeds and the
-production URL serves the new build, and run the schema migration steps
-above at the point the case you're in calls for.
+いずれの場合も、`main` へ merge し（通常の PR フロー、Foundation v0.3.0
+Review Protocol）、その commit の Vercel deployment が成功して production
+URL が新しい build を serve していることを確認し、該当するケースが求める
+タイミングで上記の schema migration 手順を実行します。
 
-## Account provisioning (2 dogfood accounts)
+## Account provisioning（2 dogfood accounts）
 
-From an operator shell, with the remote service role key exported only for
-this command:
+operator shell から、remote service role key をこのコマンドの実行時だけ
+export して実行します。
 
 ```bash
 STAGE_TRACKER_REMOTE_SUPABASE_URL=https://<project-ref>.supabase.co \
@@ -155,13 +167,13 @@ STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY=<service-role-key> \
 node scripts/provision-user.mjs <email> --remote
 ```
 
-Run once for each of the two dogfood accounts. This only creates the
-account (`email_confirm: true`, no password) — sign-in is always the
-normal magic-link flow at `/sign-in` afterwards.
+2 名の dogfood account それぞれについて一度ずつ実行します。これは account
+の作成のみを行います（`email_confirm: true`、password なし）— sign-in は
+その後常に `/sign-in` での通常の magic-link flow です。
 
 ## Catalog creator grant / revoke
 
-Same remote-target pattern:
+同じ remote-target pattern です。
 
 ```bash
 STAGE_TRACKER_REMOTE_SUPABASE_URL=https://<project-ref>.supabase.co \
@@ -169,24 +181,25 @@ STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY=<service-role-key> \
 node scripts/grant-catalog-creator.mjs <email> grant --remote
 ```
 
-Pass `revoke` instead of `grant` to remove membership. Both scripts default
-to the local dev stack when `--remote` is omitted — remote is always an
-explicit opt-in, never the default target.
+membership を外す場合は `grant` の代わりに `revoke` を渡します。両方の
+script とも `--remote` を省略すると local dev stack が既定になります —
+remote は常に明示的な opt-in であり、既定の target にはなりません。
 
 ## 2-user cross-account smoke
 
-See Issue #61 "2-user remote smoke / acceptance" (items 1–12) for the
-exact checklist. Record results using `A` / `B`, never actual emails.
-Items 1–11 can be exercised before Issue #34 (My Calendar) merges; item 12
-(cross-user My Calendar smoke) is part of Gate A final acceptance, not this
-Issue's own merge-ready fence.
+正確な checklist は Issue #61 の「2-user remote smoke / acceptance」
+（項目 1–12）を参照してください。結果は `A` / `B` で記録し、実際の email
+は記載しません。項目 1–11 は Issue #34（My Calendar）が merge される前に
+実施できます。項目 12（cross-user My Calendar smoke）は Gate A final
+acceptance の一部であり、この Issue 自身の merge-ready fence には含まれ
+ません。
 
 ## Known operational limits
 
-- Supabase Free plan pauses the project after a period of low activity.
-  This is an accepted Gate A limitation, not something this runbook works
-  around with a keepalive job. If it causes real friction, re-evaluate a
-  Pro upgrade rather than adding automation to dodge the pause.
-- Postmark Developer plan allows 100 emails/month. If 2-user dogfood usage
-  exceeds that, re-evaluate the plan rather than switching SMTP providers
-  ad hoc.
+- Supabase Free plan は低 activity が続くと project を pause します。これは
+  Gate A の accepted limitation であり、この runbook は keepalive job で
+  それを回避しません。実害が出た場合は、pause を回避する automation を
+  追加するのではなく Pro upgrade を再評価してください。
+- 2-user dogfood の利用量が Resend の有効な plan の送信上限に達する場合は
+  上限を確認してください。SMTP provider を場当たり的に切り替えるのでは
+  なく plan を再評価してください。
