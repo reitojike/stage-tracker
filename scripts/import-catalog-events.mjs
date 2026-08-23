@@ -231,6 +231,7 @@ for (const entry of entries) {
       newOccurrences: entry.occurrences,
       endsAtFixes: [],
       keptOccurrences: 0,
+      collidingInstants: [],
     });
     continue;
   }
@@ -253,7 +254,25 @@ for (const entry of entries) {
     fail(`Failed to read occurrences for ${entry.sourceKey}: ${occurrenceError.message}`);
   }
 
-  const byInstant = new Map(existingOccurrences.map((row) => [Date.parse(row.starts_at), row]));
+  // (event_id, starts_at) is how this script identifies an occurrence, but
+  // nothing in the schema enforces that pair to be unique - only a
+  // non-unique index on event_id exists (20260821000000_create_event_
+  // occurrences.sql). Two rows already sharing an instant would make a
+  // plain Map silently keep whichever one PostgREST happened to return
+  // last and ignore the other. Collisions are collected instead, reported,
+  // and excluded from end-time updates: with two candidate rows there is
+  // no non-guessing answer to "which one did the seed mean?", and guessing
+  // would write to an arbitrary row.
+  const byInstant = new Map();
+  const collidingInstants = new Set();
+  for (const row of existingOccurrences) {
+    const instant = Date.parse(row.starts_at);
+    if (byInstant.has(instant)) {
+      collidingInstants.add(instant);
+      continue;
+    }
+    byInstant.set(instant, row);
+  }
 
   const newOccurrences = [];
   const endsAtFixes = [];
@@ -261,6 +280,9 @@ for (const entry of entries) {
     const match = byInstant.get(occurrence.instant);
     if (match === undefined) {
       newOccurrences.push(occurrence);
+      continue;
+    }
+    if (collidingInstants.has(occurrence.instant)) {
       continue;
     }
     // Sources publish 上演時間 only shortly before 初日, so a first import
@@ -273,7 +295,19 @@ for (const entry of entries) {
     }
     const current = match.ends_at === null ? null : Date.parse(match.ends_at);
     if (current !== Date.parse(occurrence.endsAt)) {
-      endsAtFixes.push({ id: match.id, startsAt: occurrence.startsAt, endsAt: occurrence.endsAt });
+      endsAtFixes.push({
+        id: match.id,
+        startsAt: occurrence.startsAt,
+        // Carried so the dry run can show what is being replaced, not just
+        // how many rows change. A non-null `from` means the seed is
+        // overwriting an end time the catalog already had - which includes
+        // one an owner may have corrected by hand through the UI, since an
+        // imported occurrence is editable exactly like a manual one. The
+        // seed stays authoritative for occurrences it names, so the
+        // protection here is visibility, not refusal.
+        from: match.ends_at,
+        endsAt: occurrence.endsAt,
+      });
     }
   }
 
@@ -303,10 +337,32 @@ for (const entry of entries) {
     newOccurrences,
     endsAtFixes,
     keptOccurrences: kept.length,
+    collidingInstants: [...collidingInstants]
+      .sort()
+      .map((instant) => new Date(instant).toISOString()),
   });
 }
 
 // ------------------------------------------------------------------ report
+
+// Postgres hands timestamptz back in UTC while seed values are written with
+// the +09:00 offset the product's day boundary uses. Printing an existing
+// value next to its replacement in two different zones is exactly the
+// comparison an operator has to make by eye before allowing an overwrite,
+// so both sides are rendered in Asia/Tokyo. Japan has no DST, so the fixed
+// offset below is not an approximation.
+const TOKYO_PARTS = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Tokyo',
+  dateStyle: 'short',
+  timeStyle: 'medium',
+});
+
+function formatTokyo(value) {
+  if (value === null) {
+    return '(unset)';
+  }
+  return `${TOKYO_PARTS.format(new Date(value)).replace(' ', 'T')}+09:00`;
+}
 
 const label = apply ? 'APPLY' : 'DRY RUN';
 console.log(
@@ -334,6 +390,28 @@ for (const plan of plans) {
     }
     if (plan.endsAtFixes.length > 0) {
       console.log(`          ~ ${plan.endsAtFixes.length} occurrence end times`);
+      for (const fix of plan.endsAtFixes.slice(0, 5)) {
+        console.log(
+          `              ${fix.startsAt}  ${formatTokyo(fix.from)} -> ${formatTokyo(fix.endsAt)}`,
+        );
+      }
+      if (plan.endsAtFixes.length > 5) {
+        console.log(`              ... and ${plan.endsAtFixes.length - 5} more`);
+      }
+      const overwrites = plan.endsAtFixes.filter((fix) => fix.from !== null).length;
+      if (overwrites > 0) {
+        console.log(
+          `          ! ${overwrites} of those replace an end time already in the catalog`,
+        );
+      }
+    }
+    if (plan.collidingInstants.length > 0) {
+      console.log(
+        `          ! ${plan.collidingInstants.length} start instants already have more than one occurrence; their end times are left alone`,
+      );
+      for (const instant of plan.collidingInstants) {
+        console.log(`              ${instant}`);
+      }
     }
     if (plan.keptOccurrences > 0) {
       console.log(
@@ -413,6 +491,35 @@ for (const plan of plans) {
       })),
     );
     if (error) {
+      // The event row and its occurrences go in as two separate requests,
+      // so a failure here on a *newly created* event would leave a
+      // zero-occurrence event in the shared catalog - visible to every
+      // authenticated user and violating the "an event has >= 1 occurrence"
+      // invariant that create_event_with_occurrence enforces for the UI
+      // path. Re-running would eventually repair it, but the catalog is
+      // wrong until then, so the event this run just created is removed
+      // again rather than left behind. That RPC cannot be reused here: it
+      // derives owner_id from auth.uid(), which is null for service_role.
+      //
+      // This is the one place this script deletes, and it is a compensating
+      // rollback, not a deletion path: the target is an event created
+      // seconds earlier in this same run, with no occurrences and therefore
+      // nothing that can reference it. Events that existed before this run
+      // are never deleted, whatever fails.
+      if (plan.action === 'create') {
+        const { error: rollbackError } = await admin.from('events').delete().eq('id', eventId);
+        if (rollbackError) {
+          fail(
+            `Failed to add occurrences for ${entry.sourceKey}: ${error.message}\n` +
+              `Additionally, rolling back the event row just created failed: ${rollbackError.message}\n` +
+              `A zero-occurrence event (id ${eventId}) may be visible in the catalog. Re-run this import to repair it.`,
+          );
+        }
+        fail(
+          `Failed to add occurrences for ${entry.sourceKey}: ${error.message}\n` +
+            'The event row created for it was rolled back; nothing from this entry remains.',
+        );
+      }
       fail(`Failed to add occurrences for ${entry.sourceKey}: ${error.message}`);
     }
   }

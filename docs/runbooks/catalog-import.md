@@ -153,9 +153,14 @@ script が守るもの:
 - **designated catalog creator 以外を owner にしない。** service_role で
   書き込むため RLS と RPC の creator check を迂回します。script 自身が
   `public.catalog_creators` membership を検証します。
-- **公演回 0 件の event を作らない。** UI 経路では
-  `create_event_with_occurrence` が保証する不変条件を、service_role 経路
-  でも script 側で保持します。
+- **公演回 0 件の event を作らない・残さない。** UI 経路では
+  `create_event_with_occurrence` が atomic に保証する不変条件を、
+  service_role 経路でも保持します。seed 側は事前 validation で公演回 0 件
+  を reject し、書き込み時は event row と公演回の INSERT が別 request に
+  なるため、新規作成した event の公演回 INSERT が失敗した場合はその
+  event row を rollback します。これは script が削除を行う唯一の箇所で、
+  対象は直前に自分が作成した公演回 0 件の event のみです（既存 event は
+  何が失敗しても削除しません）。
 
 ## 既知の制約
 
@@ -163,6 +168,22 @@ script が守るもの:
   誤 import の訂正手段は存在しないため、dry run が唯一の事前防御です。
 - 開演時刻が変更された場合、再実行は新しい公演回の追加になり、旧公演回
   を除去できません。
+- **seed file に載っている公演回については、seed 側の終演時刻が
+  authoritative です。** import 後に owner が UI から終演時刻を手で修正
+  しても、その後に古い seed file を再適用すると seed の値へ戻ります
+  （imported occurrence は manual occurrence と同じく owner が編集できる
+  ため）。dry run の出力に `(既存値) -> (新しい値)` と、既存値を置き換える
+  件数が表示されるので、適用前に確認してください。seed に無い公演回は
+  この対象外です（上記「削除しない」）。
+- **`--apply` を同時に 2 つ実行しないでください。** `(event_id,
+starts_at)` に DB の UNIQUE 制約が無いため、同時実行すると双方が同じ
+  日時を未登録と判断して二重に INSERT する可能性があります。通常の逐次
+  再実行では発生しません。DB 制約による恒久対処は
+  `event_occurrences` の invariant を扱う専用 Task（#46 と同種）の対象と
+  し、この Task では入れていません。
+- 同一 event 内に同じ開始時刻の公演回が既に 2 件以上ある場合、その日時
+  については終演時刻の更新を行わず、dry run / apply の出力に警告として
+  表示します（どちらの row を指しているか決定できないため推測しません）。
 - source の取得日時 / snapshot version を保持しません。
 - 貸切・新人公演・学校団体などの区別を公演回単位で持てないため `memo`
   に記録します（公演回単位の note 列は導入していません）。
