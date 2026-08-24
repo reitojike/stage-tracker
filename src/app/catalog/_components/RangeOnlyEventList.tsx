@@ -13,16 +13,19 @@ export interface RangeOnlyEventListProps {
  * Events whose Event range overlaps the displayed month but have no
  * occurrence within it (Issue #88: an event may have zero occurrences, and
  * "no occurrence this month" does not mean "not relevant this month" - see
- * product-rules.md "Catalog の日程参照要件"). Since Issue #91, MonthCalendar
- * also bands such an event by its Event range, so it is no longer the
- * *only* place these events render - but that band is not a guaranteed
- * fallback: SelectedDayList only ever surfaces actual occurrences (Issue
- * #91: badge/selected-day derive from occurrence rows only, never from the
- * range), so a 0-occurrence event has no occurrence-driven detail view to
- * fall back to the way an occurrence-bearing event does when its band
- * overflows a week's lane cap (layoutWeekBands' overflowCount). This list
- * stays as the one surface that keeps such an event from being silently
- * unreachable regardless of band lane pressure - deliberately a plain
+ * product-rules.md "Catalog の日程参照要件"). Since Issue #91, a *multi-day*
+ * 0-occurrence event still renders its own title as a band directly on the
+ * grid (Issue #91 PO decision) - unless a week's lane cap overflows it, in
+ * which case only layoutWeekBands' overflowEvents still links to it there.
+ * A *single-day* 0-occurrence event never bands at all (same PO decision):
+ * it is represented only by an untitled day-number count, with no title or
+ * link anywhere else on the grid. Either way, SelectedDayList only ever
+ * surfaces actual occurrences (badge/selected-day derive from occurrence
+ * rows only, never from the range), so a 0-occurrence event - single-day or
+ * multi-day - has no occurrence-driven detail view to fall back on. This
+ * list stays as the one surface that guarantees every 0-occurrence event's
+ * title/link is reachable somewhere on the page, regardless of band lane
+ * pressure or single-day/multi-day classification - deliberately a plain
  * list, not itself a calendar band (Event range band visual design is out
  * of scope here too).
  *

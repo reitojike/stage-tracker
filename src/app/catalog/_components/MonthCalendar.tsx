@@ -147,13 +147,19 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                   labelParts.push(bandsThisDay.map((segment) => segment.eventTitle).join('、'));
                 }
                 if (day.badgeCount > 0) {
-                  // Independent of bandsThisDay above, not "in addition to
-                  // it" (Issue #91: badgeCount counts every actual
-                  // occurrence unconditionally, including a same-day
-                  // banded event's own - it is no longer guaranteed to name
-                  // extra, distinct events beyond what bandsThisDay already
-                  // announced).
-                  labelParts.push(`公演回${String(day.badgeCount)}件`);
+                  // Never the same Events named in bandsThisDay above
+                  // (Issue #91 PO decision): bandsThisDay is multi-day
+                  // Events only, badgeCount is a single-day Event count
+                  // only. "ほか" ("besides the band(s) above") only reads
+                  // sensibly when a band was actually named first - a day
+                  // with single-day Events and no multi-day band passing
+                  // through it (bandsThisDay empty) needs a label that
+                  // stands on its own instead.
+                  labelParts.push(
+                    bandsThisDay.length > 0
+                      ? `ほか${String(day.badgeCount)}件`
+                      : `イベント${String(day.badgeCount)}件`,
+                  );
                 }
                 if (!day.holidayDataConfirmed) {
                   // Accessibility baseline (calendarDayRole.ts's header): an
