@@ -218,9 +218,15 @@ supabase db query --linked "select au.email from public.catalog_creators cc join
 `supabase projects api-keys` の生出力を terminal へ表示させず、command
 substitution で直接環境変数へ渡します。project が legacy JWT 形式の
 `service_role` key を持つ場合はそれを、新しい API key 体系
-（`sb_secret_...`）へ移行済みで legacy key が無い場合は `type` が
-`secret` の key を使います（`scripts/lib/adminTarget.mjs` の
-`createClient(url, serviceRoleKey, ...)` はどちらの形式も受け付けます）。
+（`sb_secret_...`）へ移行済みで legacy key が無い場合は、
+`secret_jwt_template.role` が `service_role` の key を使います
+（`scripts/lib/adminTarget.mjs` の `createClient(url, serviceRoleKey, ...)`
+はどちらの形式も受け付けます）。`type === "secret"` は project が secret
+key を複数持つ場合に false positive を拾い得るため、単独の判定条件には
+しません（`supabase/cli` の e2e fixture
+`apps/cli-e2e/fixtures/recorded/GET_v1_projects___PROJECT_REF___api_keys/default.response.json`
+で確認した実際の応答形状に基づく判定です。動作確認時の CLI version は
+`supabase --version` で `2.115.0` でした）。
 
 ```bash
 export STAGE_TRACKER_REMOTE_SUPABASE_URL="https://<project-ref>.supabase.co"
@@ -230,7 +236,7 @@ export STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY="$(
     const keys = JSON.parse(require("fs").readFileSync(0, "utf8"));
     const key =
       keys.find((k) => k.name === "service_role" && k.type === "legacy") ??
-      keys.find((k) => k.type === "secret");
+      keys.find((k) => k.type === "secret" && k.secret_jwt_template?.role === "service_role");
     if (!key) { console.error("service_role key not found"); process.exit(1); }
     process.stdout.write(key.api_key);
   '
