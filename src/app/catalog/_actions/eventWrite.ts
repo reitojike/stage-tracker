@@ -8,12 +8,15 @@ import {
   createEventWithInitialOccurrence,
   updateEventDetails,
   updateEventOccurrence,
+  updateEventRange,
 } from '@/infrastructure/supabase/eventCatalogWrite.ts';
 import {
   eventDetailsToFormValues,
+  eventRangeToFormValues,
   occurrenceToFormValues,
   parseEventCreate,
   parseEventDetails,
+  parseEventRange,
   parseOccurrence,
   type RawFormValues,
 } from '@/domain/eventCatalogWrite.ts';
@@ -51,7 +54,8 @@ import { readId } from './formHelpers.ts';
 // by an untrusted query string.
 
 const EVENT_FIELDS = ['title', 'venue', 'sourceUrl', 'memo'] as const;
-const OCCURRENCE_FIELDS = ['startsAt', 'endsAt'] as const;
+const EVENT_RANGE_FIELDS = ['startsOn', 'endsOn'] as const;
+const OCCURRENCE_FIELDS = ['doorsAt', 'startsAt', 'endsAt'] as const;
 
 function readFormValues(formData: FormData, keys: readonly string[]): RawFormValues {
   const values: RawFormValues = {};
@@ -77,7 +81,11 @@ export async function createEventAction(
   previous: EventWriteFormState,
   formData: FormData,
 ): Promise<EventWriteFormState> {
-  const values = readFormValues(formData, [...EVENT_FIELDS, ...OCCURRENCE_FIELDS]);
+  const values = readFormValues(formData, [
+    ...EVENT_FIELDS,
+    ...EVENT_RANGE_FIELDS,
+    ...OCCURRENCE_FIELDS,
+  ]);
   const parsed = parseEventCreate(values);
   if (!parsed.ok) {
     return rejectedWriteFormState(previous, values, parsed.fieldErrors, null);
@@ -139,6 +147,54 @@ export async function updateEventDetailsAction(
   return acceptedWriteFormState(
     previous,
     eventDetailsToFormValues(parsed.value),
+    resolveWriteNotice('update-event'),
+  );
+}
+
+/**
+ * Moves an event's Event range (Issue #87/#88). Goes through
+ * updateEventRange (reschedule_event under the hood, carrying every
+ * existing occurrence through unchanged) rather than a plain events
+ * UPDATE, so a range change that would otherwise deadlock against the
+ * containment invariant - see updateEventRange's own comment - never has
+ * to be worked around from this action.
+ */
+export async function updateEventRangeAction(
+  previous: EventWriteFormState,
+  formData: FormData,
+): Promise<EventWriteFormState> {
+  const values = readFormValues(formData, EVENT_RANGE_FIELDS);
+  const eventId = readId(formData, 'eventId');
+  if (eventId === null) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('update-event', 'failure'),
+    );
+  }
+
+  const parsed = parseEventRange(values);
+  if (!parsed.ok) {
+    return rejectedWriteFormState(previous, values, parsed.fieldErrors, null);
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await updateEventRange(client, eventId, parsed.value);
+  if (!result.ok) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('update-event', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  return acceptedWriteFormState(
+    previous,
+    eventRangeToFormValues(parsed.value),
     resolveWriteNotice('update-event'),
   );
 }
