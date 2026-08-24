@@ -707,6 +707,66 @@ void test('service_role adds new occurrences to an already-imported event', asyn
   assert.equal(data?.length, 2);
 });
 
+// Direct proof for the accepted finding this RPC's conditional events
+// UPDATE exists to close: an occurrence-only re-import (new occurrences
+// and/or end/doors-time fixes, with every descriptive field and the Event
+// range passed back unchanged) must not touch events.updated_at at all -
+// not "no other test happens to notice a bump", but events.updated_at
+// itself observed identical before and after.
+void test('service_role: an occurrence-only update (no details/range change) leaves events.updated_at unchanged', async () => {
+  const { admin, event } = await createImportedFixtureEvent('2029-10-01', '2029-10-10', [
+    { startsAt: '2029-10-05T01:00:00Z', endsAt: null, doorsAt: null },
+  ]);
+  const { data: before } = await admin
+    .from('events')
+    .select('updated_at')
+    .eq('id', event.id)
+    .single();
+  assert.ok(before);
+
+  // A real (but wrongly-triggered) updated_at bump must be observably
+  // different from `before` - without this pause, a millisecond-identical
+  // now() on both sides could accidentally mask a real regression.
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  const { data: occurrenceRows } = await admin
+    .from('event_occurrences')
+    .select('id')
+    .eq('event_id', event.id);
+  const occurrence = occurrenceRows?.[0];
+  assert.ok(occurrence);
+
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(event.id, {
+      // Every descriptive field and the Event range are passed back
+      // exactly as they already are - only occurrence-level writes below
+      // are a real change.
+      p_title: event.title,
+      p_venue: event.venue,
+      p_source_url: event.source_url,
+      p_memo: event.memo,
+      p_starts_on: '2029-10-01',
+      p_ends_on: '2029-10-10',
+      p_new_occurrences: [{ startsAt: '2029-10-08T01:00:00Z', endsAt: null, doorsAt: null }],
+      p_occurrence_fixes: [{ id: occurrence.id, doorsAt: '2029-10-05T00:30:00Z' }],
+    }),
+  );
+  assert.equal(error, null);
+
+  const { data: after } = await admin
+    .from('events')
+    .select('updated_at')
+    .eq('id', event.id)
+    .single();
+  assert.ok(after);
+  assert.equal(
+    after.updated_at,
+    before.updated_at,
+    'expected events.updated_at to be unchanged by an occurrence-only update',
+  );
+});
+
 void test('service_role applies a 0-new-occurrences update (range/details-only correction)', async () => {
   const { admin, event } = await createImportedFixtureEvent('2029-04-01', '2029-04-10', []);
   const { error } = await admin.rpc(
