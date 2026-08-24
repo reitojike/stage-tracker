@@ -10,14 +10,17 @@ import {
   updateEventOccurrence,
   updateEventRange,
 } from '@/infrastructure/supabase/eventCatalogWrite.ts';
+import { getEventRange } from '@/infrastructure/supabase/eventCatalogRead.ts';
 import {
   eventDetailsToFormValues,
   eventRangeToFormValues,
+  hasErrors,
   occurrenceToFormValues,
   parseEventCreate,
   parseEventDetails,
   parseEventRange,
   parseOccurrence,
+  validateOccurrenceWithinRange,
   type RawFormValues,
 } from '@/domain/eventCatalogWrite.ts';
 import {
@@ -220,6 +223,24 @@ export async function addOccurrenceAction(
   }
 
   const client = await createSupabaseServerClient();
+
+  // Issue #88 containment invariant, checked ahead of the DB round trip -
+  // see validateOccurrenceWithinRange's own comment for why this can't
+  // live inside parseOccurrence itself.
+  const rangeResult = await getEventRange(client, eventId);
+  if (!rangeResult.ok || rangeResult.data === null) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('add-occurrence', 'failure'),
+    );
+  }
+  const containmentErrors = validateOccurrenceWithinRange(parsed.value, rangeResult.data);
+  if (hasErrors(containmentErrors)) {
+    return rejectedWriteFormState(previous, values, containmentErrors, null);
+  }
+
   const result = await addEventOccurrence(client, eventId, parsed.value);
   if (!result.ok) {
     const { kind } = result.error;
@@ -273,6 +294,24 @@ export async function updateOccurrenceAction(
   }
 
   const client = await createSupabaseServerClient();
+
+  // Issue #88 containment invariant, checked ahead of the DB round trip -
+  // see validateOccurrenceWithinRange's own comment for why this can't
+  // live inside parseOccurrence itself.
+  const rangeResult = await getEventRange(client, eventId);
+  if (!rangeResult.ok || rangeResult.data === null) {
+    return rejectedWriteFormState(
+      previous,
+      values,
+      {},
+      resolveWriteFeedback('update-occurrence', 'failure'),
+    );
+  }
+  const containmentErrors = validateOccurrenceWithinRange(parsed.value, rangeResult.data);
+  if (hasErrors(containmentErrors)) {
+    return rejectedWriteFormState(previous, values, containmentErrors, null);
+  }
+
   // event_id is deliberately not part of this update - an occurrence is
   // never reassigned to another event. eventId above is used only to
   // navigate back and to revalidate the right paths.

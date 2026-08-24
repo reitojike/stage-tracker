@@ -14,7 +14,11 @@
 // actually enforced by RLS/grants/the create RPC.
 
 import { isRenderableHttpUrl } from './catalogFormatting.ts';
-import { parseTokyoCalendarDate, type RawPostgrestError } from './eventCatalog.ts';
+import {
+  parseTokyoCalendarDate,
+  tokyoCalendarDateFromInstant,
+  type RawPostgrestError,
+} from './eventCatalog.ts';
 
 const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -75,7 +79,7 @@ export type FieldErrors = Partial<Record<EventWriteField, string>>;
  */
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; fieldErrors: FieldErrors };
 
-function hasErrors(fieldErrors: FieldErrors): boolean {
+export function hasErrors(fieldErrors: FieldErrors): boolean {
   return Object.keys(fieldErrors).length > 0;
 }
 
@@ -327,6 +331,32 @@ export function parseEventRange(raw: RawFormValues): ParseResult<EventRangeInput
 }
 
 /**
+ * The occurrence/Event-range containment invariant (Issue #88:
+ * event_occurrences_within_event_range / events_range_contains_occurrences
+ * at the DB level), checked here ahead of that round trip so a violation
+ * is reported at the startsAt field instead of a generic "保存できません
+ * でした" banner. Deliberately not folded into parseOccurrence itself:
+ * that parser has no way to know its caller's parent event range (it is a
+ * generic per-occurrence parser, reused by contexts that do and do not
+ * have one in scope yet), so this is a separate step a caller runs once
+ * both an occurrence and a range are available - parseEventCreate below
+ * for create, and the add/update occurrence actions (which already have
+ * to read the parent event to reach this point) for existing events.
+ */
+export function validateOccurrenceWithinRange(
+  occurrence: OccurrenceInput,
+  range: EventRangeInput,
+): FieldErrors {
+  const occurrenceDate = tokyoCalendarDateFromInstant(occurrence.startsAtUtc);
+  if (occurrenceDate < range.startsOn || occurrenceDate > range.endsOn) {
+    return {
+      startsAt: `開演日時は開催期間（${range.startsOn}〜${range.endsOn}）の範囲内で入力してください。`,
+    };
+  }
+  return {};
+}
+
+/**
  * A create submission carries the event's descriptive fields, its Event
  * range, and (optionally) an initial occurrence; all are parsed so a form
  * can report every field's problem in one pass instead of surfacing the
@@ -354,6 +384,17 @@ export function parseEventCreate(raw: RawFormValues): ParseResult<EventCreateInp
         ...(occurrence === null || occurrence.ok ? {} : occurrence.fieldErrors),
       },
     };
+  }
+
+  // Every field parsed on its own, so the cross-field containment
+  // invariant can finally be judged (Issue #88) - the same check the DB
+  // performs, run here so a violation lands on the startsAt field instead
+  // of surfacing only as a generic DB-error banner after a round trip.
+  if (occurrence !== null) {
+    const containmentErrors = validateOccurrenceWithinRange(occurrence.value, range.value);
+    if (hasErrors(containmentErrors)) {
+      return { ok: false, fieldErrors: containmentErrors };
+    }
   }
 
   return {
