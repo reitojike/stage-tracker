@@ -175,6 +175,12 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
   日時です。
 - record の識別子・作成日時・owner とレコードの更新日時は system-managed と
   し、normal な authenticated client から直接書き換えられる対象にはしません。
+- 興行の延期・会期変更等、Event range と公演回の日付を両方とも新しい期間へ
+  移す正当な owner 操作を、範囲外整合性 invariant が恒久的に妨げてはなり
+  ません。immediate な DB level enforcement のみを採用すると、range・
+  公演回のどちらを先に更新しても一時的に invariant 違反になり得るため、
+  こうした操作を実現できる write boundary（deferred constraint / 単一
+  transaction での一括更新 RPC 等）を実装 Task で選定します。
 
 ### Deletion
 
