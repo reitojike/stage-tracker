@@ -82,8 +82,20 @@
   font-size: var(--font-size-body-sm);
 }
 
-.day:hover {
+/* :not(.daySelected) isn't just belt-and-suspenders: `.day:hover` (a class +
+   a pseudo-class) is MORE specific than the single-class `.daySelected`, so
+   without this scoping .daySelected's accent fill loses the cascade to this
+   hover fill whenever both match - which touch browsers make sticky after a
+   tap, and don't clear until a different cell is tapped (Issue #77). */
+.day:hover:not(.daySelected) {
   background-color: var(--color-surface-subtle);
+}
+
+/* Companion to the :not(.daySelected) scoping above: without this, the
+   selected day would be the only cell with no hover response at all on
+   pointer devices (same pairing convention as .daySelected:active below). */
+.daySelected:hover {
+  background-color: var(--color-accent-hover);
 }
 
 .dayOutside {
