@@ -55,14 +55,30 @@ worktree 内には保管しません。** 別 worktree から import を実行�
 
 ignore は 2 段構えです。
 
-- コミット済み `.gitignore` の `/data/catalog-imports/`
-- **`.git/info/exclude` にも同じ pattern を追記済みです。** これは
-  worktree 間で共有される共通 `.git` に置かれるため **branch 非依存**
-  です。**ignore rule が全 worktree に効くことと、実ファイルが
-  primary checkout にしか存在しないことは別の話**です — committed
-  `.gitignore` 側の該当行を持たない branch / 過去 commit を checkout
-  した場合でも ignore は effective であり続けますが、seed file の実体
-  はどの worktree にも複製されません。
+- コミット済み `.gitignore` の `/data/catalog-imports/`。これは通常の
+  clone で自動的に配布されます。
+- **`.git/info/exclude` は `.gitignore` と異なり Git 管理対象外で、
+  clone 間で配布されません。** 各 clone の共通 `.git` へ、operator が
+  手動で 1 回だけ追記する必要があります。この repository の現在の
+  checkout では既に次を追記済みですが、**新しい clone / 別 operator の
+  checkout では未設定です**。
+
+  ```text
+  data/catalog-imports/
+  ```
+
+  追記済みかは次で確認できます。
+
+  ```bash
+  cat "$(git rev-parse --git-common-dir)/info/exclude"
+  ```
+
+  一度追記すれば、共通 `.git` を共有するその clone 配下の**全 worktree**
+  で、branch に関わらず effective です（committed `.gitignore` 側の
+  該当行を持たない branch / 過去 commit を checkout した場合でも
+  ignore され続けます）。**これはあくまで同じ clone 内の話です。**
+  ignore rule が worktree 間で共有されることと、seed file の実体が
+  primary checkout にしか存在しないことは別の話です。
 
 **`git clean -xdf` は ignore 対象も削除します。** primary checkout で
 これを実行する前は、必ず `git clean -xdn` で dry run し、
@@ -192,10 +208,17 @@ project ref はこの repository のどこにも記録されていません
 supabase projects list -o json
 ```
 
-出力の `ref`（`id` と同値）が project ref です。**project ref は secret
-ではありません** — 本番デプロイの `NEXT_PUBLIC_SUPABASE_URL` として既に
-client bundle へ露出しており、認証は別途 CLI login と service_role key
-で行われるため、runbook や session ログに残しても構いません。
+出力の `ref`（`id` と同値）が project ref です。project ref は
+cryptographic secret ではありません（本番デプロイの
+`NEXT_PUBLIC_SUPABASE_URL` として既に client bundle へ露出しており、
+認証は別途 CLI login と service_role key で行われます）が、**この
+repository の既存 Secret boundary
+（`docs/runbooks/gate-a-remote-environment.md`「Vercel・Supabase project
+identifier を Issue / PR / commit message へ貼り付けない」）に従い、実際の
+project ref の値をこの runbook・commit message・Issue/PR コメントへは
+記録しません。** 毎 session、operator 自身の shell で `supabase projects
+list` を実行してその場で確認し、session-local な変数・shell への
+export に留めます。
 
 ```bash
 supabase link --project-ref <project-ref>
