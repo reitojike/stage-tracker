@@ -21,6 +21,25 @@
 -- only the one it actually needs to reorder around - see
 -- 20260825000400_create_reschedule_event_rpc.sql, which defers both
 -- because it may update either table first.
+--
+-- A plain read of events.starts_on/ends_on here would not be enough: two
+-- concurrent transactions (an occurrence insert/update and an Event range
+-- update on the same event) under READ COMMITTED can each validate against
+-- the other's not-yet-committed state and both commit, leaving a
+-- committed, invariant-violating result - the trigger existing does not
+-- by itself make the invariant hold under concurrency. `for share` makes
+-- this read take a row lock that conflicts with the FOR NO KEY UPDATE lock
+-- an ordinary `update events set starts_on = ..., ends_on = ...` takes on
+-- that same row (events.id is never the column being updated here, so
+-- that UPDATE never escalates to the stronger FOR UPDATE lock) - see
+-- PostgreSQL's row-lock conflict table. That serializes the two write
+-- paths on this event: whichever transaction reaches this row second
+-- blocks until the first commits or rolls back, and then reads the
+-- first's actual final state rather than a stale or half-applied one.
+-- `for share` (not `for update`) is deliberate: it still lets multiple
+-- concurrent occurrence inserts/updates on the *same* event proceed
+-- without blocking each other, since FOR SHARE locks do not conflict with
+-- each other - only a genuine range mutation is serialized against.
 create function public.check_occurrence_within_event_range() returns trigger
 language plpgsql
 set search_path = ''
@@ -32,7 +51,8 @@ declare
 begin
   select starts_on, ends_on into v_starts_on, v_ends_on
   from public.events
-  where id = new.event_id;
+  where id = new.event_id
+  for share;
 
   if v_starts_on is null then
     raise exception 'event % referenced by occurrence % does not exist', new.event_id, new.id
@@ -57,6 +77,13 @@ create constraint trigger event_occurrences_within_event_range
   for each row
   execute function public.check_occurrence_within_event_range();
 
+-- No explicit row lock needed on the read side here, unlike
+-- check_occurrence_within_event_range above: the `update events set
+-- starts_on = ..., ends_on = ...` statement that fires this trigger has
+-- already taken the FOR NO KEY UPDATE lock on `new`'s own row as an
+-- ordinary consequence of being an UPDATE, and that is exactly the lock
+-- check_occurrence_within_event_range's `for share` read conflicts with -
+-- the serialization is symmetric, established from the events side.
 create function public.check_event_range_contains_occurrences() returns trigger
 language plpgsql
 set search_path = ''

@@ -52,13 +52,26 @@ begin
       using errcode = '42501';
   end if;
 
+  -- p_starts_at absent/null means "create with no occurrence yet" (Issue
+  -- #87: 0-occurrence events are a legitimate, immediately-catalog-visible
+  -- state) - but that state must be unambiguous: every occurrence temporal
+  -- field unset, not just starts_at. A caller supplying p_ends_at/
+  -- p_doors_at without p_starts_at has no occurrence for those values to
+  -- belong to, so this is rejected rather than silently discarding them
+  -- (the shipped UI can't reach this - OccurrenceInput.startsAtUtc is
+  -- non-nullable - but the RPC itself is reachable directly by any
+  -- authenticated designated creator).
+  if p_starts_at is null and (p_ends_at is not null or p_doors_at is not null) then
+    raise exception
+      'p_ends_at/p_doors_at require p_starts_at (an occurrence needs a start time)'
+      using errcode = '22004';
+  end if;
+
   insert into public.events (owner_id, title, venue, source_url, memo, starts_on, ends_on)
   values (auth.uid(), p_title, p_venue, p_source_url, p_memo, p_starts_on, p_ends_on)
   returning * into v_event;
 
-  -- p_starts_at absent/null means "create with no occurrence yet" (Issue
-  -- #87: 0-occurrence events are a legitimate, immediately-catalog-visible
-  -- state). event_occurrences_within_event_range
+  -- event_occurrences_within_event_range
   -- (20260825000200_add_event_range_containment_triggers.sql) still checks
   -- this insert when one is supplied, so a p_starts_at outside
   -- [p_starts_on, p_ends_on] is rejected the same as any other write.

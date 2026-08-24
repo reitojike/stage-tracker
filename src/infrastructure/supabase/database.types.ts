@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       catalog_creators: {
@@ -535,13 +510,13 @@ export type Database = {
         Args: {
           p_ends_on: string
           p_event_id: string
-          p_memo: string
+          p_memo?: string
           p_new_occurrences?: Json
           p_occurrence_fixes?: Json
-          p_source_url: string
+          p_source_url?: string
           p_starts_on: string
           p_title: string
-          p_venue: string
+          p_venue?: string
         }
         Returns: {
           created_at: string
@@ -784,9 +759,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       participation_status: ["considering", "attending"],
