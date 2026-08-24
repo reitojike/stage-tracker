@@ -108,6 +108,17 @@ function badgeCountOf(html: string, date: string): number {
   return Number(count);
 }
 
+/** The rendered aria-label for one day cell's link (see MonthCalendar.tsx),
+ * which is emitted before data-date in prop order. */
+function ariaLabelOf(html: string, date: string): string {
+  const pattern = new RegExp(`aria-label="([^"]*)"[^>]*data-date="${date}"`, 'u');
+  const match = pattern.exec(html);
+  assert.ok(match, `no day cell found for ${date} in the rendered calendar`);
+  const [, label] = match;
+  assert.ok(label !== undefined);
+  return label;
+}
+
 // --- Reachability ---
 
 void test('an authenticated user reaches the Catalog route and sees the month calendar', async () => {
@@ -244,6 +255,10 @@ void test('a multi-day event bands by its Event range and never counts; a single
   // (multi-day) Event range regardless - either way its badge is 0.
   assert.equal(badgeCountOf(monthHtml, '2097-07-12'), 0);
 
+  // 07-10 has both kabuki's band and live's count, so "ほか" ("besides
+  // [kabuki, already named]") reads correctly there.
+  assert.match(ariaLabelOf(monthHtml, '2097-07-10'), /ほか1件/);
+
   // 07-12 has no occurrence for anything: the day list must be empty, never
   // a fabricated performance, even though the month band covers this day.
   const restDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-12`, {
@@ -296,6 +311,12 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
   // (the badge is just a number) - RangeOnlyEventList is what keeps it
   // reachable.
   assert.ok(monthHtml.includes(event.title));
+
+  // No band was named for this day, so its aria-label must stand on its
+  // own ("イベント1件"), not "ほか1件" ("besides" what was never named).
+  const label = ariaLabelOf(monthHtml, '2097-08-15');
+  assert.match(label, /イベント1件/);
+  assert.doesNotMatch(label, /ほか/);
 
   const dayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-08&date=2097-08-15`, {
     headers: { cookie },

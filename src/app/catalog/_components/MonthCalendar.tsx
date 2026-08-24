@@ -150,8 +150,16 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                   // Never the same Events named in bandsThisDay above
                   // (Issue #91 PO decision): bandsThisDay is multi-day
                   // Events only, badgeCount is a single-day Event count
-                  // only, so "ほか" (besides the band(s) above) is accurate.
-                  labelParts.push(`ほか${String(day.badgeCount)}件`);
+                  // only. "ほか" ("besides the band(s) above") only reads
+                  // sensibly when a band was actually named first - a day
+                  // with single-day Events and no multi-day band passing
+                  // through it (bandsThisDay empty) needs a label that
+                  // stands on its own instead.
+                  labelParts.push(
+                    bandsThisDay.length > 0
+                      ? `ほか${String(day.badgeCount)}件`
+                      : `イベント${String(day.badgeCount)}件`,
+                  );
                 }
                 if (!day.holidayDataConfirmed) {
                   // Accessibility baseline (calendarDayRole.ts's header): an
