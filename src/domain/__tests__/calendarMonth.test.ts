@@ -6,6 +6,7 @@ import {
   buildMonthGrid,
   computeBadgeCounts,
   eventRangeBandSegment,
+  isSingleDayEvent,
   isValidCalendarDate,
   isValidYearMonth,
   layoutWeekBands,
@@ -119,7 +120,19 @@ void test('buildMonthGrid: lead/trail days from adjacent months fill the first/l
   assert.equal(lastWeek.length, 7);
 });
 
-// --- eventRangeBandSegment (Issue #91: band source is the Event range) ---
+// --- isSingleDayEvent (Issue #91 PO decision: single-day/multi-day classification) ---
+
+void test('isSingleDayEvent: true when starts_on === ends_on', () => {
+  const single = event({ starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  assert.equal(isSingleDayEvent(single), true);
+});
+
+void test('isSingleDayEvent: false when starts_on < ends_on', () => {
+  const multi = event({ starts_on: '2026-08-10', ends_on: '2026-08-11' });
+  assert.equal(isSingleDayEvent(multi), false);
+});
+
+// --- eventRangeBandSegment (band source is the Event range, multi-day only) ---
 
 void test('eventRangeBandSegment: a multi-day range produces one segment spanning starts_on..ends_on, regardless of an occurrence gap inside it', () => {
   // 08-10, 08-11, [08-12: no occurrence at all], 08-13 - the range still
@@ -140,16 +153,6 @@ void test('eventRangeBandSegment: a multi-day range produces one segment spannin
   });
 });
 
-void test('eventRangeBandSegment: a single-day range (starts_on === ends_on) is its own one-day segment', () => {
-  const single = event({ id: 'single', starts_on: '2026-08-10', ends_on: '2026-08-10' });
-  assert.deepEqual(eventRangeBandSegment(single), {
-    eventId: 'single',
-    eventTitle: 'Sample event',
-    startDate: '2026-08-10',
-    endDate: '2026-08-10',
-  });
-});
-
 void test('eventRangeBandSegment: is derived from the event alone - a 0-occurrence event still produces a segment', () => {
   const rangeOnly = event({ id: 'range-only', starts_on: '2026-09-01', ends_on: '2026-09-03' });
   const segment = eventRangeBandSegment(rangeOnly);
@@ -161,55 +164,62 @@ void test('eventRangeBandSegment: is derived from the event alone - a 0-occurren
   });
 });
 
-// --- computeBadgeCounts (Issue #91: counts actual occurrences only, independent of band coverage) ---
+// --- computeBadgeCounts (Issue #91 PO decision: single-day Event count, not occurrence count) ---
 
-void test('computeBadgeCounts: every occurrence counts toward its day, with no exclusion for events that also band', () => {
-  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-11' });
+void test('computeBadgeCounts: a single-day event with 0 occurrences still counts once on its own date', () => {
+  const single = event({ id: 'single', starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  const catalog: EventWithOccurrences[] = [{ event: single, occurrences: [] }];
+  const counts = computeBadgeCounts(catalog);
+  assert.equal(counts.get('2026-08-10'), 1);
+});
+
+void test('computeBadgeCounts: a single-day event with several occurrences (matinee + evening) still counts once, not once per occurrence', () => {
+  const single = event({ id: 'single', starts_on: '2026-08-10', ends_on: '2026-08-10' });
   const catalog: EventWithOccurrences[] = [
     {
-      event: kabuki,
+      event: single,
       occurrences: [
-        occurrence({ id: 'o1', event_id: 'kabuki', starts_at: '2026-08-10T02:00:00Z' }),
-        occurrence({ id: 'o2', event_id: 'kabuki', starts_at: '2026-08-10T10:00:00Z' }),
-        occurrence({ id: 'o3', event_id: 'kabuki', starts_at: '2026-08-11T02:00:00Z' }),
+        occurrence({ id: 'o1', event_id: 'single', starts_at: '2026-08-10T02:00:00Z' }),
+        occurrence({ id: 'o2', event_id: 'single', starts_at: '2026-08-10T10:00:00Z' }),
       ],
     },
   ];
   const counts = computeBadgeCounts(catalog);
-  assert.equal(counts.get('2026-08-10'), 2);
-  assert.equal(counts.get('2026-08-11'), 1);
+  assert.equal(counts.get('2026-08-10'), 1);
 });
 
-void test('computeBadgeCounts: counts across multiple events on the same day', () => {
-  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-11' });
-  const live = event({
-    id: 'live',
-    title: 'ライブ',
-    starts_on: '2026-08-10',
-    ends_on: '2026-08-10',
-  });
-  const another = event({
-    id: 'another',
-    title: '朗読劇',
-    starts_on: '2026-08-10',
-    ends_on: '2026-08-10',
-  });
+void test('computeBadgeCounts: a multi-day event never contributes, with or without occurrences', () => {
+  const withOccurrences = event({ id: 'a', starts_on: '2026-08-10', ends_on: '2026-08-11' });
+  const withoutOccurrences = event({ id: 'b', starts_on: '2026-08-12', ends_on: '2026-08-13' });
   const catalog: EventWithOccurrences[] = [
     {
-      event: kabuki,
+      event: withOccurrences,
       occurrences: [
-        occurrence({ id: 'o1', event_id: 'kabuki', starts_at: '2026-08-10T02:00:00Z' }),
-        occurrence({ id: 'o2', event_id: 'kabuki', starts_at: '2026-08-11T02:00:00Z' }),
+        occurrence({ id: 'o1', event_id: 'a', starts_at: '2026-08-10T02:00:00Z' }),
+        occurrence({ id: 'o2', event_id: 'a', starts_at: '2026-08-11T02:00:00Z' }),
       ],
     },
+    { event: withoutOccurrences, occurrences: [] },
+  ];
+  const counts = computeBadgeCounts(catalog);
+  assert.equal(counts.size, 0);
+});
+
+void test('computeBadgeCounts: counts multiple single-day events landing on the same date', () => {
+  const a = event({ id: 'a', title: 'A', starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  const b = event({ id: 'b', title: 'B', starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  const c = event({ id: 'c', title: 'C', starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  const catalog: EventWithOccurrences[] = [
+    { event: a, occurrences: [] },
     {
-      event: live,
-      occurrences: [occurrence({ id: 'o3', event_id: 'live', starts_at: '2026-08-10T10:00:00Z' })],
+      event: b,
+      occurrences: [occurrence({ id: 'o1', event_id: 'b', starts_at: '2026-08-10T10:00:00Z' })],
     },
     {
-      event: another,
+      event: c,
       occurrences: [
-        occurrence({ id: 'o4', event_id: 'another', starts_at: '2026-08-10T11:00:00Z' }),
+        occurrence({ id: 'o2', event_id: 'c', starts_at: '2026-08-10T11:00:00Z' }),
+        occurrence({ id: 'o3', event_id: 'c', starts_at: '2026-08-10T12:00:00Z' }),
       ],
     },
   ];
@@ -217,27 +227,26 @@ void test('computeBadgeCounts: counts across multiple events on the same day', (
   assert.equal(counts.get('2026-08-10'), 3);
 });
 
-void test('computeBadgeCounts: a day with no occurrence for any event is absent (not zero-fabricated as a performance day), even when it falls inside an Event range', () => {
-  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-13' });
+void test('computeBadgeCounts: mixed same-day single-day and multi-day events - count reflects single-day events only', () => {
+  // PO minimum regression case 5.
+  const singleA = event({ id: 'single-a', starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  const singleB = event({ id: 'single-b', starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  const multi = event({ id: 'multi', starts_on: '2026-08-09', ends_on: '2026-08-11' });
   const catalog: EventWithOccurrences[] = [
+    { event: singleA, occurrences: [] },
     {
-      event: kabuki,
+      event: singleB,
       occurrences: [
-        occurrence({ id: 'o1', event_id: 'kabuki', starts_at: '2026-08-10T02:00:00Z' }),
-        occurrence({ id: 'o2', event_id: 'kabuki', starts_at: '2026-08-13T02:00:00Z' }),
+        occurrence({ id: 'o1', event_id: 'single-b', starts_at: '2026-08-10T02:00:00Z' }),
       ],
+    },
+    {
+      event: multi,
+      occurrences: [occurrence({ id: 'o2', event_id: 'multi', starts_at: '2026-08-10T10:00:00Z' })],
     },
   ];
   const counts = computeBadgeCounts(catalog);
-  assert.equal(counts.has('2026-08-11'), false);
-  assert.equal(counts.has('2026-08-12'), false);
-});
-
-void test('computeBadgeCounts: a 0-occurrence event contributes nothing to any day', () => {
-  const rangeOnly = event({ id: 'range-only', starts_on: '2026-08-10', ends_on: '2026-08-13' });
-  const catalog: EventWithOccurrences[] = [{ event: rangeOnly, occurrences: [] }];
-  const counts = computeBadgeCounts(catalog);
-  assert.equal(counts.size, 0);
+  assert.equal(counts.get('2026-08-10'), 2);
 });
 
 // --- layoutWeekBands (multiple bands / overflow) ---
@@ -423,6 +432,161 @@ void test('buildMonthCalendarViewModel: an occurrence-bearing event does not dou
   assert.ok(only);
   assert.equal(only.startDate, '2026-08-10');
   assert.equal(only.endDate, '2026-08-12');
+});
+
+// --- PO minimum regression cases (Issue #91 "restore single-day count / multi-day band presentation") ---
+
+void test('buildMonthCalendarViewModel: case 1 - a 0-occurrence single-day event has no band, counts +1 on its date, and has no selected-day occurrence', () => {
+  const single = event({
+    id: 'single',
+    title: '単発公演',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-10',
+  });
+  const catalog: EventWithOccurrences[] = [{ event: single, occurrences: [] }];
+
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const segments = model.weeks.flatMap((w) => w.bandLayout.segments);
+  assert.equal(
+    segments.some((s) => s.eventId === 'single'),
+    false,
+    'a single-day event must never band',
+  );
+  const day = model.weeks.flatMap((w) => w.days).find((d) => d.date === '2026-08-10');
+  assert.ok(day);
+  assert.equal(day.badgeCount, 1);
+
+  assert.deepEqual(selectDayOccurrences(catalog, '2026-08-10'), []);
+});
+
+void test('buildMonthCalendarViewModel: case 2 - a single-day event with one or more occurrences has no band, still counts +1 (not per-occurrence), and shows its actual occurrences in the selected-day list', () => {
+  const single = event({
+    id: 'single',
+    title: '単発公演',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-10',
+  });
+  const catalog: EventWithOccurrences[] = [
+    {
+      event: single,
+      occurrences: [
+        occurrence({ id: 'matinee', event_id: 'single', starts_at: '2026-08-10T02:00:00Z' }),
+        occurrence({ id: 'evening', event_id: 'single', starts_at: '2026-08-10T10:00:00Z' }),
+      ],
+    },
+  ];
+
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const segments = model.weeks.flatMap((w) => w.bandLayout.segments);
+  assert.equal(
+    segments.some((s) => s.eventId === 'single'),
+    false,
+  );
+  const day = model.weeks.flatMap((w) => w.days).find((d) => d.date === '2026-08-10');
+  assert.ok(day);
+  assert.equal(day.badgeCount, 1, 'two occurrences still count as one Event, not two');
+
+  const dayOccurrences = selectDayOccurrences(catalog, '2026-08-10');
+  assert.equal(dayOccurrences.length, 2);
+  assert.deepEqual(
+    dayOccurrences.map((r) => r.occurrence.id),
+    ['matinee', 'evening'],
+  );
+});
+
+void test('buildMonthCalendarViewModel: case 3 - a 0-occurrence multi-day event renders a range band and contributes +0 to any day count', () => {
+  const multi = event({
+    id: 'multi',
+    title: '長期公演',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-13',
+  });
+  const catalog: EventWithOccurrences[] = [{ event: multi, occurrences: [] }];
+
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const segments = model.weeks
+    .flatMap((w) => w.bandLayout.segments)
+    .filter((s) => s.eventId === 'multi');
+  assert.equal(segments.length, 1);
+  const [only] = segments;
+  assert.ok(only);
+  assert.equal(only.startDate, '2026-08-10');
+  assert.equal(only.endDate, '2026-08-13');
+
+  const days = model.weeks
+    .flatMap((w) => w.days)
+    .filter((d) => d.date >= '2026-08-10' && d.date <= '2026-08-13');
+  assert.ok(days.every((d) => d.badgeCount === 0));
+});
+
+void test('buildMonthCalendarViewModel: case 4 - a multi-day event with occurrences renders a range band, contributes +0 to any day count, and shows only its actual occurrences in the selected-day list', () => {
+  const multi = event({
+    id: 'multi',
+    title: '長期公演',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-13',
+  });
+  const catalog: EventWithOccurrences[] = [
+    {
+      event: multi,
+      occurrences: [
+        occurrence({ id: 'o1', event_id: 'multi', starts_at: '2026-08-10T02:00:00Z' }),
+        occurrence({ id: 'o2', event_id: 'multi', starts_at: '2026-08-13T02:00:00Z' }),
+      ],
+    },
+  ];
+
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const segments = model.weeks
+    .flatMap((w) => w.bandLayout.segments)
+    .filter((s) => s.eventId === 'multi');
+  assert.equal(segments.length, 1);
+
+  const days = model.weeks
+    .flatMap((w) => w.days)
+    .filter((d) => d.date >= '2026-08-10' && d.date <= '2026-08-13');
+  assert.ok(days.every((d) => d.badgeCount === 0));
+
+  assert.equal(selectDayOccurrences(catalog, '2026-08-10').length, 1);
+  assert.equal(selectDayOccurrences(catalog, '2026-08-11').length, 0);
+  assert.equal(selectDayOccurrences(catalog, '2026-08-13').length, 1);
+});
+
+void test('buildMonthCalendarViewModel: case 5 - a single-day and a multi-day event on the same date: the count reflects only the single-day event, the multi-day event is represented only by its band', () => {
+  const single = event({
+    id: 'single',
+    title: '単発公演',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-10',
+  });
+  const multi = event({
+    id: 'multi',
+    title: '長期公演',
+    starts_on: '2026-08-08',
+    ends_on: '2026-08-12',
+  });
+  const catalog: EventWithOccurrences[] = [
+    { event: single, occurrences: [] },
+    {
+      event: multi,
+      occurrences: [occurrence({ id: 'o1', event_id: 'multi', starts_at: '2026-08-10T02:00:00Z' })],
+    },
+  ];
+
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const day = model.weeks.flatMap((w) => w.days).find((d) => d.date === '2026-08-10');
+  assert.ok(day);
+  assert.equal(day.badgeCount, 1, 'count reflects the single-day event only');
+
+  const segments = model.weeks.flatMap((w) => w.bandLayout.segments);
+  assert.equal(
+    segments.some((s) => s.eventId === 'single'),
+    false,
+  );
+  assert.equal(
+    segments.some((s) => s.eventId === 'multi'),
+    true,
+  );
 });
 
 void test('buildMonthCalendarViewModel: an event overflowing a week where it has no occurrence is still reachable via overflowEvents, since no day in that week would surface it via selectDayOccurrences', () => {
