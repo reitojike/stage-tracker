@@ -57,7 +57,8 @@ Completed baseline を参照してください。
 ### Event と公演回の情報境界
 
 - event が持つのは、興行そのものの識別情報（title / 会場 / 参照 URL /
-  memo）、owner、および Event range（starts_on / ends_on）です。
+  memo）、owner、および必須（not null）の Event range（starts_on / ends_on）
+  です。
 - 公演回が持つのは、その回の開場日時・開演日時・終演日時です。
 - 会場は event の情報として扱います。公演回ごとに会場が変わる興行の扱いは、
   その need が出た時点で再評価します。
@@ -68,26 +69,34 @@ Completed baseline を参照してください。
   first-class data として持ちます（Issue #87）。公式に公表された「初日〜
   千秋楽 / 開催期間」という product fact を表し、公演回集合から自動導出
   しません。
+- starts_on / ends_on は必須（not null）です。event は Event range が
+  確定して初めて catalog へ登録できます。開催期間そのものが未公表の
+  event を表現する手段は、この need が出た時点で別途評価します（現時点は
+  「まだ決めていないもの」に残る未決事項です）。
 - starts_on / ends_on は `Asia/Tokyo` の calendar date で、両端 inclusive
   です。single-day event は starts_on = ends_on とします。
 - Event range 内に公演回が存在しない日があっても構いません（前節のとおり、
   これを休演日とは解釈しません）。
 - 公演回の日付は、それが属する event の Event range 内に収まっていなければ
-  ならない product invariant とします。この整合性は application-side
-  validation だけでなく DB level でも enforce します。具体的な enforcement
-  mechanism（CHECK constraint / trigger 等）は、現行 schema に適した方法を
-  実装 Task で選定します。
+  ならない product invariant とします。この invariant は公演回の開演日時
+  （starts_at）の `Asia/Tokyo` calendar date を基準とします。開場日時
+  （doors 相当）や終演日時（ends_at）が日付をまたいでも、それらは range
+  判定の対象に含めません。この整合性は application-side validation だけ
+  でなく DB level でも enforce します。具体的な enforcement mechanism
+  （CHECK constraint / trigger 等）は、現行 schema に適した方法を実装
+  Task で選定します。
 - event は 0 件の公演回を持てます（「event は少なくとも 1 件の公演回を持つ」
-  という既存 invariant を緩和します）。開催期間だけが判明していて具体的な
-  公演回がまだ発表されていない event を表すためです。
+  という既存 invariant を緩和します）。開催期間（Event range）は判明して
+  いるが具体的な公演回がまだ発表されていない event を表すためです。
 - 0 件の公演回を持つ event は catalog へ即座に可視化します。「この期間に
   この公演があるので予定を空けておきたい」という日程確保情報として、
   shared planning surface 上で positive な価値を持つと位置づけます。
-- 既存 Production event の Event range は、既存公演回の min/max から機械的
-  に backfill してよい方向とします。ただし機械的 backfill 値を常に公式
-  Event range と同一とはみなしません。現行 import では貸切等を公演回として
-  取り込まないケースがあるため、必要な event については公式情報と照合して
-  starts_on / ends_on を補正します。destructive reset は不要です。
+- catalog へ既に登録済みの（import 済みを含む）既存 event の Event range
+  は、その event が持つ既存公演回の min/max から機械的に backfill して
+  よい方向とします。ただし機械的 backfill 値を常に公式 Event range と
+  同一とはみなしません。現行 import では貸切等を公演回として取り込まない
+  ケースがあるため、必要な event については公式情報と照合して starts_on /
+  ends_on を補正します。destructive reset は不要です。
 
 ### 開場 / 開演 / 終演
 
@@ -104,6 +113,10 @@ Completed baseline を参照してください。
   引けます。
 - ある event について、その公演回を日時順に引けます。
 - 期間内であっても公演回が存在しない日は、その日の結果に現れません。
+- 指定した期間と Event range が重なる event は、公演回の有無にかかわらず
+  引けます。これは公演回ベースの上記参照要件とは独立した、Event range
+  ベースの参照要件です。0 件の公演回を持つ event の日程確保情報としての
+  可視化（前節参照）は、この参照要件によって成立します。
 
 ### 分類
 
@@ -140,7 +153,8 @@ Completed baseline を参照してください。
 ### Mutable / system-managed fields
 
 - owner が変更できるのは event の記述情報（例: title / venue / 参照 URL /
-  memo）と、その event の公演回の日時です。
+  memo）、Event range（starts_on / ends_on）と、その event の公演回の
+  日時です。
 - record の識別子・作成日時・owner とレコードの更新日時は system-managed と
   し、normal な authenticated client から直接書き換えられる対象にはしません。
 
@@ -419,6 +433,9 @@ Completed baseline を参照してください。
   filter に留めるか
 - 公演回ごとに会場が異なる興行の扱い
 - 公演回の deletion / 公演中止の表現
+- 開催期間（Event range）そのものが未公表の event を表現する手段（Issue
+  #87 では Event range を必須データとして確定したのみで、この状態は
+  scope 外のまま）
 - PWA scope
 - MCP product scope
 
