@@ -224,14 +224,22 @@ export interface WeekBandLayout {
   weekStartDate: string;
   /** Bounded to at most `maxLanes` entries - see layoutWeekBands. */
   segments: PositionedBandSegment[];
-  /** Count of additional *distinct events* active this week beyond the
-   * lane cap (deduplicated by event id, so an event whose range segment
-   * itself overflows more than one week is still one hidden event, not one
-   * per week - see layoutWeekBands). Full occurrence detail for any day in
-   * this week remains reachable via selectDayOccurrences regardless of this
-   * overflow; a 0-occurrence event that overflows here has no such
-   * occurrence-driven fallback (see RangeOnlyEventList.tsx). */
+  /** `overflowEvents.length` - see that field. */
   overflowCount: number;
+  /** The events pushed beyond the lane cap this week (deduplicated by event
+   * id, so an event whose range segment itself overflows more than one week
+   * is still one hidden event, not one per week - see layoutWeekBands).
+   *
+   * A presentation layer must not assume this week's own selectDayOccurrences
+   * can always recover these: that only holds when the event has an actual
+   * occurrence on some day within *this* week. Since Issue #91 a band covers
+   * every day in its Event range regardless of occurrence evidence, so an
+   * event whose only occurrences fall in a *different* week of the same
+   * range can overflow a week where it has none at all - no day selection
+   * within that week would ever reveal it. Exposing the events themselves
+   * (not just a count) lets the presentation layer link directly to each,
+   * rather than pointing at a day selection that would come up empty. */
+  overflowEvents: { eventId: string; eventTitle: string }[];
 }
 
 /** Bounded lane count for month-view band rendering - mobile scanability
@@ -297,7 +305,7 @@ export function layoutWeekBands(
 
   const laneEndCols: number[] = [];
   const positioned: PositionedBandSegment[] = [];
-  const overflowEventIds = new Set<string>();
+  const overflowEventTitles = new Map<string, string>();
 
   for (const segment of clipped) {
     let lane = laneEndCols.findIndex((endCol) => endCol < segment.startCol);
@@ -306,7 +314,7 @@ export function layoutWeekBands(
         lane = laneEndCols.length;
         laneEndCols.push(segment.endCol);
       } else {
-        overflowEventIds.add(segment.eventId);
+        overflowEventTitles.set(segment.eventId, segment.eventTitle);
         continue;
       }
     } else {
@@ -315,7 +323,17 @@ export function layoutWeekBands(
     positioned.push({ ...segment, lane });
   }
 
-  return { weekStartDate: weekStart, segments: positioned, overflowCount: overflowEventIds.size };
+  const overflowEvents = [...overflowEventTitles].map(([eventId, eventTitle]) => ({
+    eventId,
+    eventTitle,
+  }));
+
+  return {
+    weekStartDate: weekStart,
+    segments: positioned,
+    overflowCount: overflowEvents.length,
+    overflowEvents,
+  };
 }
 
 export interface DayCellViewModel {

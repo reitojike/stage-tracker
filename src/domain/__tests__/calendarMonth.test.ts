@@ -288,11 +288,12 @@ void test('layoutWeekBands: two overlapping bands get distinct lanes', () => {
   assert.equal(lanes.size, 2);
 });
 
-void test('layoutWeekBands: bands beyond the lane cap overflow instead of being dropped silently', () => {
+void test('layoutWeekBands: bands beyond the lane cap overflow instead of being dropped silently, and overflowEvents names which one', () => {
   const overlapping = ['a', 'b', 'c', 'd'].map((id) => seg(id, '2026-08-10', '2026-08-11'));
   const layout = layoutWeekBands(WEEK, overlapping, 3);
   assert.equal(layout.segments.length, 3);
   assert.equal(layout.overflowCount, 1);
+  assert.deepEqual(layout.overflowEvents, [{ eventId: 'd', eventTitle: 'd' }]);
 });
 
 void test('layoutWeekBands: start-ascending lane assignment fits everything a length-first sort would spuriously overflow', () => {
@@ -422,6 +423,51 @@ void test('buildMonthCalendarViewModel: an occurrence-bearing event does not dou
   assert.ok(only);
   assert.equal(only.startDate, '2026-08-10');
   assert.equal(only.endDate, '2026-08-12');
+});
+
+void test('buildMonthCalendarViewModel: an event overflowing a week where it has no occurrence is still reachable via overflowEvents, since no day in that week would surface it via selectDayOccurrences', () => {
+  // week1 of the 2026-08 grid is 2026-08-02..2026-08-08 (2026-08-01 is a
+  // Saturday). Three fillers occupy every lane that whole week.
+  const fillers = ['filler-a', 'filler-b', 'filler-c'].map((id) =>
+    event({ id, title: id, starts_on: '2026-08-02', ends_on: '2026-08-08' }),
+  );
+  // target's Event range also covers week1, but its only occurrence is in
+  // week3 (2026-08-16..2026-08-22) - week1 has no occurrence evidence for
+  // it at all, unlike the old occurrence-derived band rule where an
+  // overflowing band always had an occurrence somewhere in that same week.
+  const target = event({
+    id: 'target',
+    title: 'Target',
+    starts_on: '2026-08-02',
+    ends_on: '2026-08-20',
+  });
+  const catalog: EventWithOccurrences[] = [
+    ...fillers.map((f) => ({ event: f, occurrences: [] })),
+    {
+      event: target,
+      occurrences: [
+        occurrence({ id: 'o1', event_id: 'target', starts_at: '2026-08-18T02:00:00Z' }),
+      ],
+    },
+  ];
+
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const week1 = model.weeks.find((w) => w.days.some((d) => d.date === '2026-08-02'));
+  assert.ok(week1);
+  assert.equal(
+    week1.bandLayout.segments.some((s) => s.eventId === 'target'),
+    false,
+  );
+  assert.deepEqual(week1.bandLayout.overflowEvents, [{ eventId: 'target', eventTitle: 'Target' }]);
+
+  // Confirms the gap this closes: no day in week1 has an occurrence for
+  // target, so selectDayOccurrences alone would never surface it there.
+  for (const day of week1.days) {
+    const dayResult = selectDayOccurrences(catalog, day.date).filter(
+      (r) => r.event.id === 'target',
+    );
+    assert.equal(dayResult.length, 0);
+  }
 });
 
 void test('buildMonthCalendarViewModel: multiple concurrent bands can appear the same week', () => {
