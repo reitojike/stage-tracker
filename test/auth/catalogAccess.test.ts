@@ -191,6 +191,10 @@ void test('a long-running event renders as a band; rest days and badge double-co
   const { event: kabuki } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
     startsAt: '2097-07-10T02:00:00.000Z', // 07-10 JST
+    // Event range (Issue #88): must cover every occurrence this fixture
+    // inserts below, including the 07-12 rest day inside the run.
+    startsOn: '2097-07-10',
+    endsOn: '2097-07-13',
   });
   await insertOccurrence(owner, kabuki.id, '2097-07-11T02:00:00.000Z'); // 07-11 JST
   // 07-12 intentionally has no occurrence for this event (rest day).
@@ -204,6 +208,8 @@ void test('a long-running event renders as a band; rest days and badge double-co
   const { event: secondRun } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
     startsAt: '2097-07-20T02:00:00.000Z',
+    startsOn: '2097-07-20',
+    endsOn: '2097-07-21',
   });
   await insertOccurrence(owner, secondRun.id, '2097-07-21T02:00:00.000Z');
 
