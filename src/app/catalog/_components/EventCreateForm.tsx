@@ -67,6 +67,7 @@ export function EventCreateForm({ context }: EventCreateFormProps) {
           values={state.values}
           fieldErrors={state.fieldErrors}
           disabled={isPending}
+          endsOnOptional
         />
 
         <fieldset className={styles.group}>

@@ -92,6 +92,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
             viewModel={buildMonthCalendarViewModel(yearMonth, result.data)}
             selectedDate={selectedDate}
             todayDate={today}
+            context={{ yearMonth, selectedDate }}
           />
 
           {/* Issue #88: a 0-occurrence event (or one with no occurrence in

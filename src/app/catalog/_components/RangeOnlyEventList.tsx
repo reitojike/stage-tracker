@@ -13,14 +13,18 @@ export interface RangeOnlyEventListProps {
  * Events whose Event range overlaps the displayed month but have no
  * occurrence within it (Issue #88: an event may have zero occurrences, and
  * "no occurrence this month" does not mean "not relevant this month" - see
- * product-rules.md "Catalog の日程参照要件"). MonthCalendar/SelectedDayList
- * are both occurrence-driven (band segments, badges, per-day lists), so
- * without this, such an event would never render anywhere on the page even
- * though the read layer already returns it (listEventCatalogInRange) -
- * `result.data.length > 0` with nothing visible and no empty-state message
- * either. This is the minimum surface that keeps it from being silently
- * invisible - deliberately a plain list, not a calendar band (Event range
- * band visual design is out of scope for Issue #88).
+ * product-rules.md "Catalog の日程参照要件"). Since Issue #91, MonthCalendar
+ * also bands such an event by its Event range, so it is no longer the
+ * *only* place these events render - but that band is not a guaranteed
+ * fallback: SelectedDayList only ever surfaces actual occurrences (Issue
+ * #91: badge/selected-day derive from occurrence rows only, never from the
+ * range), so a 0-occurrence event has no occurrence-driven detail view to
+ * fall back to the way an occurrence-bearing event does when its band
+ * overflows a week's lane cap (layoutWeekBands' overflowCount). This list
+ * stays as the one surface that keeps such an event from being silently
+ * unreachable regardless of band lane pressure - deliberately a plain
+ * list, not itself a calendar band (Event range band visual design is out
+ * of scope here too).
  *
  * "公演回未発表" is deliberately avoided as a label: `occurrences` here is
  * scoped to the queried month, not to the whole event, so an event that

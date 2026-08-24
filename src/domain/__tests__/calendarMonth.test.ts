@@ -5,8 +5,7 @@ import {
   buildMonthCalendarViewModel,
   buildMonthGrid,
   computeBadgeCounts,
-  computeBandSegments,
-  isBandEvent,
+  eventRangeBandSegment,
   isValidCalendarDate,
   isValidYearMonth,
   layoutWeekBands,
@@ -120,61 +119,52 @@ void test('buildMonthGrid: lead/trail days from adjacent months fill the first/l
   assert.equal(lastWeek.length, 7);
 });
 
-// --- isBandEvent / computeBandSegments (rest-day handling) ---
+// --- eventRangeBandSegment (Issue #91: band source is the Event range) ---
 
-void test('isBandEvent: a single day with multiple occurrences (matinee + evening) is not a band', () => {
-  const occurrences = [
-    occurrence({ id: 'o1', starts_at: '2026-08-10T02:00:00Z' }),
-    occurrence({ id: 'o2', starts_at: '2026-08-10T10:00:00Z' }),
-  ];
-  assert.equal(isBandEvent(occurrences), false);
+void test('eventRangeBandSegment: a multi-day range produces one segment spanning starts_on..ends_on, regardless of an occurrence gap inside it', () => {
+  // 08-10, 08-11, [08-12: no occurrence at all], 08-13 - the range still
+  // covers the whole span; a day with no occurrence is not a reason to
+  // split the band (Issue #91 supersedes the old rest-day-splitting rule).
+  const kabuki = event({
+    id: 'kabuki',
+    title: '歌舞伎公演',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-13',
+  });
+  const segment = eventRangeBandSegment(kabuki);
+  assert.deepEqual(segment, {
+    eventId: 'kabuki',
+    eventTitle: '歌舞伎公演',
+    startDate: '2026-08-10',
+    endDate: '2026-08-13',
+  });
 });
 
-void test('isBandEvent: occurrences on 2+ distinct Tokyo days is a band', () => {
-  const occurrences = [
-    occurrence({ id: 'o1', starts_at: '2026-08-10T02:00:00Z' }),
-    occurrence({ id: 'o2', starts_at: '2026-08-11T02:00:00Z' }),
-  ];
-  assert.equal(isBandEvent(occurrences), true);
+void test('eventRangeBandSegment: a single-day range (starts_on === ends_on) is its own one-day segment', () => {
+  const single = event({ id: 'single', starts_on: '2026-08-10', ends_on: '2026-08-10' });
+  assert.deepEqual(eventRangeBandSegment(single), {
+    eventId: 'single',
+    eventTitle: 'Sample event',
+    startDate: '2026-08-10',
+    endDate: '2026-08-10',
+  });
 });
 
-void test('computeBandSegments: a run with a rest day in the middle splits into two segments', () => {
-  // 08-10, 08-11, [08-12 rest day: no occurrence], 08-13
-  const kabuki = event({ id: 'kabuki', title: '歌舞伎公演' });
-  const occurrences = [
-    occurrence({ id: 'o1', event_id: 'kabuki', starts_at: '2026-08-10T02:00:00Z' }),
-    occurrence({ id: 'o2', event_id: 'kabuki', starts_at: '2026-08-10T10:00:00Z' }),
-    occurrence({ id: 'o3', event_id: 'kabuki', starts_at: '2026-08-11T02:00:00Z' }),
-    occurrence({ id: 'o4', event_id: 'kabuki', starts_at: '2026-08-13T02:00:00Z' }),
-  ];
-
-  const segments = computeBandSegments(kabuki, occurrences);
-
-  assert.deepEqual(segments, [
-    { eventId: 'kabuki', eventTitle: '歌舞伎公演', startDate: '2026-08-10', endDate: '2026-08-11' },
-    { eventId: 'kabuki', eventTitle: '歌舞伎公演', startDate: '2026-08-13', endDate: '2026-08-13' },
-  ]);
-  // The rest day itself (08-12) must not be covered by any segment.
-  for (const segment of segments) {
-    assert.ok(!(segment.startDate <= '2026-08-12' && '2026-08-12' <= segment.endDate));
-  }
+void test('eventRangeBandSegment: is derived from the event alone - a 0-occurrence event still produces a segment', () => {
+  const rangeOnly = event({ id: 'range-only', starts_on: '2026-09-01', ends_on: '2026-09-03' });
+  const segment = eventRangeBandSegment(rangeOnly);
+  assert.deepEqual(segment, {
+    eventId: 'range-only',
+    eventTitle: 'Sample event',
+    startDate: '2026-09-01',
+    endDate: '2026-09-03',
+  });
 });
 
-void test('computeBandSegments: fully consecutive occurrences produce one segment spanning the whole run', () => {
-  const run = event({ id: 'run' });
-  const occurrences = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13'].map((date, i) =>
-    occurrence({ id: `o${String(i)}`, event_id: 'run', starts_at: `${date}T02:00:00Z` }),
-  );
-  const segments = computeBandSegments(run, occurrences);
-  assert.deepEqual(segments, [
-    { eventId: 'run', eventTitle: 'Sample event', startDate: '2026-08-10', endDate: '2026-08-13' },
-  ]);
-});
+// --- computeBadgeCounts (Issue #91: counts actual occurrences only, independent of band coverage) ---
 
-// --- computeBadgeCounts (double-counting rule) ---
-
-void test('computeBadgeCounts: a band event alone on a day contributes 0 to that day badge', () => {
-  const kabuki = event({ id: 'kabuki' });
+void test('computeBadgeCounts: every occurrence counts toward its day, with no exclusion for events that also band', () => {
+  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-11' });
   const catalog: EventWithOccurrences[] = [
     {
       event: kabuki,
@@ -186,34 +176,24 @@ void test('computeBadgeCounts: a band event alone on a day contributes 0 to that
     },
   ];
   const counts = computeBadgeCounts(catalog);
-  assert.equal(counts.get('2026-08-10') ?? 0, 0);
-  assert.equal(counts.get('2026-08-11') ?? 0, 0);
+  assert.equal(counts.get('2026-08-10'), 2);
+  assert.equal(counts.get('2026-08-11'), 1);
 });
 
-void test('computeBadgeCounts: band + one standalone occurrence the same day counts only the standalone one', () => {
-  const kabuki = event({ id: 'kabuki' });
-  const live = event({ id: 'live', title: 'ライブ' });
-  const catalog: EventWithOccurrences[] = [
-    {
-      event: kabuki,
-      occurrences: [
-        occurrence({ id: 'o1', event_id: 'kabuki', starts_at: '2026-08-10T02:00:00Z' }),
-        occurrence({ id: 'o2', event_id: 'kabuki', starts_at: '2026-08-11T02:00:00Z' }),
-      ],
-    },
-    {
-      event: live,
-      occurrences: [occurrence({ id: 'o3', event_id: 'live', starts_at: '2026-08-10T10:00:00Z' })],
-    },
-  ];
-  const counts = computeBadgeCounts(catalog);
-  assert.equal(counts.get('2026-08-10'), 1);
-});
-
-void test('computeBadgeCounts: band + two standalone occurrences the same day counts 2', () => {
-  const kabuki = event({ id: 'kabuki' });
-  const live = event({ id: 'live', title: 'ライブ' });
-  const another = event({ id: 'another', title: '朗読劇' });
+void test('computeBadgeCounts: counts across multiple events on the same day', () => {
+  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-11' });
+  const live = event({
+    id: 'live',
+    title: 'ライブ',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-10',
+  });
+  const another = event({
+    id: 'another',
+    title: '朗読劇',
+    starts_on: '2026-08-10',
+    ends_on: '2026-08-10',
+  });
   const catalog: EventWithOccurrences[] = [
     {
       event: kabuki,
@@ -234,11 +214,11 @@ void test('computeBadgeCounts: band + two standalone occurrences the same day co
     },
   ];
   const counts = computeBadgeCounts(catalog);
-  assert.equal(counts.get('2026-08-10'), 2);
+  assert.equal(counts.get('2026-08-10'), 3);
 });
 
-void test('computeBadgeCounts: a rest day with no occurrence for any event is absent (not zero-fabricated as a performance day)', () => {
-  const kabuki = event({ id: 'kabuki' });
+void test('computeBadgeCounts: a day with no occurrence for any event is absent (not zero-fabricated as a performance day), even when it falls inside an Event range', () => {
+  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-13' });
   const catalog: EventWithOccurrences[] = [
     {
       event: kabuki,
@@ -251,6 +231,13 @@ void test('computeBadgeCounts: a rest day with no occurrence for any event is ab
   const counts = computeBadgeCounts(catalog);
   assert.equal(counts.has('2026-08-11'), false);
   assert.equal(counts.has('2026-08-12'), false);
+});
+
+void test('computeBadgeCounts: a 0-occurrence event contributes nothing to any day', () => {
+  const rangeOnly = event({ id: 'range-only', starts_on: '2026-08-10', ends_on: '2026-08-13' });
+  const catalog: EventWithOccurrences[] = [{ event: rangeOnly, occurrences: [] }];
+  const counts = computeBadgeCounts(catalog);
+  assert.equal(counts.size, 0);
 });
 
 // --- layoutWeekBands (multiple bands / overflow) ---
@@ -301,11 +288,12 @@ void test('layoutWeekBands: two overlapping bands get distinct lanes', () => {
   assert.equal(lanes.size, 2);
 });
 
-void test('layoutWeekBands: bands beyond the lane cap overflow instead of being dropped silently', () => {
+void test('layoutWeekBands: bands beyond the lane cap overflow instead of being dropped silently, and overflowEvents names which one', () => {
   const overlapping = ['a', 'b', 'c', 'd'].map((id) => seg(id, '2026-08-10', '2026-08-11'));
   const layout = layoutWeekBands(WEEK, overlapping, 3);
   assert.equal(layout.segments.length, 3);
   assert.equal(layout.overflowCount, 1);
+  assert.deepEqual(layout.overflowEvents, [{ eventId: 'd', eventTitle: 'd' }]);
 });
 
 void test('layoutWeekBands: start-ascending lane assignment fits everything a length-first sort would spuriously overflow', () => {
@@ -366,8 +354,8 @@ void test('layoutWeekBands: a run spanning a week boundary is clipped per week',
 
 // --- buildMonthCalendarViewModel (integration of grid + bands + badges) ---
 
-void test('buildMonthCalendarViewModel: a rest day inside a run shows badgeCount 0 and no band segment covers it', () => {
-  const kabuki = event({ id: 'kabuki' });
+void test('buildMonthCalendarViewModel: a day inside the Event range with no occurrence shows badgeCount 0 but is still covered by the range band (Issue #91)', () => {
+  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-13' });
   const catalog: EventWithOccurrences[] = [
     {
       event: kabuki,
@@ -381,12 +369,105 @@ void test('buildMonthCalendarViewModel: a rest day inside a run shows badgeCount
   const model = buildMonthCalendarViewModel('2026-08', catalog);
   const day = model.weeks.flatMap((w) => w.days).find((d) => d.date === '2026-08-12');
   assert.ok(day);
+  // No occurrence on 08-12: badge stays 0, the badge is occurrence-only.
   assert.equal(day.badgeCount, 0);
 
+  // But the band itself is the Event range as-is (08-10..08-13), so 08-12
+  // - inside the range despite having no occurrence evidence - is still
+  // covered by the band. The band never means "there is an occurrence here".
   const coveringSegment = model.weeks
     .flatMap((w) => w.bandLayout.segments)
     .find((segment) => segment.startDate <= '2026-08-12' && '2026-08-12' <= segment.endDate);
-  assert.equal(coveringSegment, undefined, 'a rest day must not be covered by any band segment');
+  assert.ok(coveringSegment, 'the Event range band must cover every day in starts_on..ends_on');
+});
+
+void test('buildMonthCalendarViewModel: a 0-occurrence event is banded by its Event range', () => {
+  const rangeOnly = event({ id: 'range-only', starts_on: '2026-08-05', ends_on: '2026-08-07' });
+  const catalog: EventWithOccurrences[] = [{ event: rangeOnly, occurrences: [] }];
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+
+  const segments = model.weeks.flatMap((w) => w.bandLayout.segments);
+  assert.ok(
+    segments.some(
+      (s) =>
+        s.eventId === 'range-only' && s.startDate === '2026-08-05' && s.endDate === '2026-08-07',
+    ),
+  );
+  // No occurrence anywhere in the range: every day's badge stays 0.
+  const days = model.weeks
+    .flatMap((w) => w.days)
+    .filter((d) => d.date >= '2026-08-05' && d.date <= '2026-08-07');
+  assert.ok(days.every((d) => d.badgeCount === 0));
+});
+
+void test('buildMonthCalendarViewModel: an occurrence-bearing event does not double-band (range band only, no separate occurrence-derived band)', () => {
+  const multi = event({ id: 'multi', starts_on: '2026-08-10', ends_on: '2026-08-12' });
+  const catalog: EventWithOccurrences[] = [
+    {
+      event: multi,
+      occurrences: [
+        occurrence({ id: 'o1', event_id: 'multi', starts_at: '2026-08-10T02:00:00Z' }),
+        occurrence({ id: 'o2', event_id: 'multi', starts_at: '2026-08-12T02:00:00Z' }),
+      ],
+    },
+  ];
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const segmentsForEvent = model.weeks
+    .flatMap((w) => w.bandLayout.segments)
+    .filter((s) => s.eventId === 'multi');
+  // Exactly one band segment covering the whole displayed range (clipped
+  // per week by layoutWeekBands, so this may be >1 positioned segment only
+  // if the range crosses a week boundary - it does not here).
+  assert.equal(segmentsForEvent.length, 1);
+  const [only] = segmentsForEvent;
+  assert.ok(only);
+  assert.equal(only.startDate, '2026-08-10');
+  assert.equal(only.endDate, '2026-08-12');
+});
+
+void test('buildMonthCalendarViewModel: an event overflowing a week where it has no occurrence is still reachable via overflowEvents, since no day in that week would surface it via selectDayOccurrences', () => {
+  // week1 of the 2026-08 grid is 2026-08-02..2026-08-08 (2026-08-01 is a
+  // Saturday). Three fillers occupy every lane that whole week.
+  const fillers = ['filler-a', 'filler-b', 'filler-c'].map((id) =>
+    event({ id, title: id, starts_on: '2026-08-02', ends_on: '2026-08-08' }),
+  );
+  // target's Event range also covers week1, but its only occurrence is in
+  // week3 (2026-08-16..2026-08-22) - week1 has no occurrence evidence for
+  // it at all, unlike the old occurrence-derived band rule where an
+  // overflowing band always had an occurrence somewhere in that same week.
+  const target = event({
+    id: 'target',
+    title: 'Target',
+    starts_on: '2026-08-02',
+    ends_on: '2026-08-20',
+  });
+  const catalog: EventWithOccurrences[] = [
+    ...fillers.map((f) => ({ event: f, occurrences: [] })),
+    {
+      event: target,
+      occurrences: [
+        occurrence({ id: 'o1', event_id: 'target', starts_at: '2026-08-18T02:00:00Z' }),
+      ],
+    },
+  ];
+
+  const model = buildMonthCalendarViewModel('2026-08', catalog);
+  const week1 = model.weeks.find((w) => w.days.some((d) => d.date === '2026-08-02'));
+  assert.ok(week1);
+  assert.equal(
+    week1.bandLayout.segments.some((s) => s.eventId === 'target'),
+    false,
+  );
+  assert.deepEqual(week1.bandLayout.overflowEvents, [{ eventId: 'target', eventTitle: 'Target' }]);
+
+  // Confirms the gap this closes: no day in week1 has an occurrence for
+  // target, so selectDayOccurrences alone would never surface it there.
+  for (const day of week1.days) {
+    const dayResult = selectDayOccurrences(catalog, day.date).filter(
+      (r) => r.event.id === 'target',
+    );
+    assert.equal(dayResult.length, 0);
+  }
 });
 
 void test('buildMonthCalendarViewModel: multiple concurrent bands can appear the same week', () => {
@@ -458,8 +539,7 @@ void test('selectDayOccurrences: same-day multiple occurrences are listed indivi
       occurrences: [
         occurrence({ id: 'matinee', event_id: 'kabuki', starts_at: '2026-08-10T02:00:00Z' }), // 11:00 JST
         occurrence({ id: 'evening', event_id: 'kabuki', starts_at: '2026-08-10T07:00:00Z' }), // 16:00 JST
-        // A second run day makes this event a band (isBandEvent requires
-        // >= 2 distinct days), so this test also covers a band event's
+        // A second run day, so this test also covers a multi-day event's
         // occurrences still appearing individually in the day list.
         occurrence({ id: 'next-day', event_id: 'kabuki', starts_at: '2026-08-11T02:00:00Z' }),
       ],
@@ -479,12 +559,9 @@ void test('selectDayOccurrences: same-day multiple occurrences are listed indivi
     result.map((r) => r.occurrence.id),
     ['matinee', 'evening', 'live1'],
   );
-  assert.equal(result[0]?.isBandEvent, true);
-  assert.equal(result[1]?.isBandEvent, true);
-  assert.equal(result[2]?.isBandEvent, false);
 });
 
-void test('selectDayOccurrences: reaches band-event occurrences even when the month view would have omitted the band from overflow', () => {
+void test("selectDayOccurrences: reaches an event's occurrences even when the month view would have omitted its band from overflow", () => {
   const kabuki = event({ id: 'kabuki' });
   const catalog: EventWithOccurrences[] = [
     {
@@ -494,8 +571,7 @@ void test('selectDayOccurrences: reaches band-event occurrences even when the mo
       ],
     },
   ];
-  // Even a single-occurrence band-eligible check: full day detail does not
-  // depend on isBandEvent/overflow status at all.
+  // Full day detail does not depend on band/overflow status at all.
   const result = selectDayOccurrences(catalog, '2026-08-10');
   assert.equal(result.length, 1);
 });
