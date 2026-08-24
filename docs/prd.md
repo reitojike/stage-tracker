@@ -195,6 +195,13 @@ write pathで検証しますが、`event_occurrences` へのCHECK制約は未導
   My CalendarはticketのMVP statusを表示しますが、acquisition/ticketの
   新規作成・編集UIはIssue #35で別途扱います）
 - catalog classification / venue のMVP data boundary
+- Event開催期間（Event range: `starts_on`/`ends_on`、first-class data）、
+  0件の公演回を持つeventの許容、公演回の開場日時（doors相当）、および
+  Event range・`doors_at <= starts_at <= ends_at`のDB level temporal
+  invariant（Issue #87で承認済み。schema/RPC/UI実装はIssue #88で行います。
+  現在のCurrent committed scope記載の temporal model
+  ／`event_occurrences`へのCHECK制約未導入という記載は、この実装が
+  完了するまで引き続き有効です）
 
 詳細なsemanticsはいずれも
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
