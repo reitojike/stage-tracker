@@ -299,21 +299,27 @@ export async function listEventCatalogInRange(
   client: EventCatalogQueryClient,
   range: UtcInstantRange,
 ): Promise<EventCatalogReadResult<EventWithOccurrences[]>> {
-  const occurrencesResult = await fetchAllRows((from, to) =>
-    client
-      .from('event_occurrences')
-      .select('*', { count: 'exact' })
-      .gte('starts_at', range.startUtc)
-      .lt('starts_at', range.endUtcExclusive)
-      .order('starts_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(from, to),
-  );
+  // Independent queries (see doc comment above) - run concurrently rather
+  // than sequentially, since neither depends on the other's result. Each
+  // failure is still checked and returned on its own: a rejection is never
+  // folded into an empty result for the other query, and a success is
+  // never assumed just because Promise.all resolved.
+  const [occurrencesResult, rangeOverlapResult] = await Promise.all([
+    fetchAllRows((from, to) =>
+      client
+        .from('event_occurrences')
+        .select('*', { count: 'exact' })
+        .gte('starts_at', range.startUtc)
+        .lt('starts_at', range.endUtcExclusive)
+        .order('starts_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
+    fetchEventsByRangeOverlap(client, range),
+  ]);
   if (!occurrencesResult.ok) {
     return occurrencesResult;
   }
-
-  const rangeOverlapResult = await fetchEventsByRangeOverlap(client, range);
   if (!rangeOverlapResult.ok) {
     return rangeOverlapResult;
   }
@@ -344,12 +350,25 @@ export async function listEventCatalogInRange(
  * Events with an occurrence on the given Asia/Tokyo calendar day
  * ("YYYY-MM-DD"), and that day's occurrence times - a thin convenience
  * wrapper over listEventCatalogInRange using the Tokyo day boundary.
+ *
+ * Deliberately narrower than listEventCatalogInRange's own contract: that
+ * function also surfaces range-overlap-only events (Issue #88, "指定した
+ * 期間と Event range が重なる event は、公演回の有無にかかわらず引けます"),
+ * which is a period-scoped read requirement, not a day-scoped one - "ある
+ * 日を指定して、その日に公演回がある event" (product-rules.md 「Catalog の
+ * 日程参照要件」) is this function's own, independent contract, so a
+ * range-only event with no occurrence on `tokyoDate` itself is filtered
+ * back out here rather than inherited from the wrapped call.
  */
 export async function listEventCatalogOnDate(
   client: EventCatalogQueryClient,
   tokyoDate: string,
 ): Promise<EventCatalogReadResult<EventWithOccurrences[]>> {
-  return listEventCatalogInRange(client, tokyoCalendarDayRangeUtc(tokyoDate));
+  const result = await listEventCatalogInRange(client, tokyoCalendarDayRangeUtc(tokyoDate));
+  if (!result.ok) {
+    return result;
+  }
+  return { ok: true, data: result.data.filter((group) => group.occurrences.length > 0) };
 }
 
 /**
@@ -408,4 +427,30 @@ export async function getEventWithOccurrences(
     ok: true,
     data: { event: mapEventRow(eventRow), occurrences: occurrencesResult.data },
   };
+}
+
+/**
+ * An event's Event range alone, without its occurrences or descriptive
+ * fields - for write paths that need to validate a submitted occurrence
+ * against its parent's range (Issue #88's containment invariant, checked
+ * application-side ahead of the DB round trip via
+ * domain/eventCatalogWrite.ts's validateOccurrenceWithinRange) without
+ * paying for a full getEventWithOccurrences read.
+ */
+export async function getEventRange(
+  client: EventCatalogQueryClient,
+  eventId: string,
+): Promise<EventCatalogReadResult<{ startsOn: string; endsOn: string } | null>> {
+  const { data, error } = await client
+    .from('events')
+    .select('starts_on, ends_on')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (error !== null) {
+    return { ok: false, error: mapPostgrestError(error) };
+  }
+  if (data === null) {
+    return { ok: true, data: null };
+  }
+  return { ok: true, data: { startsOn: data.starts_on, endsOn: data.ends_on } };
 }
