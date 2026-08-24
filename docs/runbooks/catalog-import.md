@@ -129,6 +129,23 @@ remote へ適用する場合は `--remote` を追加し、
 `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` を shell に export します
 （`scripts/lib/adminTarget.mjs`。secret は repository へ記録しません）。
 
+`event_occurrences_event_id_starts_at_key`（Issue #79）を含む migration を
+初めて remote へ `supabase db push` する際は、Issue #73 の初回 import で
+remote に実データが既に入っている前提で扱ってください。この migration は
+既存の重複 `(event_id, starts_at)` があれば push 自体が失敗する additive
+制約です。念のため `supabase db push` の直前に、read-only で次を実行し
+0 行であることを確認してから push してください（1 行でも返る場合は
+push を行わず停止し、重複行の扱いを個別に検討します — この script 自身
+には重複を解消する手段がありません）。
+
+```sql
+select event_id, starts_at, count(*) as duplicate_rows
+from public.event_occurrences
+group by event_id, starts_at
+having count(*) > 1
+order by event_id, starts_at;
+```
+
 ### 4. 確認
 
 catalog UI で対象 event を開き、公演回が日時順に並ぶこと、participation
@@ -148,6 +165,9 @@ script が守るもの:
   で公演回を同定します。同じ seed file を二度適用しても重複しません。
   events / event_occurrences に DELETE path が存在しない以上、重複は
   恒久的に除去できないため、これは利便性ではなく必須要件です。
+  `(event_id, starts_at)` の一意性は、この script の同定ロジックに加えて
+  `event_occurrences_event_id_starts_at_key`（Issue #79）が DB level でも
+  保証しています。
 - **終演時刻を消さない。** seed file 側が `null` の場合、既存の値を
   上書きしません。値がある場合のみ更新します。
 - **owner を書き換えない。** 既存 event の owner が指定 owner と異なる
@@ -178,19 +198,27 @@ script が守るもの:
   ため）。dry run の出力に `(既存値) -> (新しい値)` と、既存値を置き換える
   件数が表示されるので、適用前に確認してください。seed に無い公演回は
   この対象外です（上記「削除しない」）。
-- **`--apply` を同時に 2 つ実行しないでください。** `(event_id,
-starts_at)` に DB の UNIQUE 制約が無いため、同時実行すると双方が同じ
-  日時を未登録と判断して二重に INSERT する可能性があります。通常の逐次
-  再実行では発生しません。恒久対処（同一 `(event_id, starts_at)` の重複を
-  許容するかの product 判断と、その DB invariant 化）は **#79** が扱います。
-  同じ table の DB invariant としては #46（`ends_at >= starts_at`）も
-  ありますが、別の invariant です。
-  - 上記の `import_event_with_occurrences` による atomicity は、**1 回の
-    event 作成が中途半端に終わらないこと**を保証するものであって、
-    **並行実行どうしの重複**を防ぐものではありません。両者は別の問題です。
-- 同一 event 内に同じ開始時刻の公演回が既に 2 件以上ある場合、その日時
-  については終演時刻の更新を行わず、dry run / apply の出力に警告として
-  表示します（どちらの row を指しているか決定できないため推測しません）。
+- **`(event_id, starts_at)` は DB level の UNIQUE 制約
+  （`event_occurrences_event_id_starts_at_key`、Issue #79）で保証されて
+  います。** 同一 event 内で同じ開始日時の公演回が 2 件以上存在する状態は
+  構造的に発生しません。したがって:
+  - 既存の公演回を instant で同定する処理（`(event_id, starts_at)` を
+    key にした lookup）が、同じ instant の 2 件から片方を選べず取りこぼす
+    という状態も起こり得ません。この lookup が万一衝突を検出した場合、
+    script は警告を出して片方を無視するのではなく **即座に失敗します**
+    （対象 target がこの migration 未適用の schema である可能性を示す
+    シグナルとして扱うため）。
+  - **`--apply` を同時に 2 つ実行することは推奨しません**が、これはもはや
+    correctness 上の禁止ではなく運用上の推奨です。同時実行で両方が同じ
+    日時を未登録と判断して INSERT しても、後勝ちの一方は DB の UNIQUE
+    制約により `23505`（unique_violation）で失敗するだけで、重複行が
+    persist されることはありません。失敗した側は再実行すれば
+    resume します。
+  - 上記の `import_event_with_occurrences` による atomicity（**1 回の
+    event 作成が中途半端に終わらないこと**）と、この UNIQUE 制約
+    （**並行実行どうしが重複行を作らないこと**）は別の保証です。
+  - 同じ table の DB invariant としては #46（`ends_at >= starts_at`）も
+    ありますが、別の invariant です。
 - source の取得日時 / snapshot version を保持しません。
 - 貸切・新人公演・学校団体などの区別を公演回単位で持てないため `memo`
   に記録します（公演回単位の note 列は導入していません）。

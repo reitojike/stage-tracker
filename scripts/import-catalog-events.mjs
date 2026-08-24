@@ -231,7 +231,6 @@ for (const entry of entries) {
       newOccurrences: entry.occurrences,
       endsAtFixes: [],
       keptOccurrences: 0,
-      collidingInstants: [],
     });
     continue;
   }
@@ -254,22 +253,23 @@ for (const entry of entries) {
     fail(`Failed to read occurrences for ${entry.sourceKey}: ${occurrenceError.message}`);
   }
 
-  // (event_id, starts_at) is how this script identifies an occurrence, but
-  // nothing in the schema enforces that pair to be unique - only a
-  // non-unique index on event_id exists (20260821000000_create_event_
-  // occurrences.sql). Two rows already sharing an instant would make a
-  // plain Map silently keep whichever one PostgREST happened to return
-  // last and ignore the other. Collisions are collected instead, reported,
-  // and excluded from end-time updates: with two candidate rows there is
-  // no non-guessing answer to "which one did the seed mean?", and guessing
-  // would write to an arbitrary row.
+  // (event_id, starts_at) is how this script identifies an occurrence, and
+  // event_occurrences_event_id_starts_at_key (Issue #79) now makes that pair
+  // a DB-level UNIQUE constraint - two existing rows sharing an instant
+  // should be structurally impossible on a database this migration has
+  // been applied to. Failing loudly here, instead of guessing which row a
+  // seed instant means (the previous behaviour: collect colliding instants,
+  // skip them, and warn), turns "this target predates the migration" into
+  // an immediate, specific error rather than a silently-skipped end-time
+  // update.
   const byInstant = new Map();
-  const collidingInstants = new Set();
   for (const row of existingOccurrences) {
     const instant = Date.parse(row.starts_at);
-    if (byInstant.has(instant)) {
-      collidingInstants.add(instant);
-      continue;
+    const previous = byInstant.get(instant);
+    if (previous !== undefined) {
+      fail(
+        `${entry.sourceKey}: found two existing event_occurrences rows at the same start instant (${row.starts_at}, ids ${previous.id} and ${row.id}). This should be impossible once event_occurrences_event_id_starts_at_key (Issue #79) is applied - is ${remote ? 'the remote target' : 'this local target'} on a schema that predates it?`,
+      );
     }
     byInstant.set(instant, row);
   }
@@ -280,9 +280,6 @@ for (const entry of entries) {
     const match = byInstant.get(occurrence.instant);
     if (match === undefined) {
       newOccurrences.push(occurrence);
-      continue;
-    }
-    if (collidingInstants.has(occurrence.instant)) {
       continue;
     }
     // Sources publish 上演時間 only shortly before 初日, so a first import
@@ -337,9 +334,6 @@ for (const entry of entries) {
     newOccurrences,
     endsAtFixes,
     keptOccurrences: kept.length,
-    collidingInstants: [...collidingInstants]
-      .sort()
-      .map((instant) => new Date(instant).toISOString()),
   });
 }
 
@@ -403,14 +397,6 @@ for (const plan of plans) {
         console.log(
           `          ! ${overwrites} of those replace an end time already in the catalog`,
         );
-      }
-    }
-    if (plan.collidingInstants.length > 0) {
-      console.log(
-        `          ! ${plan.collidingInstants.length} start instants already have more than one occurrence; their end times are left alone`,
-      );
-      for (const instant of plan.collidingInstants) {
-        console.log(`              ${instant}`);
       }
     }
     if (plan.keptOccurrences > 0) {

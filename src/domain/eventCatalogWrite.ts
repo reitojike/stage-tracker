@@ -291,8 +291,15 @@ export function occurrenceToFormValues(occurrence: OccurrenceInput): RawFormValu
  * requires a UI to distinguish. A permission denial must never be rendered
  * as a generic failure (or, worse, as success), so it is classified from
  * the database's own error code rather than by matching message text.
+ *
+ * 'duplicate-occurrence' is its own kind rather than folding into
+ * 'validation': it names a specific, submittable-again-with-a-different-
+ * value field problem (Issue #79's (event_id, starts_at) uniqueness), not
+ * a generic "check your input" failure, so a caller can point the error at
+ * the startsAt field instead of showing a banner.
  */
-export type EventCatalogWriteErrorKind = 'permission-denied' | 'validation' | 'failure';
+export type EventCatalogWriteErrorKind =
+  'permission-denied' | 'validation' | 'duplicate-occurrence' | 'failure';
 
 export interface EventCatalogWriteError {
   kind: EventCatalogWriteErrorKind;
@@ -312,9 +319,20 @@ const INSUFFICIENT_PRIVILEGE = '42501';
  * values are wrong, not that the caller lacked permission. */
 const VALIDATION_CODES = new Set(['23502', '23503', '23514', '22007', '22008', '22P02']);
 
+/** unique_violation. Within this write boundary's tables, the only unique
+ * constraint an authenticated client can ever hit is
+ * event_occurrences_event_id_starts_at_key (Issue #79):
+ * events.source_key carries its own unique index, but authenticated has no
+ * INSERT/UPDATE grant on that column at all. So this code alone identifies
+ * the violation without parsing the constraint name out of the message. */
+const UNIQUE_VIOLATION = '23505';
+
 export function classifyWriteError(error: RawPostgrestError): EventCatalogWriteError {
   if (error.code === INSUFFICIENT_PRIVILEGE) {
     return { kind: 'permission-denied', message: error.message, code: error.code };
+  }
+  if (error.code === UNIQUE_VIOLATION) {
+    return { kind: 'duplicate-occurrence', message: error.message, code: error.code };
   }
   if (VALIDATION_CODES.has(error.code)) {
     return { kind: 'validation', message: error.message, code: error.code };

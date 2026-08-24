@@ -221,3 +221,94 @@ void test('owner cannot delete an occurrence', async () => {
   const { error } = await actorA.client.from('event_occurrences').delete().eq('id', occurrence.id);
   assert.ok(error, 'expected DELETE to be unsupported for a normal authenticated client');
 });
+
+// --- Occurrence identity: (event_id, starts_at) uniqueness (Issue #79) ---
+
+void test('inserting a second occurrence at an event’s existing start instant is rejected', async () => {
+  const { event, occurrence } = await createEventWithOccurrence(actorA);
+  const { error } = await actorA.client
+    .from('event_occurrences')
+    .insert({ event_id: event.id, starts_at: occurrence.starts_at });
+  assert.ok(error, 'expected a unique-violation for a duplicate (event_id, starts_at)');
+  assert.equal(error.code, '23505');
+});
+
+void test('two different events may each have an occurrence at the same start instant', async () => {
+  const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const { occurrence: occurrenceA } = await createEventWithOccurrence(actorA, { startsAt });
+  const { event: eventA2 } = await createEventWithOccurrence(actorA);
+  const { data, error } = await actorA.client
+    .from('event_occurrences')
+    .insert({ event_id: eventA2.id, starts_at: startsAt })
+    .select()
+    .single();
+  assert.equal(error, null);
+  assert.equal(
+    new Date(data.starts_at).toISOString(),
+    new Date(occurrenceA.starts_at).toISOString(),
+  );
+});
+
+void test('one event may have occurrences at different start instants', async () => {
+  const { event } = await createEventWithOccurrence(actorA);
+  const startsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const { error } = await actorA.client
+    .from('event_occurrences')
+    .insert({ event_id: event.id, starts_at: startsAt });
+  assert.equal(error, null);
+});
+
+void test('updating an occurrence onto another occurrence’s start instant is rejected', async () => {
+  const { event, occurrence: first } = await createEventWithOccurrence(actorA);
+  const secondStartsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const { data: second, error: insertError } = await actorA.client
+    .from('event_occurrences')
+    .insert({ event_id: event.id, starts_at: secondStartsAt })
+    .select()
+    .single();
+  assert.equal(insertError, null);
+
+  const { error } = await actorA.client
+    .from('event_occurrences')
+    .update({ starts_at: first.starts_at })
+    .eq('id', second.id);
+  assert.ok(
+    error,
+    'expected a unique-violation when an update collides with another row’s instant',
+  );
+  assert.equal(error.code, '23505');
+
+  const { data: refetched, error: refetchError } = await actorA.client
+    .from('event_occurrences')
+    .select()
+    .eq('id', second.id)
+    .single();
+  assert.equal(refetchError, null);
+  assert.equal(new Date(refetched.starts_at).toISOString(), secondStartsAt);
+});
+
+void test('concurrent inserts at the same (event_id, starts_at) settle exactly one', async () => {
+  const { event } = await createEventWithOccurrence(actorA);
+  const startsAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+
+  const results = await Promise.all([
+    actorA.client.from('event_occurrences').insert({ event_id: event.id, starts_at: startsAt }),
+    actorA.client.from('event_occurrences').insert({ event_id: event.id, starts_at: startsAt }),
+  ]);
+  const succeeded = results.filter((result) => result.error === null);
+  const failed = results.filter((result) => result.error !== null);
+  assert.equal(
+    succeeded.length,
+    1,
+    'exactly one concurrent insert at the same instant may succeed',
+  );
+  assert.equal(failed.length, 1);
+  assert.equal(failed[0]?.error.code, '23505');
+
+  const { data: stored } = await actorA.client
+    .from('event_occurrences')
+    .select()
+    .eq('event_id', event.id)
+    .eq('starts_at', startsAt);
+  assert.equal(stored?.length, 1, 'only one row may persist at the contested instant');
+});
