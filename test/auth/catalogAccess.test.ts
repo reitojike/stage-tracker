@@ -187,26 +187,26 @@ void test('same-day multiple occurrences are shown losslessly, and a null end ti
   );
 });
 
-// --- Band rendering / rest day / badge double-counting / multiple bands ---
+// --- Band rendering / rest day / badge counting / multiple bands (Issue #91) ---
 
-void test('a long-running event renders as a band; rest days and badge double-counting are handled end-to-end', async () => {
+void test('a long-running event bands by its Event range; a day inside the range with no occurrence still bands, and badge counts every actual occurrence independent of band coverage', async () => {
   const owner = await fixtureActor();
 
   const { event: kabuki } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
     startsAt: '2097-07-10T02:00:00.000Z', // 07-10 JST
     // Event range (Issue #88): must cover every occurrence this fixture
-    // inserts below, including the 07-12 rest day inside the run.
+    // inserts below, including the 07-12 day with no occurrence.
     startsOn: '2097-07-10',
     endsOn: '2097-07-13',
   });
   await insertOccurrence(owner, kabuki.id, '2097-07-11T02:00:00.000Z'); // 07-11 JST
-  // 07-12 intentionally has no occurrence for this event (rest day).
+  // 07-12 intentionally has no occurrence for this event.
   await insertOccurrence(owner, kabuki.id, '2097-07-13T02:00:00.000Z'); // 07-13 JST
 
   const { event: live } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
-    startsAt: '2097-07-10T10:00:00.000Z', // standalone, same day as the run's first day
+    startsAt: '2097-07-10T10:00:00.000Z', // standalone single-day event, same day as the run's first day
   });
 
   const { event: secondRun } = await createEventWithOccurrence(owner, {
@@ -225,20 +225,24 @@ void test('a long-running event renders as a band; rest days and badge double-co
   assert.equal(monthResponse.status, 200);
   const monthHtml = await monthResponse.text();
 
-  // Both runs render as bands - multiple bands can coexist on one month page.
+  // Every event bands by its own Event range (Issue #91), multi-day and
+  // single-day alike - multiple bands can coexist on one month page.
   assert.match(monthHtml, new RegExp(`data-band-event-id="${kabuki.id}"`, 'u'));
   assert.match(monthHtml, new RegExp(`data-band-event-id="${secondRun.id}"`, 'u'));
+  assert.match(monthHtml, new RegExp(`data-band-event-id="${live.id}"`, 'u'));
 
-  // Badge counting: only the standalone occurrence counts; the band's own
-  // occurrences (including the day it shares with the standalone one) do
-  // not, per the PO decision (product-rules.md "Month calendar").
-  assert.equal(badgeCountOf(monthHtml, '2097-07-10'), 1);
-  assert.equal(badgeCountOf(monthHtml, '2097-07-11'), 0);
-  assert.equal(badgeCountOf(monthHtml, '2097-07-13'), 0);
-  // The rest day has no occurrence for anything, so its badge is also 0.
+  // Badge counting: every actual occurrence counts toward its own day, for
+  // every event, with no exclusion for events that also band (Issue #91:
+  // band coverage and badge count are independent signals).
+  assert.equal(badgeCountOf(monthHtml, '2097-07-10'), 2); // kabuki's + live's
+  assert.equal(badgeCountOf(monthHtml, '2097-07-11'), 1); // kabuki's
+  assert.equal(badgeCountOf(monthHtml, '2097-07-13'), 1); // kabuki's
+  // No occurrence for anything on 07-12, so its badge is 0 even though the
+  // day sits inside kabuki's Event range and is covered by its band.
   assert.equal(badgeCountOf(monthHtml, '2097-07-12'), 0);
 
-  // Rest day: the day list must be empty, never a fabricated performance.
+  // 07-12 has no occurrence for anything: the day list must be empty, never
+  // a fabricated performance, even though the month band covers this day.
   const restDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-12`, {
     headers: { cookie },
     redirect: 'manual',
@@ -255,8 +259,8 @@ void test('a long-running event renders as a band; rest days and badge double-co
   const innerDayHtml = await innerDayResponse.text();
   assert.ok(innerDayHtml.includes(kabuki.title));
 
-  // A day mixing a band occurrence with a standalone one shows both
-  // individually in the day list, matching the PO's own worked example.
+  // A day mixing a banded event's occurrence with a standalone one shows
+  // both individually in the day list.
   const mixedDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-10`, {
     headers: { cookie },
     redirect: 'manual',
