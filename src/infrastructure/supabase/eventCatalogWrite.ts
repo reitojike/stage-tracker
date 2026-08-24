@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types.ts';
+import { listEventOccurrences } from './eventCatalogRead.ts';
 import {
   mapEventRow,
   mapOccurrenceRow,
@@ -11,6 +12,7 @@ import {
   type EventCatalogWriteResult,
   type EventDetailsInput,
   type EventCreateInput,
+  type EventRangeInput,
   type OccurrenceInput,
 } from '../../domain/eventCatalogWrite.ts';
 
@@ -86,9 +88,11 @@ export async function isDesignatedCatalogCreator(
 
 /**
  * The only supported event-create path: one RPC call that persists the
- * event and its required initial occurrence atomically, derives owner_id
- * from the caller (so the creator becomes the owner, with no input surface
- * for spoofing), and enforces designated-creator membership server-side.
+ * event, its Event range, and an optional initial occurrence atomically,
+ * derives owner_id from the caller (so the creator becomes the owner, with
+ * no input surface for spoofing), and enforces designated-creator
+ * membership server-side. initialOccurrence may be null (Issue #87/#88: an
+ * event may have zero occurrences at create time).
  *
  * Unset optional fields are sent as `undefined` rather than `null`: the
  * function's parameters default to null, and PostgREST applies that
@@ -98,14 +102,17 @@ export async function createEventWithInitialOccurrence(
   client: EventCatalogWriteClient,
   input: EventCreateInput,
 ): Promise<EventCatalogWriteResult<EventCatalogEvent>> {
-  const { details, initialOccurrence } = input;
-  const { data, error } = await client.rpc('create_event_with_occurrence', {
+  const { details, range, initialOccurrence } = input;
+  const { data, error } = await client.rpc('create_event', {
     p_title: details.title,
-    p_starts_at: initialOccurrence.startsAtUtc,
+    p_starts_on: range.startsOn,
+    p_ends_on: range.endsOn,
     p_venue: details.venue ?? undefined,
-    p_ends_at: initialOccurrence.endsAtUtc ?? undefined,
     p_source_url: details.sourceUrl ?? undefined,
     p_memo: details.memo ?? undefined,
+    p_starts_at: initialOccurrence?.startsAtUtc ?? undefined,
+    p_ends_at: initialOccurrence?.endsAtUtc ?? undefined,
+    p_doors_at: initialOccurrence?.doorsAtUtc ?? undefined,
   });
   if (error !== null) {
     return { ok: false, error: classifyWriteError(error) };
@@ -158,6 +165,7 @@ export async function addEventOccurrence(
     .from('event_occurrences')
     .insert({
       event_id: eventId,
+      doors_at: occurrence.doorsAtUtc,
       starts_at: occurrence.startsAtUtc,
       ends_at: occurrence.endsAtUtc,
     })
@@ -181,7 +189,11 @@ export async function updateEventOccurrence(
 ): Promise<EventCatalogWriteResult<EventOccurrence>> {
   const { data, error } = await client
     .from('event_occurrences')
-    .update({ starts_at: occurrence.startsAtUtc, ends_at: occurrence.endsAtUtc })
+    .update({
+      doors_at: occurrence.doorsAtUtc,
+      starts_at: occurrence.startsAtUtc,
+      ends_at: occurrence.endsAtUtc,
+    })
     .eq('id', occurrenceId)
     .select()
     .maybeSingle();
@@ -192,4 +204,101 @@ export async function updateEventOccurrence(
     return deniedUpdate('occurrence');
   }
   return { ok: true, data: mapOccurrenceRow(data) };
+}
+
+/**
+ * Moves an event's Event range, atomically with its existing occurrences
+ * (Issue #87/#88's reschedule boundary - product-rules.md "Mutable /
+ * system-managed fields"). Every occurrence currently under the event is
+ * carried in the payload unchanged (identified by its immutable id, not by
+ * starts_at) unless the caller is deliberately moving one - this is what
+ * lets a plain "edit the Event range" submission and a full reschedule (the
+ * range and its occurrences moving together) share the same write path:
+ * widening or narrowing a range that still contains every occurrence's
+ * unchanged time succeeds the same way a genuine reschedule does, just with
+ * nothing in the occurrence payload actually different from what was
+ * already persisted.
+ *
+ * A narrower range that would exclude an occurrence neither this call nor
+ * a prior one has moved out of the way is rejected by
+ * events_range_contains_occurrences at commit, same as any other
+ * containment violation - reschedule_event does not bypass the invariant,
+ * it only defers *when* it is checked within this one call.
+ */
+export async function rescheduleEvent(
+  client: EventCatalogWriteClient,
+  eventId: string,
+  range: EventRangeInput,
+  occurrences: readonly { id: string; occurrence: OccurrenceInput }[],
+): Promise<EventCatalogWriteResult<EventOccurrence[]>> {
+  const { data, error } = await client.rpc('reschedule_event', {
+    p_event_id: eventId,
+    p_starts_on: range.startsOn,
+    p_ends_on: range.endsOn,
+    p_occurrences: occurrences.map(({ id, occurrence }) => ({
+      id,
+      doorsAt: occurrence.doorsAtUtc,
+      startsAt: occurrence.startsAtUtc,
+      endsAt: occurrence.endsAtUtc,
+    })),
+  });
+  if (error !== null) {
+    return { ok: false, error: classifyWriteError(error) };
+  }
+  return { ok: true, data: data.map(mapOccurrenceRow) };
+}
+
+/**
+ * The MVP Event range edit action: moves only the range, carrying every
+ * existing occurrence through rescheduleEvent unchanged (see that
+ * function's comment for why passing them unchanged still goes through the
+ * same atomic path rather than a plain events UPDATE). Fetches the current
+ * occurrence set itself rather than trusting a client-submitted list, so a
+ * stale or tampered form submission cannot silently drop an occurrence from
+ * the reschedule payload.
+ *
+ * A genuine reschedule - the range and one or more occurrence times moving
+ * together - is not a distinct screen: an owner widens the range here first
+ * if needed, moves the affected occurrences through the existing per-
+ * occurrence edit form (safe once they are inside the wider range), then
+ * narrows the range back down here. Each of those three steps is
+ * independently valid under the containment invariant, so no dedicated
+ * combined-edit UI is needed for it.
+ */
+export async function updateEventRange(
+  client: EventCatalogWriteClient,
+  eventId: string,
+  range: EventRangeInput,
+): Promise<EventCatalogWriteResult<EventCatalogEvent>> {
+  const occurrencesResult = await listEventOccurrences(client, eventId);
+  if (!occurrencesResult.ok) {
+    return { ok: false, error: classifyWriteError(occurrencesResult.error) };
+  }
+
+  const payload = occurrencesResult.data.map((occurrence) => ({
+    id: occurrence.id,
+    occurrence: {
+      doorsAtUtc: occurrence.doorsAt,
+      startsAtUtc: occurrence.startsAt,
+      endsAtUtc: occurrence.endsAt,
+    },
+  }));
+
+  const rescheduleResult = await rescheduleEvent(client, eventId, range, payload);
+  if (!rescheduleResult.ok) {
+    return rescheduleResult;
+  }
+
+  const { data: eventRow, error } = await client
+    .from('events')
+    .select()
+    .eq('id', eventId)
+    .maybeSingle();
+  if (error !== null) {
+    return { ok: false, error: classifyWriteError(error) };
+  }
+  if (eventRow === null) {
+    return deniedUpdate('event');
+  }
+  return { ok: true, data: mapEventRow(eventRow) };
 }
