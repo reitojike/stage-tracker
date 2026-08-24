@@ -6,6 +6,7 @@ import {
   classifyWriteError,
   parseEventCreate,
   parseEventDetails,
+  parseEventRange,
   parseOccurrence,
   tokyoDateTimeLocalFromInstant,
   tokyoDateTimeLocalToInstant,
@@ -185,7 +186,71 @@ void test('parseOccurrence rejects a present but malformed end time', () => {
   assert.ok(result.fieldErrors.endsAt);
 });
 
+// --- Event range: endsOn (Issue #91: optional on create, still required on edit) ---
+
+void test('parseEventRange requires endsOn by default - the Event range edit path is unaffected by #91', () => {
+  const result = parseEventRange({ startsOn: '2026-08-01', endsOn: '' });
+  assert.equal(result.ok, false);
+  assert.ok(!result.ok);
+  assert.ok(result.fieldErrors.endsOn);
+});
+
+void test('parseEventRange normalizes a blank endsOn to startsOn when allowBlankEndsOn is set', () => {
+  const result = parseEventRange(
+    { startsOn: '2026-08-01', endsOn: '' },
+    { allowBlankEndsOn: true },
+  );
+  assert.ok(result.ok);
+  assert.deepEqual(result.value, { startsOn: '2026-08-01', endsOn: '2026-08-01' });
+});
+
+void test('parseEventRange still enforces startsOn <= endsOn for an explicit endsOn even when allowBlankEndsOn is set', () => {
+  const result = parseEventRange(
+    { startsOn: '2026-08-10', endsOn: '2026-08-01' },
+    { allowBlankEndsOn: true },
+  );
+  assert.equal(result.ok, false);
+  assert.ok(!result.ok);
+  assert.ok(result.fieldErrors.endsOn);
+});
+
+void test('parseEventRange rejects a malformed explicit endsOn even when allowBlankEndsOn is set', () => {
+  const result = parseEventRange(
+    { startsOn: '2026-08-10', endsOn: 'not-a-date' },
+    { allowBlankEndsOn: true },
+  );
+  assert.equal(result.ok, false);
+  assert.ok(!result.ok);
+  assert.ok(result.fieldErrors.endsOn);
+});
+
 // --- Combined create submission ---
+
+// Issue #91: create's endsOn is optional - a blank value normalizes to
+// startsOn (the canonical single-day representation), matching what
+// parseEventRange does with allowBlankEndsOn.
+void test('parseEventCreate normalizes a blank endsOn to startsOn', () => {
+  const result = parseEventCreate({
+    title: 'ある公演',
+    startsOn: '2026-08-01',
+    endsOn: '',
+  });
+  assert.ok(result.ok);
+  assert.deepEqual(result.value.range, { startsOn: '2026-08-01', endsOn: '2026-08-01' });
+});
+
+// An explicit multi-day endsOn on create must not regress (Issue #91 "In
+// scope"/"Out of scope": the simplification only widens what create
+// accepts, it never changes how an explicit value is handled).
+void test('parseEventCreate keeps an explicit multi-day endsOn as submitted', () => {
+  const result = parseEventCreate({
+    title: 'ある公演',
+    startsOn: '2026-08-01',
+    endsOn: '2026-08-05',
+  });
+  assert.ok(result.ok);
+  assert.deepEqual(result.value.range, { startsOn: '2026-08-01', endsOn: '2026-08-05' });
+});
 
 void test('parseEventCreate returns all three parts of a valid submission with an initial occurrence', () => {
   const result = parseEventCreate({

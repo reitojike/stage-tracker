@@ -1,31 +1,48 @@
 // Pure month-calendar presentation derivation for the Event Catalog vertical
-// slice (Issue #20). Everything in this module is derived, read-only
+// slice (Issue #20, revised by #91, corrected by #91's PO decision comment
+// "restore single-day count / multi-day band presentation" after Production
+// revalidation). Everything in this module is derived, read-only
 // presentation computed from an already-fetched EventWithOccurrences[] (see
 // eventCatalog.ts / Issue #12) - it never queries Supabase, never persists
 // anything, and never introduces a run-period/category/priority source of
-// truth beyond what is deterministically computable from the occurrence set
+// truth beyond what is deterministically computable from the fetched data
 // itself.
 //
-// PO decision this module encodes (Issue #20 Task Contract - "PO-approved
-// calendar / presentation decision", C+B hybrid - this is a checkpoint
-// recorded on the Issue, not a section of .ai-dev-foundation/product-rules.md):
-// - an event is a month-view "band" iff its (fetched) occurrences fall on
-//   >= 2 distinct Asia/Tokyo calendar days - see isBandEvent.
-// - a band is never drawn across a day it has no occurrence evidence for -
-//   see computeBandSegments, which breaks at any gap in the date set.
-// - a day's badge number counts only *non-band* occurrences on that day -
-//   see computeBadgeCounts. A band's own occurrences are already visible as
-//   the band itself, so counting them again would double the same
-//   information.
+// Canonical presentation rule this module encodes (Issue #91 PO decision,
+// superseding both Issue #20's occurrence-derived band rule and #91's own
+// initial "every event bands uniformly" rule, which regressed Issue #20's
+// single-day/multi-day distinction):
+// - a single-day Event (`starts_on === ends_on`, see isSingleDayEvent) never
+//   renders a band. It is represented only by the day-number count on its
+//   own date - see computeBadgeCounts.
+// - a multi-day Event (`starts_on < ends_on`) renders as an Event-range band
+//   only, and never contributes to the day-number count - see
+//   eventRangeBandSegment/buildMonthCalendarViewModel. The band spans
+//   `starts_on`..`ends_on` inclusive, as-is, regardless of how many
+//   occurrences (if any) exist and never split around a day with no
+//   occurrence evidence: the Event range does not claim "an occurrence
+//   happens every day in this span" (product-rules.md "Event 開催期間
+//   （Event range）": 0 occurrences on some days inside the range is a
+//   valid state, not a rest day to render around).
+// - the day-number count is therefore a *single-day Event count*, not an
+//   occurrence count: a 0-occurrence single-day Event still counts once
+//   (otherwise it would be invisible on the month grid, reproducing Issue
+//   #88's original bug), and a single-day Event with several occurrences
+//   (e.g. matinee + evening) still counts once, since this represents
+//   Events, not performances. Because single-day Events never band and
+//   multi-day Events never count, a day's band titles and its count are
+//   always about disjoint Events - never the same Event's information
+//   twice.
+// - the selected-day occurrence list is derived only from actual occurrence
+//   rows, independent of band/count coverage - see selectDayOccurrences.
+//   Nothing here fabricates an occurrence from the range.
 //
-// Band/badge classification is derived only from whatever occurrence range
-// the caller fetched for the current view (src/app/catalog/page.tsx fetches
-// the whole displayed grid, including lead/trail days). A run that extends
-// mostly outside that range can therefore classify differently on an
-// adjacent month's page - the same bounded-per-view tradeoff any calendar
-// UI has when it does not fetch every month an event ever touches. Full,
-// range-independent detail for a single event remains available via the
-// event detail page (getEventWithOccurrences).
+// Band/count coverage is derived only from whatever event set the caller
+// fetched for the current view (src/app/catalog/page.tsx fetches every
+// event whose Event range overlaps the displayed grid, including lead/trail
+// days - see listEventCatalogInRange). Full, range-independent detail for a
+// single event remains available via the event detail page
+// (getEventWithOccurrences).
 
 import {
   calendarDayRole,
@@ -163,22 +180,6 @@ export function buildMonthGrid(yearMonth: string): MonthGrid {
   return { yearMonth, gridFirstDate, gridLastDate, weeks };
 }
 
-/**
- * An event is rendered as a month-view band iff its occurrences (within
- * whatever range was fetched) fall on 2 or more distinct Asia/Tokyo
- * calendar days. A single calendar day with several occurrences (e.g. a
- * matinee + evening show) is not by itself a "run": it stays a normal
- * (non-band) entry, so its occurrences still count toward that day's
- * badge. This is a deterministic rule over existing occurrence data only -
- * no persistent category/priority is introduced.
- */
-export function isBandEvent(occurrences: readonly EventOccurrence[]): boolean {
-  const distinctDays = new Set(
-    occurrences.map((occ) => tokyoCalendarDateFromInstant(occ.startsAt)),
-  );
-  return distinctDays.size >= 2;
-}
-
 export interface BandSegment {
   eventId: string;
   eventTitle: string;
@@ -187,74 +188,58 @@ export interface BandSegment {
 }
 
 /**
- * Splits one (band) event's occurrence dates into maximal runs of
- * *consecutive* calendar days. A day with no occurrence for this event
- * breaks the run into a separate segment - a band is never drawn across a
- * rest day it has no occurrence evidence for.
+ * True iff `event`'s Event range is exactly one calendar day
+ * (`starts_on === ends_on`). This is the canonical single-day/multi-day
+ * classification for month-view presentation (Issue #91 PO decision): a
+ * single-day Event never bands (see buildMonthCalendarViewModel) and is
+ * represented only by the day-number count (see computeBadgeCounts); a
+ * multi-day Event is the reverse. The DB invariant `starts_on <= ends_on`
+ * (Issue #88) means this is equivalent to `!(starts_on < ends_on)`, so no
+ * separate "is multi-day" predicate is needed.
  */
-export function computeBandSegments(
-  event: EventCatalogEvent,
-  occurrences: readonly EventOccurrence[],
-): BandSegment[] {
-  const dates = [
-    ...new Set(occurrences.map((occ) => tokyoCalendarDateFromInstant(occ.startsAt))),
-  ].sort(compareDates);
-
-  const segments: BandSegment[] = [];
-  let segmentStart: string | undefined;
-  let segmentEnd: string | undefined;
-  for (const date of dates) {
-    if (segmentStart === undefined || segmentEnd === undefined) {
-      segmentStart = date;
-      segmentEnd = date;
-      continue;
-    }
-    if (addDaysToDate(segmentEnd, 1) === date) {
-      segmentEnd = date;
-    } else {
-      segments.push({
-        eventId: event.id,
-        eventTitle: event.title,
-        startDate: segmentStart,
-        endDate: segmentEnd,
-      });
-      segmentStart = date;
-      segmentEnd = date;
-    }
-  }
-  if (segmentStart !== undefined && segmentEnd !== undefined) {
-    segments.push({
-      eventId: event.id,
-      eventTitle: event.title,
-      startDate: segmentStart,
-      endDate: segmentEnd,
-    });
-  }
-  return segments;
+export function isSingleDayEvent(event: EventCatalogEvent): boolean {
+  return event.startsOn === event.endsOn;
 }
 
 /**
- * Per-day badge count: only occurrences belonging to *non-band* events
- * (isBandEvent === false) count. A band's own occurrences are already
- * visible as the band itself; counting them again here would double the
- * same information on the same day (Issue #20 PO decision: 日付badgeの
- * 数字はband対象公演をカウントしない). This holds regardless of whether
- * the band actually got a lane that week or overflowed (layoutWeekBands) -
- * making the badge depend on an unrelated event's lane pressure that week
- * would be more surprising than a day whose only performance is a band
- * one, which selectDayOccurrences always still surfaces on demand.
+ * One band segment for `event`, spanning its Event range (`starts_on` -
+ * `ends_on`, both inclusive) as-is. Only meaningful for a multi-day event -
+ * callers must not call this for a single-day one (isSingleDayEvent), which
+ * never bands (Issue #91 PO decision). Regardless of how many occurrences
+ * (if any) the event has, and regardless of any gap in its occurrence
+ * dates, the segment spans the whole range: the Event range is the
+ * officially published run period, a first-class fact independent of
+ * occurrence rows (product-rules.md "Event 開催期間（Event range）"), so it
+ * is never split around a day the caller's occurrence data happens not to
+ * cover.
+ */
+export function eventRangeBandSegment(event: EventCatalogEvent): BandSegment {
+  return {
+    eventId: event.id,
+    eventTitle: event.title,
+    startDate: event.startsOn,
+    endDate: event.endsOn,
+  };
+}
+
+/**
+ * Per-day count of *single-day* Events whose Event range is exactly that
+ * day (Issue #91 PO decision - see isSingleDayEvent). This counts Events,
+ * not occurrences or performances: a 0-occurrence single-day Event still
+ * counts once (otherwise it would be invisible on the month grid,
+ * reproducing Issue #88's original bug), and a single-day Event with
+ * several occurrences (e.g. matinee + evening) still counts once. A
+ * multi-day Event never contributes here regardless of its occurrences -
+ * it is represented by its band instead (buildMonthCalendarViewModel), so a
+ * day's band titles and its count are always about disjoint Events.
  */
 export function computeBadgeCounts(
   eventsWithOccurrences: readonly EventWithOccurrences[],
 ): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const { occurrences } of eventsWithOccurrences) {
-    if (isBandEvent(occurrences)) {
-      continue;
-    }
-    for (const occurrence of occurrences) {
-      const date = tokyoCalendarDateFromInstant(occurrence.startsAt);
-      counts.set(date, (counts.get(date) ?? 0) + 1);
+  for (const { event } of eventsWithOccurrences) {
+    if (isSingleDayEvent(event)) {
+      counts.set(event.startsOn, (counts.get(event.startsOn) ?? 0) + 1);
     }
   }
   return counts;
@@ -271,12 +256,22 @@ export interface WeekBandLayout {
   weekStartDate: string;
   /** Bounded to at most `maxLanes` entries - see layoutWeekBands. */
   segments: PositionedBandSegment[];
-  /** Count of additional *distinct events* active this week beyond the
-   * lane cap (never double-counted when one event's run is itself split
-   * into multiple segments by a rest day - see layoutWeekBands). Full
-   * detail for any day in this week remains reachable via
-   * selectDayOccurrences regardless of this overflow. */
+  /** `overflowEvents.length` - see that field. */
   overflowCount: number;
+  /** The events pushed beyond the lane cap this week (deduplicated by event
+   * id, so an event whose range segment itself overflows more than one week
+   * is still one hidden event, not one per week - see layoutWeekBands).
+   *
+   * A presentation layer must not assume this week's own selectDayOccurrences
+   * can always recover these: that only holds when the event has an actual
+   * occurrence on some day within *this* week. Since Issue #91 a band covers
+   * every day in its Event range regardless of occurrence evidence, so an
+   * event whose only occurrences fall in a *different* week of the same
+   * range can overflow a week where it has none at all - no day selection
+   * within that week would ever reveal it. Exposing the events themselves
+   * (not just a count) lets the presentation layer link directly to each,
+   * rather than pointing at a day selection that would come up empty. */
+  overflowEvents: { eventId: string; eventTitle: string }[];
 }
 
 /** Bounded lane count for month-view band rendering - mobile scanability
@@ -342,7 +337,7 @@ export function layoutWeekBands(
 
   const laneEndCols: number[] = [];
   const positioned: PositionedBandSegment[] = [];
-  const overflowEventIds = new Set<string>();
+  const overflowEventTitles = new Map<string, string>();
 
   for (const segment of clipped) {
     let lane = laneEndCols.findIndex((endCol) => endCol < segment.startCol);
@@ -351,7 +346,7 @@ export function layoutWeekBands(
         lane = laneEndCols.length;
         laneEndCols.push(segment.endCol);
       } else {
-        overflowEventIds.add(segment.eventId);
+        overflowEventTitles.set(segment.eventId, segment.eventTitle);
         continue;
       }
     } else {
@@ -360,7 +355,17 @@ export function layoutWeekBands(
     positioned.push({ ...segment, lane });
   }
 
-  return { weekStartDate: weekStart, segments: positioned, overflowCount: overflowEventIds.size };
+  const overflowEvents = [...overflowEventTitles].map(([eventId, eventTitle]) => ({
+    eventId,
+    eventTitle,
+  }));
+
+  return {
+    weekStartDate: weekStart,
+    segments: positioned,
+    overflowCount: overflowEvents.length,
+    overflowEvents,
+  };
 }
 
 export interface DayCellViewModel {
@@ -408,9 +413,12 @@ export function buildMonthCalendarViewModel(
 ): MonthCalendarViewModel {
   const grid = buildMonthGrid(yearMonth);
   const badgeCounts = computeBadgeCounts(eventsWithOccurrences);
-  const allSegments = eventsWithOccurrences.flatMap(({ event, occurrences }) =>
-    isBandEvent(occurrences) ? computeBandSegments(event, occurrences) : [],
-  );
+  // Only multi-day events band (Issue #91 PO decision) - a single-day
+  // event is represented solely by badgeCounts above, never also as a
+  // band, so the two signals never name the same Event twice.
+  const allSegments = eventsWithOccurrences
+    .filter(({ event }) => !isSingleDayEvent(event))
+    .map(({ event }) => eventRangeBandSegment(event));
 
   const weeks: WeekViewModel[] = grid.weeks.map((weekDates) => ({
     days: weekDates.map((date) => ({
@@ -433,17 +441,18 @@ export function buildMonthCalendarViewModel(
 export interface SelectedDayOccurrence {
   event: EventCatalogEvent;
   occurrence: EventOccurrence;
-  isBandEvent: boolean;
 }
 
 /**
- * Every occurrence on `date` (Asia/Tokyo calendar day), from both band and
- * non-band events, individually - never collapsed by event or by day (same-
- * day multiple occurrences are distinct entries). This is the escape hatch
- * for whatever the month view bounded/omitted for scanability (badge
- * exclusion, band overflow): full detail for any single day is always
- * reachable here, for the same `eventsWithOccurrences` the month view was
- * built from.
+ * Every occurrence on `date` (Asia/Tokyo calendar day), individually -
+ * never collapsed by event or by day (same-day multiple occurrences are
+ * distinct entries). This is the escape hatch for whatever the month view
+ * bounded/omitted for scanability (band overflow): full detail for any
+ * single day is always reachable here, for the same `eventsWithOccurrences`
+ * the month view was built from. Derived only from actual occurrence rows
+ * (Issue #91): a day within an event's Event range but without an
+ * occurrence on it never appears here, regardless of that event's band
+ * coverage.
  */
 export function selectDayOccurrences(
   eventsWithOccurrences: readonly EventWithOccurrences[],
@@ -451,10 +460,9 @@ export function selectDayOccurrences(
 ): SelectedDayOccurrence[] {
   const result: SelectedDayOccurrence[] = [];
   for (const { event, occurrences } of eventsWithOccurrences) {
-    const banded = isBandEvent(occurrences);
     for (const occurrence of occurrences) {
       if (tokyoCalendarDateFromInstant(occurrence.startsAt) === date) {
-        result.push({ event, occurrence, isBandEvent: banded });
+        result.push({ event, occurrence });
       }
     }
   }

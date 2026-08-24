@@ -291,7 +291,22 @@ function isBlankOccurrence(raw: RawFormValues): boolean {
   );
 }
 
-export function parseEventRange(raw: RawFormValues): ParseResult<EventRangeInput> {
+export interface ParseEventRangeOptions {
+  /**
+   * Create flow only (Issue #91): a blank endsOn is accepted and normalized
+   * to startsOn - the application-boundary equivalent of "単発公演" - rather
+   * than reported as a missing field. Defaults to false, so the Event range
+   * edit path (updateEventRangeAction) keeps its pre-#91 contract: endsOn
+   * stays required there, since Gate A scopes the input simplification to
+   * create only.
+   */
+  allowBlankEndsOn?: boolean;
+}
+
+export function parseEventRange(
+  raw: RawFormValues,
+  options: ParseEventRangeOptions = {},
+): ParseResult<EventRangeInput> {
   const fieldErrors: FieldErrors = {};
 
   const startsOn = readField(raw, 'startsOn').trim();
@@ -305,12 +320,15 @@ export function parseEventRange(raw: RawFormValues): ParseResult<EventRangeInput
     }
   }
 
-  const endsOn = readField(raw, 'endsOn').trim();
-  if (endsOn.length === 0) {
-    fieldErrors.endsOn = '開催期間の終了日を入力してください。';
+  const rawEndsOn = readField(raw, 'endsOn').trim();
+  const endsOnBlank = rawEndsOn.length === 0;
+  if (endsOnBlank) {
+    if (options.allowBlankEndsOn !== true) {
+      fieldErrors.endsOn = '開催期間の終了日を入力してください。';
+    }
   } else {
     try {
-      parseTokyoCalendarDate(endsOn);
+      parseTokyoCalendarDate(rawEndsOn);
     } catch {
       fieldErrors.endsOn = '終了日の形式が正しくありません。';
     }
@@ -320,9 +338,18 @@ export function parseEventRange(raw: RawFormValues): ParseResult<EventRangeInput
     return { ok: false, fieldErrors };
   }
 
+  // A blank endsOn only ever reaches here when allowBlankEndsOn permitted
+  // it past the check above - normalized to startsOn (both already known
+  // valid), the canonical single-day representation (product-rules.md
+  // "Single-day Event input": "canonicalなsingle-day Event representation
+  // は引き続き starts_on = ends_on"). No unset-endsOn state is persisted.
+  const endsOn = endsOnBlank ? startsOn : rawEndsOn;
+
   // events_starts_on_le_ends_on (Issue #88) enforces this at the database
   // too; checked here ahead of that round trip for the same reason as
-  // parseOccurrence's ordering checks above.
+  // parseOccurrence's ordering checks above. Unreachable when endsOn was
+  // normalized from startsOn (equal, not greater), but still evaluated
+  // uniformly rather than special-cased around.
   if (startsOn > endsOn) {
     return { ok: false, fieldErrors: { endsOn: '終了日は開始日より前にできません。' } };
   }
@@ -368,10 +395,15 @@ export function validateOccurrenceWithinRange(
  * opposite of the pre-#88 contract, where an occurrence was mandatory. A
  * partially-filled, invalid occurrence still reports its own field errors;
  * only a fully blank one is read as "no occurrence yet".
+ *
+ * The Event range's endsOn is likewise optional here (Issue #91): a blank
+ * value normalizes to startsOn rather than erroring, since Gate A dogfood
+ * create is mostly single-day events - see parseEventRange's
+ * allowBlankEndsOn.
  */
 export function parseEventCreate(raw: RawFormValues): ParseResult<EventCreateInput> {
   const details = parseEventDetails(raw);
-  const range = parseEventRange(raw);
+  const range = parseEventRange(raw, { allowBlankEndsOn: true });
   const occurrenceBlank = isBlankOccurrence(raw);
   const occurrence = occurrenceBlank ? null : parseOccurrence(raw);
 

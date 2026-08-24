@@ -108,6 +108,17 @@ function badgeCountOf(html: string, date: string): number {
   return Number(count);
 }
 
+/** The rendered aria-label for one day cell's link (see MonthCalendar.tsx),
+ * which is emitted before data-date in prop order. */
+function ariaLabelOf(html: string, date: string): string {
+  const pattern = new RegExp(`aria-label="([^"]*)"[^>]*data-date="${date}"`, 'u');
+  const match = pattern.exec(html);
+  assert.ok(match, `no day cell found for ${date} in the rendered calendar`);
+  const [, label] = match;
+  assert.ok(label !== undefined);
+  return label;
+}
+
 // --- Reachability ---
 
 void test('an authenticated user reaches the Catalog route and sees the month calendar', async () => {
@@ -187,27 +198,30 @@ void test('same-day multiple occurrences are shown losslessly, and a null end ti
   );
 });
 
-// --- Band rendering / rest day / badge double-counting / multiple bands ---
+// --- Band rendering / single-day count / multi-day band (Issue #91 PO decision) ---
 
-void test('a long-running event renders as a band; rest days and badge double-counting are handled end-to-end', async () => {
+void test('a multi-day event bands by its Event range and never counts; a single-day event never bands and counts once per Event, not per occurrence', async () => {
   const owner = await fixtureActor();
 
   const { event: kabuki } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
     startsAt: '2097-07-10T02:00:00.000Z', // 07-10 JST
     // Event range (Issue #88): must cover every occurrence this fixture
-    // inserts below, including the 07-12 rest day inside the run.
+    // inserts below, including the 07-12 day with no occurrence.
     startsOn: '2097-07-10',
     endsOn: '2097-07-13',
   });
   await insertOccurrence(owner, kabuki.id, '2097-07-11T02:00:00.000Z'); // 07-11 JST
-  // 07-12 intentionally has no occurrence for this event (rest day).
+  // 07-12 intentionally has no occurrence for this event.
   await insertOccurrence(owner, kabuki.id, '2097-07-13T02:00:00.000Z'); // 07-13 JST
 
+  // Single-day event with 2 occurrences (matinee + evening) - must still
+  // count once on its own date, not once per occurrence.
   const { event: live } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
-    startsAt: '2097-07-10T10:00:00.000Z', // standalone, same day as the run's first day
+    startsAt: '2097-07-10T10:00:00.000Z', // 19:00 JST, same day as kabuki's first day
   });
+  await insertOccurrence(owner, live.id, '2097-07-10T12:00:00.000Z'); // 21:00 JST, still 07-10 JST
 
   const { event: secondRun } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
@@ -225,20 +239,28 @@ void test('a long-running event renders as a band; rest days and badge double-co
   assert.equal(monthResponse.status, 200);
   const monthHtml = await monthResponse.text();
 
-  // Both runs render as bands - multiple bands can coexist on one month page.
+  // Multi-day events band; the single-day event never does (Issue #91 PO
+  // decision).
   assert.match(monthHtml, new RegExp(`data-band-event-id="${kabuki.id}"`, 'u'));
   assert.match(monthHtml, new RegExp(`data-band-event-id="${secondRun.id}"`, 'u'));
+  assert.doesNotMatch(monthHtml, new RegExp(`data-band-event-id="${live.id}"`, 'u'));
 
-  // Badge counting: only the standalone occurrence counts; the band's own
-  // occurrences (including the day it shares with the standalone one) do
-  // not, per the PO decision (product-rules.md "Month calendar").
-  assert.equal(badgeCountOf(monthHtml, '2097-07-10'), 1);
-  assert.equal(badgeCountOf(monthHtml, '2097-07-11'), 0);
-  assert.equal(badgeCountOf(monthHtml, '2097-07-13'), 0);
-  // The rest day has no occurrence for anything, so its badge is also 0.
+  // Count semantics: single-day Event count, not occurrence count. live's
+  // 2 occurrences on 07-10 still count as 1; kabuki (multi-day) never
+  // counts on any of its days, including 07-10 which it shares with live.
+  assert.equal(badgeCountOf(monthHtml, '2097-07-10'), 1); // live only
+  assert.equal(badgeCountOf(monthHtml, '2097-07-11'), 0); // kabuki's, multi-day never counts
+  assert.equal(badgeCountOf(monthHtml, '2097-07-13'), 0); // kabuki's, multi-day never counts
+  // No occurrence for anything on 07-12, and it is inside kabuki's
+  // (multi-day) Event range regardless - either way its badge is 0.
   assert.equal(badgeCountOf(monthHtml, '2097-07-12'), 0);
 
-  // Rest day: the day list must be empty, never a fabricated performance.
+  // 07-10 has both kabuki's band and live's count, so "ほか" ("besides
+  // [kabuki, already named]") reads correctly there.
+  assert.match(ariaLabelOf(monthHtml, '2097-07-10'), /ほか1件/);
+
+  // 07-12 has no occurrence for anything: the day list must be empty, never
+  // a fabricated performance, even though the month band covers this day.
   const restDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-12`, {
     headers: { cookie },
     redirect: 'manual',
@@ -255,15 +277,53 @@ void test('a long-running event renders as a band; rest days and badge double-co
   const innerDayHtml = await innerDayResponse.text();
   assert.ok(innerDayHtml.includes(kabuki.title));
 
-  // A day mixing a band occurrence with a standalone one shows both
-  // individually in the day list, matching the PO's own worked example.
+  // 07-10 mixes a banded (multi-day) event's occurrence with the
+  // non-banded single-day event's 2 occurrences - the selected-day list
+  // still shows every actual occurrence individually, regardless of band
+  // status.
   const mixedDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-10`, {
     headers: { cookie },
     redirect: 'manual',
   });
   const mixedDayHtml = await mixedDayResponse.text();
   assert.ok(mixedDayHtml.includes(kabuki.title));
-  assert.ok(mixedDayHtml.includes(live.title));
+  const liveOccurrencesShown = mixedDayHtml.split(live.title).length - 1;
+  assert.ok(liveOccurrencesShown >= 2, "expected live's 2 occurrences to appear individually");
+});
+
+void test('a 0-occurrence single-day event never bands, counts once on its own date, has no selected-day occurrence, and is still reachable through the range-only list', async () => {
+  const owner = await fixtureActor();
+  const { event } = await createEventWithoutOccurrence(owner, '2097-08-15', '2097-08-15', {
+    title: eventFixtureTitle(),
+  });
+
+  const cookie = await signedInCookie();
+  const monthResponse = await fetch(`${app.baseUrl}/catalog?month=2097-08`, {
+    headers: { cookie },
+    redirect: 'manual',
+  });
+  assert.equal(monthResponse.status, 200);
+  const monthHtml = await monthResponse.text();
+
+  assert.doesNotMatch(monthHtml, new RegExp(`data-band-event-id="${event.id}"`, 'u'));
+  assert.equal(badgeCountOf(monthHtml, '2097-08-15'), 1);
+  // No title/link elsewhere on the grid for a 0-occurrence single-day event
+  // (the badge is just a number) - RangeOnlyEventList is what keeps it
+  // reachable.
+  assert.ok(monthHtml.includes(event.title));
+
+  // No band was named for this day, so its aria-label must stand on its
+  // own ("イベント1件"), not "ほか1件" ("besides" what was never named).
+  const label = ariaLabelOf(monthHtml, '2097-08-15');
+  assert.match(label, /イベント1件/);
+  assert.doesNotMatch(label, /ほか/);
+
+  const dayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-08&date=2097-08-15`, {
+    headers: { cookie },
+    redirect: 'manual',
+  });
+  const dayHtml = await dayResponse.text();
+  assert.match(dayHtml, /この日に登録されている公演はありません/);
 });
 
 // --- 0-occurrence event visibility (Issue #88) ---

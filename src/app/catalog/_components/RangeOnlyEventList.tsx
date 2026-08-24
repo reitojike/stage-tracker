@@ -13,14 +13,21 @@ export interface RangeOnlyEventListProps {
  * Events whose Event range overlaps the displayed month but have no
  * occurrence within it (Issue #88: an event may have zero occurrences, and
  * "no occurrence this month" does not mean "not relevant this month" - see
- * product-rules.md "Catalog の日程参照要件"). MonthCalendar/SelectedDayList
- * are both occurrence-driven (band segments, badges, per-day lists), so
- * without this, such an event would never render anywhere on the page even
- * though the read layer already returns it (listEventCatalogInRange) -
- * `result.data.length > 0` with nothing visible and no empty-state message
- * either. This is the minimum surface that keeps it from being silently
- * invisible - deliberately a plain list, not a calendar band (Event range
- * band visual design is out of scope for Issue #88).
+ * product-rules.md "Catalog の日程参照要件"). Since Issue #91, a *multi-day*
+ * 0-occurrence event still renders its own title as a band directly on the
+ * grid (Issue #91 PO decision) - unless a week's lane cap overflows it, in
+ * which case only layoutWeekBands' overflowEvents still links to it there.
+ * A *single-day* 0-occurrence event never bands at all (same PO decision):
+ * it is represented only by an untitled day-number count, with no title or
+ * link anywhere else on the grid. Either way, SelectedDayList only ever
+ * surfaces actual occurrences (badge/selected-day derive from occurrence
+ * rows only, never from the range), so a 0-occurrence event - single-day or
+ * multi-day - has no occurrence-driven detail view to fall back on. This
+ * list stays as the one surface that guarantees every 0-occurrence event's
+ * title/link is reachable somewhere on the page, regardless of band lane
+ * pressure or single-day/multi-day classification - deliberately a plain
+ * list, not itself a calendar band (Event range band visual design is out
+ * of scope here too).
  *
  * "公演回未発表" is deliberately avoided as a label: `occurrences` here is
  * scoped to the queried month, not to the whole event, so an event that

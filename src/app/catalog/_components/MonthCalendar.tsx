@@ -4,9 +4,11 @@ import type { CalendarDayRole } from '@/domain/calendarDayRole.ts';
 import type { MonthCalendarViewModel } from '@/domain/calendarMonth.ts';
 import {
   catalogDayHref,
+  catalogEventHref,
   catalogMonthHref,
   nextYearMonth,
   previousYearMonth,
+  type CatalogParams,
 } from '@/domain/catalogNavigation.ts';
 import styles from './MonthCalendar.module.css';
 
@@ -14,6 +16,10 @@ export interface MonthCalendarProps {
   viewModel: MonthCalendarViewModel;
   selectedDate: string | null;
   todayDate: string;
+  /** Carried through to each overflow event's link (see the overflow
+   * rendering below), so following one returns to the same month/day
+   * context the surrounding screens navigate with. */
+  context: CatalogParams;
 }
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -44,7 +50,7 @@ function roleMarker(role: CalendarDayRole): { className: string; text: string } 
   return null;
 }
 
-export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalendarProps) {
+export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: MonthCalendarProps) {
   return (
     <section
       className={styles.calendar}
@@ -141,7 +147,19 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
                   labelParts.push(bandsThisDay.map((segment) => segment.eventTitle).join('、'));
                 }
                 if (day.badgeCount > 0) {
-                  labelParts.push(`ほか${String(day.badgeCount)}件`);
+                  // Never the same Events named in bandsThisDay above
+                  // (Issue #91 PO decision): bandsThisDay is multi-day
+                  // Events only, badgeCount is a single-day Event count
+                  // only. "ほか" ("besides the band(s) above") only reads
+                  // sensibly when a band was actually named first - a day
+                  // with single-day Events and no multi-day band passing
+                  // through it (bandsThisDay empty) needs a label that
+                  // stands on its own instead.
+                  labelParts.push(
+                    bandsThisDay.length > 0
+                      ? `ほか${String(day.badgeCount)}件`
+                      : `イベント${String(day.badgeCount)}件`,
+                  );
                 }
                 if (!day.holidayDataConfirmed) {
                   // Accessibility baseline (calendarDayRole.ts's header): an
@@ -209,10 +227,30 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
                 </span>
               ))}
 
-              {week.bandLayout.overflowCount > 0 ? (
-                <span className={styles.overflow} style={{ gridRow: maxLane + 3 }}>
-                  {`この週にほか${String(week.bandLayout.overflowCount)}件 - 日付を選択すると確認できます`}
-                </span>
+              {week.bandLayout.overflowEvents.length > 0 ? (
+                // Links directly to each overflowing event, not just a
+                // count with a "select a date" hint: since Issue #91 a
+                // band covers its whole Event range regardless of
+                // occurrence evidence, an event can overflow a week where
+                // it has no occurrence at all (its occurrences fall in a
+                // different week of the same range) - no day selection
+                // within this week would ever surface it via
+                // selectDayOccurrences, so the link here is this week's
+                // only reachable path to it.
+                <p className={styles.overflow} style={{ gridRow: maxLane + 3 }}>
+                  {`この週にほか${String(week.bandLayout.overflowEvents.length)}件：`}
+                  {week.bandLayout.overflowEvents.map((overflowEvent, index) => (
+                    <span key={overflowEvent.eventId}>
+                      {index > 0 ? '、' : ''}
+                      <Link
+                        href={catalogEventHref(overflowEvent.eventId, context)}
+                        className={styles.overflowLink}
+                      >
+                        {overflowEvent.eventTitle}
+                      </Link>
+                    </span>
+                  ))}
+                </p>
               ) : null}
             </div>
           );
