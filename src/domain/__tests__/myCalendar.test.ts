@@ -292,7 +292,8 @@ void test('buildMyCalendarDayMarkers reports weekday role, occurrence/ticket sta
 
   const day10 = markers.find((m) => m.date === '2026-08-10');
   assert.ok(day10);
-  assert.equal(day10.occurrenceCount, 1);
+  assert.equal(day10.attendingCount, 1);
+  assert.equal(day10.consideringCount, 0);
   assert.equal(day10.hasUnconfirmedTicket, true); // ticketStatus defaulted to 'none'
   assert.equal(day10.ownScheduleCount, 1);
   assert.equal(day10.sharedScheduleCount, 1);
@@ -300,13 +301,171 @@ void test('buildMyCalendarDayMarkers reports weekday role, occurrence/ticket sta
 
   const day9 = markers.find((m) => m.date === '2026-08-09');
   assert.ok(day9);
-  assert.equal(day9.occurrenceCount, 0);
+  assert.equal(day9.attendingCount, 0);
+  assert.equal(day9.consideringCount, 0);
   assert.equal(day9.hasUnconfirmedTicket, false);
 
   // 2026-08-09..11 are all within the Japanese-holiday snapshot's
   // confirmed coverage.
   assert.equal(day10.holidayDataConfirmed, true);
   assert.equal(day9.holidayDataConfirmed, true);
+});
+
+// --- attending/considering distinction (Issue #92) ---
+
+void test('buildMyCalendarDayMarkers reports an attending-only day with zero considering, and a considering-only day with zero attending', () => {
+  const attendingOnlyEv: EventWithOccurrences = {
+    event: event({ id: 'event-attending' }),
+    occurrences: [
+      occurrence({
+        id: 'occ-attending-only',
+        eventId: 'event-attending',
+        startsAt: '2026-08-11T10:00:00Z',
+      }),
+    ],
+  };
+  const attendingOnlyEntries = buildMyCalendarOccurrenceEntries(
+    [attendingOnlyEv],
+    new Map([
+      [
+        'occ-attending-only',
+        participation({ occurrenceId: 'occ-attending-only', status: 'attending' }),
+      ],
+    ]),
+    new Map(),
+  );
+  const attendingMarkers = buildMyCalendarDayMarkers(
+    ['2026-08-11'],
+    attendingOnlyEntries,
+    [],
+    'caller',
+  );
+  const attendingDay = attendingMarkers.find((m) => m.date === '2026-08-11');
+  assert.ok(attendingDay);
+  assert.equal(attendingDay.attendingCount, 1);
+  assert.equal(attendingDay.consideringCount, 0);
+
+  const consideringOnlyEv: EventWithOccurrences = {
+    event: event({ id: 'event-considering' }),
+    occurrences: [
+      occurrence({
+        id: 'occ-considering-only',
+        eventId: 'event-considering',
+        startsAt: '2026-08-12T10:00:00Z',
+      }),
+    ],
+  };
+  const consideringOnlyEntries = buildMyCalendarOccurrenceEntries(
+    [consideringOnlyEv],
+    new Map([
+      [
+        'occ-considering-only',
+        participation({ occurrenceId: 'occ-considering-only', status: 'considering' }),
+      ],
+    ]),
+    new Map(),
+  );
+  const consideringMarkers = buildMyCalendarDayMarkers(
+    ['2026-08-12'],
+    consideringOnlyEntries,
+    [],
+    'caller',
+  );
+  const consideringDay = consideringMarkers.find((m) => m.date === '2026-08-12');
+  assert.ok(consideringDay);
+  assert.equal(consideringDay.attendingCount, 0);
+  assert.equal(consideringDay.consideringCount, 1);
+});
+
+void test('buildMyCalendarDayMarkers keeps attending and considering as distinct, non-collapsing counts on a day that mixes both (Issue #92)', () => {
+  const ev: EventWithOccurrences = {
+    event: event(),
+    occurrences: [
+      occurrence({ id: 'occ-attending', startsAt: '2026-08-10T10:00:00Z' }),
+      occurrence({ id: 'occ-considering', startsAt: '2026-08-10T11:00:00Z' }),
+    ],
+  };
+  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
+    [ev],
+    new Map([
+      [
+        'occ-attending',
+        participation({ id: 'p-a', occurrenceId: 'occ-attending', status: 'attending' }),
+      ],
+      [
+        'occ-considering',
+        participation({ id: 'p-c', occurrenceId: 'occ-considering', status: 'considering' }),
+      ],
+    ]),
+    new Map(),
+  );
+
+  const markers = buildMyCalendarDayMarkers(['2026-08-10'], occurrenceEntries, [], 'caller');
+  const day10 = markers.find((m) => m.date === '2026-08-10');
+  assert.ok(day10);
+  assert.equal(day10.attendingCount, 1);
+  assert.equal(day10.consideringCount, 1);
+});
+
+void test('buildMyCalendarDayMarkers keeps hasUnconfirmedTicket independent of the attending/considering mix (Issue #92: ticket and participation signals never confused)', () => {
+  const ev: EventWithOccurrences = {
+    event: event(),
+    occurrences: [
+      occurrence({ id: 'occ-attending-secured', startsAt: '2026-08-13T10:00:00Z' }),
+      occurrence({ id: 'occ-considering-pending', startsAt: '2026-08-13T11:00:00Z' }),
+    ],
+  };
+  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
+    [ev],
+    new Map([
+      [
+        'occ-attending-secured',
+        participation({ id: 'p-a', occurrenceId: 'occ-attending-secured', status: 'attending' }),
+      ],
+      [
+        'occ-considering-pending',
+        participation({
+          id: 'p-c',
+          occurrenceId: 'occ-considering-pending',
+          status: 'considering',
+        }),
+      ],
+    ]),
+    new Map([
+      [
+        'occ-attending-secured',
+        [
+          acquisition({
+            id: 'acq-secured',
+            occurrenceId: 'occ-attending-secured',
+            status: 'secured',
+          }),
+        ],
+      ],
+      [
+        'occ-considering-pending',
+        [
+          acquisition({
+            id: 'acq-pending',
+            occurrenceId: 'occ-considering-pending',
+            status: 'pending',
+          }),
+        ],
+      ],
+    ]),
+  );
+
+  const markers = buildMyCalendarDayMarkers(['2026-08-13'], occurrenceEntries, [], 'caller');
+  const day = markers.find((m) => m.date === '2026-08-13');
+  assert.ok(day);
+  assert.equal(day.attendingCount, 1);
+  assert.equal(day.consideringCount, 1);
+  // The secured attending occurrence must not mask the considering
+  // occurrence's still-pending ticket - the day-level flag stays a single
+  // "at least one unconfirmed ticket exists" signal, separate from which
+  // participation status it belongs to (that detail lives in
+  // selectMyCalendarOccurrenceEntries's per-occurrence entries).
+  assert.equal(day.hasUnconfirmedTicket, true);
 });
 
 void test('buildMyCalendarDayMarkers reports holidayDataConfirmed=false for a date outside the snapshot coverage, without fabricating a holiday role for it (PO adjudication, Issue #34)', () => {

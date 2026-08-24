@@ -245,10 +245,18 @@ export interface MyCalendarDayMarkers {
    * status as unconfirmed rather than silently rendering it as an
    * ordinary/confirmed-non-holiday day (PO adjudication, Issue #34). */
   holidayDataConfirmed: boolean;
-  occurrenceCount: number;
+  /** Occurrences on this day whose participation.status is 'attending'
+   * (Issue #92: month-calendar scanability requires attending/considering
+   * to read as distinct signals, never collapsed into one generic
+   * "participation-registered" count - a day with both must show both). */
+  attendingCount: number;
+  /** Occurrences on this day whose participation.status is 'considering'. */
+  consideringCount: number;
   /** True when at least one occurrence on this day has a `'none'` or
    * `'pending'` ticketStatus (Issue #34 acceptance: "ticket pending/
-   * unconfirmed状態を色だけに依存せず識別可能"). */
+   * unconfirmed状態を色だけに依存せず識別可能"). Independent of
+   * attending/considering - product-rules.md's ticket/participation
+   * concepts stay separate here too. */
   hasUnconfirmedTicket: boolean;
   ownScheduleCount: number;
   sharedScheduleCount: number;
@@ -288,7 +296,11 @@ export function buildMyCalendarDayMarkers(
       date,
       role: calendarDayRole(date),
       holidayDataConfirmed: isWithinJapaneseHolidayDataCoverage(date),
-      occurrenceCount: dayOccurrences.length,
+      attendingCount: dayOccurrences.filter((entry) => entry.participation.status === 'attending')
+        .length,
+      consideringCount: dayOccurrences.filter(
+        (entry) => entry.participation.status === 'considering',
+      ).length,
       hasUnconfirmedTicket: dayOccurrences.some(
         (entry) => entry.ticketStatus === 'none' || entry.ticketStatus === 'pending',
       ),

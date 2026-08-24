@@ -141,14 +141,65 @@
 
 .markerRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 3px;
   font-size: var(--font-size-caption);
   line-height: 1;
+  /* Up to 6 marker slots (●/？/!/予/共/?) can appear on one day at once -
+     wrapping to a second line keeps a narrow cell (~48px at a 375px
+     viewport) from overflowing sideways into neighboring cells (raised in
+     review on PR #94), rather than requiring every marker type to fit on
+     one row. */
 }
 
-.markerOccurrence {
+/* Attending/considering are distinguished by glyph (●/？) as well as
+   color, never by color alone - and both render together on a day that
+   mixes the two rather than collapsing into one generic count. PO visual
+   checkpoint on #92 rejected an earlier 参/気 kanji-glyph pass (read as
+   abbreviations, not symbols) and a ☆ "considering" glyph (read as
+   "favorited" rather than "undecided"); ● reuses Issue #34's original
+   attending glyph, ？ was chosen knowing it visually echoes
+   .markerHolidayUnconfirmed's "?" badge below - that collision is an
+   accepted, PO-confirmed trade-off pending #97's separate re-evaluation of
+   whether the holiday-unconfirmed badge is still needed at all. */
+.markerAttending {
+  color: var(--color-success);
+}
+
+.markerConsidering {
   color: var(--color-info);
+}
+
+/* .daySelected fills the whole cell with --color-accent and sets its own
+   contrast-safe --color-accent-foreground text color, but each of these
+   markers' own `color` (and, for .markerHolidayUnconfirmed, `border-color`
+   too) above would otherwise win the cascade over that inherited value.
+   --color-info and --color-accent are literally the same token
+   (tokens.css), and --color-accent is .markerScheduleShared's color
+   outright, so both render fully invisible against a selected day's fill;
+   .markerAttending's --color-success, .markerScheduleOwn's and
+   .markerHolidayUnconfirmed's --color-text-secondary are close behind on
+   contrast (the first two found via review on PR #94; verifying that fix
+   surfaced the same pre-existing defect in the other three, sharing the
+   identical root cause). Reset to inherit .daySelected's own foreground
+   here, the same selected-state-wins principle
+   .roleSaturday/.roleSunday/.roleHoliday already apply above. */
+.daySelected .markerAttending,
+.daySelected .markerConsidering,
+.daySelected .markerScheduleOwn,
+.daySelected .markerScheduleShared,
+.daySelected .markerHolidayUnconfirmed {
+  color: inherit;
+}
+
+/* .markerHolidayUnconfirmed is the only one of the five with its own
+   border (the dashed "?" badge) - its border-color needs the same
+   selected-state override, or the dashed outline stays invisible even
+   once the "?" glyph itself is legible again. */
+.daySelected .markerHolidayUnconfirmed {
+  border-color: currentColor;
 }
 
 .markerTicket {

@@ -6,6 +6,7 @@ import {
   nextYearMonth,
   previousYearMonth,
 } from '@/domain/myCalendarNavigation.ts';
+import { participationStatusLabel } from '@/domain/myCalendarFormatting.ts';
 import styles from './MyMonthCalendar.module.css';
 
 export interface MyMonthCalendarProps {
@@ -139,8 +140,15 @@ export function MyMonthCalendar({
               } else if (markers?.role === 'sunday') {
                 labelParts.push('日曜日');
               }
-              if (markers && markers.occurrenceCount > 0) {
-                labelParts.push(`公演${String(markers.occurrenceCount)}件`);
+              if (markers && markers.attendingCount > 0) {
+                labelParts.push(
+                  `${participationStatusLabel('attending')}公演${String(markers.attendingCount)}件`,
+                );
+              }
+              if (markers && markers.consideringCount > 0) {
+                labelParts.push(
+                  `${participationStatusLabel('considering')}公演${String(markers.consideringCount)}件`,
+                );
               }
               if (markers?.hasUnconfirmedTicket) {
                 labelParts.push('チケット未確定あり');
@@ -183,9 +191,20 @@ export function MyMonthCalendar({
                   </span>
                   {markers ? (
                     <span className={styles.markerRow} aria-hidden="true">
-                      {markers.occurrenceCount > 0 ? (
-                        <span className={styles.markerOccurrence} title="参加登録した公演">
-                          ●{markers.occurrenceCount > 1 ? markers.occurrenceCount : ''}
+                      {markers.attendingCount > 0 ? (
+                        <span
+                          className={styles.markerAttending}
+                          title={participationStatusLabel('attending')}
+                        >
+                          ●{markers.attendingCount > 1 ? markers.attendingCount : ''}
+                        </span>
+                      ) : null}
+                      {markers.consideringCount > 0 ? (
+                        <span
+                          className={styles.markerConsidering}
+                          title={participationStatusLabel('considering')}
+                        >
+                          ？{markers.consideringCount > 1 ? markers.consideringCount : ''}
                         </span>
                       ) : null}
                       {markers.hasUnconfirmedTicket ? (
