@@ -6,6 +6,7 @@ import {
   nextYearMonth,
   previousYearMonth,
 } from '@/domain/myCalendarNavigation.ts';
+import { participationStatusLabel } from '@/domain/myCalendarFormatting.ts';
 import styles from './MyMonthCalendar.module.css';
 
 export interface MyMonthCalendarProps {
@@ -140,10 +141,14 @@ export function MyMonthCalendar({
                 labelParts.push('日曜日');
               }
               if (markers && markers.attendingCount > 0) {
-                labelParts.push(`参加する公演${String(markers.attendingCount)}件`);
+                labelParts.push(
+                  `${participationStatusLabel('attending')}公演${String(markers.attendingCount)}件`,
+                );
               }
               if (markers && markers.consideringCount > 0) {
-                labelParts.push(`気になる公演${String(markers.consideringCount)}件`);
+                labelParts.push(
+                  `${participationStatusLabel('considering')}公演${String(markers.consideringCount)}件`,
+                );
               }
               if (markers?.hasUnconfirmedTicket) {
                 labelParts.push('チケット未確定あり');
@@ -187,12 +192,18 @@ export function MyMonthCalendar({
                   {markers ? (
                     <span className={styles.markerRow} aria-hidden="true">
                       {markers.attendingCount > 0 ? (
-                        <span className={styles.markerAttending} title="参加する">
+                        <span
+                          className={styles.markerAttending}
+                          title={participationStatusLabel('attending')}
+                        >
                           参{markers.attendingCount > 1 ? markers.attendingCount : ''}
                         </span>
                       ) : null}
                       {markers.consideringCount > 0 ? (
-                        <span className={styles.markerConsidering} title="気になる">
+                        <span
+                          className={styles.markerConsidering}
+                          title={participationStatusLabel('considering')}
+                        >
                           気{markers.consideringCount > 1 ? markers.consideringCount : ''}
                         </span>
                       ) : null}

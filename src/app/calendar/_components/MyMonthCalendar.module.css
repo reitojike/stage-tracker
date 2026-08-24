@@ -141,10 +141,17 @@
 
 .markerRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 3px;
   font-size: var(--font-size-caption);
   line-height: 1;
+  /* Up to 6 marker slots (参/気/!/予/共/?) can appear on one day at once -
+     wrapping to a second line keeps a narrow cell (~48px at a 375px
+     viewport) from overflowing sideways into neighboring cells (raised in
+     review on PR #94), rather than requiring every marker type to fit on
+     one row. */
 }
 
 /* Attending/considering are distinguished by glyph (参/気, matching
@@ -157,6 +164,26 @@
 
 .markerConsidering {
   color: var(--color-info);
+}
+
+/* .daySelected fills the whole cell with --color-accent and sets its own
+   contrast-safe --color-accent-foreground text color, but each of these
+   markers' own `color` above would otherwise win the cascade over that
+   inherited value. --color-info and --color-accent are literally the same
+   token (tokens.css), and --color-accent is .markerScheduleShared's color
+   outright, so both render fully invisible against a selected day's fill;
+   .markerAttending's --color-success and .markerScheduleOwn's
+   --color-text-secondary are close behind on contrast (the first two
+   found via review on PR #94; verifying that fix surfaced the same
+   pre-existing defect in the other two, sharing the identical root
+   cause). Reset to inherit .daySelected's own foreground here, the same
+   selected-state-wins principle .roleSaturday/.roleSunday/.roleHoliday
+   already apply above. */
+.daySelected .markerAttending,
+.daySelected .markerConsidering,
+.daySelected .markerScheduleOwn,
+.daySelected .markerScheduleShared {
+  color: inherit;
 }
 
 .markerTicket {
