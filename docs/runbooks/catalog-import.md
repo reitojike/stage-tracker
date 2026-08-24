@@ -45,8 +45,61 @@ surface として機能するか」です。手動登録では成立しません
   サイトには掲載情報の無断複製を禁じる旨の記載があります）。
 - 内容としても product code ではなく transaction data に近い性質です。
 
-`/data/catalog-imports/` は `.gitignore` 済みです。ここに置いた JSON は
-operator のローカルにのみ存在します。
+### 保管場所
+
+seed cache の canonical local location は **primary checkout の
+`data/catalog-imports/`** です（現状 10 ファイル）。**task 用の linked
+worktree 内には保管しません。** 別 worktree から import を実行する場合
+は、primary checkout 側の seed path を明示的に指定してください
+（例: `npm run catalog:import -- /path/to/primary-checkout/data/catalog-imports --owner ...`）。
+
+ignore は 2 段構えです。
+
+- コミット済み `.gitignore` の `/data/catalog-imports/`
+- **`.git/info/exclude` にも同じ pattern を追記済みです。** これは
+  worktree 間で共有される共通 `.git` に置かれるため **branch 非依存**
+  です。**ignore rule が全 worktree に効くことと、実ファイルが
+  primary checkout にしか存在しないことは別の話**です — committed
+  `.gitignore` 側の該当行を持たない branch / 過去 commit を checkout
+  した場合でも ignore は effective であり続けますが、seed file の実体
+  はどの worktree にも複製されません。
+
+**`git clean -xdf` は ignore 対象も削除します。** primary checkout で
+これを実行する前は、必ず `git clean -xdn` で dry run し、
+`data/catalog-imports/` が削除対象に含まれていないことを確認してくだ
+さい。
+
+### seed file は正本ではない
+
+seed file は正本ではなく、**公式ページと Production DB という 2 つの
+正本の間の中間生成物（キャッシュ）**です。
+
+| 対象           | 正本                                    |
+| -------------- | --------------------------------------- |
+| 公演日程       | 公式ページ                              |
+| catalog の内容 | Production DB                           |
+| seed file      | 上記 2 つの間の中間生成物（キャッシュ） |
+
+失っても構造的な損失にはなりません。復旧経路は目的によって使い分けます。
+
+- **公式ページからの再生成** — 最新の日程が欲しいとき。開演時刻の変更や
+  貸切の追加があると内容が変わり、公演回は `(event_id, starts_at)` で
+  同定するため、時刻が変わった回は「更新」ではなく「追加」になります
+  （削除手段が無いことは下記「既知の制約」参照）。公演終了後にページが
+  取り下げられた場合は再生成自体ができません。
+- **Production DB からの再構成** — 現在 catalog に入っている内容を seed
+  形式で手元に戻したいとき。**これは import 時点の状態への「復元」では
+  ありません。** DB は import 時点の snapshot ではなく現在の catalog
+  状態なので、import 後に手動追加した公演回（貸切のチケットが取れて UI
+  から足した回など）も含まれます。それを seed として再適用すると、その
+  回が seed 管理下に入り、終演時刻が seed 側 authoritative の対象へ
+  変わります（破壊的ではありませんが、想定外の occurrence が seed 管理
+  下に入るため、再適用前に dry run の出力で確認してください）。ファイル
+  分割・キー順序・整形が元の seed file と bit-for-bit 一致する保証も
+  ありません。
+
+「取り込んだ内容を正確に復元したい」という目的には、公式ページではなく
+Production DB からの再構成が正しい経路です。
 
 ## seed file の形式
 
@@ -106,7 +159,8 @@ event** です。このとき概要ページ = `sourceUrl` は両者で同一に
 
 agent へ公式 URL を渡して依頼します。宝塚は概要ページと日程ページの
 2 種類が必要です（概要から title / 組 / 会場、日程から公演回）。
-生成物を `/data/catalog-imports/` に置きます。
+生成物は primary checkout の `data/catalog-imports/` に置きます
+（保管場所の原則は上記「保管場所」参照。linked worktree 内には置きません）。
 
 ### 2. dry run
 
@@ -124,10 +178,71 @@ npm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email>
 npm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email> --apply
 ```
 
-remote へ適用する場合は `--remote` を追加し、
-`STAGE_TRACKER_REMOTE_SUPABASE_URL` と
-`STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` を shell に export します
-（`scripts/lib/adminTarget.mjs`。secret は repository へ記録しません）。
+remote へ適用する場合は、事前に次の 3a〜3c の準備が必要です（`--remote`
+は最後に付けます）。いずれも production credential をこの runbook 本文
+やコミットへ書き込みません。
+
+#### 3a. project への link
+
+project ref はこの repository のどこにも記録されていません
+（`supabase/.temp/` は gitignore 済みで local にしか残らないため）。
+毎 session、次で確認します。
+
+```bash
+supabase projects list -o json
+```
+
+出力の `ref`（`id` と同値）が project ref です。**project ref は secret
+ではありません** — 本番デプロイの `NEXT_PUBLIC_SUPABASE_URL` として既に
+client bundle へ露出しており、認証は別途 CLI login と service_role key
+で行われるため、runbook や session ログに残しても構いません。
+
+```bash
+supabase link --project-ref <project-ref>
+```
+
+#### 3b. `--owner` へ渡す email の解決
+
+`public.catalog_creators` は `user_id` しか持たないため（RLS も
+`auth.uid()` の own-row にしか SELECT を許しません）、designated
+catalog creator の email は `auth.users` との join でしか得られません。
+service_role key は不要です — 3a で link 済みの CLI session から
+Management API 経由（`--linked`）で問い合わせます。
+
+```bash
+supabase db query --linked "select au.email from public.catalog_creators cc join auth.users au on au.id = cc.user_id;"
+```
+
+#### 3c. service_role key の取得（出力・記録しない）
+
+`supabase projects api-keys` の生出力を terminal へ表示させず、command
+substitution で直接環境変数へ渡します。project が legacy JWT 形式の
+`service_role` key を持つ場合はそれを、新しい API key 体系
+（`sb_secret_...`）へ移行済みで legacy key が無い場合は `type` が
+`secret` の key を使います（`scripts/lib/adminTarget.mjs` の
+`createClient(url, serviceRoleKey, ...)` はどちらの形式も受け付けます）。
+
+```bash
+export STAGE_TRACKER_REMOTE_SUPABASE_URL="https://<project-ref>.supabase.co"
+export STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY="$(
+  supabase projects api-keys --project-ref <project-ref> --reveal -o json |
+  node -e '
+    const keys = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const key =
+      keys.find((k) => k.name === "service_role" && k.type === "legacy") ??
+      keys.find((k) => k.type === "secret");
+    if (!key) { console.error("service_role key not found"); process.exit(1); }
+    process.stdout.write(key.api_key);
+  '
+)"
+```
+
+`$( ... )` による直接代入のため、key の値は terminal 出力にも shell
+history にも現れません。この 2 つの環境変数はこの shell session の間
+だけ有効にし、`.env` 等のファイルへは書き込みません
+（`scripts/lib/adminTarget.mjs` 参照）。
+
+#### 3d. 初回 push 時の重複確認
 
 `event_occurrences_event_id_starts_at_key`（Issue #79）を含む migration を
 初めて remote へ `supabase db push` する際は、Issue #73 の初回 import で
@@ -146,10 +261,36 @@ having count(*) > 1
 order by event_id, starts_at;
 ```
 
+#### 3e. import の適用
+
+```bash
+npm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email> --apply --remote
+```
+
 ### 4. 確認
 
 catalog UI で対象 event を開き、公演回が日時順に並ぶこと、participation
 登録が可能なこと、My Calendar に反映されることを確認します。
+
+## 次 session への依頼テンプレート
+
+次の import を別 session / agent へ依頼する場合、この runbook への参照
+と、依頼ごとに変わる部分（対象 URL、適用範囲）だけを渡せば再開できます。
+手順自体をこの依頼文へ複製しません。project ref / service_role key は
+この依頼に含めず、実行 session が 3a〜3c の手順でその都度取得します。
+
+> `docs/runbooks/catalog-import.md` の手順で、次の公式ページを追加
+> import してください。
+>
+> - 対象 URL: `<公式ページ URL>`（宝塚は概要ページ + 日程ページの 2 種）
+> - 適用範囲: dry run のみ / local `--apply` / remote `--apply --remote`
+>   のいずれか
+> - seed file は primary checkout の `data/catalog-imports/` に置く
+>   こと（linked worktree 内には置かない）
+>
+> production credential はこの依頼に含めません。remote 適用が必要な
+> 場合は runbook の「3. 適用」節 3a〜3c の手順で、実行 session 内で
+> project ref / service_role key を都度取得してください。
 
 ## 不変条件
 
