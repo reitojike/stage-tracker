@@ -3,7 +3,7 @@
 このdocumentは、stage-trackerの日本の祝日データがどこから来て、どのように
 更新されるかを記録するdurable recordです（Issue #34 Acceptance Criteria:
 「holiday update procedureがdurableに記録される」）。このデータが供給する
-normativeな_rule_（Saturday blue / Sunday red / holiday red、holidayが
+normativeな*rule*（Saturday blue / Sunday red / holiday red、holidayが
 Saturdayより優先されること、色に加えてnon-color cueを併用すること）は
 `docs/ux-ui.md`の「Calendar weekday / Japanese holiday presentation」
 節が正本であり、本documentはデータ自体のみを扱います。
