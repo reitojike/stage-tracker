@@ -29,6 +29,8 @@ function event(overrides: Partial<Parameters<typeof mapEventRow>[0]> = {}) {
     venue: null,
     source_url: null,
     memo: null,
+    starts_on: '2026-01-01',
+    ends_on: '2026-12-31',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -39,6 +41,7 @@ function occurrence(overrides: Partial<Parameters<typeof mapOccurrenceRow>[0]> =
   return mapOccurrenceRow({
     id: 'occurrence-1',
     event_id: 'event-1',
+    doors_at: null,
     starts_at: '2026-08-10T10:00:00Z',
     ends_at: null,
     created_at: '2026-01-01T00:00:00Z',

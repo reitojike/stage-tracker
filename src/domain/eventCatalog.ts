@@ -21,6 +21,11 @@ export interface EventCatalogEvent {
   venue: string | null;
   sourceUrl: string | null;
   memo: string | null;
+  /** Asia/Tokyo calendar date ("YYYY-MM-DD"), both inclusive - the
+   * officially published 初日〜千秋楽, independent of whatever occurrence
+   * rows exist (Issue #87/#88). */
+  startsOn: string;
+  endsOn: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,6 +33,9 @@ export interface EventCatalogEvent {
 export interface EventOccurrence {
   id: string;
   eventId: string;
+  /** 開場 (Issue #88), nullable - an unpublished doors time is a valid
+   * state, same treatment as endsAt. */
+  doorsAt: string | null;
   startsAt: string;
   endsAt: string | null;
   createdAt: string;
@@ -54,6 +62,8 @@ export interface RawEventRow {
   venue: string | null;
   source_url: string | null;
   memo: string | null;
+  starts_on: string;
+  ends_on: string;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +71,7 @@ export interface RawEventRow {
 export interface RawEventOccurrenceRow {
   id: string;
   event_id: string;
+  doors_at: string | null;
   starts_at: string;
   ends_at: string | null;
   created_at: string;
@@ -75,17 +86,20 @@ export function mapEventRow(row: RawEventRow): EventCatalogEvent {
     venue: row.venue,
     sourceUrl: row.source_url,
     memo: row.memo,
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-/** ends_at is passed through as-is: an unknown end time (null) is a valid
- * state, never coerced to a default. */
+/** ends_at/doors_at are passed through as-is: an unknown end/doors time
+ * (null) is a valid state, never coerced to a default. */
 export function mapOccurrenceRow(row: RawEventOccurrenceRow): EventOccurrence {
   return {
     id: row.id,
     eventId: row.event_id,
+    doorsAt: row.doors_at,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     createdAt: row.created_at,

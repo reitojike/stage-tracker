@@ -22,6 +22,8 @@ function event(overrides: Partial<EventCatalogEvent> = {}): EventCatalogEvent {
     venue: null,
     sourceUrl: null,
     memo: null,
+    startsOn: '2026-01-01',
+    endsOn: '2026-12-31',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -32,6 +34,7 @@ function occurrence(overrides: Partial<EventOccurrence> = {}): EventOccurrence {
   return {
     id: 'occ-1',
     eventId: 'event-1',
+    doorsAt: null,
     startsAt: '2026-08-10T10:00:00Z',
     endsAt: null,
     createdAt: '2026-01-01T00:00:00Z',
