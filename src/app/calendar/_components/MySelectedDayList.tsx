@@ -76,7 +76,10 @@ export function MySelectedDayList({
                     <span className={styles.venue}>{event.venue}</span>
                   ) : null}
                   <span className={styles.badgeRow}>
-                    <Badge variant={participation.status === 'attending' ? 'success' : 'info'}>
+                    <Badge
+                      variant={participation.status === 'attending' ? 'success' : 'info'}
+                      className={styles.participationBadge}
+                    >
                       {participationStatusLabel(participation.status)}
                     </Badge>
                     <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
@@ -90,18 +93,25 @@ export function MySelectedDayList({
 
           {scheduleEntries.map(({ entry, isOwner }) => (
             <li key={entry.id}>
-              <Surface variant="subtle" className={styles.item}>
-                <span className={styles.badgeRow}>
-                  <Badge variant={isOwner ? 'neutral' : 'info'}>
-                    {isOwner ? '自分の予定' : '共有されている予定'}
-                  </Badge>
-                </span>
-                <span className={styles.title}>{scheduleTypeLabel(entry.scheduleType)}</span>
-                <span className={styles.time}>{scheduleTemporalLabel(entry.temporal)}</span>
-                {entry.memo !== null && entry.memo.length > 0 ? (
-                  <span className={styles.venue}>{entry.memo}</span>
-                ) : null}
-              </Surface>
+              {/* Links into the existing /schedule/[entryId] detail page
+                  (Issue #92 Goal: this card must reach the same edit/share
+                  management or read/self-remove journey that page already
+                  provides - no duplicate schedule mutation UI here, same
+                  href convention as src/app/schedule/page.tsx's own list). */}
+              <Link href={`/schedule/${entry.id}`} className={styles.itemLink}>
+                <Surface variant="subtle" className={styles.item}>
+                  <span className={styles.badgeRow}>
+                    <Badge variant={isOwner ? 'neutral' : 'info'}>
+                      {isOwner ? '自分の予定' : '共有されている予定'}
+                    </Badge>
+                  </span>
+                  <span className={styles.title}>{scheduleTypeLabel(entry.scheduleType)}</span>
+                  <span className={styles.time}>{scheduleTemporalLabel(entry.temporal)}</span>
+                  {entry.memo !== null && entry.memo.length > 0 ? (
+                    <span className={styles.venue}>{entry.memo}</span>
+                  ) : null}
+                </Surface>
+              </Link>
             </li>
           ))}
         </ul>

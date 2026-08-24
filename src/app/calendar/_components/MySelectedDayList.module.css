@@ -70,3 +70,11 @@
   gap: var(--space-xs);
   margin-top: 2px;
 }
+
+/* Participation ("参加する"/"気になる") is the primary status this list
+   exists to surface (Issue #92) - a 1px border keeps it from visually
+   receding behind the plain-fill ticket badge next to it, so it doesn't
+   read as just another same-weight pill in the row. */
+.participationBadge {
+  border: 1px solid currentColor;
+}

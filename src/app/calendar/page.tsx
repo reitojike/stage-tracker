@@ -212,7 +212,11 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   const isEmpty = dayMarkers
     .filter((m) => m.date.startsWith(yearMonth))
     .every(
-      (m) => m.occurrenceCount === 0 && m.ownScheduleCount === 0 && m.sharedScheduleCount === 0,
+      (m) =>
+        m.attendingCount === 0 &&
+        m.consideringCount === 0 &&
+        m.ownScheduleCount === 0 &&
+        m.sharedScheduleCount === 0,
     );
 
   // Same displayed-month scoping as isEmpty above (not the lead/trail

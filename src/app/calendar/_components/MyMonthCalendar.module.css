@@ -147,7 +147,15 @@
   line-height: 1;
 }
 
-.markerOccurrence {
+/* Attending/considering are distinguished by glyph (参/気, matching
+   participationStatusLabel's own "参加する"/"気になる" vocabulary) as well
+   as color, never by color alone - and both render together on a day that
+   mixes the two rather than collapsing into one generic count. */
+.markerAttending {
+  color: var(--color-success);
+}
+
+.markerConsidering {
   color: var(--color-info);
 }
 
