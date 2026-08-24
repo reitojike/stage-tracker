@@ -604,3 +604,242 @@ void test('a failure while inserting occurrences rolls the event row back', asyn
   const { data } = await admin.from('events').select('id').eq('source_key', sourceKey);
   assert.deepEqual(data, [], 'expected no zero-occurrence event to survive the failure');
 });
+
+// --- import_update_event: atomic operator-import update path (Issue #88) ---
+//
+// The update-side counterpart to import_event_with_occurrences' create
+// path: a re-imported seed can correct an already-persisted event's
+// details, Event range, and occurrence times in one call, one transaction.
+
+const IMPORT_UPDATE_RPC = 'import_update_event';
+
+async function createImportedFixtureEvent(
+  startsOn: string,
+  endsOn: string,
+  occurrences: { startsAt: string; endsAt?: string | null; doorsAt?: string | null }[] = [],
+) {
+  const admin = createAdminClient();
+  const sourceKey = `test:import-update:${crypto.randomUUID()}`;
+  const { data, error } = await admin.rpc('import_event_with_occurrences', {
+    p_owner_id: actorA.user.id,
+    p_source_key: sourceKey,
+    p_title: eventFixtureTitle(),
+    p_starts_on: startsOn,
+    p_ends_on: endsOn,
+    p_occurrences: occurrences,
+  });
+  if (error) {
+    throw new Error(`fixture import_event_with_occurrences failed: ${error.message}`);
+  }
+  return { admin, event: data };
+}
+
+function importUpdateArgs(eventId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    p_event_id: eventId,
+    p_title: eventFixtureTitle(),
+    p_venue: undefined,
+    p_source_url: undefined,
+    p_memo: undefined,
+    p_starts_on: '2029-01-01',
+    p_ends_on: '2029-01-10',
+    p_new_occurrences: [],
+    p_occurrence_fixes: [],
+    ...overrides,
+  };
+}
+
+void test('anonymous cannot execute import_update_event', async () => {
+  const { event } = await createImportedFixtureEvent('2029-01-01', '2029-01-10');
+  const anon = createAnonymousClient();
+  const { error } = await anon.rpc(IMPORT_UPDATE_RPC, importUpdateArgs(event.id));
+  assert.ok(error, 'expected a permission error for anonymous execute');
+});
+
+void test('an authenticated catalog creator cannot execute import_update_event', async () => {
+  const { event } = await createImportedFixtureEvent('2029-01-01', '2029-01-10');
+  const { error } = await actorA.client.rpc(IMPORT_UPDATE_RPC, importUpdateArgs(event.id));
+  assert.ok(error, 'expected a permission error for authenticated execute');
+});
+
+void test('service_role corrects an event’s Event range', async () => {
+  const { admin, event } = await createImportedFixtureEvent('2029-02-01', '2029-02-10', [
+    { startsAt: '2029-02-05T01:00:00Z', endsAt: null },
+  ]);
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(event.id, {
+      p_title: event.title,
+      p_starts_on: '2029-01-28',
+      p_ends_on: '2029-02-12',
+    }),
+  );
+  assert.equal(error, null);
+
+  const { data } = await admin
+    .from('events')
+    .select('starts_on, ends_on')
+    .eq('id', event.id)
+    .single();
+  assert.equal(data?.starts_on, '2029-01-28');
+  assert.equal(data.ends_on, '2029-02-12');
+});
+
+void test('service_role adds new occurrences to an already-imported event', async () => {
+  const { admin, event } = await createImportedFixtureEvent('2029-03-01', '2029-03-10', [
+    { startsAt: '2029-03-05T01:00:00Z', endsAt: null },
+  ]);
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(event.id, {
+      p_title: event.title,
+      p_starts_on: '2029-03-01',
+      p_ends_on: '2029-03-10',
+      p_new_occurrences: [{ startsAt: '2029-03-08T01:00:00Z', endsAt: null, doorsAt: null }],
+    }),
+  );
+  assert.equal(error, null);
+
+  const { data } = await admin
+    .from('event_occurrences')
+    .select('starts_at')
+    .eq('event_id', event.id);
+  assert.equal(data?.length, 2);
+});
+
+void test('service_role applies a 0-new-occurrences update (range/details-only correction)', async () => {
+  const { admin, event } = await createImportedFixtureEvent('2029-04-01', '2029-04-10', []);
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(event.id, {
+      p_title: event.title,
+      p_starts_on: '2029-04-01',
+      p_ends_on: '2029-04-20',
+      p_new_occurrences: [],
+    }),
+  );
+  assert.equal(error, null);
+
+  const { data } = await admin.from('events').select('ends_on').eq('id', event.id).single();
+  assert.equal(data?.ends_on, '2029-04-20');
+});
+
+void test('service_role fills doors_at/ends_at on an existing occurrence without clearing a value it does not name', async () => {
+  const { admin, event } = await createImportedFixtureEvent('2029-05-01', '2029-05-10', [
+    { startsAt: '2029-05-05T01:00:00Z', endsAt: '2029-05-05T04:00:00Z', doorsAt: null },
+  ]);
+  const { data: occurrenceRows } = await admin
+    .from('event_occurrences')
+    .select('id, ends_at')
+    .eq('event_id', event.id);
+  const occurrence = occurrenceRows?.[0];
+  assert.ok(occurrence);
+
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(event.id, {
+      p_title: event.title,
+      p_starts_on: '2029-05-01',
+      p_ends_on: '2029-05-10',
+      p_occurrence_fixes: [{ id: occurrence.id, doorsAt: '2029-05-05T00:30:00Z', endsAt: null }],
+    }),
+  );
+  assert.equal(error, null);
+
+  const { data: refetched } = await admin
+    .from('event_occurrences')
+    .select('doors_at, ends_at')
+    .eq('id', occurrence.id)
+    .single();
+  assert.ok(refetched);
+  assert.ok(refetched.doors_at, 'expected doors_at to be filled in');
+  assert.ok(refetched.ends_at);
+  assert.equal(
+    new Date(refetched.ends_at).toISOString(),
+    '2029-05-05T04:00:00.000Z',
+    'expected the existing ends_at to survive a fix element that named it as null',
+  );
+});
+
+void test('an invalid Event range on import_update_event rolls back the whole call, including occurrence fixes', async () => {
+  const { admin, event } = await createImportedFixtureEvent('2029-06-01', '2029-06-10', [
+    { startsAt: '2029-06-05T01:00:00Z', endsAt: null, doorsAt: null },
+  ]);
+  const { data: occurrenceRows } = await admin
+    .from('event_occurrences')
+    .select('id')
+    .eq('event_id', event.id);
+  const occurrence = occurrenceRows?.[0];
+  assert.ok(occurrence);
+
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(event.id, {
+      p_title: event.title,
+      // starts_on > ends_on: violates events_starts_on_le_ends_on.
+      p_starts_on: '2029-06-20',
+      p_ends_on: '2029-06-10',
+      p_occurrence_fixes: [{ id: occurrence.id, doorsAt: '2029-06-05T00:30:00Z' }],
+    }),
+  );
+  assert.ok(error, 'expected the invalid range to reject the whole call');
+
+  const { data: refetched } = await admin
+    .from('event_occurrences')
+    .select('doors_at')
+    .eq('id', occurrence.id)
+    .single();
+  assert.equal(
+    refetched?.doors_at,
+    null,
+    'expected the occurrence fix to have rolled back along with the invalid range',
+  );
+});
+
+void test('an out-of-range new occurrence on import_update_event rolls back the whole call', async () => {
+  const { admin, event } = await createImportedFixtureEvent('2029-07-01', '2029-07-10', []);
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(event.id, {
+      p_title: event.title,
+      p_starts_on: '2029-07-01',
+      p_ends_on: '2029-07-10',
+      p_new_occurrences: [{ startsAt: '2029-08-01T01:00:00Z', endsAt: null, doorsAt: null }],
+    }),
+  );
+  assert.ok(error, 'expected the out-of-range occurrence to reject the whole call');
+
+  const { data } = await admin.from('event_occurrences').select('id').eq('event_id', event.id);
+  assert.deepEqual(data, [], 'expected no occurrence to have been inserted');
+});
+
+void test('import_update_event rejects an occurrence fix id that belongs to a different event', async () => {
+  const { admin, event: eventA } = await createImportedFixtureEvent('2029-09-01', '2029-09-10', []);
+  const { event: eventB } = await createImportedFixtureEvent('2029-09-01', '2029-09-10', [
+    { startsAt: '2029-09-05T01:00:00Z', endsAt: null, doorsAt: null },
+  ]);
+  const { data: eventBOccurrences } = await admin
+    .from('event_occurrences')
+    .select('id')
+    .eq('event_id', eventB.id);
+  const foreignOccurrence = eventBOccurrences?.[0];
+  assert.ok(foreignOccurrence);
+
+  const { error } = await admin.rpc(
+    IMPORT_UPDATE_RPC,
+    importUpdateArgs(eventA.id, {
+      p_title: eventA.title,
+      p_starts_on: '2029-09-01',
+      p_ends_on: '2029-09-10',
+      p_occurrence_fixes: [{ id: foreignOccurrence.id, doorsAt: '2029-09-05T00:30:00Z' }],
+    }),
+  );
+  assert.ok(error, 'expected a mismatched-count error for a foreign occurrence id');
+
+  const { data: refetched } = await admin
+    .from('event_occurrences')
+    .select('doors_at')
+    .eq('id', foreignOccurrence.id)
+    .single();
+  assert.equal(refetched?.doors_at, null, "expected event B's occurrence to be untouched");
+});

@@ -300,6 +300,22 @@ void test('listEventCatalogOnDate: an empty period returns an empty result, not 
   assert.deepEqual(data, []);
 });
 
+// Issue #88: listEventCatalogOnDate's own contract ("その日に公演回がある
+// event") is narrower than listEventCatalogInRange's - a range-only event
+// whose Event range covers the day but has no occurrence on it must not
+// leak through the day-scoped wrapper, even though the period-scoped
+// function it wraps deliberately includes such events.
+void test('listEventCatalogOnDate: a range-only event covering the day but with no occurrence on it is absent', async () => {
+  const { event } = await createEventWithoutOccurrence(actorA, '2027-06-01', '2027-06-30', {
+    title: eventFixtureTitle(),
+  });
+  const data = requireOk(await listEventCatalogOnDate(actorB.client, '2027-06-15'));
+  assert.ok(
+    !data.some((group) => group.event.id === event.id),
+    'expected a range-only event with no occurrence on this specific day to be absent',
+  );
+});
+
 // --- listEventCatalogInRange: Event range overlap, independent of occurrences (Issue #88) ---
 
 void test('listEventCatalogInRange: a 0-occurrence event is surfaced when its Event range overlaps the period', async () => {
