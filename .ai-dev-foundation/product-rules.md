@@ -21,16 +21,19 @@ Completed baseline を参照してください。
 ### Event と公演回
 
 - catalog は **event**（公演・催しそのもの）と、その配下の **公演回** を別の
-  概念として扱います。1 つの event は 1 件以上の公演回を持ちます。
+  概念として扱います。
 - 公演回は必ずいずれかの event に属し、event から独立して存在しません。
 - 単発の公演は「公演回が 1 件の event」として表します。単発のための別概念は
   設けません。
-- event は少なくとも 1 件の公演回を持ちます。日程が未発表の event を catalog
-  へ登録する扱いは、その need が出た時点で再評価します。
+- event は 0 件の公演回を正当な状態として持てます（Issue #87）。開催期間
+  だけが公表されていて具体的な公演回がまだ発表されていない event を表す
+  ためです。詳細は「Event 開催期間（Event range）」節を参照してください。
 
 ### 公演日程
 
-- 公演の開始日時は公演回が持ちます。
+- 公演回の開演日時（starts_at 相当）と終演日時（ends_at 相当、nullable）に
+  加えて、開場日時（doors_at 相当、nullable）を持ちます。詳細は「開場 /
+  開演 / 終演」節を参照してください。
 - 終演時刻は不明な場合があり、未設定を正当な状態として扱います。未設定を
   「当日中に終わる」等の既定値へ暗黙に変換しません。
 - 同一日に複数回の公演がある場合は、その日に複数の公演回が存在するものとして
@@ -42,18 +45,57 @@ Completed baseline を参照してください。
   であるため別 event として表現します（公演回ごとに会場が変わる興行の扱いは
   引き続き未決定です）。occurrence-level の分類（部 / room / 貸切区分等）を
   将来導入する場合、この一意性の単位を再評価します。
-- 公演期間（初日から千秋楽まで）は公演回から導出する派生情報として扱い、
-  独立に管理・編集する情報としては持ちません。
-- 休演日は「公演期間内で公演回が存在しない日」として表します。休演日のための
-  専用の概念は設けません。
+- 公演期間（初日〜千秋楽）は公演回から導出する派生情報ではなく、event が
+  持つ独立した first-class data（Event range）です。詳細は「Event 開催期間
+  （Event range）」節を参照してください（Issue #87。#13 で確定した「公演期間
+  は公演回からのみ導出する」ルールを明示的に上書きします）。
+- 「Event range 内で公演回が存在しない日 = 休演日」という解釈は廃止します。
+  0 件の公演回を持つ event を許容したことで、未発表・貸切（意図的に
+  user-actionable な公演回として取り込まない）・import 未取込等、公演回が
+  存在しない理由が複数あり得るためです。休演日のための専用概念は設けません。
 
 ### Event と公演回の情報境界
 
-- event が持つのは、興行そのものの識別情報（title / 会場 / 参照 URL / memo）と
-  owner です。
-- 公演回が持つのは、その回の開始日時と終了日時です。
+- event が持つのは、興行そのものの識別情報（title / 会場 / 参照 URL /
+  memo）、owner、および Event range（starts_on / ends_on）です。
+- 公演回が持つのは、その回の開場日時・開演日時・終演日時です。
 - 会場は event の情報として扱います。公演回ごとに会場が変わる興行の扱いは、
   その need が出た時点で再評価します。
+
+### Event 開催期間（Event range）
+
+- Event は `starts_on` / `ends_on` 相当の calendar date range を
+  first-class data として持ちます（Issue #87）。公式に公表された「初日〜
+  千秋楽 / 開催期間」という product fact を表し、公演回集合から自動導出
+  しません。
+- starts_on / ends_on は `Asia/Tokyo` の calendar date で、両端 inclusive
+  です。single-day event は starts_on = ends_on とします。
+- Event range 内に公演回が存在しない日があっても構いません（前節のとおり、
+  これを休演日とは解釈しません）。
+- 公演回の日付は、それが属する event の Event range 内に収まっていなければ
+  ならない product invariant とします。この整合性は application-side
+  validation だけでなく DB level でも enforce します。具体的な enforcement
+  mechanism（CHECK constraint / trigger 等）は、現行 schema に適した方法を
+  実装 Task で選定します。
+- event は 0 件の公演回を持てます（「event は少なくとも 1 件の公演回を持つ」
+  という既存 invariant を緩和します）。開催期間だけが判明していて具体的な
+  公演回がまだ発表されていない event を表すためです。
+- 0 件の公演回を持つ event は catalog へ即座に可視化します。「この期間に
+  この公演があるので予定を空けておきたい」という日程確保情報として、
+  shared planning surface 上で positive な価値を持つと位置づけます。
+- 既存 Production event の Event range は、既存公演回の min/max から機械的
+  に backfill してよい方向とします。ただし機械的 backfill 値を常に公式
+  Event range と同一とはみなしません。現行 import では貸切等を公演回として
+  取り込まないケースがあるため、必要な event については公式情報と照合して
+  starts_on / ends_on を補正します。destructive reset は不要です。
+
+### 開場 / 開演 / 終演
+
+- 公演回の開演日時は明確に「開演時刻」を意味します（starts_at 相当）。
+- 開場日時（doors_at 相当。column 名は実装 Task で選定）は nullable です。
+  開場時刻が未公表の場合を正当な null として扱います。
+- 終演日時（ends_at 相当）は引き続き nullable です。既存 semantics を
+  維持します。
 
 ### Catalog の日程参照要件
 
@@ -376,7 +418,6 @@ Completed baseline を参照してください。
 - 「関心のある分類」を persistent な personal preference にするか、その場の
   filter に留めるか
 - 公演回ごとに会場が異なる興行の扱い
-- 日程が未発表の event の扱い
 - 公演回の deletion / 公演中止の表現
 - PWA scope
 - MCP product scope
