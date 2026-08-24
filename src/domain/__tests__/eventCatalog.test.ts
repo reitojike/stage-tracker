@@ -38,6 +38,8 @@ function rawEventRow(overrides: Partial<RawEventRow> = {}): RawEventRow {
     venue: 'Sample venue',
     source_url: null,
     memo: null,
+    starts_on: '2026-01-01',
+    ends_on: '2026-12-31',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -48,6 +50,7 @@ function rawOccurrenceRow(overrides: Partial<RawEventOccurrenceRow> = {}): RawEv
   return {
     id: 'occurrence-1',
     event_id: 'event-1',
+    doors_at: null,
     starts_at: '2026-01-10T10:00:00Z',
     ends_at: null,
     created_at: '2026-01-01T00:00:00Z',
@@ -84,6 +87,8 @@ void test('mapEventRow maps snake_case persistence fields to the domain shape', 
     venue: '会場A',
     sourceUrl: 'https://example.test/e1',
     memo: 'memo text',
+    startsOn: '2026-01-01',
+    endsOn: '2026-12-31',
     createdAt: '2026-02-01T00:00:00Z',
     updatedAt: '2026-02-02T00:00:00Z',
   });
@@ -101,6 +106,7 @@ void test('mapOccurrenceRow maps snake_case persistence fields to the domain sha
   assert.deepEqual(mapOccurrenceRow(row), {
     id: 'o1',
     eventId: 'e1',
+    doorsAt: null,
     startsAt: '2026-02-01T10:00:00Z',
     endsAt: '2026-02-01T12:00:00Z',
     createdAt: '2026-02-01T00:00:00Z',

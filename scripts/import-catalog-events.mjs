@@ -67,6 +67,22 @@ function seedFilePaths(entry) {
 }
 
 const HAS_UTC_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/;
+const HAS_CALENDAR_DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Asia/Tokyo has a fixed +09:00 offset (no DST), so shifting an instant by
+// that constant and reading its UTC calendar fields back out gives the
+// Tokyo calendar date without a timezone database - the same technique
+// domain/eventCatalog.ts's tokyoCalendarDateFromInstant uses, duplicated
+// here rather than imported since this script is a standalone .mjs with no
+// import of src/domain/* (see the module header comment).
+const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
+function tokyoDateOf(instantIso) {
+  const tokyo = new Date(Date.parse(instantIso) + TOKYO_OFFSET_MS);
+  const year = String(tokyo.getUTCFullYear()).padStart(4, '0');
+  const month = String(tokyo.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(tokyo.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 // Every field is checked before anything is written, and a single bad
 // entry aborts the whole run. Partial application is recoverable (this
@@ -96,13 +112,35 @@ function validateEntry(entry, where) {
     problems.push('sourceUrl must start with http:// or https://');
   }
 
-  // An event must have at least one 公演回 (product-rules.md). The RPC the
-  // UI uses enforces that by creating both in one transaction; this script
-  // writes as service_role and bypasses RLS, so it has to hold the same
-  // line itself rather than inherit it.
+  // Event range (Issue #87/#88): the officially published 初日〜千秋楽, a
+  // product fact independent of whatever occurrences are known - never
+  // derived from occurrences.min/max here, mirroring the DB backfill
+  // migration's own caveat that a mechanical min/max is only an initial
+  // value, not necessarily the official range.
+  const startsOn = text(entry.startsOn, 'startsOn', true);
+  if (startsOn !== null && !HAS_CALENDAR_DATE_SHAPE.test(startsOn)) {
+    problems.push('startsOn must be an Asia/Tokyo calendar date as "YYYY-MM-DD"');
+  }
+  const endsOn = text(entry.endsOn, 'endsOn', true);
+  if (endsOn !== null && !HAS_CALENDAR_DATE_SHAPE.test(endsOn)) {
+    problems.push('endsOn must be an Asia/Tokyo calendar date as "YYYY-MM-DD"');
+  }
+  if (
+    startsOn !== null &&
+    endsOn !== null &&
+    HAS_CALENDAR_DATE_SHAPE.test(startsOn) &&
+    HAS_CALENDAR_DATE_SHAPE.test(endsOn) &&
+    startsOn > endsOn
+  ) {
+    problems.push('endsOn must not be earlier than startsOn');
+  }
+
+  // Issue #87/#88: occurrences may be empty (开催期間 known, no 公演回 yet
+  // published) - the non-empty requirement this used to hold (mirroring
+  // the pre-#88 create_event_with_occurrence contract) is gone.
   const rawOccurrences = Array.isArray(entry.occurrences) ? entry.occurrences : null;
-  if (rawOccurrences === null || rawOccurrences.length === 0) {
-    problems.push('occurrences must be a non-empty array');
+  if (rawOccurrences === null) {
+    problems.push('occurrences must be an array (possibly empty)');
   }
 
   const occurrences = [];
@@ -131,6 +169,20 @@ function validateEntry(entry, where) {
     }
     seenInstants.add(startsAt);
 
+    // Containment (Issue #88): every occurrence's Tokyo calendar date must
+    // fall within the event's own [startsOn, endsOn] - the same invariant
+    // the DB enforces at commit, checked here so a mistaken seed is caught
+    // during review, not as an opaque database error during --apply.
+    if (startsOn !== null && endsOn !== null) {
+      const occurrenceDate = tokyoDateOf(raw.startsAt);
+      if (occurrenceDate < startsOn || occurrenceDate > endsOn) {
+        problems.push(
+          `${at}.startsAt (Asia/Tokyo date ${occurrenceDate}) is outside the event's range [${startsOn}, ${endsOn}]`,
+        );
+        continue;
+      }
+    }
+
     let endsAt = null;
     if (raw.endsAt !== null && raw.endsAt !== undefined) {
       const parsed = typeof raw.endsAt === 'string' ? Date.parse(raw.endsAt) : Number.NaN;
@@ -139,21 +191,33 @@ function validateEntry(entry, where) {
         continue;
       }
       if (parsed < startsAt) {
-        // event_occurrences has no CHECK for this yet (Issue #46), so the
-        // write paths are what enforce it; this is the same rule the UI
-        // applies, held here too rather than assumed.
         problems.push(`${at}.endsAt is earlier than startsAt`);
         continue;
       }
       endsAt = raw.endsAt;
     }
-    occurrences.push({ startsAt: raw.startsAt, endsAt, instant: startsAt });
+
+    let doorsAt = null;
+    if (raw.doorsAt !== null && raw.doorsAt !== undefined) {
+      const parsed = typeof raw.doorsAt === 'string' ? Date.parse(raw.doorsAt) : Number.NaN;
+      if (Number.isNaN(parsed) || !HAS_UTC_OFFSET.test(raw.doorsAt)) {
+        problems.push(`${at}.doorsAt must be a parseable timestamp with an explicit UTC offset`);
+        continue;
+      }
+      if (parsed > startsAt) {
+        problems.push(`${at}.doorsAt is later than startsAt`);
+        continue;
+      }
+      doorsAt = raw.doorsAt;
+    }
+
+    occurrences.push({ doorsAt, startsAt: raw.startsAt, endsAt, instant: startsAt });
   }
 
   if (problems.length > 0) {
     fail(`${where}: invalid seed entry\n  - ${problems.join('\n  - ')}`);
   }
-  return { sourceKey, title, venue, memo, sourceUrl, occurrences };
+  return { sourceKey, title, venue, memo, sourceUrl, startsOn, endsOn, occurrences };
 }
 
 const entries = [];
@@ -215,7 +279,7 @@ const plans = [];
 for (const entry of entries) {
   const { data: existing, error } = await admin
     .from('events')
-    .select('id, title, venue, source_url, memo, owner_id')
+    .select('id, title, venue, source_url, memo, owner_id, starts_on, ends_on')
     .eq('source_key', entry.sourceKey)
     .maybeSingle();
   if (error) {
@@ -228,8 +292,10 @@ for (const entry of entries) {
       action: 'create',
       event: null,
       detailsChanged: false,
+      rangeChanged: false,
       newOccurrences: entry.occurrences,
       endsAtFixes: [],
+      doorsAtFixes: [],
       keptOccurrences: 0,
     });
     continue;
@@ -247,7 +313,7 @@ for (const entry of entries) {
 
   const { data: existingOccurrences, error: occurrenceError } = await admin
     .from('event_occurrences')
-    .select('id, starts_at, ends_at')
+    .select('id, doors_at, starts_at, ends_at')
     .eq('event_id', existing.id);
   if (occurrenceError) {
     fail(`Failed to read occurrences for ${entry.sourceKey}: ${occurrenceError.message}`);
@@ -276,35 +342,46 @@ for (const entry of entries) {
 
   const newOccurrences = [];
   const endsAtFixes = [];
+  const doorsAtFixes = [];
   for (const occurrence of entry.occurrences) {
     const match = byInstant.get(occurrence.instant);
     if (match === undefined) {
       newOccurrences.push(occurrence);
       continue;
     }
-    // Sources publish 上演時間 only shortly before 初日, so a first import
-    // usually lands with no end time and a later re-import can fill it in.
-    // Filling a blank is the point; clearing a value that is already there
-    // is not - a seed file that has since lost its end time must not erase
-    // what the catalog already knows.
-    if (occurrence.endsAt === null) {
-      continue;
+    // Sources publish 上演時間 (and 開場時刻) only shortly before 初日, so a
+    // first import usually lands with no end/doors time and a later
+    // re-import can fill it in. Filling a blank is the point; clearing a
+    // value that is already there is not - a seed file that has since lost
+    // a value must not erase what the catalog already knows.
+    if (occurrence.endsAt !== null) {
+      const current = match.ends_at === null ? null : Date.parse(match.ends_at);
+      if (current !== Date.parse(occurrence.endsAt)) {
+        endsAtFixes.push({
+          id: match.id,
+          startsAt: occurrence.startsAt,
+          // Carried so the dry run can show what is being replaced, not
+          // just how many rows change. A non-null `from` means the seed is
+          // overwriting a value the catalog already had - which includes
+          // one an owner may have corrected by hand through the UI, since
+          // an imported occurrence is editable exactly like a manual one.
+          // The seed stays authoritative for occurrences it names, so the
+          // protection here is visibility, not refusal.
+          from: match.ends_at,
+          endsAt: occurrence.endsAt,
+        });
+      }
     }
-    const current = match.ends_at === null ? null : Date.parse(match.ends_at);
-    if (current !== Date.parse(occurrence.endsAt)) {
-      endsAtFixes.push({
-        id: match.id,
-        startsAt: occurrence.startsAt,
-        // Carried so the dry run can show what is being replaced, not just
-        // how many rows change. A non-null `from` means the seed is
-        // overwriting an end time the catalog already had - which includes
-        // one an owner may have corrected by hand through the UI, since an
-        // imported occurrence is editable exactly like a manual one. The
-        // seed stays authoritative for occurrences it names, so the
-        // protection here is visibility, not refusal.
-        from: match.ends_at,
-        endsAt: occurrence.endsAt,
-      });
+    if (occurrence.doorsAt !== null) {
+      const current = match.doors_at === null ? null : Date.parse(match.doors_at);
+      if (current !== Date.parse(occurrence.doorsAt)) {
+        doorsAtFixes.push({
+          id: match.id,
+          startsAt: occurrence.startsAt,
+          from: match.doors_at,
+          doorsAt: occurrence.doorsAt,
+        });
+      }
     }
   }
 
@@ -323,16 +400,28 @@ for (const entry of entries) {
     existing.source_url !== entry.sourceUrl ||
     existing.memo !== entry.memo;
 
+  // Event range (Issue #87/#88): the seed's startsOn/endsOn is authoritative
+  // for events it names, same as its occurrence end/doors times - a
+  // mechanical backfill value differing from the seed's official range is
+  // exactly the discrepancy this comparison exists to surface and correct.
+  const rangeChanged = existing.starts_on !== entry.startsOn || existing.ends_on !== entry.endsOn;
+
   plans.push({
     entry,
     action:
-      detailsChanged || newOccurrences.length > 0 || endsAtFixes.length > 0
+      detailsChanged ||
+      rangeChanged ||
+      newOccurrences.length > 0 ||
+      endsAtFixes.length > 0 ||
+      doorsAtFixes.length > 0
         ? 'update'
         : 'unchanged',
     event: existing,
     detailsChanged,
+    rangeChanged,
     newOccurrences,
     endsAtFixes,
+    doorsAtFixes,
     keptOccurrences: kept.length,
   });
 }
@@ -362,17 +451,35 @@ const label = apply ? 'APPLY' : 'DRY RUN';
 console.log(
   `\n[${label}] ${remote ? 'remote' : 'local'} target, owner ${ownerEmail} (${owner.id})\n`,
 );
+function logFixes(label, fixes, formatValue) {
+  if (fixes.length === 0) return;
+  console.log(`          ~ ${fixes.length} occurrence ${label}`);
+  for (const fix of fixes.slice(0, 5)) {
+    console.log(`              ${fix.startsAt}  ${formatValue(fix)}`);
+  }
+  if (fixes.length > 5) {
+    console.log(`              ... and ${fixes.length - 5} more`);
+  }
+  const overwrites = fixes.filter((fix) => fix.from !== null).length;
+  if (overwrites > 0) {
+    console.log(`          ! ${overwrites} of those replace a value already in the catalog`);
+  }
+}
+
 for (const plan of plans) {
   const { entry } = plan;
   console.log(`${plan.action.toUpperCase().padEnd(9)} ${entry.sourceKey}`);
   console.log(`          ${entry.title}${entry.venue === null ? '' : ` / ${entry.venue}`}`);
+  console.log(`          Event range ${entry.startsOn} .. ${entry.endsOn}`);
   if (plan.action === 'create') {
-    const first = plan.newOccurrences[0];
-    const last = plan.newOccurrences[plan.newOccurrences.length - 1];
     console.log(`          + event, + ${plan.newOccurrences.length} occurrences`);
-    console.log(`          range ${first.startsAt} .. ${last.startsAt}`);
   } else {
     if (plan.detailsChanged) console.log('          ~ event details');
+    if (plan.rangeChanged) {
+      console.log(
+        `          ~ Event range  ${plan.event.starts_on} .. ${plan.event.ends_on} -> ${entry.startsOn} .. ${entry.endsOn}`,
+      );
+    }
     if (plan.newOccurrences.length > 0) {
       console.log(`          + ${plan.newOccurrences.length} occurrences`);
       for (const occurrence of plan.newOccurrences.slice(0, 5)) {
@@ -382,23 +489,16 @@ for (const plan of plans) {
         console.log(`              ... and ${plan.newOccurrences.length - 5} more`);
       }
     }
-    if (plan.endsAtFixes.length > 0) {
-      console.log(`          ~ ${plan.endsAtFixes.length} occurrence end times`);
-      for (const fix of plan.endsAtFixes.slice(0, 5)) {
-        console.log(
-          `              ${fix.startsAt}  ${formatTokyo(fix.from)} -> ${formatTokyo(fix.endsAt)}`,
-        );
-      }
-      if (plan.endsAtFixes.length > 5) {
-        console.log(`              ... and ${plan.endsAtFixes.length - 5} more`);
-      }
-      const overwrites = plan.endsAtFixes.filter((fix) => fix.from !== null).length;
-      if (overwrites > 0) {
-        console.log(
-          `          ! ${overwrites} of those replace an end time already in the catalog`,
-        );
-      }
-    }
+    logFixes(
+      'end times',
+      plan.endsAtFixes,
+      (fix) => `${formatTokyo(fix.from)} -> ${formatTokyo(fix.endsAt)}`,
+    );
+    logFixes(
+      'doors times',
+      plan.doorsAtFixes,
+      (fix) => `${formatTokyo(fix.from)} -> ${formatTokyo(fix.doorsAt)}`,
+    );
     if (plan.keptOccurrences > 0) {
       console.log(
         `          = ${plan.keptOccurrences} existing occurrences not in this seed, left untouched`,
@@ -412,11 +512,14 @@ const totals = plans.reduce(
     events: acc.events + (plan.action === 'create' ? 1 : 0),
     occurrences: acc.occurrences + plan.newOccurrences.length,
     endsAt: acc.endsAt + plan.endsAtFixes.length,
+    doorsAt: acc.doorsAt + plan.doorsAtFixes.length,
+    ranges: acc.ranges + (plan.rangeChanged ? 1 : 0),
   }),
-  { events: 0, occurrences: 0, endsAt: 0 },
+  { events: 0, occurrences: 0, endsAt: 0, doorsAt: 0, ranges: 0 },
 );
 console.log(
-  `\n${plans.length} seed entries: +${totals.events} events, +${totals.occurrences} occurrences, ~${totals.endsAt} end times\n`,
+  `\n${plans.length} seed entries: +${totals.events} events, +${totals.occurrences} occurrences, ` +
+    `~${totals.endsAt} end times, ~${totals.doorsAt} doors times, ~${totals.ranges} Event ranges\n`,
 );
 
 if (!apply) {
@@ -431,34 +534,31 @@ if (!apply) {
 // failure resumes rather than duplicates, which is what source_key and
 // (event_id, starts_at) matching exist for.
 //
-// One step does need real atomicity, and gets it from the database rather
-// than from this loop: creating an event together with its occurrences.
-// Every other write here leaves a state that is either already correct or
-// repaired by the next run, but a half-finished *create* would leave an
-// event with no occurrences at all - a product invariant violation visible
-// in the shared catalog. That step goes through
-// import_event_with_occurrences (one call, one transaction) instead of
-// being sequenced here. Client-side compensation was tried first and is
-// insufficient: it cannot run at all if the response is lost after the
-// event INSERT commits, or if the process dies between two requests.
+// Both a create and an update need real atomicity, and both get it from the
+// database rather than from this loop, via a single RPC call each -
+// import_event_with_occurrences for create, import_update_event for update
+// (Issue #88). A half-finished create used to risk a zero-occurrence event
+// (no longer a product invariant violation on its own, but the create RPC
+// stays atomic regardless); a half-finished update that moves the Event
+// range and some occurrence times separately risks tripping the
+// cross-table containment invariant mid-sequence, which import_update_event
+// avoids by deferring it to the end of its own transaction (see that
+// function's migration comment). Client-side compensation was tried first
+// for the create case and is insufficient: it cannot run at all if the
+// response is lost after the event INSERT commits, or if the process dies
+// between two requests.
 for (const plan of plans) {
   const { entry } = plan;
-  let eventId = plan.event?.id ?? null;
 
   if (plan.action === 'create') {
-    // One call, one transaction: the event row and every occurrence are
-    // written together or not at all (see
-    // 20260823040000_create_import_event_with_occurrences_rpc.sql). Writing
-    // them as two requests and compensating on error was not enough - a lost
-    // response after the event INSERT commits, or the process being killed
-    // between the two requests, would leave a zero-occurrence event in the
-    // shared catalog with nothing left running to undo it. Nothing in this
-    // script deletes any more.
     const { data, error } = await admin.rpc('import_event_with_occurrences', {
       p_owner_id: owner.id,
       p_source_key: entry.sourceKey,
       p_title: entry.title,
+      p_starts_on: entry.startsOn,
+      p_ends_on: entry.endsOn,
       p_occurrences: plan.newOccurrences.map((occurrence) => ({
+        doorsAt: occurrence.doorsAt,
         startsAt: occurrence.startsAt,
         endsAt: occurrence.endsAt,
       })),
@@ -469,48 +569,31 @@ for (const plan of plans) {
     if (error) {
       fail(`Failed to create ${entry.sourceKey}: ${error.message}`);
     }
-    eventId = data.id;
-  } else if (plan.detailsChanged) {
-    const { error } = await admin
-      .from('events')
-      .update({
-        title: entry.title,
-        venue: entry.venue,
-        source_url: entry.sourceUrl,
-        memo: entry.memo,
-      })
-      .eq('id', eventId);
+  } else if (plan.action === 'update') {
+    const fixesById = new Map();
+    for (const fix of plan.endsAtFixes) {
+      fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, endsAt: fix.endsAt });
+    }
+    for (const fix of plan.doorsAtFixes) {
+      fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, doorsAt: fix.doorsAt });
+    }
+    const { error } = await admin.rpc('import_update_event', {
+      p_event_id: plan.event.id,
+      p_title: entry.title,
+      p_venue: entry.venue,
+      p_source_url: entry.sourceUrl,
+      p_memo: entry.memo,
+      p_starts_on: entry.startsOn,
+      p_ends_on: entry.endsOn,
+      p_new_occurrences: plan.newOccurrences.map((occurrence) => ({
+        doorsAt: occurrence.doorsAt,
+        startsAt: occurrence.startsAt,
+        endsAt: occurrence.endsAt,
+      })),
+      p_occurrence_fixes: [...fixesById.values()],
+    });
     if (error) {
       fail(`Failed to update ${entry.sourceKey}: ${error.message}`);
-    }
-  }
-
-  // Only for events that already existed: a create plan's occurrences went
-  // in with the event itself, inside the RPC above. Adding occurrences to an
-  // event that already has some cannot produce a zero-occurrence event, so
-  // this path needs no atomicity beyond the per-statement kind - a failure
-  // here leaves the event exactly as complete as it was, and re-running
-  // resumes.
-  if (plan.action !== 'create' && plan.newOccurrences.length > 0) {
-    const { error } = await admin.from('event_occurrences').insert(
-      plan.newOccurrences.map((occurrence) => ({
-        event_id: eventId,
-        starts_at: occurrence.startsAt,
-        ends_at: occurrence.endsAt,
-      })),
-    );
-    if (error) {
-      fail(`Failed to add occurrences for ${entry.sourceKey}: ${error.message}`);
-    }
-  }
-
-  for (const fix of plan.endsAtFixes) {
-    const { error } = await admin
-      .from('event_occurrences')
-      .update({ ends_at: fix.endsAt })
-      .eq('id', fix.id);
-    if (error) {
-      fail(`Failed to set end time for ${entry.sourceKey} ${fix.startsAt}: ${error.message}`);
     }
   }
 

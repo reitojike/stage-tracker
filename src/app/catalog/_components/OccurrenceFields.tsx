@@ -9,31 +9,50 @@ export interface OccurrenceFieldsProps {
   /** Distinguishes the create form's initial occurrence from a further
    * occurrence added later, purely in the helper text. */
   startsAtHelperText?: string;
+  /** Add/update occurrence forms always require 開演日時 (there is no
+   * concept of a blank occurrence once it exists). The create form's
+   * initial-occurrence sub-form is the one exception (Issue #87/#88: an
+   * event may have zero occurrences at create time) - it passes `false` so
+   * the browser does not block submitting the rest of the form when this
+   * sub-form is left entirely blank. Defaults to true. */
+  startsAtRequired?: boolean;
 }
 
 /**
- * One 公演回's times (Issue #29). Both inputs are `datetime-local`, i.e.
- * a wall-clock reading with no zone; they are interpreted as Asia/Tokyo -
- * the product date boundary - by domain/eventCatalogWrite.ts, never by the
- * browser's or server's own timezone.
+ * One 公演回の開場 / 開演 / 終演 (Issue #29, 開場 added by Issue #88). All
+ * three inputs are `datetime-local`, i.e. a wall-clock reading with no
+ * zone; they are interpreted as Asia/Tokyo - the product date boundary - by
+ * domain/eventCatalogWrite.ts, never by the browser's or server's own
+ * timezone.
  *
- * 終演日時 is deliberately optional and is not defaulted from 開演日時: an
- * unknown end time is a legitimate product state, and filling one in would
- * fabricate information the catalog does not have.
+ * 開場日時 / 終演日時 are deliberately optional and are not defaulted from
+ * 開演日時: an unpublished doors/end time is a legitimate product state,
+ * and filling one in would fabricate information the catalog does not
+ * have.
  */
 export function OccurrenceFields({
   values,
   fieldErrors,
   disabled,
   startsAtHelperText,
+  startsAtRequired = true,
 }: OccurrenceFieldsProps) {
   return (
     <>
       <TextInput
+        label="開場日時"
+        name="doorsAt"
+        type="datetime-local"
+        defaultValue={values.doorsAt ?? ''}
+        error={fieldErrors.doorsAt}
+        disabled={disabled}
+        helperText="任意です。未入力の場合は未公表として扱われます。"
+      />
+      <TextInput
         label="開演日時"
         name="startsAt"
         type="datetime-local"
-        required
+        required={startsAtRequired}
         defaultValue={values.startsAt ?? ''}
         error={fieldErrors.startsAt}
         disabled={disabled}

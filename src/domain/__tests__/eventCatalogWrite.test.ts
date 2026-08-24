@@ -131,13 +131,30 @@ void test('parseEventDetails rejects a reference URL that is not a URL at all', 
 
 // --- Occurrence times ---
 
-void test('parseOccurrence converts both times from Tokyo wall clock', () => {
-  const result = parseOccurrence({ startsAt: '2026-08-22T11:00', endsAt: '2026-08-22T14:30' });
+void test('parseOccurrence converts every time from Tokyo wall clock', () => {
+  const result = parseOccurrence({
+    doorsAt: '2026-08-22T10:30',
+    startsAt: '2026-08-22T11:00',
+    endsAt: '2026-08-22T14:30',
+  });
   assert.ok(result.ok);
   assert.deepEqual(result.value, {
+    doorsAtUtc: '2026-08-22T01:30:00.000Z',
     startsAtUtc: '2026-08-22T02:00:00.000Z',
     endsAtUtc: '2026-08-22T05:30:00.000Z',
   });
+});
+
+void test('parseOccurrence accepts an unset doors time as null', () => {
+  const result = parseOccurrence({ startsAt: '2026-08-22T11:00' });
+  assert.ok(result.ok);
+  assert.equal(result.value.doorsAtUtc, null);
+});
+
+void test('parseOccurrence rejects doors after starts', () => {
+  const result = parseOccurrence({ doorsAt: '2026-08-22T12:00', startsAt: '2026-08-22T11:00' });
+  assert.ok(!result.ok);
+  assert.ok(result.fieldErrors.doorsAt);
 });
 
 // An unknown end time is a valid product state and must never be coerced
@@ -170,26 +187,59 @@ void test('parseOccurrence rejects a present but malformed end time', () => {
 
 // --- Combined create submission ---
 
-void test('parseEventCreate returns both halves of a valid submission', () => {
+void test('parseEventCreate returns all three parts of a valid submission with an initial occurrence', () => {
   const result = parseEventCreate({
     title: 'ある公演',
     venue: '帝国劇場',
+    startsOn: '2026-08-01',
+    endsOn: '2026-08-31',
     startsAt: '2026-08-22T11:00',
   });
   assert.ok(result.ok);
   assert.equal(result.value.details.title, 'ある公演');
+  assert.deepEqual(result.value.range, { startsOn: '2026-08-01', endsOn: '2026-08-31' });
+  assert.ok(result.value.initialOccurrence);
   assert.equal(result.value.initialOccurrence.startsAtUtc, '2026-08-22T02:00:00.000Z');
   assert.equal(result.value.initialOccurrence.endsAtUtc, null);
 });
 
-// Reporting only the event fields first, then the occurrence's on the next
-// attempt, would make a single bad submission take two round trips to fix.
-void test('parseEventCreate reports event and occurrence field errors together', () => {
-  const result = parseEventCreate({ title: '', startsAt: '' });
+// Issue #87/#88: an event may be created with zero occurrences. Leaving the
+// occurrence sub-form entirely blank must parse to initialOccurrence: null,
+// not an error - the range fields are still required.
+void test('parseEventCreate accepts a fully blank occurrence sub-form as no initial occurrence', () => {
+  const result = parseEventCreate({
+    title: 'ある公演',
+    startsOn: '2026-08-01',
+    endsOn: '2026-08-31',
+  });
+  assert.ok(result.ok);
+  assert.equal(result.value.initialOccurrence, null);
+});
+
+// A partially-filled occurrence (e.g. only endsAt) is not "blank" - it must
+// still report its own field errors rather than being silently discarded.
+void test('parseEventCreate reports a partially-filled invalid occurrence, not treat it as blank', () => {
+  const result = parseEventCreate({
+    title: 'ある公演',
+    startsOn: '2026-08-01',
+    endsOn: '2026-08-31',
+    endsAt: '2026-08-22T14:30',
+  });
+  assert.equal(result.ok, false);
+  assert.ok(!result.ok);
+  assert.ok(result.fieldErrors.startsAt);
+});
+
+// Reporting only the event fields first, then the range's, then the
+// occurrence's, across repeated attempts would make a single bad submission
+// take multiple round trips to fix.
+void test('parseEventCreate reports event, range, and occurrence field errors together', () => {
+  const result = parseEventCreate({ title: '', startsOn: '', endsAt: 'あとで' });
   assert.equal(result.ok, false);
   assert.ok(!result.ok);
   assert.ok(result.fieldErrors.title);
-  assert.ok(result.fieldErrors.startsAt);
+  assert.ok(result.fieldErrors.startsOn);
+  assert.ok(result.fieldErrors.endsAt);
 });
 
 // --- Write error classification ---
@@ -272,16 +322,18 @@ void test('an occurrence round-trips through the database shape onto the same wa
   assert.ok(parsed.ok);
 
   assert.deepEqual(occurrenceToFormValues(parsed.value), {
+    doorsAt: '',
     startsAt: '2026-08-22T19:00',
     endsAt: '2026-08-22T21:30',
   });
 });
 
-void test('an unset end time round-trips as an empty input, not as a fabricated time', () => {
+void test('an unset end/doors time round-trips as an empty input, not as a fabricated time', () => {
   const parsed = parseOccurrence({ startsAt: '2026-08-22T19:00', endsAt: '' });
   assert.ok(parsed.ok);
 
   assert.deepEqual(occurrenceToFormValues(parsed.value), {
+    doorsAt: '',
     startsAt: '2026-08-22T19:00',
     endsAt: '',
   });
@@ -292,6 +344,7 @@ void test('a past-midnight occurrence round-trips onto the following Tokyo day',
   assert.ok(parsed.ok);
 
   assert.deepEqual(occurrenceToFormValues(parsed.value), {
+    doorsAt: '',
     startsAt: '2026-08-22T22:00',
     endsAt: '2026-08-23T01:00',
   });

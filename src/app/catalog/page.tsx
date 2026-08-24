@@ -20,6 +20,7 @@ import {
 } from '@/domain/catalogNavigation';
 import { currentTokyoDate } from './_lib/today.ts';
 import { MonthCalendar } from './_components/MonthCalendar.tsx';
+import { RangeOnlyEventList } from './_components/RangeOnlyEventList.tsx';
 import { SelectedDayList } from './_components/SelectedDayList.tsx';
 
 interface CatalogPageProps {
@@ -92,6 +93,15 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
             selectedDate={selectedDate}
             todayDate={today}
           />
+
+          {/* Issue #88: a 0-occurrence event (or one with no occurrence in
+              this month specifically) never appears in MonthCalendar,
+              which is entirely occurrence-driven (bands/badges) - without
+              this, such an event would make result.data non-empty (no
+              "この月に登録されている公演はありません" below) while still
+              rendering nothing at all. Shown unconditionally on the month
+              landing view, not gated behind selecting a day. */}
+          <RangeOnlyEventList events={result.data} context={{ yearMonth, selectedDate }} />
 
           {state === 'empty' && selectedDate === null ? (
             <StatePanel variant="empty" title="この月に登録されている公演はありません" />

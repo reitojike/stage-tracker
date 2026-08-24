@@ -12,6 +12,24 @@ import {
 import { createEventWithOccurrence, eventFixtureTitle } from './support/eventFixtures.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
+// A wide static Event range (e.g. 2000-01-01..2100-01-01) would satisfy
+// create_event's containment check for any p_starts_at below, but it would
+// also make every one of these permission-only fixture events match
+// listEventCatalogInRange's Event-range-overlap query (Issue #88) for
+// almost any period another test file queries against this same,
+// not-reset-between-files local database - silently polluting an unrelated
+// "this day has nothing" assertion elsewhere. Deriving the range from the
+// same instant used as p_starts_at keeps it exactly one Tokyo calendar day
+// wide instead.
+const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
+function todayTokyoDate(): string {
+  const tokyo = new Date(Date.now() + TOKYO_OFFSET_MS);
+  const year = String(tokyo.getUTCFullYear()).padStart(4, '0');
+  const month = String(tokyo.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(tokyo.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Real local Supabase/Postgres tests for the MVP Event catalog write
 // boundary (Issue #29): event creation is restricted to designated catalog
 // creators, everything else about the catalog is unchanged.
@@ -56,8 +74,10 @@ void test('a designated catalog creator can create an event with its initial occ
 });
 
 void test('an authenticated user without membership cannot create an event', async () => {
-  const { error } = await plainUser.client.rpc('create_event_with_occurrence', {
+  const { error } = await plainUser.client.rpc('create_event', {
     p_title: eventFixtureTitle(),
+    p_starts_on: todayTokyoDate(),
+    p_ends_on: todayTokyoDate(),
     p_starts_at: new Date().toISOString(),
   });
   assert.ok(error, 'expected event creation to be denied for a non-designated creator');
@@ -68,8 +88,10 @@ void test('an authenticated user without membership cannot create an event', asy
 // or infrastructure failure (src/domain/eventCatalogWrite.ts's
 // classifyWriteError), so this pins the code, not merely "some error".
 void test('the create denial is reported as insufficient_privilege, not a generic failure', async () => {
-  const { error } = await plainUser.client.rpc('create_event_with_occurrence', {
+  const { error } = await plainUser.client.rpc('create_event', {
     p_title: eventFixtureTitle(),
+    p_starts_on: todayTokyoDate(),
+    p_ends_on: todayTokyoDate(),
     p_starts_at: new Date().toISOString(),
   });
   assert.ok(error);
@@ -80,8 +102,10 @@ void test('the create denial is reported as insufficient_privilege, not a generi
 // orphaned occurrence.
 void test('a denied create persists no event row', async () => {
   const title = eventFixtureTitle();
-  const { error } = await plainUser.client.rpc('create_event_with_occurrence', {
+  const { error } = await plainUser.client.rpc('create_event', {
     p_title: title,
+    p_starts_on: todayTokyoDate(),
+    p_ends_on: todayTokyoDate(),
     p_starts_at: new Date().toISOString(),
   });
   assert.ok(error);
@@ -101,8 +125,10 @@ void test('granting then revoking membership flips create permission for the sam
   const grantedTitle = eventFixtureTitle();
   await grantCatalogCreator(plainUser.user.id);
   try {
-    const { data, error } = await plainUser.client.rpc('create_event_with_occurrence', {
+    const { data, error } = await plainUser.client.rpc('create_event', {
       p_title: grantedTitle,
+      p_starts_on: todayTokyoDate(),
+      p_ends_on: todayTokyoDate(),
       p_starts_at: new Date().toISOString(),
     });
     assert.equal(error, null, 'expected creation to succeed once membership is granted');
@@ -114,8 +140,10 @@ void test('granting then revoking membership flips create permission for the sam
     await revokeCatalogCreator(plainUser.user.id);
   }
 
-  const { error: deniedAgain } = await plainUser.client.rpc('create_event_with_occurrence', {
+  const { error: deniedAgain } = await plainUser.client.rpc('create_event', {
     p_title: eventFixtureTitle(),
+    p_starts_on: todayTokyoDate(),
+    p_ends_on: todayTokyoDate(),
     p_starts_at: new Date().toISOString(),
   });
   assert.ok(deniedAgain, 'expected creation to be denied again once membership is revoked');
@@ -229,8 +257,10 @@ void test('an authenticated user cannot grant themselves membership', async () =
 
   // And the denial is real, not just an error on the way back: the user
   // still cannot create an event afterwards.
-  const { error: stillDenied } = await plainUser.client.rpc('create_event_with_occurrence', {
+  const { error: stillDenied } = await plainUser.client.rpc('create_event', {
     p_title: eventFixtureTitle(),
+    p_starts_on: todayTokyoDate(),
+    p_ends_on: todayTokyoDate(),
     p_starts_at: new Date().toISOString(),
   });
   assert.ok(stillDenied, 'expected creation to remain denied after a failed self-promotion');

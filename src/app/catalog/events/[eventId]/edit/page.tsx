@@ -7,12 +7,17 @@ import { getEventWithOccurrences } from '@/infrastructure/supabase/eventCatalogR
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
 import { canUpdateEvent } from '@/domain/eventPermissions';
 import { resolveWriteFeedback } from '@/domain/eventWriteFeedback';
-import { eventDetailsToFormValues, occurrenceToFormValues } from '@/domain/eventCatalogWrite';
+import {
+  eventDetailsToFormValues,
+  eventRangeToFormValues,
+  occurrenceToFormValues,
+} from '@/domain/eventCatalogWrite';
 import { occurrenceTimeRangeLabel, tokyoDateLabel } from '@/domain/catalogFormatting';
 import { catalogEventHref, resolveCatalogParams } from '@/domain/catalogNavigation';
 import type { EventWithOccurrences } from '@/domain/eventCatalog';
 import { currentTokyoDate } from '../../../_lib/today.ts';
 import { EventDetailsEditForm } from '../../../_components/EventDetailsEditForm.tsx';
+import { EventRangeEditForm } from '../../../_components/EventRangeEditForm.tsx';
 import { OccurrenceAddForm } from '../../../_components/OccurrenceAddForm.tsx';
 import { OccurrenceUpdateForm } from '../../../_components/OccurrenceUpdateForm.tsx';
 import styles from '../../../_components/EventWriteForm.module.css';
@@ -98,6 +103,14 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
       </section>
 
       <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>開催期間</h2>
+        <p className={styles.occurrenceCaption}>
+          開催期間と公演回の日時を両方とも新しい期間へ移す場合は、まず開催期間を広げてから公演回の日時を編集し、最後に開催期間を正しい範囲へ戻してください。
+        </p>
+        <EventRangeEditForm eventId={event.id} initialValues={eventRangeToFormValues(event)} />
+      </section>
+
+      <section className={styles.section}>
         <h2 className={styles.sectionHeading}>公演回</h2>
         <p className={styles.occurrenceCaption}>
           公演回の削除は現時点では提供していません。日時の修正と追加のみ行えます。
@@ -113,6 +126,7 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
               occurrence.endsAt,
             )}`}
             initialValues={occurrenceToFormValues({
+              doorsAtUtc: occurrence.doorsAt,
               startsAtUtc: occurrence.startsAt,
               endsAtUtc: occurrence.endsAt,
             })}

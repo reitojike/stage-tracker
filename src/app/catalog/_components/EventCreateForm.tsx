@@ -7,14 +7,17 @@ import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { CatalogParams } from '@/domain/catalogNavigation.ts';
 import { createEventAction } from '../_actions/eventWrite.ts';
 import { EventFields } from './EventFields.tsx';
+import { EventRangeFields } from './EventRangeFields.tsx';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
 import styles from './EventWriteForm.module.css';
 
 /**
- * Creates an event together with its required initial occurrence (Issue
- * #29). The two halves are submitted as one form because they are
- * persisted as one atomic operation - there is no supported path that
- * creates an event without an occurrence, so the UI does not offer one.
+ * Creates an event together with its Event range and an optional initial
+ * occurrence (Issue #29, extended by #87/#88). All three are submitted as
+ * one form because they are persisted as one atomic operation - the
+ * occurrence sub-form may be left entirely blank, since an event may have
+ * zero occurrences at create time (product-rules.md: 開催期間だけが判明し
+ * ている段階でも catalog へ登録できる).
  *
  * This component renders only what the write boundary supports. It makes
  * no permission decision: the page above it decides whether to render this
@@ -60,14 +63,20 @@ export function EventCreateForm({ context }: EventCreateFormProps) {
           re-render with the previous attempt's values still in the DOM. */}
       <div key={state.attempt} className={styles.fields}>
         <EventFields values={state.values} fieldErrors={state.fieldErrors} disabled={isPending} />
+        <EventRangeFields
+          values={state.values}
+          fieldErrors={state.fieldErrors}
+          disabled={isPending}
+        />
 
         <fieldset className={styles.group}>
-          <legend className={styles.groupLegend}>初回公演回</legend>
+          <legend className={styles.groupLegend}>初回公演回（任意）</legend>
           <OccurrenceFields
             values={state.values}
             fieldErrors={state.fieldErrors}
             disabled={isPending}
-            startsAtHelperText="日本時間（Asia/Tokyo）で入力します。公演回は作成後に追加できます。"
+            startsAtHelperText="日本時間（Asia/Tokyo）で入力します。未入力のまま作成すると、公演回は後から追加できます。"
+            startsAtRequired={false}
           />
         </fieldset>
       </div>

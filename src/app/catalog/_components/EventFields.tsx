@@ -15,8 +15,11 @@ export interface EventFieldsProps {
  * they carry no write grant, so offering them would be an affordance the
  * database would refuse.
  *
- * Temporal fields are absent by design - they belong to the occurrence
- * (see OccurrenceFields), never to the event.
+ * The Event range (starts_on/ends_on, Issue #88) is a separate component -
+ * see EventRangeFields - because it is edited through a different write
+ * path (reschedule_event) once an event has occurrences, not a plain
+ * events UPDATE like these fields. Occurrence times (開場/開演/終演) remain
+ * entirely separate too - see OccurrenceFields.
  */
 export function EventFields({ values, fieldErrors, disabled }: EventFieldsProps) {
   return (

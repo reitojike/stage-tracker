@@ -14,7 +14,11 @@
 // actually enforced by RLS/grants/the create RPC.
 
 import { isRenderableHttpUrl } from './catalogFormatting.ts';
-import { parseTokyoCalendarDate, type RawPostgrestError } from './eventCatalog.ts';
+import {
+  parseTokyoCalendarDate,
+  tokyoCalendarDateFromInstant,
+  type RawPostgrestError,
+} from './eventCatalog.ts';
 
 const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -27,19 +31,44 @@ export interface EventDetailsInput {
   memo: string | null;
 }
 
+/** Event range (Issue #87/#88): Asia/Tokyo calendar dates, both inclusive.
+ * Independent of EventDetailsInput because it is edited through a separate
+ * write path (reschedule_event, not a plain events UPDATE) once the event
+ * already has occurrences - see rescheduleEvent in
+ * src/infrastructure/supabase/eventCatalogWrite.ts. */
+export interface EventRangeInput {
+  startsOn: string;
+  endsOn: string;
+}
+
 export interface OccurrenceInput {
+  doorsAtUtc: string | null;
   startsAtUtc: string;
   endsAtUtc: string | null;
 }
 
-/** An event and the initial occurrence it must be created with - the two
- * halves the create RPC persists atomically. */
+/**
+ * An event, its Event range, and an optional initial occurrence - all
+ * three persisted atomically by create_event. The initial occurrence is
+ * optional (Issue #87/#88: an event may have zero occurrences at create
+ * time), unlike the create RPC's previous required-occurrence contract.
+ */
 export interface EventCreateInput {
   details: EventDetailsInput;
-  initialOccurrence: OccurrenceInput;
+  range: EventRangeInput;
+  initialOccurrence: OccurrenceInput | null;
 }
 
-export type EventWriteField = 'title' | 'venue' | 'sourceUrl' | 'memo' | 'startsAt' | 'endsAt';
+export type EventWriteField =
+  | 'title'
+  | 'venue'
+  | 'sourceUrl'
+  | 'memo'
+  | 'startsOn'
+  | 'endsOn'
+  | 'doorsAt'
+  | 'startsAt'
+  | 'endsAt';
 
 export type FieldErrors = Partial<Record<EventWriteField, string>>;
 
@@ -50,7 +79,7 @@ export type FieldErrors = Partial<Record<EventWriteField, string>>;
  */
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; fieldErrors: FieldErrors };
 
-function hasErrors(fieldErrors: FieldErrors): boolean {
+export function hasErrors(fieldErrors: FieldErrors): boolean {
   return Object.keys(fieldErrors).length > 0;
 }
 
@@ -189,9 +218,9 @@ export function parseOccurrence(raw: RawFormValues): ParseResult<OccurrenceInput
     }
   }
 
-  // An unset end time is a legitimate product state, so a blank value is
-  // accepted as null here rather than reported as a missing field. Only a
-  // value that is present but unparseable is an error.
+  // An unset end/doors time is a legitimate product state, so a blank value
+  // is accepted as null here rather than reported as a missing field. Only
+  // a value that is present but unparseable is an error.
   const rawEndsAt = readField(raw, 'endsAt').trim();
   let endsAtUtc: string | null = null;
   if (rawEndsAt.length > 0) {
@@ -201,24 +230,42 @@ export function parseOccurrence(raw: RawFormValues): ParseResult<OccurrenceInput
     }
   }
 
+  const rawDoorsAt = readField(raw, 'doorsAt').trim();
+  let doorsAtUtc: string | null = null;
+  if (rawDoorsAt.length > 0) {
+    doorsAtUtc = tokyoDateTimeLocalToInstant(rawDoorsAt);
+    if (doorsAtUtc === null) {
+      fieldErrors.doorsAt = '開場日時の形式が正しくありません。';
+    }
+  }
+
   if (hasErrors(fieldErrors) || startsAtUtc === null) {
     return { ok: false, fieldErrors };
   }
 
-  // Both times parsed, so the interval itself can be judged. This is the
-  // single place every supported write path reaches - parseEventCreate
+  // Every time that parsed, so the ordering itself can be judged. This is
+  // the single place every supported write path reaches - parseEventCreate
   // delegates here for the initial occurrence, and the add/update
   // occurrence actions call it directly - so the check cannot be bypassed
   // by using a different screen.
   //
-  // Equal instants are accepted: a zero-length occurrence is odd but not
-  // self-contradictory, and rejecting it would invent a rule the product
-  // does not have. Only an end strictly before its start is refused.
+  // Equal instants are accepted at each boundary: a zero-length occurrence,
+  // or doors opening exactly at 開演, is odd but not self-contradictory,
+  // and rejecting it would invent a rule the product does not have. Only a
+  // value strictly *after* the next one in the doors <= starts <= ends
+  // chain is refused.
   //
-  // Note the database does not enforce this yet: event_occurrences carries
-  // no CHECK constraint, so this guards the product's own write paths
-  // rather than the column. Adding the constraint touches existing
-  // persistence and is tracked as its own Task.
+  // The database enforces the same ordering at commit
+  // (event_occurrences_doors_at_le_starts_at /
+  // event_occurrences_starts_at_le_ends_at, Issue #88), so this guards the
+  // product's write paths ahead of that round trip rather than substituting
+  // for it.
+  if (doorsAtUtc !== null && Date.parse(doorsAtUtc) > Date.parse(startsAtUtc)) {
+    return {
+      ok: false,
+      fieldErrors: { doorsAt: '開場日時は開演日時より後にできません。' },
+    };
+  }
   if (endsAtUtc !== null && Date.parse(endsAtUtc) < Date.parse(startsAtUtc)) {
     return {
       ok: false,
@@ -226,29 +273,138 @@ export function parseOccurrence(raw: RawFormValues): ParseResult<OccurrenceInput
     };
   }
 
-  return { ok: true, value: { startsAtUtc, endsAtUtc } };
+  return { ok: true, value: { doorsAtUtc, startsAtUtc, endsAtUtc } };
 }
 
 /**
- * A create submission carries both halves; both are parsed so a form can
- * report every field's problem in one pass instead of surfacing the event
- * fields' errors, then the occurrence's on the next attempt.
+ * An event's occurrence sub-form left entirely blank (Issue #87/#88: the
+ * initial occurrence on create is optional). Distinguished from a
+ * partially-filled-but-invalid occurrence, which must still report its
+ * field errors rather than being silently treated as "no occurrence
+ * intended".
+ */
+function isBlankOccurrence(raw: RawFormValues): boolean {
+  return (
+    readField(raw, 'startsAt').trim().length === 0 &&
+    readField(raw, 'endsAt').trim().length === 0 &&
+    readField(raw, 'doorsAt').trim().length === 0
+  );
+}
+
+export function parseEventRange(raw: RawFormValues): ParseResult<EventRangeInput> {
+  const fieldErrors: FieldErrors = {};
+
+  const startsOn = readField(raw, 'startsOn').trim();
+  if (startsOn.length === 0) {
+    fieldErrors.startsOn = '開催期間の開始日を入力してください。';
+  } else {
+    try {
+      parseTokyoCalendarDate(startsOn);
+    } catch {
+      fieldErrors.startsOn = '開始日の形式が正しくありません。';
+    }
+  }
+
+  const endsOn = readField(raw, 'endsOn').trim();
+  if (endsOn.length === 0) {
+    fieldErrors.endsOn = '開催期間の終了日を入力してください。';
+  } else {
+    try {
+      parseTokyoCalendarDate(endsOn);
+    } catch {
+      fieldErrors.endsOn = '終了日の形式が正しくありません。';
+    }
+  }
+
+  if (hasErrors(fieldErrors)) {
+    return { ok: false, fieldErrors };
+  }
+
+  // events_starts_on_le_ends_on (Issue #88) enforces this at the database
+  // too; checked here ahead of that round trip for the same reason as
+  // parseOccurrence's ordering checks above.
+  if (startsOn > endsOn) {
+    return { ok: false, fieldErrors: { endsOn: '終了日は開始日より前にできません。' } };
+  }
+
+  return { ok: true, value: { startsOn, endsOn } };
+}
+
+/**
+ * The occurrence/Event-range containment invariant (Issue #88:
+ * event_occurrences_within_event_range / events_range_contains_occurrences
+ * at the DB level), checked here ahead of that round trip so a violation
+ * is reported at the startsAt field instead of a generic "保存できません
+ * でした" banner. Deliberately not folded into parseOccurrence itself:
+ * that parser has no way to know its caller's parent event range (it is a
+ * generic per-occurrence parser, reused by contexts that do and do not
+ * have one in scope yet), so this is a separate step a caller runs once
+ * both an occurrence and a range are available - parseEventCreate below
+ * for create, and the add/update occurrence actions (which already have
+ * to read the parent event to reach this point) for existing events.
+ */
+export function validateOccurrenceWithinRange(
+  occurrence: OccurrenceInput,
+  range: EventRangeInput,
+): FieldErrors {
+  const occurrenceDate = tokyoCalendarDateFromInstant(occurrence.startsAtUtc);
+  if (occurrenceDate < range.startsOn || occurrenceDate > range.endsOn) {
+    return {
+      startsAt: `開演日時は開催期間（${range.startsOn}〜${range.endsOn}）の範囲内で入力してください。`,
+    };
+  }
+  return {};
+}
+
+/**
+ * A create submission carries the event's descriptive fields, its Event
+ * range, and (optionally) an initial occurrence; all are parsed so a form
+ * can report every field's problem in one pass instead of surfacing the
+ * event fields' errors, then the range's, then the occurrence's, across
+ * repeated attempts.
+ *
+ * The occurrence sub-form is optional (Issue #87/#88): left entirely blank,
+ * it parses to `initialOccurrence: null` rather than an error - the
+ * opposite of the pre-#88 contract, where an occurrence was mandatory. A
+ * partially-filled, invalid occurrence still reports its own field errors;
+ * only a fully blank one is read as "no occurrence yet".
  */
 export function parseEventCreate(raw: RawFormValues): ParseResult<EventCreateInput> {
   const details = parseEventDetails(raw);
-  const occurrence = parseOccurrence(raw);
+  const range = parseEventRange(raw);
+  const occurrenceBlank = isBlankOccurrence(raw);
+  const occurrence = occurrenceBlank ? null : parseOccurrence(raw);
 
-  if (!details.ok || !occurrence.ok) {
+  if (!details.ok || !range.ok || (occurrence !== null && !occurrence.ok)) {
     return {
       ok: false,
       fieldErrors: {
         ...(details.ok ? {} : details.fieldErrors),
-        ...(occurrence.ok ? {} : occurrence.fieldErrors),
+        ...(range.ok ? {} : range.fieldErrors),
+        ...(occurrence === null || occurrence.ok ? {} : occurrence.fieldErrors),
       },
     };
   }
 
-  return { ok: true, value: { details: details.value, initialOccurrence: occurrence.value } };
+  // Every field parsed on its own, so the cross-field containment
+  // invariant can finally be judged (Issue #88) - the same check the DB
+  // performs, run here so a violation lands on the startsAt field instead
+  // of surfacing only as a generic DB-error banner after a round trip.
+  if (occurrence !== null) {
+    const containmentErrors = validateOccurrenceWithinRange(occurrence.value, range.value);
+    if (hasErrors(containmentErrors)) {
+      return { ok: false, fieldErrors: containmentErrors };
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      details: details.value,
+      range: range.value,
+      initialOccurrence: occurrence === null ? null : occurrence.value,
+    },
+  };
 }
 
 /**
@@ -280,10 +436,19 @@ export function eventDetailsToFormValues(details: EventDetailsInput): RawFormVal
  */
 export function occurrenceToFormValues(occurrence: OccurrenceInput): RawFormValues {
   return {
+    doorsAt:
+      occurrence.doorsAtUtc === null ? '' : tokyoDateTimeLocalFromInstant(occurrence.doorsAtUtc),
     startsAt: tokyoDateTimeLocalFromInstant(occurrence.startsAtUtc),
     endsAt:
       occurrence.endsAtUtc === null ? '' : tokyoDateTimeLocalFromInstant(occurrence.endsAtUtc),
   };
+}
+
+/** The Event range counterpart - startsOn/endsOn are already
+ * "YYYY-MM-DD" strings, the same shape a `date` input's value takes, so no
+ * conversion is needed. */
+export function eventRangeToFormValues(range: EventRangeInput): RawFormValues {
+  return { startsOn: range.startsOn, endsOn: range.endsOn };
 }
 
 /**

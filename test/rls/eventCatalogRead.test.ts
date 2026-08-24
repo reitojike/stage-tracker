@@ -7,14 +7,21 @@ import {
   listEventCatalogOnDate,
   listEventOccurrences,
 } from '../../src/infrastructure/supabase/eventCatalogRead.ts';
-import { tokyoCalendarDayRangeUtc } from '../../src/domain/eventCatalog.ts';
+import {
+  tokyoCalendarDateFromInstant,
+  tokyoCalendarDayRangeUtc,
+} from '../../src/domain/eventCatalog.ts';
 import {
   createAnonymousClient,
   createTestActor,
   deleteTestActor,
   type TestActor,
 } from './support/testActors.ts';
-import { createEventWithOccurrence, eventFixtureTitle } from './support/eventFixtures.ts';
+import {
+  createEventWithOccurrence,
+  createEventWithoutOccurrence,
+  eventFixtureTitle,
+} from './support/eventFixtures.ts';
 
 // Real local Supabase/Postgres tests for the typed event catalog read
 // layer itself (Issue #12), as opposed to test/rls/events.test.ts and
@@ -70,7 +77,7 @@ function secondsAfter(isoStart: string, offsetSeconds: number): string {
 }
 
 /**
- * Inserts occurrences directly (bypassing create_event_with_occurrence,
+ * Inserts occurrences directly (bypassing create_event,
  * which only creates one at a time) in bounded-size batches, so tests can
  * cheaply produce more rows than supabase/config.toml's `api.max_rows`
  * (1000) without one request per row.
@@ -293,18 +300,121 @@ void test('listEventCatalogOnDate: an empty period returns an empty result, not 
   assert.deepEqual(data, []);
 });
 
+// Issue #88: listEventCatalogOnDate's own contract ("その日に公演回がある
+// event") is narrower than listEventCatalogInRange's - a range-only event
+// whose Event range covers the day but has no occurrence on it must not
+// leak through the day-scoped wrapper, even though the period-scoped
+// function it wraps deliberately includes such events.
+void test('listEventCatalogOnDate: a range-only event covering the day but with no occurrence on it is absent', async () => {
+  const { event } = await createEventWithoutOccurrence(actorA, '2027-06-01', '2027-06-30', {
+    title: eventFixtureTitle(),
+  });
+  const data = requireOk(await listEventCatalogOnDate(actorB.client, '2027-06-15'));
+  assert.ok(
+    !data.some((group) => group.event.id === event.id),
+    'expected a range-only event with no occurrence on this specific day to be absent',
+  );
+});
+
+// --- listEventCatalogInRange: Event range overlap, independent of occurrences (Issue #88) ---
+
+void test('listEventCatalogInRange: a 0-occurrence event is surfaced when its Event range overlaps the period', async () => {
+  const rangeStart = '2027-01-05';
+  const rangeEnd = '2027-01-15';
+  const { event } = await createEventWithoutOccurrence(actorA, rangeStart, rangeEnd, {
+    title: eventFixtureTitle(),
+  });
+
+  const queryRange = tokyoCalendarDayRangeUtc('2027-01-10');
+  const data = requireOk(await listEventCatalogInRange(actorB.client, queryRange));
+  const group = data.find((g) => g.event.id === event.id);
+  assert.ok(
+    group,
+    'expected a 0-occurrence event whose Event range overlaps the queried period to be present',
+  );
+  assert.deepEqual(group.occurrences, []);
+});
+
+void test('listEventCatalogInRange: an event outside the query range on both axes stays absent', async () => {
+  const { event } = await createEventWithoutOccurrence(actorA, '2027-02-01', '2027-02-05', {
+    title: eventFixtureTitle(),
+  });
+  const queryRange = tokyoCalendarDayRangeUtc('2027-03-01');
+  const data = requireOk(await listEventCatalogInRange(actorB.client, queryRange));
+  assert.ok(
+    !data.some((g) => g.event.id === event.id),
+    'expected an event whose range does not overlap the query period to be absent',
+  );
+});
+
+void test('listEventCatalogInRange: an event matching both the occurrence-based and range-overlap queries appears exactly once, with its real occurrences', async () => {
+  const rangeStart = '2027-04-05';
+  const rangeEnd = '2027-04-15';
+  const queryDate = '2027-04-10';
+  const queryRange = tokyoCalendarDayRangeUtc(queryDate);
+  const { event, occurrence } = await createEventWithOccurrence(actorA, {
+    title: eventFixtureTitle(),
+    startsAt: queryRange.startUtc,
+    startsOn: rangeStart,
+    endsOn: rangeEnd,
+  });
+
+  const data = requireOk(await listEventCatalogInRange(actorB.client, queryRange));
+  const matches = data.filter((g) => g.event.id === event.id);
+  assert.equal(matches.length, 1, 'expected the event to appear exactly once, not duplicated');
+  assert.deepEqual(
+    matches[0]?.occurrences.map((occ) => occ.id),
+    [occurrence.id],
+    'expected the occurrence-bearing entry (real data), not an empty range-overlap-only entry',
+  );
+});
+
+void test('listEventCatalogInRange: occurrence-bearing events sort before range-overlap-only events', async () => {
+  const queryDate = '2027-05-10';
+  const queryRange = tokyoCalendarDayRangeUtc(queryDate);
+
+  const { event: rangeOnlyEvent } = await createEventWithoutOccurrence(
+    actorA,
+    '2027-05-01',
+    '2027-05-20',
+    { title: eventFixtureTitle() },
+  );
+  const { event: occurrenceEvent } = await createEventWithOccurrence(actorA, {
+    title: eventFixtureTitle(),
+    startsAt: queryRange.startUtc,
+    startsOn: queryDate,
+    endsOn: queryDate,
+  });
+
+  const data = requireOk(await listEventCatalogInRange(actorB.client, queryRange));
+  const occurrenceIndex = data.findIndex((g) => g.event.id === occurrenceEvent.id);
+  const rangeOnlyIndex = data.findIndex((g) => g.event.id === rangeOnlyEvent.id);
+  assert.ok(occurrenceIndex !== -1 && rangeOnlyIndex !== -1);
+  assert.ok(
+    occurrenceIndex < rangeOnlyIndex,
+    'expected the occurrence-bearing event to sort before the range-overlap-only event',
+  );
+});
+
 // --- listEventOccurrences: per-event ordering ---
 
 void test('listEventOccurrences: an event’s occurrences are returned in starts_at order', async () => {
+  const firstStartsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const secondStartsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
   const { event, occurrence: first } = await createEventWithOccurrence(actorA, {
     title: eventFixtureTitle(),
-    startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    startsAt: firstStartsAt,
+    // The second occurrence inserted below lands on a later Tokyo calendar
+    // day than the fixture's own (single-day, by default) Event range - the
+    // range has to be widened to cover both (Issue #88 containment
+    // invariant).
+    endsOn: tokyoCalendarDateFromInstant(secondStartsAt),
   });
   const { data: second, error: secondError } = await actorA.client
     .from('event_occurrences')
     .insert({
       event_id: event.id,
-      starts_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+      starts_at: secondStartsAt,
     })
     .select()
     .single();

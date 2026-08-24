@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { createEventWithOccurrence, eventFixtureTitle } from '../rls/support/eventFixtures.ts';
+import {
+  createEventWithOccurrence,
+  createEventWithoutOccurrence,
+  eventFixtureTitle,
+} from '../rls/support/eventFixtures.ts';
 import { createTestActor, deleteTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { deleteUser } from './support/authActors.ts';
@@ -56,8 +60,9 @@ async function signedInCookie(): Promise<string> {
   return session.cookie;
 }
 
-/** Fixture events are created through create_event_with_occurrence, which
- * is restricted to designated catalog creators (Issue #29), so the fixture
+/** Fixture events are created through create_event (Issue #88, renamed from
+ * create_event_with_occurrence), which is restricted to designated catalog
+ * creators (Issue #29), so the fixture
  * owner needs that membership. The signed-in *viewers* below deliberately
  * do not have it - this file's assertions are about what an ordinary
  * authenticated user can read. */
@@ -190,6 +195,10 @@ void test('a long-running event renders as a band; rest days and badge double-co
   const { event: kabuki } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
     startsAt: '2097-07-10T02:00:00.000Z', // 07-10 JST
+    // Event range (Issue #88): must cover every occurrence this fixture
+    // inserts below, including the 07-12 rest day inside the run.
+    startsOn: '2097-07-10',
+    endsOn: '2097-07-13',
   });
   await insertOccurrence(owner, kabuki.id, '2097-07-11T02:00:00.000Z'); // 07-11 JST
   // 07-12 intentionally has no occurrence for this event (rest day).
@@ -203,6 +212,8 @@ void test('a long-running event renders as a band; rest days and badge double-co
   const { event: secondRun } = await createEventWithOccurrence(owner, {
     title: eventFixtureTitle(),
     startsAt: '2097-07-20T02:00:00.000Z',
+    startsOn: '2097-07-20',
+    endsOn: '2097-07-21',
   });
   await insertOccurrence(owner, secondRun.id, '2097-07-21T02:00:00.000Z');
 
@@ -253,4 +264,38 @@ void test('a long-running event renders as a band; rest days and badge double-co
   const mixedDayHtml = await mixedDayResponse.text();
   assert.ok(mixedDayHtml.includes(kabuki.title));
   assert.ok(mixedDayHtml.includes(live.title));
+});
+
+// --- 0-occurrence event visibility (Issue #88) ---
+//
+// Regression test for the silent-blank-state bug: listEventCatalogInRange
+// returns a range-only event (result.data.length > 0), but
+// MonthCalendar/SelectedDayList are both entirely occurrence-driven, so
+// without RangeOnlyEventList such an event rendered nowhere on the page -
+// no calendar marker, and (since the result wasn't empty) no
+// "この月に登録されている公演はありません" message either. This proves the
+// real page HTML, not just the read layer, actually surfaces it.
+void test('a 0-occurrence event whose Event range covers the month is visible on the month landing view, and the empty-state message is suppressed', async () => {
+  const owner = await fixtureActor();
+  const { event } = await createEventWithoutOccurrence(owner, '2098-04-05', '2098-04-25', {
+    title: eventFixtureTitle(),
+  });
+
+  const cookie = await signedInCookie();
+  const response = await fetch(`${app.baseUrl}/catalog?month=2098-04`, {
+    headers: { cookie },
+    redirect: 'manual',
+  });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.ok(
+    html.includes(event.title),
+    'expected the 0-occurrence event to be visible on the month landing view, without selecting a day',
+  );
+  assert.doesNotMatch(
+    html,
+    /この月に登録されている公演はありません/,
+    'expected the empty-state message to be suppressed once a range-only event is present',
+  );
 });

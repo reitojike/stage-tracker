@@ -123,6 +123,17 @@ Production DB からの再構成が正しい経路です。
 明示します — offset がない文字列は script が reject します（UTC として
 9 時間ずれて解釈される事故を防ぐため）。
 
+`startsOn` / `endsOn`（Issue #87/#88 の Event range）は必須です。
+公式に公表されている初日〜千秋楽をそのまま入力します。
+`event_occurrences` の min/max から自動生成しません — Event range は
+公演回集合とは独立した product fact であり、貸切等の未取込 occurrence
+がある event では min/max と一致しないことがあるためです。各
+occurrence の `startsAt` の Asia/Tokyo calendar date は必ず
+`[startsOn, endsOn]` に収まっている必要があります（DB level でも
+enforce されます）。`occurrences` は空配列でも構いません（開催期間だけ
+判明していて具体的な公演回がまだ発表されていない event）。`doorsAt`
+（開場日時）は任意です。
+
 ```json
 {
   "sourceKey": "takarazuka:2026:example:takarazuka",
@@ -130,8 +141,14 @@ Production DB からの再構成が正しい経路です。
   "title": "◯組公演『作品名』",
   "venue": "◯◯劇場",
   "memo": "部と開演時刻の対応、貸切日、終演時刻の扱いなど",
+  "startsOn": "2026-07-11",
+  "endsOn": "2026-08-02",
   "occurrences": [
-    { "startsAt": "2026-07-11T13:00:00+09:00", "endsAt": null },
+    {
+      "doorsAt": "2026-07-11T12:30:00+09:00",
+      "startsAt": "2026-07-11T13:00:00+09:00",
+      "endsAt": null
+    },
     { "startsAt": "2026-07-12T11:00:00+09:00", "endsAt": "2026-07-12T14:04:00+09:00" }
   ]
 }
@@ -345,15 +362,29 @@ script が守るもの:
 - **designated catalog creator 以外を owner にしない。** service_role で
   書き込むため RLS と RPC の creator check を迂回します。script 自身が
   `public.catalog_creators` membership を検証します。
-- **公演回 0 件の event を作らない・残さない。** UI 経路で
-  `create_event_with_occurrence` が atomic に保証する不変条件を、
-  operator 経路でも DB level で保証します。新規 event の作成は
+- **公演回 0 件の event を作れる（Issue #87/#88）。** UI 経路の
+  `create_event`（旧 `create_event_with_occurrence`）と同じく、
+  operator 経路でも `occurrences: []` の import が正当な状態です。
+  「開催期間だけ発表されていて具体的な公演回がまだ発表されていない」
+  event を import 対象の興行でも表現できます。新規 event の作成は
   `import_event_with_occurrences` RPC を 1 回呼ぶだけで、event row と
-  その全公演回が **1 transaction** で書かれます。どこか 1 件でも失敗すれば
-  event row ごと rollback されます。client 側の補償削除には依存しません
-  （event INSERT の commit 後に応答が失われた場合やプロセスが強制終了した
-  場合、補償処理はそもそも走らないため）。この RPC は `service_role` のみ
-  実行可能で、`anon` / `authenticated` からは実行できません。
+  その全公演回（0 件を含む）が **1 transaction** で書かれます。どこか
+  1 件でも失敗すれば event row ごと rollback されます。client 側の補償
+  削除には依存しません（event INSERT の commit 後に応答が失われた場合や
+  プロセスが強制終了した場合、補償処理はそもそも走らないため）。この
+  RPC は `service_role` のみ実行可能で、`anon` / `authenticated` からは
+  実行できません。
+- **Event range の補正は seed の再適用で行う。** 機械的 backfill
+  （既存公演回の min/max、貸切等の未取込 occurrence により公式期間と
+  ずれ得る）で入った `starts_on`/`ends_on` を、公式情報と照合して
+  補正する場合も、raw SQL の直接 UPDATE を primary path にしません。
+  seed file の `startsOn`/`endsOn` を公式情報へ更新して dry run →
+  operator review → `--apply` を再実行してください。既存 event の
+  update は `import_update_event` RPC（Issue #88）が event の
+  description/Event range/新規 occurrence/終演・開場時刻の補正を
+  1 transaction で atomic に適用します（Event range と occurrence 群を
+  同時に動かす reschedule でも、DB level の containment invariant と
+  deadlock しません）。
 
 ## 既知の制約
 
