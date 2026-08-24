@@ -20,6 +20,7 @@ import {
 import {
   acceptedWriteFormState,
   rejectedWriteFormState,
+  resolveDuplicateOccurrenceFieldErrors,
   resolveWriteFeedback,
   resolveWriteNotice,
   type EventWriteFormState,
@@ -165,11 +166,24 @@ export async function addOccurrenceAction(
   const client = await createSupabaseServerClient();
   const result = await addEventOccurrence(client, eventId, parsed.value);
   if (!result.ok) {
+    const { kind } = result.error;
+    // Issue #79: this event already has an occurrence at the submitted
+    // start instant. Reported at the startsAt field rather than through
+    // resolveWriteFeedback's generic banner - the submitted value is what
+    // needs to change, so the form should say so at that input.
+    if (kind === 'duplicate-occurrence') {
+      return rejectedWriteFormState(
+        previous,
+        values,
+        resolveDuplicateOccurrenceFieldErrors(),
+        null,
+      );
+    }
     return rejectedWriteFormState(
       previous,
       values,
       {},
-      resolveWriteFeedback('add-occurrence', result.error.kind),
+      resolveWriteFeedback('add-occurrence', kind),
     );
   }
 
@@ -208,11 +222,23 @@ export async function updateOccurrenceAction(
   // navigate back and to revalidate the right paths.
   const result = await updateEventOccurrence(client, occurrenceId, parsed.value);
   if (!result.ok) {
+    const { kind } = result.error;
+    // Issue #79: the edited start instant collides with another occurrence
+    // already on this event. Same startsAt-field treatment as
+    // addOccurrenceAction above, for the same reason.
+    if (kind === 'duplicate-occurrence') {
+      return rejectedWriteFormState(
+        previous,
+        values,
+        resolveDuplicateOccurrenceFieldErrors(),
+        null,
+      );
+    }
     return rejectedWriteFormState(
       previous,
       values,
       {},
-      resolveWriteFeedback('update-occurrence', result.error.kind),
+      resolveWriteFeedback('update-occurrence', kind),
     );
   }
 

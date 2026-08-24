@@ -4,6 +4,7 @@ import {
   INITIAL_WRITE_FORM_STATE,
   acceptedWriteFormState,
   rejectedWriteFormState,
+  resolveDuplicateOccurrenceFieldErrors,
   resolveWriteFeedback,
   resolveWriteNotice,
 } from '../eventWriteFeedback.ts';
@@ -84,6 +85,15 @@ void test('rejectedWriteFormState preserves what was submitted', () => {
 
   assert.deepEqual(rejected.values, { title: 'typed but not saved' });
   assert.equal(rejected.attempt, 1);
+});
+
+// Issue #79: this renders at the startsAt input, not as a banner - the
+// caller (eventWrite.ts) intercepts 'duplicate-occurrence' and reaches for
+// this instead of resolveWriteFeedback.
+void test('resolveDuplicateOccurrenceFieldErrors names the startsAt field', () => {
+  const fieldErrors = resolveDuplicateOccurrenceFieldErrors();
+  assert.ok(fieldErrors.startsAt);
+  assert.equal(Object.keys(fieldErrors).length, 1);
 });
 
 void test('resolveWriteNotice distinguishes adding from updating an occurrence', () => {

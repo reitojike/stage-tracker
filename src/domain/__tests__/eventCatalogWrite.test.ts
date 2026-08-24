@@ -212,6 +212,19 @@ void test('classifyWriteError maps constraint violations to validation', () => {
   assert.equal(classifyWriteError({ code: '22007', message: 'bad datetime' }).kind, 'validation');
 });
 
+// Issue #79: event_occurrences_event_id_starts_at_key's unique_violation is
+// its own kind, not folded into 'validation' - a caller needs to tell it
+// apart to report it at the startsAt field instead of a generic banner.
+void test('classifyWriteError maps unique_violation to duplicate-occurrence', () => {
+  const error = classifyWriteError({
+    code: '23505',
+    message:
+      'duplicate key value violates unique constraint "event_occurrences_event_id_starts_at_key"',
+  });
+  assert.equal(error.kind, 'duplicate-occurrence');
+  assert.equal(error.code, '23505');
+});
+
 void test('classifyWriteError maps anything else to failure', () => {
   assert.equal(
     classifyWriteError({ code: '08006', message: 'connection failure' }).kind,

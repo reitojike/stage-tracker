@@ -58,6 +58,21 @@ const VALIDATION: EventWriteFeedback = {
   description: '入力内容に問題があります。各項目の内容を確認して、もう一度お試しください。',
 };
 
+/**
+ * Issue #79's (event_id, starts_at) uniqueness violation, named at the
+ * startsAt field rather than folded into the generic VALIDATION banner
+ * above: unlike a malformed value, there is nothing wrong with the input's
+ * shape, and the fix is specific (pick a different start time), so the
+ * message says exactly that instead of a generic "check your input".
+ */
+const DUPLICATE_OCCURRENCE_FIELD_ERRORS: FieldErrors = {
+  startsAt: 'この開始日時の公演回は、このイベントに既に登録されています。',
+};
+
+export function resolveDuplicateOccurrenceFieldErrors(): FieldErrors {
+  return DUPLICATE_OCCURRENCE_FIELD_ERRORS;
+}
+
 const FAILURE: EventWriteFeedback = {
   variant: 'error',
   title: '保存に失敗しました',
@@ -98,6 +113,15 @@ export function resolveWriteFeedback(
     case 'permission-denied':
       return PERMISSION_DENIED[operation];
     case 'validation':
+      return VALIDATION;
+    // add-occurrence/update-occurrence intercept 'duplicate-occurrence'
+    // before calling this function, to report it at the startsAt field
+    // instead (resolveDuplicateOccurrenceFieldErrors). create-event and
+    // update-event cannot produce this kind at all: the create RPC always
+    // targets a brand-new event id, and an event-details update never
+    // touches event_occurrences. This case exists so the switch stays
+    // total for every EventCatalogWriteErrorKind regardless of operation.
+    case 'duplicate-occurrence':
       return VALIDATION;
     case 'failure':
       return FAILURE;

@@ -1,0 +1,54 @@
+-- Occurrence identity invariant (Issue #79 / product-rules.md 公演日程).
+--
+-- An occurrence has no identifying attribute beyond starts_at/ends_at (no
+-- label, room, or 部/貸切 classification exists on this table), and
+-- product-rules.md now states that a 公演回 is identified within its event
+-- by its start instant. Nothing in the schema enforced that before this
+-- migration: only a non-unique index on event_id existed
+-- (20260821000000_create_event_occurrences.sql), so two rows could share an
+-- (event_id, starts_at) pair.
+--
+-- That gap was concretely observed, not merely theoretical: a review of the
+-- operator-assisted import script (Issue #73 / PR #78, review finding at
+-- https://github.com/reitojike/stage-tracker/pull/78#discussion_r3838883672)
+-- found that running two `--apply` invocations concurrently lets both read
+-- the same "not yet present" state and both insert the same instant, with
+-- no DELETE path in this schema to ever remove the duplicate. A second,
+-- same-root-cause finding
+-- (https://github.com/reitojike/stage-tracker/pull/78#issuecomment-5386822907)
+-- showed the same missing invariant makes existing-occurrence lookups by
+-- instant ambiguous once two rows share one.
+--
+-- Uniqueness is on the instant (timestamptz), not on any wall-clock
+-- rendering: two writers expressing the same instant in different offsets
+-- collide correctly. Both columns are NOT NULL, so there is no NULL-driven
+-- gap in this constraint to reason about.
+--
+-- Expressed as a table constraint (not a bare `create unique index`) so it
+-- reads in \d as a declared invariant alongside the table's other
+-- constraints (PK, FK), matching how this repository represents its other
+-- invariants. The application classifies the resulting error by SQLSTATE
+-- 23505 alone (src/domain/eventCatalogWrite.ts), not by this constraint's
+-- name: authenticated has no write access to events.source_key (the only
+-- other unique constraint reachable from these tables), so 23505 is
+-- unambiguous within the event catalog write boundary without needing to
+-- parse which constraint fired.
+alter table public.event_occurrences
+  add constraint event_occurrences_event_id_starts_at_key
+  unique (event_id, starts_at);
+
+-- This makes the pre-existing event_occurrences_event_id_idx redundant
+-- (this new index shares its leading column and can serve the same
+-- lookups), but it is deliberately left in place rather than dropped here.
+-- This migration's scope is the additive identity invariant; dropping a
+-- now-redundant index is a separate, non-additive cleanup decision.
+--
+-- create_event_with_occurrence (the sole authenticated create path) cannot
+-- violate this: it inserts exactly one occurrence for a brand-new event id,
+-- so there is no existing row for it to collide with. import_event_with_
+-- occurrences (the operator create path, 20260823040000) is likewise
+-- immune on create for the same reason; a duplicate instant *within* one
+-- import payload was deliberately left unrejected at that RPC layer
+-- (see its migration's closing comment) and is exactly what this
+-- constraint now catches, atomically, as part of that RPC's single
+-- transaction.
