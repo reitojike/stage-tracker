@@ -239,14 +239,17 @@ task / 追加のPO checkpointで確定します。
 
 - feature-specific calendar marker semantics（date dot / run period band /
   occurrence marker / 同日複数公演の件数表示 / overlapping runsのstack /
-  `+N` collapsing / rest day表示）
+  `+N` collapsing / Event range内でoccurrenceが存在しない日の表示）
 - event / occurrence / participation / invitation / personal schedule /
   ticket acquisition / ticket のpersistence shape・table naming。これら
   のdomain persistenceの正本は `.ai-dev-foundation/product-rules.md` と
   current implementationであり、本ドキュメントでは固定しません（将来の
   変更もこのdocumentが決めるものではありません）
-- run-period / rest-dayのcalendar上の表示方法（`.ai-dev-foundation/product-rules.md`
-  が定める「公演回から導出する派生情報」をどう表示するか）
+- Event range / occurrence有無のcalendar上の表示方法（`.ai-dev-foundation/
+product-rules.md` が定めるEvent range（first-class data。Issue #87）と、
+  公演回の有無をどう表示するか。「Event range内でoccurrenceが存在しない
+  日 = 休演日」という旧解釈はIssue #87で廃止済みであり、休演日専用の
+  表示conceptは想定しません）
 - budget集計の期間基準
 - favorite / follow persistence schema、classification taxonomyの具体形
   （classificationのdata boundary自体は
