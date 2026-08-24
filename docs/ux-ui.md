@@ -246,7 +246,8 @@ task / 追加のPO checkpointで確定します。
   current implementationであり、本ドキュメントでは固定しません（将来の
   変更もこのdocumentが決めるものではありません）
 - run-period / rest-dayのcalendar上の表示方法（`.ai-dev-foundation/product-rules.md`
-  が定める「公演回から導出する派生情報」をどう表示するか）
+  が定めるEvent range（first-class data。Issue #87）と、公演回の有無を
+  どう表示するか）
 - budget集計の期間基準
 - favorite / follow persistence schema、classification taxonomyの具体形
   （classificationのdata boundary自体は

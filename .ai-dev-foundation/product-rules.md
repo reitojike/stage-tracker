@@ -116,7 +116,13 @@ ends_on` は application-side validation だけでなく DB level でも
   DB level でも enforce する product invariant とします（enforcement
   mechanism は実装 Task で選定します）。
 - 終演日時（ends_at 相当）は引き続き nullable です。既存 semantics を
-  維持します。
+  維持します。値が設定されている場合、`starts_at <= ends_at` は
+  application-side validation だけでなく DB level でも enforce する
+  product invariant とします（Issue #46。enforcement mechanism は実装
+  Task で選定します）。
+- 以上により、値が設定されている日時の間には `doors_at <= starts_at <=
+ends_at` という順序 invariant が成立します。doors_at / ends_at はいずれも
+  独立に null になり得るため、null な項は比較の対象外です。
 
 ### Catalog の日程参照要件
 
