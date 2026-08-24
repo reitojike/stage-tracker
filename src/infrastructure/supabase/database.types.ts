@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       catalog_creators: {
@@ -27,6 +52,7 @@ export type Database = {
       event_occurrences: {
         Row: {
           created_at: string
+          doors_at: string | null
           ends_at: string | null
           event_id: string
           id: string
@@ -35,6 +61,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          doors_at?: string | null
           ends_at?: string | null
           event_id: string
           id?: string
@@ -43,6 +70,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          doors_at?: string | null
           ends_at?: string | null
           event_id?: string
           id?: string
@@ -62,33 +90,39 @@ export type Database = {
       events: {
         Row: {
           created_at: string
+          ends_on: string
           id: string
           memo: string | null
           owner_id: string
           source_key: string | null
           source_url: string | null
+          starts_on: string
           title: string
           updated_at: string
           venue: string | null
         }
         Insert: {
           created_at?: string
+          ends_on: string
           id?: string
           memo?: string | null
           owner_id: string
           source_key?: string | null
           source_url?: string | null
+          starts_on: string
           title: string
           updated_at?: string
           venue?: string | null
         }
         Update: {
           created_at?: string
+          ends_on?: string
           id?: string
           memo?: string | null
           owner_id?: string
           source_key?: string | null
           source_url?: string | null
+          starts_on?: string
           title?: string
           updated_at?: string
           venue?: string | null
@@ -415,22 +449,27 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      create_event_with_occurrence: {
+      create_event: {
         Args: {
+          p_doors_at?: string
           p_ends_at?: string
+          p_ends_on: string
           p_memo?: string
           p_source_url?: string
-          p_starts_at: string
+          p_starts_at?: string
+          p_starts_on: string
           p_title: string
           p_venue?: string
         }
         Returns: {
           created_at: string
+          ends_on: string
           id: string
           memo: string | null
           owner_id: string
           source_key: string | null
           source_url: string | null
+          starts_on: string
           title: string
           updated_at: string
           venue: string | null
@@ -462,21 +501,57 @@ export type Database = {
       }
       import_event_with_occurrences: {
         Args: {
+          p_ends_on: string
           p_memo?: string
           p_occurrences: Json
           p_owner_id: string
           p_source_key: string
           p_source_url?: string
+          p_starts_on: string
           p_title: string
           p_venue?: string
         }
         Returns: {
           created_at: string
+          ends_on: string
           id: string
           memo: string | null
           owner_id: string
           source_key: string | null
           source_url: string | null
+          starts_on: string
+          title: string
+          updated_at: string
+          venue: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      import_update_event: {
+        Args: {
+          p_ends_on: string
+          p_event_id: string
+          p_memo: string
+          p_new_occurrences?: Json
+          p_occurrence_fixes?: Json
+          p_source_url: string
+          p_starts_on: string
+          p_title: string
+          p_venue: string
+        }
+        Returns: {
+          created_at: string
+          ends_on: string
+          id: string
+          memo: string | null
+          owner_id: string
+          source_key: string | null
+          source_url: string | null
+          starts_on: string
           title: string
           updated_at: string
           venue: string | null
@@ -536,6 +611,29 @@ export type Database = {
           to: "ticket_transfers"
           isOneToOne: true
           isSetofReturn: false
+        }
+      }
+      reschedule_event: {
+        Args: {
+          p_ends_on: string
+          p_event_id: string
+          p_occurrences?: Json
+          p_starts_on: string
+        }
+        Returns: {
+          created_at: string
+          doors_at: string | null
+          ends_at: string | null
+          event_id: string
+          id: string
+          starts_at: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "event_occurrences"
+          isOneToOne: false
+          isSetofReturn: true
         }
       }
       share_schedule_entry_by_email: {
@@ -686,6 +784,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       participation_status: ["considering", "attending"],
