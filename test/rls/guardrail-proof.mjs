@@ -25,16 +25,30 @@ import { createSecuredTicket } from './support/ticketFixtures.ts';
 
 const status = readLocalSupabaseStatus();
 
+// See test/rls/catalogCreators.test.ts's identical helper for why this is
+// derived from "now" rather than a wide static range.
+const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
+function todayTokyoDate() {
+  const tokyo = new Date(Date.now() + TOKYO_OFFSET_MS);
+  const year = String(tokyo.getUTCFullYear()).padStart(4, '0');
+  const month = String(tokyo.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(tokyo.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Direct authenticated INSERT into events is unsupported since Issue #17;
-// create_event_with_occurrence is the only supported create path, so every
-// fixture event below goes through it instead of `.insert()`.
+// create_event (Issue #88, renamed from create_event_with_occurrence) is the
+// only supported create path, so every fixture event below goes through it
+// instead of `.insert()`.
 async function createEventAsOwner(client) {
-  const { data, error } = await client.rpc('create_event_with_occurrence', {
+  const { data, error } = await client.rpc('create_event', {
     p_title: `guardrail proof event ${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    p_starts_on: todayTokyoDate(),
+    p_ends_on: todayTokyoDate(),
     p_starts_at: new Date().toISOString(),
   });
   if (error || !data) {
-    throw new Error(`fixture create_event_with_occurrence failed: ${error?.message}`);
+    throw new Error(`fixture create_event failed: ${error?.message}`);
   }
   return data;
 }
@@ -272,21 +286,23 @@ try {
     },
   );
 
-  // 5. create_event_with_occurrence's EXECUTE grant to authenticated: this
-  // is the only thing letting a normal client reach the RPC at all (the
-  // function itself runs SECURITY DEFINER regardless). Revoking it must
-  // make even a legitimate, non-spoofing call fail.
+  // 5. create_event's EXECUTE grant to authenticated: this is the only
+  // thing letting a normal client reach the RPC at all (the function itself
+  // runs SECURITY DEFINER regardless). Revoking it must make even a
+  // legitimate, non-spoofing call fail.
   await withBrokenPolicy(
-    'create_event_with_occurrence EXECUTE grant',
-    `revoke execute on function public.create_event_with_occurrence(
-       text, timestamptz, text, timestamptz, text, text
+    'create_event EXECUTE grant',
+    `revoke execute on function public.create_event(
+       text, date, date, text, text, text, timestamptz, timestamptz, timestamptz
      ) from authenticated;`,
-    `grant execute on function public.create_event_with_occurrence(
-       text, timestamptz, text, timestamptz, text, text
+    `grant execute on function public.create_event(
+       text, date, date, text, text, text, timestamptz, timestamptz, timestamptz
      ) to authenticated;`,
     async () => {
-      const { error } = await actorA.client.rpc('create_event_with_occurrence', {
+      const { error } = await actorA.client.rpc('create_event', {
         p_title: `guardrail proof rpc execute ${Date.now()}`,
+        p_starts_on: todayTokyoDate(),
+        p_ends_on: todayTokyoDate(),
         p_starts_at: new Date().toISOString(),
       });
       assert.ok(error, 'expected the create RPC to go red (denied) with its EXECUTE grant revoked');
@@ -718,16 +734,20 @@ try {
     // Baseline first: without membership, the create must be denied. If
     // this ever stopped holding, the "red" assertion below would prove
     // nothing.
-    const { error: deniedBefore } = await actorB.client.rpc('create_event_with_occurrence', {
+    const { error: deniedBefore } = await actorB.client.rpc('create_event', {
       p_title: `guardrail proof creator gate baseline ${Date.now()}`,
+      p_starts_on: todayTokyoDate(),
+      p_ends_on: todayTokyoDate(),
       p_starts_at: new Date().toISOString(),
     });
     assert.ok(deniedBefore, 'expected a non-creator to be denied before membership is granted');
 
     try {
       await grantCatalogCreator(actorB.user.id);
-      const { data, error } = await actorB.client.rpc('create_event_with_occurrence', {
+      const { data, error } = await actorB.client.rpc('create_event', {
         p_title: `guardrail proof creator gate ${Date.now()}`,
+        p_starts_on: todayTokyoDate(),
+        p_ends_on: todayTokyoDate(),
         p_starts_at: new Date().toISOString(),
       });
       assert.equal(

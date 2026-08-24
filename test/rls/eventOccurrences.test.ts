@@ -14,6 +14,19 @@ import { createEventWithOccurrence } from './support/eventFixtures.ts';
 // test/rls/events.test.ts for the parent event's own RLS/create-boundary
 // tests, and its header comment for the anon/service_role/authenticated
 // client conventions used throughout.
+//
+// createEventWithOccurrence defaults the fixture's Event range to the
+// initial occurrence's own (single) Tokyo calendar day (Issue #88's
+// containment invariant). Several tests below insert/update a further
+// occurrence a few days out - `wideEndsOn` gives those a generously wide
+// endsOn so the containment trigger is not what those tests exercise. A
+// few-days margin, not an exact Tokyo-date conversion, is enough here: it
+// only needs to be wide enough to comfortably outlast whatever offset a
+// given test adds to `Date.now()`.
+function wideEndsOn(daysFromNow: number): string {
+  const date = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
 
 const PASSWORD = 'Str0ng-Test-Passw0rd!';
 
@@ -56,7 +69,7 @@ void test('authenticated user can read another owner’s occurrence', async () =
 });
 
 void test('parent event owner can insert an additional occurrence', async () => {
-  const { event } = await createEventWithOccurrence(actorA);
+  const { event } = await createEventWithOccurrence(actorA, { endsOn: wideEndsOn(3) });
   const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await actorA.client
     .from('event_occurrences')
@@ -236,7 +249,7 @@ void test('inserting a second occurrence at an event’s existing start instant 
 void test('two different events may each have an occurrence at the same start instant', async () => {
   const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const { occurrence: occurrenceA } = await createEventWithOccurrence(actorA, { startsAt });
-  const { event: eventA2 } = await createEventWithOccurrence(actorA);
+  const { event: eventA2 } = await createEventWithOccurrence(actorA, { endsOn: wideEndsOn(3) });
   const { data, error } = await actorA.client
     .from('event_occurrences')
     .insert({ event_id: eventA2.id, starts_at: startsAt })
@@ -250,7 +263,7 @@ void test('two different events may each have an occurrence at the same start in
 });
 
 void test('one event may have occurrences at different start instants', async () => {
-  const { event } = await createEventWithOccurrence(actorA);
+  const { event } = await createEventWithOccurrence(actorA, { endsOn: wideEndsOn(3) });
   const startsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
   const { error } = await actorA.client
     .from('event_occurrences')
@@ -259,7 +272,9 @@ void test('one event may have occurrences at different start instants', async ()
 });
 
 void test('updating an occurrence onto another occurrence’s start instant is rejected', async () => {
-  const { event, occurrence: first } = await createEventWithOccurrence(actorA);
+  const { event, occurrence: first } = await createEventWithOccurrence(actorA, {
+    endsOn: wideEndsOn(3),
+  });
   const secondStartsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const { data: second, error: insertError } = await actorA.client
     .from('event_occurrences')
@@ -288,7 +303,7 @@ void test('updating an occurrence onto another occurrence’s start instant is r
 });
 
 void test('concurrent inserts at the same (event_id, starts_at) settle exactly one', async () => {
-  const { event } = await createEventWithOccurrence(actorA);
+  const { event } = await createEventWithOccurrence(actorA, { endsOn: wideEndsOn(4) });
   const startsAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
 
   const results = await Promise.all([
@@ -311,4 +326,97 @@ void test('concurrent inserts at the same (event_id, starts_at) settle exactly o
     .eq('event_id', event.id)
     .eq('starts_at', startsAt);
   assert.equal(stored?.length, 1, 'only one row may persist at the contested instant');
+});
+
+// --- Event range containment (Issue #88) ---
+
+void test('inserting an occurrence outside the parent event’s Event range is rejected at the DB level', async () => {
+  // The fixture's default Event range is exactly its initial occurrence's
+  // own Tokyo calendar day (see createEventWithOccurrence), so any instant
+  // on a different day is out of range.
+  const { event } = await createEventWithOccurrence(actorA);
+  const outOfRangeStartsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await actorA.client
+    .from('event_occurrences')
+    .insert({ event_id: event.id, starts_at: outOfRangeStartsAt });
+  assert.ok(error, 'expected the containment trigger to reject an out-of-range insert');
+  assert.equal(error.code, '23514');
+});
+
+void test('updating an occurrence to outside the parent event’s Event range is rejected at the DB level', async () => {
+  const { occurrence } = await createEventWithOccurrence(actorA);
+  const outOfRangeStartsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await actorA.client
+    .from('event_occurrences')
+    .update({ starts_at: outOfRangeStartsAt })
+    .eq('id', occurrence.id);
+  assert.ok(error, 'expected the containment trigger to reject an out-of-range update');
+  assert.equal(error.code, '23514');
+
+  const { data: refetched } = await actorA.client
+    .from('event_occurrences')
+    .select()
+    .eq('id', occurrence.id)
+    .single();
+  assert.ok(refetched);
+  assert.equal(
+    new Date(refetched.starts_at).toISOString(),
+    new Date(occurrence.starts_at).toISOString(),
+    'expected the occurrence to keep its original starts_at after the rejected update',
+  );
+});
+
+void test('narrowing an event’s range to exclude an existing occurrence is rejected at the DB level', async () => {
+  const { event } = await createEventWithOccurrence(actorA, { endsOn: wideEndsOn(10) });
+  // The fixture occurrence sits on today's Tokyo date, inside [today,
+  // today+10]; narrowing the range to a period that excludes it must fail.
+  const narrowedStartsOn = wideEndsOn(5);
+  const { error } = await actorA.client
+    .from('events')
+    .update({ starts_on: narrowedStartsOn, ends_on: wideEndsOn(10) })
+    .eq('id', event.id);
+  assert.ok(error, 'expected events_range_contains_occurrences to reject the narrowed range');
+  assert.equal(error.code, '23514');
+});
+
+// --- 開場 (doors_at, Issue #88) ---
+
+void test('parent event owner can set an occurrence’s doors_at, and it must not be later than starts_at', async () => {
+  const { occurrence } = await createEventWithOccurrence(actorA);
+  const doorsAt = new Date(Date.parse(occurrence.starts_at) - 30 * 60 * 1000).toISOString();
+  const { data, error } = await actorA.client
+    .from('event_occurrences')
+    .update({ doors_at: doorsAt })
+    .eq('id', occurrence.id)
+    .select()
+    .single();
+  assert.equal(error, null);
+  assert.ok(data.doors_at);
+  assert.equal(new Date(data.doors_at).toISOString(), doorsAt);
+});
+
+void test('setting doors_at later than starts_at is rejected at the DB level', async () => {
+  const { occurrence } = await createEventWithOccurrence(actorA);
+  const doorsAfterStarts = new Date(
+    Date.parse(occurrence.starts_at) + 30 * 60 * 1000,
+  ).toISOString();
+  const { error } = await actorA.client
+    .from('event_occurrences')
+    .update({ doors_at: doorsAfterStarts })
+    .eq('id', occurrence.id);
+  assert.ok(error, 'expected event_occurrences_doors_at_le_starts_at to reject this');
+  assert.equal(error.code, '23514');
+});
+
+void test('setting ends_at earlier than starts_at is rejected at the DB level (Issue #46)', async () => {
+  const { occurrence } = await createEventWithOccurrence(actorA);
+  const endsBeforeStarts = new Date(
+    Date.parse(occurrence.starts_at) - 30 * 60 * 1000,
+  ).toISOString();
+  const { error } = await actorA.client
+    .from('event_occurrences')
+    .update({ ends_at: endsBeforeStarts })
+    .eq('id', occurrence.id);
+  assert.ok(error, 'expected event_occurrences_starts_at_le_ends_at to reject this');
+  assert.equal(error.code, '23514');
 });

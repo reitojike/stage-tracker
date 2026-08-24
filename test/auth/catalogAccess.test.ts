@@ -56,8 +56,9 @@ async function signedInCookie(): Promise<string> {
   return session.cookie;
 }
 
-/** Fixture events are created through create_event_with_occurrence, which
- * is restricted to designated catalog creators (Issue #29), so the fixture
+/** Fixture events are created through create_event (Issue #88, renamed from
+ * create_event_with_occurrence), which is restricted to designated catalog
+ * creators (Issue #29), so the fixture
  * owner needs that membership. The signed-in *viewers* below deliberately
  * do not have it - this file's assertions are about what an ordinary
  * authenticated user can read. */

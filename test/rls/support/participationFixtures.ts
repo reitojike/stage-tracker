@@ -225,7 +225,7 @@ export async function readInvitation(
  * that makes someone eligible to invite.
  *
  * `catalogOwner` must be a designated catalog creator (Issue #29), since
- * creating the parent event goes through create_event_with_occurrence.
+ * creating the parent event goes through create_event.
  */
 export async function createOccurrenceWithAttendee(
   catalogOwner: TestActor,
