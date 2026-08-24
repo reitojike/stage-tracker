@@ -1,4 +1,5 @@
 import { resolveAdminTarget } from './lib/adminTarget.mjs';
+import { findUserByEmail } from './lib/findUserByEmail.mjs';
 
 // Grants (or revokes) designated catalog creator membership for an
 // existing account - the operational half of Issue #29's MVP Event catalog
@@ -32,27 +33,7 @@ if (typeof email !== 'string' || email.length === 0 || (mode !== 'grant' && mode
 
 const admin = resolveAdminTarget(remote);
 
-// listUsers is paginated; walk it rather than assuming the address is on
-// the first page, so this does not silently report "no such account" for a
-// real account in an environment with many users.
-async function findUserByEmail(target) {
-  const normalized = target.trim().toLowerCase();
-  for (let page = 1; ; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) {
-      throw new Error(`failed to list users: ${error.message}`);
-    }
-    const match = data.users.find((user) => user.email?.toLowerCase() === normalized);
-    if (match) {
-      return match;
-    }
-    if (data.users.length === 0) {
-      return null;
-    }
-  }
-}
-
-const user = await findUserByEmail(email);
+const user = await findUserByEmail(admin, email);
 if (user === null) {
   console.error(
     `No account found for ${email}. Provision it first: node scripts/provision-user.mjs ${email}${remote ? ' --remote' : ''}`,
