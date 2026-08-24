@@ -74,7 +74,10 @@ Completed baseline を参照してください。
   event を表現する手段は、この need が出た時点で別途評価します（現時点は
   「まだ決めていないもの」に残る未決事項です）。
 - starts_on / ends_on は `Asia/Tokyo` の calendar date で、両端 inclusive
-  です。single-day event は starts_on = ends_on とします。
+  です。single-day event は starts_on = ends_on とします。`starts_on <=
+ends_on` は application-side validation だけでなく DB level でも
+  enforce する product invariant とします（enforcement mechanism は
+  実装 Task で選定します）。
 - Event range 内に公演回が存在しない日があっても構いません（前節のとおり、
   これを休演日とは解釈しません）。
 - 公演回の日付は、それが属する event の Event range 内に収まっていなければ
@@ -88,6 +91,12 @@ Completed baseline を参照してください。
 - event は 0 件の公演回を持てます（「event は少なくとも 1 件の公演回を持つ」
   という既存 invariant を緩和します）。開催期間（Event range）は判明して
   いるが具体的な公演回がまだ発表されていない event を表すためです。
+- 0 件の公演回を持つ event の作成は、designated catalog creator による
+  通常の event 作成経路と、operator による catalog import 経路の両方で
+  許可します（Issue #87）。公式スケジュールでも、開催期間だけが先に発表され
+  具体的な公演回情報が後から追加されるケースは import 対象の興行でも
+  起こり得るため、import 経路だけ occurrence 必須のままにする理由が
+  ないと判断します。
 - 0 件の公演回を持つ event は catalog へ即座に可視化します。「この期間に
   この公演があるので予定を空けておきたい」という日程確保情報として、
   shared planning surface 上で positive な価値を持つと位置づけます。
@@ -102,7 +111,10 @@ Completed baseline を参照してください。
 
 - 公演回の開演日時は明確に「開演時刻」を意味します（starts_at 相当）。
 - 開場日時（doors_at 相当。column 名は実装 Task で選定）は nullable です。
-  開場時刻が未公表の場合を正当な null として扱います。
+  開場時刻が未公表の場合を正当な null として扱います。値が設定されている
+  場合、`doors_at <= starts_at` は application-side validation だけでなく
+  DB level でも enforce する product invariant とします（enforcement
+  mechanism は実装 Task で選定します）。
 - 終演日時（ends_at 相当）は引き続き nullable です。既存 semantics を
   維持します。
 
