@@ -147,17 +147,23 @@
   gap: 3px;
   font-size: var(--font-size-caption);
   line-height: 1;
-  /* Up to 6 marker slots (参/気/!/予/共/?) can appear on one day at once -
+  /* Up to 6 marker slots (●/？/!/予/共/?) can appear on one day at once -
      wrapping to a second line keeps a narrow cell (~48px at a 375px
      viewport) from overflowing sideways into neighboring cells (raised in
      review on PR #94), rather than requiring every marker type to fit on
      one row. */
 }
 
-/* Attending/considering are distinguished by glyph (参/気, matching
-   participationStatusLabel's own "参加する"/"気になる" vocabulary) as well
-   as color, never by color alone - and both render together on a day that
-   mixes the two rather than collapsing into one generic count. */
+/* Attending/considering are distinguished by glyph (●/？) as well as
+   color, never by color alone - and both render together on a day that
+   mixes the two rather than collapsing into one generic count. PO visual
+   checkpoint on #92 rejected an earlier 参/気 kanji-glyph pass (read as
+   abbreviations, not symbols) and a ☆ "considering" glyph (read as
+   "favorited" rather than "undecided"); ● reuses Issue #34's original
+   attending glyph, ？ was chosen knowing it visually echoes
+   .markerHolidayUnconfirmed's "?" badge below - that collision is an
+   accepted, PO-confirmed trade-off pending #97's separate re-evaluation of
+   whether the holiday-unconfirmed badge is still needed at all. */
 .markerAttending {
   color: var(--color-success);
 }

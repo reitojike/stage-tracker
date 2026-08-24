@@ -196,7 +196,7 @@ export function MyMonthCalendar({
                           className={styles.markerAttending}
                           title={participationStatusLabel('attending')}
                         >
-                          参{markers.attendingCount > 1 ? markers.attendingCount : ''}
+                          ●{markers.attendingCount > 1 ? markers.attendingCount : ''}
                         </span>
                       ) : null}
                       {markers.consideringCount > 0 ? (
@@ -204,7 +204,7 @@ export function MyMonthCalendar({
                           className={styles.markerConsidering}
                           title={participationStatusLabel('considering')}
                         >
-                          気{markers.consideringCount > 1 ? markers.consideringCount : ''}
+                          ？{markers.consideringCount > 1 ? markers.consideringCount : ''}
                         </span>
                       ) : null}
                       {markers.hasUnconfirmedTicket ? (
