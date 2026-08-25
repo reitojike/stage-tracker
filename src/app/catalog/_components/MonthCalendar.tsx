@@ -65,23 +65,34 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
       className={styles.calendar}
       aria-label={`${monthLabel(viewModel.yearMonth)}のイベントカレンダー`}
     >
+      {/* No showPending={false} here (Issue #103, supersedes #102's
+          opt-out): LinkButton's default LinkPending now provides the
+          tapped control's pending feedback. The chevron glyph itself is
+          wrapped so .monthNavButton's own CSS (below) can swap it for
+          LinkPending's role="status" indicator via :has() rather than
+          showing both at once - useLinkStatus's per-Link pending context
+          is otherwise unchanged from #102. */}
       <div className={styles.header}>
         <LinkButton
           variant="icon"
-          showPending={false}
+          className={styles.monthNavButton}
           href={catalogMonthHref(previousYearMonth(viewModel.yearMonth))}
           aria-label="前の月"
         >
-          ‹
+          <span className={styles.navChevron} aria-hidden="true">
+            ‹
+          </span>
         </LinkButton>
         <p className={styles.monthLabel}>{monthLabel(viewModel.yearMonth)}</p>
         <LinkButton
           variant="icon"
-          showPending={false}
+          className={styles.monthNavButton}
           href={catalogMonthHref(nextYearMonth(viewModel.yearMonth))}
           aria-label="次の月"
         >
-          ›
+          <span className={styles.navChevron} aria-hidden="true">
+            ›
+          </span>
         </LinkButton>
       </div>
 
@@ -122,7 +133,7 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
           dayAriaLabel below) - the accessible detail path for a day's full
           content is the selected-day list this link navigates to, not the
           visual month grid itself. */}
-      <div>
+      <div className={styles.grid}>
         {viewModel.weeks.map((week, weekIndex) => {
           const maxLane = week.bandLayout.segments.reduce(
             (max, segment) => Math.max(max, segment.lane),
