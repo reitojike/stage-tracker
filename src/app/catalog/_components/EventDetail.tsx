@@ -11,6 +11,7 @@ import {
   occurrenceTimeRangeLabel,
   tokyoDateLabel,
 } from '@/domain/catalogFormatting.ts';
+import { FocusedOccurrenceScroll } from './FocusedOccurrenceScroll.tsx';
 import { ParticipationPanel } from './ParticipationPanel.tsx';
 import styles from './EventDetail.module.css';
 
@@ -63,6 +64,7 @@ export function EventDetail({
 
   return (
     <article className={styles.detail}>
+      <FocusedOccurrenceScroll occurrenceId={focusedOccurrenceId} />
       <PageHeading>{event.title}</PageHeading>
 
       {editHref !== null ? (
