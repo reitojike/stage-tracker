@@ -7,10 +7,12 @@ import styles from './Button.module.css';
 export interface LinkButtonProps extends ComponentProps<typeof Link> {
   variant?: ButtonVariant;
   /**
-   * Set false to omit the in-flight LinkPending indicator - e.g. a
-   * calendar month-nav icon button (#102), where transition pending
-   * feedback is a separate, not-yet-implemented concern (#103). Defaults
-   * to true, unchanged for every other current consumer.
+   * Set false to omit the in-flight LinkPending indicator, e.g. when a
+   * caller renders its own pending presentation instead (see the calendar
+   * month-nav icon buttons in MonthCalendar.tsx / MyMonthCalendar.tsx,
+   * which keep showPending's true default and swap LinkPending's own
+   * role="status" element in for their icon via CSS - Issue #103).
+   * Defaults to true.
    */
   showPending?: boolean;
 }
