@@ -10,6 +10,7 @@ import {
   buildMonthCalendarViewModel,
   buildMonthGrid,
   selectDayOccurrences,
+  selectEventLevelFallback,
 } from '@/domain/calendarMonth';
 import { tokyoCalendarDateRangeUtc, type EventWithOccurrences } from '@/domain/eventCatalog';
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
@@ -20,7 +21,7 @@ import {
 } from '@/domain/catalogNavigation';
 import { currentTokyoDate } from './_lib/today.ts';
 import { MonthCalendar } from './_components/MonthCalendar.tsx';
-import { RangeOnlyEventList } from './_components/RangeOnlyEventList.tsx';
+import { EventLevelFallbackList } from './_components/EventLevelFallbackList.tsx';
 import { SelectedDayList } from './_components/SelectedDayList.tsx';
 
 interface CatalogPageProps {
@@ -95,29 +96,39 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
             context={{ yearMonth, selectedDate }}
           />
 
-          {/* Issue #88: a 0-occurrence event (or one with no occurrence in
-              this month specifically) never appears in MonthCalendar,
-              which is entirely occurrence-driven (bands/badges) - without
-              this, such an event would make result.data non-empty (no
-              "この月に登録されている公演はありません" below) while still
-              rendering nothing at all. Rendered on both the month landing
-              view and while a day is selected; Issue #100 narrows which
-              0-occurrence events qualify once a day is selected (see
-              RangeOnlyEventList), so passing selectedDate through is what
-              keeps this section from showing range-only events unrelated
-              to the selected day. */}
-          <RangeOnlyEventList events={result.data} context={{ yearMonth, selectedDate }} />
-
+          {/* Issue #88's original silent-blank-state gap (a 0-occurrence
+              event making result.data non-empty while MonthCalendar, then
+              entirely occurrence-driven, rendered nothing for it at all) is
+              now closed by MonthCalendar itself: since Issue #91 every
+              event - 0-occurrence or not - is visible on the month landing
+              view via the single-day count / multi-day band. Issue #109
+              therefore removes the month-landing fallback list that used to
+              sit here; the "この月に登録されている公演はありません" empty
+              state below is accordingly about result.data being genuinely
+              empty, not about occurrence-driven blind spots in the
+              calendar. */}
           {state === 'empty' && selectedDate === null ? (
             <StatePanel variant="empty" title="この月に登録されている公演はありません" />
           ) : null}
 
           {selectedDate !== null ? (
-            <SelectedDayList
-              date={selectedDate}
-              occurrences={selectDayOccurrences(result.data, selectedDate)}
-              context={{ yearMonth, selectedDate }}
-            />
+            <>
+              {/* Issue #109: the selected day's Event-level fallback - events
+                  whose Event range covers selectedDate but have no actual
+                  occurrence on it - is the complement of SelectedDayList
+                  below, derived from the same selectedDate so the two never
+                  show the same event twice for this day (see
+                  selectEventLevelFallback's doc comment). */}
+              <EventLevelFallbackList
+                events={selectEventLevelFallback(result.data, selectedDate)}
+                context={{ yearMonth, selectedDate }}
+              />
+              <SelectedDayList
+                date={selectedDate}
+                occurrences={selectDayOccurrences(result.data, selectedDate)}
+                context={{ yearMonth, selectedDate }}
+              />
+            </>
           ) : null}
         </>
       ) : null}

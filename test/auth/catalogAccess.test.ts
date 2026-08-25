@@ -267,6 +267,11 @@ void test('a multi-day event bands by its Event range and never counts; a single
   });
   const restDayHtml = await restDayResponse.text();
   assert.match(restDayHtml, /この日に登録されている公演はありません/);
+  // Issue #109 minimum regression case 6: kabuki has occurrences elsewhere
+  // in its range (07-10, 07-13) but none on 07-12 - it must still surface
+  // as an Event-level fallback for 07-12, since 07-12 is inside its range.
+  assert.match(restDayHtml, /開催期間で該当するイベント/);
+  assert.ok(restDayHtml.includes(kabuki.title));
 
   // An inner run day (only shown as part of the band in month view) still
   // reaches full detail through the selected-day list.
@@ -276,6 +281,10 @@ void test('a multi-day event bands by its Event range and never counts; a single
   });
   const innerDayHtml = await innerDayResponse.text();
   assert.ok(innerDayHtml.includes(kabuki.title));
+  // kabuki has an actual occurrence on 07-11, and no other event's range
+  // covers 07-11 with no occurrence there: no Event-level fallback
+  // candidate, so the fallback section must not render (no duplication).
+  assert.doesNotMatch(innerDayHtml, /開催期間で該当するイベント/);
 
   // 07-10 mixes a banded (multi-day) event's occurrence with the
   // non-banded single-day event's 2 occurrences - the selected-day list
@@ -289,9 +298,13 @@ void test('a multi-day event bands by its Event range and never counts; a single
   assert.ok(mixedDayHtml.includes(kabuki.title));
   const liveOccurrencesShown = mixedDayHtml.split(live.title).length - 1;
   assert.ok(liveOccurrencesShown >= 2, "expected live's 2 occurrences to appear individually");
+  // Both kabuki and live have an actual occurrence on 07-10: no fallback
+  // candidate, so kabuki's title must come only from the actual-occurrence
+  // list, never duplicated by the fallback section.
+  assert.doesNotMatch(mixedDayHtml, /開催期間で該当するイベント/);
 });
 
-void test('a 0-occurrence single-day event never bands, counts once on its own date, has no selected-day occurrence, and is still reachable through the range-only list', async () => {
+void test('a 0-occurrence single-day event never bands, counts once on its own date, has no title/link on month landing, and is reachable through Event-level fallback once its date is selected (Issue #109)', async () => {
   const owner = await fixtureActor();
   const { event } = await createEventWithoutOccurrence(owner, '2097-08-15', '2097-08-15', {
     title: eventFixtureTitle(),
@@ -307,10 +320,12 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
 
   assert.doesNotMatch(monthHtml, new RegExp(`data-band-event-id="${event.id}"`, 'u'));
   assert.equal(badgeCountOf(monthHtml, '2097-08-15'), 1);
-  // No title/link elsewhere on the grid for a 0-occurrence single-day event
-  // (the badge is just a number) - RangeOnlyEventList is what keeps it
-  // reachable.
-  assert.ok(monthHtml.includes(event.title));
+  // Issue #109: month landing (no day selected) no longer renders an
+  // Event-level fallback section at all - a 0-occurrence single-day event's
+  // only landing-view presentation is the day-number count (badge is just a
+  // number, no title/link anywhere on the grid).
+  assert.ok(!monthHtml.includes(event.title));
+  assert.doesNotMatch(monthHtml, /開催期間で該当するイベント/);
 
   // No band was named for this day, so its aria-label must stand on its
   // own ("イベント1件"), not "ほか1件" ("besides" what was never named).
@@ -323,19 +338,26 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
     redirect: 'manual',
   });
   const dayHtml = await dayResponse.text();
+  // No actual occurrence that day: the actual-occurrence list stays empty...
   assert.match(dayHtml, /この日に登録されている公演はありません/);
+  // ...but selecting the event's own date reaches it through the
+  // Event-level fallback section instead (selectEventLevelFallback).
+  assert.match(dayHtml, /開催期間で該当するイベント/);
+  assert.ok(dayHtml.includes(event.title));
 });
 
-// --- 0-occurrence event visibility (Issue #88) ---
+// --- 0-occurrence event visibility (Issue #88, revised by #109) ---
 //
 // Regression test for the silent-blank-state bug: listEventCatalogInRange
-// returns a range-only event (result.data.length > 0), but
-// MonthCalendar/SelectedDayList are both entirely occurrence-driven, so
-// without RangeOnlyEventList such an event rendered nowhere on the page -
-// no calendar marker, and (since the result wasn't empty) no
-// "この月に登録されている公演はありません" message either. This proves the
-// real page HTML, not just the read layer, actually surfaces it.
-void test('a 0-occurrence event whose Event range covers the month is visible on the month landing view, and the empty-state message is suppressed', async () => {
+// returns a range-only event (result.data.length > 0), but a purely
+// occurrence-driven month view would render nowhere for it - no calendar
+// marker, and (since the result wasn't empty) no
+// "この月に登録されている公演はありません" message either. Since Issue #91
+// this is closed by MonthCalendar's own multi-day Event-range band, not by
+// a separate fallback list (Issue #109 removes that list from month
+// landing entirely) - this proves the real page HTML, not just the read
+// layer, actually surfaces it via the band.
+void test('a 0-occurrence event whose Event range covers the month is visible on the month landing view via its band (not a fallback list), the empty-state message is suppressed, and its Event-level fallback is reachable by selecting a day inside its range', async () => {
   const owner = await fixtureActor();
   const { event } = await createEventWithoutOccurrence(owner, '2098-04-05', '2098-04-25', {
     title: eventFixtureTitle(),
@@ -351,11 +373,27 @@ void test('a 0-occurrence event whose Event range covers the month is visible on
 
   assert.ok(
     html.includes(event.title),
-    'expected the 0-occurrence event to be visible on the month landing view, without selecting a day',
+    'expected the 0-occurrence event to be visible on the month landing view via its Event-range band, without selecting a day',
   );
+  assert.match(html, new RegExp(`data-band-event-id="${event.id}"`, 'u'));
   assert.doesNotMatch(
     html,
     /この月に登録されている公演はありません/,
     'expected the empty-state message to be suppressed once a range-only event is present',
   );
+  // Issue #109: month landing must not render the Event-level fallback
+  // section at all - the band above is the only landing-view presentation.
+  assert.doesNotMatch(html, /開催期間で該当するイベント/);
+
+  // Selecting a day inside the event's range (which has no occurrence at
+  // all) reaches it through the Event-level fallback section instead.
+  const dayResponse = await fetch(`${app.baseUrl}/catalog?month=2098-04&date=2098-04-10`, {
+    headers: { cookie },
+    redirect: 'manual',
+  });
+  assert.equal(dayResponse.status, 200);
+  const dayHtml = await dayResponse.text();
+  assert.match(dayHtml, /開催期間で該当するイベント/);
+  assert.ok(dayHtml.includes(event.title));
+  assert.match(dayHtml, /この日に登録されている公演はありません/);
 });

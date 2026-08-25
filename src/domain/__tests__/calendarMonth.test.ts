@@ -12,7 +12,7 @@ import {
   layoutWeekBands,
   monthBounds,
   selectDayOccurrences,
-  selectRangeOnlyEvents,
+  selectEventLevelFallback,
   type BandSegment,
 } from '../calendarMonth.ts';
 import { mapEventRow, mapOccurrenceRow, type EventWithOccurrences } from '../eventCatalog.ts';
@@ -760,29 +760,14 @@ void test('selectDayOccurrences: a day with no occurrences returns an empty arra
   assert.deepEqual(result, []);
 });
 
-// --- selectRangeOnlyEvents (Issue #100: selected-day filtering) ---
+// --- selectEventLevelFallback (Issue #109: per-selected-date Event-level
+// fallback, superseding #100's selectRangeOnlyEvents) ---
 
-void test('selectRangeOnlyEvents: case 1 - no selected date keeps the pre-#100 month-level fallback (all 0-occurrence events, occurrence-having events excluded)', () => {
-  const rangeOnly = event({ id: 'range-only', starts_on: '2026-08-30', ends_on: '2026-08-30' });
-  const withOccurrence = event({ id: 'with-occurrence' });
-  const catalog: EventWithOccurrences[] = [
-    { event: rangeOnly, occurrences: [] },
-    { event: withOccurrence, occurrences: [occurrence({ event_id: 'with-occurrence' })] },
-  ];
-
-  const result = selectRangeOnlyEvents(catalog, null);
-
-  assert.deepEqual(
-    result.map((r) => r.event.id),
-    ['range-only'],
-  );
-});
-
-void test("selectRangeOnlyEvents: case 2 - selecting a single-day range-only event's own date shows it", () => {
+void test("selectEventLevelFallback: a 0-occurrence single-day event's own date qualifies", () => {
   const single = event({ id: 'single', starts_on: '2026-08-30', ends_on: '2026-08-30' });
   const catalog: EventWithOccurrences[] = [{ event: single, occurrences: [] }];
 
-  const result = selectRangeOnlyEvents(catalog, '2026-08-30');
+  const result = selectEventLevelFallback(catalog, '2026-08-30');
 
   assert.deepEqual(
     result.map((r) => r.event.id),
@@ -790,46 +775,46 @@ void test("selectRangeOnlyEvents: case 2 - selecting a single-day range-only eve
   );
 });
 
-void test('selectRangeOnlyEvents: case 3 - selecting any other date hides a single-day range-only event (Production regression: selected 2026-08-25, range-only event on 2026-08-30)', () => {
+void test('selectEventLevelFallback: any other date does not qualify a single-day event (Production regression: selected 2026-08-25, event on 2026-08-30)', () => {
   const single = event({ id: 'single', starts_on: '2026-08-30', ends_on: '2026-08-30' });
   const catalog: EventWithOccurrences[] = [{ event: single, occurrences: [] }];
 
-  const result = selectRangeOnlyEvents(catalog, '2026-08-25');
+  const result = selectEventLevelFallback(catalog, '2026-08-25');
 
   assert.deepEqual(result, []);
 });
 
-void test('selectRangeOnlyEvents: case 4 - selecting a date inside a multi-day range-only event (including a range boundary) shows it', () => {
+void test('selectEventLevelFallback: a date inside a multi-day range (including boundaries) qualifies a 0-occurrence event', () => {
   const multi = event({ id: 'multi', starts_on: '2026-08-10', ends_on: '2026-08-13' });
   const catalog: EventWithOccurrences[] = [{ event: multi, occurrences: [] }];
 
   for (const date of ['2026-08-10', '2026-08-11', '2026-08-13']) {
     assert.deepEqual(
-      selectRangeOnlyEvents(catalog, date).map((r) => r.event.id),
+      selectEventLevelFallback(catalog, date).map((r) => r.event.id),
       ['multi'],
-      `expected 'multi' to be selected for ${date}`,
+      `expected 'multi' to be a fallback candidate for ${date}`,
     );
   }
 });
 
-void test('selectRangeOnlyEvents: case 5 - selecting a date outside a multi-day range-only event range hides it', () => {
+void test('selectEventLevelFallback: a date outside a multi-day range does not qualify', () => {
   const multi = event({ id: 'multi', starts_on: '2026-08-10', ends_on: '2026-08-13' });
   const catalog: EventWithOccurrences[] = [{ event: multi, occurrences: [] }];
 
-  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-09'), []);
-  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-14'), []);
+  assert.deepEqual(selectEventLevelFallback(catalog, '2026-08-09'), []);
+  assert.deepEqual(selectEventLevelFallback(catalog, '2026-08-14'), []);
 });
 
-void test('selectRangeOnlyEvents: case 6 - no matching range-only event on the selected date returns an empty array (caller renders no section)', () => {
+void test('selectEventLevelFallback: no matching event on the selected date returns an empty array (caller renders no section)', () => {
   const withOccurrence = event({ id: 'with-occurrence' });
   const catalog: EventWithOccurrences[] = [
     { event: withOccurrence, occurrences: [occurrence({ event_id: 'with-occurrence' })] },
   ];
 
-  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-10'), []);
+  assert.deepEqual(selectEventLevelFallback(catalog, '2026-08-10'), []);
 });
 
-void test('selectRangeOnlyEvents: an event with an occurrence is never treated as range-only, selected date or not', () => {
+void test('selectEventLevelFallback: an event with an actual occurrence on the selected date is excluded, never duplicating selectDayOccurrences', () => {
   const withOccurrence = event({
     id: 'with-occurrence',
     starts_on: '2026-08-01',
@@ -842,6 +827,48 @@ void test('selectRangeOnlyEvents: an event with an occurrence is never treated a
     },
   ];
 
-  assert.deepEqual(selectRangeOnlyEvents(catalog, null), []);
-  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-10'), []);
+  assert.deepEqual(selectEventLevelFallback(catalog, '2026-08-10'), []);
+  assert.equal(
+    selectDayOccurrences(catalog, '2026-08-10').length,
+    1,
+    'the same event/date pair must be covered by selectDayOccurrences instead',
+  );
+});
+
+void test('selectEventLevelFallback: an event with occurrences elsewhere in its range still qualifies for a date it has none on - not a whole-event "0 occurrences" classification (Issue #109 minimum regression case 6)', () => {
+  // kabuki has occurrences on 08-10 and 08-13, but nothing on 08-11/08-12 -
+  // the old selectRangeOnlyEvents (`group.occurrences.length === 0`) would
+  // have excluded this event everywhere, since its occurrences array here is
+  // non-empty. selectEventLevelFallback must instead decide per date.
+  const kabuki = event({ id: 'kabuki', starts_on: '2026-08-10', ends_on: '2026-08-13' });
+  const catalog: EventWithOccurrences[] = [
+    {
+      event: kabuki,
+      occurrences: [
+        occurrence({ id: 'o1', event_id: 'kabuki', starts_at: '2026-08-10T02:00:00Z' }),
+        occurrence({ id: 'o2', event_id: 'kabuki', starts_at: '2026-08-13T02:00:00Z' }),
+      ],
+    },
+  ];
+
+  assert.deepEqual(
+    selectEventLevelFallback(catalog, '2026-08-11').map((r) => r.event.id),
+    ['kabuki'],
+  );
+  assert.deepEqual(
+    selectEventLevelFallback(catalog, '2026-08-12').map((r) => r.event.id),
+    ['kabuki'],
+  );
+  // 08-10/08-13 do have an actual occurrence: excluded here, covered by
+  // selectDayOccurrences instead.
+  assert.deepEqual(selectEventLevelFallback(catalog, '2026-08-10'), []);
+  assert.deepEqual(selectEventLevelFallback(catalog, '2026-08-13'), []);
+});
+
+void test('selectEventLevelFallback: never fabricates an occurrence - a qualifying event still has zero occurrence evidence for the selected date', () => {
+  const multi = event({ id: 'multi', starts_on: '2026-08-10', ends_on: '2026-08-13' });
+  const catalog: EventWithOccurrences[] = [{ event: multi, occurrences: [] }];
+
+  assert.deepEqual(selectDayOccurrences(catalog, '2026-08-11'), []);
+  assert.equal(selectEventLevelFallback(catalog, '2026-08-11').length, 1);
 });
