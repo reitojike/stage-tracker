@@ -1,0 +1,24 @@
+/*
+ * Shared WCAG 2.2 SC 2.5.8 tap-target expansion (#96/#101 control
+ * vocabulary): a control's visible fill can be smaller than 44px, but its
+ * tap target must not be. `composes: expand44 from './tapTarget.module.css'`
+ * onto a control's own root class attaches this without restating it -
+ * Button (primary/secondary/small/quiet/icon) and BackLink both compose it
+ * rather than each carrying their own copy.
+ *
+ * position:relative is required on the composing element so the ::before
+ * below centers on that element's own box, not some further-out ancestor.
+ */
+.expand44 {
+  position: relative;
+}
+
+.expand44::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+}

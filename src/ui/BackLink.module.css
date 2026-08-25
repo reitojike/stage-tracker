@@ -1,14 +1,15 @@
 .backLink {
-  position: relative;
+  /* WCAG 2.5.8 44px tap target, kept separately from the 27px visible fill
+     below - shared with Button via tapTarget.module.css, the same pattern
+     as Button's quiet variant, rather than restating the ::before rule. */
+  composes: expand44 from './tapTarget.module.css';
   display: inline-flex;
   align-items: center;
   /* Sits at the start of the shell's content column rather than stretching
      across it, so its tap target matches its visible extent. */
   align-self: flex-start;
   gap: var(--space-xs);
-  /* Visible fill height only (#96 control vocabulary: quiet/text 27px
-     fill) - the WCAG 2.5.8 44px tap target is kept separately by
-     .backLink::before below, the same pattern as Button's quiet variant. */
+  /* Visible fill height only (#96 control vocabulary: quiet/text 27px fill). */
   min-height: 27px;
   padding-inline: var(--space-sm);
   /* Cancels the padding above so the label still aligns with the page's
@@ -19,16 +20,6 @@
   font-size: var(--font-size-body-sm);
   text-decoration: none;
   touch-action: manipulation;
-}
-
-.backLink::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: max(100%, 44px);
-  height: max(100%, 44px);
 }
 
 .backLink:hover {
