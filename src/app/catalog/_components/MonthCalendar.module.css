@@ -135,9 +135,15 @@
 /* Marker row (#96 -> #102 approved direction: ~14-15px) - holds the
    holiday `祝` glyph and the single-day Event count badge (Issue #91),
    below the fixed date-number row above. Only rendered when there is at
-   least one marker (see MonthCalendar.tsx's hasMarkerRow). */
+   least one marker (see MonthCalendar.tsx's hasMarkerRow).
+   flex-wrap: wrap (matching MyMonthCalendar.module.css's own markerRow) -
+   at a narrow viewport (320px) a holiday `祝` plus a double-digit count
+   Badge can together exceed a ~35px cell's width; wrapping to a second
+   line keeps that from overflowing into the neighboring cell (PR #114
+   Codex review). */
 .markerRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 3px;
