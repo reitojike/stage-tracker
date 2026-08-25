@@ -4,6 +4,7 @@ import { Badge } from '@/ui/Badge';
 import { LinkButton } from '@/ui/LinkButton';
 import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
+import { Surface } from '@/ui/Surface';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import {
@@ -99,7 +100,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
 
   return (
     <>
-      <BackLink href="/schedule">Personal Scheduleに戻る</BackLink>
+      <BackLink href="/schedule">個人の予定に戻る</BackLink>
 
       {state === 'error' ? (
         <StatePanel
@@ -114,34 +115,57 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
 
       {entry !== null ? (
         <>
-          {callerResult.ok ? (
-            <Badge variant={isOwner ? 'neutral' : 'info'}>
-              {isOwner ? '自分の予定' : '共有されている予定'}
-            </Badge>
-          ) : null}
-          <PageHeading>{scheduleTypeLabel(entry.scheduleType)}</PageHeading>
-          <p>{scheduleTemporalLabel(entry.temporal)}</p>
-          {entry.memo !== null ? <p>{entry.memo}</p> : null}
+          <Surface className={styles.scheduleSurface}>
+            {callerResult.ok ? (
+              <Badge variant={isOwner ? 'neutral' : 'info'}>
+                {isOwner ? '自分の予定' : '共有されている予定'}
+              </Badge>
+            ) : null}
+            <PageHeading>{scheduleTypeLabel(entry.scheduleType)}</PageHeading>
 
-          {callerResult.ok ? (
+            <dl className={styles.details}>
+              <div className={styles.detailField}>
+                <dt className={styles.detailLabel}>期間</dt>
+                <dd className={styles.detailValue}>{scheduleTemporalLabel(entry.temporal)}</dd>
+              </div>
+              {entry.memo !== null ? (
+                <div className={styles.detailField}>
+                  <dt className={styles.detailLabel}>メモ</dt>
+                  <dd className={styles.detailValue}>{entry.memo}</dd>
+                </div>
+              ) : null}
+            </dl>
+
+            {callerResult.ok ? (
+              <>
+                {isOwner ? (
+                  <ActionRow>
+                    <LinkButton href={`/schedule/${entry.id}/edit`} variant="secondary">
+                      編集する
+                    </LinkButton>
+                  </ActionRow>
+                ) : null}
+                {!isOwner && ownShareReadFailed ? (
+                  <StatePanel
+                    variant="error"
+                    title="共有状態を確認できませんでした"
+                    description="通信状況を確認し、もう一度お試しください。"
+                  />
+                ) : null}
+                {!isOwner && ownShareId !== null ? <LeaveShareForm shareId={ownShareId} /> : null}
+              </>
+            ) : (
+              <StatePanel
+                variant="error"
+                title="権限を確認できませんでした"
+                description="通信状況を確認し、もう一度お試しください。"
+              />
+            )}
+          </Surface>
+
+          {callerResult.ok && isOwner ? (
             <>
-              {isOwner ? (
-                <ActionRow>
-                  <LinkButton href={`/schedule/${entry.id}/edit`} variant="secondary">
-                    編集する
-                  </LinkButton>
-                </ActionRow>
-              ) : null}
-              {!isOwner && ownShareReadFailed ? (
-                <StatePanel
-                  variant="error"
-                  title="共有状態を確認できませんでした"
-                  description="通信状況を確認し、もう一度お試しください。"
-                />
-              ) : null}
-              {!isOwner && ownShareId !== null ? <LeaveShareForm shareId={ownShareId} /> : null}
-
-              {isOwner ? (
+              <Surface className={styles.shareSurface}>
                 <section className={styles.section}>
                   <h2 className={styles.sectionHeading}>共有</h2>
 
@@ -168,18 +192,14 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
                       ))}
                     </ul>
                   ) : null}
-
-                  <ShareAddForm entryId={entry.id} />
                 </section>
-              ) : null}
+              </Surface>
+
+              <Surface className={styles.shareAddSurface}>
+                <ShareAddForm entryId={entry.id} />
+              </Surface>
             </>
-          ) : (
-            <StatePanel
-              variant="error"
-              title="権限を確認できませんでした"
-              description="通信状況を確認し、もう一度お試しください。"
-            />
-          )}
+          ) : null}
         </>
       ) : null}
     </>

@@ -54,7 +54,7 @@ export function MySelectedDayList({
   const isEmpty = occurrenceEntries.length === 0 && scheduleEntries.length === 0;
 
   return (
-    <section aria-label={`${dayLabel(date)}のMy Calendar詳細`} className={styles.list}>
+    <section aria-label={`${dayLabel(date)}のマイカレンダー詳細`} className={styles.list}>
       <h2 className={styles.heading}>{dayLabel(date)}</h2>
 
       {isEmpty ? (

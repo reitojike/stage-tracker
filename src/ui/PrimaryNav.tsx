@@ -29,8 +29,8 @@ interface PrimaryNavItem {
  */
 const ITEMS: readonly PrimaryNavItem[] = [
   { href: '/', label: 'ホーム' },
-  { href: '/catalog', label: 'Event Catalog' },
-  { href: '/calendar', label: 'My Calendar' },
+  { href: '/catalog', label: 'イベント' },
+  { href: '/calendar', label: 'マイカレンダー' },
 ];
 
 /**

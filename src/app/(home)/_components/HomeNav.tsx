@@ -18,12 +18,12 @@ interface HomeDestination {
 const PRIMARY_DESTINATIONS: readonly HomeDestination[] = [
   {
     href: '/catalog',
-    label: 'Event Catalog',
+    label: 'イベント',
     description: 'みんなで共有している公演カレンダーを見る',
   },
   {
     href: '/calendar',
-    label: 'My Calendar',
+    label: 'マイカレンダー',
     description: '自分の参加予定と個人の予定をまとめて見る',
   },
 ];
@@ -38,7 +38,7 @@ const PRIMARY_DESTINATIONS: readonly HomeDestination[] = [
 const SECONDARY_DESTINATIONS: readonly HomeDestination[] = [
   {
     href: '/schedule',
-    label: 'Personal Schedule',
+    label: '個人の予定',
     description: '休暇・仕事などの個人予定を登録し、共有を管理する',
   },
 ];

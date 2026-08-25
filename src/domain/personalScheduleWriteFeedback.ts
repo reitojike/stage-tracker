@@ -59,8 +59,8 @@ const OWNER_REMOVE_SHARE_NOT_FOUND: ScheduleWriteFeedback = {
 
 const SHARE_ADD_PERMISSION_DENIED: ScheduleWriteFeedback = {
   variant: 'error',
-  title: 'recipientを追加する権限がありません',
-  description: 'recipientの追加は、その予定を作成した本人だけが行えます。',
+  title: '共有相手を追加する権限がありません',
+  description: '共有相手の追加は、その予定を作成した本人だけが行えます。',
 };
 
 const UNAUTHENTICATED: ScheduleWriteFeedback = {
@@ -268,7 +268,7 @@ export function resolveShareByEmailOutcome(error: PlanningError): {
   }
 }
 
-const SHARE_ADD_NOTICE = 'recipientを追加しました。';
+const SHARE_ADD_NOTICE = '共有相手を追加しました。';
 
 /** State the recipient-add form carries between submissions. No `values`
  * echo beyond the single email field - see ScheduleWriteFormState for the
