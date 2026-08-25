@@ -100,8 +100,12 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
               which is entirely occurrence-driven (bands/badges) - without
               this, such an event would make result.data non-empty (no
               "この月に登録されている公演はありません" below) while still
-              rendering nothing at all. Shown unconditionally on the month
-              landing view, not gated behind selecting a day. */}
+              rendering nothing at all. Rendered on both the month landing
+              view and while a day is selected; Issue #100 narrows which
+              0-occurrence events qualify once a day is selected (see
+              RangeOnlyEventList), so passing selectedDate through is what
+              keeps this section from showing range-only events unrelated
+              to the selected day. */}
           <RangeOnlyEventList events={result.data} context={{ yearMonth, selectedDate }} />
 
           {state === 'empty' && selectedDate === null ? (
