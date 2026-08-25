@@ -470,31 +470,45 @@ export function selectDayOccurrences(
 }
 
 /**
- * 0-occurrence ("range-only") events, filtered by the selected day (Issue
- * #100). With no day selected, every 0-occurrence event in
- * `eventsWithOccurrences` (already scoped to the displayed month by the
- * caller's query range) qualifies - this is the pre-#100 month-level
- * fallback and stays unchanged. With a day selected, only the 0-occurrence
- * events whose Event range (startsOn..endsOn, inclusive) contains that day
- * qualify, so a range-only event elsewhere in the month no longer reads as
- * relevant to a day it doesn't cover. Never synthesizes an occurrence -
- * callers needing actual occurrences for the selected day still use
- * selectDayOccurrences.
+ * Event-level fallback candidates for one selected `date` (Issue #109,
+ * superseding #100's selectRangeOnlyEvents). An event qualifies iff `date`
+ * falls inside its Event range (startsOn..endsOn, inclusive) *and* the event
+ * has no actual occurrence on `date` itself - never "the event has 0
+ * occurrences anywhere in the fetched set". That whole-set classification
+ * (`group.occurrences.length === 0`) was #100's source of truth, but it
+ * conflates "no occurrence today" with "no occurrence at all this month
+ * [or wherever the caller's query range reaches]": a multi-day event with an
+ * occurrence on one day of its range and none on another must still surface
+ * as a fallback for the day it has none on, even though its
+ * `occurrences` array here is non-empty.
+ *
+ * Complementary to selectDayOccurrences by construction: for a given
+ * event/date pair, at most one of the two ever includes it (an occurrence on
+ * `date` disqualifies the event here, and a day with no occurrence has
+ * nothing for selectDayOccurrences to return), so a caller rendering both
+ * side by side never shows the same event twice for the same date. Never
+ * synthesizes an occurrence - a qualifying event here still has zero
+ * occurrence evidence for `date`.
+ *
+ * Unlike selectRangeOnlyEvents, this has no `selectedDate === null` case:
+ * the month-landing "every 0-occurrence event in range" fallback list Issue
+ * #109 removes had no per-date semantics to begin with - the month view's
+ * own single-day count / multi-day band (buildMonthCalendarViewModel) is now
+ * the only landing-view presentation, for occurrence-bearing and
+ * 0-occurrence events alike.
  */
-export function selectRangeOnlyEvents(
+export function selectEventLevelFallback(
   eventsWithOccurrences: readonly EventWithOccurrences[],
-  selectedDate: string | null,
+  date: string,
 ): EventWithOccurrences[] {
   return eventsWithOccurrences.filter((group) => {
-    if (group.occurrences.length !== 0) {
+    const inRange =
+      compareDates(group.event.startsOn, date) <= 0 && compareDates(date, group.event.endsOn) <= 0;
+    if (!inRange) {
       return false;
     }
-    if (selectedDate === null) {
-      return true;
-    }
-    return (
-      compareDates(group.event.startsOn, selectedDate) <= 0 &&
-      compareDates(selectedDate, group.event.endsOn) <= 0
+    return !group.occurrences.some(
+      (occurrence) => tokyoCalendarDateFromInstant(occurrence.startsAt) === date,
     );
   });
 }
