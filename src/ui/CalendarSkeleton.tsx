@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { buildMonthGrid, isValidYearMonth } from '@/domain/calendarMonth.ts';
+import { buildMonthGrid, isValidCalendarDate, isValidYearMonth } from '@/domain/calendarMonth.ts';
 import { LoadingIndicator } from './LoadingIndicator';
 import styles from './CalendarSkeleton.module.css';
 
@@ -26,11 +26,34 @@ export interface CalendarSkeletonProps {
   fallbackLabel: string;
 }
 
+/**
+ * Mirrors resolveCatalogParams's / resolveMyCalendarParams's own
+ * `date`-wins-over-`month` precedence (catalogNavigation.ts /
+ * myCalendarNavigation.ts) - catalogDayHref/myCalendarDayHref carry the
+ * *currently displayed* month in `month` even for an adjacent-month
+ * lead/trail cell's `date` (e.g. viewing August, tapping a trailing
+ * September 1st cell yields `?month=2026-08&date=2026-09-01`). Without
+ * this precedence the skeleton would announce/render August, then flip to
+ * September once the real page resolves - the exact "wrong month first"
+ * regression P2 exists to avoid.
+ */
+function resolveSkeletonMonth(searchParams: URLSearchParams): string | null {
+  const rawDate = searchParams.get('date');
+  if (rawDate !== null && isValidCalendarDate(rawDate)) {
+    return rawDate.slice(0, 7);
+  }
+  const rawMonth = searchParams.get('month');
+  if (rawMonth !== null && isValidYearMonth(rawMonth)) {
+    return rawMonth;
+  }
+  return null;
+}
+
 function CalendarSkeletonContent({ sectionLabel, fallbackLabel }: CalendarSkeletonProps) {
   const searchParams = useSearchParams();
-  const month = searchParams.get('month');
+  const month = resolveSkeletonMonth(searchParams);
 
-  if (month === null || !isValidYearMonth(month)) {
+  if (month === null) {
     return <LoadingIndicator label={fallbackLabel} />;
   }
 
