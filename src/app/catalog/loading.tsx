@@ -9,8 +9,8 @@ import { catalogInvitationsHref } from '@/domain/catalogNavigation.ts';
  * `?month=` navigation doesn't drop the page title and primary action out
  * of the layout while pending, only to have them reflow back in - and
  * shift the calendar down - once the real page commits. The
- * designated-catalog-creator-only "+ イベントを登録" button is
- * intentionally omitted: unlike 招待一覧を見る (always shown), it depends
+ * designated-catalog-creator-only "+ 追加" button is
+ * intentionally omitted: unlike 招待一覧 (always shown), it depends
  * on an async membership check page.tsx itself awaits, which this static
  * fallback has no way to know before that check resolves.
  */

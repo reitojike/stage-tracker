@@ -10,5 +10,5 @@ export default meta;
 type Story = StoryObj<typeof PageHeading>;
 
 export const Default: Story = {
-  args: { children: 'Event Catalog' },
+  args: { children: 'イベント' },
 };
