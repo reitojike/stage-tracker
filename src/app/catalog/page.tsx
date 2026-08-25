@@ -66,16 +66,14 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
   return (
     <>
-      <PageHeading>Event Catalog</PageHeading>
+      <PageHeading>イベント</PageHeading>
 
       <ActionRow>
         {canCreateEvent ? (
-          <LinkButton href={catalogNewEventHref({ yearMonth, selectedDate })}>
-            + イベントを登録
-          </LinkButton>
+          <LinkButton href={catalogNewEventHref({ yearMonth, selectedDate })}>+ 追加</LinkButton>
         ) : null}
         <LinkButton href={catalogInvitationsHref()} variant="secondary">
-          招待一覧を見る
+          招待一覧
         </LinkButton>
       </ActionRow>
 

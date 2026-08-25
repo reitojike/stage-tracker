@@ -17,10 +17,10 @@ import { catalogInvitationsHref } from '@/domain/catalogNavigation.ts';
 export default function CatalogLoading() {
   return (
     <>
-      <PageHeading>Event Catalog</PageHeading>
+      <PageHeading>イベント</PageHeading>
       <ActionRow>
         <LinkButton href={catalogInvitationsHref()} variant="secondary">
-          招待一覧を見る
+          招待一覧
         </LinkButton>
       </ActionRow>
       <CalendarSkeleton sectionLabel="イベントカレンダー" fallbackLabel="カレンダーを読み込み中" />

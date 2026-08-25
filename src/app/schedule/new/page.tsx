@@ -13,7 +13,7 @@ import { PageHeading } from '@/ui/PageHeading';
 export default function NewSchedulePage() {
   return (
     <>
-      <BackLink href="/schedule">Personal Scheduleに戻る</BackLink>
+      <BackLink href="/schedule">個人の予定に戻る</BackLink>
       <PageHeading>予定を追加</PageHeading>
       <ScheduleEntryCreateForm />
     </>

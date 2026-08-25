@@ -28,7 +28,12 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
   );
 
   return (
-    <form action={formAction} className={styles.form} aria-busy={isPending}>
+    <form
+      action={formAction}
+      className={styles.form}
+      aria-label="共有相手を追加"
+      aria-busy={isPending}
+    >
       <input type="hidden" name="entryId" value={entryId} />
 
       {state.feedback ? (
@@ -44,7 +49,7 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
 
       <div key={state.attempt} className={styles.fields}>
         <TextInput
-          label="登録済みメールアドレス"
+          label="共有相手のメールアドレス"
           name="email"
           type="email"
           required
@@ -57,7 +62,7 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
 
       <div className={styles.actions}>
         <Button type="submit" disabled={isPending}>
-          {isPending ? '追加中…' : 'recipientを追加'}
+          {isPending ? '追加中…' : '共有相手を追加'}
         </Button>
       </div>
     </form>

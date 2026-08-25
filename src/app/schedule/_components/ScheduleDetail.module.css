@@ -1,4 +1,44 @@
 /*
+ * Detail surfaces reuse the V2 container vocabulary through Surface.tsx:
+ * borderless white, 12px radius, and 16px padding. Feature-local rules only
+ * own the hierarchy inside those surfaces.
+ */
+.scheduleSurface,
+.shareSurface,
+.shareAddSurface {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+}
+
+.detailField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.detailLabel {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-secondary);
+}
+
+.detailValue {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/*
  * The detail screen's own sub-sections. globals.css removes the UA heading
  * margins (the shell's content column and each component's flex gap own the
  * page rhythm instead), so a section that groups a heading with its content
@@ -12,15 +52,57 @@
 }
 
 .sectionHeading {
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
 }
 
 .recipientList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.recipientItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.recipientRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.recipientIdentity {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: var(--space-sm);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.recipientStatus {
+  flex-shrink: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-secondary);
+}
+
+.recipientEmail {
+  min-width: 0;
+  font-size: var(--font-size-body);
+  overflow-wrap: anywhere;
+}
+
+.removeForm {
+  flex-shrink: 0;
 }

@@ -5,6 +5,7 @@ import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_SHARE_REMOVE_FORM_STATE } from '@/domain/personalScheduleWriteFeedback.ts';
 import { removeScheduleShareAsOwnerAction } from '../_actions/scheduleWrite.ts';
+import styles from './ScheduleDetail.module.css';
 
 export interface RemoveRecipientFormProps {
   entryId: string;
@@ -31,9 +32,26 @@ export function RemoveRecipientForm({
   );
 
   return (
-    <form action={formAction} aria-busy={isPending}>
-      <input type="hidden" name="shareId" value={shareId} />
-      <input type="hidden" name="entryId" value={entryId} />
+    <div className={styles.recipientItem}>
+      <div className={styles.recipientRow}>
+        <div className={styles.recipientIdentity}>
+          <span className={styles.recipientStatus}>共有中</span>
+          <span className={styles.recipientEmail}>{recipientEmail}</span>
+        </div>
+
+        <form action={formAction} className={styles.removeForm} aria-busy={isPending}>
+          <input type="hidden" name="shareId" value={shareId} />
+          <input type="hidden" name="entryId" value={entryId} />
+          <Button
+            type="submit"
+            variant="small"
+            disabled={isPending}
+            aria-label={`${recipientEmail}の共有を解除`}
+          >
+            {isPending ? '処理中…' : '解除'}
+          </Button>
+        </form>
+      </div>
 
       {state.feedback ? (
         <StatePanel
@@ -43,10 +61,6 @@ export function RemoveRecipientForm({
           description={state.feedback.description}
         />
       ) : null}
-
-      <Button type="submit" variant="secondary" disabled={isPending}>
-        {isPending ? '削除中…' : `${recipientEmail} の共有を解除`}
-      </Button>
-    </form>
+    </div>
   );
 }

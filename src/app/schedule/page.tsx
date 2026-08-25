@@ -39,10 +39,10 @@ export default async function SchedulePage() {
 
   return (
     <>
-      <PageHeading>Personal Schedule</PageHeading>
+      <PageHeading>個人の予定</PageHeading>
 
       <ActionRow>
-        <LinkButton href="/schedule/new">+ 予定を追加</LinkButton>
+        <LinkButton href="/schedule/new">+ 追加</LinkButton>
       </ActionRow>
 
       {state === 'error' ? (

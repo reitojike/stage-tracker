@@ -129,7 +129,7 @@ void test('an authenticated user reaches the Catalog route and sees the month ca
   });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Event Catalog/);
+  assert.match(html, /イベント/);
 });
 
 void test('an anonymous user cannot reach the Catalog route', async () => {
