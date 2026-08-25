@@ -54,10 +54,12 @@
 }
 
 /*
- * secondary/small share the same white-surface chrome and subtle/active
- * pressed-state pair - only their size/radius/padding differ, declared on
- * each variant below. icon is its own borderless family (see below) rather
- * than a member of this bordered group.
+ * secondary/small share the same white-surface chrome - only their
+ * size/radius/padding differ, declared on each variant below. icon is its
+ * own borderless family (background/color/border differ at rest, see
+ * below) but shares this same hover/active pressed-state pair, so the
+ * three join the same hover/active selector lists rather than each
+ * restating the identical background values.
  */
 .secondary,
 .small {
@@ -67,12 +69,14 @@
 }
 
 .secondary:hover:not(:disabled),
-.small:hover:not(:disabled) {
+.small:hover:not(:disabled),
+.icon:hover:not(:disabled) {
   background-color: var(--color-surface-subtle);
 }
 
 .secondary:active:not(:disabled),
-.small:active:not(:disabled) {
+.small:active:not(:disabled),
+.icon:active:not(:disabled) {
   background-color: var(--color-surface-active);
 }
 
@@ -126,14 +130,6 @@
   border-radius: var(--radius-control-sm);
   background-color: transparent;
   color: var(--color-accent);
-}
-
-.icon:hover:not(:disabled) {
-  background-color: var(--color-surface-subtle);
-}
-
-.icon:active:not(:disabled) {
-  background-color: var(--color-surface-active);
 }
 
 /*

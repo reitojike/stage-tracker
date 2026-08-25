@@ -137,6 +137,20 @@ export function MyMonthCalendar({
               const inCurrentMonth = date.slice(0, 7) === yearMonth;
               const markers = markersByDate.get(date);
               const marker = markers ? roleMarker(markers.role) : null;
+              // markersByDate has an entry for every displayed date (not just
+              // ones with something to show), so `markers` alone is not a
+              // reliable "is there anything to render" signal - without this,
+              // every ordinary weekday would reserve the marker row's
+              // min-height for nothing, unlike MonthCalendar.tsx's own
+              // hasMarkerRow guard for the same #96 -> #102 marker row.
+              const hasMarkerRow =
+                Boolean(marker?.text) ||
+                (markers !== undefined &&
+                  (markers.attendingCount > 0 ||
+                    markers.consideringCount > 0 ||
+                    markers.hasUnconfirmedTicket ||
+                    markers.ownScheduleCount > 0 ||
+                    markers.sharedScheduleCount > 0));
 
               // Lead/trail cells (inCurrentMonth === false) belong to an
               // adjacent month - their own date's month, never the
@@ -194,7 +208,7 @@ export function MyMonthCalendar({
                   <span className={styles.dayNumberRow} aria-hidden="true">
                     <span>{dayNumber}</span>
                   </span>
-                  {markers ? (
+                  {markers && hasMarkerRow ? (
                     <span className={styles.markerRow} aria-hidden="true">
                       {marker?.text ? (
                         <span className={styles.dayRoleMark}>{marker.text}</span>
