@@ -39,13 +39,18 @@ export function SelectedDayList({ date, occurrences, context }: SelectedDayListP
                 className={styles.itemLink}
               >
                 <Surface className={styles.item}>
-                  <span className={styles.time}>
-                    {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
+                  <span className={styles.itemBody}>
+                    <span className={styles.time}>
+                      {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
+                    </span>
+                    <span className={styles.title}>{event.title}</span>
+                    {event.venue !== null ? (
+                      <span className={styles.venue}>{event.venue}</span>
+                    ) : null}
                   </span>
-                  <span className={styles.title}>{event.title}</span>
-                  {event.venue !== null ? (
-                    <span className={styles.venue}>{event.venue}</span>
-                  ) : null}
+                  <span className={styles.chevron} aria-hidden="true">
+                    ›
+                  </span>
                 </Surface>
               </Link>
             </li>

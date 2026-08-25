@@ -63,14 +63,19 @@ export default async function SchedulePage() {
             return (
               <li key={entry.id} className={styles.item}>
                 <Link href={`/schedule/${entry.id}`} className={styles.itemLink}>
-                  {callerId !== null ? (
-                    <Badge variant={isOwner ? 'neutral' : 'info'}>
-                      {isOwner ? '自分の予定' : '共有されている予定'}
-                    </Badge>
-                  ) : null}
-                  <span className={styles.itemType}>{scheduleTypeLabel(entry.scheduleType)}</span>
-                  <span className={styles.itemTemporal}>
-                    {scheduleTemporalLabel(entry.temporal)}
+                  <span className={styles.itemBody}>
+                    {callerId !== null ? (
+                      <Badge variant={isOwner ? 'neutral' : 'info'}>
+                        {isOwner ? '自分の予定' : '共有されている予定'}
+                      </Badge>
+                    ) : null}
+                    <span className={styles.itemType}>{scheduleTypeLabel(entry.scheduleType)}</span>
+                    <span className={styles.itemTemporal}>
+                      {scheduleTemporalLabel(entry.temporal)}
+                    </span>
+                  </span>
+                  <span className={styles.chevron} aria-hidden="true">
+                    ›
                   </span>
                 </Link>
               </li>

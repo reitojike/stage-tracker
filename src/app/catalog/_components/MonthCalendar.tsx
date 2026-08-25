@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
+import { LinkButton } from '@/ui/LinkButton';
 import type { CalendarDayRole } from '@/domain/calendarDayRole.ts';
 import type { MonthCalendarViewModel } from '@/domain/calendarMonth.ts';
 import {
@@ -36,16 +37,24 @@ function monthLabel(yearMonth: string): string {
  * own roleMarker (src/app/calendar/_components/MyMonthCalendar.tsx), reused
  * here rather than re-adjudicated, per Issue #72 ("My Calendar側の既存
  * behaviorをauthorityとしてreuse").
+ *
+ * `text` is non-null only for holiday (Issue #102 -> #96 approved
+ * direction): Saturday/Sunday's own per-cell text glyph is removed, their
+ * non-color cue now carried by the weekday header + column position +
+ * aria-label instead. `className` still applies to every weekend/holiday
+ * role so the color cue itself (paired with those non-color cues) is
+ * unchanged. Holiday's own `祝` glyph is kept - column position alone
+ * cannot identify a holiday.
  */
-function roleMarker(role: CalendarDayRole): { className: string; text: string } | null {
+function roleMarker(role: CalendarDayRole): { className: string; text: string | null } | null {
   if (role === 'holiday') {
     return { className: styles.roleHoliday ?? '', text: '祝' };
   }
   if (role === 'saturday') {
-    return { className: styles.roleSaturday ?? '', text: '土' };
+    return { className: styles.roleSaturday ?? '', text: null };
   }
   if (role === 'sunday') {
-    return { className: styles.roleSunday ?? '', text: '日' };
+    return { className: styles.roleSunday ?? '', text: null };
   }
   return null;
 }
@@ -57,21 +66,23 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
       aria-label={`${monthLabel(viewModel.yearMonth)}のイベントカレンダー`}
     >
       <div className={styles.header}>
-        <Link
-          className={styles.navLink}
+        <LinkButton
+          variant="icon"
+          showPending={false}
           href={catalogMonthHref(previousYearMonth(viewModel.yearMonth))}
           aria-label="前の月"
         >
           ‹
-        </Link>
+        </LinkButton>
         <p className={styles.monthLabel}>{monthLabel(viewModel.yearMonth)}</p>
-        <Link
-          className={styles.navLink}
+        <LinkButton
+          variant="icon"
+          showPending={false}
           href={catalogMonthHref(nextYearMonth(viewModel.yearMonth))}
           aria-label="次の月"
         >
           ›
-        </Link>
+        </LinkButton>
       </div>
 
       <div className={styles.weekdayRow} aria-hidden="true">
@@ -127,6 +138,7 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                   (segment) => segment.startCol <= colIndex && colIndex <= segment.endCol,
                 );
                 const marker = roleMarker(day.role);
+                const hasMarkerRow = Boolean(marker?.text) || day.badgeCount > 0;
                 // Lead/trail cells (inCurrentMonth === false) belong to an
                 // adjacent month - their own date's month, never the
                 // displayed viewModel.yearMonth, so the aria-label doesn't
@@ -183,12 +195,18 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                   >
                     <span className={styles.dayNumberRow} aria-hidden="true">
                       <span>{dayNumber}</span>
-                      {marker ? <span className={styles.dayRoleMark}>{marker.text}</span> : null}
                     </span>
-                    {day.badgeCount > 0 ? (
-                      <Badge variant="info" className={styles.badge} aria-hidden="true">
-                        {day.badgeCount}
-                      </Badge>
+                    {hasMarkerRow ? (
+                      <span className={styles.markerRow} aria-hidden="true">
+                        {marker?.text ? (
+                          <span className={styles.dayRoleMark}>{marker.text}</span>
+                        ) : null}
+                        {day.badgeCount > 0 ? (
+                          <Badge variant="info" className={styles.badge}>
+                            {day.badgeCount}
+                          </Badge>
+                        ) : null}
+                      </span>
                     ) : null}
                   </Link>
                 );

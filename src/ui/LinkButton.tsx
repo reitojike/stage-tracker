@@ -6,6 +6,13 @@ import styles from './Button.module.css';
 
 export interface LinkButtonProps extends ComponentProps<typeof Link> {
   variant?: ButtonVariant;
+  /**
+   * Set false to omit the in-flight LinkPending indicator - e.g. a
+   * calendar month-nav icon button (#102), where transition pending
+   * feedback is a separate, not-yet-implemented concern (#103). Defaults
+   * to true, unchanged for every other current consumer.
+   */
+  showPending?: boolean;
 }
 
 /**
@@ -17,9 +24,16 @@ export interface LinkButtonProps extends ComponentProps<typeof Link> {
  * stylesheet would only drift from Button's.
  *
  * Carries LinkPending so a tapped action shows it was accepted while the
- * server navigation is still in flight.
+ * server navigation is still in flight, unless the caller opts out via
+ * showPending.
  */
-export function LinkButton({ variant = 'primary', className, children, ...rest }: LinkButtonProps) {
+export function LinkButton({
+  variant = 'primary',
+  className,
+  children,
+  showPending = true,
+  ...rest
+}: LinkButtonProps) {
   const classes = [styles.button, styles[variant], styles.asLink, className]
     .filter(Boolean)
     .join(' ');
@@ -27,7 +41,7 @@ export function LinkButton({ variant = 'primary', className, children, ...rest }
   return (
     <Link className={classes} {...rest}>
       {children}
-      <LinkPending />
+      {showPending ? <LinkPending /> : null}
     </Link>
   );
 }

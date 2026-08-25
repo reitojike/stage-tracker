@@ -68,23 +68,28 @@ export function MySelectedDayList({
                 className={styles.itemLink}
               >
                 <Surface className={styles.item}>
-                  <span className={styles.time}>
-                    {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
+                  <span className={styles.itemBody}>
+                    <span className={styles.time}>
+                      {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
+                    </span>
+                    <span className={styles.title}>{event.title}</span>
+                    {event.venue !== null ? (
+                      <span className={styles.venue}>{event.venue}</span>
+                    ) : null}
+                    <span className={styles.badgeRow}>
+                      <Badge
+                        variant={participation.status === 'attending' ? 'success' : 'info'}
+                        className={styles.participationBadge}
+                      >
+                        {participationStatusLabel(participation.status)}
+                      </Badge>
+                      <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
+                        {ticketDisplayStatusLabel(ticketStatus)}
+                      </Badge>
+                    </span>
                   </span>
-                  <span className={styles.title}>{event.title}</span>
-                  {event.venue !== null ? (
-                    <span className={styles.venue}>{event.venue}</span>
-                  ) : null}
-                  <span className={styles.badgeRow}>
-                    <Badge
-                      variant={participation.status === 'attending' ? 'success' : 'info'}
-                      className={styles.participationBadge}
-                    >
-                      {participationStatusLabel(participation.status)}
-                    </Badge>
-                    <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
-                      {ticketDisplayStatusLabel(ticketStatus)}
-                    </Badge>
+                  <span className={styles.chevron} aria-hidden="true">
+                    ›
                   </span>
                 </Surface>
               </Link>
@@ -100,16 +105,21 @@ export function MySelectedDayList({
                   href convention as src/app/schedule/page.tsx's own list). */}
               <Link href={`/schedule/${entry.id}`} className={styles.itemLink}>
                 <Surface className={styles.item}>
-                  <span className={styles.badgeRow}>
-                    <Badge variant={isOwner ? 'neutral' : 'info'}>
-                      {isOwner ? '自分の予定' : '共有されている予定'}
-                    </Badge>
+                  <span className={styles.itemBody}>
+                    <span className={styles.badgeRow}>
+                      <Badge variant={isOwner ? 'neutral' : 'info'}>
+                        {isOwner ? '自分の予定' : '共有されている予定'}
+                      </Badge>
+                    </span>
+                    <span className={styles.title}>{scheduleTypeLabel(entry.scheduleType)}</span>
+                    <span className={styles.time}>{scheduleTemporalLabel(entry.temporal)}</span>
+                    {entry.memo !== null && entry.memo.length > 0 ? (
+                      <span className={styles.venue}>{entry.memo}</span>
+                    ) : null}
                   </span>
-                  <span className={styles.title}>{scheduleTypeLabel(entry.scheduleType)}</span>
-                  <span className={styles.time}>{scheduleTemporalLabel(entry.temporal)}</span>
-                  {entry.memo !== null && entry.memo.length > 0 ? (
-                    <span className={styles.venue}>{entry.memo}</span>
-                  ) : null}
+                  <span className={styles.chevron} aria-hidden="true">
+                    ›
+                  </span>
                 </Surface>
               </Link>
             </li>

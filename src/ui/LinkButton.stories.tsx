@@ -16,3 +16,7 @@ export const Primary: Story = {
 export const Secondary: Story = {
   args: { href: '#', variant: 'secondary', children: '招待一覧を見る' },
 };
+
+export const Icon: Story = {
+  args: { href: '#', variant: 'icon', 'aria-label': '次の月', showPending: false, children: '›' },
+};
