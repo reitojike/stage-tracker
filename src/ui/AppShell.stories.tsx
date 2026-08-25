@@ -8,7 +8,13 @@ import { Surface } from './Surface';
 const meta: Meta<typeof AppShell> = {
   title: 'Shared/AppShell',
   component: AppShell,
-  parameters: { layout: 'fullscreen' },
+  parameters: {
+    layout: 'fullscreen',
+    nextjs: {
+      appDirectory: true,
+      navigation: { pathname: '/catalog' },
+    },
+  },
 };
 
 export default meta;
@@ -18,14 +24,14 @@ export const WithPrimaryNav: Story = {
   args: {
     children: (
       <>
-        <PageHeading>Event Catalog</PageHeading>
+        <PageHeading>イベント</PageHeading>
         <ActionRow>
-          <LinkButton href="#">+ イベントを登録</LinkButton>
+          <LinkButton href="#">+ 追加</LinkButton>
           <LinkButton href="#" variant="secondary">
-            招待一覧を見る
+            招待一覧
           </LinkButton>
         </ActionRow>
-        <Surface variant="subtle">スクリーンの内容がここに入ります。</Surface>
+        <Surface>スクリーンの内容がここに入ります。</Surface>
       </>
     ),
   },

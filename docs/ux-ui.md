@@ -15,16 +15,21 @@ detailはここに置きません。
   domain semanticsを固定しません。
 - component catalog（Storybook）はこのruleの **rendered examples / states
   catalog** であり、rule自体の正本にはしません。ruleと実装が食い違う場合は
-  本ファイルを正とします。
+  本ファイルを正とします。ただし #105 のmaterialization中は、#101〜#104で
+  landした実装を同期元のauthorityとし、同期後は本ファイルがglobal ruleの
+  canonical sourceとして機能します。実装との不一致が新しいvisual/product
+  decisionを要求する場合は、勝手に解決せずcheckpointします。
 
 ## Origin
 
 ここに記載するglobal decisionは、Issue #10 Phase 1のPO checkpoint
 （[#10 checkpoint comment](https://github.com/reitojike/stage-tracker/issues/10)、
 2026-08-21、承認時点のmain: `2036cc12ae9c2f30382d9762fc2104b9fe1cf9aa`）で
-承認された範囲に限ります。checkpointで **intentionally unresolved** と
+承認された範囲を起点とします。さらに、#101〜#104でlandしたV2実装の
+materialization対象は、そのcurrent implementationと対応するcompletion evidenceを
+確認した上で本ファイルへ反映します。checkpointで **intentionally unresolved** と
 された項目（下記「本ドキュメントで固定しないもの」参照）は、実装都合で
-本ファイルに先行して書き込みません。
+決定済みにはしません。
 
 ## Platform priority
 
@@ -64,10 +69,11 @@ personal participationを同一semanticとして混在させません。
 ## Navigation principle
 
 Catalog / Followed catalog / Personal scheduleの間をmobileで自然に移動
-できるIA（情報設計）とします。bottom navigationを第一候補としますが、
-正確なnav labels / 項目数 / Searchの独立tab化 / Settings配置 / future
-feature navはこのdocumentで固定しません（「本ドキュメントで固定しない
-もの」参照）。
+できるIA（情報設計）とします。Gate Aのcurrent PrimaryNavは、画面に表示する
+labelとして **ホーム / イベント / マイカレンダー** をmaterializeしています。
+これは今回の同期対象として確定したlabel setですが、bottom navigationの最終的な
+項目数、Searchの独立tab化、Settings配置、future feature navまでをfreezeするもの
+ではありません（「本ドキュメントで固定しないもの」参照）。
 
 ## Information density
 
@@ -82,7 +88,7 @@ System / native UI sans系フォントを使います。日本語可読性を優
 restrained heading hierarchyとします。Giant marketing typographyは
 使わず、UI fontのためだけにwebfont dependencyを増やしません。
 
-exact font stackはPhase 2（本materialization）で次の通り決定します。
+現行V2のfont stackは次のとおりです。
 
 ```css
 --font-family-base:
@@ -93,14 +99,65 @@ exact font stackはPhase 2（本materialization）で次の通り決定します
 各OSのnative UI fontを優先し、日本語UI fontへ確実にfallbackするsystem
 font stackです。追加のwebfontは導入しません。
 
+現行V2のtypography roleは次のladderで分離します。値は
+`src/ui/tokens.css` とcurrent component CSSに対応します。
+
+- **heading** — 20px / 600 / 1.3（PageHeading等のpage-level heading）
+- **title** — 16px / 600 / 1.35（list / card title、section heading）
+- **body** — 16px / 400 / 1.5
+- **body-sm** — 14px
+- **label** — 12px / 600（短い項目名・Badge等のmicro-label）
+- **caption** — 11px（weekday、補助情報、bottom-nav label等）
+
+見出しが、その直下でhierarchy上 subordinateな本文より小さくなる構成は作りません。
+例えばPersonal Schedule detailの「共有」は16px / 600のsection headingとして、
+直下の本文より小さくならない階層を保ちます。
+
 ## Spacing / surface / radius
 
 - **Spacing** — 4px-based scale（token化: 後述の「Design tokens」参照）。
-- **Surface** — border / subtle tonal background中心とし、shadowを乱用
-  しません。
+- **Surface** — canvasは`neutral-100`（現行値 `#eceef0`）、content surfaceは
+  whiteです。content containerはborderlessとし、canvasとsurfaceのtone差および
+  spacingで分離します。surface radiusは12pxです。form control boundaryや
+  semanticなthin borderまで一律に禁止する意味ではありません。
 - **Radius** — controlはmoderate、larger surfaceも過度にroundにしません。
+  `--color-control-border`はinputや枠線付きcontrolのboundary用であり、
+  containerの境界線には使いません。StatePanelのcurrent variantやcoverage notice
+  など、意味のあるthin border / tonal treatmentはcomponentのroleに応じて残します。
+- **App bar / bottom nav** — white surface + hairlineを維持します。
 - **Pill形状**（fully-rounded）はsemantic reasonがある場合のみ使います
   （例: badge / statusの慣用表現）。汎用surfaceのdefault形状にはしません。
+
+V2のcontent surfaceのdefaultはwhite面です。`Surface subtle` variant自体は
+current APIとして有効ですが、白面のcontentを例示する場合はdefault surfaceを
+使います。
+
+## Control vocabulary
+
+controlでは、**visible fill heightとtap targetを同一視しません**。compactな
+塗り箱を使っても、transparentなtap target expansionにより操作範囲を保ちます。
+現行V2の代表値は次のとおりです。
+
+| variant             | visible fill |      tap target |
+| ------------------- | -----------: | --------------: |
+| primary / secondary |       約35px |        44px以上 |
+| small               |       約31px |        44px以上 |
+| quiet               |       約27px |        44px以上 |
+| icon                |  40px × 40px | 44px × 44px以上 |
+
+`Button` と `LinkButton` は同じ `ButtonVariant`（`primary` / `secondary` /
+`small` / `quiet` / `icon`）を使います。variantの役割はcurrent consumersから
+導出し、ここで新しい用途を追加しません。現行実装では、smallは共有解除のような
+compact inline action、quietはtext-only action、iconはcalendar month navigation
+のcontrolとして使われています。`input` / `textarea`のmin-height 44pxは、入力対象
+として維持します。
+
+## List row affordance
+
+chevronは、**row全体がtap可能でdestinationへ遷移する**ことを示すaffordanceです。
+したがって、tappable navigation rowには付けますが、static surface、information-only
+card、calendar cell、または内部にactionがあってもsurface全体がnavigation targetで
+ない面には付けません。すべてのwhite surfaceへchevronを付けるruleではありません。
 
 ## Color
 
@@ -108,9 +165,25 @@ Neutral base + single restrained cool accentのlow-noise UIとします。
 success / warning / danger / infoはsemantic roleを分け、statusをcolor
 だけで表現しません（アイコン / textラベル等を併用します）。
 
-exact accent hueはPhase 1 checkpointでintentionally unresolvedのため、
-本ファイルで最終値として固定しません。「Design tokens」節のtoken値は
-placeholderです。
+exact accent hueは引き続きintentionally unresolvedであり、本ファイルで
+永久的なfinal hueとして固定しません。一方、Gate Aのcurrent implementationでは
+既存のrestrained cool accent scaleを実際に使用しています。これは未使用の
+placeholderという意味ではなく、current vocabularyとして使われているがfutureの
+exact hue decisionはunresolved、という状態です。
+
+### Status hues
+
+現行V2のstatus colorは、neutral-100 canvasやrole tint上でAAを満たすため、
+success / warningをdarkenした値でmaterializeしています。current token値は次のとおりです。
+
+- success — `#22684a`
+- warning — `#7a5417`
+- danger — `#b3413a`
+
+Badgeはroleごとの淡色fillと文字labelを併用します。neutral Badgeについては
+global neutral tokenをdarkenしたわけではありません。`--color-badge-neutral-bg`は
+current neutral-100を参照し、white consumer surface上に置くことでsilhouetteを
+成立させています。
 
 ## Design tokens
 
@@ -128,20 +201,23 @@ Dark modeは、token構成としては対応可能なarchitecture（semantic tok
 値を切り替えるだけで成立する構成）にしますが、dark mode UI自体は今回
 実装しません。
 
-### Placeholder値の扱い
+### Current値とunresolved値の扱い
 
-以下のtoken値のうち、**accent色のexact hueと、spacing/radius以外の
-細かい数値**はPhase 1 checkpointで凍結されていないplaceholderです。
-将来の変更は該当primitive tokenの値を差し替えるだけで完結する設計とし、
-component側のhard-codeやtoken参照の再設計を必要としません。
+実装は `src/ui/tokens.css` をtoken値のauthorityとします。#105では、land済みの
+V2 role separation（typography、surface、control、status）をcurrent ruleとして
+materializeします。accentについてだけは、現在のscaleをGate A implementationと
+して使用しつつ、exact hueのfuture decisionをunresolvedとして残します。
+このboundaryを理由に、現行値をfinal brand decisionへfreezeしたり、未使用値として
+扱ったりしません。
 
-- **Spacing scale**は「4px-based」という決定自体はPhase 1で凍結済みの
-  ため、4の倍数のscaleとして本ファイルでも確定します。
-- **Accent hueの具体的な色**、typography size scaleの具体的なpx値、
-  radius scaleの具体的なpx値はplaceholderです。
+## Component-specific treatment
 
-実装は `src/ui/tokens.css` を正本とし、本ファイルはtoken layerの構成
-方針のみを記述します（具体値の重複記載はしません）。
+global consistencyは目的ではなく、product qualityのための手段です。まず
+usability、readability、product design qualityを優先して検討し、その結果として
+再利用可能なruleをglobal vocabularyへ落とします。既存のglobal ruleがproduct
+qualityを阻害する場合は、exceptionを足すだけでなくglobal rule自体を見直せます。
+一方、screenごとの無秩序な別designは避けます。componentのroleに本質的な差が
+ある場合は、component-specific treatmentを許容します。
 
 ## Calendar weekday / Japanese holiday presentation
 
@@ -154,7 +230,28 @@ screenのcalendar marker semantics（date dot / run period band等）とは
 - 日本の祝日（国民の祝日・休日）はred roleで表示します。
 - SaturdayとJapanese holidayが重なる場合は、holiday presentationを
   優先します。
-- accessibility baselineどおり、色だけを唯一の意味表現にしません。
+- 日付数字は固定段に置き、marker rowを別段として確保します。markerの有無で
+  日付数字の縦位置を変えません。
+- weekday headerを表示します。Saturday / Sundayは列位置、weekday header、
+  accessible nameを組み合わせて非色cueを成立させ、per-cellの`土` / `日`は
+  使いません。
+- 実際の祝日は列位置から導出できないため、per-cellの`祝` cueを残します。
+- 前後月の日付は`text-secondary`で表示します。色だけを唯一の意味表現にせず、
+  accessible name等のsemantic cueを併用します。
+- Event rangeのcalendar bandには専用のradius vocabulary（現行値5px）を使い、
+  cardやcontainerのradiusと混同しません。
+- month navigationはicon control vocabularyを使います（visible 40px × 40px、
+  tap 44px × 44px以上）。
+- `holiday-unconfirmed`はmonth-level noticeだけで表現します。per-cellの`?`や
+  `祝日未確認` cueは復活させません。
+- month navigationのpending中は、tapしたcontrol自身だけがspinnerになり、
+  spinnerとchevronを併記しません。month labelはcontextとして残し、calendar
+  gridも消さずにpending stateを表現します。reduced-motionを尊重します。
+- 現行のcalendar segment loading boundaryが発火するrouteでは、`CalendarSkeleton`
+  がcalendarのstructureを保ち、destination monthを先出しします。skeletonの
+  month解決はvalidな`date`を`month`より優先します。これはcurrent calendar
+  loading implementationのpresentation ruleであり、他のfeatureのloadingへ
+  過剰に一般化しません。
 
 Holiday dataのauthorityは内閣府「国民の祝日について」掲載データ / CSV
 です（[https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html)）。
@@ -255,9 +352,11 @@ product-rules.md` が定めるEvent range（first-class data。Issue #87）と�
   （classificationのdata boundary自体は
   `.ai-dev-foundation/product-rules.md`で承認済み）、category
   cardinality、saved filter preference
-- 正確なnav labels / bottom nav項目数 / Search tab化 / Settings
-  placement
-- exact accent hue（「Design tokens」節のplaceholder扱いを参照）
+- bottom navの最終的な項目数 / Search tab化 / Settings placement / future
+  feature navigation（current Gate Aのlabel setであるホーム / イベント /
+  マイカレンダー自体はmaterialize済みだが、永久的なfinal IAは未確定）
+- exact accent hue（current Gate A scaleは使用中だが、futureのexact hue decisionは
+  unresolved）
 - event deletion semantics
 - production hosting（Gate A dogfood限定のVercel Hobby採用を除き
   broader/general production hosting platformは引き続きuncommitted）、

@@ -22,10 +22,11 @@ interface PrimaryNavItem {
  * Labels repeat each destination's own page heading verbatim, so arriving
  * on a screen confirms which nav item was tapped.
  *
- * This is not the final IA. docs/ux-ui.md still leaves exact nav labels,
- * bottom-nav item count, Search tab and Settings placement intentionally
- * unresolved, and #70 does not freeze them; this component materialises
- * only what the Gate A journeys need, and that document is unchanged.
+ * This is not the final IA. The current Gate A label set is materialised in
+ * docs/ux-ui.md as ホーム / イベント / マイカレンダー, while the bottom-nav
+ * item count, Search tab, Settings placement, and future feature navigation
+ * remain intentionally unresolved. This component materialises only what the
+ * current Gate A journeys need.
  */
 const ITEMS: readonly PrimaryNavItem[] = [
   { href: '/', label: 'ホーム' },

@@ -10,11 +10,19 @@ export default meta;
 type Story = StoryObj<typeof LinkButton>;
 
 export const Primary: Story = {
-  args: { href: '#', variant: 'primary', children: '+ イベントを登録' },
+  args: { href: '#', variant: 'primary', children: '+ 追加' },
 };
 
 export const Secondary: Story = {
-  args: { href: '#', variant: 'secondary', children: '招待一覧を見る' },
+  args: { href: '#', variant: 'secondary', children: '招待一覧' },
+};
+
+export const Small: Story = {
+  args: { href: '#', variant: 'small', children: '解除' },
+};
+
+export const Quiet: Story = {
+  args: { href: '#', variant: 'quiet', children: 'キャンセル' },
 };
 
 export const Icon: Story = {

@@ -4,7 +4,13 @@ import { PrimaryNav } from './PrimaryNav';
 const meta: Meta<typeof PrimaryNav> = {
   title: 'Shared/PrimaryNav',
   component: PrimaryNav,
-  parameters: { layout: 'fullscreen' },
+  parameters: {
+    layout: 'fullscreen',
+    nextjs: {
+      appDirectory: true,
+      navigation: { pathname: '/catalog' },
+    },
+  },
 };
 
 export default meta;
@@ -17,5 +23,10 @@ type Story = StoryObj<typeof PrimaryNav>;
 export const Default: Story = {};
 
 export const OnMyCalendar: Story = {
-  parameters: { nextjs: { navigation: { pathname: '/calendar' } } },
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: { pathname: '/calendar' },
+    },
+  },
 };
