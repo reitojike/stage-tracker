@@ -485,6 +485,20 @@ function todayTokyoDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+// A one Tokyo calendar day Event range (importArgs' default) is exactly
+// what makes a same-day-plus-offset occurrence flaky across the JST
+// 23:00-24:00 boundary (Issue #99): +1h can land on tomorrow's Tokyo date.
+// Only the test that adds such an offset overrides p_ends_on to this -
+// importArgs' shared default stays the single-day range described above,
+// so other tests' Event-range-overlap queries are unaffected.
+function tomorrowTokyoDate(): string {
+  const tokyo = new Date(Date.now() + TOKYO_OFFSET_MS + 24 * 60 * 60 * 1000);
+  const year = String(tokyo.getUTCFullYear()).padStart(4, '0');
+  const month = String(tokyo.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(tokyo.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function importArgs(ownerId: string, overrides: Record<string, unknown> = {}) {
   return {
     p_owner_id: ownerId,
@@ -517,6 +531,7 @@ void test('service_role can create an event and its occurrences in one call', as
   const { data, error } = await admin.rpc(
     IMPORT_RPC,
     importArgs(actorA.user.id, {
+      p_ends_on: tomorrowTokyoDate(),
       p_occurrences: [
         { startsAt, endsAt: null },
         { startsAt: new Date(Date.parse(startsAt) + 3_600_000).toISOString(), endsAt: null },

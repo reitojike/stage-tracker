@@ -86,7 +86,7 @@ void test('parent event owner can insert an additional occurrence', async () => 
 });
 
 void test('parent event owner can update an occurrence’s time', async () => {
-  const { occurrence } = await createEventWithOccurrence(actorA);
+  const { occurrence } = await createEventWithOccurrence(actorA, { endsOn: wideEndsOn(3) });
   const newStartsAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
   const { data, error } = await actorA.client
     .from('event_occurrences')
