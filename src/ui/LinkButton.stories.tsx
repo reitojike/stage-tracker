@@ -18,5 +18,5 @@ export const Secondary: Story = {
 };
 
 export const Icon: Story = {
-  args: { href: '#', variant: 'icon', 'aria-label': '次の月', showPending: false, children: '›' },
+  args: { href: '#', variant: 'icon', 'aria-label': '次の月', children: '›' },
 };

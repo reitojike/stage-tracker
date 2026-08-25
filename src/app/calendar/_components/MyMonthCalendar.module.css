@@ -21,6 +21,37 @@
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
   margin: 0;
+  transition: color 150ms ease;
+}
+
+/*
+ * Month-nav pending feedback (Issue #103, P1) - same convention as
+ * src/app/catalog/_components/MonthCalendar.module.css's identical rule.
+ * LinkButton's default LinkPending renders a role="status"
+ * LoadingIndicator as a descendant of whichever <Link> is currently
+ * pending (useLinkStatus reads that Link's own context) - :has() lets
+ * this presentation react to that descendant without a client-side
+ * navigation state store. Scoped to .monthNavButton/.header/.calendar
+ * only, so every other LinkButton consumer's own showPending={true}
+ * append-after-label presentation (e.g. HomeNav/PrimaryNav) is untouched.
+ */
+.monthNavButton:has([role='status']) .navChevron {
+  display: none;
+}
+
+.header:has(.monthNavButton [role='status']) .monthLabel {
+  color: var(--color-text-secondary);
+}
+
+/* Grid stays mounted but sinks slightly while a month-nav tap is pending
+   (#103 P1). prefers-reduced-motion is already handled globally
+   (globals.css zeroes every transition-duration). */
+.grid {
+  transition: opacity 150ms ease;
+}
+
+.calendar:has(.monthNavButton [role='status']) .grid {
+  opacity: 0.5;
 }
 
 .weekdayRow {

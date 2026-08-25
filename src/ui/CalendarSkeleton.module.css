@@ -1,0 +1,82 @@
+/* Mirrors MonthCalendar.module.css's / MyMonthCalendar.module.css's own
+   .calendar surface tokens (Issue #103, P2) - kept as its own small
+   duplication rather than a cross-module import, the same convention
+   those two feature-local stylesheets already use for one another
+   (monthLabel/weekday/week/day tokens are restated, not shared). */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-surface);
+  padding: var(--space-sm);
+}
+
+/* min-height matches MonthCalendar.module.css's / MyMonthCalendar.module
+   .css's own .header, whose height comes from its two 40px icon-variant
+   LinkButtons (Button.module.css .icon's min-height:40px) - the label
+   alone is centered in that same 40px band rather than only reserving its
+   own text-line height, so the skeleton card doesn't grow once the real
+   header (with its buttons) mounts. */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.monthLabel {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.weekdayRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2xs);
+}
+
+.weekday {
+  text-align: center;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  padding-block: var(--space-xs);
+  opacity: 0.5;
+}
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2xs);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2xs);
+}
+
+/* Same 44px floor as a real day cell (MonthCalendar.module.css's .day),
+   so the skeleton's row height matches the grid it stands in for. */
+.day {
+  display: block;
+  min-height: 44px;
+  border-radius: var(--radius-control-sm);
+  background-color: var(--color-surface-subtle);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* prefers-reduced-motion is handled globally (globals.css caps every
+   animation to a single nearly-instant iteration), which settles this
+   animation on its final low-contrast frame instead of a moving pulse -
+   the same mechanism LoadingIndicator's own spin animation already
+   relies on, reused here rather than adding a second reduced-motion
+   override. */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}

@@ -74,23 +74,34 @@ export function MyMonthCalendar({
 }: MyMonthCalendarProps) {
   return (
     <section className={styles.calendar} aria-label={`${monthLabel(yearMonth)}のMy Calendar`}>
+      {/* No showPending={false} here (Issue #103, supersedes #102's
+          opt-out): LinkButton's default LinkPending now provides the
+          tapped control's pending feedback. The chevron glyph itself is
+          wrapped so .monthNavButton's own CSS (below) can swap it for
+          LinkPending's role="status" indicator via :has() rather than
+          showing both at once - useLinkStatus's per-Link pending context
+          is otherwise unchanged from #102. */}
       <div className={styles.header}>
         <LinkButton
           variant="icon"
-          showPending={false}
+          className={styles.monthNavButton}
           href={myCalendarMonthHref(previousYearMonth(yearMonth))}
           aria-label="前の月"
         >
-          ‹
+          <span className={styles.navChevron} aria-hidden="true">
+            ‹
+          </span>
         </LinkButton>
         <p className={styles.monthLabel}>{monthLabel(yearMonth)}</p>
         <LinkButton
           variant="icon"
-          showPending={false}
+          className={styles.monthNavButton}
           href={myCalendarMonthHref(nextYearMonth(yearMonth))}
           aria-label="次の月"
         >
-          ›
+          <span className={styles.navChevron} aria-hidden="true">
+            ›
+          </span>
         </LinkButton>
       </div>
 
@@ -127,7 +138,7 @@ export function MyMonthCalendar({
         </p>
       ) : null}
 
-      <div>
+      <div className={styles.grid}>
         {gridWeeks.map((week, weekIndex) => (
           // Weeks are a stable, never-reordered sequence within one render
           // (same convention as src/app/catalog/_components/MonthCalendar.tsx).
