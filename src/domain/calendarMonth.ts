@@ -468,3 +468,33 @@ export function selectDayOccurrences(
   }
   return result.sort((a, b) => compareOccurrencesByStartsAt(a.occurrence, b.occurrence));
 }
+
+/**
+ * 0-occurrence ("range-only") events, filtered by the selected day (Issue
+ * #100). With no day selected, every 0-occurrence event in
+ * `eventsWithOccurrences` (already scoped to the displayed month by the
+ * caller's query range) qualifies - this is the pre-#100 month-level
+ * fallback and stays unchanged. With a day selected, only the 0-occurrence
+ * events whose Event range (startsOn..endsOn, inclusive) contains that day
+ * qualify, so a range-only event elsewhere in the month no longer reads as
+ * relevant to a day it doesn't cover. Never synthesizes an occurrence -
+ * callers needing actual occurrences for the selected day still use
+ * selectDayOccurrences.
+ */
+export function selectRangeOnlyEvents(
+  eventsWithOccurrences: readonly EventWithOccurrences[],
+  selectedDate: string | null,
+): EventWithOccurrences[] {
+  return eventsWithOccurrences.filter((group) => {
+    if (group.occurrences.length !== 0) {
+      return false;
+    }
+    if (selectedDate === null) {
+      return true;
+    }
+    return (
+      compareDates(group.event.startsOn, selectedDate) <= 0 &&
+      compareDates(selectedDate, group.event.endsOn) <= 0
+    );
+  });
+}

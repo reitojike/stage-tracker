@@ -12,6 +12,7 @@ import {
   layoutWeekBands,
   monthBounds,
   selectDayOccurrences,
+  selectRangeOnlyEvents,
   type BandSegment,
 } from '../calendarMonth.ts';
 import { mapEventRow, mapOccurrenceRow, type EventWithOccurrences } from '../eventCatalog.ts';
@@ -757,4 +758,90 @@ void test('selectDayOccurrences: nullable end time is passed through as null, ne
 void test('selectDayOccurrences: a day with no occurrences returns an empty array, not a fabricated entry', () => {
   const result = selectDayOccurrences([], '2026-08-10');
   assert.deepEqual(result, []);
+});
+
+// --- selectRangeOnlyEvents (Issue #100: selected-day filtering) ---
+
+void test('selectRangeOnlyEvents: case 1 - no selected date keeps the pre-#100 month-level fallback (all 0-occurrence events, occurrence-having events excluded)', () => {
+  const rangeOnly = event({ id: 'range-only', starts_on: '2026-08-30', ends_on: '2026-08-30' });
+  const withOccurrence = event({ id: 'with-occurrence' });
+  const catalog: EventWithOccurrences[] = [
+    { event: rangeOnly, occurrences: [] },
+    { event: withOccurrence, occurrences: [occurrence({ event_id: 'with-occurrence' })] },
+  ];
+
+  const result = selectRangeOnlyEvents(catalog, null);
+
+  assert.deepEqual(
+    result.map((r) => r.event.id),
+    ['range-only'],
+  );
+});
+
+void test("selectRangeOnlyEvents: case 2 - selecting a single-day range-only event's own date shows it", () => {
+  const single = event({ id: 'single', starts_on: '2026-08-30', ends_on: '2026-08-30' });
+  const catalog: EventWithOccurrences[] = [{ event: single, occurrences: [] }];
+
+  const result = selectRangeOnlyEvents(catalog, '2026-08-30');
+
+  assert.deepEqual(
+    result.map((r) => r.event.id),
+    ['single'],
+  );
+});
+
+void test('selectRangeOnlyEvents: case 3 - selecting any other date hides a single-day range-only event (Production regression: selected 2026-08-25, range-only event on 2026-08-30)', () => {
+  const single = event({ id: 'single', starts_on: '2026-08-30', ends_on: '2026-08-30' });
+  const catalog: EventWithOccurrences[] = [{ event: single, occurrences: [] }];
+
+  const result = selectRangeOnlyEvents(catalog, '2026-08-25');
+
+  assert.deepEqual(result, []);
+});
+
+void test('selectRangeOnlyEvents: case 4 - selecting a date inside a multi-day range-only event (including a range boundary) shows it', () => {
+  const multi = event({ id: 'multi', starts_on: '2026-08-10', ends_on: '2026-08-13' });
+  const catalog: EventWithOccurrences[] = [{ event: multi, occurrences: [] }];
+
+  for (const date of ['2026-08-10', '2026-08-11', '2026-08-13']) {
+    assert.deepEqual(
+      selectRangeOnlyEvents(catalog, date).map((r) => r.event.id),
+      ['multi'],
+      `expected 'multi' to be selected for ${date}`,
+    );
+  }
+});
+
+void test('selectRangeOnlyEvents: case 5 - selecting a date outside a multi-day range-only event range hides it', () => {
+  const multi = event({ id: 'multi', starts_on: '2026-08-10', ends_on: '2026-08-13' });
+  const catalog: EventWithOccurrences[] = [{ event: multi, occurrences: [] }];
+
+  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-09'), []);
+  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-14'), []);
+});
+
+void test('selectRangeOnlyEvents: case 6 - no matching range-only event on the selected date returns an empty array (caller renders no section)', () => {
+  const withOccurrence = event({ id: 'with-occurrence' });
+  const catalog: EventWithOccurrences[] = [
+    { event: withOccurrence, occurrences: [occurrence({ event_id: 'with-occurrence' })] },
+  ];
+
+  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-10'), []);
+});
+
+void test('selectRangeOnlyEvents: an event with an occurrence is never treated as range-only, selected date or not', () => {
+  const withOccurrence = event({
+    id: 'with-occurrence',
+    starts_on: '2026-08-01',
+    ends_on: '2026-08-31',
+  });
+  const catalog: EventWithOccurrences[] = [
+    {
+      event: withOccurrence,
+      occurrences: [occurrence({ event_id: 'with-occurrence', starts_at: '2026-08-10T02:00:00Z' })],
+    },
+  ];
+
+  assert.deepEqual(selectRangeOnlyEvents(catalog, null), []);
+  assert.deepEqual(selectRangeOnlyEvents(catalog, '2026-08-10'), []);
 });

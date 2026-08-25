@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
+import { selectRangeOnlyEvents } from '@/domain/calendarMonth.ts';
 import styles from './RangeOnlyEventList.module.css';
 
 export interface RangeOnlyEventListProps {
@@ -34,9 +35,19 @@ export interface RangeOnlyEventListProps {
  * does have occurrences elsewhere (just not this month) reaches this list
  * too - a neutral label ("開催期間で該当するイベント") does not claim more
  * than "this event's range overlaps what you're looking at".
+ *
+ * Issue #100: with no day selected, every 0-occurrence event overlapping
+ * the displayed month still qualifies (unchanged month-level fallback
+ * above). Once a day is selected, this list narrows to only the
+ * 0-occurrence events whose Event range (startsOn..endsOn, inclusive)
+ * contains that day - otherwise a range-only event from elsewhere in the
+ * month reads as if it were relevant to the selected day, which it isn't.
+ * The selection itself lives in selectRangeOnlyEvents (calendarMonth.ts),
+ * next to the occurrence-side equivalent (selectDayOccurrences), so it's
+ * unit-testable without rendering.
  */
 export function RangeOnlyEventList({ events, context }: RangeOnlyEventListProps) {
-  const rangeOnly = events.filter((group) => group.occurrences.length === 0);
+  const rangeOnly = selectRangeOnlyEvents(events, context.selectedDate);
   if (rangeOnly.length === 0) {
     return null;
   }
