@@ -85,6 +85,13 @@ local / agent向けのone-command full deterministic verificationです。内部
   projectやremote credentialsは不要です。Docker が起動していない場合、この
   ステップで失敗します。
 
+`verify:profile` は `.ai-dev-foundation/quality/README.md` が定める
+Next.js + Supabaseプロファイルのextension point名として引き続き提供して
+います（`agent-rules:check` / `supabase:migrations:check` / DB起動・reset /
+`supabase:types:check` / `test:rls` / `test:auth`）。`npm run verify` からは
+呼び出しません（同じcheckの二重実行を避けるため）が、この名前でFoundation
+toolingや他agentが呼び出した場合に備えて維持しています。
+
 RLS policy の guardrail proof (`test/rls/guardrail-proof.mjs`) は
 `npm run test:rls:guardrail-proof` で手動実行します。実際に policy /
 grant を一時的に壊してnegative testが red になることを確認し、必ず
