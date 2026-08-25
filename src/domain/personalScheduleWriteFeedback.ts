@@ -48,7 +48,7 @@ const REMOVE_SHARE_NOT_FOUND: ScheduleWriteFeedback = {
 const OWNER_REMOVE_SHARE_PERMISSION_DENIED: ScheduleWriteFeedback = {
   variant: 'error',
   title: 'この共有を削除する権限がありません',
-  description: 'recipientの削除は、その予定を作成した本人だけが行えます。',
+  description: '共有相手の削除は、その予定を作成した本人だけが行えます。',
 };
 
 const OWNER_REMOVE_SHARE_NOT_FOUND: ScheduleWriteFeedback = {

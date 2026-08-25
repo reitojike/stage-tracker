@@ -172,7 +172,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
                   {recipientsState === 'error' ? (
                     <StatePanel
                       variant="error"
-                      title="共有中のrecipientを読み込めませんでした"
+                      title="共有中の共有相手を読み込めませんでした"
                       description="通信状況を確認し、もう一度お試しください。"
                     />
                   ) : null}
