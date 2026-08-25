@@ -65,17 +65,42 @@ Storybookはrendered examples / states catalogであり、UI ruleの正本では
 npm run verify
 ```
 
-`format:check` / `lint` / `typecheck` / `test:unit` / `build` /
-`build-storybook`（component catalogのstatic build。Storybookのruntime Node
-要件がrepoのNode baselineと非互換化する事態をCIで検知するためblocking checkに
-含めています） / `foundation:check` (generated adapter と Foundation-managed
-quality profile のdrift 検知) に続けて `verify:profile` を実行する
-one-command verify です。
-`verify:profile` は local Supabase を起動・reset した上で、generated
-database types の exact drift check (`supabase:types:check`) と DB/RLS
-test (`test:rls`) を実行します。remote Supabase project や remote
-credentials は不要です。Docker が起動していない場合、この最後のステップで
-失敗します。
+local / agent向けのone-command full deterministic verificationです。内部では
+責務ごとに分けた3つのcomposition scriptを順に実行します。GitHub Actions
+(`.github/workflows/verify.yml`) 上でもこの3責務を `Verify / Code` /
+`Verify / Build` / `Verify / Database` という独立jobへ分割しており、PR Checks
+上でどの責務が failed したか個別に確認できます。
+
+- `npm run verify:code` — `format:check` / `lint` / `typecheck` /
+  `test:unit` / `foundation:check` (generated adapter と Foundation-managed
+  quality profile のdrift 検知) / `agent-rules:check` /
+  `supabase:migrations:check`。いずれも local Supabase runtimeを必要としない
+  deterministic checkです。
+- `npm run verify:build` — `build` / `build-storybook`（component catalogの
+  static build。Storybookのruntime Node要件がrepoのNode baselineと非互換化
+  する事態をCIで検知するためblocking checkに含めています）。
+- `npm run verify:database` — local Supabaseを起動・resetした上で、generated
+  database typesのexact drift check (`supabase:types:check`) とDB/RLS test
+  (`test:rls`)・auth test (`test:auth`) を実行します。remote Supabase
+  projectやremote credentialsは不要です。Docker が起動していない場合、この
+  ステップで失敗します。
+
+`verify:profile` は `.ai-dev-foundation/quality/README.md` が定める
+Next.js + Supabaseプロファイルのextension point名として引き続き提供して
+います。`agent-rules:check` / `supabase:migrations:check` に続けて
+`verify:database`（DB起動・reset・`supabase:types:check`・`test:rls`・
+`test:auth`）を呼ぶ構成にしており、DB runtimeを要する部分は`verify:database`
+を単一のsourceとして参照します（同じ手順を2箇所へ独立にハードコードしない
+ため）。`npm run verify` からは`verify:profile`ではなく`verify:code`/
+`verify:build`/`verify:database`を直接呼びます。`agent-rules:check` /
+`supabase:migrations:check`はDB runtime不要なので`verify:code`側にも
+含めており、`verify:profile`とはこの2 checkの呼び出しのみ重複します
+（Issue #118のlane境界: agent-rules/migrationはCode laneに属しDatabase
+laneには含めないため、full `verify`内での二重実行にはなりません）。
+
+profile固有checkを追加・変更する場合は、DB runtimeが不要なら
+`verify:code`（および必要なら`verify:profile`）へ、DB runtimeが必要なら
+`verify:database`へ追加してください。
 
 RLS policy の guardrail proof (`test/rls/guardrail-proof.mjs`) は
 `npm run test:rls:guardrail-proof` で手動実行します。実際に policy /
