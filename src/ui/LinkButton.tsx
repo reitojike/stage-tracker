@@ -20,8 +20,9 @@ export interface LinkButtonProps extends ComponentProps<typeof Link> {
  * server navigation is still in flight.
  */
 export function LinkButton({ variant = 'primary', className, children, ...rest }: LinkButtonProps) {
-  const variantClass = variant === 'primary' ? styles.primary : styles.secondary;
-  const classes = [styles.button, variantClass, styles.asLink, className].filter(Boolean).join(' ');
+  const classes = [styles.button, styles[variant], styles.asLink, className]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <Link className={classes} {...rest}>

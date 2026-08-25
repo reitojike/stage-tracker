@@ -42,7 +42,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-md);
+  gap: var(--space-section);
   width: 100%;
   /* Smartphone-first: mobile gets the full width, wider viewports get a
      bounded, centred column rather than full-bleed line lengths

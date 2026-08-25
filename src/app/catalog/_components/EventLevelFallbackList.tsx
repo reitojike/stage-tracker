@@ -46,7 +46,7 @@ export function EventLevelFallbackList({ events, context }: EventLevelFallbackLi
         {events.map(({ event }) => (
           <li key={event.id}>
             <Link href={catalogEventHref(event.id, context)} className={styles.itemLink}>
-              <Surface variant="subtle" className={styles.item}>
+              <Surface className={styles.item}>
                 <span className={styles.title}>{event.title}</span>
                 <span className={styles.range}>
                   {event.startsOn}〜{event.endsOn}

@@ -5,33 +5,40 @@
   border-radius: var(--radius-pill);
   padding: var(--space-xs) var(--space-sm);
   font-family: var(--font-family-base);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-base);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
   white-space: nowrap;
 }
 
 .neutral {
-  background-color: var(--color-surface-subtle);
-  color: var(--color-text-secondary);
+  background-color: var(--color-badge-neutral-bg);
+  color: var(--color-badge-neutral-text);
 }
 
 .success {
-  background-color: var(--color-surface-subtle);
-  color: var(--color-success);
+  background-color: var(--color-badge-success-bg);
+  color: var(--color-badge-success-text);
 }
 
 .warning {
-  background-color: var(--color-surface-subtle);
-  color: var(--color-warning);
+  background-color: var(--color-badge-warning-bg);
+  color: var(--color-badge-warning-text);
 }
 
+/*
+ * danger has no dedicated role tint in the #96 freeze (only
+ * success/warning/info/neutral are specified) - --color-danger on
+ * --color-surface-subtle already clears 4.5:1 (verified in PR evidence),
+ * so it keeps the pre-#101 generic-subtle pairing rather than inventing an
+ * unfrozen tint.
+ */
 .danger {
   background-color: var(--color-surface-subtle);
   color: var(--color-danger);
 }
 
 .info {
-  background-color: var(--color-surface-subtle);
-  color: var(--color-info);
+  background-color: var(--color-badge-info-bg);
+  color: var(--color-badge-info-text);
 }

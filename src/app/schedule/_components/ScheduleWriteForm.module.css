@@ -58,11 +58,11 @@
 
 .notice {
   margin: 0;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
+  padding: var(--space-compact) var(--space-md);
+  border-radius: var(--radius-control-sm);
   background: var(--color-surface-subtle);
   color: var(--color-text);
-  font-size: 0.875rem;
+  font-size: var(--font-size-body-sm);
 }
 
 /* Kept in the DOM (and in the accessibility tree) while it has nothing to

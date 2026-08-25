@@ -1,17 +1,28 @@
 .button {
+  /*
+   * WCAG 2.2 SC 2.5.8 target size, floored at 44x44 and centered on the
+   * button's own box regardless of its visible fill height/width (#96: "塗り
+   * 箱のmin-height:44pxを外し、tap範囲は透明な擬似要素で上下へ広げて維持す
+   * る"). Shared with BackLink via tapTarget.module.css rather than each
+   * restating the same ::before rule.
+   */
+  composes: expand44 from './tapTarget.module.css';
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
   border-radius: var(--radius-control);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-xs) var(--space-md);
   font-family: var(--font-family-base);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-base);
+  line-height: var(--line-height-tight);
   border: 1px solid transparent;
   cursor: pointer;
-  min-height: 44px;
+  /* Visible fill height only - primary/secondary's V2 refined value (#96
+     control vocabulary). The 44px tap target is kept separately, see
+     composes above. */
+  min-height: 35px;
   /* Suppresses the mobile double-tap-zoom delay so the pressed state below
      appears immediately on tap (docs/ux-ui.md: native-feeling mobile
      organizer). The platform's own tap highlight is deliberately left in
@@ -33,16 +44,6 @@
   background-color: var(--color-accent-hover);
 }
 
-.secondary {
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  border-color: var(--color-control-border);
-}
-
-.secondary:hover:not(:disabled) {
-  background-color: var(--color-surface-subtle);
-}
-
 /*
  * Pressed feedback. Gate A's remote navigation can take a few seconds
  * (#69/#70), so "did this register" has to be answerable at the moment of
@@ -52,8 +53,76 @@
   background-color: var(--color-accent-active);
 }
 
-.secondary:active:not(:disabled) {
+/*
+ * secondary/small/icon share the same white-surface chrome and
+ * subtle/active pressed-state pair - only their size/radius/padding
+ * differ, declared on each variant below.
+ */
+.secondary,
+.small,
+.icon {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-control-border);
+}
+
+.secondary:hover:not(:disabled),
+.small:hover:not(:disabled),
+.icon:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle);
+}
+
+.secondary:active:not(:disabled),
+.small:active:not(:disabled),
+.icon:active:not(:disabled) {
   background-color: var(--color-surface-active);
+}
+
+/*
+ * Compact inline action - one visible-fill step down from .secondary, with
+ * the small-control radius (#96 control vocabulary: small 31px fill / 8px
+ * radius).
+ */
+.small {
+  min-height: 31px;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-control-sm);
+  font-size: var(--font-size-body-sm);
+}
+
+/*
+ * Lowest-emphasis, text-only action (#96: quiet(text) 27px fill) - no
+ * fill/border at rest. Shares BackLink's own subtle/active hover-pressed
+ * pattern so a quiet Button and BackLink read as the same control family.
+ */
+.quiet {
+  min-height: 27px;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-control-sm);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.quiet:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle);
+  color: var(--color-text);
+}
+
+.quiet:active:not(:disabled) {
+  background-color: var(--color-surface-active);
+  color: var(--color-text);
+}
+
+/*
+ * Icon-only action (#96: 40x40 fill). Square, no text label expected -
+ * callers pass an icon as `children`.
+ */
+.icon {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: var(--radius-control-sm);
 }
 
 /*

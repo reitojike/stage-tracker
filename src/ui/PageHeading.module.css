@@ -1,7 +1,7 @@
 .heading {
   margin: 0;
   font-size: var(--font-size-heading);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-heading);
   color: var(--color-text);
 }

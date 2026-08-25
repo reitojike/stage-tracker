@@ -37,21 +37,52 @@
   --color-accent-800: #253455;
   --color-accent-900: #1a2438;
 
-  /* ---- primitive: color (status, single step each) ---- */
-  --color-status-success-500: #2f7d5a;
-  --color-status-warning-500: #96681c;
+  /*
+   * ---- primitive: color (status, single step each) ----
+   * V2 refined direction freeze (#96 -> #101): success/warning darkened so
+   * their Badge role tint (see "badge role tint" block below) clears
+   * WCAG AA 4.5:1 on the new neutral-100 canvas. danger is unchanged - its
+   * existing pairing already clears 4.5:1 against --color-surface-subtle.
+   */
+  --color-status-success-500: #22684a;
+  --color-status-warning-500: #7a5417;
   --color-status-danger-500: #b3413a;
 
-  /* ---- primitive: spacing (4px-based scale, frozen in Phase 1) ---- */
+  /*
+   * ---- primitive: badge role tint (#96/#101) ----
+   * Light fill hex pairs frozen by design authority (#96), independent of
+   * the neutral/status scales above - "info" reuses --color-accent-700 and
+   * "neutral" reuses --color-neutral-100 (the same canvas tone) rather than
+   * duplicating those values.
+   */
+  --color-badge-tint-success: #e4f0ea;
+  --color-badge-tint-warning: #f4ece0;
+  --color-badge-tint-info: #e2e8f4;
+  --color-badge-text-neutral: #444b51;
+
+  /*
+   * ---- primitive: spacing (4px-based scale, frozen in Phase 1) ----
+   * `--space-scale-hairline` (2px) and `--space-scale-card-block` (14px)
+   * are the only two off-grid exceptions, both explicit V2 refined values
+   * frozen by #96 (label->value hairline gaps; card block padding).
+   */
+  --space-scale-hairline: 2px;
   --space-scale-1: 4px;
   --space-scale-2: 8px;
   --space-scale-3: 12px;
+  --space-scale-card-block: 14px;
   --space-scale-4: 16px;
+  --space-scale-section: 20px;
   --space-scale-5: 24px;
   --space-scale-6: 32px;
   --space-scale-7: 48px;
 
-  /* ---- primitive: radius (moderate control, non-oversized surface) ---- */
+  /*
+   * ---- primitive: radius (moderate control, non-oversized surface) ----
+   * `--radius-scale-xs` (8px) is the V2 refined "small control" step,
+   * between the pre-existing `sm` (6px) and `md` (10px) steps.
+   */
+  --radius-scale-xs: 8px;
   --radius-scale-sm: 6px;
   --radius-scale-md: 10px;
   --radius-scale-lg: 16px;
@@ -61,22 +92,40 @@
   --font-family-scale-base:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans',
     Meiryo, system-ui, sans-serif;
+  /* caption (11px) and label (12px) are deliberately distinct steps - see
+     the semantic layer below for which components use each. */
+  --font-size-scale-0: 11px;
   --font-size-scale-1: 12px;
   --font-size-scale-2: 14px;
   --font-size-scale-3: 16px;
   --font-size-scale-4: 20px;
   --font-weight-scale-regular: 400;
   --font-weight-scale-medium: 500;
+  --font-weight-scale-semibold: 600;
   --line-height-scale-base: 1.5;
+  /* Compact controls (Button/BackLink fill height) per #96's "行間は
+     1.5 -> 1.25" - distinct from the heading/title ratios below, which
+     apply to page/section headings rather than controls. */
+  --line-height-scale-tight: 1.25;
+  --line-height-scale-heading: 1.3;
+  --line-height-scale-title: 1.35;
 
   /* ================= semantic layer ================= */
 
-  /* surface / text / border */
-  --color-bg: var(--color-neutral-0);
+  /* surface / text / border
+     V2 refined direction (#96 -> #101): canvas is neutral-100, content
+     surface is white. --color-surface-subtle (lighter than canvas) and
+     --color-surface-active (darker than canvas) are chosen so neither
+     collides with the canvas tone they now sit next to - before this
+     freeze, canvas and --color-surface-active were both neutral-0/100
+     coincidentally, which is exactly the collision this reorganizes. */
+  --color-bg: var(--color-neutral-100);
   --color-surface: var(--color-neutral-0);
   --color-surface-subtle: var(--color-neutral-50);
-  /* Pressed state for neutral/secondary controls (see --color-accent-active). */
-  --color-surface-active: var(--color-neutral-100);
+  /* Pressed state for neutral/secondary controls (see --color-accent-active).
+     One step past canvas (neutral-100) so a pressed white row never reads
+     as having faded into the page background. */
+  --color-surface-active: var(--color-neutral-200);
   --color-border: var(--color-neutral-200);
   /* form control boundary(input/button等)。WCAG 2.2 SC 1.4.11 Non-text
      Contrastの3:1をwhite surface背景に対して満たす値(neutral-500: 白背景に
@@ -115,15 +164,44 @@
   --color-calendar-sunday: var(--color-status-danger-500);
   --color-calendar-holiday: var(--color-status-danger-500);
 
+  /* badge role tint (#96/#101): each Badge variant's light fill + its own
+     dark-on-light text pairing, verified >= 4.5:1 (see the Badge role
+     tint contrast block in tokens.css's consumers / PR verification
+     evidence). "success"/"warning" reuse the darkened status colors above
+     so the two never drift independently; "info" reuses the accent-700
+     step; "neutral" reuses the canvas tone itself. */
+  --color-badge-success-bg: var(--color-badge-tint-success);
+  --color-badge-success-text: var(--color-success);
+  --color-badge-warning-bg: var(--color-badge-tint-warning);
+  --color-badge-warning-text: var(--color-warning);
+  --color-badge-info-bg: var(--color-badge-tint-info);
+  --color-badge-info-text: var(--color-accent-700);
+  --color-badge-neutral-bg: var(--color-neutral-100);
+  --color-badge-neutral-text: var(--color-badge-text-neutral);
+
   /* spacing */
+  --space-2xs: var(--space-scale-hairline);
   --space-xs: var(--space-scale-1);
   --space-sm: var(--space-scale-2);
+  /* Notice/inline-panel padding step between sm(8) and md(16) - was a raw
+     0.75rem in EventWriteForm/ScheduleWriteForm's .notice (#101 token
+     drift cleanup). */
+  --space-compact: var(--space-scale-3);
+  /* Card block-direction padding (13-14px range frozen by #96); horizontal
+     padding for the same cards continues to use --space-md. */
+  --space-card-block: var(--space-scale-card-block);
   --space-md: var(--space-scale-4);
+  /* AppShell content column's section rhythm (#96: 20px, up from the
+     previous --space-md-based gap). */
+  --space-section: var(--space-scale-section);
   --space-lg: var(--space-scale-5);
   --space-xl: var(--space-scale-6);
 
   /* radius */
-  --radius-control: var(--radius-scale-sm);
+  --radius-control: var(--radius-scale-md);
+  /* Compact controls (Button small/quiet/icon variants) and small inline
+     panels - the V2 refined "small control" radius step. */
+  --radius-control-sm: var(--radius-scale-xs);
   --radius-surface: var(--radius-scale-md);
   --radius-pill: var(--radius-scale-full);
 
@@ -132,12 +210,27 @@
   /* Page-level heading. Restrained on purpose - one step above body, not a
      marketing display size (docs/ux-ui.md "Typography"). */
   --font-size-heading: var(--font-size-scale-4);
-  --font-size-caption: var(--font-size-scale-1);
+  /* Fine-print role (weekday/day-role marks, calendar overflow text,
+     bottom-nav labels). Distinct from --font-size-label below, which is
+     one step larger and reserved for badge-weight micro-labels. */
+  --font-size-caption: var(--font-size-scale-0);
+  /* Short, bold micro-labels (Badge) - kept at the previous caption size
+     (12px) rather than shrinking with caption, since Badge text is the
+     sole carrier of a status's meaning (docs/ux-ui.md "色のみに意味を依存
+     しない") and must not get harder to read as the ladder is refined. */
+  --font-size-label: var(--font-size-scale-1);
   --font-size-body-sm: var(--font-size-scale-2);
   --font-size-body: var(--font-size-scale-3);
+  /* Card/list-item title role - same size as body, distinguished by
+     weight/line-height only (#96: title 16/600/1.35). */
+  --font-size-title: var(--font-size-scale-3);
   --font-weight-regular: var(--font-weight-scale-regular);
   --font-weight-medium: var(--font-weight-scale-medium);
+  --font-weight-semibold: var(--font-weight-scale-semibold);
   --line-height-base: var(--line-height-scale-base);
+  --line-height-tight: var(--line-height-scale-tight);
+  --line-height-heading: var(--line-height-scale-heading);
+  --line-height-title: var(--line-height-scale-title);
 
   /* accessibility: visible focus (docs/ux-ui.md「Accessibility baseline」) */
   --focus-ring-width: 2px;

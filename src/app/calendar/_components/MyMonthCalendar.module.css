@@ -42,7 +42,7 @@
 .weekdayRow {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 2px;
+  gap: var(--space-2xs);
 }
 
 .weekday {
@@ -55,9 +55,9 @@
 .week {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 2px;
+  gap: var(--space-2xs);
   border-top: 1px solid var(--color-border);
-  padding-top: 2px;
+  padding-top: var(--space-2xs);
 }
 
 .day {
@@ -65,7 +65,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: var(--space-2xs);
   /* Height keeps the 44px comfortable target; width follows the 1fr column
      so a narrow viewport (320px, with the shell's own padding) reflows
      instead of overflowing horizontally - docs/ux-ui.md accessibility
@@ -116,7 +116,7 @@
 .dayNumberRow {
   display: flex;
   align-items: baseline;
-  gap: 2px;
+  gap: var(--space-2xs);
 }
 
 .dayRoleMark {
@@ -208,7 +208,7 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background-color: var(--color-warning);
   color: var(--color-accent-foreground);
   font-weight: var(--font-weight-medium);
@@ -245,7 +245,7 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px dashed var(--color-text-secondary);
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium);

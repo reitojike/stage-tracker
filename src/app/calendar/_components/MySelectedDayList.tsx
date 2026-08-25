@@ -67,7 +67,7 @@ export function MySelectedDayList({
                 href={catalogEventHref(event.id, eventDetailContext, occurrence.id)}
                 className={styles.itemLink}
               >
-                <Surface variant="subtle" className={styles.item}>
+                <Surface className={styles.item}>
                   <span className={styles.time}>
                     {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
                   </span>
@@ -99,7 +99,7 @@ export function MySelectedDayList({
                   provides - no duplicate schedule mutation UI here, same
                   href convention as src/app/schedule/page.tsx's own list). */}
               <Link href={`/schedule/${entry.id}`} className={styles.itemLink}>
-                <Surface variant="subtle" className={styles.item}>
+                <Surface className={styles.item}>
                   <span className={styles.badgeRow}>
                     <Badge variant={isOwner ? 'neutral' : 'info'}>
                       {isOwner ? '自分の予定' : '共有されている予定'}

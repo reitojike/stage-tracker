@@ -20,3 +20,15 @@ export const Secondary: Story = {
 export const Disabled: Story = {
   args: { variant: 'primary', children: '登録する', disabled: true },
 };
+
+export const Small: Story = {
+  args: { variant: 'small', children: '編集' },
+};
+
+export const Quiet: Story = {
+  args: { variant: 'quiet', children: 'キャンセル' },
+};
+
+export const Icon: Story = {
+  args: { variant: 'icon', children: '>', 'aria-label': '次の月' },
+};
