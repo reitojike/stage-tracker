@@ -377,11 +377,6 @@ export interface DayCellViewModel {
    * calendarDayRole.ts authority My Calendar already wires in - this
    * module never re-derives the classification itself. */
   role: CalendarDayRole;
-  /** False when `date` falls outside the Japanese-holiday snapshot's
-   * confirmed coverage range - matching MyCalendarDayMarkers.holidayDataConfirmed
-   * (myCalendar.ts), so a presentation layer must not show holiday status
-   * for this date as a confirmed ordinary day. */
-  holidayDataConfirmed: boolean;
 }
 
 export interface WeekViewModel {
@@ -395,8 +390,8 @@ export interface MonthCalendarViewModel {
   /** True when any date actually inside `yearMonth` (not a lead/trail cell)
    * falls outside the Japanese-holiday snapshot's confirmed coverage -
    * matching My Calendar's page.tsx-level hasUnconfirmedHolidayCoverage
-   * filter/convention, computed here instead since this view model already
-   * has every day's holidayDataConfirmed available. */
+   * filter/convention. Drives a month-level-only notice (Issue #97 PO
+   * adjudication); no per-day field carries this distinction any more. */
   hasUnconfirmedHolidayCoverage: boolean;
 }
 
@@ -426,13 +421,14 @@ export function buildMonthCalendarViewModel(
       inCurrentMonth: date.slice(0, 7) === yearMonth,
       badgeCount: badgeCounts.get(date) ?? 0,
       role: calendarDayRole(date),
-      holidayDataConfirmed: isWithinJapaneseHolidayDataCoverage(date),
     })),
     bandLayout: layoutWeekBands(weekDates, allSegments),
   }));
 
-  const hasUnconfirmedHolidayCoverage = weeks.some((week) =>
-    week.days.some((day) => day.inCurrentMonth && !day.holidayDataConfirmed),
+  const hasUnconfirmedHolidayCoverage = grid.weeks.some((weekDates) =>
+    weekDates.some(
+      (date) => date.slice(0, 7) === yearMonth && !isWithinJapaneseHolidayDataCoverage(date),
+    ),
   );
 
   return { yearMonth, weeks, hasUnconfirmedHolidayCoverage };

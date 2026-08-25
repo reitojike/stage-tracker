@@ -88,11 +88,11 @@ export function MyMonthCalendar({
         // Non-color notice (text, not a color-only cue) - this month
         // includes at least one date the Japanese-holiday snapshot hasn't
         // confirmed one way or the other (see japaneseHolidaysData.ts's
-        // coverage range), so holiday presentation for those dates is
-        // marked "祝日未確認" per-cell below rather than silently shown as
-        // an ordinary/confirmed-non-holiday day.
+        // coverage range). Month-level notice only (Issue #97 PO
+        // adjudication supersedes Issue #34's per-cell marker/ARIA) - no
+        // per-cell presentation names this to point back to.
         <p className={styles.coverageNotice} role="note">
-          この月の一部の日付は祝日データの公表範囲外のため、祝日表示が未確認です（「祝日未確認」の日付を参照）。
+          この月の一部の日付は祝日データの公表範囲外です。未公表の祝日は表示されません。
         </p>
       ) : null}
 
@@ -159,14 +159,6 @@ export function MyMonthCalendar({
               if (markers && markers.sharedScheduleCount > 0) {
                 labelParts.push(`共有された予定${String(markers.sharedScheduleCount)}件`);
               }
-              if (markers && !markers.holidayDataConfirmed) {
-                // Accessibility baseline (calendarDayRole.ts's header):
-                // an out-of-coverage date must not be
-                // presentation-equivalent to a confirmed ordinary day, so
-                // this survives even without the .markerHolidayUnconfirmed
-                // badge's own color/border cue.
-                labelParts.push('祝日未確認');
-              }
 
               return (
                 <Link
@@ -220,14 +212,6 @@ export function MyMonthCalendar({
                       {markers.sharedScheduleCount > 0 ? (
                         <span className={styles.markerScheduleShared} title="共有された予定">
                           共
-                        </span>
-                      ) : null}
-                      {!markers.holidayDataConfirmed ? (
-                        <span
-                          className={styles.markerHolidayUnconfirmed}
-                          title="祝日データ公表範囲外（祝日未確認）"
-                        >
-                          ?
                         </span>
                       ) : null}
                     </span>
