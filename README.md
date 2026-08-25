@@ -87,10 +87,20 @@ local / agent向けのone-command full deterministic verificationです。内部
 
 `verify:profile` は `.ai-dev-foundation/quality/README.md` が定める
 Next.js + Supabaseプロファイルのextension point名として引き続き提供して
-います（`agent-rules:check` / `supabase:migrations:check` / DB起動・reset /
-`supabase:types:check` / `test:rls` / `test:auth`）。`npm run verify` からは
-呼び出しません（同じcheckの二重実行を避けるため）が、この名前でFoundation
-toolingや他agentが呼び出した場合に備えて維持しています。
+います。`agent-rules:check` / `supabase:migrations:check` に続けて
+`verify:database`（DB起動・reset・`supabase:types:check`・`test:rls`・
+`test:auth`）を呼ぶ構成にしており、DB runtimeを要する部分は`verify:database`
+を単一のsourceとして参照します（同じ手順を2箇所へ独立にハードコードしない
+ため）。`npm run verify` からは`verify:profile`ではなく`verify:code`/
+`verify:build`/`verify:database`を直接呼びます。`agent-rules:check` /
+`supabase:migrations:check`はDB runtime不要なので`verify:code`側にも
+含めており、`verify:profile`とはこの2 checkの呼び出しのみ重複します
+（Issue #118のlane境界: agent-rules/migrationはCode laneに属しDatabase
+laneには含めないため、full `verify`内での二重実行にはなりません）。
+
+profile固有checkを追加・変更する場合は、DB runtimeが不要なら
+`verify:code`（および必要なら`verify:profile`）へ、DB runtimeが必要なら
+`verify:database`へ追加してください。
 
 RLS policy の guardrail proof (`test/rls/guardrail-proof.mjs`) は
 `npm run test:rls:guardrail-proof` で手動実行します。実際に policy /
