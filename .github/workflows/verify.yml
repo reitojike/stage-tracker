@@ -1,15 +1,22 @@
 name: Verify
 
 # Deterministic verification floor for this consumer (Issue #1 / PR A;
-# extended for Issue #3 / PR B's local Supabase checks). Checks out
-# ai-dev-foundation at a reproducible pinned revision alongside this
-# repository so `npm run verify` can validate the generated adapters and
-# Foundation-managed quality profile against the canonical source, not just
-# against files already committed here. `npm run verify` also starts a
-# local Supabase stack (via the `supabase` npm devDependency, using
+# extended for Issue #3 / PR B's local Supabase checks; split into
+# per-responsibility lanes for Issue #118 so PR Checks show which
+# responsibility failed instead of a single collapsed `Verify` result).
+# Checks out ai-dev-foundation at a reproducible pinned revision alongside
+# this repository so `npm run verify:code` can validate the generated
+# adapters and Foundation-managed quality profile against the canonical
+# source, not just against files already committed here. `Verify / Database`
+# starts a local Supabase stack (via the `supabase` npm devDependency, using
 # ubuntu-latest's preinstalled Docker) to run the generated-types drift
-# check and the DB/RLS tests against a real local Postgres - no remote
+# check and the DB/RLS/auth tests against a real local Postgres - no remote
 # Supabase project or credentials are required.
+#
+# The full `npm run verify` one-command sequence (code + build + database)
+# remains the local/agent deterministic verification contract; these three
+# jobs each run one slice of it so failures are attributable per
+# responsibility instead of only via the aggregate command's exit code.
 
 on:
   push:
@@ -20,9 +27,10 @@ env:
   FOUNDATION_CHECKOUT: ${{ github.workspace }}/.foundation-checkout
 
 jobs:
-  verify:
+  code:
+    name: Verify / Code
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - name: Checkout stage-tracker
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -57,5 +65,49 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify
-        run: npm run verify
+      - name: Verify / Code
+        run: npm run verify:code
+
+  build:
+    name: Verify / Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout stage-tracker
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.6'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify / Build
+        run: npm run verify:build
+
+  database:
+    name: Verify / Database
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout stage-tracker
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.6'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify / Database
+        run: npm run verify:database

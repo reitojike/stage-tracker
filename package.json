@@ -30,8 +30,10 @@
     "catalog:grant-creator": "node scripts/grant-catalog-creator.mjs",
     "catalog:import": "node scripts/import-catalog-events.mjs",
     "holidays:update": "node scripts/update-japanese-holidays.mjs",
-    "verify:profile": "npm run agent-rules:check && npm run supabase:migrations:check && supabase start && supabase db reset && npm run supabase:types:check && npm run test:rls && npm run test:auth",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run build-storybook && npm run foundation:check && npm run verify:profile",
+    "verify:code": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run foundation:check && npm run agent-rules:check && npm run supabase:migrations:check",
+    "verify:build": "npm run build && npm run build-storybook",
+    "verify:database": "supabase start && supabase db reset && npm run supabase:types:check && npm run test:rls && npm run test:auth",
+    "verify": "npm run verify:code && npm run verify:build && npm run verify:database",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
