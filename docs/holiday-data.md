@@ -54,10 +54,18 @@ Saturdayより優先されること、色に加えてnon-color cueを併用す�
 snapshotが記録するcoverage range外の日付は、その区別を必要とするいかなる
 箇所からも「祝日ではないことが確認済み」とは扱われません。詳細は
 `src/domain/japaneseHolidays.ts`の`isWithinJapaneseHolidayDataCoverage`を
-参照してください。My Calendarの通常のcalendar renderingはこの区別に
-実際にbranchします。`src/domain/calendarDayRole.ts`の`calendarDayRole`は
-coverage外の日付について`'holiday'`を一切報告しません（そのため
-確定した平日として黙って表示されることはありません）。また
-`src/app/calendar/_components/MyMonthCalendar.tsx`はnon-colorな
-「祝日未確認」notice（cell単位のbadge/aria-labelと、表示中の月に
-coverage外の日付が含まれる場合のmonth-level noticeの両方）を表示します。
+参照してください。My Calendar / Event Catalogの通常のcalendar renderingは
+この区別に実際にbranchします。`src/domain/calendarDayRole.ts`の
+`calendarDayRole`はcoverage外の日付について`'holiday'`を一切報告しません
+（そのため確定した平日として黙って表示されることはありません）。
+
+この内部区別のuser向け presentationはmonth-level notice onlyです（Issue
+#97 PO adjudication。Issue #34で採用したper-cell marker/ARIA部分を明示的に
+上書き）。表示中の月にcoverage外の日付が1件でも含まれる場合、
+`src/app/calendar/_components/MyMonthCalendar.tsx`と
+`src/app/catalog/_components/MonthCalendar.tsx`はいずれもnon-colorな
+text noticeを月全体に1つだけ表示します。個々のcellへ`?`等のmarkerや、
+day単位のaria-labelへの「祝日未確認」追加は行いません -
+coverage外であること自体はdomain layer（`isWithinJapaneseHolidayDataCoverage`）
+で厳密に保持されたままですが、day-level markerほど高いvisual priorityでは
+扱いません。

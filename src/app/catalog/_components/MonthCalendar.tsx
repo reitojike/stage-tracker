@@ -96,11 +96,11 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
         // as My Calendar's own coverageNotice
         // (src/app/calendar/_components/MyMonthCalendar.tsx): at least one
         // date this month falls outside the Japanese-holiday snapshot's
-        // confirmed coverage, so holiday presentation for those dates is
-        // marked "祝日未確認" per-cell below rather than silently shown as
-        // an ordinary/confirmed-non-holiday day.
+        // confirmed coverage. Month-level notice only (Issue #97 PO
+        // adjudication supersedes Issue #34's per-cell marker/ARIA) - no
+        // per-cell presentation names this to point back to.
         <p className={styles.coverageNotice} role="note">
-          この月の一部の日付は祝日データの公表範囲外のため、祝日表示が未確認です（「祝日未確認」の日付を参照）。
+          この月の一部の日付は祝日データの公表範囲外です。未公表の祝日は表示されません。
         </p>
       ) : null}
 
@@ -161,13 +161,6 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                       : `イベント${String(day.badgeCount)}件`,
                   );
                 }
-                if (!day.holidayDataConfirmed) {
-                  // Accessibility baseline (calendarDayRole.ts's header): an
-                  // out-of-coverage date must not be presentation-equivalent
-                  // to a confirmed ordinary day - same convention as My
-                  // Calendar's own "祝日未確認" labeling.
-                  labelParts.push('祝日未確認');
-                }
 
                 return (
                   <Link
@@ -191,14 +184,6 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                     <span className={styles.dayNumberRow} aria-hidden="true">
                       <span>{dayNumber}</span>
                       {marker ? <span className={styles.dayRoleMark}>{marker.text}</span> : null}
-                      {!day.holidayDataConfirmed ? (
-                        <span
-                          className={styles.markerHolidayUnconfirmed}
-                          title="祝日データ公表範囲外（祝日未確認）"
-                        >
-                          ?
-                        </span>
-                      ) : null}
                     </span>
                     {day.badgeCount > 0 ? (
                       <Badge variant="info" className={styles.badge} aria-hidden="true">

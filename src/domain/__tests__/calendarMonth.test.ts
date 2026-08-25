@@ -679,8 +679,6 @@ void test('buildMonthCalendarViewModel: applies the global weekday/holiday role 
 void test('buildMonthCalendarViewModel: hasUnconfirmedHolidayCoverage is false for a month fully inside the Japanese-holiday snapshot coverage', () => {
   const model = buildMonthCalendarViewModel('2026-08', []);
   assert.equal(model.hasUnconfirmedHolidayCoverage, false);
-  const days = model.weeks.flatMap((w) => w.days);
-  assert.ok(days.every((d) => d.holidayDataConfirmed));
 });
 
 void test("buildMonthCalendarViewModel: hasUnconfirmedHolidayCoverage is true once an in-month date falls outside the holiday snapshot coverage, matching My Calendar's own convention", () => {
@@ -689,8 +687,6 @@ void test("buildMonthCalendarViewModel: hasUnconfirmedHolidayCoverage is true on
   // in-current-month date past coverage.
   const model = buildMonthCalendarViewModel('2027-12', []);
   assert.equal(model.hasUnconfirmedHolidayCoverage, true);
-  const inMonthDays = model.weeks.flatMap((w) => w.days).filter((d) => d.inCurrentMonth);
-  assert.ok(inMonthDays.some((d) => !d.holidayDataConfirmed));
 });
 
 // --- selectDayOccurrences (full, lossless day detail) ---

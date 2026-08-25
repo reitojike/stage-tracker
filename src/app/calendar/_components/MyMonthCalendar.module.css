@@ -147,7 +147,7 @@
   gap: 3px;
   font-size: var(--font-size-caption);
   line-height: 1;
-  /* Up to 6 marker slots (●/？/!/予/共/?) can appear on one day at once -
+  /* Up to 5 marker slots (●/？/!/予/共) can appear on one day at once -
      wrapping to a second line keeps a narrow cell (~48px at a 375px
      viewport) from overflowing sideways into neighboring cells (raised in
      review on PR #94), rather than requiring every marker type to fit on
@@ -160,10 +160,10 @@
    checkpoint on #92 rejected an earlier 参/気 kanji-glyph pass (read as
    abbreviations, not symbols) and a ☆ "considering" glyph (read as
    "favorited" rather than "undecided"); ● reuses Issue #34's original
-   attending glyph, ？ was chosen knowing it visually echoes
-   .markerHolidayUnconfirmed's "?" badge below - that collision is an
-   accepted, PO-confirmed trade-off pending #97's separate re-evaluation of
-   whether the holiday-unconfirmed badge is still needed at all. */
+   attending glyph. ？ previously visually echoed a per-cell
+   holiday-unconfirmed "?" badge; Issue #97's PO adjudication removed that
+   badge from cell presentation entirely (month-level notice only), so the
+   collision no longer exists. */
 .markerAttending {
   color: var(--color-success);
 }
@@ -174,32 +174,20 @@
 
 /* .daySelected fills the whole cell with --color-accent and sets its own
    contrast-safe --color-accent-foreground text color, but each of these
-   markers' own `color` (and, for .markerHolidayUnconfirmed, `border-color`
-   too) above would otherwise win the cascade over that inherited value.
-   --color-info and --color-accent are literally the same token
-   (tokens.css), and --color-accent is .markerScheduleShared's color
+   markers' own `color` above would otherwise win the cascade over that
+   inherited value. --color-info and --color-accent are literally the same
+   token (tokens.css), and --color-accent is .markerScheduleShared's color
    outright, so both render fully invisible against a selected day's fill;
-   .markerAttending's --color-success, .markerScheduleOwn's and
-   .markerHolidayUnconfirmed's --color-text-secondary are close behind on
-   contrast (the first two found via review on PR #94; verifying that fix
-   surfaced the same pre-existing defect in the other three, sharing the
-   identical root cause). Reset to inherit .daySelected's own foreground
-   here, the same selected-state-wins principle
-   .roleSaturday/.roleSunday/.roleHoliday already apply above. */
+   .markerAttending's --color-success and .markerScheduleOwn's
+   --color-text-secondary are close behind on contrast (found via review on
+   PR #94). Reset to inherit .daySelected's own foreground here, the same
+   selected-state-wins principle .roleSaturday/.roleSunday/.roleHoliday
+   already apply above. */
 .daySelected .markerAttending,
 .daySelected .markerConsidering,
 .daySelected .markerScheduleOwn,
-.daySelected .markerScheduleShared,
-.daySelected .markerHolidayUnconfirmed {
+.daySelected .markerScheduleShared {
   color: inherit;
-}
-
-/* .markerHolidayUnconfirmed is the only one of the five with its own
-   border (the dashed "?" badge) - its border-color needs the same
-   selected-state override, or the dashed outline stays invisible even
-   once the "?" glyph itself is legible again. */
-.daySelected .markerHolidayUnconfirmed {
-  border-color: currentColor;
 }
 
 .markerTicket {
@@ -225,7 +213,8 @@
 /* Non-color notice for a month that includes at least one date outside
    the Japanese-holiday snapshot's confirmed coverage (see
    MyMonthCalendar.tsx's hasUnconfirmedHolidayCoverage prop) - plain text,
-   not conveyed by color alone. */
+   not conveyed by color alone. Month-level only (Issue #97 PO adjudication
+   supersedes Issue #34's per-cell marker/ARIA). */
 .coverageNotice {
   margin: 0;
   font-size: var(--font-size-caption);
@@ -233,22 +222,6 @@
   border: 1px dashed var(--color-control-border);
   border-radius: var(--radius-control);
   padding: var(--space-xs) var(--space-sm);
-}
-
-/* Per-cell "祝日未確認" badge for a date outside confirmed holiday-data
-   coverage - a distinct "?" glyph (not a color-only cue) so an
-   out-of-coverage date is never presentation-equivalent to a confirmed
-   ordinary day. */
-.markerHolidayUnconfirmed {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-pill);
-  border: 1px dashed var(--color-text-secondary);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-medium);
 }
 
 /*
