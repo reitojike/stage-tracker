@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LinkButton } from '@/ui/LinkButton';
 import type { MyCalendarDayMarkers } from '@/domain/myCalendar.ts';
 import {
   myCalendarDayHref,
@@ -37,21 +38,28 @@ function monthLabel(yearMonth: string): string {
 /**
  * Weekday/holiday role -> a (color-role class, short non-color marker) pair
  * (docs/ux-ui.md "Calendar weekday / Japanese holiday presentation" +
- * accessibility baseline: never color-only). The marker text is always
- * rendered (not aria-hidden-only) so the distinction survives without
- * color, e.g. for a colorblind reader or a printed/high-contrast override.
+ * accessibility baseline: never color-only).
+ *
+ * `text` is non-null only for holiday (Issue #102 -> #96 approved
+ * direction): Saturday/Sunday's own per-cell text glyph is removed, their
+ * non-color cue now carried by the weekday header + column position +
+ * aria-label instead. `className` still applies to every weekend/holiday
+ * role so the color cue itself (paired with those non-color cues) is
+ * unchanged. Holiday's own `祝` glyph is kept - column position alone
+ * cannot identify a holiday - and is still always rendered (not
+ * aria-hidden-only) so the distinction survives without color.
  */
 function roleMarker(
   role: MyCalendarDayMarkers['role'],
-): { className: string; text: string } | null {
+): { className: string; text: string | null } | null {
   if (role === 'holiday') {
     return { className: styles.roleHoliday ?? '', text: '祝' };
   }
   if (role === 'saturday') {
-    return { className: styles.roleSaturday ?? '', text: '土' };
+    return { className: styles.roleSaturday ?? '', text: null };
   }
   if (role === 'sunday') {
-    return { className: styles.roleSunday ?? '', text: '日' };
+    return { className: styles.roleSunday ?? '', text: null };
   }
   return null;
 }
@@ -67,34 +75,24 @@ export function MyMonthCalendar({
   return (
     <section className={styles.calendar} aria-label={`${monthLabel(yearMonth)}のMy Calendar`}>
       <div className={styles.header}>
-        <Link
-          className={styles.navLink}
+        <LinkButton
+          variant="icon"
+          showPending={false}
           href={myCalendarMonthHref(previousYearMonth(yearMonth))}
           aria-label="前の月"
         >
           ‹
-        </Link>
+        </LinkButton>
         <p className={styles.monthLabel}>{monthLabel(yearMonth)}</p>
-        <Link
-          className={styles.navLink}
+        <LinkButton
+          variant="icon"
+          showPending={false}
           href={myCalendarMonthHref(nextYearMonth(yearMonth))}
           aria-label="次の月"
         >
           ›
-        </Link>
+        </LinkButton>
       </div>
-
-      {hasUnconfirmedHolidayCoverage ? (
-        // Non-color notice (text, not a color-only cue) - this month
-        // includes at least one date the Japanese-holiday snapshot hasn't
-        // confirmed one way or the other (see japaneseHolidaysData.ts's
-        // coverage range). Month-level notice only (Issue #97 PO
-        // adjudication supersedes Issue #34's per-cell marker/ARIA) - no
-        // per-cell presentation names this to point back to.
-        <p className={styles.coverageNotice} role="note">
-          この月の一部の日付は祝日データの公表範囲外です。未公表の祝日は表示されません。
-        </p>
-      ) : null}
 
       <div className={styles.weekdayRow} aria-hidden="true">
         {WEEKDAY_LABELS.map((label, index) => (
@@ -113,6 +111,22 @@ export function MyMonthCalendar({
         ))}
       </div>
 
+      {hasUnconfirmedHolidayCoverage ? (
+        // Non-color notice (text, not a color-only cue) - this month
+        // includes at least one date the Japanese-holiday snapshot hasn't
+        // confirmed one way or the other (see japaneseHolidaysData.ts's
+        // coverage range). Month-level notice only (Issue #97 PO
+        // adjudication supersedes Issue #34's per-cell marker/ARIA) - no
+        // per-cell presentation names this to point back to. Ordered after
+        // the weekday header (Issue #102: unified with the Event Catalog's
+        // own MonthCalendar.tsx order - the unconditional structural
+        // header comes first, this conditional advisory sits right before
+        // the grid it qualifies).
+        <p className={styles.coverageNotice} role="note">
+          この月の一部の日付は祝日データの公表範囲外です。未公表の祝日は表示されません。
+        </p>
+      ) : null}
+
       <div>
         {gridWeeks.map((week, weekIndex) => (
           // Weeks are a stable, never-reordered sequence within one render
@@ -123,6 +137,20 @@ export function MyMonthCalendar({
               const inCurrentMonth = date.slice(0, 7) === yearMonth;
               const markers = markersByDate.get(date);
               const marker = markers ? roleMarker(markers.role) : null;
+              // markersByDate has an entry for every displayed date (not just
+              // ones with something to show), so `markers` alone is not a
+              // reliable "is there anything to render" signal - without this,
+              // every ordinary weekday would reserve the marker row's
+              // min-height for nothing, unlike MonthCalendar.tsx's own
+              // hasMarkerRow guard for the same #96 -> #102 marker row.
+              const hasMarkerRow =
+                Boolean(marker?.text) ||
+                (markers !== undefined &&
+                  (markers.attendingCount > 0 ||
+                    markers.consideringCount > 0 ||
+                    markers.hasUnconfirmedTicket ||
+                    markers.ownScheduleCount > 0 ||
+                    markers.sharedScheduleCount > 0));
 
               // Lead/trail cells (inCurrentMonth === false) belong to an
               // adjacent month - their own date's month, never the
@@ -133,8 +161,8 @@ export function MyMonthCalendar({
               if (date === todayDate) {
                 labelParts.push('今日');
               }
-              if (marker && markers?.role === 'holiday') {
-                labelParts.push(marker.text === '祝' ? '祝日' : marker.text);
+              if (markers?.role === 'holiday') {
+                labelParts.push('祝日');
               } else if (markers?.role === 'saturday') {
                 labelParts.push('土曜日');
               } else if (markers?.role === 'sunday') {
@@ -179,10 +207,12 @@ export function MyMonthCalendar({
                 >
                   <span className={styles.dayNumberRow} aria-hidden="true">
                     <span>{dayNumber}</span>
-                    {marker ? <span className={styles.dayRoleMark}>{marker.text}</span> : null}
                   </span>
-                  {markers ? (
+                  {markers && hasMarkerRow ? (
                     <span className={styles.markerRow} aria-hidden="true">
+                      {marker?.text ? (
+                        <span className={styles.dayRoleMark}>{marker.text}</span>
+                      ) : null}
                       {markers.attendingCount > 0 ? (
                         <span
                           className={styles.markerAttending}

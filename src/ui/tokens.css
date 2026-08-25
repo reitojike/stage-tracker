@@ -81,11 +81,18 @@
    * ---- primitive: radius (moderate control, non-oversized surface) ----
    * `--radius-scale-xs` (8px) is the V2 refined "small control" step,
    * between the pre-existing `sm` (6px) and `md` (10px) steps.
+   * `--radius-scale-container` (12px) and `--radius-scale-band` (5px) are
+   * V2 refined "surface polish" (#96 -> #102) off-grid exceptions: the
+   * former is the frozen white-container corner radius (distinct from the
+   * smaller `md` control radius it replaces on containers), the latter is
+   * the calendar Event-range band's own dedicated step.
    */
   --radius-scale-xs: 8px;
   --radius-scale-sm: 6px;
   --radius-scale-md: 10px;
+  --radius-scale-container: 12px;
   --radius-scale-lg: 16px;
+  --radius-scale-band: 5px;
   --radius-scale-full: 999px;
 
   /* ---- primitive: typography ---- */
@@ -129,11 +136,18 @@
   --color-border: var(--color-neutral-200);
   /* form control boundary(input/button等)。WCAG 2.2 SC 1.4.11 Non-text
      Contrastの3:1をwhite surface背景に対して満たす値(neutral-500: 白背景に
-     対し約4.3:1)。generic surface borderとは別tokenとして分離する。 */
+     対し約4.3:1)。generic surface borderとは別tokenとして分離する。V2
+     refined direction (#96 -> #102): containerへは使わない - container
+     separationはcanvas/surfaceのトーン差と間隔が担う。 */
   --color-control-border: var(--color-neutral-500);
   --color-text: var(--color-neutral-900);
   --color-text-secondary: var(--color-neutral-600);
   --color-text-disabled: var(--color-neutral-400);
+  /* Non-text icon affordance only (chevron等) - #96 frozen value/contrast
+     (4.30:1 on white). Deliberately NOT a general text-color token: 4.30:1
+     clears WCAG 2.2 SC 1.4.11 (3:1 non-text) but not SC 1.4.3 (4.5:1 body
+     text), so this must not be reused for readable text. */
+  --color-icon-affordance: var(--color-neutral-500);
 
   /* accent / interactive */
   --color-accent: var(--color-accent-600);
@@ -200,9 +214,17 @@
   /* radius */
   --radius-control: var(--radius-scale-md);
   /* Compact controls (Button small/quiet/icon variants) and small inline
-     panels - the V2 refined "small control" radius step. */
+     panels - the V2 refined "small control" radius step. Also month
+     calendar's own day cell radius (#96 -> #102 calendar presentation). */
   --radius-control-sm: var(--radius-scale-xs);
-  --radius-surface: var(--radius-scale-md);
+  /* Borderless white container radius (#96 -> #102: Surface / StatePanel /
+     HomeNav / container-vocabulary consumers, and the calendar card
+     itself). Distinct from --radius-control's smaller step. */
+  --radius-surface: var(--radius-scale-container);
+  /* Calendar Event-range band's own dedicated radius (#96 -> #102) -
+     smaller than every other radius step, so the band reads as a thin
+     inline marker rather than another card-like shape. */
+  --radius-band: var(--radius-scale-band);
   --radius-pill: var(--radius-scale-full);
 
   /* typography */

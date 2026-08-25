@@ -47,11 +47,18 @@ export function EventLevelFallbackList({ events, context }: EventLevelFallbackLi
           <li key={event.id}>
             <Link href={catalogEventHref(event.id, context)} className={styles.itemLink}>
               <Surface className={styles.item}>
-                <span className={styles.title}>{event.title}</span>
-                <span className={styles.range}>
-                  {event.startsOn}〜{event.endsOn}
+                <span className={styles.itemBody}>
+                  <span className={styles.title}>{event.title}</span>
+                  <span className={styles.range}>
+                    {event.startsOn}〜{event.endsOn}
+                  </span>
+                  {event.venue !== null ? (
+                    <span className={styles.venue}>{event.venue}</span>
+                  ) : null}
                 </span>
-                {event.venue !== null ? <span className={styles.venue}>{event.venue}</span> : null}
+                <span className={styles.chevron} aria-hidden="true">
+                  ›
+                </span>
               </Surface>
             </Link>
           </li>

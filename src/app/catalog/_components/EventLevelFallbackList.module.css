@@ -29,18 +29,29 @@
 
 .itemLink:hover .item {
   background-color: var(--color-surface-subtle);
-  border-color: var(--color-control-border);
 }
 
 .itemLink:active .item {
   background-color: var(--color-surface-active);
-  border-color: var(--color-control-border);
 }
 
 .item {
   display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.itemBody {
+  display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-xs);
+  min-width: 0;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--color-icon-affordance);
 }
 
 /* See SelectedDayList.module.css's identical rule for why this targets

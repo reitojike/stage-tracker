@@ -54,13 +54,15 @@
 }
 
 /*
- * secondary/small/icon share the same white-surface chrome and
- * subtle/active pressed-state pair - only their size/radius/padding
- * differ, declared on each variant below.
+ * secondary/small share the same white-surface chrome - only their
+ * size/radius/padding differ, declared on each variant below. icon is its
+ * own borderless family (background/color/border differ at rest, see
+ * below) but shares this same hover/active pressed-state pair, so the
+ * three join the same hover/active selector lists rather than each
+ * restating the identical background values.
  */
 .secondary,
-.small,
-.icon {
+.small {
   background-color: var(--color-surface);
   color: var(--color-text);
   border-color: var(--color-control-border);
@@ -116,13 +118,18 @@
 
 /*
  * Icon-only action (#96: 40x40 fill). Square, no text label expected -
- * callers pass an icon as `children`.
+ * callers pass an icon as `children`. Deliberately borderless (unlike
+ * secondary/small above) - e.g. calendar month-nav (#96 -> #102): the
+ * accent-colored glyph itself identifies the control (WCAG 2.2 SC 1.4.11),
+ * so no visible border is needed at rest.
  */
 .icon {
   min-width: 40px;
   min-height: 40px;
   padding: 0;
   border-radius: var(--radius-control-sm);
+  background-color: transparent;
+  color: var(--color-accent);
 }
 
 /*
