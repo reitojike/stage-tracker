@@ -20,10 +20,7 @@ export default function MyCalendarLoading() {
           個人予定を管理
         </LinkButton>
       </ActionRow>
-      <CalendarSkeleton
-        sectionLabel="マイカレンダー"
-        fallbackLabel="マイカレンダーを読み込み中"
-      />
+      <CalendarSkeleton sectionLabel="マイカレンダー" fallbackLabel="マイカレンダーを読み込み中" />
     </>
   );
 }
