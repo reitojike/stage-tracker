@@ -79,8 +79,32 @@ export function catalogDayHref(yearMonth: string, date: string): string {
   return `/catalog?month=${yearMonth}&date=${date}`;
 }
 
-export function catalogEventHref(eventId: string, context: CatalogParams): string {
-  return `/catalog/events/${eventId}?${contextParams(context)}`;
+/**
+ * `occurrenceId` carries the exact occurrence a selected-day row was chosen
+ * for (Issue #107) - omitted for the generic "open this event" journey
+ * (e.g. from an event title), which has no single occurrence in mind. The
+ * destination page independently re-validates the `occurrence` query param
+ * against the event's actual occurrences (see resolveFocusedOccurrenceId)
+ * rather than trusting it, so a caller does not need to.
+ *
+ * The same id also drives the URL's hash fragment (`#occurrence-<id>`) so
+ * the App Router's own navigation handling scrolls/focuses that list item
+ * into view on arrival - see occurrenceAnchorId and EventDetail, which
+ * gives the matching list item that exact id. This reuses a built-in
+ * mechanism rather than adding bespoke client-side scroll/focus logic that
+ * would have to race it.
+ */
+export function catalogEventHref(
+  eventId: string,
+  context: CatalogParams,
+  occurrenceId?: string | null,
+): string {
+  const params = baseContextSearchParams(context);
+  if (occurrenceId === undefined || occurrenceId === null) {
+    return `/catalog/events/${eventId}?${params.toString()}`;
+  }
+  params.set('occurrence', occurrenceId);
+  return `/catalog/events/${eventId}?${params.toString()}#${occurrenceAnchorId(occurrenceId)}`;
 }
 
 /**
@@ -105,9 +129,40 @@ export function catalogInvitationsHref(): string {
 }
 
 function contextParams(context: CatalogParams): string {
+  return baseContextSearchParams(context).toString();
+}
+
+function baseContextSearchParams(context: CatalogParams): URLSearchParams {
   const params = new URLSearchParams({ month: context.yearMonth });
   if (context.selectedDate !== null) {
     params.set('date', context.selectedDate);
   }
-  return params.toString();
+  return params;
+}
+
+/**
+ * Re-validates a raw `occurrence` query param against the occurrences that
+ * actually belong to the event being viewed, returning null for anything
+ * that does not exactly match (missing, malformed, foreign-event, or
+ * stale/deleted) - the same "ignore, don't error" treatment
+ * resolveCatalogParams gives malformed month/date params, since this is
+ * also client-supplied navigation state, not domain data. A null result
+ * means "no exact occurrence in focus", which the caller falls back to the
+ * generic event-level presentation for (Issue #107): this never resolves
+ * to the wrong occurrence, only to "none".
+ */
+export function resolveFocusedOccurrenceId(
+  rawOccurrenceParam: string | string[] | undefined,
+  occurrenceIds: readonly string[],
+): string | null {
+  const raw = firstValue(rawOccurrenceParam);
+  return raw !== undefined && occurrenceIds.includes(raw) ? raw : null;
+}
+
+/** The DOM anchor id an occurrence's list item is identified by, shared by
+ * the element itself and whatever scrolls/focuses it into view - kept out
+ * of the raw occurrence id (a UUID, which may start with a digit and is
+ * not a safe bare CSS/DOM id) by a stable prefix. */
+export function occurrenceAnchorId(occurrenceId: string): string {
+  return `occurrence-${occurrenceId}`;
 }

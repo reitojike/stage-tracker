@@ -11,6 +11,7 @@ import {
   catalogEditEventHref,
   catalogMonthHref,
   resolveCatalogParams,
+  resolveFocusedOccurrenceId,
 } from '@/domain/catalogNavigation';
 import type { EventWithOccurrences } from '@/domain/eventCatalog';
 import type { Participation } from '@/domain/participation';
@@ -58,6 +59,20 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     event !== null &&
     canUpdateEvent(user?.id ?? null, { ownerId: event.event.ownerId }, event.event.ownerId)
       ? catalogEditEventHref(eventId, context)
+      : null;
+
+  // The exact occurrence a selected-day row was chosen for (Issue #107).
+  // Re-validated against this event's actual occurrences rather than
+  // trusted as-is: a foreign, stale, or otherwise invalid `occurrence`
+  // param resolves to null here, which EventDetail treats the same as no
+  // occurrence being in focus at all (the existing generic presentation) -
+  // it never targets the wrong occurrence.
+  const focusedOccurrenceId =
+    event !== null
+      ? resolveFocusedOccurrenceId(
+          rawParams.occurrence,
+          event.occurrences.map((occurrence) => occurrence.id),
+        )
       : null;
 
   // The viewer's own participation for every occurrence (Issue #36), read
@@ -117,6 +132,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           data={event}
           editHref={editHref}
           participationsByOccurrenceId={participationsByOccurrenceId}
+          focusedOccurrenceId={focusedOccurrenceId}
         />
       ) : null}
     </>

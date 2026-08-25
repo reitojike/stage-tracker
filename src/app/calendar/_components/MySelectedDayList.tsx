@@ -64,7 +64,7 @@ export function MySelectedDayList({
           {occurrenceEntries.map(({ event, occurrence, participation, ticketStatus }) => (
             <li key={occurrence.id}>
               <Link
-                href={catalogEventHref(event.id, eventDetailContext)}
+                href={catalogEventHref(event.id, eventDetailContext, occurrence.id)}
                 className={styles.itemLink}
               >
                 <Surface variant="subtle" className={styles.item}>

@@ -1,14 +1,17 @@
 import { ActionRow } from '@/ui/ActionRow';
+import { Badge } from '@/ui/Badge';
 import { LinkButton } from '@/ui/LinkButton';
 import { PageHeading } from '@/ui/PageHeading';
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import type { Participation } from '@/domain/participation.ts';
+import { occurrenceAnchorId } from '@/domain/catalogNavigation.ts';
 import {
   isRenderableHttpUrl,
   occurrenceTimeRangeLabel,
   tokyoDateLabel,
 } from '@/domain/catalogFormatting.ts';
+import { FocusedOccurrenceScroll } from './FocusedOccurrenceScroll.tsx';
 import { ParticipationPanel } from './ParticipationPanel.tsx';
 import styles from './EventDetail.module.css';
 
@@ -33,6 +36,14 @@ export interface EventDetailProps {
    * guessing at a default.
    */
   participationsByOccurrenceId: ReadonlyMap<string, Participation | null>;
+  /**
+   * The exact occurrence a selected-day row was chosen for (Issue #107),
+   * already re-validated by the page against this event's actual
+   * occurrences - null means no occurrence is in focus, which renders
+   * exactly as before this feature existed (the generic event-level
+   * journey this component always supported).
+   */
+  focusedOccurrenceId?: string | null;
 }
 
 /**
@@ -47,11 +58,13 @@ export function EventDetail({
   data,
   editHref = null,
   participationsByOccurrenceId,
+  focusedOccurrenceId = null,
 }: EventDetailProps) {
   const { event, occurrences } = data;
 
   return (
     <article className={styles.detail}>
+      <FocusedOccurrenceScroll occurrenceId={focusedOccurrenceId} />
       <PageHeading>{event.title}</PageHeading>
 
       {editHref !== null ? (
@@ -95,21 +108,35 @@ export function EventDetail({
         <h2 className={styles.subheading}>公演回</h2>
         <Surface variant="subtle">
           <ul className={styles.occurrenceList}>
-            {occurrences.map((occurrence) => (
-              <li key={occurrence.id}>
-                <p className={styles.occurrenceTime}>
-                  {tokyoDateLabel(occurrence.startsAt)}{' '}
-                  {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
-                </p>
-                {participationsByOccurrenceId.has(occurrence.id) ? (
-                  <ParticipationPanel
-                    eventId={event.id}
-                    occurrenceId={occurrence.id}
-                    participation={participationsByOccurrenceId.get(occurrence.id) ?? null}
-                  />
-                ) : null}
-              </li>
-            ))}
+            {occurrences.map((occurrence) => {
+              const isFocused = occurrence.id === focusedOccurrenceId;
+              return (
+                <li
+                  key={occurrence.id}
+                  id={occurrenceAnchorId(occurrence.id)}
+                  tabIndex={isFocused ? -1 : undefined}
+                  aria-current={isFocused ? 'true' : undefined}
+                  className={isFocused ? styles.occurrenceFocused : undefined}
+                >
+                  {isFocused ? (
+                    <Badge variant="info" className={styles.focusedBadge}>
+                      選択した公演回
+                    </Badge>
+                  ) : null}
+                  <p className={styles.occurrenceTime}>
+                    {tokyoDateLabel(occurrence.startsAt)}{' '}
+                    {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
+                  </p>
+                  {participationsByOccurrenceId.has(occurrence.id) ? (
+                    <ParticipationPanel
+                      eventId={event.id}
+                      occurrenceId={occurrence.id}
+                      participation={participationsByOccurrenceId.get(occurrence.id) ?? null}
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </Surface>
       </div>
