@@ -14,6 +14,7 @@ import {
   eventFixtureTitle,
 } from './support/eventFixtures.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
+import { tokyoCalendarDateFromInstant } from '../../src/domain/eventCatalog.ts';
 
 // Real local Supabase/Postgres RLS tests for public.events (Issue #3 / PR
 // B, extended by Issue #17). Every assertion below runs as an anon-key
@@ -514,12 +515,23 @@ void test('an authenticated catalog creator cannot execute import_event_with_occ
 void test('service_role can create an event and its occurrences in one call', async () => {
   const admin = createAdminClient();
   const startsAt = new Date().toISOString();
+  // Both range endpoints are derived from this same frozen startsAt instant
+  // (Issue #99 Codex follow-up, PR #120): importArgs()'s own
+  // todayTokyoDate()/a separate "tomorrow" helper would each re-read
+  // Date.now() independently, leaving a (vanishingly small but real) window
+  // where a JST midnight tick between those reads and startsAt's capture
+  // desyncs the range from the occurrence it's meant to contain. Deriving
+  // both endpoints from startsAt instead makes the range containment
+  // correct by construction, not by how narrow the window happens to be.
+  const secondOccurrenceStartsAt = new Date(Date.parse(startsAt) + 3_600_000).toISOString();
   const { data, error } = await admin.rpc(
     IMPORT_RPC,
     importArgs(actorA.user.id, {
+      p_starts_on: tokyoCalendarDateFromInstant(startsAt),
+      p_ends_on: tokyoCalendarDateFromInstant(secondOccurrenceStartsAt),
       p_occurrences: [
         { startsAt, endsAt: null },
-        { startsAt: new Date(Date.parse(startsAt) + 3_600_000).toISOString(), endsAt: null },
+        { startsAt: secondOccurrenceStartsAt, endsAt: null },
       ],
     }),
   );
