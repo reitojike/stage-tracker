@@ -1,21 +1,34 @@
 .backLink {
+  position: relative;
   display: inline-flex;
   align-items: center;
   /* Sits at the start of the shell's content column rather than stretching
      across it, so its tap target matches its visible extent. */
   align-self: flex-start;
   gap: var(--space-xs);
-  /* WCAG 2.5.8 target size, matched to the calendar's own 44px cells. */
-  min-height: 44px;
+  /* Visible fill height only (#96 control vocabulary: quiet/text 27px
+     fill) - the WCAG 2.5.8 44px tap target is kept separately by
+     .backLink::before below, the same pattern as Button's quiet variant. */
+  min-height: 27px;
   padding-inline: var(--space-sm);
   /* Cancels the padding above so the label still aligns with the page's
      other content, while the tap target keeps its full width. */
   margin-inline-start: calc(var(--space-sm) * -1);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-control-sm);
   color: var(--color-text-secondary);
   font-size: var(--font-size-body-sm);
   text-decoration: none;
   touch-action: manipulation;
+}
+
+.backLink::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, 44px);
+  height: max(100%, 44px);
 }
 
 .backLink:hover {

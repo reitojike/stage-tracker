@@ -1,17 +1,21 @@
 .button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
   border-radius: var(--radius-control);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-xs) var(--space-md);
   font-family: var(--font-family-base);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-base);
+  line-height: var(--line-height-tight);
   border: 1px solid transparent;
   cursor: pointer;
-  min-height: 44px;
+  /* Visible fill height only - primary/secondary's V2 refined value (#96
+     control vocabulary). The 44px tap target is kept separately by
+     .button::before below rather than by this box's own min-height. */
+  min-height: 35px;
   /* Suppresses the mobile double-tap-zoom delay so the pressed state below
      appears immediately on tap (docs/ux-ui.md: native-feeling mobile
      organizer). The platform's own tap highlight is deliberately left in
@@ -22,6 +26,24 @@
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/*
+ * WCAG 2.2 SC 2.5.8 target size, floored at 44x44 and centered on the
+ * button's own box regardless of its visible fill height/width (#96: "塗り
+ * 箱のmin-height:44pxを外し、tap範囲は透明な擬似要素で上下へ広げて維持す
+ * る"). A generated box with no content is not itself a separate click
+ * target - a pointer event landing on it is dispatched to this <button>/<a>,
+ * the standard basis for this pattern.
+ */
+.button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, 44px);
+  height: max(100%, 44px);
 }
 
 .primary {
@@ -53,6 +75,75 @@
 }
 
 .secondary:active:not(:disabled) {
+  background-color: var(--color-surface-active);
+}
+
+/*
+ * Compact inline action - same chrome as .secondary, one visible-fill step
+ * down with the small-control radius (#96 control vocabulary: small 31px
+ * fill / 8px radius).
+ */
+.small {
+  min-height: 31px;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-control-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-control-border);
+  font-size: var(--font-size-body-sm);
+}
+
+.small:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle);
+}
+
+.small:active:not(:disabled) {
+  background-color: var(--color-surface-active);
+}
+
+/*
+ * Lowest-emphasis, text-only action (#96: quiet(text) 27px fill) - no
+ * fill/border at rest. Shares BackLink's own subtle/active hover-pressed
+ * pattern so a quiet Button and BackLink read as the same control family.
+ */
+.quiet {
+  min-height: 27px;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-control-sm);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.quiet:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle);
+  color: var(--color-text);
+}
+
+.quiet:active:not(:disabled) {
+  background-color: var(--color-surface-active);
+  color: var(--color-text);
+}
+
+/*
+ * Icon-only action (#96: 40x40 fill). Square, no text label expected -
+ * callers pass an icon as `children`.
+ */
+.icon {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: var(--radius-control-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-control-border);
+}
+
+.icon:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle);
+}
+
+.icon:active:not(:disabled) {
   background-color: var(--color-surface-active);
 }
 

@@ -8,6 +8,14 @@ export interface LinkButtonProps extends ComponentProps<typeof Link> {
   variant?: ButtonVariant;
 }
 
+const VARIANT_CLASS: Record<ButtonVariant, keyof typeof styles> = {
+  primary: 'primary',
+  secondary: 'secondary',
+  small: 'small',
+  quiet: 'quiet',
+  icon: 'icon',
+};
+
 /**
  * A navigation control that reads as a Button but is a real link, so
  * href semantics (open in a new tab, keyboard link behaviour, prefetch)
@@ -20,8 +28,9 @@ export interface LinkButtonProps extends ComponentProps<typeof Link> {
  * server navigation is still in flight.
  */
 export function LinkButton({ variant = 'primary', className, children, ...rest }: LinkButtonProps) {
-  const variantClass = variant === 'primary' ? styles.primary : styles.secondary;
-  const classes = [styles.button, variantClass, styles.asLink, className].filter(Boolean).join(' ');
+  const classes = [styles.button, styles[VARIANT_CLASS[variant]], styles.asLink, className]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <Link className={classes} {...rest}>

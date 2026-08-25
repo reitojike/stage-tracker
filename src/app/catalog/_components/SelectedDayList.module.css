@@ -5,8 +5,9 @@
 }
 
 .heading {
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
   margin: 0;
 }
 
@@ -44,7 +45,18 @@
 .item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-xs);
+}
+
+/*
+ * `.itemLink .item` (not bare `.item`) so this reliably outranks Surface's
+ * own `.surface { padding: var(--space-md) }` (same 0-1-0 specificity as a
+ * bare `.item` would be, which would otherwise be a same-specificity,
+ * import-order-dependent tie) - same escalation the hover/active overrides
+ * above already rely on.
+ */
+.itemLink .item {
+  padding: var(--space-card-block) var(--space-md);
 }
 
 .time {
@@ -53,8 +65,9 @@
 }
 
 .title {
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
   color: var(--color-text);
 }
 

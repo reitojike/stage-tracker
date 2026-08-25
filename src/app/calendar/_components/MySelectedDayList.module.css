@@ -5,8 +5,9 @@
 }
 
 .heading {
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
   margin: 0;
 }
 
@@ -44,8 +45,13 @@
 .item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--space-md);
+  gap: var(--space-xs);
+}
+
+/* See SelectedDayList.module.css's identical rule for why this targets
+   `.itemLink .item` rather than the bare `.item` class. */
+.itemLink .item {
+  padding: var(--space-card-block) var(--space-md);
 }
 
 .time {
@@ -54,8 +60,9 @@
 }
 
 .title {
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
   color: var(--color-text);
 }
 
@@ -68,7 +75,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xs);
-  margin-top: 2px;
+  margin-top: var(--space-2xs);
 }
 
 /* Participation ("参加する"/"気になる") is the primary status this list
