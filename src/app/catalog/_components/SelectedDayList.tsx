@@ -34,7 +34,10 @@ export function SelectedDayList({ date, occurrences, context }: SelectedDayListP
         <ul className={styles.items}>
           {occurrences.map(({ event, occurrence }) => (
             <li key={occurrence.id}>
-              <Link href={catalogEventHref(event.id, context)} className={styles.itemLink}>
+              <Link
+                href={catalogEventHref(event.id, context, occurrence.id)}
+                className={styles.itemLink}
+              >
                 <Surface variant="subtle" className={styles.item}>
                   <span className={styles.time}>
                     {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}

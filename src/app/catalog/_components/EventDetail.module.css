@@ -47,3 +47,18 @@
 .occurrenceTime {
   margin: 0 0 var(--space-xs);
 }
+
+/* Marks the exact occurrence a selected-day row was chosen for (Issue
+   #107), scrolled/focused into view by FocusedOccurrenceScroll - the ring
+   plus badge give sighted users the same "this one" identification that
+   aria-current + programmatic focus give assistive technology. */
+.occurrenceFocused {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+  border-radius: var(--radius-surface);
+  padding: var(--space-sm);
+  margin: calc(var(--space-sm) * -1);
+}
+
+.focusedBadge {
+  margin-bottom: var(--space-xs);
+}

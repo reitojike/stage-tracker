@@ -5,8 +5,10 @@ import {
   catalogEventHref,
   catalogMonthHref,
   nextYearMonth,
+  occurrenceAnchorId,
   previousYearMonth,
   resolveCatalogParams,
+  resolveFocusedOccurrenceId,
 } from '../catalogNavigation.ts';
 
 const TODAY = '2026-08-21';
@@ -88,4 +90,46 @@ void test('catalogEventHref: carries month, and date only when a day is selected
     catalogEventHref('event-1', { yearMonth: '2026-08', selectedDate: '2026-08-10' }),
     '/catalog/events/event-1?month=2026-08&date=2026-08-10',
   );
+});
+
+void test('catalogEventHref: an occurrenceId is carried as an occurrence param plus a matching hash fragment', () => {
+  assert.equal(
+    catalogEventHref('event-1', { yearMonth: '2026-08', selectedDate: '2026-08-10' }, 'occ-1'),
+    '/catalog/events/event-1?month=2026-08&date=2026-08-10&occurrence=occ-1#occurrence-occ-1',
+  );
+});
+
+void test('catalogEventHref: an omitted or null occurrenceId adds no occurrence param or hash fragment', () => {
+  assert.equal(
+    catalogEventHref('event-1', { yearMonth: '2026-08', selectedDate: null }),
+    '/catalog/events/event-1?month=2026-08',
+  );
+  assert.equal(
+    catalogEventHref('event-1', { yearMonth: '2026-08', selectedDate: null }, null),
+    '/catalog/events/event-1?month=2026-08',
+  );
+});
+
+void test("resolveFocusedOccurrenceId: a param matching one of the event's occurrences is used", () => {
+  assert.equal(resolveFocusedOccurrenceId('occ-2', ['occ-1', 'occ-2', 'occ-3']), 'occ-2');
+});
+
+void test('resolveFocusedOccurrenceId: a missing param resolves to null (generic detail)', () => {
+  assert.equal(resolveFocusedOccurrenceId(undefined, ['occ-1', 'occ-2']), null);
+});
+
+void test("resolveFocusedOccurrenceId: a foreign/stale id not among the event's occurrences resolves to null, never the wrong occurrence", () => {
+  assert.equal(resolveFocusedOccurrenceId('occ-from-another-event', ['occ-1', 'occ-2']), null);
+});
+
+void test('resolveFocusedOccurrenceId: no occurrences on the event resolves to null', () => {
+  assert.equal(resolveFocusedOccurrenceId('occ-1', []), null);
+});
+
+void test('resolveFocusedOccurrenceId: an array-valued param uses its first entry, same as resolveCatalogParams', () => {
+  assert.equal(resolveFocusedOccurrenceId(['occ-1', 'occ-2'], ['occ-1', 'occ-2']), 'occ-1');
+});
+
+void test('occurrenceAnchorId: prefixes the occurrence id for use as a DOM/CSS id', () => {
+  assert.equal(occurrenceAnchorId('3fa85f64-abcd'), 'occurrence-3fa85f64-abcd');
 });
