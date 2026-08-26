@@ -71,15 +71,27 @@ export function waitForExit(target: ExitAware, timeoutMs: number): Promise<void>
   });
 }
 
-function stopProcess(child: ChildProcess): Promise<void> {
+type KillableChild = ExitAware & Pick<ChildProcess, 'pid' | 'kill'>;
+
+/**
+ * Exported (and taking the same minimal `KillableChild` shape as
+ * `waitForExit`, rather than a full `ChildProcess`) so the platform-specific
+ * kill branching can be proven directly against a fake, including the
+ * already-exited case below that a real spawned process can't deterministically
+ * reproduce on demand.
+ */
+export function stopProcess(child: KillableChild): Promise<void> {
   const alreadyExited = child.exitCode !== null || child.signalCode !== null;
   const exited = waitForExit(child, STOP_TIMEOUT_MS);
 
-  if (!alreadyExited) {
-    if (process.platform === 'win32') {
-      // child is the npx/next shim; killing only it would orphan the
-      // server process still holding the port. taskkill /T walks the
-      // whole process tree.
+  if (process.platform === 'win32') {
+    // child is the npx/next shim; killing only it would orphan the server
+    // process still holding the port. taskkill /T walks the whole process
+    // tree - but it does so by looking up descendants of *this* still-alive
+    // pid, so there is nothing to attempt once the immediate child has
+    // already exited (unlike the POSIX group kill below, which stays valid
+    // after the leader exits).
+    if (!alreadyExited) {
       if (typeof child.pid === 'number') {
         spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
           stdio: 'ignore',
@@ -88,24 +100,29 @@ function stopProcess(child: ChildProcess): Promise<void> {
       } else {
         child.kill('SIGTERM');
       }
-    } else if (typeof child.pid === 'number') {
-      // POSIX: spawnNextDev spawns with detached: true, making this child
-      // the leader of its own process group (group id == its pid). `next
-      // dev` (via Turbopack) forks a next-server worker as a grandchild,
-      // which survives a SIGTERM sent only to the shim and keeps holding
-      // the port and the project's on-disk dev lock - the very next test
-      // file's startAppServer() then collides with that leftover server
-      // instead of starting a fresh one. Killing the whole group (negative
-      // pid) reaches it too.
-      try {
-        process.kill(-child.pid, 'SIGTERM');
-      } catch {
-        // ESRCH (group already fully gone) or similar - nothing left to
-        // kill; not a failure of cleanup itself.
-      }
-    } else {
-      child.kill('SIGTERM');
     }
+  } else if (typeof child.pid === 'number') {
+    // POSIX: spawnNextDev spawns with detached: true, making this child the
+    // leader of its own process group (group id == its pid). `next dev`
+    // (via Turbopack) forks a next-server worker as a grandchild, which
+    // survives a SIGTERM sent only to the shim and keeps holding the port
+    // and the project's on-disk dev lock - the very next test file's
+    // startAppServer() then collides with that leftover server instead of
+    // starting a fresh one. Killing the whole group (negative pid) reaches
+    // it too.
+    //
+    // This is attempted even when `child` itself has already exited: the
+    // group id stays valid as a kill target for as long as any member of it
+    // is still alive - including an already-orphaned next-server whose
+    // immediate parent (this child) exited first.
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+    } catch {
+      // ESRCH (group already fully gone) or similar - nothing left to
+      // kill; not a failure of cleanup itself.
+    }
+  } else if (!alreadyExited) {
+    child.kill('SIGTERM');
   }
 
   return exited;
