@@ -26,7 +26,7 @@ function PasskeyListView({ passkeys }: { passkeys: PasskeyListItem[] }) {
     <ul className={styles.list}>
       {passkeys.map((passkey) => (
         <li key={passkey.id} className={styles.item}>
-          <span className={styles.itemLabel}>{labels.get(passkey.id)}</span>
+          <span className={styles.itemLabel}>{labels.get(passkey.id) ?? passkey.id}</span>
           <DeletePasskeyForm passkeyId={passkey.id} />
         </li>
       ))}
