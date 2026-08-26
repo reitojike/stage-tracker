@@ -206,16 +206,30 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 
 ### Cancellation
 
-- 公演の中止（cancellation）は Deletion（誤登録削除）とは区別された
-  operation です（Issue #123。実装は Issue #125 予定）。
-- Cancellation state は Occurrence-level の属性として design されます。
-  existing Occurrence row を削除するのではなく、state を「中止」に変更
-  する形で表現されます。
-- 中止状態の Occurrence に対しても、新たな participation / invitation /
-  ticket acquisition は拒否されます。既存 participation は保持されます。
+- 公演の中止（cancellation）は Deletion（誤登録削除）とは明確に区別された
+  operation です。Issue #123 で semantics 決定済み、Issue #125 で
+  実装予定（#125 は decision task ではなく implementation task です）。
+- cancellation state は **Event-level** と **Occurrence-level** の両方に
+  独立して持たせます。
+  - Event-level cancellation: その Event 全体を中止扱いにします。
+  - Occurrence-level cancellation: 個々の Occurrence を中止扱いにします。
+- **effective cancellation**（実質的に中止扱いとなる条件）は、Event が
+  canceled、または当該 Occurrence 自体が canceled のいずれか（OR）です。
+- Event の uncancel（中止解除）は、個別に canceled 状態の Occurrence の
+  cancellation を解除しません。Occurrence-level の cancellation は Event
+  の cancel/uncancel から独立して維持されます。
+- owner が cancel / uncancel の両方を行えます。
+- 中止によって既存の downstream data（participation / invitation /
+  ticket acquisition）は保持されます。deletion のような cascade は
+  行いません。
+- effective cancellation 状態にある Event/Occurrence に対しては、新規の
+  active action（新規 participation の attending 化、新規 invitation、
+  新規 ticket acquisition 等）を拒否します。
+- 既存 participation の withdraw（辞退）は、中止状態でも引き続き許可
+  します。
 - UI では中止状態が「中止」として表示されます。
-- owner によるキャンセルと uncancellation（中止状態の解除）が可能です
-  （exact workflow は Issue #125 で決定予定）。
+- exact schema（cancellation state を表す column 等）と exact UI workflow
+  は Issue #125（implementation task）で選定します。
 
 ## Participation
 

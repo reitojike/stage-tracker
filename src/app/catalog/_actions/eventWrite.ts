@@ -385,7 +385,7 @@ export async function deleteEventOccurrenceAction(
 
   revalidatePath('/catalog');
   revalidatePath(`/catalog/events/${eventId}`);
-  revalidatePath('/catalog/events/{eventId}/edit');
+  revalidatePath(`/catalog/events/${eventId}/edit`);
   revalidatePath('/calendar');
   return { attempt: previous.attempt + 1, feedback: null };
 }
@@ -395,7 +395,11 @@ export async function deleteEventOccurrenceAction(
  * the delete RPC which enforces atomic deletion (event + all children,
  * all-or-nothing) and checks that every child is safe to delete. On success,
  * revalidates and redirects to /catalog (the deleted event's detail page no
- * longer exists). On blocked-delete or permission-denied, returns feedback.
+ * longer exists). Explicitly revalidates the deleted event's own detail and
+ * edit routes too - both are still statically resolvable by their id even
+ * though the row no longer exists, so an already-cached response for either
+ * would otherwise keep serving stale (deleted) event data after this commits.
+ * On blocked-delete or permission-denied, returns feedback.
  */
 export async function deleteEventAction(
   previous: EventDeleteFormState,
@@ -416,6 +420,8 @@ export async function deleteEventAction(
   }
 
   revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  revalidatePath(`/catalog/events/${eventId}/edit`);
   revalidatePath('/calendar');
   redirect('/catalog');
 }

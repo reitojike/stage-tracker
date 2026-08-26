@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   canCreateEvent,
   canCreateEventOccurrence,
+  canDeleteEvent,
+  canDeleteEventOccurrence,
   canReadEventCatalog,
   canUpdateEvent,
   canUpdateEventOccurrence,
@@ -117,4 +119,28 @@ void test('canUpdateEventOccurrence denies anonymous callers', () => {
     ),
     false,
   );
+});
+
+void test('canDeleteEventOccurrence allows the parent event owner', () => {
+  assert.equal(canDeleteEventOccurrence('user-a', { ownerId: 'user-a' }), true);
+});
+
+void test('canDeleteEventOccurrence denies a non-owner', () => {
+  assert.equal(canDeleteEventOccurrence('user-b', { ownerId: 'user-a' }), false);
+});
+
+void test('canDeleteEventOccurrence denies anonymous callers', () => {
+  assert.equal(canDeleteEventOccurrence(null, { ownerId: 'user-a' }), false);
+});
+
+void test('canDeleteEvent allows the owner', () => {
+  assert.equal(canDeleteEvent('user-a', { ownerId: 'user-a' }), true);
+});
+
+void test('canDeleteEvent denies a non-owner', () => {
+  assert.equal(canDeleteEvent('user-b', { ownerId: 'user-a' }), false);
+});
+
+void test('canDeleteEvent denies anonymous callers', () => {
+  assert.equal(canDeleteEvent(null, { ownerId: 'user-a' }), false);
 });
