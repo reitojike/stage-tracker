@@ -3,7 +3,7 @@ import { listPasskeys } from '@/infrastructure/supabase/passkey.ts';
 import { Surface } from '@/ui/Surface';
 import { StatePanel } from '@/ui/StatePanel';
 import {
-  passkeyDisplayLabels,
+  passkeyDisplayLabel,
   resolveManagementFeedback,
   type PasskeyListItem,
   type PasskeyManagementErrorKind,
@@ -17,16 +17,11 @@ function PasskeyListView({ passkeys }: { passkeys: PasskeyListItem[] }) {
     return <p className={styles.empty}>登録済みのPasskeyはありません。</p>;
   }
 
-  // Computed once over the whole list, not per item: whether a label
-  // needs an id suffix depends on whether another passkey in *this* list
-  // renders the same way (see passkeyDisplayLabels's own comment).
-  const labels = passkeyDisplayLabels(passkeys);
-
   return (
     <ul className={styles.list}>
       {passkeys.map((passkey) => (
         <li key={passkey.id} className={styles.item}>
-          <span className={styles.itemLabel}>{labels.get(passkey.id) ?? passkey.id}</span>
+          <span className={styles.itemLabel}>{passkeyDisplayLabel(passkey)}</span>
           <DeletePasskeyForm passkeyId={passkey.id} />
         </li>
       ))}

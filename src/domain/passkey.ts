@@ -43,87 +43,22 @@ export function mapPasskeyListItem(raw: RawPasskeyListItem): PasskeyListItem {
 }
 
 /**
- * The label a passkey would show on its own, ignoring whether anything
- * else in the list happens to render the same way. Never called directly
- * outside this module - see passkeyDisplayLabels below for why a single
- * passkey's label can't be decided in isolation.
+ * What to show for one registered passkey in a management list (Issue
+ * #106). PO decision (2026-08-26, recorded on Issue #106): fixed format
+ * `<friendlyName> — <registered date/time>` (or `登録済みPasskey — ...`
+ * when unnamed), with no collision detection and no `id` in the
+ * user-facing label. An earlier revision of this function detected and
+ * disambiguated colliding labels (list-wide, id-suffixed); the PO
+ * explicitly withdrew that complexity in favor of this fixed format, so it
+ * is not resurrected here even though nothing stops two credentials from
+ * rendering identically. `id` remains available on `PasskeyListItem`
+ * itself for the delete boundary (DeletePasskeyForm), just not surfaced in
+ * this label.
  */
-function baseDisplayLabel(passkey: PasskeyListItem): string {
-  if (passkey.friendlyName !== null) {
-    return passkey.friendlyName;
-  }
-  return `登録済みPasskey（${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)} 登録）`;
-}
-
-/**
- * What to show for each registered passkey in a management list (Issue
- * #106, Codex findings on PR #129: P2 "two unnamed credentials render
- * identically", P2 follow-up "two unnamed credentials in the same minute
- * still collide", P3 "a truncated id suffix can itself collide", P2
- * "two credentials sharing a non-null friendly_name collide too" -
- * friendly_name is caller-supplied free text with no uniqueness
- * constraint, so this can happen for named credentials exactly as for
- * unnamed ones). Every one of those findings was the same underlying
- * problem restated: a per-passkey label function can never guarantee
- * distinctness, because distinctness is a property of the *list*, not of
- * any one item. This function is list-aware for exactly that reason -
- * it is the last round this disambiguation needs, because it closes the
- * entire class of "two passkeys can render the same way" rather than one
- * scenario in that class at a time.
- *
- * Appends `id` (unique by construction - two distinct listPasskeys()
- * entries never share one) only to the labels that actually collide in
- * this list, so the common case (every passkey named or timed distinctly)
- * stays free of id noise.
- *
- * Doesn't ask for a name at registration time instead: that would need
- * new UI on the WebAuthn ceremony path (RegisterPasskeyButton/
- * registerPasskey()) for a dogfood-scale credential count, which the
- * "不要なaccount settings suiteへ拡張しない" bound this Issue set for
- * credential management rules out as disproportionate - and would not by
- * itself prevent two credentials being given the same name anyway.
- *
- * The invariant this function guarantees is that no two *final* labels are
- * ever equal - not merely that no two *base* labels are equal. A single
- * pass over base labels is not enough for that: `friendly_name` is
- * unrestricted free text, so nothing stops it from literally reading like
- * another passkey's disambiguated form. E.g. A/B both named "iPhone" get
- * suffixed to "iPhone（ID: A）"/"iPhone（ID: B）", but if C's own
- * friendly_name happens to already equal the literal string
- * "iPhone（ID: A）", checking base labels against each other once would
- * still let A's suffixed output collide with C's untouched base. This
- * escalates any passkey whose *current* label collides with another
- * passkey's current label by appending its own id, and repeats until no
- * collisions remain among the current labels. A passkey already carrying
- * its own id suffix is never escalated again, so at most `passkeys.length`
- * passkeys can ever be escalated - the loop is bounded by that count.
- */
-export function passkeyDisplayLabels(passkeys: PasskeyListItem[]): Map<string, string> {
-  let labels = new Map(passkeys.map((passkey) => [passkey.id, baseDisplayLabel(passkey)]));
-
-  for (let round = 0; round < passkeys.length; round += 1) {
-    const counts = new Map<string, number>();
-    for (const label of labels.values()) {
-      counts.set(label, (counts.get(label) ?? 0) + 1);
-    }
-
-    let escalatedAny = false;
-    const next = new Map(labels);
-    for (const passkey of passkeys) {
-      const current = labels.get(passkey.id) ?? '';
-      const ownSuffix = `（ID: ${passkey.id}）`;
-      if ((counts.get(current) ?? 0) > 1 && !current.endsWith(ownSuffix)) {
-        next.set(passkey.id, `${current}${ownSuffix}`);
-        escalatedAny = true;
-      }
-    }
-    labels = next;
-    if (!escalatedAny) {
-      break;
-    }
-  }
-
-  return labels;
+export function passkeyDisplayLabel(passkey: PasskeyListItem): string {
+  const name = passkey.friendlyName ?? '登録済みPasskey';
+  const registeredAt = `${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)}`;
+  return `${name} — ${registeredAt}`;
 }
 
 // --- Management (list / delete): server-side, session-scoped, no ceremony ---
