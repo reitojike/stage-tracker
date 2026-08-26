@@ -4,6 +4,7 @@ import {
   INITIAL_PASSKEY_DELETE_FORM_STATE,
   classifyCeremonyError,
   mapPasskeyListItem,
+  passkeyDisplayLabel,
   rejectedPasskeyDeleteFormState,
   resolveCeremonyFeedback,
   resolveManagementFeedback,
@@ -24,6 +25,36 @@ void test('mapPasskeyListItem preserves a present friendly name and last_used_at
   });
   assert.equal(item.friendlyName, 'iPhone');
   assert.equal(item.lastUsedAt, '2026-08-27T00:00:00Z');
+});
+
+void test('passkeyDisplayLabel prefers the friendly name when present', () => {
+  const label = passkeyDisplayLabel({
+    id: 'p1',
+    friendlyName: 'iPhone',
+    createdAt: '2026-08-26T02:00:00.000Z',
+    lastUsedAt: null,
+  });
+  assert.equal(label, 'iPhone');
+});
+
+void test('passkeyDisplayLabel falls back to a createdAt-based label so unnamed credentials stay distinguishable', () => {
+  // Two unnamed passkeys registered at different times must not render as
+  // the same text (Codex P2 finding, PR #129) - otherwise there is no way
+  // to tell which "delete" button revokes which device.
+  const first = passkeyDisplayLabel({
+    id: 'p1',
+    friendlyName: null,
+    createdAt: '2026-08-10T02:00:00.000Z',
+    lastUsedAt: null,
+  });
+  const second = passkeyDisplayLabel({
+    id: 'p2',
+    friendlyName: null,
+    createdAt: '2026-08-11T02:00:00.000Z',
+    lastUsedAt: null,
+  });
+  assert.notEqual(first, second);
+  assert.equal(first, '登録済みPasskey（2026年8月10日 11:00 登録）');
 });
 
 void test('resolveManagementFeedback keeps list and delete failure messages distinct', () => {

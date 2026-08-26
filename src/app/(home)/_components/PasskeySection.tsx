@@ -3,6 +3,7 @@ import { listPasskeys } from '@/infrastructure/supabase/passkey.ts';
 import { Surface } from '@/ui/Surface';
 import { StatePanel } from '@/ui/StatePanel';
 import {
+  passkeyDisplayLabel,
   resolveManagementFeedback,
   type PasskeyListItem,
   type PasskeyManagementErrorKind,
@@ -20,7 +21,7 @@ function PasskeyListView({ passkeys }: { passkeys: PasskeyListItem[] }) {
     <ul className={styles.list}>
       {passkeys.map((passkey) => (
         <li key={passkey.id} className={styles.item}>
-          <span className={styles.itemLabel}>{passkey.friendlyName ?? '登録済みPasskey'}</span>
+          <span className={styles.itemLabel}>{passkeyDisplayLabel(passkey)}</span>
           <DeletePasskeyForm passkeyId={passkey.id} />
         </li>
       ))}
