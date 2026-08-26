@@ -93,9 +93,18 @@ export function stopProcess(child: KillableChild): Promise<void> {
     // after the leader exits).
     if (!alreadyExited) {
       if (typeof child.pid === 'number') {
+        // This is fire-and-forget - its own exit isn't awaited, only the
+        // target child's (via `exited` above) - but it still needs an
+        // 'error' listener: an unhandled 'error' event on a ChildProcess
+        // (e.g. taskkill missing from PATH) is an uncaught exception that
+        // would crash the whole test process, bypassing waitForExit's
+        // bounded timeout entirely. Logging and swallowing it here lets
+        // that timeout remain the single surfaced failure mode instead.
         spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
           stdio: 'ignore',
           shell: false,
+        }).on('error', (spawnError) => {
+          console.error('failed to spawn taskkill for cleanup:', spawnError);
         });
       } else {
         child.kill('SIGTERM');
@@ -279,12 +288,26 @@ export async function startAppServer(): Promise<AppServer> {
       // not listening yet
     }
     if (Date.now() > deadline) {
-      await stopProcess(child);
       const statusDetail =
         lastUnhealthyStatus === undefined
           ? ''
           : ` (last response status: ${String(lastUnhealthyStatus)})`;
-      throw new Error(`next dev did not become ready at ${baseUrl} within 120s${statusDetail}`);
+      const readinessMessage = `next dev did not become ready at ${baseUrl} within 120s${statusDetail}`;
+      // stopProcess can itself now reject (its own bounded timeout, rather
+      // than hanging forever) - without this catch, that rejection would
+      // replace the more actionable readinessMessage above with a bare
+      // "process did not exit..." error, losing exactly the diagnostic
+      // (last response status) most useful for the failure this is
+      // hardening against (#30's persistent 500).
+      try {
+        await stopProcess(child);
+      } catch (stopError) {
+        const stopDetail = stopError instanceof Error ? stopError.message : String(stopError);
+        throw new Error(`${readinessMessage}; additionally, cleanup failed: ${stopDetail}`, {
+          cause: stopError,
+        });
+      }
+      throw new Error(readinessMessage);
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
