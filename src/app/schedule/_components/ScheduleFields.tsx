@@ -71,6 +71,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
               type="radio"
               name="temporalMode"
               value="time-bounded"
+              required
               defaultChecked={temporalMode === 'time-bounded'}
               disabled={disabled}
               onChange={() => {
@@ -84,6 +85,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
               type="radio"
               name="temporalMode"
               value="all-day"
+              required
               defaultChecked={temporalMode === 'all-day'}
               disabled={disabled}
               onChange={() => {

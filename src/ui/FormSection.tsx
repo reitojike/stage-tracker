@@ -11,9 +11,6 @@ export interface FormSectionProps {
    * and semantic HTML only (Issue #128: prototype的なboxed fieldsetを
    * defaultから外すが、意味のあるgroupingのfieldset/legendは維持する). */
   as?: 'section' | 'fieldset';
-  /** Heading level for `as="section"`. Ignored for `as="fieldset"`, which
-   * always renders a <legend>. */
-  headingLevel?: 'h2' | 'h3';
   /** Shows a RequirementIndicator next to the heading/legend text, for a
    * sub-group whose overall presence is itself required/optional (e.g. the
    * create form's 初回公演回 subgroup, or a temporal-mode choice group). */
@@ -32,7 +29,6 @@ export interface FormSectionProps {
 export function FormSection({
   heading,
   as = 'section',
-  headingLevel = 'h2',
   requirement,
   description,
   headingClassName,
@@ -59,14 +55,12 @@ export function FormSection({
     );
   }
 
-  const Heading = headingLevel;
-
   return (
     <section className={[styles.section, className].filter(Boolean).join(' ')}>
-      <Heading className={[styles.heading, headingClassName].filter(Boolean).join(' ')}>
+      <h2 className={[styles.heading, headingClassName].filter(Boolean).join(' ')}>
         {heading}
         {requirementIndicator}
-      </Heading>
+      </h2>
       {description_}
       {body}
     </section>
