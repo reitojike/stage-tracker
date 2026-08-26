@@ -4,6 +4,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { Surface } from '@/ui/Surface';
 import { TextInput } from '@/ui/TextInput';
 import { requestSignInLink } from './actions.ts';
+import { PasskeySignInButton } from './_components/PasskeySignInButton.tsx';
 
 interface SignInPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -58,17 +59,24 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           </p>
         </Surface>
       ) : (
-        <form action={requestSignInLink}>
-          <TextInput
-            label="メールアドレス"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            helperText="登録済みのメールアドレス宛にサインインリンクをリクエストします。"
-          />
-          <Button type="submit">サインインリンクをリクエスト</Button>
-        </form>
+        <>
+          {/* Passkey登録済みuserの日常sign-in path（Issue #106）。discoverable
+              credentialなのでメールアドレス入力は不要 - 下のMagic Link formは
+              未登録user向けのfallbackとして常に併記する。 */}
+          <PasskeySignInButton />
+          <p>または</p>
+          <form action={requestSignInLink}>
+            <TextInput
+              label="メールアドレス"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              helperText="登録済みのメールアドレス宛にサインインリンクをリクエストします。"
+            />
+            <Button type="submit">サインインリンクをリクエスト</Button>
+          </form>
+        </>
       )}
     </>
   );

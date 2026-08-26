@@ -43,6 +43,11 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient<Datab
   const { url, anonKey } = readPublicSupabaseEnv();
 
   return createServerClient<Database>(url, anonKey, {
+    // experimental.passkey opts into auth.passkey.list()/delete() (Issue
+    // #106) for the current signed-in user's own credential management.
+    // The WebAuthn ceremony methods (registerPasskey/signInWithPasskey) are
+    // browser-only and are never called against this client.
+    auth: { experimental: { passkey: true } },
     cookies: {
       getAll() {
         return cookieStore.getAll();
