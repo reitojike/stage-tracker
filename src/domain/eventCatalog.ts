@@ -26,6 +26,11 @@ export interface EventCatalogEvent {
    * rows exist (Issue #87/#88). */
   startsOn: string;
   endsOn: string;
+  /** Event-level cancellation (Issue #125/#123): null = active, non-null =
+   * canceled. Composes with EventOccurrence.canceledAt via OR - see
+   * domain/eventCancellation.ts's isEffectivelyCanceled - never derived
+   * from occurrence state. */
+  canceledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +43,10 @@ export interface EventOccurrence {
   doorsAt: string | null;
   startsAt: string;
   endsAt: string | null;
+  /** Occurrence-level cancellation (Issue #125/#123): null = active,
+   * non-null = canceled. Independent of the parent Event's own
+   * canceledAt - un-canceling the Event never clears this. */
+  canceledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,6 +73,7 @@ export interface RawEventRow {
   memo: string | null;
   starts_on: string;
   ends_on: string;
+  canceled_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +84,7 @@ export interface RawEventOccurrenceRow {
   doors_at: string | null;
   starts_at: string;
   ends_at: string | null;
+  canceled_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -88,6 +99,7 @@ export function mapEventRow(row: RawEventRow): EventCatalogEvent {
     memo: row.memo,
     startsOn: row.starts_on,
     endsOn: row.ends_on,
+    canceledAt: row.canceled_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -102,6 +114,7 @@ export function mapOccurrenceRow(row: RawEventOccurrenceRow): EventOccurrence {
     doorsAt: row.doors_at,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
+    canceledAt: row.canceled_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

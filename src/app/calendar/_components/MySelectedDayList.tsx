@@ -3,6 +3,7 @@ import { Badge } from '@/ui/Badge';
 import { Surface } from '@/ui/Surface';
 import { StatePanel } from '@/ui/StatePanel';
 import type { MyCalendarOccurrenceEntry, MyCalendarScheduleEntry } from '@/domain/myCalendar.ts';
+import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import {
@@ -86,6 +87,9 @@ export function MySelectedDayList({
                       <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
                         {ticketDisplayStatusLabel(ticketStatus)}
                       </Badge>
+                      {isEffectivelyCanceled(event, occurrence) ? (
+                        <Badge variant="danger">中止</Badge>
+                      ) : null}
                     </span>
                   </span>
                   <span className={styles.chevron} aria-hidden="true">

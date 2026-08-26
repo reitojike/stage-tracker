@@ -57,6 +57,7 @@ import {
   type EventOccurrence,
   type EventWithOccurrences,
 } from './eventCatalog.ts';
+import { isEventCanceled } from './eventCancellation.ts';
 
 // --- Plain "YYYY-MM-DD" calendar-date arithmetic ---
 //
@@ -185,6 +186,10 @@ export interface BandSegment {
   eventTitle: string;
   startDate: string;
   endDate: string;
+  /** Event-level cancellation (Issue #125/#123) - a band always represents
+   * a multi-day Event, so Occurrence-level cancellation (which has no
+   * range-wide meaning) is not consulted here, only isEventCanceled. */
+  isCanceled: boolean;
 }
 
 /**
@@ -219,6 +224,7 @@ export function eventRangeBandSegment(event: EventCatalogEvent): BandSegment {
     eventTitle: event.title,
     startDate: event.startsOn,
     endDate: event.endsOn,
+    isCanceled: isEventCanceled(event),
   };
 }
 
@@ -271,7 +277,7 @@ export interface WeekBandLayout {
    * within that week would ever reveal it. Exposing the events themselves
    * (not just a count) lets the presentation layer link directly to each,
    * rather than pointing at a day selection that would come up empty. */
-  overflowEvents: { eventId: string; eventTitle: string }[];
+  overflowEvents: { eventId: string; eventTitle: string; isCanceled: boolean }[];
 }
 
 /** Bounded lane count for month-view band rendering - mobile scanability
@@ -337,7 +343,7 @@ export function layoutWeekBands(
 
   const laneEndCols: number[] = [];
   const positioned: PositionedBandSegment[] = [];
-  const overflowEventTitles = new Map<string, string>();
+  const overflowEventInfo = new Map<string, { eventTitle: string; isCanceled: boolean }>();
 
   for (const segment of clipped) {
     let lane = laneEndCols.findIndex((endCol) => endCol < segment.startCol);
@@ -346,7 +352,10 @@ export function layoutWeekBands(
         lane = laneEndCols.length;
         laneEndCols.push(segment.endCol);
       } else {
-        overflowEventTitles.set(segment.eventId, segment.eventTitle);
+        overflowEventInfo.set(segment.eventId, {
+          eventTitle: segment.eventTitle,
+          isCanceled: segment.isCanceled,
+        });
         continue;
       }
     } else {
@@ -355,9 +364,10 @@ export function layoutWeekBands(
     positioned.push({ ...segment, lane });
   }
 
-  const overflowEvents = [...overflowEventTitles].map(([eventId, eventTitle]) => ({
+  const overflowEvents = [...overflowEventInfo].map(([eventId, info]) => ({
     eventId,
-    eventTitle,
+    eventTitle: info.eventTitle,
+    isCanceled: info.isCanceled,
   }));
 
   return {

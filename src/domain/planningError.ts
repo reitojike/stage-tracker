@@ -55,6 +55,20 @@ const VALIDATION_CODES = new Set([
   '22P02', // invalid_text_representation
 ]);
 
+/** Custom SQLSTATE 90002 (Issue #125/#123): raised by
+ * check_occurrence_participation_insert_not_canceled /
+ * check_occurrence_participation_update_not_canceled /
+ * check_ticket_acquisition_insert_not_canceled / invite_to_occurrence(_by_
+ * email) (supabase/migrations/20260826000200_create_event_occurrence_
+ * cancellation.sql) when a write would create a new active commitment
+ * (participation, `attending`, invitation, ticket acquisition) on an
+ * effectively-canceled occurrence. Classified as `validation` here - the
+ * submitted request is not malformed, but the target's current state makes
+ * it invalid right now - and exported (not just matched internally) so a
+ * feedback module can distinguish this specific case by `error.code` rather
+ * than by matching message text (see domain/participationFeedback.ts). */
+export const OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE = '90002';
+
 /**
  * Classifies a plain Postgrest/table-level error by its SQLSTATE. This is
  * the fallback every RPC-specific classifier below falls through to, and
@@ -65,6 +79,9 @@ const VALIDATION_CODES = new Set([
 export function classifyPostgrestError(error: RawPostgrestError): PlanningError {
   if (error.code === INSUFFICIENT_PRIVILEGE) {
     return { kind: 'permission-denied', message: error.message, code: error.code };
+  }
+  if (error.code === OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE) {
+    return { kind: 'validation', message: error.message, code: error.code };
   }
   if (VALIDATION_CODES.has(error.code)) {
     return { kind: 'validation', message: error.message, code: error.code };

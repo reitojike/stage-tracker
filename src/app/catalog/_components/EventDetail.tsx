@@ -5,6 +5,7 @@ import { PageHeading } from '@/ui/PageHeading';
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import type { Participation } from '@/domain/participation.ts';
+import { isEffectivelyCanceled, isEventCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceAnchorId } from '@/domain/catalogNavigation.ts';
 import {
   isRenderableHttpUrl,
@@ -67,6 +68,12 @@ export function EventDetail({
       <FocusedOccurrenceScroll occurrenceId={focusedOccurrenceId} />
       <PageHeading>{event.title}</PageHeading>
 
+      {isEventCanceled(event) ? (
+        <Badge variant="danger" className={styles.canceledBadge}>
+          中止
+        </Badge>
+      ) : null}
+
       {editHref !== null ? (
         <ActionRow>
           <LinkButton href={editHref} variant="secondary">
@@ -123,6 +130,11 @@ export function EventDetail({
                       選択した公演回
                     </Badge>
                   ) : null}
+                  {isEffectivelyCanceled(event, occurrence) ? (
+                    <Badge variant="danger" className={styles.canceledBadge}>
+                      中止
+                    </Badge>
+                  ) : null}
                   <p className={styles.occurrenceTime}>
                     {tokyoDateLabel(occurrence.startsAt)}{' '}
                     {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
@@ -132,6 +144,7 @@ export function EventDetail({
                       eventId={event.id}
                       occurrenceId={occurrence.id}
                       participation={participationsByOccurrenceId.get(occurrence.id) ?? null}
+                      isEffectivelyCanceled={isEffectivelyCanceled(event, occurrence)}
                     />
                   ) : null}
                 </li>

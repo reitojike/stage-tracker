@@ -32,6 +32,7 @@ function event(overrides: Partial<Parameters<typeof mapEventRow>[0]> = {}) {
     memo: null,
     starts_on: '2026-01-01',
     ends_on: '2026-12-31',
+    canceled_at: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -45,6 +46,7 @@ function occurrence(overrides: Partial<Parameters<typeof mapOccurrenceRow>[0]> =
     doors_at: null,
     starts_at: '2026-08-10T10:00:00Z',
     ends_at: null,
+    canceled_at: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -151,6 +153,7 @@ void test('eventRangeBandSegment: a multi-day range produces one segment spannin
     eventTitle: '歌舞伎公演',
     startDate: '2026-08-10',
     endDate: '2026-08-13',
+    isCanceled: false,
   });
 });
 
@@ -162,7 +165,21 @@ void test('eventRangeBandSegment: is derived from the event alone - a 0-occurren
     eventTitle: 'Sample event',
     startDate: '2026-09-01',
     endDate: '2026-09-03',
+    isCanceled: false,
   });
+});
+
+// Issue #125/#123, review finding: a canceled multi-day Event's band must
+// carry that state through to the month view, same as every other surface.
+void test('eventRangeBandSegment: carries Event-level cancellation through to the band', () => {
+  const canceled = event({
+    id: 'canceled-event',
+    starts_on: '2026-09-01',
+    ends_on: '2026-09-03',
+    canceled_at: '2026-08-26T00:00:00Z',
+  });
+  const segment = eventRangeBandSegment(canceled);
+  assert.equal(segment.isCanceled, true);
 });
 
 // --- computeBadgeCounts (Issue #91 PO decision: single-day Event count, not occurrence count) ---
@@ -262,8 +279,8 @@ const WEEK = [
   '2026-08-15',
 ];
 
-function seg(eventId: string, startDate: string, endDate: string): BandSegment {
-  return { eventId, eventTitle: eventId, startDate, endDate };
+function seg(eventId: string, startDate: string, endDate: string, isCanceled = false): BandSegment {
+  return { eventId, eventTitle: eventId, startDate, endDate, isCanceled };
 }
 
 void test('layoutWeekBands: a single segment is placed in lane 0 at the right columns', () => {
@@ -303,7 +320,26 @@ void test('layoutWeekBands: bands beyond the lane cap overflow instead of being 
   const layout = layoutWeekBands(WEEK, overlapping, 3);
   assert.equal(layout.segments.length, 3);
   assert.equal(layout.overflowCount, 1);
-  assert.deepEqual(layout.overflowEvents, [{ eventId: 'd', eventTitle: 'd' }]);
+  assert.deepEqual(layout.overflowEvents, [{ eventId: 'd', eventTitle: 'd', isCanceled: false }]);
+});
+
+// Issue #125/#123, review finding: an overflowing canceled Event must not
+// lose its cancellation state - the overflow list is the only reachable
+// path to it for that week (see WeekBandLayout.overflowEvents's own
+// comment), so it needs the same "中止" information the band would have
+// carried had it fit in a lane.
+void test('layoutWeekBands: overflowEvents carries a canceled event’s cancellation state through', () => {
+  const overlapping = [
+    seg('a', '2026-08-10', '2026-08-11'),
+    seg('b', '2026-08-10', '2026-08-11'),
+    seg('c', '2026-08-10', '2026-08-11'),
+    seg('canceled-d', '2026-08-10', '2026-08-11', true),
+  ];
+  const layout = layoutWeekBands(WEEK, overlapping, 3);
+  assert.equal(layout.overflowCount, 1);
+  assert.deepEqual(layout.overflowEvents, [
+    { eventId: 'canceled-d', eventTitle: 'canceled-d', isCanceled: true },
+  ]);
 });
 
 void test('layoutWeekBands: start-ascending lane assignment fits everything a length-first sort would spuriously overflow', () => {
@@ -623,7 +659,9 @@ void test('buildMonthCalendarViewModel: an event overflowing a week where it has
     week1.bandLayout.segments.some((s) => s.eventId === 'target'),
     false,
   );
-  assert.deepEqual(week1.bandLayout.overflowEvents, [{ eventId: 'target', eventTitle: 'Target' }]);
+  assert.deepEqual(week1.bandLayout.overflowEvents, [
+    { eventId: 'target', eventTitle: 'Target', isCanceled: false },
+  ]);
 
   // Confirms the gap this closes: no day in week1 has an occurrence for
   // target, so selectDayOccurrences alone would never surface it there.

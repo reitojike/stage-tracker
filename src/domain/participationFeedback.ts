@@ -1,4 +1,8 @@
-import type { PlanningErrorKind } from './planningError.ts';
+import {
+  OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE,
+  type PlanningError,
+  type PlanningErrorKind,
+} from './planningError.ts';
 
 // What a failed participation/invitation write means to the person who
 // attempted it (Issue #36). Mirrors domain/eventWriteFeedback.ts's role for
@@ -117,6 +121,33 @@ const VALIDATION: Record<ParticipationOperation, OperationFeedback> = {
   },
 };
 
+/**
+ * Issue #125/#123: set-participation (a new row, or `considering ->
+ * attending`) and invite-to-occurrence (a new invitation) are rejected with
+ * this SQLSTATE when the target occurrence is effectively canceled - see
+ * supabase/migrations/20260826000200_create_event_occurrence_cancellation.sql
+ * and domain/planningError.ts's OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE.
+ * withdraw-participation and decline-invitation can never produce this
+ * code (withdrawal/decline stay available regardless of cancellation, per
+ * product-rules.md), but the Record still needs an entry for them -
+ * mirrors NOT_FOUND above's precedent for an operation-indexed Record with
+ * unreachable members.
+ */
+const OCCURRENCE_CANCELED: Record<ParticipationOperation, OperationFeedback> = {
+  'set-participation': {
+    variant: 'error',
+    title: '参加予定を更新できませんでした',
+    description: 'この公演は中止されているため、新しく参加予定を設定できません。',
+  },
+  'withdraw-participation': FAILURE,
+  'invite-to-occurrence': {
+    variant: 'error',
+    title: '招待を送信できませんでした',
+    description: 'この公演は中止されているため、新しい招待を送信できません。',
+  },
+  'decline-invitation': FAILURE,
+};
+
 export function resolveOperationFeedback(
   operation: ParticipationOperation,
   kind: PlanningErrorKind,
@@ -133,6 +164,29 @@ export function resolveOperationFeedback(
     case 'failure':
       return FAILURE;
   }
+}
+
+/**
+ * A thin wrapper around resolveOperationFeedback for call sites that have a
+ * full PlanningError (i.e. an actual DB round trip happened, not a local
+ * malformed-input rejection with no `code` to inspect): distinguishes the
+ * occurrence-effectively-canceled case by `error.code` before falling back
+ * to the generic per-kind resolver above. Only set-participation and
+ * invite-to-occurrence can ever produce this code (see OCCURRENCE_CANCELED's
+ * own comment) - every other caller should keep using
+ * resolveOperationFeedback directly.
+ */
+export function resolveOperationFeedbackForError(
+  operation: ParticipationOperation,
+  error: PlanningError,
+): OperationFeedback {
+  if (
+    error.code === OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE &&
+    (operation === 'set-participation' || operation === 'invite-to-occurrence')
+  ) {
+    return OCCURRENCE_CANCELED[operation];
+  }
+  return resolveOperationFeedback(operation, error.kind);
 }
 
 /**

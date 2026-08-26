@@ -260,3 +260,105 @@ export function rejectedEventDeleteFormState(
 ): EventDeleteFormState {
   return { attempt: previous.attempt + 1, feedback };
 }
+
+// Cancellation (Issue #125/#123): distinct from both regular write forms
+// (no input fields to echo) and delete forms (a success has something to
+// announce - "canceled"/"uncanceled" - since the row, unlike a deleted one,
+// is still there to keep looking at).
+
+export type EventCancellationOperation =
+  'cancel-event' | 'uncancel-event' | 'cancel-occurrence' | 'uncancel-occurrence';
+
+const CANCELLATION_PERMISSION_DENIED: Record<EventCancellationOperation, EventWriteFeedback> = {
+  'cancel-event': {
+    variant: 'error',
+    title: 'このイベントを中止にする権限がありません',
+    description: 'イベントの中止操作は、そのイベントを登録したユーザーだけが行えます。',
+  },
+  'uncancel-event': {
+    variant: 'error',
+    title: 'このイベントの中止を解除する権限がありません',
+    description: 'イベントの中止解除は、そのイベントを登録したユーザーだけが行えます。',
+  },
+  'cancel-occurrence': {
+    variant: 'error',
+    title: 'この公演回を中止にする権限がありません',
+    description: '公演回の中止操作は、そのイベントを登録したユーザーだけが行えます。',
+  },
+  'uncancel-occurrence': {
+    variant: 'error',
+    title: 'この公演回の中止を解除する権限がありません',
+    description: '公演回の中止解除は、そのイベントを登録したユーザーだけが行えます。',
+  },
+};
+
+const CANCELLATION_FAILURE: EventWriteFeedback = {
+  variant: 'error',
+  title: '操作に失敗しました',
+  description: '通信状況を確認し、もう一度お試しください。',
+};
+
+const CANCELLATION_NOTICES: Record<EventCancellationOperation, string> = {
+  'cancel-event': 'このイベントを中止にしました。',
+  'uncancel-event': 'このイベントの中止を解除しました。',
+  'cancel-occurrence': 'この公演回を中止にしました。',
+  'uncancel-occurrence': 'この公演回の中止を解除しました。',
+};
+
+export function resolveCancellationNotice(operation: EventCancellationOperation): string {
+  return CANCELLATION_NOTICES[operation];
+}
+
+/**
+ * cancelEvent/uncancelEvent/cancelEventOccurrence/uncancelEventOccurrence
+ * (src/infrastructure/supabase/eventCatalogWrite.ts) are plain owner-gated
+ * column updates - see that module's header for why no new
+ * EventCatalogWriteErrorKind is needed for the toggle itself (there is no
+ * "blocked" state analogous to delete-blocked; an owner may always cancel
+ * or uncancel). `delete-blocked`/`duplicate-occurrence` are kept in this
+ * exhaustive switch only because the shared EventCatalogWriteErrorKind
+ * includes them - this operation family can never actually produce either.
+ */
+export function resolveCancellationFeedback(
+  operation: EventCancellationOperation,
+  kind: EventCatalogWriteErrorKind,
+): EventWriteFeedback {
+  switch (kind) {
+    case 'permission-denied':
+      return CANCELLATION_PERMISSION_DENIED[operation];
+    case 'validation':
+    case 'duplicate-occurrence':
+    case 'delete-blocked':
+    case 'failure':
+      return CANCELLATION_FAILURE;
+  }
+}
+
+/** Mirrors EventDeleteFormState's shape (no input fields, no `values` to
+ * echo) plus a `notice`, since - unlike a delete - the row is still there
+ * afterward and a successful toggle has something to confirm. */
+export interface EventCancellationFormState {
+  attempt: number;
+  feedback: EventWriteFeedback | null;
+  notice: string | null;
+}
+
+export const INITIAL_EVENT_CANCELLATION_FORM_STATE: EventCancellationFormState = {
+  attempt: 0,
+  feedback: null,
+  notice: null,
+};
+
+export function rejectedCancellationFormState(
+  previous: EventCancellationFormState,
+  feedback: EventWriteFeedback,
+): EventCancellationFormState {
+  return { attempt: previous.attempt + 1, feedback, notice: null };
+}
+
+export function acceptedCancellationFormState(
+  previous: EventCancellationFormState,
+  notice: string,
+): EventCancellationFormState {
+  return { attempt: previous.attempt + 1, feedback: null, notice };
+}

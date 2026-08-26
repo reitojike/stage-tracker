@@ -21,6 +21,14 @@ export interface ParticipationPanelProps {
    * have none yet (Issue #36: absence of a row is "not participating" -
    * there is no `not_attending` status to render instead). */
   participation: Participation | null;
+  /** Issue #125/#123: when true, hides the affordances that would create a
+   * new active commitment (considering/attending, invite) - the database
+   * itself is what actually rejects these (supabase/migrations/
+   * 20260826000200_create_event_occurrence_cancellation.sql), so this is a
+   * UX courtesy (don't offer a button that will be refused), not the
+   * enforcement boundary. Withdraw stays available regardless, matching
+   * product-rules.md. */
+  isEffectivelyCanceled: boolean;
 }
 
 /**
@@ -41,6 +49,7 @@ export function ParticipationPanel({
   eventId,
   occurrenceId,
   participation,
+  isEffectivelyCanceled,
 }: ParticipationPanelProps) {
   const [state, formAction, isPending] = useActionState(
     updateParticipationAction,
@@ -79,7 +88,7 @@ export function ParticipationPanel({
         <WriteNotice notice={state.notice} attempt={state.attempt} />
 
         <div className={styles.actions}>
-          {status !== 'considering' ? (
+          {status !== 'considering' && !isEffectivelyCanceled ? (
             <Button
               type="submit"
               name="intent"
@@ -90,7 +99,7 @@ export function ParticipationPanel({
               気になる
             </Button>
           ) : null}
-          {status !== 'attending' ? (
+          {status !== 'attending' && !isEffectivelyCanceled ? (
             <Button type="submit" name="intent" value="attending" disabled={isPending}>
               参加する
             </Button>
@@ -109,7 +118,7 @@ export function ParticipationPanel({
         </div>
       </form>
 
-      {status === 'attending' ? (
+      {status === 'attending' && !isEffectivelyCanceled ? (
         <form action={inviteFormAction} className={styles.inviteForm} aria-busy={isInvitePending}>
           <input type="hidden" name="eventId" value={eventId} />
           <input type="hidden" name="occurrenceId" value={occurrenceId} />

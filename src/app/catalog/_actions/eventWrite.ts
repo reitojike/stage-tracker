@@ -5,9 +5,13 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import {
   addEventOccurrence,
+  cancelEvent,
+  cancelEventOccurrence,
   createEventWithInitialOccurrence,
   deleteEvent,
   deleteEventOccurrence,
+  uncancelEvent,
+  uncancelEventOccurrence,
   updateEventDetails,
   updateEventOccurrence,
   updateEventRange,
@@ -27,14 +31,19 @@ import {
 } from '@/domain/eventCatalogWrite.ts';
 import {
   acceptedWriteFormState,
+  acceptedCancellationFormState,
   rejectedWriteFormState,
   rejectedEventDeleteFormState,
+  rejectedCancellationFormState,
   resolveDuplicateOccurrenceFieldErrors,
   resolveDeleteFeedback,
+  resolveCancellationFeedback,
+  resolveCancellationNotice,
   resolveWriteFeedback,
   resolveWriteNotice,
   type EventWriteFormState,
   type EventDeleteFormState,
+  type EventCancellationFormState,
 } from '@/domain/eventWriteFeedback.ts';
 import { catalogEventHref, resolveCatalogParams } from '@/domain/catalogNavigation.ts';
 import { currentTokyoDate } from '../_lib/today.ts';
@@ -424,4 +433,123 @@ export async function deleteEventAction(
   revalidatePath(`/catalog/events/${eventId}/edit`);
   revalidatePath('/calendar');
   redirect('/catalog');
+}
+
+// Cancellation actions (Issue #125/#123): unlike hard delete, the row still
+// exists afterward, so none of these redirect - they stay on the edit page
+// and report success through the returned state, same as the regular write
+// actions above.
+
+export async function cancelEventAction(
+  previous: EventCancellationFormState,
+  formData: FormData,
+): Promise<EventCancellationFormState> {
+  const eventId = readId(formData, 'eventId');
+  if (eventId === null) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('cancel-event', 'failure'),
+    );
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await cancelEvent(client, eventId);
+  if (!result.ok) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('cancel-event', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  revalidatePath(`/catalog/events/${eventId}/edit`);
+  revalidatePath('/calendar');
+  return acceptedCancellationFormState(previous, resolveCancellationNotice('cancel-event'));
+}
+
+export async function uncancelEventAction(
+  previous: EventCancellationFormState,
+  formData: FormData,
+): Promise<EventCancellationFormState> {
+  const eventId = readId(formData, 'eventId');
+  if (eventId === null) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('uncancel-event', 'failure'),
+    );
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await uncancelEvent(client, eventId);
+  if (!result.ok) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('uncancel-event', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  revalidatePath(`/catalog/events/${eventId}/edit`);
+  revalidatePath('/calendar');
+  return acceptedCancellationFormState(previous, resolveCancellationNotice('uncancel-event'));
+}
+
+export async function cancelEventOccurrenceAction(
+  previous: EventCancellationFormState,
+  formData: FormData,
+): Promise<EventCancellationFormState> {
+  const eventId = readId(formData, 'eventId');
+  const occurrenceId = readId(formData, 'occurrenceId');
+  if (eventId === null || occurrenceId === null) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('cancel-occurrence', 'failure'),
+    );
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await cancelEventOccurrence(client, occurrenceId);
+  if (!result.ok) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('cancel-occurrence', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  revalidatePath(`/catalog/events/${eventId}/edit`);
+  revalidatePath('/calendar');
+  return acceptedCancellationFormState(previous, resolveCancellationNotice('cancel-occurrence'));
+}
+
+export async function uncancelEventOccurrenceAction(
+  previous: EventCancellationFormState,
+  formData: FormData,
+): Promise<EventCancellationFormState> {
+  const eventId = readId(formData, 'eventId');
+  const occurrenceId = readId(formData, 'occurrenceId');
+  if (eventId === null || occurrenceId === null) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('uncancel-occurrence', 'failure'),
+    );
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await uncancelEventOccurrence(client, occurrenceId);
+  if (!result.ok) {
+    return rejectedCancellationFormState(
+      previous,
+      resolveCancellationFeedback('uncancel-occurrence', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  revalidatePath(`/catalog/events/${eventId}/edit`);
+  revalidatePath('/calendar');
+  return acceptedCancellationFormState(previous, resolveCancellationNotice('uncancel-occurrence'));
 }

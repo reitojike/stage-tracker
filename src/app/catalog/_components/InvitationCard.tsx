@@ -18,6 +18,14 @@ export interface InvitationCardProps {
    * without fabricating a date/title rather than guessing at one. */
   occurrence: { startsAt: string; endsAt: string | null } | null;
   eventTitle: string | null;
+  /** Issue #125/#123: an invitation is retained (never deleted) when its
+   * Event/Occurrence is canceled - so this screen must be able to show
+   * "中止" for one, the same as catalog/detail/calendar surfaces do. Passed
+   * as an already-computed boolean (the page has the full Event/Occurrence
+   * rows to derive it from via domain/eventCancellation.ts's
+   * isEffectivelyCanceled); defaults to false only for the context-read-
+   * failure case, where occurrence/eventTitle are also null. */
+  isEffectivelyCanceled: boolean;
 }
 
 /**
@@ -34,7 +42,12 @@ export interface InvitationCardProps {
  * exactly the kind of internal identifier that checkpoint ruled out
  * exposing in the UI.
  */
-export function InvitationCard({ invitation, occurrence, eventTitle }: InvitationCardProps) {
+export function InvitationCard({
+  invitation,
+  occurrence,
+  eventTitle,
+  isEffectivelyCanceled,
+}: InvitationCardProps) {
   const [state, formAction, isPending] = useActionState(
     declineInvitationAction,
     INITIAL_OPERATION_STATE,
@@ -53,6 +66,7 @@ export function InvitationCard({ invitation, occurrence, eventTitle }: Invitatio
       ) : null}
 
       {isDeclined ? <Badge variant="neutral">辞退済み</Badge> : null}
+      {isEffectivelyCanceled ? <Badge variant="danger">中止</Badge> : null}
 
       <form action={formAction} aria-busy={isPending}>
         <input type="hidden" name="invitationId" value={invitation.id} />

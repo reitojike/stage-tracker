@@ -46,6 +46,15 @@ function monthLabel(yearMonth: string): string {
  * unchanged. Holiday's own `祝` glyph is kept - column position alone
  * cannot identify a holiday.
  */
+/** Issue #125/#123: a band/overflow entry names a multi-day Event by title
+ * alone elsewhere in this component - this appends a plain-text "（中止）"
+ * marker (not color-only, consistent with this file's other non-color
+ * cues) so a canceled Event's band, overflow link, and day aria-label all
+ * carry the same distinguishable information. */
+function bandDisplayTitle(eventTitle: string, isCanceled: boolean): string {
+  return isCanceled ? `${eventTitle}（中止）` : eventTitle;
+}
+
 function roleMarker(role: CalendarDayRole): { className: string; text: string | null } | null {
   if (role === 'holiday') {
     return { className: styles.roleHoliday ?? '', text: '祝' };
@@ -167,7 +176,11 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                   labelParts.push('日曜日');
                 }
                 if (bandsThisDay.length > 0) {
-                  labelParts.push(bandsThisDay.map((segment) => segment.eventTitle).join('、'));
+                  labelParts.push(
+                    bandsThisDay
+                      .map((segment) => bandDisplayTitle(segment.eventTitle, segment.isCanceled))
+                      .join('、'),
+                  );
                 }
                 if (day.badgeCount > 0) {
                   // Never the same Events named in bandsThisDay above
@@ -235,9 +248,9 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                     gridColumn: `${String(segment.startCol + 1)} / ${String(segment.endCol + 2)}`,
                     gridRow: segment.lane + 2,
                   }}
-                  title={segment.eventTitle}
+                  title={bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
                 >
-                  {segment.eventTitle}
+                  {bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
                 </span>
               ))}
 
@@ -260,7 +273,7 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                         href={catalogEventHref(overflowEvent.eventId, context)}
                         className={styles.overflowLink}
                       >
-                        {overflowEvent.eventTitle}
+                        {bandDisplayTitle(overflowEvent.eventTitle, overflowEvent.isCanceled)}
                       </Link>
                     </span>
                   ))}

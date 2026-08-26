@@ -62,3 +62,7 @@
 .focusedBadge {
   margin-bottom: var(--space-xs);
 }
+
+.canceledBadge {
+  margin-bottom: var(--space-xs);
+}

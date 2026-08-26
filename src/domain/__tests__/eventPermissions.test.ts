@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  canCancelEvent,
+  canCancelEventOccurrence,
   canCreateEvent,
   canCreateEventOccurrence,
   canDeleteEvent,
@@ -143,4 +145,31 @@ void test('canDeleteEvent denies a non-owner', () => {
 
 void test('canDeleteEvent denies anonymous callers', () => {
   assert.equal(canDeleteEvent(null, { ownerId: 'user-a' }), false);
+});
+
+// --- Cancellation (Issue #125/#123): one predicate covers both cancel and
+// uncancel - #123 draws no authority distinction between the two directions.
+
+void test('canCancelEvent allows the owner', () => {
+  assert.equal(canCancelEvent('user-a', { ownerId: 'user-a' }), true);
+});
+
+void test('canCancelEvent denies a non-owner', () => {
+  assert.equal(canCancelEvent('user-b', { ownerId: 'user-a' }), false);
+});
+
+void test('canCancelEvent denies anonymous callers', () => {
+  assert.equal(canCancelEvent(null, { ownerId: 'user-a' }), false);
+});
+
+void test('canCancelEventOccurrence allows the parent event owner', () => {
+  assert.equal(canCancelEventOccurrence('user-a', { ownerId: 'user-a' }), true);
+});
+
+void test('canCancelEventOccurrence denies a non-owner', () => {
+  assert.equal(canCancelEventOccurrence('user-b', { ownerId: 'user-a' }), false);
+});
+
+void test('canCancelEventOccurrence denies anonymous callers', () => {
+  assert.equal(canCancelEventOccurrence(null, { ownerId: 'user-a' }), false);
 });

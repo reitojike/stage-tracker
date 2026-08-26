@@ -1049,7 +1049,7 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
   event に属するかを、通常の更新操作で変更できるようにはしません。
 - 公演回の削除は owner-only の hard delete として提供します（Issue #124）。
   削除は誤登録の除去を対象とし、公演の中止（cancellation）とは区別されます
-  （Issue #123 で decision 済み、Issue #125 で実装予定）。詳細は下記
+  （Issue #123 で decision 済み、Issue #125 で実装済み）。詳細は下記
   「Deletion」と「Cancellation」セクションを参照してください。
 
 ### Mutable / system-managed fields
@@ -1092,8 +1092,7 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 ### Cancellation
 
 - 公演の中止（cancellation）は Deletion（誤登録削除）とは明確に区別された
-  operation です。Issue #123 で semantics 決定済み、Issue #125 で
-  実装予定（#125 は decision task ではなく implementation task です）。
+  operation です。Issue #123 で semantics 決定済み、Issue #125 で実装済みです。
 - cancellation state は **Event-level** と **Occurrence-level** の両方に
   独立して持たせます。
   - Event-level cancellation: その Event 全体を中止扱いにします。
@@ -1113,8 +1112,23 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 - 既存 participation の withdraw（辞退）は、中止状態でも引き続き許可
   します。
 - UI では中止状態が「中止」として表示されます。
-- exact schema（cancellation state を表す column 等）と exact UI workflow
-  は Issue #125（implementation task）で選定します。
+- 実装（Issue #125）は次のとおりです。
+  - `events.canceled_at` / `event_occurrences.canceled_at`（nullable
+    `timestamptz`、null = active）を cancellation state として持ちます。
+    値の有無だけが product 上の意味を持ち、格納された正確な時刻自体には
+    意味を持たせません。
+  - owner-only の write boundary は、既存の owner-only RLS（`events_
+update_own` / `event_occurrences_update_own`）に乗る通常の column-level
+    UPDATE grant として実装します。cancel/uncancel 専用の RPC は設けません
+    （downstream cascade を伴わない単一 column の可逆な書き込みのため）。
+  - new active action の拒否は、`event_occurrences.canceled_at` と親
+    `events.canceled_at` を読む共有 SQL 関数
+    (`event_occurrence_is_effectively_canceled`) と、
+    `occurrence_participations` の INSERT/UPDATE (`considering -> attending`
+    のみ) trigger、`ticket_acquisitions` の INSERT trigger、
+    `invite_to_occurrence` / `invite_to_occurrence_by_email` RPC 内の
+    明示チェックとして DB level で強制します。拒否は application-defined
+    custom SQLSTATE `90002` として表現します。
 
 ## Participation
 
