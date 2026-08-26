@@ -32,6 +32,7 @@ import { requireAuthenticatedUserId } from './planningAuth.ts';
 export type PersonalScheduleQueryClient = SupabaseClient<Database>;
 
 const NOT_VISIBLE_FOR_WRITE = 'update-affected-no-rows';
+const NOT_VISIBLE_FOR_DELETE = 'delete-affected-no-rows';
 
 /**
  * personal_schedule_entries' SELECT policy (owner-or-shared) is wider than
@@ -48,6 +49,21 @@ function deniedEntryUpdate(): PlanningResult<never> {
       message:
         'personal schedule entry was not updated: the row is not visible to this caller for update',
       code: NOT_VISIBLE_FOR_WRITE,
+    },
+  };
+}
+
+/** Same "reads open wider than writes" reasoning as deniedEntryUpdate above,
+ * for personal_schedule_entries_delete_own (Issue #121) - also owner-only,
+ * also narrower than the SELECT policy. */
+function deniedEntryDelete(): PlanningResult<never> {
+  return {
+    ok: false,
+    error: {
+      kind: 'permission-denied',
+      message:
+        'personal schedule entry was not deleted: the row is not visible to this caller for delete',
+      code: NOT_VISIBLE_FOR_DELETE,
     },
   };
 }
@@ -119,7 +135,8 @@ export async function createPersonalScheduleEntry(
     .from('personal_schedule_entries')
     .insert({
       owner_id: callerId.data,
-      schedule_type: input.scheduleType,
+      title: input.title,
+      blocking: input.blocking,
       memo: input.memo,
       ...temporalToColumns(input.temporal),
     })
@@ -157,7 +174,8 @@ export async function updatePersonalScheduleEntry(
   const { data, error } = await client
     .from('personal_schedule_entries')
     .update({
-      schedule_type: input.scheduleType,
+      title: input.title,
+      blocking: input.blocking,
       memo: input.memo,
       ...temporalToColumns(input.temporal),
     })
@@ -171,6 +189,44 @@ export async function updatePersonalScheduleEntry(
     return deniedEntryUpdate();
   }
   return { ok: true, data: mapPersonalScheduleEntryRow(data) };
+}
+
+/**
+ * Hard-deletes a personal schedule entry (Issue #121): the entry's owner
+ * only, mirroring personal_schedule_entries_delete_own RLS - which, like
+ * personal_schedule_entries_update_own, is narrower than this table's SELECT
+ * policy (owner-or-shared). A zero-rows delete result is therefore
+ * classified `permission-denied`, not `not-found`, by the same
+ * "visible-but-not-writable" reasoning as deniedEntryUpdate above: a shared
+ * recipient can see the entry (and could otherwise learn "it doesn't exist"
+ * vs. "I can't delete it" apart, which this table's RLS makes
+ * indistinguishable from the outside). Dependent personal_schedule_shares
+ * rows are cleaned up by the FK's ON DELETE CASCADE (supabase/migrations/
+ * 20260826000000_personal_schedule_title_blocking.sql) - this function does
+ * not delete them itself. Checks the caller's session first - see
+ * updatePersonalScheduleEntry above for why.
+ */
+export async function deletePersonalScheduleEntry(
+  client: PersonalScheduleQueryClient,
+  entryId: string,
+): Promise<PlanningResult<void>> {
+  const callerId = await requireAuthenticatedUserId(client);
+  if (!callerId.ok) {
+    return callerId;
+  }
+
+  const { data, error } = await client
+    .from('personal_schedule_entries')
+    .delete()
+    .eq('id', entryId)
+    .select();
+  if (error !== null) {
+    return { ok: false, error: classifyPostgrestError(error) };
+  }
+  if (data.length === 0) {
+    return deniedEntryDelete();
+  }
+  return { ok: true, data: undefined };
 }
 
 /** Every share row visible to the caller for one entry: the full recipient

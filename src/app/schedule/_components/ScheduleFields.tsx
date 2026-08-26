@@ -1,9 +1,7 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { TextArea } from '@/ui/TextArea';
 import { TextInput } from '@/ui/TextInput';
 import type { FieldErrors, RawFormValues } from '@/domain/personalScheduleWrite.ts';
-import type { ScheduleType } from '@/domain/personalSchedule.ts';
-import { scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
 import styles from './ScheduleWriteForm.module.css';
 
 export interface ScheduleFieldsProps {
@@ -12,12 +10,11 @@ export interface ScheduleFieldsProps {
   disabled?: boolean;
 }
 
-const SCHEDULE_TYPES: readonly ScheduleType[] = ['paid_leave', 'work', 'travel', 'other'];
-
 /**
- * The personal schedule entry's fields (Issue #37), shared by the create
- * and edit forms so both present the same field set, names and validation
- * messages - mirrors src/app/catalog/_components/EventFields.tsx.
+ * The personal schedule entry's fields (Issue #37; re-modeled from a fixed
+ * 種別 select to free-form title + blocking by Issue #121), shared by the
+ * create and edit forms so both present the same field set, names and
+ * validation messages - mirrors src/app/catalog/_components/EventFields.tsx.
  *
  * Unlike the Event/Occurrence split, a schedule entry's temporal shape
  * lives on the entry itself (personalSchedule.ts's ScheduleTemporal), so
@@ -25,7 +22,6 @@ const SCHEDULE_TYPES: readonly ScheduleType[] = ['paid_leave', 'work', 'travel',
  * component rather than being split across two.
  */
 export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFieldsProps) {
-  const scheduleTypeId = useId();
   // Defaults to time-bounded when unset, matching
   // personalScheduleWrite.ts's parseTemporalMode default for a form with no
   // prior submission (a brand-new create form). This is display-only state
@@ -39,27 +35,32 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
   return (
     <>
       <div className={styles.fields}>
-        <div>
-          <label htmlFor={scheduleTypeId}>種別</label>
-          <select
-            id={scheduleTypeId}
-            name="scheduleType"
-            defaultValue={values.scheduleType ?? ''}
+        <TextInput
+          label="件名"
+          name="title"
+          defaultValue={values.title ?? ''}
+          error={fieldErrors.title}
+          disabled={disabled}
+          required
+        />
+      </div>
+
+      <div className={styles.group}>
+        {/* Checkbox before the same-named hidden fallback, in that DOM
+            order - see personalScheduleWrite.ts's parseBlocking for why
+            this specific order is what lets an explicit uncheck survive a
+            rejected-submission re-render. */}
+        <label className={styles.radioOption}>
+          <input
+            type="checkbox"
+            name="blocking"
+            value="true"
+            defaultChecked={values.blocking !== 'false'}
             disabled={disabled}
-            required
-            aria-invalid={fieldErrors.scheduleType ? true : undefined}
-          >
-            <option value="" disabled>
-              選択してください
-            </option>
-            {SCHEDULE_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {scheduleTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.scheduleType ? <p role="alert">{fieldErrors.scheduleType}</p> : null}
-        </div>
+          />
+          この予定がある間は新しい予定を入れないようにする（blocking）
+        </label>
+        <input type="hidden" name="blocking" value="false" />
       </div>
 
       <fieldset className={styles.group}>

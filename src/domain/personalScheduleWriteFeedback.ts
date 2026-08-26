@@ -12,6 +12,7 @@ import type { FieldErrors, RawFormValues } from './personalScheduleWrite.ts';
 
 export type ScheduleWriteOperation = 'create-schedule-entry' | 'update-schedule-entry';
 export type ScheduleShareWriteOperation = 'remove-schedule-share';
+export type ScheduleEntryDeleteOperation = 'delete-schedule-entry';
 
 export interface ScheduleWriteFeedback {
   /** Maps onto StatePanel's variant. */
@@ -170,6 +171,66 @@ export function acceptedWriteFormState(
   notice: string,
 ): ScheduleWriteFormState {
   return { attempt: previous.attempt + 1, fieldErrors: {}, feedback: null, values, notice };
+}
+
+const DELETE_ENTRY_PERMISSION_DENIED: ScheduleWriteFeedback = {
+  variant: 'error',
+  title: 'この予定を削除する権限がありません',
+  description: '予定を削除できるのは、その予定を作成した本人だけです。',
+};
+
+const DELETE_ENTRY_NOT_FOUND: ScheduleWriteFeedback = {
+  variant: 'error',
+  title: '対象の予定が見つかりませんでした',
+  description: '既に削除されている可能性があります。ページを更新してご確認ください。',
+};
+
+/**
+ * Feedback for the owner-initiated entry-delete action (Issue #121). A
+ * zero-rows delete result is classified `permission-denied` by
+ * infrastructure/supabase/personalSchedule.ts's deletePersonalScheduleEntry
+ * (the same "visible but not writable" reasoning as update), so - unlike
+ * resolveRemoveShareFeedback's `not-found` case above - a genuinely
+ * non-existent id and a shared recipient attempting delete are not
+ * distinguishable here either; DELETE_ENTRY_NOT_FOUND exists for
+ * completeness (an exhaustive switch, matching this module's other
+ * resolvers) but the typed boundary never actually returns `not-found` for
+ * this operation today.
+ */
+export function resolveDeleteEntryFeedback(kind: PlanningErrorKind): ScheduleWriteFeedback {
+  switch (kind) {
+    case 'permission-denied':
+      return DELETE_ENTRY_PERMISSION_DENIED;
+    case 'unauthenticated':
+      return UNAUTHENTICATED;
+    case 'not-found':
+      return DELETE_ENTRY_NOT_FOUND;
+    case 'validation':
+    case 'failure':
+      return FAILURE;
+  }
+}
+
+/** State the entry-delete action carries between submissions - no field
+ * errors, no persisted `values` to echo, since it submits nothing but an
+ * id (mirrors ScheduleShareRemoveFormState below). A successful delete
+ * never reaches this state: the action redirects away from the entry's own
+ * page instead (see src/app/schedule/_actions/scheduleWrite.ts). */
+export interface ScheduleEntryDeleteFormState {
+  attempt: number;
+  feedback: ScheduleWriteFeedback | null;
+}
+
+export const INITIAL_SCHEDULE_ENTRY_DELETE_FORM_STATE: ScheduleEntryDeleteFormState = {
+  attempt: 0,
+  feedback: null,
+};
+
+export function rejectedScheduleEntryDeleteFormState(
+  previous: ScheduleEntryDeleteFormState,
+  feedback: ScheduleWriteFeedback,
+): ScheduleEntryDeleteFormState {
+  return { attempt: previous.attempt + 1, feedback };
 }
 
 /** State for the self-remove-share action - no field errors, no persisted

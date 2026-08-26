@@ -3,12 +3,15 @@ import { test } from 'node:test';
 import {
   acceptedShareAddFormState,
   acceptedWriteFormState,
+  INITIAL_SCHEDULE_ENTRY_DELETE_FORM_STATE,
   INITIAL_SCHEDULE_WRITE_FORM_STATE,
   INITIAL_SHARE_ADD_FORM_STATE,
   INITIAL_SHARE_REMOVE_FORM_STATE,
+  rejectedScheduleEntryDeleteFormState,
   rejectedShareAddFormState,
   rejectedShareRemoveFormState,
   rejectedWriteFormState,
+  resolveDeleteEntryFeedback,
   resolveOwnerRemoveShareFeedback,
   resolveRemoveShareFeedback,
   resolveShareByEmailOutcome,
@@ -63,12 +66,12 @@ void test('resolveWriteNotice returns a distinct notice per operation', () => {
 void test('rejectedWriteFormState advances attempt and preserves submitted values', () => {
   const next = rejectedWriteFormState(
     INITIAL_SCHEDULE_WRITE_FORM_STATE,
-    { scheduleType: 'work' },
-    { scheduleType: '種別を選択してください。' },
+    { title: '仕事' },
+    { title: '件名を入力してください。' },
     null,
   );
   assert.equal(next.attempt, 1);
-  assert.deepEqual(next.values, { scheduleType: 'work' });
+  assert.deepEqual(next.values, { title: '仕事' });
   assert.equal(next.notice, null);
 });
 
@@ -76,14 +79,10 @@ void test('acceptedWriteFormState advances attempt and clears fieldErrors/feedba
   const rejected = rejectedWriteFormState(
     INITIAL_SCHEDULE_WRITE_FORM_STATE,
     {},
-    { scheduleType: 'x' },
+    { title: 'x' },
     null,
   );
-  const accepted = acceptedWriteFormState(
-    rejected,
-    { scheduleType: 'work' },
-    '予定を保存しました。',
-  );
+  const accepted = acceptedWriteFormState(rejected, { title: '仕事' }, '予定を保存しました。');
   assert.equal(accepted.attempt, 2);
   assert.deepEqual(accepted.fieldErrors, {});
   assert.equal(accepted.feedback, null);
@@ -117,6 +116,31 @@ void test('resolveOwnerRemoveShareFeedback differs from resolveRemoveShareFeedba
     resolveOwnerRemoveShareFeedback('permission-denied').title,
     resolveRemoveShareFeedback('permission-denied').title,
   );
+});
+
+void test('resolveDeleteEntryFeedback covers every PlanningErrorKind without throwing', () => {
+  const kinds = [
+    'permission-denied',
+    'unauthenticated',
+    'not-found',
+    'validation',
+    'failure',
+  ] as const;
+  for (const kind of kinds) {
+    const feedback = resolveDeleteEntryFeedback(kind);
+    assert.equal(feedback.variant, 'error');
+    assert.ok(feedback.title.length > 0);
+  }
+});
+
+void test('rejectedScheduleEntryDeleteFormState advances attempt and carries feedback', () => {
+  const feedback = resolveDeleteEntryFeedback('permission-denied');
+  const next = rejectedScheduleEntryDeleteFormState(
+    INITIAL_SCHEDULE_ENTRY_DELETE_FORM_STATE,
+    feedback,
+  );
+  assert.equal(next.attempt, 1);
+  assert.equal(next.feedback, feedback);
 });
 
 function validationError(message: string): PlanningError {

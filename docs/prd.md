@@ -86,9 +86,12 @@ model（1 event : N occurrence・occurrence starts_at必須/ends_at
 nullable・occurrence create/updateはparent event ownerのみ）、および
 event-independent personal schedule のpersistence / sharing / RLS
 baseline（all-day・multi-day all-day・time-boundedを曖昧なく区別する
-temporal shape・`paid_leave`/`work`/`travel`/`other`のMVP vocabulary・
-creator = owner・default private・entry単位のexplicit share・owner限定の
-recipient追加削除・recipientの自己離脱）、および occurrence-level
+temporal shape・required free-form `title` + 独立した`blocking` boolean
+（Issue #121。旧`paid_leave`/`work`/`travel`/`other`のclosed vocabulary
+をsupersede）・creator = owner・default private・entry単位のexplicit
+share・owner限定のrecipient追加削除・recipientの自己離脱・owner限定の
+entry hard delete（削除時はdependent shareをON DELETE CASCADEでcleanup））、
+および occurrence-level
 participation / invitation のpersistence / RLS baseline
 （participationはoccurrence単位・statusは`considering`/`attending`のみ・
 default private visibility・withdrawはrow削除で表現、invitationは
@@ -132,11 +135,16 @@ participationの登録・切替と参加予定の解除（row削除）ができ�
 RLS/auth failureはempty stateへ潰さず、読み込み失敗を区別して表示します。
 
 event-independent personal scheduleについても、上記typed boundaryに加えて
-MVP user-facing UI journeyが実装済みです（Issue #37）。`/schedule`で
+MVP user-facing UI journeyが実装済みです（Issue #37、Issue #121で
+title/blocking modelおよびentry削除journeyへ更新）。`/schedule`で
 自分の予定と共有された予定を一覧・詳細表示でき、all-day・multi-day
-all-day・time-boundedの作成・編集ができます。entry owner は`/schedule/
-[entryId]`のdetail画面からrecipientを登録済みemailで追加・一覧・削除
-でき、共有されたuserは自分自身をshareから外せます（self-remove）。
+all-day・time-boundedの作成・編集ができます。作成/編集formはfree-form
+`件名`とblocking/non-blocking controlを提供し、固定種別selectは
+廃止されています。entry owner は`/schedule/[entryId]`のdetail画面から
+recipientを登録済みemailで追加・一覧・削除でき、共有されたuserは
+自分自身をshareから外せます（self-remove）。entry owner は同じ画面から
+予定自体をconfirmation付きでhard deleteでき、削除後はowner/recipient
+双方の一覧から消えます。
 recipientのbounded一覧はそのentryに実際にshare済みの相手のみを示し、
 generic user directoryには広げていません。RLS/auth failureはempty/
 not-found stateへ潰さず、識別できないauth check失敗はfail-closedな

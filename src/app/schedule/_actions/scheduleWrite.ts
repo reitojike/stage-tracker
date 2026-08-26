@@ -6,6 +6,7 @@ import { readId } from '@/app/catalog/_actions/formHelpers.ts';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import {
   createPersonalScheduleEntry,
+  deletePersonalScheduleEntry,
   removeScheduleShare,
   shareScheduleEntryByEmail,
   updatePersonalScheduleEntry,
@@ -18,14 +19,17 @@ import {
 import {
   acceptedShareAddFormState,
   acceptedWriteFormState,
+  rejectedScheduleEntryDeleteFormState,
   rejectedShareAddFormState,
   rejectedShareRemoveFormState,
   rejectedWriteFormState,
+  resolveDeleteEntryFeedback,
   resolveOwnerRemoveShareFeedback,
   resolveRemoveShareFeedback,
   resolveShareByEmailOutcome,
   resolveWriteFeedback,
   resolveWriteNotice,
+  type ScheduleEntryDeleteFormState,
   type ScheduleShareAddFormState,
   type ScheduleShareRemoveFormState,
   type ScheduleWriteFormState,
@@ -49,7 +53,8 @@ import {
 // and scope the recipient projection to this entry's actual shares only.
 
 const SCHEDULE_FIELDS = [
-  'scheduleType',
+  'title',
+  'blocking',
   'temporalMode',
   'startsOn',
   'endsOn',
@@ -137,6 +142,40 @@ export async function updateScheduleEntryAction(
     personalScheduleEntryToFormValues(parsed.value),
     resolveWriteNotice('update-schedule-entry'),
   );
+}
+
+/**
+ * Hard-deletes a personal schedule entry, owner-only (Issue #121). Dependent
+ * personal_schedule_shares rows are cleaned up at the DB layer (ON DELETE
+ * CASCADE - see deletePersonalScheduleEntry's own comment), so this action
+ * has nothing else to revalidate on the recipient side: a recipient's next
+ * read of /schedule or /calendar simply no longer includes a row that no
+ * longer exists.
+ */
+export async function deleteScheduleEntryAction(
+  previous: ScheduleEntryDeleteFormState,
+  formData: FormData,
+): Promise<ScheduleEntryDeleteFormState> {
+  const entryId = readId(formData, 'entryId');
+  if (entryId === null) {
+    return rejectedScheduleEntryDeleteFormState(previous, resolveDeleteEntryFeedback('failure'));
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await deletePersonalScheduleEntry(client, entryId);
+  if (!result.ok) {
+    return rejectedScheduleEntryDeleteFormState(
+      previous,
+      resolveDeleteEntryFeedback(result.error.kind),
+    );
+  }
+
+  revalidatePath('/schedule');
+  revalidatePath('/calendar');
+  // Outside the failure branch above - see createScheduleEntryAction. The
+  // entry this page was showing no longer exists, so there is nothing left
+  // on the detail/edit pages to return to.
+  redirect('/schedule');
 }
 
 export async function removeScheduleShareAction(

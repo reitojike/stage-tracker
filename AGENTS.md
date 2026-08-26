@@ -1163,17 +1163,28 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 - event とは独立した personal schedule concept を持ちます。単純な
   `blocked` boolean にはしません。
 - all-day / multi-day all-day / time-bounded の schedule を表現できます。
-- schedule type は MVP で `paid_leave` / `work` / `travel` / `other` の
-  canonical vocabulary を持ちます。
+- schedule entry は固定 category を持たず、required free-form `title`
+  （件名）を持ちます（Issue #121。旧 `paid_leave` / `work` / `travel` /
+  `other` の closed schedule type vocabulary を supersede）。
+- 各 entry は独立した `blocking` boolean を持ちます。
+  - `blocking = true`: この時間には event 予定を入れたくない/availability
+    上予定ありとして扱います。
+  - `blocking = false`: schedule/calendar には表示しますが availability
+    を block しません。
+  - `blocking` は entry 本体の属性であり、share 先にも同じ semantics で
+    伝播します。per-recipient の blocking override は設けません。
 - schedule entry の作成者が owner です。
 - default は private（owner 本人のみ）です。
 - owner は entry 単位で authenticated user を明示指定して共有できます。
   共有は approval flow を持たず、owner が共有した時点で即時反映します。
-- 共有された schedule は、共有先 user の calendar / availability も
-  block します。
+- 共有された schedule は、その entry の `blocking` 値どおりに共有先 user
+  の calendar / availability へ反映されます（blocking entry は共有先でも
+  block 対象、non-blocking entry は共有先でも表示のみで block 対象には
+  なりません）。
 - 共有先 user は schedule 本体を編集できません。また、他の共有相手を
   追加・削除できません。共有相手の追加・削除は owner だけが行えます。
-- 共有先 user は自分自身をその共有 schedule から外せます。
+- 共有先 user は自分自身をその共有 schedule から外せます（entry 全体の
+  削除とは独立した operation - 「Entry deletion semantics」参照）。
 - MVP では共有先 user に busy-only ではなく、schedule の通常表示内容を
   見せます。
 - collaborative editing、field 単位の privacy、共有相手ごとの権限差は
@@ -1188,6 +1199,25 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
   projection を持ちます。これは global user directory ではなく、その
   owner が管理する既存 share relation に限定されます。non-owner /
   unrelated user はこの projection を読めません。
+
+### Entry deletion semantics
+
+- Personal Schedule entry は、owner による hard delete を正式 operation
+  として提供します（Issue #121）。soft delete / trash / restore /
+  deletion history は導入しません。
+- delete できるのは entry の owner だけです。shared recipient / それ以外
+  の authenticated user / anonymous user は delete できません。
+- entry 削除後は、owner・recipients 双方を含む全 user surface からその
+  予定が消えます。
+- entry に従属する `personal_schedule_shares` row は、entry 削除時に
+  安全に cleanup され、orphan として残りません（DB level の
+  `ON DELETE CASCADE`）。
+- recipient の self-leave（自分自身をその共有 schedule から外す）は
+  entry 削除とは独立した既存 operation であり、「そのrecipientからだけ
+  消える」既存 semantics を引き続き維持します（entry 自体は owner・他の
+  recipient に残ります）。
+- Event / Event Occurrence の deletion/cancellation semantics とは性質が
+  異なるため、この決定はそちらの scope へ影響しません。
 
 ## Ticket acquisition / Ticket
 

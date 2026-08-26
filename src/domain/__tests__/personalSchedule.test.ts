@@ -16,7 +16,8 @@ function rawAllDayRow(
   return {
     id: 'entry-1',
     owner_id: 'owner-1',
-    schedule_type: 'other',
+    title: 'その他',
+    blocking: true,
     memo: null,
     is_all_day: true,
     starts_on: '2026-02-01',
@@ -35,7 +36,8 @@ function rawTimedRow(
   return {
     id: 'entry-2',
     owner_id: 'owner-1',
-    schedule_type: 'work',
+    title: '仕事',
+    blocking: true,
     memo: null,
     is_all_day: false,
     starts_on: null,
@@ -52,7 +54,8 @@ void test('mapPersonalScheduleEntryRow maps an all-day row to the all-day shape'
   const mapped = mapPersonalScheduleEntryRow(
     rawAllDayRow({ starts_on: '2026-02-01', ends_on: '2026-02-03', memo: 'trip' }),
   );
-  assert.equal(mapped.scheduleType, 'other');
+  assert.equal(mapped.title, 'その他');
+  assert.equal(mapped.blocking, true);
   assert.equal(mapped.memo, 'trip');
   assert.deepEqual(mapped.temporal, {
     kind: 'all-day',
@@ -70,8 +73,9 @@ void test('mapPersonalScheduleEntryRow maps a time-bounded row, endsAt may be nu
   });
 });
 
-void test('mapPersonalScheduleEntryRow rejects an unrecognized schedule_type', () => {
-  assert.throws(() => mapPersonalScheduleEntryRow(rawAllDayRow({ schedule_type: 'vacation' })));
+void test('mapPersonalScheduleEntryRow maps blocking=false through unchanged', () => {
+  const mapped = mapPersonalScheduleEntryRow(rawAllDayRow({ blocking: false }));
+  assert.equal(mapped.blocking, false);
 });
 
 void test('mapPersonalScheduleEntryRow rejects an all-day row missing starts_on/ends_on', () => {

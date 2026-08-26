@@ -63,7 +63,8 @@ async function createScheduleEntryAsOwner(actor) {
     .from('personal_schedule_entries')
     .insert({
       owner_id: actor.user.id,
-      schedule_type: 'other',
+      title: 'guardrail proof fixture',
+      blocking: true,
       is_all_day: true,
       starts_on: startsOn,
       ends_on: startsOn,
@@ -546,7 +547,8 @@ try {
       // just on a different policy than the one under test).
       const { error } = await actorB.client.from('personal_schedule_entries').insert({
         owner_id: actorA.user.id,
-        schedule_type: 'other',
+        title: 'guardrail proof spoofed-owner fixture',
+        blocking: true,
         memo: marker,
         is_all_day: true,
         starts_on: startsOn,

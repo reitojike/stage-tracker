@@ -29,10 +29,12 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   CHECK制約は未導入で、DB levelの不変条件ではない）
 - event-independent personal scheduleのpersistence / sharing / RLS
   baseline（all-day・multi-day all-day・time-boundedを曖昧なく区別する
-  temporal shape、`paid_leave`/`work`/`travel`/`other`のMVP vocabulary、
-  creator = owner、default private、entry単位のexplicit share・
-  approvalなし即時反映、owner限定のrecipient追加削除、recipientの自己
-  離脱）
+  temporal shape、required free-form `title` + 独立した`blocking`
+  boolean（Issue #121。旧`paid_leave`/`work`/`travel`/`other`のclosed
+  vocabularyをsupersede）、creator = owner、default private、entry単位の
+  explicit share・approvalなし即時反映、owner限定のrecipient追加削除、
+  recipientの自己離脱、owner限定のentry hard delete（dependent shareは
+  ON DELETE CASCADEでcleanup）
 - occurrence-level participation / invitationのpersistence / RLS
   baseline（participationはoccurrence単位・statusは`considering`/
   `attending`のみで`not_attending`は持たない・default private
@@ -111,13 +113,16 @@ participation解除、attending occurrenceからのinvite-by-email、
 
 event-independent personal scheduleも同様に、schema/RLS baseline・typed
 read/write boundaryに加え、MVP user-facing UI journeyが実装済みです
-（Issue #37。`/schedule`での一覧、all-day・multi-day all-day・
-time-boundedの作成/編集、owner向けrecipient追加/一覧/削除、shared user
-自身によるself-remove）。recipient追加は上記「Authenticated-user
-targeting」節のとおり登録済みemail addressのexact inputで、
-`share_schedule_entry_by_email`で解決します。owner向けrecipient一覧は
-`list_schedule_share_recipient_emails`が返す、そのentryに実際にshare
-済みのrecipientのみのbounded projectionです。
+（Issue #37。Issue #121でfree-form `title` + `blocking` modelおよび
+owner限定のentry hard delete journeyへ更新）。`/schedule`での一覧、
+all-day・multi-day all-day・time-boundedの作成/編集（固定種別selectは
+廃止し、free-form件名とblocking/non-blocking controlを提供）、owner向け
+recipient追加/一覧/削除、shared user自身によるself-remove、owner向けの
+confirmation付きentry削除ができます。recipient追加は上記
+「Authenticated-user targeting」節のとおり登録済みemail addressの
+exact inputで、`share_schedule_entry_by_email`で解決します。owner向け
+recipient一覧は`list_schedule_share_recipient_emails`が返す、そのentryに
+実際にshare済みのrecipientのみのbounded projectionです。
 
 ticket acquisition / ticket / ticket transferはschema/RLS baselineとtyped
 read/write boundaryのみ成立済みで、acquisition/ticketの新規作成・編集

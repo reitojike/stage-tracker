@@ -8,7 +8,7 @@ import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClie
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import { listVisiblePersonalSchedule } from '@/infrastructure/supabase/personalSchedule.ts';
 import { resolvePlanningReadState } from '@/domain/planningError.ts';
-import { scheduleTemporalLabel, scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
+import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
 import type { PersonalScheduleEntry } from '@/domain/personalSchedule.ts';
 import styles from './_components/ScheduleList.module.css';
 
@@ -69,7 +69,8 @@ export default async function SchedulePage() {
                         {isOwner ? '自分の予定' : '共有されている予定'}
                       </Badge>
                     ) : null}
-                    <span className={styles.itemType}>{scheduleTypeLabel(entry.scheduleType)}</span>
+                    <span className={styles.itemType}>{entry.title}</span>
+                    {!entry.blocking ? <Badge variant="neutral">予定を確保しない</Badge> : null}
                     <span className={styles.itemTemporal}>
                       {scheduleTemporalLabel(entry.temporal)}
                     </span>

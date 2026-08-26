@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import {
+  createAdminClient,
   createAnonymousClient,
   createTestActor,
   deleteTestActor,
   type TestActor,
 } from './support/testActors.ts';
 import {
-  callInsertScheduleEntryRaw,
   createAllDayScheduleEntry,
   createTimedScheduleEntry,
   scheduleEntryMemo,
@@ -95,7 +95,8 @@ void test('rejects an all-day entry that also sets starts_at', async () => {
   const startsOn = new Date().toISOString().slice(0, 10);
   const { error } = await owner.client.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: true,
     starts_on: startsOn,
     ends_on: startsOn,
@@ -107,7 +108,8 @@ void test('rejects an all-day entry that also sets starts_at', async () => {
 void test('rejects a time-bounded entry that also sets starts_on', async () => {
   const { error } = await owner.client.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: false,
     starts_at: new Date().toISOString(),
     starts_on: new Date().toISOString().slice(0, 10),
@@ -121,7 +123,8 @@ void test('rejects a time-bounded entry that also sets starts_on', async () => {
 void test('rejects an all-day entry with ends_on before starts_on', async () => {
   const { error } = await owner.client.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: true,
     starts_on: '2026-09-05',
     ends_on: '2026-09-01',
@@ -134,7 +137,8 @@ void test('rejects a time-bounded entry with ends_at before starts_at', async ()
   const endsAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { error } = await owner.client.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: false,
     starts_at: startsAt,
     ends_at: endsAt,
@@ -148,7 +152,8 @@ void test('rejects a time-bounded entry with ends_at before starts_at', async ()
 void test('rejects an all-day entry missing ends_on', async () => {
   const { error } = await owner.client.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: true,
     starts_on: new Date().toISOString().slice(0, 10),
   });
@@ -158,29 +163,11 @@ void test('rejects an all-day entry missing ends_on', async () => {
 void test('rejects a time-bounded entry missing starts_at', async () => {
   const { error } = await owner.client.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: false,
   });
   assert.ok(error, 'expected the temporal shape check constraint to reject a missing starts_at');
-});
-
-void test('rejects a schedule_type outside the MVP vocabulary', async () => {
-  const startsOn = new Date().toISOString().slice(0, 10);
-  // 'vacation' is deliberately outside the generated schedule_type union,
-  // which the typed client cannot express - goes over raw HTTP to prove
-  // server-side (not just client-type) enforcement.
-  const response = await callInsertScheduleEntryRaw(owner, {
-    owner_id: owner.user.id,
-    schedule_type: 'vacation',
-    is_all_day: true,
-    starts_on: startsOn,
-    ends_on: startsOn,
-  });
-  assert.equal(
-    response.ok,
-    false,
-    'expected the schedule_type check constraint to reject an unknown value',
-  );
 });
 
 // --- Positive: default-private / owner read+write ---
@@ -242,7 +229,8 @@ void test('owner_id cannot be spoofed on insert', async () => {
   const startsOn = new Date().toISOString().slice(0, 10);
   const { error } = await stranger.client.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: true,
     starts_on: startsOn,
     ends_on: startsOn,
@@ -265,7 +253,8 @@ void test('owner sharing an entry lets the recipient read it', async () => {
   const [row] = data;
   assert.ok(row);
   assert.equal(row.memo, entry.memo);
-  assert.equal(row.schedule_type, entry.schedule_type);
+  assert.equal(row.title, entry.title);
+  assert.equal(row.blocking, entry.blocking);
 });
 
 void test('owner can see the recipients they have shared an entry with', async () => {
@@ -404,7 +393,8 @@ void test('anonymous cannot insert schedule entries', async () => {
   const anon = createAnonymousClient();
   const { error } = await anon.from('personal_schedule_entries').insert({
     owner_id: owner.user.id,
-    schedule_type: 'other',
+    title: 'x',
+    blocking: true,
     is_all_day: true,
     starts_on: startsOn,
     ends_on: startsOn,
@@ -512,13 +502,89 @@ void test('owner cannot transfer ownership of an entry', async () => {
   assert.equal(refetched?.owner_id, owner.user.id);
 });
 
-// --- Negative: DELETE unsupported on entries ---
+// --- Entry deletion (Issue #121): owner-only hard delete, cascading to
+// dependent personal_schedule_shares rows. The create migration
+// (20260822000000) deliberately withheld DELETE entirely; 20260826000000
+// added personal_schedule_entries_delete_own plus an ON DELETE CASCADE FK
+// from personal_schedule_shares.schedule_entry_id.
 
-void test('owner cannot delete a schedule entry', async () => {
+void test('owner can delete their own entry', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  const { error } = await owner.client
+  const { error: deleteError } = await owner.client
     .from('personal_schedule_entries')
     .delete()
     .eq('id', entry.id);
-  assert.ok(error, 'expected DELETE to be unsupported for a normal authenticated client');
+  assert.equal(deleteError, null);
+
+  const { data } = await owner.client.from('personal_schedule_entries').select().eq('id', entry.id);
+  assert.deepEqual(data, []);
+});
+
+void test('deleting an entry cascades to its shares, leaving no orphan row', async () => {
+  const entry = await createTimedScheduleEntry(owner);
+  const share = await shareScheduleEntry(owner, entry.id, recipient.user.id);
+
+  const { error: deleteError } = await owner.client
+    .from('personal_schedule_entries')
+    .delete()
+    .eq('id', entry.id);
+  assert.equal(deleteError, null);
+
+  // Bypasses RLS (createAdminClient - see testActors.ts's own header on why
+  // assertions normally avoid it) specifically to prove the share row was
+  // actually deleted by the FK's ON DELETE CASCADE, not merely hidden from
+  // both parties by RLS now that the entry it referenced is gone - an
+  // orphaned row with no entry left to grant access to would be invisible
+  // to owner/recipient reads either way, so only a privilege-bypassing read
+  // can tell the two apart.
+  const admin = createAdminClient();
+  const { data: orphanCheck, error: orphanCheckError } = await admin
+    .from('personal_schedule_shares')
+    .select()
+    .eq('id', share.id);
+  assert.equal(orphanCheckError, null);
+  assert.deepEqual(orphanCheck, []);
+
+  // Both parties lose visibility too, as a consequence.
+  const { data: recipientView } = await recipient.client
+    .from('personal_schedule_entries')
+    .select()
+    .eq('id', entry.id);
+  assert.deepEqual(recipientView, []);
+});
+
+void test('a recipient cannot delete a shared entry, and it remains visible to the owner', async () => {
+  const entry = await createTimedScheduleEntry(owner);
+  await shareScheduleEntry(owner, entry.id, recipient.user.id);
+
+  const { data: deleteData, error: deleteError } = await recipient.client
+    .from('personal_schedule_entries')
+    .delete()
+    .eq('id', entry.id)
+    .select();
+  assert.equal(deleteError, null);
+  assert.deepEqual(deleteData, []);
+
+  const { data: refetched } = await owner.client
+    .from('personal_schedule_entries')
+    .select()
+    .eq('id', entry.id);
+  assert.equal(refetched?.length, 1);
+});
+
+void test('a stranger (no share, not the owner) cannot delete an entry', async () => {
+  const entry = await createTimedScheduleEntry(owner);
+  const { data: deleteData, error: deleteError } = await stranger.client
+    .from('personal_schedule_entries')
+    .delete()
+    .eq('id', entry.id)
+    .select();
+  assert.equal(deleteError, null);
+  assert.deepEqual(deleteData, []);
+
+  const { data: refetched } = await owner.client
+    .from('personal_schedule_entries')
+    .select()
+    .eq('id', entry.id);
+  assert.equal(refetched?.length, 1);
 });

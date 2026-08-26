@@ -1,22 +1,15 @@
 import { tokyoDateLabel, tokyoTimeLabel, UNKNOWN_END_TIME_LABEL } from './catalogFormatting.ts';
 import { parseTokyoCalendarDate, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
-import type { ScheduleTemporal, ScheduleType } from './personalSchedule.ts';
+import type { ScheduleTemporal } from './personalSchedule.ts';
 
 // Pure display formatting for the personal schedule feature (Issue #37).
 // Reuses catalogFormatting.ts's Asia/Tokyo instant formatters so an instant
 // renders identically everywhere in the product, rather than reimplementing
 // the same +9h conversion a second time.
-
-const SCHEDULE_TYPE_LABELS: Record<ScheduleType, string> = {
-  paid_leave: '有給休暇',
-  work: '仕事',
-  travel: '遠征',
-  other: 'その他',
-};
-
-export function scheduleTypeLabel(scheduleType: ScheduleType): string {
-  return SCHEDULE_TYPE_LABELS[scheduleType];
-}
+//
+// Issue #121 removed the closed schedule_type vocabulary this module used
+// to label (scheduleTypeLabel): a PersonalScheduleEntry's free-form `title`
+// is now the display label directly, with no formatting step of its own.
 
 /** "2026年8月10日" for a single-day all-day entry, "2026年8月10日〜2026年8月12日"
  * for a multi-day one. startsOn/endsOn are plain calendar dates already

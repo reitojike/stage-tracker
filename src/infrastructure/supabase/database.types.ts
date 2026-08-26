@@ -182,6 +182,7 @@ export type Database = {
       }
       personal_schedule_entries: {
         Row: {
+          blocking: boolean
           created_at: string
           ends_at: string | null
           ends_on: string | null
@@ -189,12 +190,13 @@ export type Database = {
           is_all_day: boolean
           memo: string | null
           owner_id: string
-          schedule_type: string
           starts_at: string | null
           starts_on: string | null
+          title: string
           updated_at: string
         }
         Insert: {
+          blocking: boolean
           created_at?: string
           ends_at?: string | null
           ends_on?: string | null
@@ -202,12 +204,13 @@ export type Database = {
           is_all_day: boolean
           memo?: string | null
           owner_id: string
-          schedule_type: string
           starts_at?: string | null
           starts_on?: string | null
+          title: string
           updated_at?: string
         }
         Update: {
+          blocking?: boolean
           created_at?: string
           ends_at?: string | null
           ends_on?: string | null
@@ -215,9 +218,9 @@ export type Database = {
           is_all_day?: boolean
           memo?: string | null
           owner_id?: string
-          schedule_type?: string
           starts_at?: string | null
           starts_on?: string | null
+          title?: string
           updated_at?: string
         }
         Relationships: []
