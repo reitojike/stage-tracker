@@ -19,12 +19,15 @@ function PasskeyListView({ passkeys }: { passkeys: PasskeyListItem[] }) {
 
   return (
     <ul className={styles.list}>
-      {passkeys.map((passkey) => (
-        <li key={passkey.id} className={styles.item}>
-          <span className={styles.itemLabel}>{passkeyDisplayLabel(passkey)}</span>
-          <DeletePasskeyForm passkeyId={passkey.id} />
-        </li>
-      ))}
+      {passkeys.map((passkey) => {
+        const label = passkeyDisplayLabel(passkey);
+        return (
+          <li key={passkey.id} className={styles.item}>
+            <span className={styles.itemLabel}>{label}</span>
+            <DeletePasskeyForm passkeyId={passkey.id} passkeyLabel={label} />
+          </li>
+        );
+      })}
     </ul>
   );
 }
