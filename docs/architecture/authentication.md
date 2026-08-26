@@ -1,17 +1,22 @@
-# 認証フロー（Magic Link）
+# 認証フロー（Magic Link / Passkey）
 
-Canonical context: Issue #66。現時点で実装済みの Magic Link 認証フローの
-記録です。新しい設計の提案ではありません。
+Canonical context: Issue #66（Magic Link）、Issue #106（Passkey）。現時点で
+実装済みの認証フローの記録です。新しい設計の提案ではありません。
 
 関連: [docs/architecture/runtime-stack.md](runtime-stack.md)（サービス構成
 全体）。
 
 ## 全体像
 
-stage-tracker は password 認証を持たず、Supabase Auth の Magic Link
-（email OTP）のみで認証します。Auth プロバイダーの追加設定はすべて
-`enabled = false` で、外部 OAuth や anonymous sign-in は使用していません
-（`supabase/config.toml` の `[auth.external.*]` / `enable_anonymous_sign_ins`）。
+stage-tracker は password 認証を持たず、account bootstrap / recovery は
+Supabase Auth の Magic Link（email OTP）のみで行います。日常の primary
+sign-in path としては、これに加えて Passkey（Supabase Auth WebAuthn,
+Beta。Issue #106）を提供します。Passkey は Magic Link を置換するもので
+はなく、既に provisioned / confirmed な account へ追加する optional
+credential です（詳細は「## Passkey（WebAuthn, Beta）」節）。Auth
+プロバイダーの追加設定はすべて `enabled = false` で、外部 OAuth や
+anonymous sign-in は使用していません（`supabase/config.toml` の
+`[auth.external.*]` / `enable_anonymous_sign_ins`）。
 
 サインアップは自己サービスでは行えません（`enable_signup = false`）。
 アカウントは `scripts/provision-user.mjs` によるオペレーターの事前作成のみで、
@@ -180,3 +185,40 @@ Issue #66 完了時点では `serverClient.ts` の 39 行目・57 行目のコ�
   上記の対策を Route Handler 一箇所に閉じ込めています。追加の workaround
   （implicit flow 対応、PKCE code verifier の独自管理等）を導入する理由は
   現時点でありません。
+
+## Passkey（WebAuthn, Beta）
+
+Canonical context: Issue #106。採用判断・maturity評価・test automation
+boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://github.com/reitojike/stage-tracker/issues/106)
+に記録済みで、ここでは重複しません。
+
+- Supabase Auth Passkey は 2026-05-28 公開の Beta（experimental）機能です。
+  `auth.experimental.passkey: true` を client 初期化時に明示しないと全
+  passkey method が reject されます
+  （[src/infrastructure/supabase/browserClient.ts](../../src/infrastructure/supabase/browserClient.ts)、
+  [src/infrastructure/supabase/serverClient.ts](../../src/infrastructure/supabase/serverClient.ts)）。
+- WebAuthn ceremony（`navigator.credentials.create()`/`get()`）は browser
+  専用のため、`registerPasskey()` / `signInWithPasskey()` は client
+  component からのみ呼び出します
+  （[src/app/sign-in/_components/PasskeySignInButton.tsx](../../src/app/sign-in/_components/PasskeySignInButton.tsx)、
+  [src/app/(home)/_components/RegisterPasskeyButton.tsx](<../../src/app/(home)/_components/RegisterPasskeyButton.tsx>)）。
+- credential 管理（一覧・削除）は `auth.passkey.list()` / `.delete()` を
+  使い、`auth.admin.passkey.*`（service_role 必須）は使用しません。現在の
+  signed-in userの session scopeに限定されるため、通常の Server
+  Component / Server Action から安全に呼べます
+  （[src/infrastructure/supabase/passkey.ts](../../src/infrastructure/supabase/passkey.ts)）。
+- Passkey 未登録 user は従来どおり Magic Link でサインインできます。
+  Passkey 側の失敗・credential 喪失時も Magic Link へ fallback でき、
+  account lockout は発生しません。
+- Local dev の RP 設定は `supabase/config.toml` の `[auth.passkey]` /
+  `[auth.webauthn]`（`rp_id = "127.0.0.1"`、既存 `site_url` と一致）です。
+  本番 RP ID / Origins は Supabase Dashboard 側の operational step として
+  別途設定が必要で、remote Supabase project の provisioning と同様この
+  repository の merge gate には含めません。
+- WebAuthn ceremony 自体（実機の Face ID / Touch ID / Windows Hello 等）は
+  browser 専用の API であり、このリポジトリの `test:auth`（Node の
+  `--test` ランナーで実 HTTP リクエストを送る方式、browser 自動化ツール
+  なし）では自動化できません。session/認可境界・Magic Link fallback・
+  public signup 非復活は
+  [test/auth/passkey.test.ts](../../test/auth/passkey.test.ts) で自動検証
+  し、実際の WebAuthn ceremony は manual smoke 対象です。

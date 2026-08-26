@@ -256,10 +256,14 @@ uncommitted）です。current committed scopeには含みません。
 - 家族・友人への本格展開時期（現時点の実runtimeはGate Aの本人 + 妻の
   bounded 2-user dogfoodであり、broader rolloutは確約していません）
 
-sign-in provider（具体的な認証方式）はEmail magic link + Supabase Auth
-cookie-based sessionとして決定済みです（Issue #11）。現時点でdeferredな
-のはproduction hosting providerとPWA scopeのみで、sign-in providerを
-これらと同一のdeferred項目として扱いません。
+sign-in provider（具体的な認証方式）は、account bootstrap / recovery用の
+Email magic link + Supabase Auth cookie-based session（Issue #11）に加え、
+日常sign-inのprimary pathとしてPasskey（Supabase Auth WebAuthn, Beta）を
+追加した構成として決定済みです（Issue #106）。Passkeyは Magic Linkを
+置換するものではなく、既存 provisioned accountへ追加するoptional
+credentialです。現時点でdeferredなのはproduction hosting providerと
+PWA scopeのみで、sign-in providerをこれらと同一のdeferred項目として
+扱いません。
 
 ## Canonical constraints
 

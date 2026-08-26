@@ -204,5 +204,8 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
   bounded 2-user dogfoodであり、broader rolloutは確約していません）
 
 sign-in providerはEmail magic link + Supabase Auth cookie-based session
-として決定済みです（詳細は[`docs/prd.md`](./prd.md#deferred-decisions)
-参照）。production hosting providerとは別項目として扱います。
+（Issue #11、account bootstrap / recovery用）に加え、日常sign-inの
+primary pathとしてPasskey（Issue #106、Magic Linkを置換しないoptional
+credential）を追加した構成として決定済みです（詳細は
+[`docs/prd.md`](./prd.md#deferred-decisions) 参照）。production hosting
+providerとは別項目として扱います。

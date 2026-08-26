@@ -2,6 +2,7 @@ import { getAuthenticatedUser } from '@/infrastructure/supabase/session.ts';
 import { PageHeading } from '@/ui/PageHeading';
 import { HomeAccount } from './_components/HomeAccount.tsx';
 import { HomeNav } from './_components/HomeNav.tsx';
+import { PasskeySection } from './_components/PasskeySection.tsx';
 
 /**
  * Home is the entry point for the Gate A journeys: it names the two
@@ -22,6 +23,9 @@ export default async function Home() {
       <PageHeading>ホーム</PageHeading>
       <HomeNav />
       <HomeAccount email={user?.email ?? null} />
+      {/* Passkey登録済みuserだけが自分のPasskeyを登録できる（Issue #106） -
+          未サインインでは表示自体をしない。 */}
+      {user === null ? null : <PasskeySection />}
     </>
   );
 }

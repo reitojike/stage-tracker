@@ -11,8 +11,11 @@ Developer を採用する想定でした（Issue #61 の「Bounded provider deci
 Gate A」参照）。実際の Production environment は代わりに **Resend** を
 使っており、この runbook もそれに合わせて更新済みです。この切り替えは
 operator 側の履歴に過ぎず（ここで再検討はしません）、他の Gate A bounded
-decision（Vercel Hobby、新規 hosted Supabase project、magic-link-only
-auth）を変更するものではありません。
+decision（Vercel Hobby、新規 hosted Supabase project）を変更するものでは
+ありません。sign-in provider は Magic Link のみから、Magic Link（account
+bootstrap / recovery）+ Passkey（日常の primary sign-in path）へ拡張済み
+です（Issue #106）。remote project 側の Passkey 有効化手順は下記「Auth
+configuration」節を参照してください。
 
 Repository migrations が唯一の schema authority です。Supabase Dashboard の
 SQL editor で schema/RLS/RPCs を手編集しないでください — すべての schema
@@ -131,6 +134,32 @@ local 専用設定を Gate A project へ push してしまいます。上記の 
 `config.toml`（または他の config-as-code 手段）の構築は、この runbook の
 scope 外です。project が再作成された場合は、これらの設定を手で re-apply
 してください。
+
+### Passkey / WebAuthn configuration（Supabase Dashboard → Authentication → Passkeys）
+
+Issue #106 で Passkey（Supabase Auth WebAuthn, Beta）が Magic Link に追加
+した primary sign-in path として決定済みです。app code
+（`supabase/config.toml` の `[auth.passkey]` / `[auth.webauthn]`）は
+local dev stack 向けの設定であり、上記の理由で `config push` を使わない
+ため、remote project へは反映されません。これを手で materialize しない
+限り、production 上の Passkey UI（サインイン・登録ボタン）はすべて失敗
+します — 事前に必ず設定してください。
+
+- **Passkeys → Enable passkeys**: 有効化します。
+- **Relying Party Display Name**: `stage-tracker`（local と同一）。
+- **Relying Party ID**: この project の canonical production domain の
+  bare domain（scheme / port / path なし）。上記「URL Configuration →
+  Site URL」と一致する domain を使います。
+- **Relying Party Origins**: 上記 Site URL と同一の `https://` origin
+  （最大 5 件まで登録可）。
+- Passkey は登録時の Relying Party ID に暗号学的に紐づきます。**Relying
+  Party ID を後から変更すると、既存の登録済み Passkey はすべて sign-in に
+  使えなくなります**（Magic Link は影響を受けません — fallback として
+  引き続き機能します）。production domain が未確定のまま Passkey 機能を
+  有効化しないでください。
+- 採用可否・maturity・test automation boundary の詳細は
+  [Issue #106 の Phase 1 checkpoint コメント](https://github.com/reitojike/stage-tracker/issues/106)
+  を参照してください。
 
 ## Deploy / update
 

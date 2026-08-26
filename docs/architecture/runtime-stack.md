@@ -19,7 +19,7 @@ truth は依然としてこのリポジトリ（migrations / route handler / con
 | -------------- | ---------------------------------------------------------------------------------------------------- |
 | **Vercel**     | Next.js アプリケーションのホスティング、Production domain routing、Environment Variables の配布      |
 | **Cloudflare** | `stage-tracker.com` の Registrar（ドメイン取得）と DNS 管理、Resend 送信用の SPF/DKIM/DMARC レコード |
-| **Supabase**   | Authentication（Magic Link）、Postgres Database、RLS by migration                                    |
+| **Supabase**   | Authentication（Magic Link / Passkey）、Postgres Database、RLS by migration                          |
 | **Resend**     | Supabase Auth のメール配送用 SMTP provider                                                           |
 | **GitHub**     | Source control、Issue/PR ワークフロー、CI（`verify.yml`）                                            |
 
