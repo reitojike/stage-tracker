@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
+import path from 'node:path';
 import {
   readLocalSupabaseStatus,
   type LocalSupabaseStatus,
@@ -29,32 +31,86 @@ export interface AppServer {
   stop: () => Promise<void>;
 }
 
-function stopProcess(child: ChildProcess): Promise<void> {
-  return new Promise((resolve) => {
-    const alreadyExited = child.exitCode !== null || child.signalCode !== null;
+// Bounded well below the ~24min hang observed in #31 (a Windows taskkill
+// that silently failed to reach every descendant left stopProcess() awaiting
+// an 'exit' event that would never come), and well above how long a normal
+// kill actually takes.
+const STOP_TIMEOUT_MS = 30_000;
 
-    if (process.platform === 'win32') {
-      // Unchanged from before: child is the npx/next shim; killing only it
-      // would orphan the server process still holding the port. taskkill
-      // /T walks the whole process tree.
-      if (alreadyExited) {
-        resolve();
-        return;
-      }
-      child.once('exit', () => {
-        resolve();
-      });
+interface ExitAware {
+  exitCode: number | null;
+  signalCode: NodeJS.Signals | null;
+  once: (event: 'exit', listener: () => void) => void;
+}
+
+/**
+ * Resolves once `target` reports an 'exit' event (or already has), or
+ * rejects if that does not happen within `timeoutMs`. Exported so the
+ * bounded-wait itself - the fix for a stop() that could otherwise hang
+ * indefinitely if a kill attempt silently failed - can be proven directly
+ * against a fake emitter, without needing a real, potentially genuinely
+ * unkillable, process tree.
+ */
+export function waitForExit(target: ExitAware, timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (target.exitCode !== null || target.signalCode !== null) {
+      resolve();
+      return;
+    }
+    const timeout = setTimeout(() => {
+      reject(
+        new Error(
+          `process did not exit within ${String(timeoutMs)}ms of a kill being attempted - a descendant may still be alive and holding the port and .next/dev/lock`,
+        ),
+      );
+    }, timeoutMs);
+    target.once('exit', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+}
+
+type KillableChild = ExitAware & Pick<ChildProcess, 'pid' | 'kill'>;
+
+/**
+ * Exported (and taking the same minimal `KillableChild` shape as
+ * `waitForExit`, rather than a full `ChildProcess`) so the platform-specific
+ * kill branching can be proven directly against a fake, including the
+ * already-exited case below that a real spawned process can't deterministically
+ * reproduce on demand.
+ */
+export function stopProcess(child: KillableChild): Promise<void> {
+  const alreadyExited = child.exitCode !== null || child.signalCode !== null;
+  const exited = waitForExit(child, STOP_TIMEOUT_MS);
+
+  if (process.platform === 'win32') {
+    // child is the npx/next shim; killing only it would orphan the server
+    // process still holding the port. taskkill /T walks the whole process
+    // tree - but it does so by looking up descendants of *this* still-alive
+    // pid, so there is nothing to attempt once the immediate child has
+    // already exited (unlike the POSIX group kill below, which stays valid
+    // after the leader exits).
+    if (!alreadyExited) {
       if (typeof child.pid === 'number') {
+        // This is fire-and-forget - its own exit isn't awaited, only the
+        // target child's (via `exited` above) - but it still needs an
+        // 'error' listener: an unhandled 'error' event on a ChildProcess
+        // (e.g. taskkill missing from PATH) is an uncaught exception that
+        // would crash the whole test process, bypassing waitForExit's
+        // bounded timeout entirely. Logging and swallowing it here lets
+        // that timeout remain the single surfaced failure mode instead.
         spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
           stdio: 'ignore',
           shell: false,
+        }).on('error', (spawnError) => {
+          console.error('failed to spawn taskkill for cleanup:', spawnError);
         });
       } else {
         child.kill('SIGTERM');
       }
-      return;
     }
-
+  } else if (typeof child.pid === 'number') {
     // POSIX: spawnNextDev spawns with detached: true, making this child the
     // leader of its own process group (group id == its pid). `next dev`
     // (via Turbopack) forks a next-server worker as a grandchild, which
@@ -64,28 +120,21 @@ function stopProcess(child: ChildProcess): Promise<void> {
     // starting a fresh one. Killing the whole group (negative pid) reaches
     // it too.
     //
-    // This is attempted even when `child` itself has already exited: Node
-    // only tracks *this* process's exit, not its descendants', and the
-    // group id stays valid as a kill target for as long as any member of
-    // it is still alive - including an already-orphaned next-server whose
-    // immediate parent exited first.
-    if (typeof child.pid === 'number') {
-      try {
-        process.kill(-child.pid, 'SIGTERM');
-      } catch {
-        // ESRCH (group already fully gone) or similar - nothing left to
-        // kill; not a failure of cleanup itself.
-      }
+    // This is attempted even when `child` itself has already exited: the
+    // group id stays valid as a kill target for as long as any member of it
+    // is still alive - including an already-orphaned next-server whose
+    // immediate parent (this child) exited first.
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+    } catch {
+      // ESRCH (group already fully gone) or similar - nothing left to
+      // kill; not a failure of cleanup itself.
     }
+  } else if (!alreadyExited) {
+    child.kill('SIGTERM');
+  }
 
-    if (alreadyExited) {
-      resolve();
-      return;
-    }
-    child.once('exit', () => {
-      resolve();
-    });
-  });
+  return exited;
 }
 
 // When `next dev` detects an AI coding agent it rewrites AGENTS.md /
@@ -170,6 +219,36 @@ function spawnNextDev(port: number, status: LocalSupabaseStatus): SpawnedNextDev
 }
 
 /**
+ * Cheap, synchronous check for the one dependency-installation failure mode
+ * actually observed (#30): a worktree without its own `npm ci` has no
+ * node_modules, so Next/Turbopack answers every route with a 500 instead of
+ * failing to start - which used to be misread as "ready" (see
+ * isHealthyReadyResponse below) and only surfaced much later as a hung
+ * sign-in flow. Failing here is near-instant instead of waiting through the
+ * full readiness poll below only to time out with a less specific error.
+ */
+export function assertDependenciesInstalled(cwd: string): void {
+  const marker = path.join(cwd, 'node_modules', 'next', 'package.json');
+  if (!existsSync(marker)) {
+    throw new Error(
+      `${marker} not found - this worktree needs its own "npm ci" before running test:auth ` +
+        '(node_modules is not shared automatically across worktrees)',
+    );
+  }
+}
+
+/**
+ * A response at all (even non-2xx) proves the port is accepting
+ * connections, but a 5xx means the app itself is broken rather than still
+ * starting up - e.g. #30, where a worktree missing node_modules made every
+ * route 500 forever. Treating that as "ready" surfaced only much later as a
+ * hung sign-in flow instead of a clear startup failure here.
+ */
+export function isHealthyReadyResponse(status: number): boolean {
+  return status >= 200 && status < 500;
+}
+
+/**
  * Boots the real Next.js app so route protection can be verified over
  * HTTP. `next dev` is used rather than `next start` so this test does not
  * depend on a build artifact having been produced first.
@@ -186,11 +265,13 @@ function spawnNextDev(port: number, status: LocalSupabaseStatus): SpawnedNextDev
  * startAppServer runs.
  */
 export async function startAppServer(): Promise<AppServer> {
+  assertDependenciesInstalled(process.cwd());
   const status = readLocalSupabaseStatus();
   const port = await findFreePort();
   const { child, exited } = spawnNextDev(port, status);
   const baseUrl = `http://127.0.0.1:${String(port)}`;
   const deadline = Date.now() + 120_000;
+  let lastUnhealthyStatus: number | undefined;
 
   for (;;) {
     if (child.exitCode !== null) {
@@ -199,15 +280,34 @@ export async function startAppServer(): Promise<AppServer> {
     }
     try {
       const response = await fetch(`${baseUrl}/sign-in`, { redirect: 'manual' });
-      if (response.status > 0) {
+      if (isHealthyReadyResponse(response.status)) {
         return { baseUrl, stop: () => stopProcess(child) };
       }
+      lastUnhealthyStatus = response.status;
     } catch {
       // not listening yet
     }
     if (Date.now() > deadline) {
-      await stopProcess(child);
-      throw new Error(`next dev did not become ready at ${baseUrl} within 120s`);
+      const statusDetail =
+        lastUnhealthyStatus === undefined
+          ? ''
+          : ` (last response status: ${String(lastUnhealthyStatus)})`;
+      const readinessMessage = `next dev did not become ready at ${baseUrl} within 120s${statusDetail}`;
+      // stopProcess can itself now reject (its own bounded timeout, rather
+      // than hanging forever) - without this catch, that rejection would
+      // replace the more actionable readinessMessage above with a bare
+      // "process did not exit..." error, losing exactly the diagnostic
+      // (last response status) most useful for the failure this is
+      // hardening against (#30's persistent 500).
+      try {
+        await stopProcess(child);
+      } catch (stopError) {
+        const stopDetail = stopError instanceof Error ? stopError.message : String(stopError);
+        throw new Error(`${readinessMessage}; additionally, cleanup failed: ${stopDetail}`, {
+          cause: stopError,
+        });
+      }
+      throw new Error(readinessMessage);
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
