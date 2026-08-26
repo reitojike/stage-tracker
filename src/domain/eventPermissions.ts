@@ -110,3 +110,22 @@ export function canDeleteEventOccurrence(actor: Actor, parent: EventRecord): boo
 export function canDeleteEvent(actor: Actor, event: EventRecord): boolean {
   return actor !== null && actor === event.ownerId;
 }
+
+/**
+ * Cancel or uncancel an event (Issue #125/#123): owner-only, same predicate
+ * for both directions - #123 draws no authority distinction between
+ * canceling and correcting a mistaken cancellation, so one function covers
+ * both rather than two identical checks under different names.
+ */
+export function canCancelEvent(actor: Actor, event: EventRecord): boolean {
+  return actor !== null && actor === event.ownerId;
+}
+
+/**
+ * Cancel or uncancel an occurrence (Issue #125/#123): derives from the
+ * parent event's ownership, same as every other occurrence-level authority
+ * in this module - occurrences have no owner of their own.
+ */
+export function canCancelEventOccurrence(actor: Actor, parent: EventRecord): boolean {
+  return actor !== null && actor === parent.ownerId;
+}

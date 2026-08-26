@@ -26,6 +26,7 @@ export type Database = {
       }
       event_occurrences: {
         Row: {
+          canceled_at: string | null
           created_at: string
           doors_at: string | null
           ends_at: string | null
@@ -35,6 +36,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          canceled_at?: string | null
           created_at?: string
           doors_at?: string | null
           ends_at?: string | null
@@ -44,6 +46,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          canceled_at?: string | null
           created_at?: string
           doors_at?: string | null
           ends_at?: string | null
@@ -64,6 +67,7 @@ export type Database = {
       }
       events: {
         Row: {
+          canceled_at: string | null
           created_at: string
           ends_on: string
           id: string
@@ -77,6 +81,7 @@ export type Database = {
           venue: string | null
         }
         Insert: {
+          canceled_at?: string | null
           created_at?: string
           ends_on: string
           id?: string
@@ -90,6 +95,7 @@ export type Database = {
           venue?: string | null
         }
         Update: {
+          canceled_at?: string | null
           created_at?: string
           ends_on?: string
           id?: string
@@ -440,6 +446,7 @@ export type Database = {
           p_venue?: string
         }
         Returns: {
+          canceled_at: string | null
           created_at: string
           ends_on: string
           id: string
@@ -482,6 +489,10 @@ export type Database = {
         Args: { p_occurrence_id: string }
         Returns: undefined
       }
+      event_occurrence_is_effectively_canceled: {
+        Args: { p_occurrence_id: string }
+        Returns: boolean
+      }
       import_event_with_occurrences: {
         Args: {
           p_ends_on: string
@@ -495,6 +506,7 @@ export type Database = {
           p_venue?: string
         }
         Returns: {
+          canceled_at: string | null
           created_at: string
           ends_on: string
           id: string
@@ -527,6 +539,7 @@ export type Database = {
           p_venue?: string
         }
         Returns: {
+          canceled_at: string | null
           created_at: string
           ends_on: string
           id: string
@@ -604,6 +617,7 @@ export type Database = {
           p_starts_on: string
         }
         Returns: {
+          canceled_at: string | null
           created_at: string
           doors_at: string | null
           ends_at: string | null

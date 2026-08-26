@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { classifyPostgrestError, classifyRpcError } from '../planningError.ts';
+import {
+  classifyPostgrestError,
+  classifyRpcError,
+  OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE,
+} from '../planningError.ts';
 
 // Pure domain-level tests for the shared error/result vocabulary (Issue
 // #33). classifyPostgrestError is exercised directly here with plain
@@ -23,6 +27,17 @@ void test('classifyPostgrestError maps constraint violations to validation', () 
 void test('classifyPostgrestError falls back to failure for unrecognized codes', () => {
   const result = classifyPostgrestError({ message: 'something else broke', code: '55000' });
   assert.equal(result.kind, 'failure');
+});
+
+// --- Effective cancellation (Issue #125/#123) ---
+
+void test('classifyPostgrestError maps the custom effectively-canceled SQLSTATE to validation', () => {
+  const result = classifyPostgrestError({
+    message: 'this occurrence is effectively canceled: a new participation cannot be created',
+    code: OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE,
+  });
+  assert.equal(result.kind, 'validation');
+  assert.equal(result.code, OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE);
 });
 
 void test('classifyRpcError matches the first rule whose test passes', () => {

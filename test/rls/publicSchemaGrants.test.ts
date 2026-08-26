@@ -104,7 +104,9 @@ const EXACT_GRANTS: ExactGrantExpectation[] = [
     table: 'events',
     grantee: 'authenticated',
     privileges: ['SELECT', 'UPDATE'],
-    columns: { UPDATE: ['title', 'venue', 'source_url', 'memo', 'starts_on', 'ends_on'] },
+    columns: {
+      UPDATE: ['title', 'venue', 'source_url', 'memo', 'starts_on', 'ends_on', 'canceled_at'],
+    },
   },
   { table: 'event_occurrences', grantee: 'anon', privileges: [] },
   {
@@ -113,7 +115,7 @@ const EXACT_GRANTS: ExactGrantExpectation[] = [
     privileges: ['SELECT', 'INSERT', 'UPDATE'],
     columns: {
       INSERT: ['event_id', 'starts_at', 'ends_at', 'doors_at'],
-      UPDATE: ['starts_at', 'ends_at', 'doors_at'],
+      UPDATE: ['starts_at', 'ends_at', 'doors_at', 'canceled_at'],
     },
   },
   { table: 'personal_schedule_entries', grantee: 'anon', privileges: [] },

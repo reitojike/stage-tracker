@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { Badge } from '@/ui/Badge';
 import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
+import { isEventCanceled } from '@/domain/eventCancellation.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import styles from './EventLevelFallbackList.module.css';
 
@@ -55,6 +57,7 @@ export function EventLevelFallbackList({ events, context }: EventLevelFallbackLi
                   {event.venue !== null ? (
                     <span className={styles.venue}>{event.venue}</span>
                   ) : null}
+                  {isEventCanceled(event) ? <Badge variant="danger">中止</Badge> : null}
                 </span>
                 <span className={styles.chevron} aria-hidden="true">
                   ›

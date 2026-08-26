@@ -16,6 +16,7 @@ import {
   acceptedOperationState,
   rejectedOperationState,
   resolveOperationFeedback,
+  resolveOperationFeedbackForError,
   resolveOperationNotice,
   resolveParticipationSetNotice,
   type OperationState,
@@ -87,7 +88,7 @@ export async function updateParticipationAction(
   if (!result.ok) {
     return rejectedOperationState(
       previous,
-      resolveOperationFeedback('set-participation', result.error.kind),
+      resolveOperationFeedbackForError('set-participation', result.error),
     );
   }
   revalidatePath(`/catalog/events/${eventId}`);
@@ -128,7 +129,7 @@ export async function inviteToOccurrenceAction(
   if (!result.ok) {
     return rejectedOperationState(
       previous,
-      resolveOperationFeedback('invite-to-occurrence', result.error.kind),
+      resolveOperationFeedbackForError('invite-to-occurrence', result.error),
       null,
       { email: emailRaw },
     );

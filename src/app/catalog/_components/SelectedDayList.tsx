@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { Badge } from '@/ui/Badge';
 import { StatePanel } from '@/ui/StatePanel';
 import { Surface } from '@/ui/Surface';
 import type { SelectedDayOccurrence } from '@/domain/calendarMonth.ts';
+import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import styles from './SelectedDayList.module.css';
@@ -46,6 +48,9 @@ export function SelectedDayList({ date, occurrences, context }: SelectedDayListP
                     <span className={styles.title}>{event.title}</span>
                     {event.venue !== null ? (
                       <span className={styles.venue}>{event.venue}</span>
+                    ) : null}
+                    {isEffectivelyCanceled(event, occurrence) ? (
+                      <Badge variant="danger">中止</Badge>
                     ) : null}
                   </span>
                   <span className={styles.chevron} aria-hidden="true">

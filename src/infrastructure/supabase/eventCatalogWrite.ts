@@ -342,3 +342,89 @@ export async function deleteEvent(
   }
   return { ok: true, data: undefined };
 }
+
+// Cancellation (Issue #125/#123): a plain owner-gated column update, not an
+// RPC - see supabase/migrations/20260826000200_create_event_occurrence_
+// cancellation.sql's header for why the toggle itself needs no guarded RPC
+// the way hard deletion (#124) does. canceled_at's exact stored instant
+// carries no product meaning beyond "is this null" (see that migration),
+// so the caller-supplied timestamp below is never round-tripped back for
+// comparison against anything - it only needs to be non-null to cancel.
+
+async function setEventCanceledAt(
+  client: EventCatalogWriteClient,
+  eventId: string,
+  canceledAt: string | null,
+): Promise<EventCatalogWriteResult<EventCatalogEvent>> {
+  const { data, error } = await client
+    .from('events')
+    .update({ canceled_at: canceledAt })
+    .eq('id', eventId)
+    .select()
+    .maybeSingle();
+  if (error !== null) {
+    return { ok: false, error: classifyWriteError(error) };
+  }
+  if (data === null) {
+    return deniedUpdate('event');
+  }
+  return { ok: true, data: mapEventRow(data) };
+}
+
+/** Event-level cancellation (Issue #125/#123). Never touches any child
+ * occurrence's own canceled_at - effective cancellation is composed by OR
+ * at the read/domain layer (domain/eventCancellation.ts), not cascaded at
+ * write time. */
+export async function cancelEvent(
+  client: EventCatalogWriteClient,
+  eventId: string,
+): Promise<EventCatalogWriteResult<EventCatalogEvent>> {
+  return setEventCanceledAt(client, eventId, new Date().toISOString());
+}
+
+/** Corrects a mistaken Event-level cancellation. Does not clear any child
+ * occurrence's own canceled_at (product-rules.md: Event uncancel must not
+ * auto-uncancel occurrences). */
+export async function uncancelEvent(
+  client: EventCatalogWriteClient,
+  eventId: string,
+): Promise<EventCatalogWriteResult<EventCatalogEvent>> {
+  return setEventCanceledAt(client, eventId, null);
+}
+
+async function setEventOccurrenceCanceledAt(
+  client: EventCatalogWriteClient,
+  occurrenceId: string,
+  canceledAt: string | null,
+): Promise<EventCatalogWriteResult<EventOccurrence>> {
+  const { data, error } = await client
+    .from('event_occurrences')
+    .update({ canceled_at: canceledAt })
+    .eq('id', occurrenceId)
+    .select()
+    .maybeSingle();
+  if (error !== null) {
+    return { ok: false, error: classifyWriteError(error) };
+  }
+  if (data === null) {
+    return deniedUpdate('occurrence');
+  }
+  return { ok: true, data: mapOccurrenceRow(data) };
+}
+
+/** Occurrence-level cancellation (Issue #125/#123), independent of the
+ * parent Event's own canceled_at. */
+export async function cancelEventOccurrence(
+  client: EventCatalogWriteClient,
+  occurrenceId: string,
+): Promise<EventCatalogWriteResult<EventOccurrence>> {
+  return setEventOccurrenceCanceledAt(client, occurrenceId, new Date().toISOString());
+}
+
+/** Corrects a mistaken Occurrence-level cancellation. */
+export async function uncancelEventOccurrence(
+  client: EventCatalogWriteClient,
+  occurrenceId: string,
+): Promise<EventCatalogWriteResult<EventOccurrence>> {
+  return setEventOccurrenceCanceledAt(client, occurrenceId, null);
+}

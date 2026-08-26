@@ -9,6 +9,8 @@ import {
   canUpdateEvent,
   canDeleteEvent,
   canDeleteEventOccurrence,
+  canCancelEvent,
+  canCancelEventOccurrence,
 } from '@/domain/eventPermissions';
 import { resolveWriteFeedback } from '@/domain/eventWriteFeedback';
 import {
@@ -26,6 +28,8 @@ import { OccurrenceAddForm } from '../../../_components/OccurrenceAddForm.tsx';
 import { OccurrenceUpdateForm } from '../../../_components/OccurrenceUpdateForm.tsx';
 import { DeleteOccurrenceForm } from '../../../_components/DeleteOccurrenceForm.tsx';
 import { DeleteEventForm } from '../../../_components/DeleteEventForm.tsx';
+import { OccurrenceCancellationForm } from '../../../_components/OccurrenceCancellationForm.tsx';
+import { EventCancellationForm } from '../../../_components/EventCancellationForm.tsx';
 import styles from '../../../_components/EventWriteForm.module.css';
 
 interface EditEventPageProps {
@@ -123,6 +127,9 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
           const canDeleteOccurrence = canDeleteEventOccurrence(user?.id ?? null, {
             ownerId: event.ownerId,
           });
+          const canCancelOccurrence = canCancelEventOccurrence(user?.id ?? null, {
+            ownerId: event.ownerId,
+          });
           return occurrences.map((occurrence) => (
             <div key={occurrence.id}>
               <OccurrenceUpdateForm
@@ -138,6 +145,13 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
                   endsAtUtc: occurrence.endsAt,
                 })}
               />
+              {canCancelOccurrence && (
+                <OccurrenceCancellationForm
+                  eventId={event.id}
+                  occurrenceId={occurrence.id}
+                  isCanceled={occurrence.canceledAt !== null}
+                />
+              )}
               {canDeleteOccurrence && (
                 <DeleteOccurrenceForm eventId={event.id} occurrenceId={occurrence.id} />
               )}
@@ -146,6 +160,13 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
         })()}
 
         <OccurrenceAddForm eventId={event.id} />
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>このイベントの中止</h2>
+        {canCancelEvent(user?.id ?? null, { ownerId: event.ownerId }) && (
+          <EventCancellationForm eventId={event.id} isCanceled={event.canceledAt !== null} />
+        )}
       </section>
 
       <section className={styles.section}>

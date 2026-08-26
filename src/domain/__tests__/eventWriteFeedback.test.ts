@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  INITIAL_EVENT_CANCELLATION_FORM_STATE,
   INITIAL_EVENT_DELETE_FORM_STATE,
   INITIAL_WRITE_FORM_STATE,
+  acceptedCancellationFormState,
   acceptedWriteFormState,
+  rejectedCancellationFormState,
   rejectedEventDeleteFormState,
   rejectedWriteFormState,
+  resolveCancellationFeedback,
+  resolveCancellationNotice,
   resolveDeleteFeedback,
   resolveDuplicateOccurrenceFieldErrors,
   resolveWriteFeedback,
@@ -160,4 +165,78 @@ void test('rejectedEventDeleteFormState advances attempt and carries feedback', 
   const next = rejectedEventDeleteFormState(INITIAL_EVENT_DELETE_FORM_STATE, feedback);
   assert.equal(next.attempt, INITIAL_EVENT_DELETE_FORM_STATE.attempt + 1);
   assert.equal(next.feedback, feedback);
+});
+
+// --- Cancellation feedback (Issue #125/#123) ---
+
+void test('resolveCancellationFeedback gives every operation its own permission-denied wording', () => {
+  const operations = [
+    'cancel-event',
+    'uncancel-event',
+    'cancel-occurrence',
+    'uncancel-occurrence',
+  ] as const;
+  const descriptions = operations.map(
+    (operation) => resolveCancellationFeedback(operation, 'permission-denied').description,
+  );
+  assert.equal(
+    new Set(descriptions).size,
+    descriptions.length,
+    'expected every operation to have distinct wording',
+  );
+});
+
+void test('resolveCancellationFeedback covers every EventCatalogWriteErrorKind without throwing', () => {
+  const kinds = [
+    'permission-denied',
+    'validation',
+    'duplicate-occurrence',
+    'delete-blocked',
+    'failure',
+  ] as const;
+  const operations = [
+    'cancel-event',
+    'uncancel-event',
+    'cancel-occurrence',
+    'uncancel-occurrence',
+  ] as const;
+  for (const operation of operations) {
+    for (const kind of kinds) {
+      const feedback = resolveCancellationFeedback(operation, kind);
+      assert.equal(feedback.variant, 'error');
+      assert.ok(feedback.title.length > 0);
+    }
+  }
+});
+
+void test('resolveCancellationNotice distinguishes cancel from uncancel, and event from occurrence', () => {
+  const notices = [
+    resolveCancellationNotice('cancel-event'),
+    resolveCancellationNotice('uncancel-event'),
+    resolveCancellationNotice('cancel-occurrence'),
+    resolveCancellationNotice('uncancel-occurrence'),
+  ];
+  assert.equal(new Set(notices).size, notices.length);
+});
+
+void test('the initial cancellation form state announces neither feedback nor a notice', () => {
+  assert.equal(INITIAL_EVENT_CANCELLATION_FORM_STATE.attempt, 0);
+  assert.equal(INITIAL_EVENT_CANCELLATION_FORM_STATE.feedback, null);
+  assert.equal(INITIAL_EVENT_CANCELLATION_FORM_STATE.notice, null);
+});
+
+void test('rejectedCancellationFormState advances attempt, carries feedback, and clears any notice', () => {
+  const feedback = resolveCancellationFeedback('cancel-event', 'permission-denied');
+  const next = rejectedCancellationFormState(INITIAL_EVENT_CANCELLATION_FORM_STATE, feedback);
+  assert.equal(next.attempt, INITIAL_EVENT_CANCELLATION_FORM_STATE.attempt + 1);
+  assert.equal(next.feedback, feedback);
+  assert.equal(next.notice, null);
+});
+
+void test('acceptedCancellationFormState advances attempt, clears feedback, and sets the notice', () => {
+  const notice = resolveCancellationNotice('cancel-event');
+  const next = acceptedCancellationFormState(INITIAL_EVENT_CANCELLATION_FORM_STATE, notice);
+  assert.equal(next.attempt, INITIAL_EVENT_CANCELLATION_FORM_STATE.attempt + 1);
+  assert.equal(next.feedback, null);
+  assert.equal(next.notice, notice);
 });

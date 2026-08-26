@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { PlanningErrorKind } from '../planningError.ts';
+import {
+  OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE,
+  type PlanningErrorKind,
+} from '../planningError.ts';
 import {
   acceptedOperationState,
   INITIAL_OPERATION_STATE,
   rejectedOperationState,
   resolveOperationFeedback,
+  resolveOperationFeedbackForError,
   resolveOperationNotice,
   resolveParticipationSetNotice,
   type ParticipationOperation,
@@ -88,4 +92,36 @@ void test('acceptedOperationState advances attempt, clears feedback/fieldError/v
   assert.equal(accepted.fieldError, null);
   assert.deepEqual(accepted.values, {});
   assert.equal(accepted.notice, '送信しました。');
+});
+
+// --- Effective cancellation (Issue #125/#123) ---
+
+void test('resolveOperationFeedbackForError distinguishes the effectively-canceled case for set-participation', () => {
+  const generic = resolveOperationFeedback('set-participation', 'validation');
+  const canceled = resolveOperationFeedbackForError('set-participation', {
+    kind: 'validation',
+    message: 'this occurrence is effectively canceled: participation cannot be set to attending',
+    code: OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE,
+  });
+  assert.notEqual(canceled.description, generic.description);
+});
+
+void test('resolveOperationFeedbackForError distinguishes the effectively-canceled case for invite-to-occurrence', () => {
+  const generic = resolveOperationFeedback('invite-to-occurrence', 'validation');
+  const canceled = resolveOperationFeedbackForError('invite-to-occurrence', {
+    kind: 'validation',
+    message: 'this occurrence is effectively canceled: a new invitation cannot be created',
+    code: OCCURRENCE_EFFECTIVELY_CANCELED_SQLSTATE,
+  });
+  assert.notEqual(canceled.description, generic.description);
+});
+
+void test('resolveOperationFeedbackForError falls back to the generic per-kind resolver for other operations/codes', () => {
+  const viaWrapper = resolveOperationFeedbackForError('withdraw-participation', {
+    kind: 'validation',
+    message: 'unrelated failure',
+    code: '23502',
+  });
+  const viaGeneric = resolveOperationFeedback('withdraw-participation', 'validation');
+  assert.deepEqual(viaWrapper, viaGeneric);
 });
