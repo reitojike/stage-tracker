@@ -44,11 +44,11 @@ export function mapPasskeyListItem(raw: RawPasskeyListItem): PasskeyListItem {
 
 /**
  * What to show for one registered passkey in a management list (Issue
- * #106, Codex P2 finding on PR #129). A missing `friendly_name` is a valid
- * state (Supabase Auth does not require one at registration), but showing
- * every unnamed credential as the same literal "登録済みPasskey" text made
- * them indistinguishable the moment a user had more than one - there was
- * no way to tell which "delete" button revoked which device.
+ * #106, Codex P2 findings on PR #129). A missing `friendly_name` is a
+ * valid state (Supabase Auth does not require one at registration), but
+ * showing every unnamed credential as the same literal "登録済みPasskey"
+ * text made them indistinguishable the moment a user had more than one -
+ * there was no way to tell which "delete" button revoked which device.
  *
  * Disambiguates with `createdAt` (already fetched by listPasskeys, no new
  * round trip) rather than asking for a name at registration time: that
@@ -56,12 +56,19 @@ export function mapPasskeyListItem(raw: RawPasskeyListItem): PasskeyListItem {
  * (RegisterPasskeyButton/registerPasskey()) for a dogfood-scale credential
  * count, which the "不要なaccount settings suiteへ拡張しない" bound this
  * Issue set for credential management rules out as disproportionate.
+ *
+ * `createdAt` alone is only minute-precision display (`tokyoTimeLabel`
+ * truncates seconds), so two unnamed passkeys registered within the same
+ * minute would still render identically. A trailing slice of `id` (a
+ * UUID, always unique) closes that gap unconditionally rather than
+ * chasing finer time precision that could itself collide.
  */
 export function passkeyDisplayLabel(passkey: PasskeyListItem): string {
   if (passkey.friendlyName !== null) {
     return passkey.friendlyName;
   }
-  return `登録済みPasskey（${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)} 登録）`;
+  const idSuffix = passkey.id.slice(-4);
+  return `登録済みPasskey（${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)} 登録・ID: ${idSuffix}）`;
 }
 
 // --- Management (list / delete): server-side, session-scoped, no ceremony ---
