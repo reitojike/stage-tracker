@@ -192,8 +192,12 @@ dependentな分岐はaccount不存在を含め、inviterから見てすべて同
 create/update UIが成立しています。Event作成はdesignated catalog creator
 （`public.catalog_creators` membership）に限り、作成者がevent ownerに
 なります。Event記述情報の更新と公演回のadd/updateはevent ownerのみです。
-deletion / cancellationは提供しません。開演/終演の前後関係は本UIが提供する
-write pathで検証しますが、`event_occurrences` へのCHECK制約は未導入です。
+Event/公演回のowner限定hard deletionが成立しています（Issue #124）。
+downstream data（participation/invitation/ticket acquisition）が存在する
+公演回・Eventは削除できず、cascadeも行いません。cancellation（公演の中止）は
+deletionとは別概念であり、Issue #123でsemantics決定済み、Issue #125で
+実装予定です。開演/終演の前後関係は本UIが提供するwrite pathで検証しますが、
+`event_occurrences` へのCHECK制約は未導入です。
 
 以下は `product-rules.md` で承認済みのproduct-level semanticsですが、
 対応する schema/RLS/UI 実装はまだありません（approved-but-unimplemented）。
@@ -224,7 +228,8 @@ semanticsを確定した上で進めます（[`docs/roadmap.md`](./roadmap.md) �
 以下は、関連する専用product Taskが起票されるまで未決定（deferred /
 uncommitted）です。current committed scopeには含みません。
 
-- event deletion semantics
+- Event/公演回の cancellation（中止）の exact UI workflow（semanticsは
+  Issue #123で決定済み、実装はIssue #125）
 - Ticket の deletion / correction semantics
 - 各domain concept（classification / venue）の exact persistence・
   mechanism詳細。event-independent personal schedule、occurrence-level

@@ -119,11 +119,11 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>公演回</h2>
 
-        {occurrences.map((occurrence) => {
+        {(() => {
           const canDeleteOccurrence = canDeleteEventOccurrence(user?.id ?? null, {
             ownerId: event.ownerId,
           });
-          return (
+          return occurrences.map((occurrence) => (
             <div key={occurrence.id}>
               <OccurrenceUpdateForm
                 eventId={event.id}
@@ -142,8 +142,8 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
                 <DeleteOccurrenceForm eventId={event.id} occurrenceId={occurrence.id} />
               )}
             </div>
-          );
-        })}
+          ));
+        })()}
 
         <OccurrenceAddForm eventId={event.id} />
       </section>

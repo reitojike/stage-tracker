@@ -94,7 +94,7 @@ export function canUpdateEventOccurrence(
 }
 
 /**
- * Hard delete of an occurrence (Issue #124): owner-only, mi-registration
+ * Hard delete of an occurrence (Issue #124): owner-only, mis-registration
  * correction (not cancellation). Authority derives from the parent event's
  * ownership.
  */
