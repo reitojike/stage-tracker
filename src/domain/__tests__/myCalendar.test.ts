@@ -73,7 +73,8 @@ function scheduleEntry(overrides: Partial<PersonalScheduleEntry> = {}): Personal
   return {
     id: 'sched-1',
     ownerId: 'owner-1',
-    scheduleType: 'other',
+    title: 'その他',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-08-10', endsOn: '2026-08-10' },
     createdAt: '2026-01-01T00:00:00Z',

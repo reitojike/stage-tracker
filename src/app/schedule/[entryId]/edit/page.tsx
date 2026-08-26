@@ -104,7 +104,8 @@ export default async function EditScheduleEntryPage({ params }: EditScheduleEntr
       <ScheduleEntryEditForm
         entryId={entry.id}
         initialValues={personalScheduleEntryToFormValues({
-          scheduleType: entry.scheduleType,
+          title: entry.title,
+          blocking: entry.blocking,
           memo: entry.memo,
           temporal: entry.temporal,
         })}

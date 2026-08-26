@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import {
   createPersonalScheduleEntry,
+  deletePersonalScheduleEntry,
   getVisiblePersonalScheduleEntry,
   listScheduleShareRecipientEmails,
   listScheduleShares,
@@ -56,7 +57,8 @@ after(async () => {
 
 void test('createPersonalScheduleEntry persists an all-day entry for the caller', async () => {
   const result = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'travel',
+    title: 'travel',
+    blocking: true,
     memo: 'trip',
     temporal: { kind: 'all-day', startsOn: '2026-03-01', endsOn: '2026-03-03' },
   });
@@ -71,7 +73,8 @@ void test('createPersonalScheduleEntry persists an all-day entry for the caller'
 
 void test('createPersonalScheduleEntry persists a time-bounded entry with an unset end', async () => {
   const result = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'work',
+    title: 'work',
+    blocking: true,
     memo: null,
     temporal: { kind: 'time-bounded', startsAt: '2026-03-05T09:00:00Z', endsAt: null },
   });
@@ -86,7 +89,8 @@ void test('createPersonalScheduleEntry persists a time-bounded entry with an uns
 
 void test('listVisiblePersonalSchedule shows the owner their own entry, and a stranger nothing', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: 'private plan',
     temporal: { kind: 'all-day', startsOn: '2026-03-10', endsOn: '2026-03-10' },
   });
@@ -103,7 +107,8 @@ void test('listVisiblePersonalSchedule shows the owner their own entry, and a st
 
 void test('getVisiblePersonalScheduleEntry returns the entry to its owner, and null for a stranger', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: 'single-entry read',
     temporal: { kind: 'all-day', startsOn: '2026-03-11', endsOn: '2026-03-11' },
   });
@@ -129,7 +134,8 @@ void test('getVisiblePersonalScheduleEntry returns null (not an error) for a non
 
 void test('sharing an entry makes it visible to the recipient too', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'paid_leave',
+    title: 'paid_leave',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-03-15', endsOn: '2026-03-16' },
   });
@@ -146,14 +152,16 @@ void test('sharing an entry makes it visible to the recipient too', async () => 
 
 void test('updatePersonalScheduleEntry lets the owner change the entry', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: 'before',
     temporal: { kind: 'all-day', startsOn: '2026-03-20', endsOn: '2026-03-20' },
   });
   assert.equal(created.ok, true);
 
   const updated = await updatePersonalScheduleEntry(owner.client, created.data.id, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: 'after',
     temporal: { kind: 'all-day', startsOn: '2026-03-21', endsOn: '2026-03-22' },
   });
@@ -163,7 +171,8 @@ void test('updatePersonalScheduleEntry lets the owner change the entry', async (
 
 void test('updatePersonalScheduleEntry reports permission-denied for a shared recipient (visible but not writable)', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-03-25', endsOn: '2026-03-25' },
   });
@@ -172,7 +181,8 @@ void test('updatePersonalScheduleEntry reports permission-denied for a shared re
   assert.equal(share.ok, true);
 
   const result = await updatePersonalScheduleEntry(recipient.client, created.data.id, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: 'hijacked',
     temporal: { kind: 'all-day', startsOn: '2026-03-25', endsOn: '2026-03-25' },
   });
@@ -182,7 +192,8 @@ void test('updatePersonalScheduleEntry reports permission-denied for a shared re
 
 void test('listScheduleShares: owner sees the full recipient list, recipient sees only their own row', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-03-28', endsOn: '2026-03-28' },
   });
@@ -200,7 +211,8 @@ void test('listScheduleShares: owner sees the full recipient list, recipient see
 
 void test('removeScheduleShare: a recipient can remove themselves (self-leave)', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-04-01', endsOn: '2026-04-01' },
   });
@@ -218,7 +230,8 @@ void test('removeScheduleShare: a recipient can remove themselves (self-leave)',
 
 void test('removeScheduleShare reports not-found for a stranger who is neither owner nor recipient', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-04-05', endsOn: '2026-04-05' },
   });
@@ -234,7 +247,8 @@ void test('removeScheduleShare reports not-found for a stranger who is neither o
 void test('createPersonalScheduleEntry reports unauthenticated for a client with no session', async () => {
   const anonymous = createAnonymousClient();
   const result = await createPersonalScheduleEntry(anonymous, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-04-10', endsOn: '2026-04-10' },
   });
@@ -244,7 +258,8 @@ void test('createPersonalScheduleEntry reports unauthenticated for a client with
 
 void test('updatePersonalScheduleEntry reports unauthenticated (not permission-denied) for a client with no session', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-04-12', endsOn: '2026-04-12' },
   });
@@ -252,7 +267,8 @@ void test('updatePersonalScheduleEntry reports unauthenticated (not permission-d
 
   const anonymous = createAnonymousClient();
   const result = await updatePersonalScheduleEntry(anonymous, created.data.id, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: 'hijacked',
     temporal: { kind: 'all-day', startsOn: '2026-04-12', endsOn: '2026-04-12' },
   });
@@ -262,7 +278,8 @@ void test('updatePersonalScheduleEntry reports unauthenticated (not permission-d
 
 void test('shareScheduleEntry reports unauthenticated for a client with no session', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-04-14', endsOn: '2026-04-14' },
   });
@@ -276,7 +293,8 @@ void test('shareScheduleEntry reports unauthenticated for a client with no sessi
 
 void test('removeScheduleShare reports unauthenticated for a client with no session', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-04-16', endsOn: '2026-04-16' },
   });
@@ -297,7 +315,8 @@ void test('removeScheduleShare reports unauthenticated for a client with no sess
 
 void test('shareScheduleEntryByEmail shares an entry with a recipient identified by exact email', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'paid_leave',
+    title: 'paid_leave',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-01', endsOn: '2026-05-02' },
   });
@@ -319,7 +338,8 @@ void test('shareScheduleEntryByEmail shares an entry with a recipient identified
 
 void test('shareScheduleEntryByEmail is case-insensitive on the registered email', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-03', endsOn: '2026-05-03' },
   });
@@ -337,7 +357,8 @@ void test('shareScheduleEntryByEmail is case-insensitive on the registered email
 
 void test('shareScheduleEntryByEmail is idempotent: re-sharing the same recipient returns the existing row', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-04', endsOn: '2026-05-04' },
   });
@@ -364,7 +385,8 @@ void test(
     'unlike invitation, sharing is not required to hide account existence',
   async () => {
     const created = await createPersonalScheduleEntry(owner.client, {
-      scheduleType: 'other',
+      title: 'other',
+      blocking: true,
       memo: null,
       temporal: { kind: 'all-day', startsOn: '2026-05-05', endsOn: '2026-05-05' },
     });
@@ -382,7 +404,8 @@ void test(
 
 void test('shareScheduleEntryByEmail reports validation for a malformed email', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-06', endsOn: '2026-05-06' },
   });
@@ -395,7 +418,8 @@ void test('shareScheduleEntryByEmail reports validation for a malformed email', 
 
 void test('shareScheduleEntryByEmail reports validation for sharing with your own email', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-07', endsOn: '2026-05-07' },
   });
@@ -409,7 +433,8 @@ void test('shareScheduleEntryByEmail reports validation for sharing with your ow
 
 void test('shareScheduleEntryByEmail reports permission-denied for a non-owner caller, even a shared recipient', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-08', endsOn: '2026-05-08' },
   });
@@ -437,7 +462,8 @@ void test('shareScheduleEntryByEmail reports permission-denied for a non-owner c
 
 void test('shareScheduleEntryByEmail reports unauthenticated for a client with no session', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-09', endsOn: '2026-05-09' },
   });
@@ -452,7 +478,8 @@ void test('shareScheduleEntryByEmail reports unauthenticated for a client with n
 
 void test('listScheduleShareRecipientEmails lets the owner identify recipients by email', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-10', endsOn: '2026-05-10' },
   });
@@ -473,7 +500,8 @@ void test('listScheduleShareRecipientEmails returns every recipient of one entry
   // returns every row against the actual local PostgREST/Postgres, not
   // just what a single unranged request happens to return.
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-10', endsOn: '2026-05-10' },
   });
@@ -496,7 +524,8 @@ void test(
     'privacy-negative: a shared recipient cannot read this projection, and neither can a stranger',
   async () => {
     const created = await createPersonalScheduleEntry(owner.client, {
-      scheduleType: 'other',
+      title: 'other',
+      blocking: true,
       memo: null,
       temporal: { kind: 'all-day', startsOn: '2026-05-11', endsOn: '2026-05-11' },
     });
@@ -516,7 +545,8 @@ void test(
 
 void test('listScheduleShareRecipientEmails reports unauthenticated for a client with no session', async () => {
   const created = await createPersonalScheduleEntry(owner.client, {
-    scheduleType: 'other',
+    title: 'other',
+    blocking: true,
     memo: null,
     temporal: { kind: 'all-day', startsOn: '2026-05-12', endsOn: '2026-05-12' },
   });
@@ -524,6 +554,95 @@ void test('listScheduleShareRecipientEmails reports unauthenticated for a client
 
   const anonymous = createAnonymousClient();
   const result = await listScheduleShareRecipientEmails(anonymous, created.data.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'unauthenticated');
+});
+
+// deletePersonalScheduleEntry (Issue #121): owner-only hard delete.
+
+void test('deletePersonalScheduleEntry lets the owner delete their own entry', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    title: 'to delete',
+    blocking: true,
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-06-01', endsOn: '2026-06-01' },
+  });
+  assert.equal(created.ok, true);
+
+  const deleted = await deletePersonalScheduleEntry(owner.client, created.data.id);
+  assert.deepEqual(deleted, { ok: true, data: undefined });
+
+  const ownerView = await getVisiblePersonalScheduleEntry(owner.client, created.data.id);
+  assert.equal(ownerView.ok, true);
+  assert.equal(ownerView.data, null);
+});
+
+void test('deletePersonalScheduleEntry reports permission-denied for a shared recipient (visible but not deletable)', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    title: 'other',
+    blocking: true,
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-06-02', endsOn: '2026-06-02' },
+  });
+  assert.equal(created.ok, true);
+  const share = await shareScheduleEntry(owner.client, created.data.id, recipient.user.id);
+  assert.equal(share.ok, true);
+
+  const result = await deletePersonalScheduleEntry(recipient.client, created.data.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'permission-denied');
+
+  // The entry survives the denied attempt, and the recipient's share is
+  // untouched by it.
+  const ownerView = await getVisiblePersonalScheduleEntry(owner.client, created.data.id);
+  assert.equal(ownerView.ok, true);
+  assert.equal(ownerView.data?.id, created.data.id);
+});
+
+void test('deletePersonalScheduleEntry reports permission-denied for a stranger (neither owner nor recipient)', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    title: 'other',
+    blocking: true,
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-06-03', endsOn: '2026-06-03' },
+  });
+  assert.equal(created.ok, true);
+
+  const result = await deletePersonalScheduleEntry(stranger.client, created.data.id);
+  assert.equal(result.ok, false);
+  assert.equal(result.error.kind, 'permission-denied');
+});
+
+void test('deleting an entry drops it from a recipient’s visible schedule too', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    title: 'shared, then deleted',
+    blocking: true,
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-06-04', endsOn: '2026-06-04' },
+  });
+  assert.equal(created.ok, true);
+  const share = await shareScheduleEntry(owner.client, created.data.id, recipient.user.id);
+  assert.equal(share.ok, true);
+
+  const deleted = await deletePersonalScheduleEntry(owner.client, created.data.id);
+  assert.deepEqual(deleted, { ok: true, data: undefined });
+
+  const recipientView = await listVisiblePersonalSchedule(recipient.client);
+  assert.equal(recipientView.ok, true);
+  assert.ok(!recipientView.data.some((e) => e.id === created.data.id));
+});
+
+void test('deletePersonalScheduleEntry reports unauthenticated for a client with no session', async () => {
+  const created = await createPersonalScheduleEntry(owner.client, {
+    title: 'other',
+    blocking: true,
+    memo: null,
+    temporal: { kind: 'all-day', startsOn: '2026-06-05', endsOn: '2026-06-05' },
+  });
+  assert.equal(created.ok, true);
+
+  const anonymous = createAnonymousClient();
+  const result = await deletePersonalScheduleEntry(anonymous, created.data.id);
   assert.equal(result.ok, false);
   assert.equal(result.error.kind, 'unauthenticated');
 });

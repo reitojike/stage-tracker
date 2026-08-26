@@ -8,7 +8,8 @@ import {
 
 function allDayValues(overrides: RawFormValues = {}): RawFormValues {
   return {
-    scheduleType: 'other',
+    title: 'その他',
+    blocking: 'true',
     temporalMode: 'all-day',
     startsOn: '2026-03-01',
     endsOn: '',
@@ -21,7 +22,8 @@ function allDayValues(overrides: RawFormValues = {}): RawFormValues {
 
 function timeBoundedValues(overrides: RawFormValues = {}): RawFormValues {
   return {
-    scheduleType: 'work',
+    title: '仕事',
+    blocking: 'true',
     temporalMode: 'time-bounded',
     startsOn: '',
     endsOn: '',
@@ -40,7 +42,8 @@ void test('parsePersonalScheduleEntry parses a single-day all-day entry, default
     startsOn: '2026-03-01',
     endsOn: '2026-03-01',
   });
-  assert.equal(result.value.scheduleType, 'other');
+  assert.equal(result.value.title, 'その他');
+  assert.equal(result.value.blocking, true);
   assert.equal(result.value.memo, null);
 });
 
@@ -105,10 +108,36 @@ void test('parsePersonalScheduleEntry rejects a time-bounded entry ending before
   assert.equal(result.fieldErrors.endsAt, '終了日時は開始日時より前にできません。');
 });
 
-void test('parsePersonalScheduleEntry rejects an unrecognized scheduleType', () => {
-  const result = parsePersonalScheduleEntry(allDayValues({ scheduleType: 'holiday' }));
+void test('parsePersonalScheduleEntry rejects a blank title', () => {
+  const result = parsePersonalScheduleEntry(allDayValues({ title: '' }));
   assert.ok(!result.ok);
-  assert.equal(result.fieldErrors.scheduleType, '種別を選択してください。');
+  assert.equal(result.fieldErrors.title, '件名を入力してください。');
+});
+
+void test('parsePersonalScheduleEntry rejects a whitespace-only title', () => {
+  const result = parsePersonalScheduleEntry(allDayValues({ title: '   ' }));
+  assert.ok(!result.ok);
+  assert.equal(result.fieldErrors.title, '件名を入力してください。');
+});
+
+void test('parsePersonalScheduleEntry trims title', () => {
+  const result = parsePersonalScheduleEntry(allDayValues({ title: '  遠征  ' }));
+  assert.ok(result.ok);
+  assert.equal(result.value.title, '遠征');
+});
+
+void test('parsePersonalScheduleEntry parses blocking=false when the field is explicitly "false"', () => {
+  const result = parsePersonalScheduleEntry(allDayValues({ blocking: 'false' }));
+  assert.ok(result.ok);
+  assert.equal(result.value.blocking, false);
+});
+
+void test('parsePersonalScheduleEntry parses blocking=false when the field is entirely absent', () => {
+  const values = allDayValues();
+  delete values.blocking;
+  const result = parsePersonalScheduleEntry(values);
+  assert.ok(result.ok);
+  assert.equal(result.value.blocking, false);
 });
 
 void test('parsePersonalScheduleEntry trims memo and maps blank to null', () => {
@@ -125,12 +154,21 @@ void test('personalScheduleEntryToFormValues round-trips an all-day entry', () =
   const parsed = parsePersonalScheduleEntry(allDayValues({ endsOn: '2026-03-05', memo: 'trip' }));
   assert.ok(parsed.ok);
   const values = personalScheduleEntryToFormValues(parsed.value);
+  assert.equal(values.title, 'その他');
+  assert.equal(values.blocking, 'true');
   assert.equal(values.temporalMode, 'all-day');
   assert.equal(values.startsOn, '2026-03-01');
   assert.equal(values.endsOn, '2026-03-05');
   assert.equal(values.startsAt, '');
   assert.equal(values.endsAt, '');
   assert.equal(values.memo, 'trip');
+});
+
+void test('personalScheduleEntryToFormValues round-trips blocking=false', () => {
+  const parsed = parsePersonalScheduleEntry(allDayValues({ blocking: 'false' }));
+  assert.ok(parsed.ok);
+  const values = personalScheduleEntryToFormValues(parsed.value);
+  assert.equal(values.blocking, 'false');
 });
 
 void test('personalScheduleEntryToFormValues round-trips a time-bounded entry with an unset end', () => {

@@ -1,6 +1,9 @@
 // Event-independent personal schedule domain model (Issue #33), over the
 // persistence/RLS baseline Issue #31 established
-// (supabase/migrations/20260822000000_create_personal_schedule.sql).
+// (supabase/migrations/20260822000000_create_personal_schedule.sql), and
+// re-modeled from a closed schedule_type vocabulary to free-form title +
+// blocking by Issue #121
+// (supabase/migrations/20260826000000_personal_schedule_title_blocking.sql).
 //
 // Product semantics (see .ai-dev-foundation/product-rules.md,
 // "Event-independent personal schedule"):
@@ -8,29 +11,21 @@
 // - Exactly one of two temporal shapes, never a mix: all-day (single- or
 //   multi-day, a closed [startsOn, endsOn] calendar-date range) or
 //   time-bounded (startsAt required, endsAt optionally unset).
-// - schedule_type is a closed MVP vocabulary: paid_leave / work / travel /
-//   other.
+// - Every entry has a required free-form `title` (no closed category) and
+//   an independent `blocking` boolean: whether this entry occupies
+//   availability. `blocking` is an attribute of the entry itself, so it
+//   carries the same meaning to every recipient it is shared with - there
+//   is no per-recipient override.
 // - Sharing is a separate concept from the entry itself: a share grants the
 //   recipient read access to the *existing* entry, never mutation rights.
+// - The owner may hard-delete an entry (Issue #121); deletion is not
+//   soft/reversible.
 //
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
 import { tokyoCalendarDayRangeUtc } from './eventCatalog.ts';
 import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
-
-export type ScheduleType = 'paid_leave' | 'work' | 'travel' | 'other';
-
-const SCHEDULE_TYPES: ReadonlySet<string> = new Set<ScheduleType>([
-  'paid_leave',
-  'work',
-  'travel',
-  'other',
-]);
-
-function isScheduleType(value: string): value is ScheduleType {
-  return SCHEDULE_TYPES.has(value);
-}
 
 /**
  * The DB's temporal shape CHECK constraint
@@ -45,7 +40,8 @@ export type ScheduleTemporal =
 export interface PersonalScheduleEntry {
   id: string;
   ownerId: string;
-  scheduleType: ScheduleType;
+  title: string;
+  blocking: boolean;
   memo: string | null;
   temporal: ScheduleTemporal;
   createdAt: string;
@@ -53,7 +49,8 @@ export interface PersonalScheduleEntry {
 }
 
 export interface PersonalScheduleEntryInput {
-  scheduleType: ScheduleType;
+  title: string;
+  blocking: boolean;
   memo: string | null;
   temporal: ScheduleTemporal;
 }
@@ -104,7 +101,8 @@ export function mapScheduleShareRecipientRow(
 export interface RawPersonalScheduleEntryRow {
   id: string;
   owner_id: string;
-  schedule_type: string;
+  title: string;
+  blocking: boolean;
   memo: string | null;
   is_all_day: boolean;
   starts_on: string | null;
@@ -138,15 +136,11 @@ function mapTemporal(row: RawPersonalScheduleEntryRow): ScheduleTemporal {
 export function mapPersonalScheduleEntryRow(
   row: RawPersonalScheduleEntryRow,
 ): PersonalScheduleEntry {
-  if (!isScheduleType(row.schedule_type)) {
-    throw new Error(
-      `personal schedule entry ${row.id} has an unrecognized schedule_type: ${row.schedule_type}`,
-    );
-  }
   return {
     id: row.id,
     ownerId: row.owner_id,
-    scheduleType: row.schedule_type,
+    title: row.title,
+    blocking: row.blocking,
     memo: row.memo,
     temporal: mapTemporal(row),
     createdAt: row.created_at,

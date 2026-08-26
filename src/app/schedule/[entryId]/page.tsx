@@ -13,12 +13,13 @@ import {
   listScheduleShares,
 } from '@/infrastructure/supabase/personalSchedule.ts';
 import { resolvePlanningReadState } from '@/domain/planningError.ts';
-import { scheduleTemporalLabel, scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
+import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
 import {
   findOwnScheduleShare,
   type PersonalScheduleEntry,
   type ScheduleShareRecipient,
 } from '@/domain/personalSchedule.ts';
+import { DeleteEntryForm } from '../_components/DeleteEntryForm.tsx';
 import { LeaveShareForm } from '../_components/LeaveShareForm.tsx';
 import { RemoveRecipientForm } from '../_components/RemoveRecipientForm.tsx';
 import { ShareAddForm } from '../_components/ShareAddForm.tsx';
@@ -121,7 +122,8 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
                 {isOwner ? '自分の予定' : '共有されている予定'}
               </Badge>
             ) : null}
-            <PageHeading>{scheduleTypeLabel(entry.scheduleType)}</PageHeading>
+            {!entry.blocking ? <Badge variant="neutral">予定を確保しない</Badge> : null}
+            <PageHeading>{entry.title}</PageHeading>
 
             <dl className={styles.details}>
               <div className={styles.detailField}>
@@ -139,11 +141,14 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
             {callerResult.ok ? (
               <>
                 {isOwner ? (
-                  <ActionRow>
-                    <LinkButton href={`/schedule/${entry.id}/edit`} variant="secondary">
-                      編集する
-                    </LinkButton>
-                  </ActionRow>
+                  <>
+                    <ActionRow>
+                      <LinkButton href={`/schedule/${entry.id}/edit`} variant="secondary">
+                        編集する
+                      </LinkButton>
+                    </ActionRow>
+                    <DeleteEntryForm entryId={entry.id} />
+                  </>
                 ) : null}
                 {!isOwner && ownShareReadFailed ? (
                   <StatePanel

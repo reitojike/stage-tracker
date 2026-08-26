@@ -1,13 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { scheduleTemporalLabel, scheduleTypeLabel } from '../personalScheduleFormatting.ts';
-
-void test('scheduleTypeLabel labels every MVP schedule type', () => {
-  assert.equal(scheduleTypeLabel('paid_leave'), '有給休暇');
-  assert.equal(scheduleTypeLabel('work'), '仕事');
-  assert.equal(scheduleTypeLabel('travel'), '遠征');
-  assert.equal(scheduleTypeLabel('other'), 'その他');
-});
+import { scheduleTemporalLabel } from '../personalScheduleFormatting.ts';
 
 void test('scheduleTemporalLabel formats a single-day all-day entry without a range dash', () => {
   const label = scheduleTemporalLabel({

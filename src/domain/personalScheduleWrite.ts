@@ -2,15 +2,18 @@
 // validation for the event-independent personal schedule create/edit UI
 // journey, over the persistence/typed-boundary baseline Issues #31/#33
 // established (personalSchedule.ts / infrastructure/supabase/
-// personalSchedule.ts).
+// personalSchedule.ts). Re-modeled from a closed schedule_type vocabulary
+// to free-form title + blocking by Issue #121.
 //
 // Product semantics (see .ai-dev-foundation/product-rules.md,
 // "Event-independent personal schedule"):
 // - Exactly one of two temporal shapes: all-day (single- or multi-day, a
 //   closed [startsOn, endsOn] calendar-date range) or time-bounded
 //   (startsAt required, endsAt optionally unset).
-// - schedule_type is a closed MVP vocabulary: paid_leave / work / travel /
-//   other.
+// - title is required free-form text (trimmed, non-empty). blocking is an
+//   independent boolean, defaulting to true on a brand-new create form
+//   (product decision: safe planning default, matching the prior implicit
+//   "always blocks availability" semantics).
 //
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs). It performs no
@@ -19,22 +22,7 @@
 
 import { isValidCalendarDate } from './calendarMonth.ts';
 import { tokyoDateTimeLocalFromInstant, tokyoDateTimeLocalToInstant } from './eventCatalogWrite.ts';
-import type {
-  PersonalScheduleEntryInput,
-  ScheduleTemporal,
-  ScheduleType,
-} from './personalSchedule.ts';
-
-const SCHEDULE_TYPES: ReadonlySet<string> = new Set<ScheduleType>([
-  'paid_leave',
-  'work',
-  'travel',
-  'other',
-]);
-
-function isScheduleType(value: string): value is ScheduleType {
-  return SCHEDULE_TYPES.has(value);
-}
+import type { PersonalScheduleEntryInput, ScheduleTemporal } from './personalSchedule.ts';
 
 /** The raw string-keyed shape a submitted form provides - see
  * eventCatalogWrite.ts's RawFormValues for why every value is optional. */
@@ -49,7 +37,7 @@ function readField(raw: RawFormValues, key: string): string {
 export type ScheduleTemporalMode = 'all-day' | 'time-bounded';
 
 export type ScheduleWriteField =
-  'scheduleType' | 'temporalMode' | 'startsOn' | 'endsOn' | 'startsAt' | 'endsAt' | 'memo';
+  'title' | 'temporalMode' | 'startsOn' | 'endsOn' | 'startsAt' | 'endsAt' | 'memo';
 
 export type FieldErrors = Partial<Record<ScheduleWriteField, string>>;
 
@@ -67,15 +55,28 @@ function optionalText(raw: string): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-function parseScheduleType(raw: RawFormValues): ParseResult<ScheduleType> {
-  const value = readField(raw, 'scheduleType').trim();
-  if (!isScheduleType(value)) {
-    return {
-      ok: false,
-      fieldErrors: { scheduleType: '種別を選択してください。' },
-    };
+function parseTitle(raw: RawFormValues): ParseResult<string> {
+  const trimmed = readField(raw, 'title').trim();
+  if (trimmed.length === 0) {
+    return { ok: false, fieldErrors: { title: '件名を入力してください。' } };
   }
-  return { ok: true, value };
+  return { ok: true, value: trimmed };
+}
+
+/**
+ * Reads the blocking checkbox. ScheduleFields.tsx renders the checkbox
+ * (value="true") before a same-named hidden fallback (value="false") - per
+ * the FormData spec, `.get(name)` returns the *first* matching entry in DOM
+ * order, so a checked box's "true" entry (which appears first) wins over
+ * the hidden "false" that always submits alongside it, while an unchecked
+ * box (which submits nothing) leaves only the hidden "false". This is what
+ * lets a rejected-submission re-render (which echoes `raw` back into the
+ * form's defaultChecked) distinguish "explicitly unchecked" from "field
+ * never touched" - a plain absent-checkbox-means-false reading cannot, since
+ * both look identical in FormData.
+ */
+function parseBlocking(raw: RawFormValues): boolean {
+  return readField(raw, 'blocking') === 'true';
 }
 
 function parseTemporalMode(raw: RawFormValues): ScheduleTemporalMode {
@@ -172,14 +173,14 @@ function parseTemporal(raw: RawFormValues): ParseResult<ScheduleTemporal> {
 export function parsePersonalScheduleEntry(
   raw: RawFormValues,
 ): ParseResult<PersonalScheduleEntryInput> {
-  const scheduleType = parseScheduleType(raw);
+  const title = parseTitle(raw);
   const temporal = parseTemporal(raw);
 
-  if (!scheduleType.ok || !temporal.ok) {
+  if (!title.ok || !temporal.ok) {
     return {
       ok: false,
       fieldErrors: {
-        ...(scheduleType.ok ? {} : scheduleType.fieldErrors),
+        ...(title.ok ? {} : title.fieldErrors),
         ...(temporal.ok ? {} : temporal.fieldErrors),
       },
     };
@@ -188,7 +189,8 @@ export function parsePersonalScheduleEntry(
   return {
     ok: true,
     value: {
-      scheduleType: scheduleType.value,
+      title: title.value,
+      blocking: parseBlocking(raw),
       memo: optionalText(readField(raw, 'memo')),
       temporal: temporal.value,
     },
@@ -226,7 +228,8 @@ export function personalScheduleEntryToFormValues(
         };
 
   return {
-    scheduleType: input.scheduleType,
+    title: input.title,
+    blocking: input.blocking ? 'true' : 'false',
     memo: input.memo ?? '',
     ...temporalValues,
   };

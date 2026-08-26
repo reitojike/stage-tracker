@@ -10,7 +10,7 @@ import {
   ticketDisplayStatusBadgeVariant,
   ticketDisplayStatusLabel,
 } from '@/domain/myCalendarFormatting.ts';
-import { scheduleTemporalLabel, scheduleTypeLabel } from '@/domain/personalScheduleFormatting.ts';
+import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
 import { calendarDayRole, calendarDayRoleLabel } from '@/domain/calendarDayRole.ts';
 import styles from './MySelectedDayList.module.css';
 
@@ -110,8 +110,9 @@ export function MySelectedDayList({
                       <Badge variant={isOwner ? 'neutral' : 'info'}>
                         {isOwner ? '自分の予定' : '共有されている予定'}
                       </Badge>
+                      {!entry.blocking ? <Badge variant="neutral">予定を確保しない</Badge> : null}
                     </span>
-                    <span className={styles.title}>{scheduleTypeLabel(entry.scheduleType)}</span>
+                    <span className={styles.title}>{entry.title}</span>
                     <span className={styles.time}>{scheduleTemporalLabel(entry.temporal)}</span>
                     {entry.memo !== null && entry.memo.length > 0 ? (
                       <span className={styles.venue}>{entry.memo}</span>
