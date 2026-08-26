@@ -43,33 +43,60 @@ export function mapPasskeyListItem(raw: RawPasskeyListItem): PasskeyListItem {
 }
 
 /**
- * What to show for one registered passkey in a management list (Issue
- * #106, Codex P2 findings on PR #129). A missing `friendly_name` is a
- * valid state (Supabase Auth does not require one at registration), but
- * showing every unnamed credential as the same literal "登録済みPasskey"
- * text made them indistinguishable the moment a user had more than one -
- * there was no way to tell which "delete" button revoked which device.
- *
- * Disambiguates with `createdAt` (already fetched by listPasskeys, no new
- * round trip) rather than asking for a name at registration time: that
- * would need new UI on the WebAuthn ceremony path
- * (RegisterPasskeyButton/registerPasskey()) for a dogfood-scale credential
- * count, which the "不要なaccount settings suiteへ拡張しない" bound this
- * Issue set for credential management rules out as disproportionate.
- *
- * `createdAt` alone is only minute-precision display (`tokyoTimeLabel`
- * truncates seconds), so two unnamed passkeys registered within the same
- * minute would still render identically. Appending `id` in full - not a
- * truncated slice, which reintroduces its own (if small) collision
- * probability - closes that gap unconditionally: two distinct list items
- * from listPasskeys() never share an id, so this is the last round this
- * disambiguation needs.
+ * The label a passkey would show on its own, ignoring whether anything
+ * else in the list happens to render the same way. Never called directly
+ * outside this module - see passkeyDisplayLabels below for why a single
+ * passkey's label can't be decided in isolation.
  */
-export function passkeyDisplayLabel(passkey: PasskeyListItem): string {
+function baseDisplayLabel(passkey: PasskeyListItem): string {
   if (passkey.friendlyName !== null) {
     return passkey.friendlyName;
   }
-  return `登録済みPasskey（${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)} 登録・ID: ${passkey.id}）`;
+  return `登録済みPasskey（${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)} 登録）`;
+}
+
+/**
+ * What to show for each registered passkey in a management list (Issue
+ * #106, Codex findings on PR #129: P2 "two unnamed credentials render
+ * identically", P2 follow-up "two unnamed credentials in the same minute
+ * still collide", P3 "a truncated id suffix can itself collide", P2
+ * "two credentials sharing a non-null friendly_name collide too" -
+ * friendly_name is caller-supplied free text with no uniqueness
+ * constraint, so this can happen for named credentials exactly as for
+ * unnamed ones). Every one of those findings was the same underlying
+ * problem restated: a per-passkey label function can never guarantee
+ * distinctness, because distinctness is a property of the *list*, not of
+ * any one item. This function is list-aware for exactly that reason -
+ * it is the last round this disambiguation needs, because it closes the
+ * entire class of "two passkeys can render the same way" rather than one
+ * scenario in that class at a time.
+ *
+ * Appends `id` (unique by construction - two distinct listPasskeys()
+ * entries never share one) only to the labels that actually collide in
+ * this list, so the common case (every passkey named or timed distinctly)
+ * stays free of id noise.
+ *
+ * Doesn't ask for a name at registration time instead: that would need
+ * new UI on the WebAuthn ceremony path (RegisterPasskeyButton/
+ * registerPasskey()) for a dogfood-scale credential count, which the
+ * "不要なaccount settings suiteへ拡張しない" bound this Issue set for
+ * credential management rules out as disproportionate - and would not by
+ * itself prevent two credentials being given the same name anyway.
+ */
+export function passkeyDisplayLabels(passkeys: PasskeyListItem[]): Map<string, string> {
+  const withBase = passkeys.map((passkey) => ({ passkey, base: baseDisplayLabel(passkey) }));
+
+  const baseCounts = new Map<string, number>();
+  for (const { base } of withBase) {
+    baseCounts.set(base, (baseCounts.get(base) ?? 0) + 1);
+  }
+
+  const labels = new Map<string, string>();
+  for (const { passkey, base } of withBase) {
+    const collides = (baseCounts.get(base) ?? 0) > 1;
+    labels.set(passkey.id, collides ? `${base}（ID: ${passkey.id}）` : base);
+  }
+  return labels;
 }
 
 // --- Management (list / delete): server-side, session-scoped, no ceremony ---

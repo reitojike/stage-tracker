@@ -4,7 +4,7 @@ import {
   INITIAL_PASSKEY_DELETE_FORM_STATE,
   classifyCeremonyError,
   mapPasskeyListItem,
-  passkeyDisplayLabel,
+  passkeyDisplayLabels,
   rejectedPasskeyDeleteFormState,
   resolveCeremonyFeedback,
   resolveManagementFeedback,
@@ -27,76 +27,133 @@ void test('mapPasskeyListItem preserves a present friendly name and last_used_at
   assert.equal(item.lastUsedAt, '2026-08-27T00:00:00Z');
 });
 
-void test('passkeyDisplayLabel prefers the friendly name when present', () => {
-  const label = passkeyDisplayLabel({
-    id: 'p1',
-    friendlyName: 'iPhone',
-    createdAt: '2026-08-26T02:00:00.000Z',
-    lastUsedAt: null,
-  });
-  assert.equal(label, 'iPhone');
+void test('passkeyDisplayLabels prefers the friendly name when it is unique in the list', () => {
+  const labels = passkeyDisplayLabels([
+    {
+      id: '11111111-1111-4111-8111-1111111111aa',
+      friendlyName: 'iPhone',
+      createdAt: '2026-08-26T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+  ]);
+  assert.equal(labels.get('11111111-1111-4111-8111-1111111111aa'), 'iPhone');
 });
 
-void test('passkeyDisplayLabel falls back to a createdAt-based label so unnamed credentials stay distinguishable', () => {
-  // Two unnamed passkeys registered at different times must not render as
-  // the same text (Codex P2 finding, PR #129) - otherwise there is no way
-  // to tell which "delete" button revokes which device.
-  const first = passkeyDisplayLabel({
-    id: '11111111-1111-4111-8111-1111111111aa',
-    friendlyName: null,
-    createdAt: '2026-08-10T02:00:00.000Z',
-    lastUsedAt: null,
-  });
-  const second = passkeyDisplayLabel({
-    id: '22222222-2222-4222-8222-2222222222bb',
-    friendlyName: null,
-    createdAt: '2026-08-11T02:00:00.000Z',
-    lastUsedAt: null,
-  });
-  assert.notEqual(first, second);
+void test('passkeyDisplayLabels falls back to a createdAt-based label for an unnamed credential', () => {
+  const labels = passkeyDisplayLabels([
+    {
+      id: '11111111-1111-4111-8111-1111111111aa',
+      friendlyName: null,
+      createdAt: '2026-08-10T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+  ]);
   assert.equal(
-    first,
-    '登録済みPasskey（2026年8月10日 11:00 登録・ID: 11111111-1111-4111-8111-1111111111aa）',
+    labels.get('11111111-1111-4111-8111-1111111111aa'),
+    '登録済みPasskey（2026年8月10日 11:00 登録）',
   );
 });
 
-void test('passkeyDisplayLabel stays distinguishable for two unnamed passkeys registered in the same minute', () => {
-  // tokyoTimeLabel truncates seconds, so createdAt alone collides within
-  // one minute (Codex P2 follow-up finding, PR #129) - the full id must
-  // carry the distinction in that case.
-  const first = passkeyDisplayLabel({
-    id: '11111111-1111-4111-8111-1111111111aa',
-    friendlyName: null,
-    createdAt: '2026-08-10T02:00:00.100Z',
-    lastUsedAt: null,
-  });
-  const second = passkeyDisplayLabel({
-    id: '22222222-2222-4222-8222-2222222222bb',
-    friendlyName: null,
-    createdAt: '2026-08-10T02:00:00.900Z',
-    lastUsedAt: null,
-  });
-  assert.notEqual(first, second);
+void test('passkeyDisplayLabels disambiguates two unnamed credentials registered at different times', () => {
+  // Two unnamed passkeys must not render as the same text (Codex P2
+  // finding, PR #129) - otherwise there is no way to tell which "delete"
+  // button revokes which device.
+  const labels = passkeyDisplayLabels([
+    {
+      id: '11111111-1111-4111-8111-1111111111aa',
+      friendlyName: null,
+      createdAt: '2026-08-10T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+    {
+      id: '22222222-2222-4222-8222-2222222222bb',
+      friendlyName: null,
+      createdAt: '2026-08-11T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+  ]);
+  assert.notEqual(
+    labels.get('11111111-1111-4111-8111-1111111111aa'),
+    labels.get('22222222-2222-4222-8222-2222222222bb'),
+  );
 });
 
-void test('passkeyDisplayLabel stays distinguishable even if two ids happen to share their last 4 characters', () => {
-  // Codex P3 finding on PR #129: a truncated id suffix reintroduces its
-  // own (small but nonzero) collision probability. Using the full id
-  // removes that residual risk entirely - two distinct listPasskeys()
-  // entries never share an id.
-  const first = passkeyDisplayLabel({
-    id: '11111111-1111-4111-8111-1111111111aa',
-    friendlyName: null,
-    createdAt: '2026-08-10T02:00:00.000Z',
-    lastUsedAt: null,
-  });
-  const second = passkeyDisplayLabel({
-    id: '99999999-9999-4999-8999-9999999911aa',
-    friendlyName: null,
-    createdAt: '2026-08-10T02:00:00.000Z',
-    lastUsedAt: null,
-  });
+void test('passkeyDisplayLabels disambiguates two unnamed credentials registered in the same minute', () => {
+  // tokyoTimeLabel truncates seconds, so createdAt alone collides within
+  // one minute (Codex P2 follow-up finding, PR #129).
+  const labels = passkeyDisplayLabels([
+    {
+      id: '11111111-1111-4111-8111-1111111111aa',
+      friendlyName: null,
+      createdAt: '2026-08-10T02:00:00.100Z',
+      lastUsedAt: null,
+    },
+    {
+      id: '22222222-2222-4222-8222-2222222222bb',
+      friendlyName: null,
+      createdAt: '2026-08-10T02:00:00.900Z',
+      lastUsedAt: null,
+    },
+  ]);
+  const first = labels.get('11111111-1111-4111-8111-1111111111aa');
+  const second = labels.get('22222222-2222-4222-8222-2222222222bb');
   assert.notEqual(first, second);
+  assert.equal(
+    first,
+    '登録済みPasskey（2026年8月10日 11:00 登録）（ID: 11111111-1111-4111-8111-1111111111aa）',
+  );
+});
+
+void test('passkeyDisplayLabels disambiguates two credentials that share a non-null friendly name', () => {
+  // friendly_name is caller-supplied free text with no uniqueness
+  // constraint (Codex finding, PR #129) - two credentials can legitimately
+  // both be named "iPhone".
+  const labels = passkeyDisplayLabels([
+    {
+      id: '11111111-1111-4111-8111-1111111111aa',
+      friendlyName: 'iPhone',
+      createdAt: '2026-08-10T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+    {
+      id: '22222222-2222-4222-8222-2222222222bb',
+      friendlyName: 'iPhone',
+      createdAt: '2026-08-11T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+  ]);
+  const first = labels.get('11111111-1111-4111-8111-1111111111aa');
+  const second = labels.get('22222222-2222-4222-8222-2222222222bb');
+  assert.notEqual(first, second);
+  assert.equal(first, 'iPhone（ID: 11111111-1111-4111-8111-1111111111aa）');
+});
+
+void test('passkeyDisplayLabels leaves a unique friendly name free of id noise even when other unnamed credentials collide', () => {
+  const labels = passkeyDisplayLabels([
+    {
+      id: '11111111-1111-4111-8111-1111111111aa',
+      friendlyName: 'iPhone',
+      createdAt: '2026-08-10T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+    {
+      id: '22222222-2222-4222-8222-2222222222bb',
+      friendlyName: null,
+      createdAt: '2026-08-11T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+    {
+      id: '33333333-3333-4333-8333-3333333333cc',
+      friendlyName: null,
+      createdAt: '2026-08-11T02:00:00.000Z',
+      lastUsedAt: null,
+    },
+  ]);
+  assert.equal(labels.get('11111111-1111-4111-8111-1111111111aa'), 'iPhone');
+  assert.notEqual(
+    labels.get('22222222-2222-4222-8222-2222222222bb'),
+    labels.get('33333333-3333-4333-8333-3333333333cc'),
+  );
 });
 
 void test('resolveManagementFeedback keeps list and delete failure messages distinct', () => {
