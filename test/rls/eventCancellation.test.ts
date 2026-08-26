@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import pg from 'pg';
 import {
+  createAdminClient,
   createAnonymousClient,
   createTestActor,
   deleteTestActor,
@@ -15,6 +17,7 @@ import {
   setParticipation,
 } from './support/participationFixtures.ts';
 import { createAcquisition } from './support/ticketFixtures.ts';
+import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 // Real local Supabase/Postgres RLS/trigger/RPC tests for Issue #125's
 // Event/Occurrence cancellation lifecycle (PO decision #123) - see
@@ -34,6 +37,7 @@ import { createAcquisition } from './support/ticketFixtures.ts';
 //   DELETE) and unrelated updates stay available.
 
 const PASSWORD = 'Str0ng-Test-Passw0rd!';
+const status = readLocalSupabaseStatus();
 
 let owner: TestActor;
 let nonOwner: TestActor;
@@ -384,4 +388,217 @@ void test('canceling an occurrence does not remove or change existing participat
     .single();
   assert.equal(acquisitionError, null);
   assert.equal(acquisitionRow.status, 'secured');
+});
+
+// --- service_role can reach the effective-cancellation guard (review
+// finding): the guard triggers on occurrence_participations/
+// ticket_acquisitions run SECURITY INVOKER, so a service_role-performed
+// INSERT (admin fixtures, backend tooling) calls
+// event_occurrence_is_effectively_canceled as service_role too. Without an
+// explicit EXECUTE grant to service_role on that function (table-level
+// grants are a separate, still-enforced check from BYPASSRLS - see
+// 20260820000000_create_events.sql's own comment on this), such an insert
+// would fail with "permission denied for function
+// event_occurrence_is_effectively_canceled" even on a perfectly ordinary,
+// not-canceled occurrence.
+
+void test('service_role can insert a participation on a not-canceled occurrence (guard function is reachable)', async () => {
+  const { occurrence } = await createEventWithOccurrence(owner);
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('occurrence_participations')
+    .insert({ occurrence_id: occurrence.id, user_id: nonOwner.user.id, status: 'considering' });
+  assert.equal(error, null);
+});
+
+void test('service_role can insert a ticket acquisition on a not-canceled occurrence (guard function is reachable)', async () => {
+  const { occurrence } = await createEventWithOccurrence(owner);
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('ticket_acquisitions')
+    .insert({ owner_id: nonOwner.user.id, occurrence_id: occurrence.id });
+  assert.equal(error, null);
+});
+
+// --- Race safety (review finding): event_occurrence_is_effectively_canceled
+// takes `for share of eo, e`, which conflicts with the `FOR NO KEY UPDATE`
+// lock an ordinary `update event_occurrences set canceled_at = ...` takes -
+// so a cancel that is in-flight (holds the lock, not yet committed) blocks a
+// concurrent guarded insert until the cancel resolves, and the insert then
+// sees the true, post-commit state rather than a stale pre-cancel snapshot.
+// Uses raw pg.Client connections, the same technique test/rls/
+// eventDeletion.test.ts and test/rls/eventRangeConcurrency.test.ts use, so
+// each side of the race can be controlled explicitly and proven to actually
+// block (via pg_stat_activity) rather than merely asserting the end state.
+
+async function newClient(): Promise<pg.Client> {
+  const client = new pg.Client({ connectionString: status.dbUrl });
+  await client.connect();
+  return client;
+}
+
+async function backendPid(client: pg.Client): Promise<number> {
+  const { rows } = await client.query<{ pid: number }>('select pg_backend_pid() as pid');
+  const pid = rows[0]?.pid;
+  if (pid === undefined) {
+    throw new Error('failed to read backend pid');
+  }
+  return pid;
+}
+
+async function waitUntilBlocked(admin: pg.Client, pid: number): Promise<void> {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const { rows } = await admin.query<{ wait_event_type: string | null }>(
+      'select wait_event_type from pg_stat_activity where pid = $1',
+      [pid],
+    );
+    if (rows[0]?.wait_event_type === 'Lock') {
+      return;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`timed out waiting for backend ${String(pid)} to block on a lock`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+/** Simulates the auth context PostgREST would establish for `userId`, for
+ * the current transaction only (matches auth.uid()'s own
+ * request.jwt.claim.sub lookup). Must run after `begin`. */
+async function actAsAuthenticated(client: pg.Client, userId: string): Promise<void> {
+  await client.query('set local role authenticated');
+  await client.query("select set_config('request.jwt.claim.sub', $1, true)", [userId]);
+}
+
+function pgErrorCode(error: unknown): string | null {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code: unknown = Reflect.get(error, 'code');
+    return typeof code === 'string' ? code : null;
+  }
+  return null;
+}
+
+interface InsertAttemptOutcome {
+  committed: boolean;
+  code: string | null;
+}
+
+void test('race safety: an in-flight cancel blocks a concurrent participation insert, which then correctly rejects once the cancel commits', async () => {
+  const admin = await newClient();
+  const txCancel = await newClient();
+  const txInsert = await newClient();
+  try {
+    const { occurrence } = await createEventWithOccurrence(owner);
+    const insertPid = await backendPid(txInsert);
+
+    await txCancel.query('begin');
+    await txCancel.query('update public.event_occurrences set canceled_at = now() where id = $1', [
+      occurrence.id,
+    ]);
+    // txCancel now holds a FOR NO KEY UPDATE lock on the occurrence row,
+    // uncommitted - this is what txInsert's `for share` guard read must
+    // wait on.
+
+    const insertResult: Promise<InsertAttemptOutcome> = (async () => {
+      await txInsert.query('begin');
+      await actAsAuthenticated(txInsert, nonOwner.user.id);
+      try {
+        await txInsert.query(
+          'insert into public.occurrence_participations (occurrence_id, user_id, status) values ($1, $2, $3)',
+          [occurrence.id, nonOwner.user.id, 'considering'],
+        );
+        await txInsert.query('commit');
+        return { committed: true, code: null };
+      } catch (error) {
+        await txInsert.query('rollback').catch(() => {});
+        return { committed: false, code: pgErrorCode(error) };
+      }
+    })();
+
+    await waitUntilBlocked(admin, insertPid);
+    await txCancel.query('commit');
+    const outcome = await insertResult;
+
+    assert.equal(
+      outcome.committed,
+      false,
+      'expected the insert to be rejected once it sees the committed cancellation',
+    );
+    assert.equal(outcome.code, '90002');
+
+    const { data, error } = await nonOwner.client
+      .from('occurrence_participations')
+      .select()
+      .eq('occurrence_id', occurrence.id)
+      .eq('user_id', nonOwner.user.id);
+    assert.equal(error, null);
+    assert.deepEqual(data, [], 'no participation row should have been left behind');
+  } finally {
+    await txCancel.end();
+    await txInsert.end();
+    await admin.end();
+  }
+});
+
+void test('race safety: a cancel blocked by an in-flight participation insert proceeds once the insert commits, and the insert itself is unaffected', async () => {
+  const admin = await newClient();
+  const txInsert = await newClient();
+  const txCancel = await newClient();
+  try {
+    const { occurrence } = await createEventWithOccurrence(owner);
+    const cancelPid = await backendPid(txCancel);
+
+    await txInsert.query('begin');
+    await actAsAuthenticated(txInsert, nonOwner.user.id);
+    await txInsert.query(
+      'insert into public.occurrence_participations (occurrence_id, user_id, status) values ($1, $2, $3)',
+      [occurrence.id, nonOwner.user.id, 'considering'],
+    );
+    // The guard trigger's `for share of eo, e` read holds a FOR SHARE lock
+    // on the occurrence row, uncommitted - this is what txCancel's own
+    // update must wait on (FOR NO KEY UPDATE conflicts with FOR SHARE).
+
+    const cancelResult: Promise<{ committed: boolean }> = (async () => {
+      await txCancel.query('begin');
+      try {
+        await txCancel.query(
+          'update public.event_occurrences set canceled_at = now() where id = $1',
+          [occurrence.id],
+        );
+        await txCancel.query('commit');
+        return { committed: true };
+      } catch {
+        await txCancel.query('rollback').catch(() => {});
+        return { committed: false };
+      }
+    })();
+
+    await waitUntilBlocked(admin, cancelPid);
+    await txInsert.query('commit');
+    const cancelOutcome = await cancelResult;
+
+    assert.equal(
+      cancelOutcome.committed,
+      true,
+      'expected the cancel to proceed once the earlier, not-yet-canceled insert has committed',
+    );
+
+    const { data, error } = await nonOwner.client
+      .from('occurrence_participations')
+      .select()
+      .eq('occurrence_id', occurrence.id)
+      .eq('user_id', nonOwner.user.id)
+      .single();
+    assert.equal(error, null);
+    assert.equal(
+      data.status,
+      'considering',
+      'the participation created before the cancel committed must survive it (no cascade)',
+    );
+  } finally {
+    await txInsert.end();
+    await txCancel.end();
+    await admin.end();
+  }
 });

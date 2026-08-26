@@ -39,27 +39,97 @@ grant update (canceled_at) on public.event_occurrences to authenticated;
 
 -- Effective cancellation (product-rules.md: "Event canceled OR Occurrence
 -- canceled"), as a single reusable predicate rather than re-deriving the OR
--- at every call site. STABLE (not SECURITY DEFINER): both tables already
--- grant SELECT to authenticated on every row (shared catalog), so this
--- needs no elevated privilege - it is a convenience wrapper around two reads
--- any caller could already perform directly.
+-- at every call site.
+--
+-- Race-safety (revised after review - see below): this reads under `for
+-- share of eo, e`, taking a row lock on both the occurrence and its parent
+-- event before deciding. An earlier revision of this function used a bare,
+-- unlocked read, reasoning that "was this occurrence effectively canceled
+-- right now" was a point-in-time gate rather than a standing invariant like
+-- 20260825000200_add_event_range_containment_triggers.sql's containment
+-- check. That reasoning was wrong: two concurrent transactions under READ
+-- COMMITTED (a cancel UPDATE, and a guarded INSERT/UPDATE reaching one of
+-- these triggers) can each take their own statement snapshot before the
+-- other commits, both see "not canceled", and both commit - leaving a
+-- persisted, committed state where a new active commitment exists on an
+-- occurrence whose cancellation is also committed. That is exactly the same
+-- shape of hazard the containment trigger's own `for share` locking exists
+-- to close, so this function now uses the identical technique: `for share`
+-- conflicts with the `FOR NO KEY UPDATE` lock an ordinary `update ... set
+-- canceled_at = ...` takes on that same row, so whichever side reaches the
+-- row first is what the other one waits on and then re-reads the
+-- post-commit truth of, rather than racing a stale snapshot. `for share`
+-- (not `for update`) is deliberate, same as the containment trigger: it
+-- still lets multiple concurrent guarded inserts/updates on the *same*
+-- occurrence proceed without blocking each other, since FOR SHARE locks do
+-- not conflict with each other - only a genuine concurrent cancel/uncancel
+-- is serialized against.
+--
+-- SECURITY DEFINER (load-bearing, not incidental - discovered the hard way):
+-- `for share` on event_occurrences/events does not only re-check the SELECT
+-- policy (events_select_authenticated / event_occurrences_select_
+-- authenticated, both `using (true)`) - Postgres also applies the row's
+-- UPDATE policy USING clause for a locking read
+-- (events_update_own / event_occurrences_update_own, both
+-- `owner_id = auth.uid()`). Running this SECURITY INVOKER therefore made
+-- the lock (and the row itself) invisible to every caller who is not the
+-- event's owner - i.e. the common case, since most guarded actions
+-- (participation, invitation, ticket acquisition) are performed by
+-- attendees/invitees, not the owner - silently making this function return
+-- false for them regardless of actual cancellation state. SECURITY DEFINER
+-- runs the read as the function owner (postgres, which has BYPASSRLS - same
+-- reasoning delete_event_occurrence/delete_event/invite_to_occurrence use
+-- for privileges the caller has no direct grant for), so the lock is taken
+-- and the true state is read regardless of who is calling. This leaks no
+-- new information: the function returns only a boolean, and both
+-- underlying tables are already openly readable by every authenticated user.
+--
+-- Race-safety: reads under `for share of eo, e`, taking a row lock on both
+-- the occurrence and its parent event before deciding. An earlier revision
+-- of this function used a bare, unlocked read, reasoning that "was this
+-- occurrence effectively canceled right now" was a point-in-time gate
+-- rather than a standing invariant like 20260825000200_add_event_range_
+-- containment_triggers.sql's containment check. That reasoning was wrong:
+-- two concurrent transactions under READ COMMITTED (a cancel UPDATE, and a
+-- guarded INSERT/UPDATE reaching one of these triggers) can each take their
+-- own statement snapshot before the other commits, both see "not
+-- canceled", and both commit - leaving a persisted, committed state where a
+-- new active commitment exists on an occurrence whose cancellation is also
+-- committed. That is exactly the same shape of hazard the containment
+-- trigger's own `for share` locking exists to close, so this function uses
+-- the identical technique: `for share` conflicts with the `FOR NO KEY
+-- UPDATE` lock an ordinary `update ... set canceled_at = ...` takes on that
+-- same row, so whichever side reaches the row first is what the other one
+-- waits on and then re-reads the post-commit truth of, rather than racing a
+-- stale snapshot. `for share` (not `for update`) is deliberate, same as the
+-- containment trigger: it still lets multiple concurrent guarded
+-- inserts/updates on the *same* occurrence proceed without blocking each
+-- other, since FOR SHARE locks do not conflict with each other - only a
+-- genuine concurrent cancel/uncancel is serialized against.
 create function public.event_occurrence_is_effectively_canceled(p_occurrence_id uuid)
 returns boolean
-language sql
-stable
+language plpgsql
+security definer
 set search_path = ''
 as $$
-  select exists (
-    select 1
-    from public.event_occurrences eo
-    join public.events e on e.id = eo.event_id
-    where eo.id = p_occurrence_id
-      and (e.canceled_at is not null or eo.canceled_at is not null)
-  );
+declare
+  v_event_canceled_at timestamptz;
+  v_occurrence_canceled_at timestamptz;
+begin
+  select e.canceled_at, eo.canceled_at
+    into v_event_canceled_at, v_occurrence_canceled_at
+  from public.event_occurrences eo
+  join public.events e on e.id = eo.event_id
+  where eo.id = p_occurrence_id
+  for share of eo, e;
+
+  return v_event_canceled_at is not null or v_occurrence_canceled_at is not null;
+end;
 $$;
 
 revoke execute on function public.event_occurrence_is_effectively_canceled(uuid) from public;
 grant execute on function public.event_occurrence_is_effectively_canceled(uuid) to authenticated;
+grant execute on function public.event_occurrence_is_effectively_canceled(uuid) to service_role;
 
 -- Custom SQLSTATE 90002: application-defined condition for "this action is
 -- rejected because the target occurrence is currently effectively
@@ -70,22 +140,6 @@ grant execute on function public.event_occurrence_is_effectively_canceled(uuid) 
 -- fully eligible, but the target's current cancellation *state* forbids a
 -- new active commitment right now. PostgREST propagates this code to the
 -- client's error.code field, same as 90001.
---
--- Race-safety: unlike 20260825000200_add_event_range_containment_
--- triggers.sql's constraint triggers, the checks below take no explicit row
--- lock on events/event_occurrences. That cross-table containment invariant
--- must hold for every committed row forever (a range update must never
--- leave an existing occurrence outside it), so a bare read there really
--- could race against a concurrent range change and let both commit. The
--- guards here are a different kind of check: a point-in-time gate ("was
--- this occurrence effectively canceled at the moment this write
--- committed"), not a standing invariant over already-committed rows. Each
--- guard's read is part of the same transaction as the write it gates, so it
--- always reflects the writer's own transaction-consistent view; the only
--- possible race is "a concurrent cancel commits a few milliseconds before
--- or after this write" - ordinary last-committed-wins behavior, not a
--- correctness violation, and not worth serializing every participation/
--- ticket-acquisition insert against every event/occurrence row for.
 create function public.check_occurrence_participation_insert_not_canceled() returns trigger
 language plpgsql
 set search_path = ''

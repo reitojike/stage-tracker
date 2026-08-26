@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClie
 import { listMyReceivedInvitations } from '@/infrastructure/supabase/invitation';
 import { getEventsByIds, getOccurrencesByIds } from '@/infrastructure/supabase/eventCatalogRead';
 import { resolvePlanningReadState } from '@/domain/planningError';
+import { isEffectivelyCanceled } from '@/domain/eventCancellation';
 import type { Invitation } from '@/domain/invitation';
 import { catalogMonthHref } from '@/domain/catalogNavigation';
 import { currentTokyoDate } from '../_lib/today.ts';
@@ -36,6 +37,7 @@ export default async function InvitationsPage() {
   let contextReadFailed = false;
   const occurrenceById = new Map<string, { startsAt: string; endsAt: string | null }>();
   const eventTitleByOccurrenceId = new Map<string, string>();
+  const isCanceledByOccurrenceId = new Map<string, boolean>();
 
   if (occurrenceIds.length > 0) {
     const occurrencesResult = await getOccurrencesByIds(client, occurrenceIds);
@@ -54,11 +56,12 @@ export default async function InvitationsPage() {
       if (!eventsResult.ok) {
         contextReadFailed = true;
       } else {
-        const eventTitleById = new Map(eventsResult.data.map((event) => [event.id, event.title]));
+        const eventById = new Map(eventsResult.data.map((event) => [event.id, event]));
         for (const occurrence of occurrencesResult.data) {
-          const title = eventTitleById.get(occurrence.eventId);
-          if (title !== undefined) {
-            eventTitleByOccurrenceId.set(occurrence.id, title);
+          const event = eventById.get(occurrence.eventId);
+          if (event !== undefined) {
+            eventTitleByOccurrenceId.set(occurrence.id, event.title);
+            isCanceledByOccurrenceId.set(occurrence.id, isEffectivelyCanceled(event, occurrence));
           }
         }
       }
@@ -94,6 +97,9 @@ export default async function InvitationsPage() {
                 invitation={invitation}
                 occurrence={occurrenceById.get(invitation.occurrenceId) ?? null}
                 eventTitle={eventTitleByOccurrenceId.get(invitation.occurrenceId) ?? null}
+                isEffectivelyCanceled={
+                  isCanceledByOccurrenceId.get(invitation.occurrenceId) ?? false
+                }
               />
             </li>
           ))}
