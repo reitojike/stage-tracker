@@ -54,12 +54,15 @@ void test('passkeyDisplayLabel falls back to a createdAt-based label so unnamed 
     lastUsedAt: null,
   });
   assert.notEqual(first, second);
-  assert.equal(first, '登録済みPasskey（2026年8月10日 11:00 登録・ID: 11aa）');
+  assert.equal(
+    first,
+    '登録済みPasskey（2026年8月10日 11:00 登録・ID: 11111111-1111-4111-8111-1111111111aa）',
+  );
 });
 
 void test('passkeyDisplayLabel stays distinguishable for two unnamed passkeys registered in the same minute', () => {
   // tokyoTimeLabel truncates seconds, so createdAt alone collides within
-  // one minute (Codex P2 follow-up finding, PR #129) - the id suffix must
+  // one minute (Codex P2 follow-up finding, PR #129) - the full id must
   // carry the distinction in that case.
   const first = passkeyDisplayLabel({
     id: '11111111-1111-4111-8111-1111111111aa',
@@ -71,6 +74,26 @@ void test('passkeyDisplayLabel stays distinguishable for two unnamed passkeys re
     id: '22222222-2222-4222-8222-2222222222bb',
     friendlyName: null,
     createdAt: '2026-08-10T02:00:00.900Z',
+    lastUsedAt: null,
+  });
+  assert.notEqual(first, second);
+});
+
+void test('passkeyDisplayLabel stays distinguishable even if two ids happen to share their last 4 characters', () => {
+  // Codex P3 finding on PR #129: a truncated id suffix reintroduces its
+  // own (small but nonzero) collision probability. Using the full id
+  // removes that residual risk entirely - two distinct listPasskeys()
+  // entries never share an id.
+  const first = passkeyDisplayLabel({
+    id: '11111111-1111-4111-8111-1111111111aa',
+    friendlyName: null,
+    createdAt: '2026-08-10T02:00:00.000Z',
+    lastUsedAt: null,
+  });
+  const second = passkeyDisplayLabel({
+    id: '99999999-9999-4999-8999-9999999911aa',
+    friendlyName: null,
+    createdAt: '2026-08-10T02:00:00.000Z',
     lastUsedAt: null,
   });
   assert.notEqual(first, second);

@@ -59,16 +59,17 @@ export function mapPasskeyListItem(raw: RawPasskeyListItem): PasskeyListItem {
  *
  * `createdAt` alone is only minute-precision display (`tokyoTimeLabel`
  * truncates seconds), so two unnamed passkeys registered within the same
- * minute would still render identically. A trailing slice of `id` (a
- * UUID, always unique) closes that gap unconditionally rather than
- * chasing finer time precision that could itself collide.
+ * minute would still render identically. Appending `id` in full - not a
+ * truncated slice, which reintroduces its own (if small) collision
+ * probability - closes that gap unconditionally: two distinct list items
+ * from listPasskeys() never share an id, so this is the last round this
+ * disambiguation needs.
  */
 export function passkeyDisplayLabel(passkey: PasskeyListItem): string {
   if (passkey.friendlyName !== null) {
     return passkey.friendlyName;
   }
-  const idSuffix = passkey.id.slice(-4);
-  return `登録済みPasskey（${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)} 登録・ID: ${idSuffix}）`;
+  return `登録済みPasskey（${tokyoDateLabel(passkey.createdAt)} ${tokyoTimeLabel(passkey.createdAt)} 登録・ID: ${passkey.id}）`;
 }
 
 // --- Management (list / delete): server-side, session-scoped, no ceremony ---
