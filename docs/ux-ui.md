@@ -391,5 +391,7 @@ product-rules.md` が定めるEvent range（first-class data。Issue #87）と�
   本人 + 妻の bounded 2-user dogfood）
 
 auth providerはEmail magic link + Supabase Auth cookie-based session
-として決定済みです（Issue #11）。production hosting等の他のdeferred
-項目とは別に扱います。
+（Issue #11、account bootstrap / recovery用）に加え、日常sign-inの
+primary pathとしてPasskey（Issue #106、Magic Linkを置換しないoptional
+credential）を追加した構成として決定済みです。production hosting等の
+他のdeferred項目とは別に扱います。

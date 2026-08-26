@@ -1,9 +1,13 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  isAuthApiError,
+  isAuthSessionMissingError,
+  type SupabaseClient,
+} from '@supabase/supabase-js';
 import type { Database } from './database.types.ts';
 import {
-  classifyManagementError,
   mapPasskeyListItem,
   type PasskeyListItem,
+  type PasskeyManagementError,
   type PasskeyManagementResult,
 } from '../../domain/passkey.ts';
 
@@ -23,6 +27,29 @@ import {
 // src/infrastructure/supabase/browserClient.ts).
 
 export type PasskeyManagementClient = SupabaseClient<Database>;
+
+/**
+ * Classifies list()/delete()'s error into this boundary's
+ * PasskeyManagementErrorKind vocabulary. Mirrors
+ * src/infrastructure/supabase/planningAuth.ts's classifyGetUserError: real
+ * AuthError subclasses (isAuthSessionMissingError/isAuthApiError) are the
+ * classification surface, not hand-matched status/code literals - GoTrue's
+ * own client-side "no session" check throws an AuthSessionMissingError
+ * with status 400 and no `code` at all, which a 401-or-known-code check
+ * would silently miss and fall through to a generic `failure`.
+ */
+export function classifyManagementError(error: unknown): PasskeyManagementError {
+  if (
+    isAuthSessionMissingError(error) ||
+    (isAuthApiError(error) && [401, 403].includes(error.status))
+  ) {
+    return { kind: 'not-authenticated', message: error.message };
+  }
+  if (error instanceof Error) {
+    return { kind: 'failure', message: error.message };
+  }
+  return { kind: 'failure', message: 'unknown passkey management error' };
+}
 
 export async function listPasskeys(
   client: PasskeyManagementClient,

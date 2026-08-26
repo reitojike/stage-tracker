@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import {
   INITIAL_PASSKEY_DELETE_FORM_STATE,
   classifyCeremonyError,
-  classifyManagementError,
   mapPasskeyListItem,
   rejectedPasskeyDeleteFormState,
   resolveCeremonyFeedback,
@@ -25,27 +24,6 @@ void test('mapPasskeyListItem preserves a present friendly name and last_used_at
   });
   assert.equal(item.friendlyName, 'iPhone');
   assert.equal(item.lastUsedAt, '2026-08-27T00:00:00Z');
-});
-
-void test('classifyManagementError treats a 401 as not-authenticated, not a generic failure', () => {
-  const classified = classifyManagementError({ message: 'no session', status: 401 });
-  assert.equal(classified.kind, 'not-authenticated');
-});
-
-void test('classifyManagementError treats session_not_found/session_expired codes as not-authenticated', () => {
-  assert.equal(
-    classifyManagementError({ message: 'x', code: 'session_not_found' }).kind,
-    'not-authenticated',
-  );
-  assert.equal(
-    classifyManagementError({ message: 'x', code: 'session_expired' }).kind,
-    'not-authenticated',
-  );
-});
-
-void test('classifyManagementError falls back to failure for an unrecognised error', () => {
-  const classified = classifyManagementError({ message: 'boom', code: 'unexpected_failure' });
-  assert.equal(classified.kind, 'failure');
 });
 
 void test('resolveManagementFeedback keeps list and delete failure messages distinct', () => {

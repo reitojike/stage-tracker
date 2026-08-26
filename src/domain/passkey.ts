@@ -5,11 +5,17 @@
 // every other one in the app, even though its underlying transport is
 // Supabase Auth's passkey API rather than PostgREST/RPC.
 //
-// Deliberately narrow on the wire shape rather than importing AuthError/
-// WebAuthnError from @supabase/auth-js: both error kinds the SDK can throw
-// here carry a `code` string, and classifying on that structural shape
-// avoids depending on which of the two classes a given failure actually is
-// (see src/infrastructure/supabase/passkey.ts for where this is called).
+// This module is pure domain logic: no Supabase import (see the
+// architecture import boundary in eslint.config.mjs, and
+// src/domain/planningError.ts's own header for the same convention).
+// Management (list/delete) error classification therefore lives in
+// src/infrastructure/supabase/passkey.ts instead of here - it needs the
+// real AuthError subclasses (isAuthSessionMissingError/isAuthApiError,
+// same as src/infrastructure/supabase/planningAuth.ts's
+// classifyGetUserError) to classify correctly. Ceremony (register/sign-in)
+// classification stays here because it also has to recognise WebAuthnError,
+// which @supabase/supabase-js does not export a type guard for - see
+// PasskeyOperationErrorLike below.
 
 export interface PasskeyListItem {
   id: string;
@@ -34,15 +40,9 @@ export function mapPasskeyListItem(raw: RawPasskeyListItem): PasskeyListItem {
   };
 }
 
-/** The subset of an SDK-thrown error this module classifies on. Both
- * AuthError and WebAuthnError satisfy this structurally. */
-export interface PasskeyOperationErrorLike {
-  message: string;
-  code?: string;
-  status?: number;
-}
-
 // --- Management (list / delete): server-side, session-scoped, no ceremony ---
+// Classification lives in src/infrastructure/supabase/passkey.ts (see this
+// file's header) - only the vocabulary is here.
 
 export type PasskeyManagementErrorKind = 'not-authenticated' | 'failure';
 
@@ -53,19 +53,6 @@ export interface PasskeyManagementError {
 
 export type PasskeyManagementResult<T> =
   { ok: true; data: T } | { ok: false; error: PasskeyManagementError };
-
-/** No session for list()/delete() to act on - the caller reached this
- * boundary without going through the page's own authenticated-only gate,
- * or the session expired mid-request. Both auth-js's thrown
- * AuthSessionMissingError and a 401 AuthError from the server land here. */
-const SESSION_MISSING_CODES = new Set(['session_not_found', 'session_expired']);
-
-export function classifyManagementError(error: PasskeyOperationErrorLike): PasskeyManagementError {
-  if (error.status === 401 || (error.code !== undefined && SESSION_MISSING_CODES.has(error.code))) {
-    return { kind: 'not-authenticated', message: error.message };
-  }
-  return { kind: 'failure', message: error.message };
-}
 
 export interface PasskeyManagementFeedback {
   variant: 'error';
@@ -127,6 +114,16 @@ export function rejectedPasskeyDeleteFormState(
 }
 
 // --- Ceremony (register / sign-in): browser-only, classified client-side ---
+
+/** The subset of an SDK-thrown error this module classifies on. Both
+ * AuthError and WebAuthnError satisfy this structurally - unlike
+ * management classification above, this can't use a real class type guard
+ * for WebAuthnError, since @supabase/supabase-js does not export one. */
+export interface PasskeyOperationErrorLike {
+  message: string;
+  code?: string;
+  status?: number;
+}
 
 export type PasskeyCeremonyErrorKind =
   'cancelled' | 'unsupported' | 'duplicate' | 'too-many' | 'failure';
