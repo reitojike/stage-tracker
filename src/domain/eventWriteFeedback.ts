@@ -123,6 +123,11 @@ export function resolveWriteFeedback(
     // total for every EventCatalogWriteErrorKind regardless of operation.
     case 'duplicate-occurrence':
       return VALIDATION;
+    case 'delete-blocked':
+      // Regular event/occurrence write operations never produce
+      // delete-blocked errors; only the delete RPCs do. This case exists
+      // for exhaustiveness (EventCatalogWriteErrorKind includes it).
+      return FAILURE;
     case 'failure':
       return FAILURE;
   }
@@ -185,4 +190,73 @@ export function acceptedWriteFormState(
   notice: string,
 ): EventWriteFormState {
   return { attempt: previous.attempt + 1, fieldErrors: {}, feedback: null, values, notice };
+}
+
+// Hard deletion (Issue #124): distinct from regular write forms since delete
+// has no input fields, no values echo, and an all-or-nothing result structure.
+
+export type EventDeleteOperation = 'delete-event' | 'delete-occurrence';
+
+const DELETE_PERMISSION_DENIED: Record<EventDeleteOperation, EventWriteFeedback> = {
+  'delete-event': {
+    variant: 'error',
+    title: 'このイベントを削除する権限がありません',
+    description: 'イベントを削除できるのは、そのイベントを登録したユーザーだけです。',
+  },
+  'delete-occurrence': {
+    variant: 'error',
+    title: 'この公演回を削除する権限がありません',
+    description: '公演回を削除できるのは、そのイベントを登録したユーザーだけです。',
+  },
+};
+
+const DELETE_BLOCKED: Record<EventDeleteOperation, EventWriteFeedback> = {
+  'delete-event': {
+    variant: 'error',
+    title: 'このイベントは削除できません',
+    description: '関連する参加・招待・チケット情報がある公演回が含まれているため削除できません。',
+  },
+  'delete-occurrence': {
+    variant: 'error',
+    title: 'この公演回は削除できません',
+    description: '関連する参加・招待・チケット情報があるため削除できません。',
+  },
+};
+
+const DELETE_FAILURE: EventWriteFeedback = {
+  variant: 'error',
+  title: '削除に失敗しました',
+  description: '通信状況を確認し、もう一度お試しください。',
+};
+
+export function resolveDeleteFeedback(
+  operation: EventDeleteOperation,
+  kind: EventCatalogWriteErrorKind,
+): EventWriteFeedback {
+  switch (kind) {
+    case 'permission-denied':
+      return DELETE_PERMISSION_DENIED[operation];
+    case 'delete-blocked':
+      return DELETE_BLOCKED[operation];
+    case 'validation':
+    case 'duplicate-occurrence':
+    case 'failure':
+      return DELETE_FAILURE;
+    default:
+      return DELETE_FAILURE;
+  }
+}
+
+export interface EventDeleteFormState {
+  attempt: number;
+  feedback: EventWriteFeedback | null;
+}
+
+export const INITIAL_EVENT_DELETE_FORM_STATE: EventDeleteFormState = { attempt: 0, feedback: null };
+
+export function rejectedEventDeleteFormState(
+  previous: EventDeleteFormState,
+  feedback: EventWriteFeedback,
+): EventDeleteFormState {
+  return { attempt: previous.attempt + 1, feedback };
 }

@@ -5,7 +5,11 @@ import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClie
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
 import { getEventWithOccurrences } from '@/infrastructure/supabase/eventCatalogRead';
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
-import { canUpdateEvent } from '@/domain/eventPermissions';
+import {
+  canUpdateEvent,
+  canDeleteEvent,
+  canDeleteEventOccurrence,
+} from '@/domain/eventPermissions';
 import { resolveWriteFeedback } from '@/domain/eventWriteFeedback';
 import {
   eventDetailsToFormValues,
@@ -20,6 +24,8 @@ import { EventDetailsEditForm } from '../../../_components/EventDetailsEditForm.
 import { EventRangeEditForm } from '../../../_components/EventRangeEditForm.tsx';
 import { OccurrenceAddForm } from '../../../_components/OccurrenceAddForm.tsx';
 import { OccurrenceUpdateForm } from '../../../_components/OccurrenceUpdateForm.tsx';
+import { DeleteOccurrenceForm } from '../../../_components/DeleteOccurrenceForm.tsx';
+import { DeleteEventForm } from '../../../_components/DeleteEventForm.tsx';
 import styles from '../../../_components/EventWriteForm.module.css';
 
 interface EditEventPageProps {
@@ -112,28 +118,41 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
 
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>公演回</h2>
-        <p className={styles.occurrenceCaption}>
-          公演回の削除は現時点では提供していません。日時の修正と追加のみ行えます。
-        </p>
 
-        {occurrences.map((occurrence) => (
-          <OccurrenceUpdateForm
-            key={occurrence.id}
-            eventId={event.id}
-            occurrenceId={occurrence.id}
-            label={`${tokyoDateLabel(occurrence.startsAt)} ${occurrenceTimeRangeLabel(
-              occurrence.startsAt,
-              occurrence.endsAt,
-            )}`}
-            initialValues={occurrenceToFormValues({
-              doorsAtUtc: occurrence.doorsAt,
-              startsAtUtc: occurrence.startsAt,
-              endsAtUtc: occurrence.endsAt,
-            })}
-          />
-        ))}
+        {occurrences.map((occurrence) => {
+          const canDeleteOccurrence = canDeleteEventOccurrence(user?.id ?? null, {
+            ownerId: event.ownerId,
+          });
+          return (
+            <div key={occurrence.id}>
+              <OccurrenceUpdateForm
+                eventId={event.id}
+                occurrenceId={occurrence.id}
+                label={`${tokyoDateLabel(occurrence.startsAt)} ${occurrenceTimeRangeLabel(
+                  occurrence.startsAt,
+                  occurrence.endsAt,
+                )}`}
+                initialValues={occurrenceToFormValues({
+                  doorsAtUtc: occurrence.doorsAt,
+                  startsAtUtc: occurrence.startsAt,
+                  endsAtUtc: occurrence.endsAt,
+                })}
+              />
+              {canDeleteOccurrence && (
+                <DeleteOccurrenceForm eventId={event.id} occurrenceId={occurrence.id} />
+              )}
+            </div>
+          );
+        })}
 
         <OccurrenceAddForm eventId={event.id} />
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>このイベントを削除</h2>
+        {canDeleteEvent(user?.id ?? null, { ownerId: event.ownerId }) && (
+          <DeleteEventForm eventId={event.id} />
+        )}
       </section>
     </>
   );
