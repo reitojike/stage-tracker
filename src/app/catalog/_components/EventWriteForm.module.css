@@ -10,47 +10,6 @@
   gap: var(--space-md);
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  border: 1px solid var(--color-control-border);
-  border-radius: var(--radius-control);
-  padding: var(--space-md);
-  margin: 0;
-  min-width: 0;
-}
-
-.groupLegend {
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  padding: 0 var(--space-xs);
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.sectionHeading {
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  margin: 0;
-}
-
-.occurrenceCaption {
-  font-size: var(--font-size-caption);
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
 .notice {
   margin: 0;
   padding: var(--space-compact) var(--space-md);
@@ -58,6 +17,36 @@
   background: var(--color-surface-subtle);
   color: var(--color-text);
   font-size: var(--font-size-body-sm);
+}
+
+.occurrenceItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Separates an occurrence's edit form from its cancel/delete lifecycle
+   actions with a hairline divider (docs/ux-ui.md "意味のあるthin border" -
+   Issue #128: these are a distinct action tier from the edit form above
+   them, not sibling content). */
+.occurrenceLifecycle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Extra spacing (beyond AppShell's normal --space-section rhythm) before
+   the cancellation and hard-delete sections, so scrolling down the Event
+   edit page reads as an escalating departure from normal editing (Issue
+   #128 3-tier action hierarchy). No box/card is added - spacing only. */
+.escalatedSpacing {
+  margin-top: var(--space-xl);
+}
+
+.dangerHeading {
+  color: var(--color-danger);
 }
 
 /* Kept in the DOM (and in the accessibility tree) while it has nothing to

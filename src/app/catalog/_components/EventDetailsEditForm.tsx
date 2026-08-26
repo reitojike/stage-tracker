@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
@@ -57,11 +58,11 @@ export function EventDetailsEditForm({ eventId, initialValues }: EventDetailsEdi
         <EventFields values={state.values} fieldErrors={state.fieldErrors} disabled={isPending} />
       </div>
 
-      <div className={styles.actions}>
+      <ActionRow>
         <Button type="submit" disabled={isPending}>
           {isPending ? '保存中…' : 'イベント情報を保存'}
         </Button>
-      </div>
+      </ActionRow>
     </form>
   );
 }

@@ -42,7 +42,7 @@ export function EventRangeFields({
         }
       />
       <TextInput
-        label={endsOnOptional ? '開催期間（終了日・任意）' : '開催期間（終了日）'}
+        label="開催期間（終了日）"
         name="endsOn"
         type="date"
         required={!endsOnOptional}

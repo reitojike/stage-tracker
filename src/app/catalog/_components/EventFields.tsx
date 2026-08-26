@@ -39,7 +39,6 @@ export function EventFields({ values, fieldErrors, disabled }: EventFieldsProps)
         defaultValue={values.venue ?? ''}
         error={fieldErrors.venue}
         disabled={disabled}
-        helperText="任意です。"
       />
       <TextInput
         label="参照URL"
@@ -49,7 +48,7 @@ export function EventFields({ values, fieldErrors, disabled }: EventFieldsProps)
         defaultValue={values.sourceUrl ?? ''}
         error={fieldErrors.sourceUrl}
         disabled={disabled}
-        helperText="任意です。公式サイト等の http:// または https:// で始まるURL。"
+        helperText="公式サイト等の http:// または https:// で始まるURL。"
       />
       <TextArea
         label="メモ"
@@ -57,7 +56,6 @@ export function EventFields({ values, fieldErrors, disabled }: EventFieldsProps)
         defaultValue={values.memo ?? ''}
         error={fieldErrors.memo}
         disabled={disabled}
-        helperText="任意です。"
       />
     </>
   );

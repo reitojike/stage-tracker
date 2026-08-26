@@ -1,4 +1,5 @@
 import { useId, type InputHTMLAttributes } from 'react';
+import { RequirementIndicator } from './RequirementIndicator';
 import styles from './TextInput.module.css';
 
 export interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -13,6 +14,7 @@ export function TextInput({
   error,
   id,
   className,
+  required,
   'aria-describedby': callerDescribedBy,
   'aria-invalid': callerInvalid,
   ...rest
@@ -28,6 +30,7 @@ export function TextInput({
     <div className={styles.field}>
       <label className={styles.label} htmlFor={inputId}>
         {label}
+        <RequirementIndicator required={!!required} />
       </label>
       <input
         id={inputId}
@@ -35,6 +38,7 @@ export function TextInput({
           .filter(Boolean)
           .join(' ')}
         {...rest}
+        required={required}
         aria-invalid={invalid}
         aria-describedby={describedBy}
       />

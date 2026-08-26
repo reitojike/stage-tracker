@@ -1,4 +1,5 @@
 import { BackLink } from '@/ui/BackLink';
+import { FormSection } from '@/ui/FormSection';
 import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
@@ -107,22 +108,18 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
       <BackLink href={detailHref}>公演情報に戻る</BackLink>
       <PageHeading>{event.title} を編集</PageHeading>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionHeading}>イベント情報</h2>
+      <FormSection heading="イベント情報">
         <EventDetailsEditForm eventId={event.id} initialValues={eventDetailsToFormValues(event)} />
-      </section>
+      </FormSection>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionHeading}>開催期間</h2>
-        <p className={styles.occurrenceCaption}>
-          開催期間と公演回の日時を両方とも新しい期間へ移す場合は、まず開催期間を広げてから公演回の日時を編集し、最後に開催期間を正しい範囲へ戻してください。
-        </p>
+      <FormSection
+        heading="開催期間"
+        description="開催期間と公演回の日時を両方とも新しい期間へ移す場合は、まず開催期間を広げてから公演回の日時を編集し、最後に開催期間を正しい範囲へ戻してください。"
+      >
         <EventRangeEditForm eventId={event.id} initialValues={eventRangeToFormValues(event)} />
-      </section>
+      </FormSection>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionHeading}>公演回</h2>
-
+      <FormSection heading="公演回">
         {(() => {
           const canDeleteOccurrence = canDeleteEventOccurrence(user?.id ?? null, {
             ownerId: event.ownerId,
@@ -131,7 +128,7 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
             ownerId: event.ownerId,
           });
           return occurrences.map((occurrence) => (
-            <div key={occurrence.id}>
+            <div key={occurrence.id} className={styles.occurrenceItem}>
               <OccurrenceUpdateForm
                 eventId={event.id}
                 occurrenceId={occurrence.id}
@@ -145,36 +142,42 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
                   endsAtUtc: occurrence.endsAt,
                 })}
               />
-              {canCancelOccurrence && (
-                <OccurrenceCancellationForm
-                  eventId={event.id}
-                  occurrenceId={occurrence.id}
-                  isCanceled={occurrence.canceledAt !== null}
-                />
-              )}
-              {canDeleteOccurrence && (
-                <DeleteOccurrenceForm eventId={event.id} occurrenceId={occurrence.id} />
+              {(canCancelOccurrence || canDeleteOccurrence) && (
+                <div className={styles.occurrenceLifecycle}>
+                  {canCancelOccurrence && (
+                    <OccurrenceCancellationForm
+                      eventId={event.id}
+                      occurrenceId={occurrence.id}
+                      isCanceled={occurrence.canceledAt !== null}
+                    />
+                  )}
+                  {canDeleteOccurrence && (
+                    <DeleteOccurrenceForm eventId={event.id} occurrenceId={occurrence.id} />
+                  )}
+                </div>
               )}
             </div>
           ));
         })()}
 
         <OccurrenceAddForm eventId={event.id} />
-      </section>
+      </FormSection>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionHeading}>このイベントの中止</h2>
+      <FormSection heading="このイベントの中止" className={styles.escalatedSpacing}>
         {canCancelEvent(user?.id ?? null, { ownerId: event.ownerId }) && (
           <EventCancellationForm eventId={event.id} isCanceled={event.canceledAt !== null} />
         )}
-      </section>
+      </FormSection>
 
-      <section className={styles.section}>
-        <h2 className={styles.sectionHeading}>このイベントを削除</h2>
+      <FormSection
+        heading="このイベントを削除"
+        headingClassName={styles.dangerHeading}
+        className={styles.escalatedSpacing}
+      >
         {canDeleteEvent(user?.id ?? null, { ownerId: event.ownerId }) && (
           <DeleteEventForm eventId={event.id} />
         )}
-      </section>
+      </FormSection>
     </>
   );
 }

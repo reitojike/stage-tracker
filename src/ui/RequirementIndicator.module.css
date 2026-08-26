@@ -1,0 +1,7 @@
+.required {
+  margin-inline-start: var(--space-2xs);
+  color: var(--color-danger);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}

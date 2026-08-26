@@ -51,7 +51,7 @@ export function DeleteEventForm({ eventId }: DeleteEventFormProps) {
         />
       ) : null}
 
-      <Button type="submit" variant="secondary" disabled={isPending}>
+      <Button type="submit" variant="danger" disabled={isPending}>
         {isPending ? '削除中…' : 'このイベントを削除'}
       </Button>
     </form>

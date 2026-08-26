@@ -1,7 +1,9 @@
 'use client';
 
 import { useActionState } from 'react';
+import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
+import { FormSection } from '@/ui/FormSection';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { CatalogParams } from '@/domain/catalogNavigation.ts';
@@ -70,8 +72,7 @@ export function EventCreateForm({ context }: EventCreateFormProps) {
           endsOnOptional
         />
 
-        <fieldset className={styles.group}>
-          <legend className={styles.groupLegend}>初回公演回（任意）</legend>
+        <FormSection as="fieldset" heading="初回公演回" requirement="optional">
           <OccurrenceFields
             values={state.values}
             fieldErrors={state.fieldErrors}
@@ -79,14 +80,14 @@ export function EventCreateForm({ context }: EventCreateFormProps) {
             startsAtHelperText="日本時間（Asia/Tokyo）で入力します。未入力のまま作成すると、公演回は後から追加できます。"
             startsAtRequired={false}
           />
-        </fieldset>
+        </FormSection>
       </div>
 
-      <div className={styles.actions}>
+      <ActionRow>
         <Button type="submit" disabled={isPending}>
           {isPending ? '作成中…' : 'イベントを作成'}
         </Button>
-      </div>
+      </ActionRow>
     </form>
   );
 }

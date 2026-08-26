@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
@@ -53,11 +54,11 @@ export function EventRangeEditForm({ eventId, initialValues }: EventRangeEditFor
         />
       </div>
 
-      <div className={styles.actions}>
+      <ActionRow>
         <Button type="submit" disabled={isPending}>
           {isPending ? '保存中…' : '開催期間を保存'}
         </Button>
-      </div>
+      </ActionRow>
     </form>
   );
 }

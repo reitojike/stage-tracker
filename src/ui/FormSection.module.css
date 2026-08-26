@@ -1,0 +1,43 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.heading {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  margin: 0;
+}
+
+/* Genuine <fieldset>+<legend> grouping, deliberately unboxed - no
+   border/padding "card" (Issue #128 removes the prototype boxed-fieldset
+   presentation as the default; the browser's own fieldset chrome is reset
+   here so only the section-level gap rhythm remains). */
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.legend {
+  padding: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.description {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
