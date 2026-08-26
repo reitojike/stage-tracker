@@ -133,6 +133,28 @@
 }
 
 /*
+ * Irreversible/destructive action only (e.g. hard delete) - distinct from
+ * .secondary, which reversible lifecycle actions (cancel/uncancel) keep
+ * using (Issue #128 3-tier action hierarchy). Reuses the existing
+ * --color-danger token and the same surface-subtle/surface-active
+ * hover/active pair .secondary/.small/.icon already share, rather than
+ * inventing a new tint.
+ */
+.danger {
+  background-color: var(--color-surface);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) {
+  background-color: var(--color-surface-subtle);
+}
+
+.danger:active:not(:disabled) {
+  background-color: var(--color-surface-active);
+}
+
+/*
  * LinkButton renders an <a> carrying these same classes, so it needs the
  * link defaults a <button> never had neutralised. Kept here rather than in
  * a parallel stylesheet so the two cannot drift apart.

@@ -32,3 +32,7 @@ export const Quiet: Story = {
 export const Icon: Story = {
   args: { variant: 'icon', children: '>', 'aria-label': '次の月' },
 };
+
+export const Danger: Story = {
+  args: { variant: 'danger', children: 'このイベントを削除' },
+};

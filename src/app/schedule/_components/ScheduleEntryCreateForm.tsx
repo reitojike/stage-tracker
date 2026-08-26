@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_SCHEDULE_WRITE_FORM_STATE } from '@/domain/personalScheduleWriteFeedback.ts';
@@ -44,11 +45,11 @@ export function ScheduleEntryCreateForm() {
         />
       </div>
 
-      <div className={styles.actions}>
+      <ActionRow>
         <Button type="submit" disabled={isPending}>
           {isPending ? '作成中…' : '予定を作成'}
         </Button>
-      </div>
+      </ActionRow>
     </form>
   );
 }

@@ -46,7 +46,7 @@ export function OccurrenceFields({
         defaultValue={values.doorsAt ?? ''}
         error={fieldErrors.doorsAt}
         disabled={disabled}
-        helperText="任意です。未入力の場合は未公表として扱われます。"
+        helperText="未入力の場合は未公表として扱われます。"
       />
       <TextInput
         label="開演日時"
@@ -65,7 +65,7 @@ export function OccurrenceFields({
         defaultValue={values.endsAt ?? ''}
         error={fieldErrors.endsAt}
         disabled={disabled}
-        helperText={`任意です。未入力の場合は「${UNKNOWN_END_TIME_LABEL}」として扱われます。`}
+        helperText={`未入力の場合は「${UNKNOWN_END_TIME_LABEL}」として扱われます。`}
       />
     </>
   );

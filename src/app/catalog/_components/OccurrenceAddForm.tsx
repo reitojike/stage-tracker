@@ -1,7 +1,9 @@
 'use client';
 
 import { useActionState } from 'react';
+import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
+import { FormSection } from '@/ui/FormSection';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { addOccurrenceAction } from '../_actions/eventWrite.ts';
@@ -46,19 +48,18 @@ export function OccurrenceAddForm({ eventId }: OccurrenceAddFormProps) {
 
       <WriteNotice notice={state.notice} attempt={state.attempt} />
 
-      <fieldset key={state.attempt} className={styles.group}>
-        <legend className={styles.groupLegend}>公演回を追加</legend>
+      <FormSection key={state.attempt} as="fieldset" heading="公演回を追加">
         <OccurrenceFields
           values={state.values}
           fieldErrors={state.fieldErrors}
           disabled={isPending}
         />
-        <div className={styles.actions}>
+        <ActionRow>
           <Button type="submit" disabled={isPending}>
             {isPending ? '追加中…' : '公演回を追加'}
           </Button>
-        </div>
-      </fieldset>
+        </ActionRow>
+      </FormSection>
     </form>
   );
 }

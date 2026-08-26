@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FormSection } from '@/ui/FormSection';
 import { TextArea } from '@/ui/TextArea';
 import { TextInput } from '@/ui/TextInput';
 import type { FieldErrors, RawFormValues } from '@/domain/personalScheduleWrite.ts';
@@ -45,7 +46,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
         />
       </div>
 
-      <div className={styles.group}>
+      <div>
         {/* Checkbox before the same-named hidden fallback, in that DOM
             order - see personalScheduleWrite.ts's parseBlocking for why
             this specific order is what lets an explicit uncheck survive a
@@ -63,8 +64,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
         <input type="hidden" name="blocking" value="false" />
       </div>
 
-      <fieldset className={styles.group}>
-        <legend className={styles.groupLegend}>期間の種類</legend>
+      <FormSection as="fieldset" heading="期間の種類" requirement="required">
         <div className={styles.radioRow}>
           <label className={styles.radioOption}>
             <input
@@ -104,6 +104,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             label="開始日時"
             name="startsAt"
             type="datetime-local"
+            required={temporalMode === 'time-bounded'}
             defaultValue={values.startsAt ?? ''}
             error={fieldErrors.startsAt}
             disabled={disabled}
@@ -116,7 +117,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             defaultValue={values.endsAt ?? ''}
             error={fieldErrors.endsAt}
             disabled={disabled}
-            helperText="任意です。未定の場合は空欄のままにできます。"
+            helperText="未定の場合は空欄のままにできます。"
           />
         </div>
 
@@ -125,6 +126,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             label="開始日"
             name="startsOn"
             type="date"
+            required={temporalMode === 'all-day'}
             defaultValue={values.startsOn ?? ''}
             error={fieldErrors.startsOn}
             disabled={disabled}
@@ -137,10 +139,10 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             defaultValue={values.endsOn ?? ''}
             error={fieldErrors.endsOn}
             disabled={disabled}
-            helperText="任意です。単日の場合は空欄のままにできます。"
+            helperText="単日の場合は空欄のままにできます。"
           />
         </div>
-      </fieldset>
+      </FormSection>
 
       <TextArea
         label="メモ"
@@ -148,7 +150,6 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
         defaultValue={values.memo ?? ''}
         error={fieldErrors.memo}
         disabled={disabled}
-        helperText="任意です。"
       />
     </>
   );

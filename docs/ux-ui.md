@@ -152,6 +152,33 @@ compact inline action、quietはtext-only action、iconはcalendar month navigat
 のcontrolとして使われています。`input` / `textarea`のmin-height 44pxは、入力対象
 として維持します。
 
+## Form field vocabulary
+
+Event / Occurrence / Personal Scheduleのmanagement form（Issue #128）が共有する
+presentation vocabularyです。個別fieldのrequired/optionalの一覧等、product domain
+semanticsの正本は引き続き
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+であり、本節では重複記載しません。
+
+- **必須/任意の表示** — `src/ui/RequirementIndicator.tsx`が、必須fieldのlabel/
+  legend直後に赤い`*`を表示します（PO決定、2026-08-26）。任意fieldには何も
+  表示しません（`*`の不在で任意と分かる、という一般的なWeb form慣習に従います）。
+  `*`は`aria-hidden`とし、assistive technologyへのrequired伝達は native
+  `required`属性に委ねます（`*`はその視覚的な補助であり、唯一の手段にしません）。
+  `TextInput`/`TextArea`はlabelに渡された`required`から自動的にこれを表示し、
+  native `required`属性・`aria-*`・label associationは変更しません。「任意です。」
+  のような、任意であること自体だけを説明するhelper textは書きません。
+- **section / fieldsetの既定** — `src/ui/FormSection.tsx`が既定の
+  section/fieldset primitiveです。`as="section"`（既定）はboxなしのheading +
+  contentで、purely organizationalなgroupingに使います。`as="fieldset"`は
+  実際にrelatedなinputのgroupingがある場合（choice group等）にのみ使い、
+  `<fieldset>`/`<legend>`のaccessibility semanticsを保ちながら、prototype的な
+  border/padding boxは持たせません。
+- **action area** — actionの並びは`src/ui/ActionRow.tsx`を使います。
+- **Buttonのdanger variant** — `Button`の`danger` variantは、hard delete等
+  irreversibleな操作専用です。cancel/uncancelのようなreversibleなlifecycle
+  操作は`secondary`のままとし、危険度でtierを分けます。
+
 ## List row affordance
 
 chevronは、**row全体がtap可能でdestinationへ遷移する**ことを示すaffordanceです。

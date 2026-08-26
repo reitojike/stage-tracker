@@ -17,6 +17,14 @@ export const WithHelperText: Story = {
   args: { label: 'イベント名', helperText: 'catalog上に表示される名称です' },
 };
 
+export const RequiredField: Story = {
+  args: { label: 'イベント名', required: true },
+};
+
+export const OptionalField: Story = {
+  args: { label: '会場' },
+};
+
 export const WithError: Story = {
   args: { label: 'イベント名', error: 'イベント名を入力してください' },
 };

@@ -1,4 +1,5 @@
 import { useId, type TextareaHTMLAttributes } from 'react';
+import { RequirementIndicator } from './RequirementIndicator';
 import styles from './TextArea.module.css';
 
 export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -21,6 +22,7 @@ export function TextArea({
   id,
   className,
   rows = 4,
+  required,
   'aria-describedby': callerDescribedBy,
   'aria-invalid': callerInvalid,
   ...rest
@@ -36,6 +38,7 @@ export function TextArea({
     <div className={styles.field}>
       <label className={styles.label} htmlFor={controlId}>
         {label}
+        <RequirementIndicator required={!!required} />
       </label>
       <textarea
         id={controlId}
@@ -44,6 +47,7 @@ export function TextArea({
           .filter(Boolean)
           .join(' ')}
         {...rest}
+        required={required}
         aria-invalid={invalid}
         aria-describedby={describedBy}
       />

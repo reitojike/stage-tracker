@@ -14,7 +14,15 @@ export const Default: Story = {
 };
 
 export const WithHelperText: Story = {
-  args: { label: 'メモ', helperText: '任意です。未入力のままにできます。' },
+  args: { label: 'メモ', helperText: '未入力のままにできます。' },
+};
+
+export const RequiredField: Story = {
+  args: { label: '件名', required: true },
+};
+
+export const OptionalField: Story = {
+  args: { label: 'メモ' },
 };
 
 export const WithError: Story = {
