@@ -477,6 +477,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_event: { Args: { p_event_id: string }; Returns: undefined }
+      delete_event_occurrence: {
+        Args: { p_occurrence_id: string }
+        Returns: undefined
+      }
       import_event_with_occurrences: {
         Args: {
           p_ends_on: string

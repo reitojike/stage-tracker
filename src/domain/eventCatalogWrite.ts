@@ -494,9 +494,15 @@ export function eventRangeToFormValues(range: EventRangeInput): RawFormValues {
  * value field problem (Issue #79's (event_id, starts_at) uniqueness), not
  * a generic "check your input" failure, so a caller can point the error at
  * the startsAt field instead of showing a banner.
+ *
+ * 'delete-blocked' (Issue #124): hard delete rejected because downstream
+ * data (occurrence participation/invitation/ticket acquisition) exists.
+ * This is distinct from generic 'validation' so a caller can name the
+ * specific restriction ("参加・招待・チケット情報があるため削除できません")
+ * instead of showing a generic validation banner.
  */
 export type EventCatalogWriteErrorKind =
-  'permission-denied' | 'validation' | 'duplicate-occurrence' | 'failure';
+  'permission-denied' | 'validation' | 'duplicate-occurrence' | 'delete-blocked' | 'failure';
 
 export interface EventCatalogWriteError {
   kind: EventCatalogWriteErrorKind;
@@ -524,12 +530,22 @@ const VALIDATION_CODES = new Set(['23502', '23503', '23514', '22007', '22008', '
  * the violation without parsing the constraint name out of the message. */
 const UNIQUE_VIOLATION = '23505';
 
+/** delete-blocked condition (Issue #124): occurrence or event hard delete
+ * rejected because downstream data exists (occurrence_participations /
+ * occurrence_invitations / ticket_acquisitions). This is application-defined,
+ * not a standard PostgreSQL FK violation (23503 from range-containment checks
+ * stays 'validation'). */
+const DELETE_BLOCKED_CUSTOM_SQLSTATE = '90001';
+
 export function classifyWriteError(error: RawPostgrestError): EventCatalogWriteError {
   if (error.code === INSUFFICIENT_PRIVILEGE) {
     return { kind: 'permission-denied', message: error.message, code: error.code };
   }
   if (error.code === UNIQUE_VIOLATION) {
     return { kind: 'duplicate-occurrence', message: error.message, code: error.code };
+  }
+  if (error.code === DELETE_BLOCKED_CUSTOM_SQLSTATE) {
+    return { kind: 'delete-blocked', message: error.message, code: error.code };
   }
   if (VALIDATION_CODES.has(error.code)) {
     return { kind: 'validation', message: error.message, code: error.code };

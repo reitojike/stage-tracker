@@ -24,9 +24,14 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   occurrenceを1 transactionで作るRPC経由のみ）
 - designated catalog creator限定のminimal Event catalog write UI
   （Event作成は `public.catalog_creators` membershipに限定・作成者が
-  owner・Event更新と公演回のadd/updateはowner限定・deletion/cancellationは
-  対象外・開演/終演の前後関係はwrite pathで検証。`event_occurrences` への
-  CHECK制約は未導入で、DB levelの不変条件ではない）
+  owner・Event更新と公演回のadd/updateはowner限定・開演/終演の前後関係は
+  write pathで検証。`event_occurrences` へのCHECK制約は未導入で、DB level
+  の不変条件ではない）
+- Event/公演回のowner限定hard deletion（Issue #124）。downstream data
+  （participation/invitation/ticket acquisition）が存在する公演回・Event
+  は削除できず、cascadeも行わない。cancellation（公演の中止）はdeletion
+  とは別概念で対象外のまま（semanticsはIssue #123で決定済み、実装は
+  Issue #125）
 - event-independent personal scheduleのpersistence / sharing / RLS
   baseline（all-day・multi-day all-day・time-boundedを曖昧なく区別する
   temporal shape、required free-form `title` + 独立した`blocking`

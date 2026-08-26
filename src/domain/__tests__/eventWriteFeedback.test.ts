@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  INITIAL_EVENT_DELETE_FORM_STATE,
   INITIAL_WRITE_FORM_STATE,
   acceptedWriteFormState,
+  rejectedEventDeleteFormState,
   rejectedWriteFormState,
+  resolveDeleteFeedback,
   resolveDuplicateOccurrenceFieldErrors,
   resolveWriteFeedback,
   resolveWriteNotice,
@@ -104,4 +107,57 @@ void test('the initial state announces neither success nor failure', () => {
   assert.equal(INITIAL_WRITE_FORM_STATE.notice, null);
   assert.equal(INITIAL_WRITE_FORM_STATE.feedback, null);
   assert.deepEqual(INITIAL_WRITE_FORM_STATE.fieldErrors, {});
+});
+
+// --- Hard deletion feedback (Issue #124) ---
+
+void test('resolveDeleteFeedback keeps permission-denied distinct from delete-blocked and failure', () => {
+  const denied = resolveDeleteFeedback('delete-event', 'permission-denied');
+  const blocked = resolveDeleteFeedback('delete-event', 'delete-blocked');
+  const failed = resolveDeleteFeedback('delete-event', 'failure');
+
+  assert.notEqual(denied.title, blocked.title);
+  assert.notEqual(denied.title, failed.title);
+  assert.notEqual(blocked.title, failed.title);
+});
+
+void test('resolveDeleteFeedback gives delete-event and delete-occurrence their own permission-denied wording', () => {
+  const eventDenied = resolveDeleteFeedback('delete-event', 'permission-denied');
+  const occurrenceDenied = resolveDeleteFeedback('delete-occurrence', 'permission-denied');
+  assert.notEqual(eventDenied.description, occurrenceDenied.description);
+});
+
+void test('resolveDeleteFeedback gives delete-event and delete-occurrence their own delete-blocked wording', () => {
+  const eventBlocked = resolveDeleteFeedback('delete-event', 'delete-blocked');
+  const occurrenceBlocked = resolveDeleteFeedback('delete-occurrence', 'delete-blocked');
+  assert.notEqual(eventBlocked.description, occurrenceBlocked.description);
+});
+
+void test('resolveDeleteFeedback covers every EventCatalogWriteErrorKind without throwing', () => {
+  const kinds = [
+    'permission-denied',
+    'validation',
+    'duplicate-occurrence',
+    'delete-blocked',
+    'failure',
+  ] as const;
+  for (const operation of ['delete-event', 'delete-occurrence'] as const) {
+    for (const kind of kinds) {
+      const feedback = resolveDeleteFeedback(operation, kind);
+      assert.equal(feedback.variant, 'error');
+      assert.ok(feedback.title.length > 0);
+    }
+  }
+});
+
+void test('the initial delete form state announces no feedback', () => {
+  assert.equal(INITIAL_EVENT_DELETE_FORM_STATE.attempt, 0);
+  assert.equal(INITIAL_EVENT_DELETE_FORM_STATE.feedback, null);
+});
+
+void test('rejectedEventDeleteFormState advances attempt and carries feedback', () => {
+  const feedback = resolveDeleteFeedback('delete-occurrence', 'delete-blocked');
+  const next = rejectedEventDeleteFormState(INITIAL_EVENT_DELETE_FORM_STATE, feedback);
+  assert.equal(next.attempt, INITIAL_EVENT_DELETE_FORM_STATE.attempt + 1);
+  assert.equal(next.feedback, feedback);
 });

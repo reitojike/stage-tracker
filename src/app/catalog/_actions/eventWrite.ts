@@ -6,6 +6,8 @@ import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClie
 import {
   addEventOccurrence,
   createEventWithInitialOccurrence,
+  deleteEvent,
+  deleteEventOccurrence,
   updateEventDetails,
   updateEventOccurrence,
   updateEventRange,
@@ -26,10 +28,13 @@ import {
 import {
   acceptedWriteFormState,
   rejectedWriteFormState,
+  rejectedEventDeleteFormState,
   resolveDuplicateOccurrenceFieldErrors,
+  resolveDeleteFeedback,
   resolveWriteFeedback,
   resolveWriteNotice,
   type EventWriteFormState,
+  type EventDeleteFormState,
 } from '@/domain/eventWriteFeedback.ts';
 import { catalogEventHref, resolveCatalogParams } from '@/domain/catalogNavigation.ts';
 import { currentTokyoDate } from '../_lib/today.ts';
@@ -344,4 +349,79 @@ export async function updateOccurrenceAction(
     occurrenceToFormValues(parsed.value),
     resolveWriteNotice('update-occurrence'),
   );
+}
+
+// Hard deletion actions (Issue #124): Occurrence and Event, owner-only,
+// mis-registration correction (not cancellation).
+
+/**
+ * Hard delete an event occurrence (Issue #124). Calls the delete RPC which
+ * enforces owner access and checks for downstream participation/invitation/
+ * ticket data. On success, revalidates catalog and calendar surfaces and
+ * the current event edit page (keeping owner on page since parent event
+ * still exists). On blocked-delete, returns feedback naming the restriction.
+ */
+export async function deleteEventOccurrenceAction(
+  previous: EventDeleteFormState,
+  formData: FormData,
+): Promise<EventDeleteFormState> {
+  const eventId = readId(formData, 'eventId');
+  const occurrenceId = readId(formData, 'occurrenceId');
+  if (eventId === null || occurrenceId === null) {
+    return rejectedEventDeleteFormState(
+      previous,
+      resolveDeleteFeedback('delete-occurrence', 'failure'),
+    );
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await deleteEventOccurrence(client, occurrenceId);
+  if (!result.ok) {
+    return rejectedEventDeleteFormState(
+      previous,
+      resolveDeleteFeedback('delete-occurrence', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  revalidatePath(`/catalog/events/${eventId}/edit`);
+  revalidatePath('/calendar');
+  return { attempt: previous.attempt + 1, feedback: null };
+}
+
+/**
+ * Hard delete an event and all its child occurrences (Issue #124). Calls
+ * the delete RPC which enforces atomic deletion (event + all children,
+ * all-or-nothing) and checks that every child is safe to delete. On success,
+ * revalidates and redirects to /catalog (the deleted event's detail page no
+ * longer exists). Explicitly revalidates the deleted event's own detail and
+ * edit routes too - both are still statically resolvable by their id even
+ * though the row no longer exists, so an already-cached response for either
+ * would otherwise keep serving stale (deleted) event data after this commits.
+ * On blocked-delete or permission-denied, returns feedback.
+ */
+export async function deleteEventAction(
+  previous: EventDeleteFormState,
+  formData: FormData,
+): Promise<EventDeleteFormState> {
+  const eventId = readId(formData, 'eventId');
+  if (eventId === null) {
+    return rejectedEventDeleteFormState(previous, resolveDeleteFeedback('delete-event', 'failure'));
+  }
+
+  const client = await createSupabaseServerClient();
+  const result = await deleteEvent(client, eventId);
+  if (!result.ok) {
+    return rejectedEventDeleteFormState(
+      previous,
+      resolveDeleteFeedback('delete-event', result.error.kind),
+    );
+  }
+
+  revalidatePath('/catalog');
+  revalidatePath(`/catalog/events/${eventId}`);
+  revalidatePath(`/catalog/events/${eventId}/edit`);
+  revalidatePath('/calendar');
+  redirect('/catalog');
 }

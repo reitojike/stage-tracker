@@ -92,3 +92,21 @@ export function canUpdateEventOccurrence(
 ): boolean {
   return actor !== null && actor === parent.ownerId && update.nextEventId === update.currentEventId;
 }
+
+/**
+ * Hard delete of an occurrence (Issue #124): owner-only, mis-registration
+ * correction (not cancellation). Authority derives from the parent event's
+ * ownership.
+ */
+export function canDeleteEventOccurrence(actor: Actor, parent: EventRecord): boolean {
+  return actor !== null && actor === parent.ownerId;
+}
+
+/**
+ * Hard delete of an event (Issue #124): owner-only, mis-registration
+ * correction (not cancellation). Ownership is immutable so checking current
+ * event owner is sufficient.
+ */
+export function canDeleteEvent(actor: Actor, event: EventRecord): boolean {
+  return actor !== null && actor === event.ownerId;
+}

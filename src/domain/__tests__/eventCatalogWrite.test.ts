@@ -340,6 +340,27 @@ void test('classifyWriteError maps unique_violation to duplicate-occurrence', ()
   assert.equal(error.code, '23505');
 });
 
+// Issue #124: the delete RPCs raise a custom SQLSTATE ('90001') for the
+// downstream-data-exists condition, distinct from the 23503 FK violations
+// that stay 'validation' (range-containment etc.) - a caller needs to tell
+// them apart to name the delete-specific restriction.
+void test('classifyWriteError maps the custom delete-blocked SQLSTATE to delete-blocked', () => {
+  const error = classifyWriteError({
+    code: '90001',
+    message: 'occurrence cannot be deleted: participation, invitation, or ticket data exists',
+  });
+  assert.equal(error.kind, 'delete-blocked');
+  assert.equal(error.code, '90001');
+});
+
+// A plain FK violation from an unrelated check (e.g. range containment)
+// must not be misclassified as delete-blocked just because it is
+// FK-shaped - only the exact custom code triggers that kind.
+void test('classifyWriteError still maps ordinary 23503 FK violations to validation, not delete-blocked', () => {
+  const error = classifyWriteError({ code: '23503', message: 'fk violation' });
+  assert.equal(error.kind, 'validation');
+});
+
 void test('classifyWriteError maps anything else to failure', () => {
   assert.equal(
     classifyWriteError({ code: '08006', message: 'connection failure' }).kind,

@@ -162,11 +162,10 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 - 公演回を更新できるのは、その公演回が属する event の owner だけです。
 - 公演回を別の event へ付け替える operation は提供しません。公演回がどの
   event に属するかを、通常の更新操作で変更できるようにはしません。
-- 公演回の削除は現時点では提供しません。誤登録の除去と公演の中止を同じ
-  semantics で扱ってよいか、personal な participation が公演回を参照する
-  場合に削除が何を意味するか、そして event 自体の deletion semantics が
-  いずれも未決定であるため、子概念の deletion semantics だけを先行して
-  確定しません。論理削除や中止表現のための schema も先行実装しません。
+- 公演回の削除は owner-only の hard delete として提供します（Issue #124）。
+  削除は誤登録の除去を対象とし、公演の中止（cancellation）とは区別されます
+  （Issue #123 で decision 済み、Issue #125 で実装予定）。詳細は下記
+  「Deletion」と「Cancellation」セクションを参照してください。
 
 ### Mutable / system-managed fields
 
@@ -184,11 +183,53 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 
 ### Deletion
 
-- PR B の時点では event deletion を提供しません。存在する event row は
-  すべて current catalog row として扱います。
-- deletion semantics（論理削除の要否を含む）は、それを扱う専用の product
-  task で別途決定します。「将来 migration したくない」という理由だけで
-  deletion 用の schema を先行実装しません。
+- Event と Occurrence の hard delete は owner-only の操作として実装されます
+  （Issue #124）。soft delete / trash / restore / 監査履歴は提供しません。
+- Deletion は誤登録の除去を対象とし、公演の中止（cancellation）とは
+  区別されます（詳細は下記「Cancellation」セクション参照）。
+- **Occurrence 削除**:
+  - owner のみが削除可能です。
+  - `occurrence_participations` / `occurrence_invitations` /
+    `ticket_acquisitions` のいずれか 1 件でも存在する場合は拒否されます。
+    これらテーブルへの cascade は行いません。
+  - 最後の Occurrence が削除された場合でも Event が 0-occurrence 状態に
+    なることは valid です。
+- **Event 削除**:
+  - owner のみが削除可能です。
+  - 0-occurrence Event は削除可能です。
+  - child Occurrence が存在する場合、全 child が Occurrence 削除条件を
+    満たす場合に限り、Event + 全 child が atomic に削除されます。
+  - 1 件でも削除不可の child が存在する場合、Event 削除全体が拒否されます
+    （部分削除は発生しません）。
+  - user / cross-user downstream data（participation / invitation /
+    ticket-acquisition）への cascade delete は行いません。
+
+### Cancellation
+
+- 公演の中止（cancellation）は Deletion（誤登録削除）とは明確に区別された
+  operation です。Issue #123 で semantics 決定済み、Issue #125 で
+  実装予定（#125 は decision task ではなく implementation task です）。
+- cancellation state は **Event-level** と **Occurrence-level** の両方に
+  独立して持たせます。
+  - Event-level cancellation: その Event 全体を中止扱いにします。
+  - Occurrence-level cancellation: 個々の Occurrence を中止扱いにします。
+- **effective cancellation**（実質的に中止扱いとなる条件）は、Event が
+  canceled、または当該 Occurrence 自体が canceled のいずれか（OR）です。
+- Event の uncancel（中止解除）は、個別に canceled 状態の Occurrence の
+  cancellation を解除しません。Occurrence-level の cancellation は Event
+  の cancel/uncancel から独立して維持されます。
+- owner が cancel / uncancel の両方を行えます。
+- 中止によって既存の downstream data（participation / invitation /
+  ticket acquisition）は保持されます。deletion のような cascade は
+  行いません。
+- effective cancellation 状態にある Event/Occurrence に対しては、新規の
+  active action（新規 participation の attending 化、新規 invitation、
+  新規 ticket acquisition 等）を拒否します。
+- 既存 participation の withdraw（辞退）は、中止状態でも引き続き許可
+  します。
+- UI では中止状態が「中止」として表示されます。
+- exact schema（cancellation state を表す column 等）と exact UI workflow
+  は Issue #125（implementation task）で選定します。
 
 ## Participation
 
@@ -486,7 +527,6 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 - 「関心のある分類」を persistent な personal preference にするか、その場の
   filter に留めるか
 - 公演回ごとに会場が異なる興行の扱い
-- 公演回の deletion / 公演中止の表現
 - 開催期間（Event range）そのものが未公表の event を表現する手段（Issue
   #87 では Event range を必須データとして確定したのみで、この状態は
   scope 外のまま）
