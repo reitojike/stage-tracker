@@ -1,0 +1,121 @@
+/*
+ * Fixed 3-column grid (not flex + space-between) so the centered logotype
+ * stays visually centered regardless of whether the two side affordances
+ * ever grow unequal widths (design_handoff_stage_tracker/05-appbar.md).
+ */
+.appBar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  height: 48px;
+  padding-inline: var(--space-xs);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-canvas);
+}
+
+/*
+ * Visible fill stays 40x40 (handoff spec); expand44 keeps the actual tap
+ * target at WCAG 2.2 SC 2.5.8's 44px floor without growing the visible
+ * icon, the same composition Button's `icon` variant already uses.
+ */
+.notifications,
+.myPage {
+  composes: expand44 from './tapTarget.module.css';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-control-sm);
+  background-color: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.notifications {
+  justify-self: start;
+  color: var(--color-accent);
+}
+
+.myPage {
+  justify-self: end;
+  color: var(--color-text);
+}
+
+.notifications:hover,
+.myPage:hover {
+  background-color: var(--color-surface-subtle);
+}
+
+.notifications:active,
+.myPage:active {
+  background-color: var(--color-surface-active);
+}
+
+/*
+ * Inert until a caller wires a real destination (#148 owns /notifications
+ * and /mypage - Issue #141 boundary). No `disabled` attribute: that would
+ * apply Button's dimmed-opacity treatment, which the handoff's affordances
+ * don't call for. aria-disabled tells assistive tech there is nothing to
+ * activate yet without hiding the control from layout/focus order.
+ */
+.notifications[aria-disabled='true'],
+.myPage[aria-disabled='true'] {
+  cursor: default;
+}
+
+.notifications[aria-disabled='true']:hover,
+.myPage[aria-disabled='true']:hover,
+.notifications[aria-disabled='true']:active,
+.myPage[aria-disabled='true']:active {
+  background-color: transparent;
+}
+
+.bellIcon {
+  position: relative;
+  display: inline-flex;
+}
+
+/*
+ * 7px accent dot with a canvas-colored ring so it stays legible against
+ * the icon behind it (handoff: "紙色の縁"). Presentation only - `hasUnread`
+ * is a prop the caller supplies, this component never derives it.
+ */
+.unreadDot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  box-shadow: 0 0 0 1.5px var(--color-canvas);
+}
+
+.brand {
+  justify-self: center;
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.22em;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-control-border);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}

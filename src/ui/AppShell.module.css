@@ -7,30 +7,6 @@
   background-color: var(--color-bg);
 }
 
-.appBar {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding-inline: var(--space-md);
-  border-bottom: 1px solid var(--color-border);
-  background-color: var(--color-surface);
-}
-
-/*
- * Product identity only, deliberately not a link: PrimaryNav owns the way
- * home, and a second Home control in the same shell would be a duplicate
- * destination with nothing to tell the two apart.
- */
-.brand {
-  margin: 0;
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-}
-
 /*
  * The single content column. `gap` is the page-level rhythm every screen
  * inherits, which is why pages no longer carry their own top-level margins
