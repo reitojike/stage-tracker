@@ -321,13 +321,13 @@
   gap: var(--space-2xs);
 }
 
-/* Same shape/fill rule as .dot above, sized identically so the legend
-   swatch reads as the same mark the grid actually uses. */
+/* Composes .dot (not just visually matching sizes by hand) so the legend
+   swatch can never drift out of sync with the grid's own marker size -
+   flex-shrink: 0 is this class's own addition, needed only here since the
+   legend sits in a row next to a text label (.dot's own .markerRow context
+   has no competing sibling to shrink against). */
 .legendDot {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--radius-pill);
-  box-sizing: border-box;
+  composes: dot;
   flex-shrink: 0;
 }
 

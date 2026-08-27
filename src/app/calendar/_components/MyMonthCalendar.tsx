@@ -36,6 +36,23 @@ export interface MyMonthCalendarProps {
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
+/** Issue #146's own legend, one row per (shape, fill) pairing the grid
+ * above actually uses - see MyMonthCalendar.module.css's `.dot`/`.band`
+ * rules. `shapeClass`/`variantClass` name keys into `styles` directly
+ * (rather than pre-resolved class strings) so this stays a single source
+ * of truth for both the legend and, if it drifts, an easy diff against the
+ * grid's own class usage below. */
+const LEGEND_ITEMS: readonly {
+  shapeClass: 'legendDot' | 'legendSwatch';
+  variantClass: 'dotFilled' | 'dotOutline' | 'bandFilled' | 'bandOutline';
+  label: string;
+}[] = [
+  { shapeClass: 'legendDot', variantClass: 'dotFilled', label: '決まっている' },
+  { shapeClass: 'legendDot', variantClass: 'dotOutline', label: '検討中' },
+  { shapeClass: 'legendSwatch', variantClass: 'bandFilled', label: '予定を確保する' },
+  { shapeClass: 'legendSwatch', variantClass: 'bandOutline', label: '確保しない' },
+];
+
 function monthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-');
   return `${year ?? yearMonth}年${String(Number(month ?? '1'))}月`;
@@ -292,25 +309,15 @@ export function MyMonthCalendar({
           meaning never depends on color recognition alone (docs/ux-ui.md
           accessibility baseline: color is never the sole carrier). */}
       <ul className={styles.legend}>
-        <li className={styles.legendItem}>
-          <span className={[styles.legendDot, styles.dotFilled].join(' ')} aria-hidden="true" />
-          決まっている
-        </li>
-        <li className={styles.legendItem}>
-          <span className={[styles.legendDot, styles.dotOutline].join(' ')} aria-hidden="true" />
-          検討中
-        </li>
-        <li className={styles.legendItem}>
-          <span className={[styles.legendSwatch, styles.bandFilled].join(' ')} aria-hidden="true" />
-          予定を確保する
-        </li>
-        <li className={styles.legendItem}>
-          <span
-            className={[styles.legendSwatch, styles.bandOutline].join(' ')}
-            aria-hidden="true"
-          />
-          確保しない
-        </li>
+        {LEGEND_ITEMS.map(({ shapeClass, variantClass, label }) => (
+          <li key={label} className={styles.legendItem}>
+            <span
+              className={[styles[shapeClass], styles[variantClass]].join(' ')}
+              aria-hidden="true"
+            />
+            {label}
+          </li>
+        ))}
       </ul>
     </section>
   );
