@@ -221,7 +221,9 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
                     </span>
                     {hasDot ? (
                       <span className={styles.markerRow} aria-hidden="true">
-                        <span className={[styles.dot, styles.dotFilled].filter(Boolean).join(' ')} />
+                        <span
+                          className={[styles.dot, styles.dotFilled].filter(Boolean).join(' ')}
+                        />
                       </span>
                     ) : null}
                   </Link>
