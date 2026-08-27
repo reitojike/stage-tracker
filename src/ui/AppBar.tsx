@@ -55,6 +55,23 @@ export function AppBar({
   myPageHref,
   myPageInitial,
 }: AppBarProps) {
+  const avatar = (
+    <span className={styles.avatar} aria-hidden="true">
+      {myPageInitial ?? ''}
+    </span>
+  );
+  const myPage = !showActions ? (
+    <span aria-hidden="true" />
+  ) : myPageHref ? (
+    <LinkButton href={myPageHref} variant="icon" className={styles.myPage} aria-label="マイページ">
+      {avatar}
+    </LinkButton>
+  ) : (
+    <Button variant="icon" className={styles.myPage} aria-label="マイページ" aria-disabled={true}>
+      {avatar}
+    </Button>
+  );
+
   return (
     <header className={styles.appBar}>
       {showActions ? (
@@ -91,31 +108,7 @@ export function AppBar({
 
       <p className={styles.brand}>STAGE TRACKER</p>
 
-      {showActions && myPageHref ? (
-        <LinkButton
-          href={myPageHref}
-          variant="icon"
-          className={styles.myPage}
-          aria-label="マイページ"
-        >
-          <span className={styles.avatar} aria-hidden="true">
-            {myPageInitial ?? ''}
-          </span>
-        </LinkButton>
-      ) : showActions ? (
-        <Button
-          variant="icon"
-          className={styles.myPage}
-          aria-label="マイページ"
-          aria-disabled={true}
-        >
-          <span className={styles.avatar} aria-hidden="true">
-            {myPageInitial ?? ''}
-          </span>
-        </Button>
-      ) : (
-        <span aria-hidden="true" />
-      )}
+      {myPage}
     </header>
   );
 }

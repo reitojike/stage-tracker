@@ -32,13 +32,15 @@
 }
 
 /*
- * Inert until a caller wires a real destination (#148 owns /notifications
- * and /mypage - Issue #141 boundary). No `disabled` attribute: that would
- * apply Button's dimmed-opacity treatment, which the handoff's affordances
- * don't call for. aria-disabled tells assistive tech there is nothing to
- * activate yet without hiding the control from layout/focus order. Button
- * itself has no `[aria-disabled]` styling, so the hover/active suppression
- * below is this component's own addition on top of the shared variant.
+ * Inert until a caller wires a real destination. My Page is wired by every
+ * real caller as of Issue #159; this now only applies to notifications
+ * (#148's remaining lane) and to any caller that omits myPageHref. No
+ * `disabled` attribute: that would apply Button's dimmed-opacity treatment,
+ * which the handoff's affordances don't call for. aria-disabled tells
+ * assistive tech there is nothing to activate yet without hiding the
+ * control from layout/focus order. Button itself has no `[aria-disabled]`
+ * styling, so the hover/active suppression below is this component's own
+ * addition on top of the shared variant.
  */
 .notifications[aria-disabled='true'],
 .myPage[aria-disabled='true'] {
