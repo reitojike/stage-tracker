@@ -41,8 +41,12 @@
    * ---- primitive: color (status, single step each) ----
    * V2 refined direction freeze (#96 -> #101): success/warning darkened so
    * their Badge role tint (see "badge role tint" block below) clears
-   * WCAG AA 4.5:1 on the new neutral-100 canvas. danger is unchanged - its
-   * existing pairing already clears 4.5:1 against --color-surface-subtle.
+   * WCAG AA 4.5:1 on the new neutral-100 canvas. Design refresh (Issue
+   * #137): --color-danger (semantic, below) no longer aliases
+   * --color-status-danger-500 - it was repinned to the handoff's 赤 value
+   * directly, so a future change to this primitive no longer affects
+   * --color-danger's consumers. This primitive still backs --color-success
+   * / --color-warning only.
    */
   --color-status-success-500: #22684a;
   --color-status-warning-500: #7a5417;
@@ -163,16 +167,18 @@
 
   /* accent / interactive
      Design refresh (Issue #137, 藍と墨): --color-accent repinned to the
-     handoff's 藍 value. hover/active/focus-ring keep the existing
-     accent-700/800 steps (not part of this Issue's token table) until a
-     later issue revisits them. */
+     handoff's 藍 value. hover/active keep the existing accent-700/800 steps
+     (not part of this Issue's token table) until a later issue revisits
+     them. focus-ring tracks --color-accent itself (not the accent-600
+     primitive) so it stays in sync with 藍 rather than silently drifting
+     from it, the way it did before this repin decoupled the two. */
   --color-accent: #2f4a7a;
   --color-accent-hover: var(--color-accent-700);
   /* Pressed state, one step past hover so a press reads as distinct from a
      hover on pointer devices and is visible on its own on touch devices. */
   --color-accent-active: var(--color-accent-800);
   --color-accent-foreground: var(--color-neutral-0);
-  --color-focus-ring: var(--color-accent-600);
+  --color-focus-ring: var(--color-accent);
   /* low-emphasis accent tint, e.g. a calendar run/band marker (docs/ux-ui.md
      restrained surface - not a solid accent fill for a large area). */
   --color-accent-subtle: var(--color-accent-100);
