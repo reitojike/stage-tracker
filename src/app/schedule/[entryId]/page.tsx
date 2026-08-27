@@ -118,11 +118,9 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
         <>
           <Surface className={styles.scheduleSurface}>
             {callerResult.ok ? (
-              <Badge variant={isOwner ? 'neutral' : 'info'}>
-                {isOwner ? '自分の予定' : '共有されている予定'}
-              </Badge>
+              <Badge variant="subtle">{isOwner ? '自分の予定' : '共有されている予定'}</Badge>
             ) : null}
-            {!entry.blocking ? <Badge variant="neutral">予定を確保しない</Badge> : null}
+            {!entry.blocking ? <Badge variant="outline">予定を確保しない</Badge> : null}
             <PageHeading>{entry.title}</PageHeading>
 
             <dl className={styles.details}>

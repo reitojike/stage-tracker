@@ -69,7 +69,7 @@ export function EventDetail({
       <PageHeading>{event.title}</PageHeading>
 
       {isEventCanceled(event) ? (
-        <Badge variant="danger" className={styles.canceledBadge}>
+        <Badge variant="terminal" className={styles.canceledBadge}>
           中止
         </Badge>
       ) : null}
@@ -126,12 +126,12 @@ export function EventDetail({
                   className={isFocused ? styles.occurrenceFocused : undefined}
                 >
                   {isFocused ? (
-                    <Badge variant="info" className={styles.focusedBadge}>
+                    <Badge variant="outline" className={styles.focusedBadge}>
                       選択した公演回
                     </Badge>
                   ) : null}
                   {isEffectivelyCanceled(event, occurrence) ? (
-                    <Badge variant="danger" className={styles.canceledBadge}>
+                    <Badge variant="terminal" className={styles.canceledBadge}>
                       中止
                     </Badge>
                   ) : null}

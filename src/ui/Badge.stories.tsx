@@ -9,22 +9,18 @@ const meta: Meta<typeof Badge> = {
 export default meta;
 type Story = StoryObj<typeof Badge>;
 
-export const Neutral: Story = {
-  args: { variant: 'neutral', children: '下書き' },
+export const Outline: Story = {
+  args: { variant: 'outline', children: '月組' },
 };
 
-export const Success: Story = {
-  args: { variant: 'success', children: '確定' },
+export const Subtle: Story = {
+  args: { variant: 'subtle', children: '申込中' },
 };
 
-export const Warning: Story = {
-  args: { variant: 'warning', children: '要確認' },
+export const Deadline: Story = {
+  args: { variant: 'deadline', children: '残り1日' },
 };
 
-export const Danger: Story = {
-  args: { variant: 'danger', children: '中止' },
-};
-
-export const Info: Story = {
-  args: { variant: 'info', children: 'お知らせ' },
+export const Terminal: Story = {
+  args: { variant: 'terminal', children: '落選' },
 };
