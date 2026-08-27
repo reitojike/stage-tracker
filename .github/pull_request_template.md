@@ -1,29 +1,33 @@
 <!--
-Delete the "Migration ordering" section entirely if this PR adds no new
-file under supabase/migrations/. If it does, keep the section and fill in
-exactly one of the two marker lines below - `Verify / Migration Ordering
-Fence` (scripts/check-migration-ordering-fence.mjs) reads the literal text
-of this PR body for these markers before it will pass. See
-docs/architecture/runtime-stack.md "デプロイ・実行経路" for the criteria
-(Issue #131).
+このPRが supabase/migrations/ 配下に新規fileを追加しない場合は、
+「Migration ordering」セクションごと削除してください。追加する場合は
+このセクションを残し、下の2行のうちどちらか一方だけを残してください
+（他方は削除）。`Verify / Migration Ordering Fence`
+（scripts/check-migration-ordering-fence.mjs）がこのPR本文のmarkerを
+literalに読み取ります。2行とも残っている場合はambiguousとしてfailします。
+判断基準は docs/architecture/runtime-stack.md「デプロイ・実行経路」を
+参照してください（Issue #131）。
 -->
 
 ## Migration ordering
 
-<!-- Keep exactly one of the next two lines, delete the other. -->
+<!-- どちらか一方だけを残し、他方は削除してください。 -->
 
 Migration ordering: post-deploy-safe
 Migration ordering: schema-first-required
 
 <!--
-If "schema-first-required": apply the migration to Production BEFORE
-merging this PR (operator action - see docs/runbooks/
-gate-a-remote-environment.md "Schema migration to the hosted project"),
-confirm with `npm run supabase:migrations:drift -- --linked`, then add:
+"schema-first-required" の場合: このPRをmergeする前に、operatorが
+Productionへ該当migrationを適用してください（docs/runbooks/
+gate-a-remote-environment.md「Schema migration to the hosted project」）。
+`npm run supabase:migrations:drift -- --linked` で確認した上で、
+下の行を実際の内容に書き換えてから残してください（このコメント内の
+例示テキストのままでは evidence として扱われません）。
 
-Production migration applied: <short evidence, e.g. "supabase db push
---linked at 2026-08-27, drift check confirms synced">
+Production migration applied: <supabase db push --linked を実行した
+日時、drift check結果等の具体的なevidence>
 
-Do not paste Production credentials, project refs, or other secrets here -
-see docs/runbooks/gate-a-remote-environment.md "Secret boundary".
+Production credential・project ref等のsecretはここに貼り付けないで
+ください（docs/runbooks/gate-a-remote-environment.md「Secret boundary」
+参照）。
 -->
