@@ -298,6 +298,130 @@ export type Database = {
           },
         ]
       }
+      ticket_opportunities: {
+        Row: {
+          created_at: string
+          display_name: string
+          event_id: string
+          id: string
+          memo: string | null
+          source_key: string
+          source_url: string | null
+          target_scope: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          event_id: string
+          id?: string
+          memo?: string | null
+          source_key: string
+          source_url?: string | null
+          target_scope: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          event_id?: string
+          id?: string
+          memo?: string | null
+          source_key?: string
+          source_url?: string | null
+          target_scope?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_opportunities_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_opportunity_milestones: {
+        Row: {
+          at: string | null
+          created_at: string
+          date_value: string | null
+          ends_at: string | null
+          id: string
+          milestone_type: string
+          opportunity_id: string
+          starts_at: string | null
+          temporal_precision: string
+          updated_at: string
+        }
+        Insert: {
+          at?: string | null
+          created_at?: string
+          date_value?: string | null
+          ends_at?: string | null
+          id?: string
+          milestone_type: string
+          opportunity_id: string
+          starts_at?: string | null
+          temporal_precision: string
+          updated_at?: string
+        }
+        Update: {
+          at?: string | null
+          created_at?: string
+          date_value?: string | null
+          ends_at?: string | null
+          id?: string
+          milestone_type?: string
+          opportunity_id?: string
+          starts_at?: string | null
+          temporal_precision?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_opportunity_milestones_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_opportunity_target_occurrences: {
+        Row: {
+          created_at: string
+          occurrence_id: string
+          opportunity_id: string
+        }
+        Insert: {
+          created_at?: string
+          occurrence_id: string
+          opportunity_id: string
+        }
+        Update: {
+          created_at?: string
+          occurrence_id?: string
+          opportunity_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_opportunity_target_occurrences_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_opportunity_target_occurrences_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ticket_transfers: {
         Row: {
           created_at: string
@@ -382,6 +506,41 @@ export type Database = {
             columns: ["acquisition_id"]
             isOneToOne: false
             referencedRelation: "ticket_acquisitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ticket_opportunity_states: {
+        Row: {
+          created_at: string
+          id: string
+          opportunity_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opportunity_id: string
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opportunity_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ticket_opportunity_states_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_opportunities"
             referencedColumns: ["id"]
           },
         ]
@@ -522,6 +681,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      import_ticket_opportunity: {
+        Args: {
+          p_display_name: string
+          p_event_id: string
+          p_memo?: string
+          p_milestones?: Json
+          p_occurrence_ids?: string[]
+          p_source_key: string
+          p_source_url?: string
+          p_target_scope: string
+        }
+        Returns: {
+          created_at: string
+          display_name: string
+          event_id: string
+          id: string
+          memo: string | null
+          source_key: string
+          source_url: string | null
+          target_scope: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ticket_opportunities"
           isOneToOne: true
           isSetofReturn: false
         }
