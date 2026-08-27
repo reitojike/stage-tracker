@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { LinkButton } from '@/ui/LinkButton';
-import type { MyCalendarDayMarkers } from '@/domain/myCalendar.ts';
+import type { WeekBandLayout } from '@/domain/calendarMonth.ts';
+import type { MyCalendarBandSegment, MyCalendarDayMarkers } from '@/domain/myCalendar.ts';
 import {
   myCalendarDayHref,
   myCalendarMonthHref,
@@ -16,6 +17,11 @@ export interface MyMonthCalendarProps {
    * MonthGrid.weeks - includes lead/trail days from adjacent months). */
   gridWeeks: readonly (readonly string[])[];
   markersByDate: ReadonlyMap<string, MyCalendarDayMarkers>;
+  /** One band layout per week, same order as `gridWeeks` (Issue #142:
+   * multi-day Events/personal-schedule entries render as bands, following
+   * the same rule and layout algorithm the Event Catalog's own MonthCalendar
+   * uses - see domain/myCalendar.ts's buildMyCalendarWeekBandLayouts). */
+  weekBandLayouts: readonly WeekBandLayout<MyCalendarBandSegment>[];
   selectedDate: string | null;
   todayDate: string;
   /** True when any date actually inside `yearMonth` falls outside the
@@ -35,39 +41,43 @@ function monthLabel(yearMonth: string): string {
   return `${year ?? yearMonth}年${String(Number(month ?? '1'))}月`;
 }
 
+/** Issue #125/#123's own convention (see MonthCalendar.tsx's identical
+ * helper): a band names a multi-day Event by title alone - append a
+ * plain-text "（中止）" marker so a canceled Event's band and day
+ * aria-label both carry the same distinguishable information. Personal-
+ * schedule bands are never canceled (isCanceled is always false for
+ * `kind: 'schedule'` - see buildMyCalendarScheduleBandSegments). */
+function bandDisplayTitle(eventTitle: string, isCanceled: boolean): string {
+  return isCanceled ? `${eventTitle}（中止）` : eventTitle;
+}
+
 /**
- * Weekday/holiday role -> a (color-role class, short non-color marker) pair
- * (docs/ux-ui.md "Calendar weekday / Japanese holiday presentation" +
- * accessibility baseline: never color-only).
- *
- * `text` is non-null only for holiday (Issue #102 -> #96 approved
- * direction): Saturday/Sunday's own per-cell text glyph is removed, their
- * non-color cue now carried by the weekday header + column position +
- * aria-label instead. `className` still applies to every weekend/holiday
- * role so the color cue itself (paired with those non-color cues) is
- * unchanged. Holiday's own `祝` glyph is kept - column position alone
- * cannot identify a holiday - and is still always rendered (not
- * aria-hidden-only) so the distinction survives without color.
+ * Weekday/holiday role -> color-role class (docs/ux-ui.md "Calendar weekday
+ * / Japanese holiday presentation" + accessibility baseline: never
+ * color-only) - same mapping as the Event Catalog's own roleClassName
+ * (src/app/catalog/_components/MonthCalendar.tsx). No per-cell glyph any
+ * more (Issue #142: 祝 glyph removed) - the role's non-color cue is the
+ * weekday header + column position (Saturday/Sunday) and the day-number
+ * weight/color pairing (holiday, see .roleHoliday in the CSS module).
  */
-function roleMarker(
-  role: MyCalendarDayMarkers['role'],
-): { className: string; text: string | null } | null {
+function roleClassName(role: MyCalendarDayMarkers['role']): string {
   if (role === 'holiday') {
-    return { className: styles.roleHoliday ?? '', text: '祝' };
+    return styles.roleHoliday ?? '';
   }
   if (role === 'saturday') {
-    return { className: styles.roleSaturday ?? '', text: null };
+    return styles.roleSaturday ?? '';
   }
   if (role === 'sunday') {
-    return { className: styles.roleSunday ?? '', text: null };
+    return styles.roleSunday ?? '';
   }
-  return null;
+  return '';
 }
 
 export function MyMonthCalendar({
   yearMonth,
   gridWeeks,
   markersByDate,
+  weekBandLayouts,
   selectedDate,
   todayDate,
   hasUnconfirmedHolidayCoverage,
@@ -139,129 +149,143 @@ export function MyMonthCalendar({
       ) : null}
 
       <div className={styles.grid}>
-        {gridWeeks.map((week, weekIndex) => (
-          // Weeks are a stable, never-reordered sequence within one render
-          // (same convention as src/app/catalog/_components/MonthCalendar.tsx).
-          <div key={weekIndex} className={styles.week}>
-            {week.map((date) => {
-              const dayNumber = Number(date.slice(8, 10));
-              const inCurrentMonth = date.slice(0, 7) === yearMonth;
-              const markers = markersByDate.get(date);
-              const marker = markers ? roleMarker(markers.role) : null;
-              // markersByDate has an entry for every displayed date (not just
-              // ones with something to show), so `markers` alone is not a
-              // reliable "is there anything to render" signal - without this,
-              // every ordinary weekday would reserve the marker row's
-              // min-height for nothing, unlike MonthCalendar.tsx's own
-              // hasMarkerRow guard for the same #96 -> #102 marker row.
-              const hasMarkerRow =
-                Boolean(marker?.text) ||
-                (markers !== undefined &&
-                  (markers.attendingCount > 0 ||
-                    markers.consideringCount > 0 ||
-                    markers.hasUnconfirmedTicket ||
-                    markers.ownScheduleCount > 0 ||
-                    markers.sharedScheduleCount > 0));
+        {gridWeeks.map((week, weekIndex) => {
+          const bandLayout = weekBandLayouts[weekIndex];
+          return (
+            // Weeks are a stable, never-reordered sequence within one render
+            // (same convention as src/app/catalog/_components/MonthCalendar.tsx).
+            <div key={weekIndex} className={styles.week}>
+              {week.map((date, colIndex) => {
+                const dayNumber = Number(date.slice(8, 10));
+                const inCurrentMonth = date.slice(0, 7) === yearMonth;
+                const markers = markersByDate.get(date);
+                const bandsThisDay =
+                  bandLayout?.segments.filter(
+                    (segment) => segment.startCol <= colIndex && colIndex <= segment.endCol,
+                  ) ?? [];
 
-              // Lead/trail cells (inCurrentMonth === false) belong to an
-              // adjacent month - their own date's month, never the
-              // displayed yearMonth, so the aria-label doesn't announce a
-              // mismatched month for those cells (e.g. an August grid's
-              // trailing "2026-09-01" cell must read as 9月, not 8月).
-              const labelParts = [`${monthLabel(date.slice(0, 7))}${String(dayNumber)}日`];
-              if (date === todayDate) {
-                labelParts.push('今日');
-              }
-              if (markers?.role === 'holiday') {
-                labelParts.push('祝日');
-              } else if (markers?.role === 'saturday') {
-                labelParts.push('土曜日');
-              } else if (markers?.role === 'sunday') {
-                labelParts.push('日曜日');
-              }
-              if (markers && markers.attendingCount > 0) {
-                labelParts.push(
-                  `${participationStatusLabel('attending')}公演${String(markers.attendingCount)}件`,
-                );
-              }
-              if (markers && markers.consideringCount > 0) {
-                labelParts.push(
-                  `${participationStatusLabel('considering')}公演${String(markers.consideringCount)}件`,
-                );
-              }
-              if (markers?.hasUnconfirmedTicket) {
-                labelParts.push('チケット未確定あり');
-              }
-              if (markers && markers.ownScheduleCount > 0) {
-                labelParts.push(`自分の予定${String(markers.ownScheduleCount)}件`);
-              }
-              if (markers && markers.sharedScheduleCount > 0) {
-                labelParts.push(`共有された予定${String(markers.sharedScheduleCount)}件`);
-              }
+                // Lead/trail cells (inCurrentMonth === false) belong to an
+                // adjacent month - their own date's month, never the
+                // displayed yearMonth, so the aria-label doesn't announce a
+                // mismatched month for those cells (e.g. an August grid's
+                // trailing "2026-09-01" cell must read as 9月, not 8月).
+                const labelParts = [`${monthLabel(date.slice(0, 7))}${String(dayNumber)}日`];
+                if (date === todayDate) {
+                  labelParts.push('今日');
+                }
+                if (markers?.role === 'holiday') {
+                  labelParts.push('祝日');
+                } else if (markers?.role === 'saturday') {
+                  labelParts.push('土曜日');
+                } else if (markers?.role === 'sunday') {
+                  labelParts.push('日曜日');
+                }
+                if (markers && markers.attendingCount > 0) {
+                  labelParts.push(
+                    `${participationStatusLabel('attending')}公演${String(markers.attendingCount)}件`,
+                  );
+                }
+                if (markers && markers.consideringCount > 0) {
+                  labelParts.push(
+                    `${participationStatusLabel('considering')}公演${String(markers.consideringCount)}件`,
+                  );
+                }
+                if (markers?.hasUnconfirmedTicket) {
+                  labelParts.push('チケット未確定あり');
+                }
+                if (markers && markers.ownScheduleCount > 0) {
+                  labelParts.push(`自分の予定${String(markers.ownScheduleCount)}件`);
+                }
+                if (markers && markers.sharedScheduleCount > 0) {
+                  labelParts.push(`共有された予定${String(markers.sharedScheduleCount)}件`);
+                }
+                if (bandsThisDay.length > 0) {
+                  labelParts.push(
+                    bandsThisDay
+                      .map((segment) => bandDisplayTitle(segment.eventTitle, segment.isCanceled))
+                      .join('、'),
+                  );
+                }
 
-              return (
-                <Link
-                  key={date}
-                  href={myCalendarDayHref(yearMonth, date)}
-                  aria-label={labelParts.join('、')}
-                  aria-current={date === todayDate ? 'date' : undefined}
-                  data-date={date}
+                return (
+                  <Link
+                    key={date}
+                    href={myCalendarDayHref(yearMonth, date)}
+                    aria-label={labelParts.join('、')}
+                    aria-current={date === todayDate ? 'date' : undefined}
+                    data-date={date}
+                    style={{ gridColumn: colIndex + 1, gridRow: 1 }}
+                    className={[
+                      styles.day,
+                      inCurrentMonth ? '' : styles.dayOutside,
+                      date === selectedDate ? styles.daySelected : '',
+                      markers ? roleClassName(markers.role) : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    <span className={styles.dayNumberRow} aria-hidden="true">
+                      {/* "今日" is a gray filled circle around the day
+                          number itself (Issue #142), distinct from
+                          "選択中"'s own whole-cell ring (.daySelected
+                          above) - the two combine without conflict since
+                          they target different elements. */}
+                      <span
+                        className={[styles.dayNumber, date === todayDate ? styles.today : '']
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        {dayNumber}
+                      </span>
+                    </span>
+                    {markers && markers.dot !== 'none' ? (
+                      <span className={styles.markerRow} aria-hidden="true">
+                        <span
+                          className={[
+                            styles.dot,
+                            markers.dot === 'filled' ? styles.dotFilled : styles.dotOutline,
+                          ].join(' ')}
+                        />
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+
+              {bandLayout?.segments.map((segment) => (
+                <span
+                  key={`${segment.eventId}-${segment.startDate}`}
                   className={[
-                    styles.day,
-                    inCurrentMonth ? '' : styles.dayOutside,
-                    date === todayDate ? styles.dayToday : '',
-                    date === selectedDate ? styles.daySelected : '',
-                    marker ? marker.className : '',
+                    styles.band,
+                    segment.blocking ? styles.bandFilled : styles.bandOutline,
                   ]
                     .filter(Boolean)
                     .join(' ')}
+                  aria-hidden="true"
+                  data-band-kind={segment.kind}
+                  data-band-event-id={segment.eventId}
+                  data-band-start-date={segment.startDate}
+                  data-band-end-date={segment.endDate}
+                  style={{
+                    gridColumn: `${String(segment.startCol + 1)} / ${String(segment.endCol + 2)}`,
+                    gridRow: segment.lane + 2,
+                  }}
+                  title={bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
                 >
-                  <span className={styles.dayNumberRow} aria-hidden="true">
-                    <span>{dayNumber}</span>
-                  </span>
-                  {markers && hasMarkerRow ? (
-                    <span className={styles.markerRow} aria-hidden="true">
-                      {marker?.text ? (
-                        <span className={styles.dayRoleMark}>{marker.text}</span>
-                      ) : null}
-                      {markers.attendingCount > 0 ? (
-                        <span
-                          className={styles.markerAttending}
-                          title={participationStatusLabel('attending')}
-                        >
-                          ●{markers.attendingCount > 1 ? markers.attendingCount : ''}
-                        </span>
-                      ) : null}
-                      {markers.consideringCount > 0 ? (
-                        <span
-                          className={styles.markerConsidering}
-                          title={participationStatusLabel('considering')}
-                        >
-                          ？{markers.consideringCount > 1 ? markers.consideringCount : ''}
-                        </span>
-                      ) : null}
-                      {markers.hasUnconfirmedTicket ? (
-                        <span className={styles.markerTicket} title="チケット未確定">
-                          !
-                        </span>
-                      ) : null}
-                      {markers.ownScheduleCount > 0 ? (
-                        <span className={styles.markerScheduleOwn} title="自分の予定">
-                          予
-                        </span>
-                      ) : null}
-                      {markers.sharedScheduleCount > 0 ? (
-                        <span className={styles.markerScheduleShared} title="共有された予定">
-                          共
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+                  {bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
+                </span>
+              ))}
+
+              {/* No overflow list (Issue #142: "1セルの marker は最大3...
+                  溢れる分は表示しない"), matching the Event Catalog's own
+                  MonthCalendar.tsx. Every day is still its own link above;
+                  selecting any date this occurrence/schedule entry is
+                  actually active on still surfaces it in the selected-day
+                  list (MySelectedDayList.tsx) regardless of band-lane
+                  coverage. */}
+            </div>
+          );
+        })}
       </div>
     </section>
   );

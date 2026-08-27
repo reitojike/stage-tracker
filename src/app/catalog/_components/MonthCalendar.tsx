@@ -1,15 +1,12 @@
 import Link from 'next/link';
-import { Badge } from '@/ui/Badge';
 import { LinkButton } from '@/ui/LinkButton';
 import type { CalendarDayRole } from '@/domain/calendarDayRole.ts';
 import type { MonthCalendarViewModel } from '@/domain/calendarMonth.ts';
 import {
   catalogDayHref,
-  catalogEventHref,
   catalogMonthHref,
   nextYearMonth,
   previousYearMonth,
-  type CatalogParams,
 } from '@/domain/catalogNavigation.ts';
 import styles from './MonthCalendar.module.css';
 
@@ -17,10 +14,6 @@ export interface MonthCalendarProps {
   viewModel: MonthCalendarViewModel;
   selectedDate: string | null;
   todayDate: string;
-  /** Carried through to each overflow event's link (see the overflow
-   * rendering below), so following one returns to the same month/day
-   * context the surrounding screens navigate with. */
-  context: CatalogParams;
 }
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -30,45 +23,40 @@ function monthLabel(yearMonth: string): string {
   return `${year ?? yearMonth}年${String(Number(month ?? '1'))}月`;
 }
 
-/**
- * Weekday/holiday role -> a (color-role class, short non-color marker) pair
- * (docs/ux-ui.md "Calendar weekday / Japanese holiday presentation" +
- * accessibility baseline: never color-only) - same mapping as My Calendar's
- * own roleMarker (src/app/calendar/_components/MyMonthCalendar.tsx), reused
- * here rather than re-adjudicated, per Issue #72 ("My Calendar側の既存
- * behaviorをauthorityとしてreuse").
- *
- * `text` is non-null only for holiday (Issue #102 -> #96 approved
- * direction): Saturday/Sunday's own per-cell text glyph is removed, their
- * non-color cue now carried by the weekday header + column position +
- * aria-label instead. `className` still applies to every weekend/holiday
- * role so the color cue itself (paired with those non-color cues) is
- * unchanged. Holiday's own `祝` glyph is kept - column position alone
- * cannot identify a holiday.
- */
-/** Issue #125/#123: a band/overflow entry names a multi-day Event by title
- * alone elsewhere in this component - this appends a plain-text "（中止）"
- * marker (not color-only, consistent with this file's other non-color
- * cues) so a canceled Event's band, overflow link, and day aria-label all
- * carry the same distinguishable information. */
+/** Issue #125/#123: a band names a multi-day Event by title alone
+ * elsewhere in this component - this appends a plain-text "（中止）" marker
+ * (not color-only, consistent with this file's other non-color cues) so a
+ * canceled Event's band and day aria-label both carry the same
+ * distinguishable information. */
 function bandDisplayTitle(eventTitle: string, isCanceled: boolean): string {
   return isCanceled ? `${eventTitle}（中止）` : eventTitle;
 }
 
-function roleMarker(role: CalendarDayRole): { className: string; text: string | null } | null {
+/**
+ * Weekday/holiday role -> color-role class (docs/ux-ui.md "Calendar weekday
+ * / Japanese holiday presentation" + accessibility baseline: never
+ * color-only) - same mapping as My Calendar's own roleClassName
+ * (src/app/calendar/_components/MyMonthCalendar.tsx), reused here rather
+ * than re-adjudicated, per Issue #72 ("My Calendar側の既存behaviorを
+ * authorityとしてreuse"). The role's own non-color cue is the weekday
+ * header + column position (Saturday/Sunday) and the day-number weight/color
+ * pairing (holiday, Issue #142 - see .roleHoliday below); no per-cell glyph
+ * any more (`祝` is removed, Issue #142: "祝グリフは廃止").
+ */
+function roleClassName(role: CalendarDayRole): string {
   if (role === 'holiday') {
-    return { className: styles.roleHoliday ?? '', text: '祝' };
+    return styles.roleHoliday ?? '';
   }
   if (role === 'saturday') {
-    return { className: styles.roleSaturday ?? '', text: null };
+    return styles.roleSaturday ?? '';
   }
   if (role === 'sunday') {
-    return { className: styles.roleSunday ?? '', text: null };
+    return styles.roleSunday ?? '';
   }
-  return null;
+  return '';
 }
 
-export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: MonthCalendarProps) {
+export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalendarProps) {
   return (
     <section
       className={styles.calendar}
@@ -144,10 +132,6 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
           visual month grid itself. */}
       <div className={styles.grid}>
         {viewModel.weeks.map((week, weekIndex) => {
-          const maxLane = week.bandLayout.segments.reduce(
-            (max, segment) => Math.max(max, segment.lane),
-            -1,
-          );
           return (
             // Weeks are a stable, never-reordered sequence within one
             // render, so the positional index is a safe React key here.
@@ -157,8 +141,13 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                 const bandsThisDay = week.bandLayout.segments.filter(
                   (segment) => segment.startCol <= colIndex && colIndex <= segment.endCol,
                 );
-                const marker = roleMarker(day.role);
-                const hasMarkerRow = Boolean(marker?.text) || day.badgeCount > 0;
+                // A single-day Event is represented by exactly one dot
+                // regardless of how many such Events fall on this date
+                // (Issue #142: "dot は1セル1個") - catalog Events carry no
+                // considering/blocking axis of their own (that is a
+                // per-user participation concept, out of this component's
+                // scope), so the dot is always filled.
+                const hasDot = day.badgeCount > 0;
                 // Lead/trail cells (inCurrentMonth === false) belong to an
                 // adjacent month - their own date's month, never the
                 // displayed viewModel.yearMonth, so the aria-label doesn't
@@ -210,26 +199,31 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                     className={[
                       styles.day,
                       day.inCurrentMonth ? '' : styles.dayOutside,
-                      day.date === todayDate ? styles.dayToday : '',
                       day.date === selectedDate ? styles.daySelected : '',
-                      marker ? marker.className : '',
+                      roleClassName(day.role),
                     ]
                       .filter(Boolean)
                       .join(' ')}
                   >
                     <span className={styles.dayNumberRow} aria-hidden="true">
-                      <span>{dayNumber}</span>
+                      {/* "今日" is a gray filled circle around the day
+                          number itself (Issue #142), distinct from
+                          "選択中"'s own whole-cell ring (.daySelected
+                          above) - the two combine without conflict since
+                          they target different elements. */}
+                      <span
+                        className={[styles.dayNumber, day.date === todayDate ? styles.today : '']
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        {dayNumber}
+                      </span>
                     </span>
-                    {hasMarkerRow ? (
+                    {hasDot ? (
                       <span className={styles.markerRow} aria-hidden="true">
-                        {marker?.text ? (
-                          <span className={styles.dayRoleMark}>{marker.text}</span>
-                        ) : null}
-                        {day.badgeCount > 0 ? (
-                          <Badge variant="outline" className={styles.badge}>
-                            {day.badgeCount}
-                          </Badge>
-                        ) : null}
+                        <span
+                          className={[styles.dot, styles.dotFilled].filter(Boolean).join(' ')}
+                        />
                       </span>
                     ) : null}
                   </Link>
@@ -239,7 +233,12 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
               {week.bandLayout.segments.map((segment) => (
                 <span
                   key={`${segment.eventId}-${segment.startDate}`}
-                  className={styles.band}
+                  // Catalog Events carry no per-user considering/blocking
+                  // axis (see hasDot's comment above), so every band is the
+                  // filled/confirmed style (Issue #142's band fill/outline
+                  // axis only applies where that axis exists - My
+                  // Calendar's own bands, see MyMonthCalendar.tsx).
+                  className={[styles.band, styles.bandFilled].filter(Boolean).join(' ')}
                   aria-hidden="true"
                   data-band-event-id={segment.eventId}
                   data-band-start-date={segment.startDate}
@@ -254,31 +253,13 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                 </span>
               ))}
 
-              {week.bandLayout.overflowEvents.length > 0 ? (
-                // Links directly to each overflowing event, not just a
-                // count with a "select a date" hint: since Issue #91 a
-                // band covers its whole Event range regardless of
-                // occurrence evidence, an event can overflow a week where
-                // it has no occurrence at all (its occurrences fall in a
-                // different week of the same range) - no day selection
-                // within this week would ever surface it via
-                // selectDayOccurrences, so the link here is this week's
-                // only reachable path to it.
-                <p className={styles.overflow} style={{ gridRow: maxLane + 3 }}>
-                  {`この週にほか${String(week.bandLayout.overflowEvents.length)}件：`}
-                  {week.bandLayout.overflowEvents.map((overflowEvent, index) => (
-                    <span key={overflowEvent.eventId}>
-                      {index > 0 ? '、' : ''}
-                      <Link
-                        href={catalogEventHref(overflowEvent.eventId, context)}
-                        className={styles.overflowLink}
-                      >
-                        {bandDisplayTitle(overflowEvent.eventTitle, overflowEvent.isCanceled)}
-                      </Link>
-                    </span>
-                  ))}
-                </p>
-              ) : null}
+              {/* No overflow list any more (Issue #142: "1セルの marker は
+                  最大3...溢れる分は表示しない"). An Event beyond the 2-band
+                  lane cap for this week is still reachable: every day
+                  within its range is its own link above, and the day page
+                  surfaces range-only Events via selectEventLevelFallback
+                  (calendarMonth.ts) even when this week's band never shows
+                  it. */}
             </div>
           );
         })}

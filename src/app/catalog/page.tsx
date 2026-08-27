@@ -91,7 +91,6 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
             viewModel={buildMonthCalendarViewModel(yearMonth, result.data)}
             selectedDate={selectedDate}
             todayDate={today}
-            context={{ yearMonth, selectedDate }}
           />
 
           {/* Issue #88's original silent-blank-state gap (a 0-occurrence

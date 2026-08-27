@@ -320,7 +320,9 @@ void test('layoutWeekBands: bands beyond the lane cap overflow instead of being 
   const layout = layoutWeekBands(WEEK, overlapping, 3);
   assert.equal(layout.segments.length, 3);
   assert.equal(layout.overflowCount, 1);
-  assert.deepEqual(layout.overflowEvents, [{ eventId: 'd', eventTitle: 'd', isCanceled: false }]);
+  // overflowEvents carries the full T (the same seg() shape it was built
+  // from), not a hand-picked subset - see WeekBandLayout.overflowEvents.
+  assert.deepEqual(layout.overflowEvents, [seg('d', '2026-08-10', '2026-08-11')]);
 });
 
 // Issue #125/#123, review finding: an overflowing canceled Event must not
@@ -337,9 +339,28 @@ void test('layoutWeekBands: overflowEvents carries a canceled event’s cancella
   ];
   const layout = layoutWeekBands(WEEK, overlapping, 3);
   assert.equal(layout.overflowCount, 1);
-  assert.deepEqual(layout.overflowEvents, [
-    { eventId: 'canceled-d', eventTitle: 'canceled-d', isCanceled: true },
-  ]);
+  assert.deepEqual(layout.overflowEvents, [seg('canceled-d', '2026-08-10', '2026-08-11', true)]);
+});
+
+// Issue #142 review finding: layoutWeekBands<T> is generic so a caller with
+// a richer segment shape (e.g. My Calendar's own MyCalendarBandSegment)
+// gets its extra fields back on every positioned segment - this must hold
+// for overflowEvents too, not just `segments`, or a future consumer reading
+// overflowEvents would silently lose `T`'s extra fields.
+void test("layoutWeekBands: overflowEvents preserves a richer T's extra fields, not just the base BandSegment shape", () => {
+  interface RichSegment extends BandSegment {
+    blocking: boolean;
+  }
+  const overlapping: RichSegment[] = ['a', 'b', 'c'].map((id) => ({
+    ...seg(id, '2026-08-10', '2026-08-11'),
+    blocking: id === 'c',
+  }));
+  const layout = layoutWeekBands(WEEK, overlapping, 2);
+  assert.equal(layout.overflowCount, 1);
+  const [overflowed] = layout.overflowEvents;
+  assert.ok(overflowed);
+  assert.equal(overflowed.eventId, 'c');
+  assert.equal(overflowed.blocking, true);
 });
 
 void test('layoutWeekBands: start-ascending lane assignment fits everything a length-first sort would spuriously overflow', () => {
@@ -628,8 +649,10 @@ void test('buildMonthCalendarViewModel: case 5 - a single-day and a multi-day ev
 
 void test('buildMonthCalendarViewModel: an event overflowing a week where it has no occurrence is still reachable via overflowEvents, since no day in that week would surface it via selectDayOccurrences', () => {
   // week1 of the 2026-08 grid is 2026-08-02..2026-08-08 (2026-08-01 is a
-  // Saturday). Three fillers occupy every lane that whole week.
-  const fillers = ['filler-a', 'filler-b', 'filler-c'].map((id) =>
+  // Saturday). Two fillers occupy every lane that whole week (Issue #142:
+  // MAX_BAND_LANES is 2, not 3 - a cell's marker total is capped at 3, one
+  // dot plus at most two bands).
+  const fillers = ['filler-a', 'filler-b'].map((id) =>
     event({ id, title: id, starts_on: '2026-08-02', ends_on: '2026-08-08' }),
   );
   // target's Event range also covers week1, but its only occurrence is in
@@ -660,7 +683,13 @@ void test('buildMonthCalendarViewModel: an event overflowing a week where it has
     false,
   );
   assert.deepEqual(week1.bandLayout.overflowEvents, [
-    { eventId: 'target', eventTitle: 'Target', isCanceled: false },
+    {
+      eventId: 'target',
+      eventTitle: 'Target',
+      startDate: '2026-08-02',
+      endDate: '2026-08-20',
+      isCanceled: false,
+    },
   ]);
 
   // Confirms the gap this closes: no day in week1 has an occurrence for

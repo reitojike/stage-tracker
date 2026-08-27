@@ -251,22 +251,34 @@ export function computeBadgeCounts(
   return counts;
 }
 
-export interface PositionedBandSegment extends BandSegment {
+/** `T` positioned within a week's lane grid - `lane` plus a 0-6 column
+ * index (inclusive on both ends) for `startCol`/`endCol`. Generic so a
+ * caller with a richer segment shape than plain BandSegment (e.g. My
+ * Calendar's own MyCalendarBandSegment, which adds `blocking`/`kind`) gets
+ * that shape back on every positioned segment - see layoutWeekBands below. */
+export type Positioned<T extends BandSegment> = T & {
   lane: number;
-  /** 0-6 column index within the week, inclusive on both ends. */
   startCol: number;
   endCol: number;
-}
+};
 
-export interface WeekBandLayout {
+/** The plain-BandSegment case of `Positioned` - convenience alias for a
+ * caller (e.g. the Event Catalog) that has no extra segment fields beyond
+ * BandSegment itself. */
+export type PositionedBandSegment = Positioned<BandSegment>;
+
+export interface WeekBandLayout<T extends BandSegment = BandSegment> {
   weekStartDate: string;
   /** Bounded to at most `maxLanes` entries - see layoutWeekBands. */
-  segments: PositionedBandSegment[];
+  segments: Positioned<T>[];
   /** `overflowEvents.length` - see that field. */
   overflowCount: number;
-  /** The events pushed beyond the lane cap this week (deduplicated by event
-   * id, so an event whose range segment itself overflows more than one week
-   * is still one hidden event, not one per week - see layoutWeekBands).
+  /** The segments pushed beyond the lane cap this week (deduplicated by
+   * `eventId`, so a segment whose range itself overflows more than one week
+   * is still one hidden entry, not one per week - see layoutWeekBands). The
+   * full `T` shape, not just the base BandSegment fields - a caller with a
+   * richer segment type (e.g. MyCalendarBandSegment's `blocking`/`kind`)
+   * gets those back here too, not just on `segments` above.
    *
    * A presentation layer must not assume this week's own selectDayOccurrences
    * can always recover these: that only holds when the event has an actual
@@ -277,14 +289,17 @@ export interface WeekBandLayout {
    * within that week would ever reveal it. Exposing the events themselves
    * (not just a count) lets the presentation layer link directly to each,
    * rather than pointing at a day selection that would come up empty. */
-  overflowEvents: { eventId: string; eventTitle: string; isCanceled: boolean }[];
+  overflowEvents: T[];
 }
 
-/** Bounded lane count for month-view band rendering - mobile scanability
- * over showing every concurrent run (a bounded display + overflow
- * indicator is within the feature-local implementation discretion the
- * Issue #20 Task Contract leaves to this module). */
-export const MAX_BAND_LANES = 3;
+/** Bounded lane count for month-view band rendering (Issue #142 marker
+ * vocabulary: a cell's marker total is capped at 3 - one dot plus at most
+ * two bands - so at most 2 concurrent bands may occupy any single day).
+ * Generic over T so callers with a richer segment shape (e.g. My
+ * Calendar's own MyCalendarBandSegment, which adds `blocking`/`kind`) get
+ * that shape back on every positioned segment, not just the base
+ * BandSegment fields - see layoutWeekBands below. */
+export const MAX_BAND_LANES = 2;
 
 /**
  * Lays out the band segments active during one week (7 consecutive dates,
@@ -302,11 +317,11 @@ export const MAX_BAND_LANES = 3;
  * count: it can force spurious overflow for segments that would fit
  * cleanly once sorted by start.
  */
-export function layoutWeekBands(
+export function layoutWeekBands<T extends BandSegment>(
   weekDates: readonly string[],
-  segments: readonly BandSegment[],
+  segments: readonly T[],
   maxLanes: number = MAX_BAND_LANES,
-): WeekBandLayout {
+): WeekBandLayout<T> {
   if (weekDates.length !== 7) {
     throw new Error('expected exactly 7 dates (Sunday..Saturday) for a week');
   }
@@ -316,6 +331,10 @@ export function layoutWeekBands(
     throw new Error('expected exactly 7 dates (Sunday..Saturday) for a week');
   }
 
+  // `original` keeps the pristine, unclipped T alongside the week-clipped
+  // startCol/endCol - so overflowEventInfo below can key/value off the
+  // original T (see WeekBandLayout.overflowEvents: full T, not T+col
+  // fields), while `positioned` still gets the clipped columns.
   const clipped = segments
     .filter(
       (segment) =>
@@ -327,7 +346,7 @@ export function layoutWeekBands(
         compareDates(segment.startDate, weekStart) > 0 ? segment.startDate : weekStart;
       const clippedEnd = compareDates(segment.endDate, weekEnd) < 0 ? segment.endDate : weekEnd;
       return {
-        ...segment,
+        original: segment,
         startCol: weekDates.indexOf(clippedStart),
         endCol: weekDates.indexOf(clippedEnd),
       };
@@ -342,8 +361,12 @@ export function layoutWeekBands(
     });
 
   const laneEndCols: number[] = [];
-  const positioned: PositionedBandSegment[] = [];
-  const overflowEventInfo = new Map<string, { eventTitle: string; isCanceled: boolean }>();
+  const positioned: Positioned<T>[] = [];
+  // Keyed by eventId, valued by the full pristine T - so a caller with a
+  // richer T than plain BandSegment (MyCalendarBandSegment) gets its extra
+  // fields (`blocking`/`kind`) back on overflowEvents too, not just a
+  // hand-picked BandSegment subset (see WeekBandLayout.overflowEvents).
+  const overflowEventInfo = new Map<string, T>();
 
   for (const segment of clipped) {
     let lane = laneEndCols.findIndex((endCol) => endCol < segment.startCol);
@@ -352,23 +375,21 @@ export function layoutWeekBands(
         lane = laneEndCols.length;
         laneEndCols.push(segment.endCol);
       } else {
-        overflowEventInfo.set(segment.eventId, {
-          eventTitle: segment.eventTitle,
-          isCanceled: segment.isCanceled,
-        });
+        overflowEventInfo.set(segment.original.eventId, segment.original);
         continue;
       }
     } else {
       laneEndCols[lane] = segment.endCol;
     }
-    positioned.push({ ...segment, lane });
+    positioned.push({
+      ...segment.original,
+      startCol: segment.startCol,
+      endCol: segment.endCol,
+      lane,
+    });
   }
 
-  const overflowEvents = [...overflowEventInfo].map(([eventId, info]) => ({
-    eventId,
-    eventTitle: info.eventTitle,
-    isCanceled: info.isCanceled,
-  }));
+  const overflowEvents = [...overflowEventInfo.values()];
 
   return {
     weekStartDate: weekStart,
