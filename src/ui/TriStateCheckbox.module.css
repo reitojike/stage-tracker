@@ -9,6 +9,11 @@
   cursor: pointer;
   font-family: var(--font-family-base);
   color: var(--color-text);
+  /* Suppresses the mobile double-tap-zoom delay, same as every other tap
+     target in this design system (Button.module.css, BackLink.module.css,
+     PrimaryNav.module.css, the calendar day cells) - see Button.module.css's
+     comment for the full rationale. */
+  touch-action: manipulation;
 }
 
 .row:has(.input:disabled) {
@@ -38,6 +43,12 @@
   outline: none;
 }
 
+/*
+ * globals.css's `:focus-visible { outline: ... }` rule can't reach the box
+ * directly - it targets the (invisible) input itself. This restates the
+ * same two values on the input's visible sibling instead; keep it in sync
+ * if that global rule ever changes.
+ */
 .input:focus-visible + .box {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
@@ -51,6 +62,11 @@
   width: 18px;
   height: 18px;
   border: 1px solid var(--color-control-border);
+  /* Issue #139's handoff specifies a flat 2px corner, and --radius-badge is
+     the only 2px step this token set defines - reused here even though its
+     own doc comment scopes it to Badge/bottom-sheet corners specifically
+     (tokens.css is out of scope for this lane; see #150/#138 etc. running
+     in parallel). */
   border-radius: var(--radius-badge);
   background-color: var(--color-surface);
   color: var(--color-accent-foreground);

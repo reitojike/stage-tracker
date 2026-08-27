@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
-import { nextTriState, type TriState } from './triState';
+import { useId, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { nextTriState, type TriState } from '../domain/triState';
 import styles from './TriStateCheckbox.module.css';
 
 export type { TriState };
@@ -13,12 +13,6 @@ export interface TriStateCheckboxProps {
   className?: string;
 }
 
-const STATE_CLASS: Record<TriState, keyof typeof styles> = {
-  checked: 'checked',
-  unchecked: 'unchecked',
-  indeterminate: 'indeterminate',
-};
-
 /**
  * Generic checked/unchecked/indeterminate control (Issue #139). The visible
  * label row is the full tap target (min-height 44px) - the native
@@ -29,8 +23,8 @@ const STATE_CLASS: Record<TriState, keyof typeof styles> = {
  *
  * This component has no parent/child wiring of its own - a caller that needs
  * that recomputes the parent's `state` from `deriveTriState` (see
- * ./triState) and passes the result back in as a prop, same as any other
- * controlled input.
+ * ../domain/triState) and passes the result back in as a prop, same as any
+ * other controlled input.
  */
 export function TriStateCheckbox({
   id,
@@ -47,8 +41,10 @@ export function TriStateCheckbox({
   // Native `indeterminate` isn't a settable HTML attribute - it's a DOM
   // property only, so browsers/AT that key off it (rather than the explicit
   // aria-checked below) need it applied imperatively after each state
-  // change.
-  useEffect(() => {
+  // change. useLayoutEffect (not useEffect) so this commits before paint -
+  // an indeterminate initial mount must never expose a plain "unchecked"
+  // input to AT for even one frame.
+  useLayoutEffect(() => {
     if (inputRef.current) {
       inputRef.current.indeterminate = state === 'indeterminate';
     }
@@ -68,7 +64,12 @@ export function TriStateCheckbox({
           onChange(nextTriState(state));
         }}
       />
-      <span className={[styles.box, styles[STATE_CLASS[state]]].join(' ')} aria-hidden="true">
+      <span
+        className={[styles.box, state === 'unchecked' ? undefined : styles[state]]
+          .filter(Boolean)
+          .join(' ')}
+        aria-hidden="true"
+      >
         {state === 'checked' ? (
           <svg className={styles.check} viewBox="0 0 12 12" focusable="false">
             <path

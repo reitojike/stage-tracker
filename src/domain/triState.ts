@@ -1,7 +1,8 @@
 /**
- * Generic tri-state checkbox contract (Issue #139). Domain-independent: no
- * catalog/classification data lives here, only the pure state algebra a
- * parent/child hierarchy needs to stay consistent.
+ * Generic tri-state checkbox contract (Issue #139). Product-domain
+ * independent: no catalog/classification data lives here, only the pure
+ * state algebra a parent/child hierarchy needs to stay consistent - same
+ * kind of shared, framework-free helper as ./ordering.ts.
  */
 export type TriState = 'checked' | 'unchecked' | 'indeterminate';
 
@@ -23,11 +24,14 @@ export function deriveTriState(childStates: readonly TriState[]): TriState {
   if (childStates.length === 0) {
     return 'unchecked';
   }
-  if (childStates.every((state) => state === 'checked')) {
-    return 'checked';
+  let allChecked = true;
+  let allUnchecked = true;
+  for (const state of childStates) {
+    allChecked &&= state === 'checked';
+    allUnchecked &&= state === 'unchecked';
+    if (!allChecked && !allUnchecked) {
+      return 'indeterminate';
+    }
   }
-  if (childStates.every((state) => state === 'unchecked')) {
-    return 'unchecked';
-  }
-  return 'indeterminate';
+  return allChecked ? 'checked' : 'unchecked';
 }

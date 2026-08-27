@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { TriStateCheckbox, type TriState } from './TriStateCheckbox';
-import { deriveTriState } from './triState';
+import { deriveTriState } from '../domain/triState';
 
 const meta: Meta<typeof TriStateCheckbox> = {
   title: 'Shared/TriStateCheckbox',
@@ -12,19 +12,19 @@ export default meta;
 type Story = StoryObj<typeof TriStateCheckbox>;
 
 export const Unchecked: Story = {
-  args: { state: 'unchecked', label: '宝塚', onChange: () => {} },
+  args: { state: 'unchecked', label: 'カテゴリA', onChange: () => {} },
 };
 
 export const Checked: Story = {
-  args: { state: 'checked', label: '宝塚', onChange: () => {} },
+  args: { state: 'checked', label: 'カテゴリA', onChange: () => {} },
 };
 
 export const Indeterminate: Story = {
-  args: { state: 'indeterminate', label: '宝塚', onChange: () => {} },
+  args: { state: 'indeterminate', label: 'カテゴリA', onChange: () => {} },
 };
 
 export const Disabled: Story = {
-  args: { state: 'unchecked', label: '宝塚', disabled: true, onChange: () => {} },
+  args: { state: 'unchecked', label: 'カテゴリA', disabled: true, onChange: () => {} },
 };
 
 export const ParentChild: Story = {
@@ -38,13 +38,13 @@ export const ParentChild: Story = {
         <div>
           <TriStateCheckbox
             state={parentState}
-            label="宝塚"
+            label="カテゴリA"
             onChange={(next) => {
               setChildren(children.map(() => next));
             }}
           />
           <div style={{ marginInlineStart: 24 }}>
-            {(['花組', '月組'] as const).map((childLabel, index) => (
+            {(['サブカテゴリ1', 'サブカテゴリ2'] as const).map((childLabel, index) => (
               <TriStateCheckbox
                 key={childLabel}
                 state={children[index] ?? 'unchecked'}

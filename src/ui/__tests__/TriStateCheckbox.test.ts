@@ -21,12 +21,26 @@ void test('exposes indeterminate via aria-checked="mixed" and the DOM indetermin
   assert.match(component, /inputRef\.current\.indeterminate = state === 'indeterminate'/);
 });
 
+void test('the indeterminate DOM property commits via useLayoutEffect, not useEffect, so an indeterminate initial mount never paints as plain unchecked', () => {
+  assert.match(component, /useLayoutEffect\(\(\) => \{/);
+  assert.doesNotMatch(component, /\buseEffect\(/);
+});
+
 void test('checked and indeterminate are told apart by shape, not just color: check mark vs bar', () => {
-  assert.match(component, /state === 'checked' \?[\s\S]*<svg/);
+  assert.match(component, /state === 'checked' \? \(\s*<svg/);
   assert.match(
     component,
     /state === 'indeterminate' \? <span className=\{styles\.dash\} \/> : null/,
   );
+});
+
+void test('unchecked never appends an undefined class token to the visible box', () => {
+  // Regression guard: styles[state] for 'unchecked' would resolve to
+  // `undefined` at runtime (there is no .unchecked CSS class - the base
+  // .box style already covers it), so the className builder must not
+  // blindly look that up.
+  assert.doesNotMatch(component, /styles\[STATE_CLASS/);
+  assert.match(component, /state === 'unchecked' \? undefined : styles\[state\]/);
 });
 
 void test('disabled forwards onto the native input, not just a wrapper style', () => {
@@ -37,6 +51,12 @@ void test('the tap target is the whole row (min-height 44px), not just the visib
   const rowRule = css.match(/(?:^|\n)\.row\s*\{([^}]*)\}/);
   assert.ok(rowRule, '.row rule is missing from TriStateCheckbox.module.css');
   assert.match(rowRule[1] ?? '', /min-height:\s*44px\s*;/);
+});
+
+void test('the row suppresses the mobile double-tap-zoom delay like every other tap target', () => {
+  const rowRule = css.match(/(?:^|\n)\.row\s*\{([^}]*)\}/);
+  assert.ok(rowRule, '.row rule is missing from TriStateCheckbox.module.css');
+  assert.match(rowRule[1] ?? '', /touch-action:\s*manipulation\s*;/);
 });
 
 void test('the visible box is 18px with a 1px border, independent of checked/indeterminate fill', () => {
