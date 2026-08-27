@@ -81,6 +81,23 @@
 }
 
 /*
+ * Issue #150: on --color-surface-subtle/--color-surface-active,
+ * --color-control-border drops to 2.855:1 / 2.781:1 - below WCAG 2.2 SC
+ * 1.4.11's 3:1 non-text boundary (the rest-state boundary against
+ * --color-surface/--color-canvas is unaffected and stays >=3:1, so only
+ * these two pressed fills need a darker border). --color-text-secondary
+ * clears 3:1 against both fills (4.718:1 / 4.596:1) without a new token.
+ * .icon is intentionally excluded - it has no border at rest (#96) and
+ * this must not add one.
+ */
+.secondary:hover:not(:disabled),
+.small:hover:not(:disabled),
+.secondary:active:not(:disabled),
+.small:active:not(:disabled) {
+  border-color: var(--color-text-secondary);
+}
+
+/*
  * Compact inline action - one visible-fill step down from .secondary, with
  * the small-control radius (#96 control vocabulary: small 31px fill / 8px
  * radius).
