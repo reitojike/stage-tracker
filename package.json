@@ -13,7 +13,7 @@
     "format:check": "prettier --config .ai-dev-foundation/quality/prettier.config.mjs --check .",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test src/domain/__tests__/*.test.ts src/infrastructure/supabase/__tests__/*.test.ts src/app/schedule/_components/__tests__/*.test.ts src/app/catalog/_components/__tests__/*.test.ts src/app/calendar/_components/__tests__/*.test.ts scripts/__tests__/*.test.mjs",
+    "test:unit": "node --experimental-strip-types --test src/domain/__tests__/*.test.ts src/infrastructure/supabase/__tests__/*.test.ts src/app/schedule/_components/__tests__/*.test.ts src/app/catalog/_components/__tests__/*.test.ts src/app/calendar/_components/__tests__/*.test.ts src/ui/__tests__/*.test.ts scripts/__tests__/*.test.mjs",
     "foundation:sync": "node scripts/run-foundation-tool.mjs sync",
     "foundation:check": "node scripts/run-foundation-tool.mjs check && node scripts/check-quality-profile-drift.mjs",
     "db:start": "supabase start",
