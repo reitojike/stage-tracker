@@ -280,13 +280,15 @@ void test('the sign-in action gives an identical response for known and unknown 
 
 void test('the sign-out action clears the session for subsequent requests', async () => {
   // Drives the app's own sign-out action rather than the SDK, so a
-  // regression that redirects without clearing cookies is caught.
+  // regression that redirects without clearing cookies is caught. The
+  // sign-out form itself now renders on /mypage, not / (Issue #159 moved
+  // it off Home), so that's where this reads the server action field from.
   const { cookie } = await signInThroughApp();
 
-  const before = await fetch(`${app.baseUrl}/`, { headers: { cookie }, redirect: 'manual' });
+  const before = await fetch(`${app.baseUrl}/mypage`, { headers: { cookie }, redirect: 'manual' });
   assert.equal(before.status, 200, 'sanity: the session should work beforehand');
 
-  const signOut = await submitServerAction(app.baseUrl, '/', {}, cookie);
+  const signOut = await submitServerAction(app.baseUrl, '/mypage', {}, cookie);
   // Merge Set-Cookie into the existing jar the way a browser does. Using
   // only the response's cookies would drop the session cookie outright,
   // so a sign-out that never cleared it would still appear to work.

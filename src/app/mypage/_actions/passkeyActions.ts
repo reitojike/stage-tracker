@@ -10,11 +10,12 @@ import {
   type PasskeyDeleteFormState,
 } from '@/domain/passkey.ts';
 
-// Revoke a registered passkey (Issue #106). No WebAuthn ceremony is
-// involved - auth.passkey.delete() is a plain authenticated request scoped
-// to the caller's own session, same boundary as list() (see
-// src/infrastructure/supabase/passkey.ts) - so this can be a normal Server
-// Action like every other write in this app, unlike registration/sign-in.
+// Revoke a registered passkey (Issue #106, moved from Home to My Page by
+// Issue #159). No WebAuthn ceremony is involved - auth.passkey.delete() is
+// a plain authenticated request scoped to the caller's own session, same
+// boundary as list() (see src/infrastructure/supabase/passkey.ts) - so this
+// can be a normal Server Action like every other write in this app, unlike
+// registration/sign-in.
 
 export async function deletePasskeyAction(
   previous: PasskeyDeleteFormState,
@@ -34,6 +35,6 @@ export async function deletePasskeyAction(
     );
   }
 
-  revalidatePath('/');
+  revalidatePath('/mypage');
   return { ...INITIAL_PASSKEY_DELETE_FORM_STATE, attempt: previous.attempt + 1 };
 }

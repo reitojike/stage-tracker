@@ -1,6 +1,5 @@
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { listPasskeys } from '@/infrastructure/supabase/passkey.ts';
-import { Surface } from '@/ui/Surface';
 import { StatePanel } from '@/ui/StatePanel';
 import {
   passkeyDisplayLabel,
@@ -33,9 +32,11 @@ function PasskeyListView({ passkeys }: { passkeys: PasskeyListItem[] }) {
 }
 
 /**
- * Passkey enrollment entry point + credential management (Issue #106),
- * placed alongside HomeAccount as the account surface's auth settings.
- * Only ever rendered for an authenticated user (see Home's page.tsx) -
+ * Passkey enrollment entry point + credential management (Issue #106, moved
+ * off Home onto My Page by Issue #159 - behavior unchanged, only the
+ * presentation moved off Home's `Surface variant="subtle"` panel onto the
+ * design handoff's bold-rule heading + body (see PasskeySection.module.css).
+ * Only ever rendered for an authenticated user (see mypage/page.tsx) -
  * registerPasskey() requires an active session, and there is nothing to
  * list/revoke without one.
  *
@@ -49,8 +50,10 @@ export async function PasskeySection() {
   const result = await listPasskeys(client);
 
   return (
-    <Surface variant="subtle" className={styles.panel}>
-      <h2 className={styles.heading}>Passkey</h2>
+    <section className={styles.section} aria-labelledby="mypage-passkey-heading">
+      <h2 id="mypage-passkey-heading" className={styles.heading}>
+        Passkey
+      </h2>
       <p className={styles.description}>
         登録した端末では、次回以降メールアドレス入力なしでサインインできます。
       </p>
@@ -62,7 +65,7 @@ export async function PasskeySection() {
       ) : (
         <StatePanelForManagementError kind={result.error.kind} />
       )}
-    </Surface>
+    </section>
   );
 }
 

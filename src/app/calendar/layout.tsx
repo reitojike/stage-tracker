@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import { AppShell } from '@/ui/AppShell';
+import { resolveMyPageAppBarIdentity } from '@/infrastructure/supabase/session.ts';
 
 /**
  * Wraps every route under this segment - including its own loading.tsx -
  * in the shared screen shell, so the app bar and primary navigation stay
  * on screen while a server navigation is in flight (#70).
  */
-export default function CalendarSectionLayout({ children }: { children: ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+export default async function CalendarSectionLayout({ children }: { children: ReactNode }) {
+  const identity = await resolveMyPageAppBarIdentity();
+  return <AppShell {...identity}>{children}</AppShell>;
 }

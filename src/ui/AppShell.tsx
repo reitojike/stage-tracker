@@ -13,6 +13,19 @@ export interface AppShellProps {
    * both are authenticated-only destinations, same as the nav items.
    */
   showPrimaryNav?: boolean;
+  /**
+   * My Page avatar destination (Issue #159), forwarded to AppBar as-is.
+   * Left unset wherever there is no session to back it (`/sign-in`).
+   */
+  myPageHref?: string;
+  /**
+   * My Page avatar initial, forwarded to AppBar as-is. Resolving the
+   * signed-in identity is each segment's own `layout.tsx`'s job, same as
+   * before (#141 boundary) - AppShell stays a plain presentational
+   * component with no Supabase/session dependency of its own, so it keeps
+   * rendering the same way in Storybook without a real request context.
+   */
+  myPageInitial?: string;
 }
 
 /**
@@ -30,15 +43,21 @@ export interface AppShellProps {
  * so the shell stays on screen across a segment's own `loading.tsx` and so
  * `/sign-in` can opt out of the nav.
  *
- * AppBar's press handlers are left unset here (Issue #141 boundary): the
- * shell doesn't have a canonical unread-notification source or a signed-in
- * user's identity to hand it, and `/notifications` / `/mypage` don't exist
- * yet (#148). Wiring those through is that lane's job, not this one's.
+ * The notification bell stays unwired here (Issue #141 boundary, still
+ * true post-#159): there is no canonical unread-notification source and
+ * `/notifications` doesn't exist yet (#148's remaining Notifications
+ * lane). The My Page avatar is wired by each caller via `myPageHref` /
+ * `myPageInitial` (Issue #159).
  */
-export function AppShell({ children, showPrimaryNav = true }: AppShellProps) {
+export function AppShell({
+  children,
+  showPrimaryNav = true,
+  myPageHref,
+  myPageInitial,
+}: AppShellProps) {
   return (
     <div className={styles.shell}>
-      <AppBar showActions={showPrimaryNav} />
+      <AppBar showActions={showPrimaryNav} myPageHref={myPageHref} myPageInitial={myPageInitial} />
 
       <main className={styles.content}>{children}</main>
 

@@ -73,6 +73,16 @@
   box-shadow: 0 0 0 1.5px var(--color-canvas);
 }
 
+/*
+ * My Page avatar's pending feedback while `/mypage`'s server navigation is
+ * in flight (Issue #159), same :has()-swap technique as MonthCalendar's
+ * month-nav LinkButtons (#103): the avatar circle hides in favour of
+ * LinkButton's own LoadingIndicator rather than showing both at once.
+ */
+.myPage:has([role='status']) .avatar {
+  display: none;
+}
+
 .brand {
   justify-self: center;
   margin: 0;

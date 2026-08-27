@@ -16,8 +16,8 @@ import {
  * Client-only by necessity: registerPasskey() runs the actual WebAuthn
  * ceremony (navigator.credentials.create()), which only exists in a
  * browser and requires an active session - both satisfied here, since this
- * button only ever renders inside the authenticated branch of Home (see
- * PasskeySection).
+ * button only ever renders inside the authenticated branch of My Page (see
+ * PasskeySection, moved from Home by Issue #159).
  *
  * router.refresh() re-runs the Server Component that lists registered
  * passkeys (PasskeySection), so a newly registered credential appears

@@ -1,13 +1,19 @@
-.panel {
+.section {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   align-items: flex-start;
 }
 
+/* Same bold-rule section boundary as AccountSection - see that file's
+   module CSS comment for why 2px/--color-text rather than the 1px
+   hairline --color-border used elsewhere. */
 .heading {
+  margin: 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 2px solid var(--color-text);
   font-size: var(--font-size-body);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .description {

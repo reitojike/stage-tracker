@@ -22,6 +22,8 @@ type Story = StoryObj<typeof AppShell>;
 
 export const WithPrimaryNav: Story = {
   args: {
+    myPageHref: '/mypage',
+    myPageInitial: 'S',
     children: (
       <>
         <PageHeading>イベント</PageHeading>
