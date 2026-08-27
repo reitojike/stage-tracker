@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { AppBar } from './AppBar';
 import { PrimaryNav } from './PrimaryNav';
 import styles from './AppShell.module.css';
 
@@ -8,6 +9,8 @@ export interface AppShellProps {
    * Off for surfaces reached before a session exists (`/sign-in`). Every
    * primary destination sits behind the default-deny auth boundary
    * (src/proxy.ts), so offering them there would only produce redirects.
+   * Also gates the AppBar's notification/My Page affordances (Issue #141):
+   * both are authenticated-only destinations, same as the nav items.
    */
   showPrimaryNav?: boolean;
 }
@@ -26,13 +29,16 @@ export interface AppShellProps {
  * Applied through a per-section `layout.tsx` rather than the root layout,
  * so the shell stays on screen across a segment's own `loading.tsx` and so
  * `/sign-in` can opt out of the nav.
+ *
+ * AppBar's press handlers are left unset here (Issue #141 boundary): the
+ * shell doesn't have a canonical unread-notification source or a signed-in
+ * user's identity to hand it, and `/notifications` / `/mypage` don't exist
+ * yet (#148). Wiring those through is that lane's job, not this one's.
  */
 export function AppShell({ children, showPrimaryNav = true }: AppShellProps) {
   return (
     <div className={styles.shell}>
-      <header className={styles.appBar}>
-        <p className={styles.brand}>stage-tracker</p>
-      </header>
+      <AppBar showActions={showPrimaryNav} />
 
       <main className={styles.content}>{children}</main>
 
