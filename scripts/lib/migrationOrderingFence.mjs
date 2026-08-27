@@ -19,8 +19,9 @@ const MIGRATION_PATH_PATTERN = /^supabase\/migrations\/.+\.sql$/;
 // `code`, _italic_) between the "ordering:" label and the value, so authors
 // can format the marker line without breaking the match.
 const ORDERING_PATTERN =
-  /migration ordering:[\s*_`]*(schema-first-required|post-deploy-safe)[\s*_`]*/i;
+  /migration ordering:[\s*_`]*(schema-first-required|post-deploy-safe)[\s*_`]*/gi;
 const PRODUCTION_APPLY_PATTERN = /production migration applied:\s*(.+)/i;
+const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
 
 export function parseAddedMigrationFiles(diffNameStatusOutput) {
   if (typeof diffNameStatusOutput !== 'string' || diffNameStatusOutput.length === 0) return [];
@@ -32,15 +33,24 @@ export function parseAddedMigrationFiles(diffNameStatusOutput) {
 }
 
 export function extractMigrationOrdering(prBody) {
-  const body = typeof prBody === 'string' ? prBody : '';
-  const orderingMatch = ORDERING_PATTERN.exec(body);
-  const classification = orderingMatch ? orderingMatch[1].toLowerCase() : null;
+  // Strip HTML comments first: .github/pull_request_template.md's own
+  // instructional text (inside an HTML comment, invisible in the rendered
+  // PR) contains example "Migration ordering:" / "Production migration
+  // applied:" text that must never be mistaken for an author's real marker.
+  const body = (typeof prBody === 'string' ? prBody : '').replace(HTML_COMMENT_PATTERN, '');
+
+  const orderingMatches = [...body.matchAll(ORDERING_PATTERN)];
+  // More than one marker means either the template's two scaffold lines
+  // were never edited down to one, or the author left conflicting markers -
+  // either way, no single unambiguous judgment was recorded.
+  const classification = orderingMatches.length === 1 ? orderingMatches[0][1].toLowerCase() : null;
 
   const productionApplyMatch = PRODUCTION_APPLY_PATTERN.exec(body);
   const productionApplyEvidence = productionApplyMatch ? productionApplyMatch[1].trim() : null;
 
   return {
     classification,
+    ambiguous: orderingMatches.length > 1,
     productionApplyEvidence:
       productionApplyEvidence && productionApplyEvidence.length > 0
         ? productionApplyEvidence
@@ -56,7 +66,17 @@ export function evaluateMigrationOrderingFence({ addedMigrationFiles, prBody }) 
     };
   }
 
-  const { classification, productionApplyEvidence } = extractMigrationOrdering(prBody);
+  const { classification, ambiguous, productionApplyEvidence } = extractMigrationOrdering(prBody);
+
+  if (ambiguous) {
+    return {
+      ok: false,
+      reason:
+        `This PR adds ${addedMigrationFiles.length} migration file(s) but the PR body has more ` +
+        'than one "Migration ordering: ..." marker line. Keep exactly one (delete the other, per ' +
+        '.github/pull_request_template.md) so the ordering judgment is unambiguous.',
+    };
+  }
 
   if (classification === null) {
     return {

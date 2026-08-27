@@ -86,3 +86,47 @@ void test('evaluateMigrationOrderingFence passes for schema-first-required with 
   });
   assert.equal(ok, true);
 });
+
+void test('extractMigrationOrdering ignores marker-like text inside an HTML comment', () => {
+  const body = [
+    'Migration ordering: schema-first-required',
+    '<!--',
+    'Production migration applied: <short evidence, e.g. "supabase db push --linked">',
+    '-->',
+  ].join('\n');
+  const result = extractMigrationOrdering(body);
+  assert.equal(result.classification, 'schema-first-required');
+  assert.equal(result.productionApplyEvidence, null);
+});
+
+void test('extractMigrationOrdering flags ambiguous when both template marker lines are left uncommented', () => {
+  const body = 'Migration ordering: post-deploy-safe\nMigration ordering: schema-first-required';
+  const result = extractMigrationOrdering(body);
+  assert.equal(result.classification, null);
+  assert.equal(result.ambiguous, true);
+});
+
+void test('evaluateMigrationOrderingFence fails when the unedited PR template ships both marker lines', () => {
+  const body = 'Migration ordering: post-deploy-safe\nMigration ordering: schema-first-required';
+  const { ok, reason } = evaluateMigrationOrderingFence({
+    addedMigrationFiles: ['supabase/migrations/20260827000000_add_thing.sql'],
+    prBody: body,
+  });
+  assert.equal(ok, false);
+  assert.match(reason, /more than one/);
+});
+
+void test('evaluateMigrationOrderingFence rejects placeholder evidence left inside the template HTML comment', () => {
+  const body = [
+    'Migration ordering: schema-first-required',
+    '<!--',
+    'Production migration applied: <short evidence, e.g. "supabase db push --linked">',
+    '-->',
+  ].join('\n');
+  const { ok, reason } = evaluateMigrationOrderingFence({
+    addedMigrationFiles: ['supabase/migrations/20260827000000_add_thing.sql'],
+    prBody: body,
+  });
+  assert.equal(ok, false);
+  assert.match(reason, /Production migration applied/);
+});
