@@ -94,6 +94,11 @@
   --radius-scale-lg: 16px;
   --radius-scale-band: 5px;
   --radius-scale-full: 999px;
+  /* Design refresh (Issue #137, 藍と墨): badge/sheet corner radii for the
+     new paper/rule/border direction - distinct from the container/band
+     steps above, which later issues (#138+) migrate away from. */
+  --radius-scale-badge: 2px;
+  --radius-scale-sheet: 4px;
 
   /* ---- primitive: typography ---- */
   --font-family-scale-base:
@@ -120,28 +125,35 @@
   /* ================= semantic layer ================= */
 
   /* surface / text / border
-     V2 refined direction (#96 -> #101): canvas is neutral-100, content
-     surface is white. --color-surface-subtle (lighter than canvas) and
-     --color-surface-active (darker than canvas) are chosen so neither
-     collides with the canvas tone they now sit next to - before this
-     freeze, canvas and --color-surface-active were both neutral-0/100
-     coincidentally, which is exactly the collision this reorganizes. */
-  --color-bg: var(--color-neutral-100);
+     Design refresh (Issue #137, 藍と墨): 紙・罫・境界 repinned to the new
+     handoff palette (design_handoff_stage_tracker/01-tokens.md). These no
+     longer track the neutral-* primitive scale 1:1 - that scale still
+     serves other roles (e.g. --color-surface-active below) not covered by
+     this repin, so the values are set directly rather than reassigning the
+     shared primitives out from under them. Later issues (#138+) migrate
+     Badge/calendar/etc. consumers onto this direction; some existing
+     screens will show a visual diff in the meantime (Issue #137 accepts
+     this - see its Acceptance Criteria). */
+  --color-canvas: #eef0f1;
+  --color-bg: var(--color-canvas);
   --color-surface: var(--color-neutral-0);
-  --color-surface-subtle: var(--color-neutral-50);
+  --color-surface-subtle: #dfe4e7;
   /* Pressed state for neutral/secondary controls (see --color-accent-active).
-     One step past canvas (neutral-100) so a pressed white row never reads
-     as having faded into the page background. */
+     One step past canvas so a pressed white row never reads as having
+     faded into the page background. */
   --color-surface-active: var(--color-neutral-200);
-  --color-border: var(--color-neutral-200);
+  --color-border: #d7dcde;
   /* form control boundary(input/button等)。WCAG 2.2 SC 1.4.11 Non-text
-     Contrastの3:1をwhite surface背景に対して満たす値(neutral-500: 白背景に
-     対し約4.3:1)。generic surface borderとは別tokenとして分離する。V2
-     refined direction (#96 -> #102): containerへは使わない - container
-     separationはcanvas/surfaceのトーン差と間隔が担う。 */
-  --color-control-border: var(--color-neutral-500);
-  --color-text: var(--color-neutral-900);
-  --color-text-secondary: var(--color-neutral-600);
+     Contrastの3:1を--color-canvas背景に対して満たす値(約3.45:1)。generic
+     surface borderとは別tokenとして分離する。containerへは使わない -
+     container separationはcanvas/surfaceのトーン差と間隔が担う。 */
+  --color-control-border: #7f878b;
+  --color-text: #1f2426;
+  --color-text-secondary: #5c6467;
+  /* Badge本文専用の第3階層(Issue #137で新規)。--color-text-secondaryより
+     わずかに濃く、輪郭バッジの淡い塗りに対して単独で使う。汎用bodyテキスト
+     には使わない。 */
+  --color-text-tertiary: #454b4e;
   --color-text-disabled: var(--color-neutral-400);
   /* Non-text icon affordance only (chevron等) - #96 frozen value/contrast
      (4.30:1 on white). Deliberately NOT a general text-color token: 4.30:1
@@ -149,8 +161,12 @@
      text), so this must not be reused for readable text. */
   --color-icon-affordance: var(--color-neutral-500);
 
-  /* accent / interactive */
-  --color-accent: var(--color-accent-600);
+  /* accent / interactive
+     Design refresh (Issue #137, 藍と墨): --color-accent repinned to the
+     handoff's 藍 value. hover/active/focus-ring keep the existing
+     accent-700/800 steps (not part of this Issue's token table) until a
+     later issue revisits them. */
+  --color-accent: #2f4a7a;
   --color-accent-hover: var(--color-accent-700);
   /* Pressed state, one step past hover so a press reads as distinct from a
      hover on pointer devices and is visible on its own on touch devices. */
@@ -163,18 +179,39 @@
   --color-accent-subtle-foreground: var(--color-accent-700);
 
   /* status roles (statusをcolorだけで表現しないための role分離。
-     使用側はicon/labelを併用する。docs/ux-ui.md「Common states」参照) */
+     使用側はicon/labelを併用する。docs/ux-ui.md「Common states」参照)
+     Design refresh (Issue #137): 色の役割は藍(操作できる場所と現在地) /
+     赤(まだ間に合う期限と休日) / 墨(もう行動できないもの)の3つに固定する
+     方向のため、success/warningはこのIssueの対象外(値は残すがUIからの
+     参照は後続issue(#138 Badge)で無くす)。dangerのみ新しい赤の値へ
+     repinする。 */
   --color-success: var(--color-status-success-500);
   --color-warning: var(--color-status-warning-500);
-  --color-danger: var(--color-status-danger-500);
+  --color-danger: #a13b2e;
   --color-info: var(--color-accent-600);
+
+  /* terminal role (Issue #137, 新規): 墨。もう行動できない終了状態の塗りと、
+     その上の文字。success/warning/dangerとは別の第3の色の役割として、
+     藍(操作できる場所)・赤(間に合う期限)と並ぶ「終わったもの」を表す。 */
+  --color-terminal: #2b3033;
+  --color-terminal-on: #eef0f1;
+
+  /* band role (Issue #137, 新規): 複数日にまたがるcalendar bandの塗り/文字/
+     輪郭(non-blocking)。既存の--color-accent-subtle系とは別tokenとして
+     分離する(帯の色はaccentから独立してこの用途専用に定義された値のため)。 */
+  --color-band-fill: #dbe2ee;
+  --color-band-text: #24365c;
+  --color-band-outline: #6a7d9e;
 
   /* calendar weekday / Japanese holiday roles (docs/ux-ui.md「Calendar
      weekday / Japanese holiday presentation」- Saturday blue / Sunday red /
-     holiday red, holiday優先). Reuses the existing accent/danger primitives
-     rather than introducing a new hue scale - usage side always pairs this
-     with a non-color cue (text/icon), never color alone. */
-  --color-calendar-saturday: var(--color-accent-600);
+     holiday red, holiday優先). Saturday follows --color-accent itself (per
+     Issue #137: 「土曜も同値」「現行の扱いを踏襲」) rather than the raw
+     accent-600 primitive, so it tracks any future --color-accent repin.
+     Sunday/holiday keep the existing danger primitive until a later issue
+     revisits them; usage side always pairs this with a non-color cue
+     (text/icon), never color alone. */
+  --color-calendar-saturday: var(--color-accent);
   --color-calendar-sunday: var(--color-status-danger-500);
   --color-calendar-holiday: var(--color-status-danger-500);
 
@@ -226,6 +263,12 @@
      inline marker rather than another card-like shape. */
   --radius-band: var(--radius-scale-band);
   --radius-pill: var(--radius-scale-full);
+  /* Design refresh (Issue #137): badge corner (2px) and bottom-sheet top
+     corner (4px) - the only two radius steps the new direction uses for
+     those roles. --radius-surface (12px) becomes unused as consumers
+     migrate in later issues, but stays defined per Issue #137's scope. */
+  --radius-badge: var(--radius-scale-badge);
+  --radius-sheet: var(--radius-scale-sheet);
 
   /* typography */
   --font-family-base: var(--font-family-scale-base);
