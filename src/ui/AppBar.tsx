@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from './Button';
 import styles from './AppBar.module.css';
 
 export interface AppBarProps {
@@ -53,10 +54,10 @@ export function AppBar({
   return (
     <header className={styles.appBar}>
       {showActions ? (
-        <button
-          type="button"
+        <Button
+          variant="icon"
           className={styles.notifications}
-          aria-label="お知らせ"
+          aria-label={hasUnreadNotifications ? 'お知らせ（未読あり）' : 'お知らせ'}
           aria-disabled={onNotificationsPress ? undefined : true}
           onClick={onNotificationsPress}
         >
@@ -79,7 +80,7 @@ export function AppBar({
               <span aria-hidden="true" className={styles.unreadDot} />
             ) : null}
           </span>
-        </button>
+        </Button>
       ) : (
         <span aria-hidden="true" />
       )}
@@ -87,8 +88,8 @@ export function AppBar({
       <p className={styles.brand}>STAGE TRACKER</p>
 
       {showActions ? (
-        <button
-          type="button"
+        <Button
+          variant="icon"
           className={styles.myPage}
           aria-label="マイページ"
           aria-disabled={onMyPagePress ? undefined : true}
@@ -97,7 +98,7 @@ export function AppBar({
           <span className={styles.avatar} aria-hidden="true">
             {myPageInitial ?? ''}
           </span>
-        </button>
+        </Button>
       ) : (
         <span aria-hidden="true" />
       )}

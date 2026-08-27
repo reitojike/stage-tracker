@@ -17,29 +17,13 @@
 }
 
 /*
- * Visible fill stays 40x40 (handoff spec); expand44 keeps the actual tap
- * target at WCAG 2.2 SC 2.5.8's 44px floor without growing the visible
- * icon, the same composition Button's `icon` variant already uses.
+ * The two affordances are `Button variant="icon"` (40x40 fill, expand44 tap
+ * target, transparent background, hover/active tokens - all already
+ * defined there per #96's icon control vocabulary). Only grid placement and
+ * myPage's non-accent color are this component's own concern.
  */
-.notifications,
-.myPage {
-  composes: expand44 from './tapTarget.module.css';
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-control-sm);
-  background-color: transparent;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
 .notifications {
   justify-self: start;
-  color: var(--color-accent);
 }
 
 .myPage {
@@ -47,22 +31,14 @@
   color: var(--color-text);
 }
 
-.notifications:hover,
-.myPage:hover {
-  background-color: var(--color-surface-subtle);
-}
-
-.notifications:active,
-.myPage:active {
-  background-color: var(--color-surface-active);
-}
-
 /*
  * Inert until a caller wires a real destination (#148 owns /notifications
  * and /mypage - Issue #141 boundary). No `disabled` attribute: that would
  * apply Button's dimmed-opacity treatment, which the handoff's affordances
  * don't call for. aria-disabled tells assistive tech there is nothing to
- * activate yet without hiding the control from layout/focus order.
+ * activate yet without hiding the control from layout/focus order. Button
+ * itself has no `[aria-disabled]` styling, so the hover/active suppression
+ * below is this component's own addition on top of the shared variant.
  */
 .notifications[aria-disabled='true'],
 .myPage[aria-disabled='true'] {
@@ -113,6 +89,7 @@
   justify-content: center;
   width: 30px;
   height: 30px;
+  overflow: hidden;
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-control-border);
   font-size: var(--font-size-label);
