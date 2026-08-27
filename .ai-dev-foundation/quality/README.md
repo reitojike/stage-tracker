@@ -28,6 +28,9 @@ prettier
 typescript
 ```
 
+Supabaseを使い、`client-role-privileges:check`（後述）を`verify:profile:database`から
+呼び出すconsumerは、これに加えて`pg`を追加します。
+
 ## 適用方法
 
 consumerの`tsconfig.json`でstrict TypeScript設定を継承します。
@@ -134,6 +137,64 @@ collisionを未然に防ぐ機構ではなく、DB / Docker / Supabase local sta
 node .ai-dev-foundation/quality/check-migration-version-collision.mjs
 ```
 
+## Client-role table privilege guardrail
+
+RLS policyが正しく定義されていても、table-level grantとして`anon` / `authenticated` /
+`PUBLIC`に意図しないprivilegeが残ると、RLSだけを検証してもsecurity boundaryが成立し
+ません。特に`TRUNCATE`はRLSを完全に迂回するため、RLS testsがgreenでもclient roleが
+tableをtruncateできる状態を見逃し得ます（confirmed defect:
+`reitojike/stage-tracker#42` / `reitojike/stage-tracker#49`。多くの場合、原因は
+schema-wide `ALTER DEFAULT PRIVILEGES`が新規tableへ既定でこれらのprivilegeを
+付与することです — migrationがgrantを追加するだけでは、この既存の残存ACLには一切
+触れません）。
+
+`check-client-role-table-privileges.mjs`は、actual local/CI PostgreSQL上の`public`
+schema全table（動的に列挙、`pg_tables`基準）を対象に、`anon` / `authenticated` /
+`PUBLIC`（PostgreSQLのpseudo-role。`has_table_privilege('public', ...)`で判定）が
+次のいずれかを保持していないかをdeterministicに検査します。
+
+```text
+TRUNCATE
+REFERENCES
+TRIGGER
+MAINTAIN  (PostgreSQL 17+のみ。has_table_privilegeは17未満のserverでは
+           "unrecognized privilege type"を送出するため、server_version_num
+           で判定しexplicitにskipします — 例外を握りつぶすのではなく、
+           checkしたprivilege集合をpositiveに報告します)
+```
+
+### Foundation-owned safety boundaryとconsumer-owned permission matrixの境界
+
+このcheckerはSELECT / INSERT / UPDATE / DELETE（table-levelおよびcolumn-level）を
+一切検査しません。それらはproduct固有のpermission matrixであり、consumer-ownedの
+ままです。上記4つのprivilegeが対象になるのは、PostgREST-styleのclient roleが
+意図的なCRUD permission matrixの一部としてこれらを持つ正当な理由が構造的に存在
+しないためです。TRUNCATEはRLSを迂回し、REFERENCESはforeign key制約違反エラー経由の
+covert channel（PostgreSQL自身のrow security documentationが明記する既知の
+制約）になり得ます。TRIGGER/MAINTAINも同様にclient roleに不要な特権です。
+
+evidence上、これら4つのprivilegeについてconsumer側で正当な例外が必要になった実例は
+ないため（stage-trackerの現行grant matrixはどのtableにもこれらを一切持ちません）、
+本checkerはunconditional denyとして実装され、consumer向けのexception/override機構は
+持ちません。将来具体的な必要が生じた場合は、先行してexception機構を用意するのでは
+なく、その時点でFoundation ObservationまたはChange Proposalとして扱います。
+`service_role`等のadministrative roleはこの検査対象に含めません。
+
+### 使い方
+
+```text
+node .ai-dev-foundation/quality/check-client-role-table-privileges.mjs
+```
+
+既定では、consumerのDB/RLS testと同じ方法（`supabase status -o json`）でlocal
+Supabaseの接続先を自動検出します。実行には稼働中のlocal Supabase stackが必要です
+（DB / Docker / Supabase local stackを起動する他のcheckより後に実行します）。
+`SUPABASE_DB_URL`を設定すると、この自動検出をbypassして直接その接続先を検査します。
+
+failure診断にはrole / table / privilegeの組が一覧表示され、remediationとして
+`revoke all ... from public, anon, authenticated`した上で意図するSELECT/INSERT/
+UPDATE/DELETEのみを再grantする例を示します。
+
 ## Next.js agent-rules (generated AGENTS.md) drift prevention
 
 `AGENTS.md`はFoundation canonical inputsから生成されるgenerated artifactです
@@ -158,12 +219,17 @@ dirtyになります。Next.js 16.3未満はこの自動生成挙動も`agentRul
 node .ai-dev-foundation/quality/check-agent-rules-disabled.mjs
 ```
 
-このcheckerは`next.config.js` / `next.config.mjs` / `next.config.ts`
-（Next.js自身のCONFIG_FILES優先順位と同じ順で検索し、複数が共存する場合は
-Next.jsが実際に読むfileを検証します）をfilesystemだけで検査し、
-comment除去後・brace-depth 1（exportされる config
-object直下）に限定した`agentRules: false`（quoted keyを含む）が見つからない
-場合（fileが存在しない場合を含む）はnon-zeroで失敗します。`false`は完全な
+このcheckerは`next.config.js` / `next.config.mjs` / `next.config.ts`、および
+実行中のNode runtimeがnative TypeScript supportを持つ場合
+（`process.features.typescript`がtruthyな場合）は`next.config.mts`も対象に
+含めます（Next.js自身のCONFIG_FILES優先順位と同じ順で検索し、複数が共存する
+場合はNext.jsが実際に読むfileを検証します）。Next.js自身が`.mts`を受理する
+条件と同じ条件をcheckerが評価するため、`.cjs`/`.cts`等の他の拡張子（Next.js
+自身がconfigとして受理しないため引き続きこのcheckerの対象外）とは異なる
+扱いです。これらの候補fileをfilesystemだけで検査し、comment除去後・
+brace-depth 1（exportされる config object直下）に限定した`agentRules:
+false`（quoted keyを含む）が見つからない場合（fileが存在しない場合を含む）
+はnon-zeroで失敗します。`false`は完全な
 property valueである場合だけ有効とします（`agentRules: false || true`は
 実際にはtrueとして評価されるため無効）。次はfalseとして扱いません:
 comment内の記述（`// agentRules: false`）、ネストしたobject内の同名property
@@ -200,32 +266,72 @@ duplicate keyなど）は、parser/tokenizer/generalized config evaluatorへ発�
 単体ではなく、この proactive blocking layer（`agent-rules:check`）と reactive exact
 layer（`foundation:check`）を合わせたsystem levelで満たします。
 
-## `verify` への集約
+## `verify` への集約と responsibility lane
 
 consumerはrequired checkを通常のnpm scriptsとして固定し、`verify` から順番に実行します。
-profile固有の追加は`verify:profile`に置きます。これはextension pointであり、pluginの
-登録機構ではありません。consumerがSupabaseを使う場合、`supabase:migrations:check`
-（DB / Docker / Supabase local stackを起動する他のcheckより前）に続けて
-`supabase:types:check`を`verify:profile`から呼び出し、typesの再生成後に生成ファイルの
-driftをnon-zeroで検知するcommandにします。DB/RLS testがあるconsumerは同じ
-`verify:profile`からそのtest commandを呼び出します。Next.js 16.3以降を使うconsumerは
-同じ`verify:profile`から`agent-rules:check`を呼び出します（16.3未満では対象外のため
-呼び出しません。本節冒頭の「該当しないcommandは含めない」原則の具体例です）。
+`verify`は、GitHub上でも失敗domainを切り分けられるよう、次の3つのresponsibility lane
+の合成として定義します。
+
+- `verify:code` — format / lint / typecheck / unit test、`foundation:check`、および
+  DB / Docker / Supabase local stackを起動しないprofile check
+- `verify:build` — application build
+- `verify:database` — local Supabase runtimeを必要とするprofile check
+
+profile固有の追加は、DB / Docker / Supabase local stackを起動するかどうかで
+`verify:profile:code`（起動しない）と`verify:profile:database`（起動する）のどちらかに
+置きます。これはextension pointであり、pluginの登録機構ではありません。
+consumerがSupabaseを使う場合、`supabase:migrations:check`はfilesystemだけで完結する
+ため`verify:profile:code`から呼び出します。`supabase:types:check`（typesの再生成後に
+生成ファイルのdriftをnon-zeroで検知するcommand）はlocal Supabase runtimeを必要とする
+ため`verify:profile:database`から呼び出します。DB/RLS testがあるconsumerも同じ
+`verify:profile:database`からそのtest commandを呼び出します。Next.js 16.3以降を使う
+consumerは`agent-rules:check`（filesystemだけで完結）を`verify:profile:code`から
+呼び出します（16.3未満では対象外のため呼び出しません。本節冒頭の「該当しない
+commandは含めない」原則の具体例です）。local Supabase stackを起動するconsumerは、
+`verify:profile:database`から`client-role-privileges:check`（DB / Docker / Supabase
+local stackを起動する他のcheckより後）も呼び出し、残存privilegeの回帰をblockingで
+検知します。
 
 ```json
 {
   "scripts": {
-    "verify:profile": "npm run agent-rules:check && npm run supabase:migrations:check && npm run supabase:types:check && npm run test:rls",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run foundation:check && npm run verify:profile"
+    "client-role-privileges:check": "node .ai-dev-foundation/quality/check-client-role-table-privileges.mjs",
+    "verify:profile:code": "npm run agent-rules:check && npm run supabase:migrations:check",
+    "verify:profile:database": "npm run supabase:types:check && npm run test:rls && npm run client-role-privileges:check",
+    "verify:code": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run foundation:check && npm run verify:profile:code",
+    "verify:build": "npm run build",
+    "verify:database": "npm run verify:profile:database",
+    "verify": "npm run verify:code && npm run verify:build && npm run verify:database"
   }
 }
 ```
 
-上記のうちconsumerに該当しないcommandは`verify:profile`に含めません。空の成功commandを
-置かず、必要になった時点で実行可能なcheckとして追加します。
+上記のうちconsumerに該当しないcommandは`verify:profile:code` / `verify:profile:database`
+に含めません。空の成功commandを置かず、必要になった時点で実行可能なcheckとして追加
+します。該当するprofile checkが1つも無いlaneはそのlane自体を`verify`から省略します
+（例えばSupabaseを使わないconsumerは`verify:database`を持たず、`verify`は
+`verify:code`と`verify:build`だけを呼び出します）。
 
 `jscpd`や`knip`などのノイズを含み得るcheckはadvisoryです。blocking quality floorには
 含めません。
+
+### GitHub Actions verification lane（reference、non-normative）
+
+consumerのGitHub Actions上のPR checksを`verify`単一jobとして直列実行すると、format /
+lint / typecheck、build、DB runtimeというfailure domainがすべて1つのcheck結果へ
+collapseし、どの責務が落ちたか一目で切り分けにくくなります。responsibilityごとに
+独立したjobへ分けたいconsumerのための、non-normativeなreference exampleを
+`profiles/next-supabase/ci/verify-lanes.example.yml`に置きます。このfileは`sync` /
+`bootstrap-next-supabase.mjs`のどちらからもconsumerへ自動配布されません。必要な
+consumerが手動でcopy/adaptしてください。
+
+このreferenceは`verify:code` / `verify:build` / `verify:database`をそれぞれ独立した
+GitHub Actions jobとして実行し、job名を`Verify / Code`・`Verify / Build`・
+`Verify / Database`とします。consumer local/agent向けの一括`verify`はこのreferenceの
+有無にかかわらず維持され、このreferenceはGitHub Actions上の実行を3つのlaneへ分ける
+だけで、それ以上の細粒度checkへ分裂させることを意図しません。Supabaseを使わず
+`verify:database`が空のconsumerは、`Verify / Database` job自体をreferenceから
+削除してください。
 
 ## Worktree/checkoutをまたぐlocal Supabase stack
 
@@ -245,7 +351,9 @@ containers / volumes等）を共有する場合、そのstackはshared local sta
 - migration apply / rollback相当のoperation
 - DB / RLS / auth integration test
 - schema由来のgenerated types生成、およびdrift verification
-- 上記のいずれかを内包する`verify:profile`
+- `client-role-privileges:check`（client-role table privilege guardrail）
+- 上記のいずれかを内包する`verify:profile:database`
+- 上記のいずれかを内包する`verify:database`
 - 上記のいずれかを内包するfull `verify`
 
 shared local stackに対して上記を実行するagentは、少なくとも次を満たします。

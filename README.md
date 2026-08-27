@@ -32,8 +32,10 @@ npm install
 
 Foundation tooling を使う `foundation:sync` / `foundation:check` は、pinされた
 SHA の `ai-dev-foundation` checkout を `FOUNDATION_CHECKOUT` 環境変数(既定値
-`../ai-dev-foundation`)で参照します。pin されている SHA は
-`.github/workflows/verify.yml` に記載しています。
+`../ai-dev-foundation`)で参照します。pin されている SHA の single source of
+truthは [`.ai-dev-foundation/foundation-pin.json`](./.ai-dev-foundation/foundation-pin.json)
+です。`.github/workflows/verify.yml` もこのfileからSHAを読み取り、CI上の
+Foundation checkoutをpinします。
 
 ### Local Supabase (Docker が必要)
 
@@ -81,22 +83,32 @@ local / agent向けのone-command full deterministic verificationです。内部
   する事態をCIで検知するためblocking checkに含めています）。
 - `npm run verify:database` — local Supabaseを起動・resetした上で、generated
   database typesのexact drift check (`supabase:types:check`) とDB/RLS test
-  (`test:rls`)・auth test (`test:auth`) を実行します。remote Supabase
-  projectやremote credentialsは不要です。Docker が起動していない場合、この
-  ステップで失敗します。
+  (`test:rls`)・auth test (`test:auth`)、および`anon` / `authenticated` /
+  `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`残存privilegeを
+  検知するclient-role table privilege guardrail (`client-role-privileges:check`)
+  を実行します。remote Supabase projectやremote credentialsは不要です。
+  Docker が起動していない場合、このステップで失敗します。
 
-`verify:profile` は `.ai-dev-foundation/quality/README.md` が定める
-Next.js + Supabaseプロファイルのextension point名として引き続き提供して
-います。`agent-rules:check` / `supabase:migrations:check` に続けて
-`verify:database`（DB起動・reset・`supabase:types:check`・`test:rls`・
-`test:auth`）を呼ぶ構成にしており、DB runtimeを要する部分は`verify:database`
-を単一のsourceとして参照します（同じ手順を2箇所へ独立にハードコードしない
-ため）。`npm run verify` からは`verify:profile`ではなく`verify:code`/
-`verify:build`/`verify:database`を直接呼びます。`agent-rules:check` /
-`supabase:migrations:check`はDB runtime不要なので`verify:code`側にも
-含めており、`verify:profile`とはこの2 checkの呼び出しのみ重複します
-（Issue #118のlane境界: agent-rules/migrationはCode laneに属しDatabase
-laneには含めないため、full `verify`内での二重実行にはなりません）。
+`verify:profile` は、Foundation v0.4.0のcanonical extension point命名
+（`.ai-dev-foundation/quality/README.md` が定める `verify:profile:code` /
+`verify:profile:database` の2分割）とは別の、stage-trackerが既存互換の
+ため保持しているrepo-local aggregate scriptです（Issue #118当時に
+`verify:profile`という単一名で導入し、Issue #134のrepinではIssue #134
+本文の「v0.4.0 reference exampleへ機械的に置換せず、coverageを欠落
+させない最小integrationにする」方針により、この既存script自体の
+rename/分割は行っていません）。`agent-rules:check` /
+`supabase:migrations:check` に続けて `verify:database`（DB起動・reset・
+`supabase:types:check`・`test:rls`・`test:auth`・
+`client-role-privileges:check`）を呼ぶ構成にしており、DB runtimeを
+要する部分は`verify:database`を単一のsourceとして参照します（同じ手順を
+2箇所へ独立にハードコードしないため）。stage-trackerのcurrent full
+verificationは`verify:profile`を経由せず、`npm run verify`から
+`verify:code`/`verify:build`/`verify:database`を直接呼びます。
+`agent-rules:check` / `supabase:migrations:check`はDB runtime不要なので
+`verify:code`側にも含めており、`verify:profile`とはこの2 checkの呼び出し
+のみ重複します（Issue #118のlane境界: agent-rules/migrationはCode lane
+に属しDatabase laneには含めないため、full `verify`内での二重実行には
+なりません）。
 
 profile固有checkを追加・変更する場合は、DB runtimeが不要なら
 `verify:code`（および必要なら`verify:profile`）へ、DB runtimeが必要なら

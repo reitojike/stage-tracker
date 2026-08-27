@@ -335,10 +335,18 @@ provider 固有 adapter がまだ無い間は、`trigger()` / `pollCompletion()`
   使う comment / review submission は、判定するその時点で ID を指定して fresh に
   再取得した state / body を使います。会話内で既に見た comment の内容や、以前取得した
   snapshot をそのまま completion 判定の根拠にせず、pending 継続の理由にもしません。
-- `collectOutputs()`: この provider で確認できる surface（top-level PR comment、
-  inline/thread comment、review submission/summary、status/check、必要なら
-  workflow log、edited comment）を確認し、内容の有無にかかわらず「どの surface を
-  確認したか」を記録します。この surface から `policy/core.md` の
+- `collectOutputs()`: GitHub 上の durable review surface の mechanical
+  acquisition は、ai-dev-foundation checkout を利用できる場合、
+  `tooling/review-evidence.mjs --json`（Issue #62、使い方・現在の
+  coverage は同 tool の README 参照）に置き換えます。fetch が failed /
+  partial な場合、または snapshot が review target に必要な evidence を
+  カバーしない場合は、Review Adapter boundary（`policy/core.md`）に
+  従い不足分を fresh acquisition します。empty や success への変換は
+  しません。Completion / Validity / Resolution / triage の semantic
+  judgment は helper ではなく本 Contract に従い agent が行います。
+  helper を利用できない場合は、この provider で確認できる surface を
+  確認し、内容の有無にかかわらず「どの surface を確認したか」を
+  記録します。この surface から `policy/core.md` の
   Acquisition & Validity Contract が定義する Completion と Validity の
   要求事項を後続 session が独立に判定できれば、その surface 自体を同
   Contract の record の recoverable な representation として result
@@ -440,3 +448,42 @@ capability/profile 側で再検証可能な observed evidence として扱いま
 同じ Review Contract を使って Selection / Completion / Acquisition / Validity /
 Resolution を人手で判定できることを確認します。この skill の範囲では pilot 自体を
 実施・拡張せず、contract を適用できる準備を整えるところまでとします。
+
+## Manual-on-demand review runtime preference（current runtime preference、Issue #59）
+
+上記 Manual review pilot が確認した準備を踏まえた、current environment における
+runtime preference です。Kernel の provider-neutral な Selection Contract / required
+review 数を置換せず、task risk / artifact / capability による別 Selection を引き続き
+許容します。特定 provider を Kernel へ固定するものではありません。
+
+複数 perspective が必要な通常の Executable review における current runtime
+preference は次のとおりです。
+
+- Claude が selection された場合は、上記「Claude formal acquisition routing」の
+  GitHub-native `@claude` preferred route を使います。
+- CodeRabbit の manual acquisition（明示的な `@coderabbitai review` 系 command）を、
+  複数 perspective が必要な場合の primary candidate の一つとして扱ってよいです。
+  CodeRabbit automatic review が無効化されている場合、その非参加を `0 findings` へ
+  変換しないことは Acquisition & Validity Contract（`policy/core.md`）どおりです。
+- CodeRabbit acquisition が quota / rate limit / unavailable、または structurally
+  invalid（intended target を review していない等）で completion evidence を得られ
+  ない場合、その run は Failure / retry（`policy/core.md`）に従い `unknown` または
+  `failure` として扱い、success や `0 findings` へ変換しません。この場合、alternate
+  reviewer として Codex の manual acquisition（明示的な `@codex review` 系 command）を
+  選択でき、Selection Contract を明示的に amend した上でその run を required/expected
+  member として扱えます。amend したことと根拠は他の Selection 記録と同様に残します。
+- Codex の automatic（PR-open）review を、current runtime preference の default /
+  baseline として前提にしません。Selection で明示的に Codex（automatic / manual の
+  いずれも）を選ぶこと自体は禁止しません。
+
+Codex Cloud Review の PR-open automatic review が有効かどうかは、多くの場合
+repository code だけでは完結しない operator/account 側の設定である observed
+evidence があります。この skill および Foundation は、review 対象 repository の
+operator がこの automatic review 設定を変更したことを、repository code から完了した
+ものとして偽装しません。この設定変更が必要な場合は、implementation agent の
+repository write scope とは別の operator action として扱います。
+
+上記はいずれも observed / current な runtime preference であり、provider の恒久仕様
+にも、required reviewer 数を常に固定数（例えば 2）へ固定する mandatory pairing にも
+昇格させません。Selection Contract の risk-based reviewer 数と capability validity は
+この節によって変更されません。
