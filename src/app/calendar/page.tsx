@@ -13,6 +13,7 @@ import { buildMonthGrid } from '@/domain/calendarMonth.ts';
 import {
   buildMyCalendarDayMarkers,
   buildMyCalendarOccurrenceEntries,
+  buildMyCalendarWeekBandLayouts,
   isOccurrenceStartUtcDateInGridSuperset,
   selectMyCalendarOccurrenceEntries,
   selectMyCalendarScheduleEntries,
@@ -202,6 +203,11 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
     callerId,
   );
   const markersByDate = new Map(dayMarkers.map((m) => [m.date, m] as const));
+  const weekBandLayouts = buildMyCalendarWeekBandLayouts(
+    grid.weeks,
+    occurrenceEntries,
+    scheduleResult.data,
+  );
 
   // Emptiness is judged only over dates actually inside the displayed
   // month, not the lead/trail adjacent-month cells `dayMarkers` also
@@ -242,6 +248,7 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
         yearMonth={yearMonth}
         gridWeeks={grid.weeks}
         markersByDate={markersByDate}
+        weekBandLayouts={weekBandLayouts}
         selectedDate={selectedDate}
         todayDate={today}
         hasUnconfirmedHolidayCoverage={hasUnconfirmedHolidayCoverage}

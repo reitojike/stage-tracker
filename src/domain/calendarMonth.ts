@@ -258,10 +258,10 @@ export interface PositionedBandSegment extends BandSegment {
   endCol: number;
 }
 
-export interface WeekBandLayout {
+export interface WeekBandLayout<T extends BandSegment = BandSegment> {
   weekStartDate: string;
   /** Bounded to at most `maxLanes` entries - see layoutWeekBands. */
-  segments: PositionedBandSegment[];
+  segments: (T & { lane: number; startCol: number; endCol: number })[];
   /** `overflowEvents.length` - see that field. */
   overflowCount: number;
   /** The events pushed beyond the lane cap this week (deduplicated by event
@@ -280,11 +280,14 @@ export interface WeekBandLayout {
   overflowEvents: { eventId: string; eventTitle: string; isCanceled: boolean }[];
 }
 
-/** Bounded lane count for month-view band rendering - mobile scanability
- * over showing every concurrent run (a bounded display + overflow
- * indicator is within the feature-local implementation discretion the
- * Issue #20 Task Contract leaves to this module). */
-export const MAX_BAND_LANES = 3;
+/** Bounded lane count for month-view band rendering (Issue #142 marker
+ * vocabulary: a cell's marker total is capped at 3 - one dot plus at most
+ * two bands - so at most 2 concurrent bands may occupy any single day).
+ * Generic over T so callers with a richer segment shape (e.g. My
+ * Calendar's own MyCalendarBandSegment, which adds `blocking`/`kind`) get
+ * that shape back on every positioned segment, not just the base
+ * BandSegment fields - see layoutWeekBands below. */
+export const MAX_BAND_LANES = 2;
 
 /**
  * Lays out the band segments active during one week (7 consecutive dates,
@@ -302,11 +305,11 @@ export const MAX_BAND_LANES = 3;
  * count: it can force spurious overflow for segments that would fit
  * cleanly once sorted by start.
  */
-export function layoutWeekBands(
+export function layoutWeekBands<T extends BandSegment>(
   weekDates: readonly string[],
-  segments: readonly BandSegment[],
+  segments: readonly T[],
   maxLanes: number = MAX_BAND_LANES,
-): WeekBandLayout {
+): WeekBandLayout<T> {
   if (weekDates.length !== 7) {
     throw new Error('expected exactly 7 dates (Sunday..Saturday) for a week');
   }
@@ -342,7 +345,7 @@ export function layoutWeekBands(
     });
 
   const laneEndCols: number[] = [];
-  const positioned: PositionedBandSegment[] = [];
+  const positioned: (T & { lane: number; startCol: number; endCol: number })[] = [];
   const overflowEventInfo = new Map<string, { eventTitle: string; isCanceled: boolean }>();
 
   for (const segment of clipped) {

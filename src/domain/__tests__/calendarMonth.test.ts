@@ -628,8 +628,10 @@ void test('buildMonthCalendarViewModel: case 5 - a single-day and a multi-day ev
 
 void test('buildMonthCalendarViewModel: an event overflowing a week where it has no occurrence is still reachable via overflowEvents, since no day in that week would surface it via selectDayOccurrences', () => {
   // week1 of the 2026-08 grid is 2026-08-02..2026-08-08 (2026-08-01 is a
-  // Saturday). Three fillers occupy every lane that whole week.
-  const fillers = ['filler-a', 'filler-b', 'filler-c'].map((id) =>
+  // Saturday). Two fillers occupy every lane that whole week (Issue #142:
+  // MAX_BAND_LANES is 2, not 3 - a cell's marker total is capped at 3, one
+  // dot plus at most two bands).
+  const fillers = ['filler-a', 'filler-b'].map((id) =>
     event({ id, title: id, starts_on: '2026-08-02', ends_on: '2026-08-08' }),
   );
   // target's Event range also covers week1, but its only occurrence is in

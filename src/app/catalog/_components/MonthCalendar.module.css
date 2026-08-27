@@ -105,7 +105,8 @@
   min-height: 44px;
   padding-block: var(--space-xs);
   /* Day cell radius (#96 -> #102 approved direction: 8, distinct from the
-     10px --radius-control used elsewhere). */
+     10px --radius-control used elsewhere). Also Issue #142's "選択中" ring
+     radius (--radius-control-sm is the same 8px step). */
   border-radius: var(--radius-control-sm);
   color: var(--color-text);
   text-decoration: none;
@@ -115,18 +116,20 @@
 
 /* :not(.daySelected) isn't just belt-and-suspenders: `.day:hover` (a class +
    a pseudo-class) is MORE specific than the single-class `.daySelected`, so
-   without this scoping .daySelected's accent fill loses the cascade to this
-   hover fill whenever both match - which touch browsers make sticky after a
-   tap, and don't clear until a different cell is tapped (Issue #77). */
+   without this scoping a selected cell's own hover/press rule would lose
+   the cascade to this generic one whenever both match - which touch
+   browsers make sticky after a tap, and don't clear until a different cell
+   is tapped (Issue #77). */
 .day:hover:not(.daySelected) {
   background-color: var(--color-surface-subtle);
 }
 
-/* Companion to the :not(.daySelected) scoping above: without this, the
-   selected day would be the only cell with no hover response at all on
-   pointer devices (same pairing convention as .daySelected:active below). */
+/* Companion to the :not(.daySelected) scoping above - see .daySelected:active
+   below for why "選択中" (Issue #142's cell-ring, not a background fill any
+   more) still needs its own explicit hover/press rule rather than falling
+   through to the generic one. */
 .daySelected:hover {
-  background-color: var(--color-accent-hover);
+  background-color: var(--color-surface-subtle);
 }
 
 /* #96 -> #102: --color-text-secondary (6.2-6.6:1) replaces
@@ -136,30 +139,19 @@
   color: var(--color-text-secondary);
 }
 
-.dayToday {
-  font-weight: var(--font-weight-medium);
-  box-shadow: inset 0 0 0 1.5px var(--color-accent);
-  border-radius: var(--radius-control-sm);
-}
-
+/* "選択中" (Issue #142): the whole cell gets a 1.5px inset ring, never a
+   background fill and never the date-number circle - that circle is
+   reserved for "今日" (.today below), so the two states stay visually
+   distinct and can coexist on the same cell. */
 .daySelected {
-  background-color: var(--color-accent);
-  color: var(--color-accent-foreground);
-}
-
-/* .dayToday's ring is the same --color-accent as .daySelected's fill, so
-   without this override the ring becomes invisible the moment "today" is
-   also the selected day. Swap to the foreground color, which contrasts
-   against the accent fill instead of blending into it. */
-.dayToday.daySelected {
-  box-shadow: inset 0 0 0 1.5px var(--color-accent-foreground);
+  box-shadow: inset 0 0 0 1.5px var(--color-text);
 }
 
 /* Fixed-height date-number row (#96 -> #102 approved direction: ~20px).
    Every cell's number sits at this same offset from the cell top
    regardless of whether a marker row follows, which is what keeps the
    number's vertical position from shifting between a bare day and one
-   carrying a count/marker (previously caused by `.day { justify-content:
+   carrying a dot/band (previously caused by `.day { justify-content:
    center }` centering a taller multi-row cell's content as a block). */
 .dayNumberRow {
   display: flex;
@@ -168,43 +160,52 @@
   height: 20px;
 }
 
-/* Marker row (#96 -> #102 approved direction: ~14-15px) - holds the
-   holiday `祝` glyph and the single-day Event count badge (Issue #91),
-   below the fixed date-number row above. Only rendered when there is at
-   least one marker (see MonthCalendar.tsx's hasMarkerRow).
-   flex-wrap: wrap (matching MyMonthCalendar.module.css's own markerRow) -
-   at a narrow viewport (320px) a holiday `祝` plus a double-digit count
-   Badge can together exceed a ~35px cell's width; wrapping to a second
-   line keeps that from overflowing into the neighboring cell (PR #114
-   Codex review). */
-.markerRow {
-  display: flex;
-  flex-wrap: wrap;
+/* "今日" (Issue #142: "日付数字にグレーの塗り丸"): a gray filled circle
+   around the day number itself, not the whole cell - distinct from
+   .daySelected's whole-cell ring above, so both can render on the same day
+   without either obscuring the other. */
+.dayNumber {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  min-height: 15px;
-  font-size: var(--font-size-caption);
-  line-height: 1;
+  min-width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
 }
 
-.dayRoleMark {
-  font-size: var(--font-size-caption);
+.dayNumber.today {
+  background-color: var(--color-neutral-300);
+  font-weight: var(--font-weight-medium);
 }
 
-/* Weekday/holiday roles (docs/ux-ui.md "Calendar weekday / Japanese
-   holiday presentation") - same convention as My Calendar's own
-   MyMonthCalendar.module.css: color is paired with the role's own text
-   marker (.dayRoleMark) rather than used alone, and .daySelected's fill
-   intentionally overrides these text colors so the selected state's own
-   contrast (--color-accent-foreground) always wins. */
-.roleSaturday:not(.daySelected) {
+/* Weekday header labels (docs/ux-ui.md "Calendar weekday / Japanese
+   holiday presentation") - the label text itself carries the color, since
+   there is no day-number element here. */
+.weekday.roleSaturday {
   color: var(--color-calendar-saturday);
 }
 
-.roleSunday:not(.daySelected),
-.roleHoliday:not(.daySelected) {
+.weekday.roleSunday {
   color: var(--color-calendar-sunday);
+}
+
+/* Day-cell weekday/holiday roles: scoped to .dayNumber (not the whole
+   cell) so the color/weight pairing sits on the date digit itself (Issue
+   #142: "祝日 = 日付を600 + --color-danger"), never spreading onto the
+   dot/band markers below it. .daySelected's own ring intentionally leaves
+   this untouched - unlike the old solid accent fill it replaced, a 1.5px
+   outline never competes with the number's own text color for contrast. */
+.day.roleSaturday .dayNumber {
+  color: var(--color-calendar-saturday);
+}
+
+.day.roleSunday .dayNumber,
+.day.roleHoliday .dayNumber {
+  color: var(--color-calendar-sunday);
+}
+
+.day.roleHoliday .dayNumber {
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Non-color notice for a month that includes at least one date outside the
@@ -220,36 +221,54 @@
   padding: var(--space-xs) var(--space-sm);
 }
 
-.badge {
-  font-size: var(--font-size-caption);
+/* Marker row (Issue #142): holds at most one dot, below the fixed
+   date-number row above. Only rendered when the day actually has a
+   single-day Event (see MonthCalendar.tsx's hasDot). */
+.markerRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 9px;
 }
 
+/* Single-day marker (Issue #142: "単日は dot...dot は1セル1個"). Catalog
+   Events carry no per-user considering/blocking axis, so only the filled
+   variant is used here (see .dotFilled) - the outline variant exists for
+   My Calendar's own participation-aware dot (MyMonthCalendar.module.css). */
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  box-sizing: border-box;
+}
+
+.dotFilled {
+  background-color: var(--color-accent);
+}
+
+/* Multi-day band (Issue #142: "複数日にまたがるものは帯"). Height/line-height
+   and the fill/outline pair are the design handoff's own values
+   (design_handoff_stage_tracker/issues/06-calendar-markers.md); no category
+   label prefix is rendered (this codebase has no classification/category
+   data yet - see that Issue's "Do not invent product semantics"). */
 .band {
   display: flex;
   align-items: center;
-  padding-inline: var(--space-xs);
+  padding-inline: 3px;
   border-radius: var(--radius-band);
-  background-color: var(--color-accent-subtle);
-  color: var(--color-accent-subtle-foreground);
   font-size: var(--font-size-caption);
-  line-height: 1.4;
+  line-height: 1.6;
+  min-height: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: var(--space-2xs);
+  font-weight: var(--font-weight-semibold);
 }
 
-.overflow {
-  grid-column: 1 / -1;
-  font-size: var(--font-size-caption);
-  color: var(--color-text-secondary);
-  padding-inline: var(--space-xs);
-  margin: 0;
-}
-
-.overflowLink {
-  color: inherit;
-  text-decoration: underline;
+.bandFilled {
+  background-color: var(--color-band-fill);
+  color: var(--color-band-text);
 }
 
 /*
@@ -261,10 +280,8 @@
   background-color: var(--color-surface-active);
 }
 
-/* The selected day carries an accent fill with --color-accent-foreground
-   text, so the neutral pressed background above would leave white text on a
-   near-white surface. Press it one step darker along the accent scale
-   instead, keeping the pair's contrast. */
+/* Companion to the :not(.daySelected) scoping above - see .daySelected:hover
+   for why "選択中" still needs its own explicit rule here. */
 .daySelected:active {
-  background-color: var(--color-accent-active);
+  background-color: var(--color-surface-active);
 }
