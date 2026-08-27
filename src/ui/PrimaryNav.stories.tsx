@@ -30,3 +30,12 @@ export const OnMyCalendar: Story = {
     },
   },
 };
+
+export const OnTickets: Story = {
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: { pathname: '/tickets' },
+    },
+  },
+};

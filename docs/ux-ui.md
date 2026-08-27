@@ -69,11 +69,13 @@ personal participationを同一semanticとして混在させません。
 ## Navigation principle
 
 Catalog / Followed catalog / Personal scheduleの間をmobileで自然に移動
-できるIA（情報設計）とします。Gate Aのcurrent PrimaryNavは、画面に表示する
-labelとして **ホーム / イベント / マイカレンダー** をmaterializeしています。
-これは今回の同期対象として確定したlabel setですが、bottom navigationの最終的な
-項目数、Searchの独立tab化、Settings配置、future feature navまでをfreezeするもの
-ではありません（「本ドキュメントで固定しないもの」参照）。
+できるIA（情報設計）とします。Design refresh（Issue #140）により、
+current PrimaryNavは画面に表示するlabelとして
+**ホーム / イベント / チケット / マイカレンダー** の4項目をmaterializeして
+います。これは design_handoff_stage_tracker/README.md「共通: bottom nav」
+で確定したlabel setですが、Searchの独立tab化、Settings配置、future
+feature navまでをfreezeするものではありません（「本ドキュメントで固定
+しないもの」参照）。
 
 ## Information density
 
@@ -106,8 +108,9 @@ font stackです。追加のwebfontは導入しません。
 - **title** — 16px / 600 / 1.35（list / card title、section heading）
 - **body** — 16px / 400 / 1.5
 - **body-sm** — 14px
-- **label** — 12px / 600（短い項目名・Badge等のmicro-label）
-- **caption** — 11px（weekday、補助情報、bottom-nav label等）
+- **label** — 12px / 600（短い項目名・Badge・bottom-nav labelのmicro-label。
+  現在地のnav labelは600、非現在地は400）
+- **caption** — 11px（weekday、補助情報等）
 
 見出しが、その直下でhierarchy上 subordinateな本文より小さくなる構成は作りません。
 例えばPersonal Schedule detailの「共有」は16px / 600のsection headingとして、
@@ -379,9 +382,11 @@ product-rules.md` が定めるEvent range（first-class data。Issue #87）と�
   （classificationのdata boundary自体は
   `.ai-dev-foundation/product-rules.md`で承認済み）、category
   cardinality、saved filter preference
-- bottom navの最終的な項目数 / Search tab化 / Settings placement / future
-  feature navigation（current Gate Aのlabel setであるホーム / イベント /
-  マイカレンダー自体はmaterialize済みだが、永久的なfinal IAは未確定）
+- bottom navのSearch tab化 / Settings placement / future feature
+  navigation（Issue #140でホーム / イベント / チケット / マイカレンダーの
+  4項目label setは確定済みだが、これ以上の項目追加や永久的なfinal IAは
+  未確定。チケット項目のリンク先 `/tickets` 自体は #144 の product
+  semantics確定待ちで、この時点ではdead destination）
 - exact accent hue（current Gate A scaleは使用中だが、futureのexact hue decisionは
   unresolved）
 - event deletion semantics

@@ -281,14 +281,14 @@
   /* Page-level heading. Restrained on purpose - one step above body, not a
      marketing display size (docs/ux-ui.md "Typography"). */
   --font-size-heading: var(--font-size-scale-4);
-  /* Fine-print role (weekday/day-role marks, calendar overflow text,
-     bottom-nav labels). Distinct from --font-size-label below, which is
-     one step larger and reserved for badge-weight micro-labels. */
+  /* Fine-print role (weekday/day-role marks, calendar overflow text).
+     Distinct from --font-size-label below, which is one step larger. */
   --font-size-caption: var(--font-size-scale-0);
   /* Short, bold micro-labels (Badge) - kept at the previous caption size
      (12px) rather than shrinking with caption, since Badge text is the
      sole carrier of a status's meaning (docs/ux-ui.md "色のみに意味を依存
-     しない") and must not get harder to read as the ladder is refined. */
+     しない") and must not get harder to read as the ladder is refined.
+     Also used for PrimaryNav's bottom-nav labels (Issue #140: 12px). */
   --font-size-label: var(--font-size-scale-1);
   --font-size-body-sm: var(--font-size-scale-2);
   --font-size-body: var(--font-size-scale-3);

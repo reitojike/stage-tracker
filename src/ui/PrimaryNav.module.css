@@ -39,7 +39,8 @@
   min-height: 56px;
   padding: var(--space-xs);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-regular);
   text-align: center;
   text-decoration: none;
   touch-action: manipulation;
@@ -54,20 +55,22 @@
 }
 
 .linkCurrent {
-  color: var(--color-accent);
-  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 /*
- * Non-color cues for the current destination - a top rule, plus the
+ * Non-color cues for the current destination - a top accent bar, plus the
  * heavier weight above - so the state survives without color
  * (docs/ux-ui.md "Accessibility baseline"). aria-current="page" carries
- * the same fact to assistive technology.
+ * the same fact to assistive technology. The bar itself stays
+ * --color-accent per the design refresh (Issue #140): the label text uses
+ * --color-text so weight alone (not color) marks the label as current.
  */
 .linkCurrent::before {
   content: '';
   position: absolute;
-  inset-inline: var(--space-sm);
+  inset-inline: var(--space-compact);
   top: 0;
   height: var(--space-2xs);
   border-radius: var(--radius-pill);
