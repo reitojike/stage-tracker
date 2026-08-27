@@ -201,7 +201,7 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
   専用のため、`registerPasskey()` / `signInWithPasskey()` は client
   component からのみ呼び出します
   （[src/app/sign-in/_components/PasskeySignInButton.tsx](../../src/app/sign-in/_components/PasskeySignInButton.tsx)、
-  [src/app/(home)/_components/RegisterPasskeyButton.tsx](<../../src/app/(home)/_components/RegisterPasskeyButton.tsx>)）。
+  [src/app/mypage/_components/RegisterPasskeyButton.tsx](../../src/app/mypage/_components/RegisterPasskeyButton.tsx)）。
 - credential 管理（一覧・削除）は `auth.passkey.list()` / `.delete()` を
   使い、`auth.admin.passkey.*`（service_role 必須）は使用しません。現在の
   signed-in userの session scopeに限定されるため、通常の Server

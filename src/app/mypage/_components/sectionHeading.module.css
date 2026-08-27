@@ -1,0 +1,16 @@
+/*
+ * "太罫見出し" (design_handoff_stage_tracker/12-mypage-notifications.md via
+ * Issue #148): a bold rule under the heading, not a card surface. Shared
+ * via `composes` (same mechanism as Button/BackLink's `expand44` tap
+ * target, see tapTarget.module.css) so AccountSection and PasskeySection
+ * can't drift apart on this. 2px is deliberately heavier than the 1px
+ * hairline `--color-border` rules used elsewhere (e.g. AppBar's own bottom
+ * border), so the section boundary itself reads as bold.
+ */
+.heading {
+  margin: 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 2px solid var(--color-text);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}

@@ -1,13 +1,17 @@
-.panel {
+.section {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   align-items: flex-start;
 }
 
+.heading {
+  composes: heading from './sectionHeading.module.css';
+}
+
 .identity {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
-  /* A long address wraps instead of widening the panel past the column. */
+  /* A long address wraps instead of widening the column. */
   overflow-wrap: anywhere;
 }

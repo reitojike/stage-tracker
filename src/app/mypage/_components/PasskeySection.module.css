@@ -1,4 +1,4 @@
-.panel {
+.section {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -6,8 +6,7 @@
 }
 
 .heading {
-  font-size: var(--font-size-body);
-  font-weight: 600;
+  composes: heading from './sectionHeading.module.css';
 }
 
 .description {

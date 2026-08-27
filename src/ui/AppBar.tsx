@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from './Button';
+import { LinkButton } from './LinkButton';
 import styles from './AppBar.module.css';
 
 export interface AppBarProps {
@@ -27,10 +28,13 @@ export interface AppBarProps {
    */
   onNotificationsPress?: () => void;
   /**
-   * Right affordance's press handler. `/mypage` doesn't exist yet (#148
-   * owns that screen); same inert-until-wired treatment as above.
+   * Right affordance's destination (Issue #159: `/mypage` now exists).
+   * Rendered as a real link via LinkButton rather than a client-side
+   * push, matching PrimaryNav/HomeNav's own navigation. Left unset keeps
+   * the avatar an inert, correctly-sized tap target instead of a dead
+   * link - used only where a caller has no destination to hand it yet.
    */
-  onMyPagePress?: () => void;
+  myPageHref?: string;
   /**
    * Initial shown inside the avatar circle. No identity lookup happens in
    * this component - the caller supplies it once it has one to show.
@@ -48,9 +52,26 @@ export function AppBar({
   showActions = true,
   hasUnreadNotifications = false,
   onNotificationsPress,
-  onMyPagePress,
+  myPageHref,
   myPageInitial,
 }: AppBarProps) {
+  const avatar = (
+    <span className={styles.avatar} aria-hidden="true">
+      {myPageInitial ?? ''}
+    </span>
+  );
+  const myPage = !showActions ? (
+    <span aria-hidden="true" />
+  ) : myPageHref ? (
+    <LinkButton href={myPageHref} variant="icon" className={styles.myPage} aria-label="マイページ">
+      {avatar}
+    </LinkButton>
+  ) : (
+    <Button variant="icon" className={styles.myPage} aria-label="マイページ" aria-disabled={true}>
+      {avatar}
+    </Button>
+  );
+
   return (
     <header className={styles.appBar}>
       {showActions ? (
@@ -87,21 +108,7 @@ export function AppBar({
 
       <p className={styles.brand}>STAGE TRACKER</p>
 
-      {showActions ? (
-        <Button
-          variant="icon"
-          className={styles.myPage}
-          aria-label="マイページ"
-          aria-disabled={onMyPagePress ? undefined : true}
-          onClick={onMyPagePress}
-        >
-          <span className={styles.avatar} aria-hidden="true">
-            {myPageInitial ?? ''}
-          </span>
-        </Button>
-      ) : (
-        <span aria-hidden="true" />
-      )}
+      {myPage}
     </header>
   );
 }

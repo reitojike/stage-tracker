@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AppShell } from '@/ui/AppShell';
+import { resolveMyPageAppBarIdentity } from '@/infrastructure/supabase/session.ts';
 
 /**
  * Home gets its own segment layout, in a route group so the URL stays `/`.
@@ -8,6 +9,7 @@ import { AppShell } from '@/ui/AppShell';
  * every other segment keeps the app bar and primary navigation on screen
  * across its own loading.tsx.
  */
-export default function HomeSectionLayout({ children }: { children: ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+export default async function HomeSectionLayout({ children }: { children: ReactNode }) {
+  const identity = await resolveMyPageAppBarIdentity();
+  return <AppShell {...identity}>{children}</AppShell>;
 }
