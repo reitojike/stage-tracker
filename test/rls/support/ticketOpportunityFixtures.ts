@@ -2,6 +2,19 @@ import { createAdminClient, type TestActor } from './testActors.ts';
 import { createEventWithOccurrence } from './eventFixtures.ts';
 import type { Json } from '../../../src/infrastructure/supabase/database.types.ts';
 
+// Deliberately self-contained (no import from src/domain), mirroring
+// eventFixtures.ts's own tokyoCalendarDate - Asia/Tokyo has a fixed +09:00
+// offset with no DST, so this arithmetic is safe here too.
+const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function tokyoCalendarDate(instantIso: string): string {
+  const tokyo = new Date(Date.parse(instantIso) + TOKYO_OFFSET_MS);
+  const year = String(tokyo.getUTCFullYear()).padStart(4, '0');
+  const month = String(tokyo.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(tokyo.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Shared fixture helpers for the TicketOpportunity slice (Issue #162).
 // ticket_opportunities / ticket_opportunity_target_occurrences /
 // ticket_opportunity_milestones have no authenticated INSERT/UPDATE/DELETE
@@ -78,8 +91,16 @@ export async function createEventWithOpportunity(
   catalogOwner: TestActor,
   options: ImportOpportunityOptions = {},
 ) {
-  const { event, occurrence } = await createEventWithOccurrence(catalogOwner);
-  const secondStartsAt = new Date(Date.parse(occurrence.starts_at) + 86_400_000).toISOString();
+  const secondStartsAt = new Date(Date.now() + 86_400_000).toISOString();
+  // The Event range (starts_on/ends_on) must contain both occurrences'
+  // Tokyo calendar dates (product-rules.md "公演回の日付は...Event range内
+  // に収まっていなければならない", DB-enforced) - the second occurrence
+  // added below is deliberately a day after the first, so endsOn has to be
+  // widened to cover it rather than defaulting to the first occurrence's
+  // own date alone.
+  const { event, occurrence } = await createEventWithOccurrence(catalogOwner, {
+    endsOn: tokyoCalendarDate(secondStartsAt),
+  });
   const { data: secondOccurrence, error } = await catalogOwner.client
     .from('event_occurrences')
     .insert({ event_id: event.id, starts_at: secondStartsAt })

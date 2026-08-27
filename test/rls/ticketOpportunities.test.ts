@@ -137,7 +137,7 @@ void test('a selected-occurrences opportunity rejects an occurrence from another
         targetScope: 'selected_occurrences',
         occurrenceIds: [foreignOccurrence.id],
       }),
-    /must belong to the same event/,
+    /must belong to the given event/,
   );
 });
 
