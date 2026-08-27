@@ -81,15 +81,18 @@ local / agent向けのone-command full deterministic verificationです。内部
   する事態をCIで検知するためblocking checkに含めています）。
 - `npm run verify:database` — local Supabaseを起動・resetした上で、generated
   database typesのexact drift check (`supabase:types:check`) とDB/RLS test
-  (`test:rls`)・auth test (`test:auth`) を実行します。remote Supabase
-  projectやremote credentialsは不要です。Docker が起動していない場合、この
-  ステップで失敗します。
+  (`test:rls`)・auth test (`test:auth`)、および`anon` / `authenticated` /
+  `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`残存privilegeを
+  検知するclient-role table privilege guardrail (`client-role-privileges:check`)
+  を実行します。remote Supabase projectやremote credentialsは不要です。
+  Docker が起動していない場合、このステップで失敗します。
 
 `verify:profile` は `.ai-dev-foundation/quality/README.md` が定める
 Next.js + Supabaseプロファイルのextension point名として引き続き提供して
 います。`agent-rules:check` / `supabase:migrations:check` に続けて
 `verify:database`（DB起動・reset・`supabase:types:check`・`test:rls`・
-`test:auth`）を呼ぶ構成にしており、DB runtimeを要する部分は`verify:database`
+`test:auth`・`client-role-privileges:check`）を呼ぶ構成にしており、DB
+runtimeを要する部分は`verify:database`
 を単一のsourceとして参照します（同じ手順を2箇所へ独立にハードコードしない
 ため）。`npm run verify` からは`verify:profile`ではなく`verify:code`/
 `verify:build`/`verify:database`を直接呼びます。`agent-rules:check` /
