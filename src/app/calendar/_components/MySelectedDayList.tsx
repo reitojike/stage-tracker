@@ -78,17 +78,14 @@ export function MySelectedDayList({
                       <span className={styles.venue}>{event.venue}</span>
                     ) : null}
                     <span className={styles.badgeRow}>
-                      <Badge
-                        variant={participation.status === 'attending' ? 'success' : 'info'}
-                        className={styles.participationBadge}
-                      >
+                      <Badge variant="subtle" className={styles.participationBadge}>
                         {participationStatusLabel(participation.status)}
                       </Badge>
                       <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
                         {ticketDisplayStatusLabel(ticketStatus)}
                       </Badge>
                       {isEffectivelyCanceled(event, occurrence) ? (
-                        <Badge variant="danger">中止</Badge>
+                        <Badge variant="terminal">中止</Badge>
                       ) : null}
                     </span>
                   </span>
@@ -111,10 +108,10 @@ export function MySelectedDayList({
                 <Surface className={styles.item}>
                   <span className={styles.itemBody}>
                     <span className={styles.badgeRow}>
-                      <Badge variant={isOwner ? 'neutral' : 'info'}>
+                      <Badge variant="subtle">
                         {isOwner ? '自分の予定' : '共有されている予定'}
                       </Badge>
-                      {!entry.blocking ? <Badge variant="neutral">予定を確保しない</Badge> : null}
+                      {!entry.blocking ? <Badge variant="outline">予定を確保しない</Badge> : null}
                     </span>
                     <span className={styles.title}>{entry.title}</span>
                     <span className={styles.time}>{scheduleTemporalLabel(entry.temporal)}</span>

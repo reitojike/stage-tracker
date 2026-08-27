@@ -210,10 +210,12 @@ success / warningをdarkenした値でmaterializeしています。current token
 - warning — `#7a5417`
 - danger — `#b3413a`
 
-Badgeはroleごとの淡色fillと文字labelを併用します。neutral Badgeについては
-global neutral tokenをdarkenしたわけではありません。`--color-badge-neutral-bg`は
-current neutral-100を参照し、white consumer surface上に置くことでsilhouetteを
-成立させています。
+Badge（`src/ui/Badge`）は上記のsuccess/warning/danger/infoのstatus roleを
+直接参照しません。Design refresh（Issue #138）により、variantはcolor role
+ではなく4つの固定した意味（`outline`=分類、`subtle`=進行中の状態、
+`deadline`=行動すれば間に合う期限、`terminal`=行動する余地がない終了状態）
+で表現します。`outline`/`subtle`はtext labelで状態を区別し、`deadline`/
+`terminal`のみ塗り（`--color-danger` / `--color-terminal`）を持ちます。
 
 ## Design tokens
 

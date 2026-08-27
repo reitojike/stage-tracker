@@ -65,9 +65,9 @@ export function ParticipationPanel({
   return (
     <div className={styles.panel}>
       <div className={styles.statusRow}>
-        {status === 'attending' ? <Badge variant="success">参加する</Badge> : null}
-        {status === 'considering' ? <Badge variant="info">気になる</Badge> : null}
-        {status === null ? <Badge variant="neutral">未設定</Badge> : null}
+        {status === 'attending' ? <Badge variant="subtle">参加する</Badge> : null}
+        {status === 'considering' ? <Badge variant="subtle">気になる</Badge> : null}
+        {status === null ? <Badge variant="outline">未設定</Badge> : null}
       </div>
 
       <form action={formAction} className={styles.form} aria-busy={isPending}>

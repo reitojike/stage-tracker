@@ -32,19 +32,25 @@ export function ticketDisplayStatusLabel(status: TicketDisplayStatus): string {
   }
 }
 
-export type TicketDisplayBadgeVariant = 'success' | 'warning' | 'danger' | 'neutral';
+export type TicketDisplayBadgeVariant = 'outline' | 'subtle' | 'deadline' | 'terminal';
 
+/**
+ * Issue #138: Badge variants are redefined to outline/subtle/deadline/
+ * terminal. secured and pending both read as an in-progress state
+ * ('subtle'); unsuccessful is a terminal, no-further-action state
+ * ('terminal'); none/not-yet-attempted is a classification ('outline').
+ */
 export function ticketDisplayStatusBadgeVariant(
   status: TicketDisplayStatus,
 ): TicketDisplayBadgeVariant {
   switch (status) {
     case 'secured':
-      return 'success';
+      return 'subtle';
     case 'pending':
-      return 'warning';
+      return 'subtle';
     case 'unsuccessful':
-      return 'danger';
+      return 'terminal';
     case 'none':
-      return 'neutral';
+      return 'outline';
   }
 }

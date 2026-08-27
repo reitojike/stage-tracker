@@ -226,7 +226,7 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate, context }: M
                           <span className={styles.dayRoleMark}>{marker.text}</span>
                         ) : null}
                         {day.badgeCount > 0 ? (
-                          <Badge variant="info" className={styles.badge}>
+                          <Badge variant="outline" className={styles.badge}>
                             {day.badgeCount}
                           </Badge>
                         ) : null}

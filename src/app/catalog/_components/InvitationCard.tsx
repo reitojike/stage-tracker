@@ -65,8 +65,8 @@ export function InvitationCard({
         </p>
       ) : null}
 
-      {isDeclined ? <Badge variant="neutral">辞退済み</Badge> : null}
-      {isEffectivelyCanceled ? <Badge variant="danger">中止</Badge> : null}
+      {isDeclined ? <Badge variant="terminal">辞退済み</Badge> : null}
+      {isEffectivelyCanceled ? <Badge variant="terminal">中止</Badge> : null}
 
       <form action={formAction} aria-busy={isPending}>
         <input type="hidden" name="invitationId" value={invitation.id} />

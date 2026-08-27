@@ -1,44 +1,42 @@
+/* Issue #138: 4 shape-based variants (outline/subtle/deadline/terminal)
+ * replace the former success/warning/danger/info/neutral color states.
+ * Common sizing per the design handoff (design_handoff_stage_tracker/
+ * 02-badge.md「バッジの4段階」): padding 3px 8px, radius 2px, 11px/600/1.4.
+ */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  border-radius: var(--radius-pill);
-  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-badge);
+  padding: 3px 8px;
   font-family: var(--font-family-base);
-  font-size: var(--font-size-label);
+  font-size: 11px;
   font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
+  line-height: 1.4;
   white-space: nowrap;
 }
 
-.neutral {
-  background-color: var(--color-badge-neutral-bg);
-  color: var(--color-badge-neutral-text);
+/* outline: 分類 (classification) - 宝塚/月組, 一般発売, FC先行・抽選 */
+.outline {
+  border: 1px solid var(--color-control-border);
+  color: var(--color-text-tertiary);
+  background-color: transparent;
 }
 
-.success {
-  background-color: var(--color-badge-success-bg);
-  color: var(--color-badge-success-text);
-}
-
-.warning {
-  background-color: var(--color-badge-warning-bg);
-  color: var(--color-badge-warning-text);
-}
-
-/*
- * danger has no dedicated role tint in the #96 freeze (only
- * success/warning/info/neutral are specified) - --color-danger on
- * --color-surface-subtle already clears 4.5:1 (verified in PR evidence),
- * so it keeps the pre-#101 generic-subtle pairing rather than inventing an
- * unfrozen tint.
- */
-.danger {
+/* subtle: 進行中の状態 (in-progress state) - 申込中, 結果発表を待つ, 当選, 参加する, 自分の予定 */
+.subtle {
   background-color: var(--color-surface-subtle);
-  color: var(--color-danger);
+  color: var(--color-text-tertiary);
 }
 
-.info {
-  background-color: var(--color-badge-info-bg);
-  color: var(--color-badge-info-text);
+/* deadline: 期限。行動すれば間に合う (a deadline still actionable) - 残り1日 */
+.deadline {
+  background-color: var(--color-danger);
+  color: var(--color-badge-deadline-text);
+}
+
+/* terminal: 終了。行動する余地がない (ended, no action possible) - 落選, 不成立, 受付終了, 中止 */
+.terminal {
+  background-color: var(--color-terminal);
+  color: var(--color-terminal-on);
 }

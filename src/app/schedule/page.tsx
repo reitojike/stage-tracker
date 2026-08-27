@@ -65,12 +65,12 @@ export default async function SchedulePage() {
                 <Link href={`/schedule/${entry.id}`} className={styles.itemLink}>
                   <span className={styles.itemBody}>
                     {callerId !== null ? (
-                      <Badge variant={isOwner ? 'neutral' : 'info'}>
+                      <Badge variant="subtle">
                         {isOwner ? '自分の予定' : '共有されている予定'}
                       </Badge>
                     ) : null}
                     <span className={styles.itemType}>{entry.title}</span>
-                    {!entry.blocking ? <Badge variant="neutral">予定を確保しない</Badge> : null}
+                    {!entry.blocking ? <Badge variant="outline">予定を確保しない</Badge> : null}
                     <span className={styles.itemTemporal}>
                       {scheduleTemporalLabel(entry.temporal)}
                     </span>

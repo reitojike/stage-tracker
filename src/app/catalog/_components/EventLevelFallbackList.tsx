@@ -57,7 +57,7 @@ export function EventLevelFallbackList({ events, context }: EventLevelFallbackLi
                   {event.venue !== null ? (
                     <span className={styles.venue}>{event.venue}</span>
                   ) : null}
-                  {isEventCanceled(event) ? <Badge variant="danger">中止</Badge> : null}
+                  {isEventCanceled(event) ? <Badge variant="terminal">中止</Badge> : null}
                 </span>
                 <span className={styles.chevron} aria-hidden="true">
                   ›

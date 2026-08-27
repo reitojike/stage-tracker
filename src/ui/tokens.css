@@ -53,18 +53,6 @@
   --color-status-danger-500: #b3413a;
 
   /*
-   * ---- primitive: badge role tint (#96/#101) ----
-   * Light fill hex pairs frozen by design authority (#96), independent of
-   * the neutral/status scales above - "info" reuses --color-accent-700 and
-   * "neutral" reuses --color-neutral-100 (the same canvas tone) rather than
-   * duplicating those values.
-   */
-  --color-badge-tint-success: #e4f0ea;
-  --color-badge-tint-warning: #f4ece0;
-  --color-badge-tint-info: #e2e8f4;
-  --color-badge-text-neutral: #444b51;
-
-  /*
    * ---- primitive: spacing (4px-based scale, frozen in Phase 1) ----
    * `--space-scale-hairline` (2px) and `--space-scale-card-block` (14px)
    * are the only two off-grid exceptions, both explicit V2 refined values
@@ -221,20 +209,16 @@
   --color-calendar-sunday: var(--color-status-danger-500);
   --color-calendar-holiday: var(--color-status-danger-500);
 
-  /* badge role tint (#96/#101): each Badge variant's light fill + its own
-     dark-on-light text pairing, verified >= 4.5:1 (see the Badge role
-     tint contrast block in tokens.css's consumers / PR verification
-     evidence). "success"/"warning" reuse the darkened status colors above
-     so the two never drift independently; "info" reuses the accent-700
-     step; "neutral" reuses the canvas tone itself. */
-  --color-badge-success-bg: var(--color-badge-tint-success);
-  --color-badge-success-text: var(--color-success);
-  --color-badge-warning-bg: var(--color-badge-tint-warning);
-  --color-badge-warning-text: var(--color-warning);
-  --color-badge-info-bg: var(--color-badge-tint-info);
-  --color-badge-info-text: var(--color-accent-700);
-  --color-badge-neutral-bg: var(--color-neutral-100);
-  --color-badge-neutral-text: var(--color-badge-text-neutral);
+  /* badge role tint (Issue #138): Badge is redefined to 4 shape-based
+     variants (outline/subtle/deadline/terminal) replacing the former
+     success/warning/danger/info/neutral color states. outline and subtle
+     reuse existing surface/text roles directly (no dedicated token
+     needed); terminal reuses the #137 terminal role. deadline needs a
+     text-on-danger-fill token the #137 token set didn't add (danger was
+     previously only ever paired with --color-surface-subtle, never used
+     as a fill), so it's added here scoped to this Badge variant rather
+     than as a general-purpose semantic role. */
+  --color-badge-deadline-text: #f7f5f1;
 
   /* spacing */
   --space-2xs: var(--space-scale-hairline);

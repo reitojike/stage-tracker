@@ -50,7 +50,7 @@ export function SelectedDayList({ date, occurrences, context }: SelectedDayListP
                       <span className={styles.venue}>{event.venue}</span>
                     ) : null}
                     {isEffectivelyCanceled(event, occurrence) ? (
-                      <Badge variant="danger">中止</Badge>
+                      <Badge variant="terminal">中止</Badge>
                     ) : null}
                   </span>
                   <span className={styles.chevron} aria-hidden="true">
