@@ -391,6 +391,13 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
 
 ## Ticket acquisition / Ticket
 
+このセクションは既存の legacy model の記述です。#157（Ticket planning
+MVP checkpoint）以降、この model は現行 MVP の main ticket journey では
+ありません。以下の semantics は今も schema として存在し、削除・repurpose
+されていませんが、`/tickets` や Home 等の新しい read/write path は
+consumeしません。現行 MVP の canonical model は次の「Ticket Opportunity
+（Ticket planning MVP）」セクションです。
+
 ### Concept boundary
 
 - **ticket acquisition** と **ticket** は別 concept です。
@@ -454,6 +461,89 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
 - pending 状態の transfer offer は、recipient が accept するまで、前
   owner が設定していた assignment 情報（registered user assignee か
   外部同行者名かを含む）を recipient へ開示しません。
+
+## Ticket Opportunity（Ticket planning MVP）
+
+Issue #157 で確定した、現行 MVP の canonical ticket journey です。目的は
+「いつ、何の抽選・先行・販売開始があるのかを漏らさず見られる」ことに
+限定され、full Ticket inventory / detailed application tracking では
+ありません。上記「Ticket acquisition / Ticket」（`ticket_acquisitions` /
+`tickets` / transfer）は legacy model としてそのまま存在しますが、この
+セクションの model とは独立しており、read/write path を共有しません
+（Issue #162）。
+
+### TicketOpportunity — shared
+
+- 抽選・先行・一般発売等、Event に対する 1 つの販売機会を
+  `TicketOpportunity` として扱います。
+- 必ず 1 つの Event に属し、1 Event に複数 Opportunity を許容します。
+- source 上の display name をそのまま保持し、`FC先行` 等の source 固有
+  名称を premature な closed enum へ潰しません。
+- Event 自身の source とは独立した source provenance（source key /
+  source URL）を持てます。source URL 単体を identity にしません
+  （1 ページに複数 Opportunity が掲載される source が実在するため）。
+
+### Target scope — shared
+
+- Opportunity の対象は次のどちらかを曖昧なく表現します。
+  - Event 全体（`event_wide`）
+  - selected Occurrences
+- `event_wide` は Event 全体という semantic fact であり、その時点で
+  存在する Occurrence 一覧の snapshot へ暗黙変換しません。
+- selected Occurrences の場合のみ、Opportunity ↔ Occurrence の関連を
+  explicit に保持します。1 Opportunity は複数 Occurrence を target
+  できます。
+- selected target の Occurrence は、必ずその Opportunity の Event に
+  属していなければなりません。
+
+### Milestone — shared
+
+- Opportunity について、少なくとも次の semantics を扱います:
+  application open / application close（deadline）/ result announcement /
+  sale start / payment・settlement window。
+- date-only（時刻不明）/ exact datetime / window の 3 種類の precision を
+  区別して保持し、source が与えていない時刻を補完しません
+  （例: date-only を `00:00` timestamp へ fake 変換しない）。
+- source に存在しない milestone（未公表の result date、実施されない
+  conditional phase 等）は、行を作らないことでそのまま表現します。
+  「不明」を表す特別な値は持ちません。
+
+### UserTicketOpportunityState — personal
+
+- personal planning state の MVP status vocabulary は exactly
+  `planned`（申し込む予定）と `applied`（申し込み済み）です。
+- row が存在しない = その Opportunity を personal planning 対象として
+  登録していない、という意味です。actual application record では
+  ありません。
+- 第 1〜第 N 希望・枚数・席種・実際の申込内容・当落詳細・acquired
+  Ticket は、この record に含めません。
+- owner 本人だけが read/write できます。user × opportunity の state は
+  一意です。
+
+### Shared / personal authority boundary
+
+- TicketOpportunity / target scope / milestone は shared catalog data
+  です。authenticated user は read できますが、ordinary authenticated
+  user 向けの shared schedule 直接 mutation UI/API は現行 MVP に
+  ありません。
+- shared data の write path は、operator-assisted import が consume
+  する service/operator boundary（`import_ticket_opportunity`）だけです
+  （import 実装自体は Issue #163 の scope）。
+- official/shared data の create/update は `planned`/`applied` を勝手に
+  作成・変更・削除しません。
+
+### Participation independence
+
+- Ticket planning state（`planned`/`applied`）と participation
+  （considering/attending）は完全に独立です。一方から他方を暗黙で
+  作成・変更しません。
+
+### Existing ticket_acquisition / Ticket との関係
+
+- 上記の legacy `ticket_acquisitions` / `tickets` / transfer は、この
+  Task で DROP・rename・repurpose されていません。実 dogfood で detailed
+  application submission や Ticket inventory が必要になった場合は、
+  その時点で TicketOpportunity model を前提に再設計します。
 
 ## Catalog classification / venue boundary
 
