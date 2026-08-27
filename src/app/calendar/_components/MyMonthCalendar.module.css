@@ -183,19 +183,25 @@
 }
 
 /* Day-cell weekday/holiday roles: scoped to .dayNumber (not the whole
-   cell) so the color/weight pairing sits on the date digit itself (Issue
-   #142: "祝日 = 日付を600 + --color-danger"), never spreading onto the
-   dot/band markers below it. */
+   cell) so the color/weight pairing sits on the date digit itself, never
+   spreading onto the dot/band markers below it. */
 .day.roleSaturday .dayNumber {
   color: var(--color-calendar-saturday);
 }
 
-.day.roleSunday .dayNumber,
-.day.roleHoliday .dayNumber {
+.day.roleSunday .dayNumber {
   color: var(--color-calendar-sunday);
 }
 
+/* Issue #142 names --color-danger specifically for the holiday role
+   ("祝日 = 日付を600 + --color-danger"), not --color-calendar-holiday (which
+   still aliases the pre-redesign danger primitive - tokens.css's own
+   comment defers that repin to a later issue). Kept distinct from
+   .roleSunday above rather than folded together, even though both render a
+   similarly-toned red today, so a future repin of one doesn't silently
+   move the other. */
 .day.roleHoliday .dayNumber {
+  color: var(--color-danger);
   font-weight: var(--font-weight-semibold);
 }
 

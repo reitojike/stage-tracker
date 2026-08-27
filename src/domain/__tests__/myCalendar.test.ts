@@ -10,6 +10,7 @@ import {
   isSingleDayScheduleEntry,
   scheduleEntryDatesInRange,
   isOccurrenceStartUtcDateInGridSuperset,
+  selectMyCalendarEventLevelFallback,
   selectMyCalendarOccurrenceEntries,
   selectMyCalendarScheduleEntries,
 } from '../myCalendar.ts';
@@ -802,4 +803,69 @@ void test('buildMyCalendarWeekBandLayouts: caps at MAX_BAND_LANES (2) with the t
   assert.ok(layout);
   assert.equal(layout.segments.length, 2);
   assert.equal(layout.overflowCount, 1);
+});
+
+// --- selectMyCalendarEventLevelFallback (Issue #142 review fix: a
+// multi-day Event's band covers its whole range, so the selected-day list
+// must be able to surface it on a day it has no occurrence on) ---
+
+void test('selectMyCalendarEventLevelFallback surfaces a participating multi-day Event on a day inside its range with no occurrence', () => {
+  const ev = event({
+    id: 'multi',
+    title: '長期公演',
+    startsOn: '2026-08-08',
+    endsOn: '2026-08-12',
+  });
+  const eventsWithOccurrences: EventWithOccurrences[] = [
+    {
+      event: ev,
+      occurrences: [
+        occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
+      ],
+    },
+  ];
+  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
+    eventsWithOccurrences,
+    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
+    new Map(),
+  );
+
+  // 2026-08-09 is inside the Event range but has no occurrence.
+  const fallback = selectMyCalendarEventLevelFallback(
+    eventsWithOccurrences,
+    occurrenceEntries,
+    '2026-08-09',
+  );
+  assert.equal(fallback.length, 1);
+  assert.equal(fallback[0]?.event.id, 'multi');
+});
+
+void test('selectMyCalendarEventLevelFallback never surfaces an Event the caller has no participation in, even if its range covers the date', () => {
+  const ev = event({ id: 'not-mine', startsOn: '2026-08-08', endsOn: '2026-08-12' });
+  const eventsWithOccurrences: EventWithOccurrences[] = [{ event: ev, occurrences: [] }];
+  // occurrenceEntries is empty - the caller has no participation for this Event at all.
+  const fallback = selectMyCalendarEventLevelFallback(eventsWithOccurrences, [], '2026-08-09');
+  assert.deepEqual(fallback, []);
+});
+
+void test('selectMyCalendarEventLevelFallback excludes a date the caller does have an actual occurrence on (complementary to selectMyCalendarOccurrenceEntries)', () => {
+  const ev = event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' });
+  const eventsWithOccurrences: EventWithOccurrences[] = [
+    {
+      event: ev,
+      occurrences: [
+        occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
+      ],
+    },
+  ];
+  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
+    eventsWithOccurrences,
+    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
+    new Map(),
+  );
+
+  assert.deepEqual(
+    selectMyCalendarEventLevelFallback(eventsWithOccurrences, occurrenceEntries, '2026-08-10'),
+    [],
+  );
 });

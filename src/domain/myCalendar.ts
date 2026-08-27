@@ -26,6 +26,7 @@ import {
   isSingleDayEvent,
   layoutWeekBands,
   MAX_BAND_LANES,
+  selectEventLevelFallback,
   type BandSegment,
   type WeekBandLayout,
 } from './calendarMonth.ts';
@@ -130,6 +131,31 @@ export function selectMyCalendarOccurrenceEntries(
   return entries
     .filter((entry) => tokyoCalendarDateFromInstant(entry.occurrence.startsAt) === date)
     .sort((a, b) => compareOccurrencesByStartsAt(a.occurrence, b.occurrence));
+}
+
+/**
+ * The selected-day counterpart to a multi-day Event band (Issue #142):
+ * events the caller participates in (has at least one occurrence entry for)
+ * whose Event range covers `date` but have no actual occurrence on it -
+ * same complement relationship calendarMonth.ts's own
+ * selectEventLevelFallback has with selectDayOccurrences for the Event
+ * Catalog. Without this, a day inside a multi-day Event's band the caller
+ * is attending/considering, but with no occurrence that specific day, would
+ * show My Calendar's own "no entries" empty state despite the band visibly
+ * covering it - this closes that gap by reusing calendarMonth.ts's own
+ * selector rather than re-deriving the range-membership check, narrowed to
+ * only the Events `occurrenceEntries` actually names (My Calendar must
+ * never surface a catalog Event the caller has no participation in at all).
+ */
+export function selectMyCalendarEventLevelFallback(
+  eventsWithOccurrences: readonly EventWithOccurrences[],
+  occurrenceEntries: readonly MyCalendarOccurrenceEntry[],
+  date: string,
+): EventWithOccurrences[] {
+  const participatingEventIds = new Set(occurrenceEntries.map((entry) => entry.event.id));
+  return selectEventLevelFallback(eventsWithOccurrences, date).filter((group) =>
+    participatingEventIds.has(group.event.id),
+  );
 }
 
 /**
