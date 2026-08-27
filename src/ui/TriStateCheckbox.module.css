@@ -1,0 +1,96 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* Issue #139: the tap target is the whole row, not just the 18px box -
+     unlike Button/BackLink (tapTarget.module.css), which expand a smaller
+     visible fill outward with a pseudo-element. */
+  min-height: 44px;
+  cursor: pointer;
+  font-family: var(--font-family-base);
+  color: var(--color-text);
+  /* Suppresses the mobile double-tap-zoom delay, same as every other tap
+     target in this design system (Button.module.css, BackLink.module.css,
+     PrimaryNav.module.css, the calendar day cells) - see Button.module.css's
+     comment for the full rationale. */
+  touch-action: manipulation;
+}
+
+.row:has(.input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/*
+ * Visually hidden but still in the layout/DOM and focusable - the classic
+ * sr-only pattern (not display:none, which would also drop it from the tab
+ * order). The visible box below is its next sibling so :focus-visible can be
+ * forwarded onto it.
+ */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.input:focus-visible {
+  outline: none;
+}
+
+/*
+ * globals.css's `:focus-visible { outline: ... }` rule can't reach the box
+ * directly - it targets the (invisible) input itself. This restates the
+ * same two values on the input's visible sibling instead; keep it in sync
+ * if that global rule ever changes.
+ */
+.input:focus-visible + .box {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.box {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--color-control-border);
+  /* Issue #139's handoff specifies a flat 2px corner, and --radius-badge is
+     the only 2px step this token set defines - reused here even though its
+     own doc comment scopes it to Badge/bottom-sheet corners specifically
+     (tokens.css is out of scope for this lane; see #150/#138 etc. running
+     in parallel). */
+  border-radius: var(--radius-badge);
+  background-color: var(--color-surface);
+  color: var(--color-accent-foreground);
+}
+
+.checked,
+.indeterminate {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.check {
+  width: 12px;
+  height: 12px;
+}
+
+.dash {
+  width: 10px;
+  height: 2px;
+  background-color: currentColor;
+  border-radius: 1px;
+}
+
+.label {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-base);
+}
