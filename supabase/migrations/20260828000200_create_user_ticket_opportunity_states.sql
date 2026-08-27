@@ -34,8 +34,11 @@ create table public.user_ticket_opportunity_states (
   unique (user_id, opportunity_id)
 );
 
-create index user_ticket_opportunity_states_user_id_idx
-  on public.user_ticket_opportunity_states (user_id);
+-- No separate index on user_id alone: the unique(user_id, opportunity_id)
+-- constraint above already creates a composite btree with user_id as its
+-- leading column, which already serves any `user_id = $x` lookup (including
+-- user_ticket_opportunity_states_select_own's `user_id = auth.uid()` below) -
+-- a single-column index on user_id would be a fully redundant duplicate.
 create index user_ticket_opportunity_states_opportunity_id_idx
   on public.user_ticket_opportunity_states (opportunity_id);
 

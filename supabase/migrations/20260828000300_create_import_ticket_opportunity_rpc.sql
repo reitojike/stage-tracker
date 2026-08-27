@@ -45,9 +45,9 @@ set search_path = ''
 as $$
 declare
   v_opportunity public.ticket_opportunities;
+  v_occurrence_ids uuid[];
   v_occurrence_count integer;
   v_matching_event_count integer;
-  v_milestone jsonb;
 begin
   if p_event_id is null then
     raise exception 'event is required' using errcode = '22004';
@@ -62,7 +62,13 @@ begin
     raise exception 'display_name is required' using errcode = '22004';
   end if;
 
-  if p_target_scope not in ('event_wide', 'selected_occurrences') then
+  -- `p_target_scope is null` is checked explicitly rather than folded into
+  -- the `not in (...)` below: SQL's three-valued logic makes
+  -- `null not in (...)` evaluate to null (neither true nor false), which
+  -- would silently skip this guard for a null input instead of rejecting
+  -- it, falling through into the `else` branch further down as if
+  -- 'selected_occurrences' had been requested.
+  if p_target_scope is null or p_target_scope not in ('event_wide', 'selected_occurrences') then
     raise exception 'target_scope must be event_wide or selected_occurrences'
       using errcode = '22023';
   end if;
@@ -80,11 +86,22 @@ begin
         using errcode = '22023';
     end if;
 
-    v_occurrence_count := array_length(p_occurrence_ids, 1);
+    -- Deduplicated up front: p_occurrence_ids is caller input, not
+    -- necessarily distinct, and both the count-based check below and the
+    -- primary-key insert further down need a distinct set to be correct.
+    -- Without this, a duplicated id (e.g. [x, x]) would make
+    -- array_length() disagree with count(*) (which only ever counts
+    -- matching *rows*, i.e. distinct occurrences) and falsely trip the
+    -- "must belong to the given event" rejection below even though every
+    -- id given is genuinely valid.
+    select array_agg(distinct occurrence_id) into v_occurrence_ids
+    from unnest(p_occurrence_ids) as occurrence_id;
+
+    v_occurrence_count := array_length(v_occurrence_ids, 1);
 
     select count(*) into v_matching_event_count
     from public.event_occurrences eo
-    where eo.id = any (p_occurrence_ids)
+    where eo.id = any (v_occurrence_ids)
       and eo.event_id = p_event_id;
 
     -- Cheaper, whole-set version of the per-row check
@@ -119,30 +136,29 @@ begin
   if p_target_scope = 'selected_occurrences' then
     insert into public.ticket_opportunity_target_occurrences (opportunity_id, occurrence_id)
     select v_opportunity.id, occurrence_id
-    from unnest(p_occurrence_ids) as occurrence_id;
+    from unnest(v_occurrence_ids) as occurrence_id;
   end if;
 
   delete from public.ticket_opportunity_milestones
   where opportunity_id = v_opportunity.id;
 
-  if p_milestones is not null then
-    for v_milestone in select * from jsonb_array_elements(p_milestones)
-    loop
-      insert into public.ticket_opportunity_milestones (
-        opportunity_id, milestone_type, temporal_precision,
-        date_value, at, starts_at, ends_at
-      )
-      values (
-        v_opportunity.id,
-        v_milestone ->> 'milestone_type',
-        v_milestone ->> 'temporal_precision',
-        (v_milestone ->> 'date_value')::date,
-        (v_milestone ->> 'at')::timestamptz,
-        (v_milestone ->> 'starts_at')::timestamptz,
-        (v_milestone ->> 'ends_at')::timestamptz
-      );
-    end loop;
-  end if;
+  -- Set-based, matching the target-occurrences insert above:
+  -- jsonb_array_elements is a strict set-returning function, so
+  -- jsonb_array_elements(null) already yields zero rows - no separate
+  -- null-guard or per-row loop is needed.
+  insert into public.ticket_opportunity_milestones (
+    opportunity_id, milestone_type, temporal_precision,
+    date_value, at, starts_at, ends_at
+  )
+  select
+    v_opportunity.id,
+    element ->> 'milestone_type',
+    element ->> 'temporal_precision',
+    (element ->> 'date_value')::date,
+    (element ->> 'at')::timestamptz,
+    (element ->> 'starts_at')::timestamptz,
+    (element ->> 'ends_at')::timestamptz
+  from jsonb_array_elements(p_milestones) as element;
 
   return v_opportunity;
 end;

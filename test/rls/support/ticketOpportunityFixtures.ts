@@ -89,10 +89,23 @@ export async function createEventWithOpportunity(
     throw new Error(`fixture second occurrence insert failed: ${error.message}`);
   }
 
+  // Not a plain `{ defaults, ...options }` spread: options.targetScope
+  // alone (e.g. a caller passing { targetScope: 'event_wide' } to opt out
+  // of targeting) would otherwise leave the two-occurrence default array
+  // in place, since object spread only overwrites keys options actually
+  // has - sending an event_wide import with non-empty occurrenceIds, which
+  // the RPC rejects. Deriving occurrenceIds from the *effective*
+  // targetScope keeps the two in sync regardless of which one the caller
+  // overrides.
+  const targetScope = options.targetScope ?? 'selected_occurrences';
+  const occurrenceIds =
+    options.occurrenceIds ??
+    (targetScope === 'selected_occurrences' ? [occurrence.id, secondOccurrence.id] : undefined);
+
   const opportunity = await importOpportunity(event.id, {
-    targetScope: 'selected_occurrences',
-    occurrenceIds: [occurrence.id, secondOccurrence.id],
     ...options,
+    targetScope,
+    occurrenceIds,
   });
   return { event, occurrence, secondOccurrence, opportunity };
 }

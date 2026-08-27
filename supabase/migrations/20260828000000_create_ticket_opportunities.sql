@@ -28,10 +28,25 @@
 --   how events itself has no authenticated INSERT grant
 --   (20260821000200_create_event_with_occurrence_rpc.sql), just drawn one
 --   step further since Opportunity has no owner-gated UI write path either.
+-- - event_id is `on delete cascade`. delete_event (Issue #124) is an
+--   unconditional delete of the Event row (after its own occurrence-level
+--   checks pass) with no notion of "what else references this Event" to
+--   extend - unlike delete_event_occurrence, which explicitly enumerates
+--   and rejects on downstream tables, delete_event never enumerated
+--   ticket_opportunities as something to check or preserve, and adding a
+--   RESTRICT here would silently turn "delete my own event" into an error
+--   for any event a TicketOpportunity happens to reference, with no
+--   guidance for why. Cascading keeps this Task's addition from changing
+--   delete_event's existing all-or-nothing behavior for callers who never
+--   touch Opportunities, and an Event deleted as a corrected mistake
+--   (product-rules.md "誤登録の除去") has no accurate official schedule to
+--   preserve anyway. milestones/target relations then cascade further from
+--   ticket_opportunities via their own `on delete cascade` (see below and
+--   the following migration), so no orphaned row is left at any level.
 
 create table public.ticket_opportunities (
   id uuid primary key default gen_random_uuid(),
-  event_id uuid not null references public.events (id),
+  event_id uuid not null references public.events (id) on delete cascade,
   target_scope text not null
     check (target_scope in ('event_wide', 'selected_occurrences')),
   display_name text not null,
@@ -93,9 +108,30 @@ create policy ticket_opportunities_select_authenticated
 -- 'selected_occurrences'. For an 'event_wide' Opportunity this table holds
 -- no rows at all (enforced by the trigger below), so "the whole Event" is
 -- never represented as a snapshot of whichever Occurrences exist right now.
+--
+-- occurrence_id is `on delete cascade` for the same reason event_id is
+-- above: delete_event_occurrence (Issue #124) already enumerates and
+-- rejects on the downstream tables product-rules.md names
+-- (occurrence_participations / occurrence_invitations /
+-- ticket_acquisitions), and this Task does not extend that RPC's check
+-- list - doing so is a product decision about whether a targeted
+-- Occurrence should block deletion the same way, which #162 does not
+-- make. Leaving this FK as the default RESTRICT would instead fail
+-- *unconditionally*, and not just through that RPC: any direct
+-- service_role delete of an occurrence (which bypasses the RPC's checks
+-- entirely, same as it already bypasses the ticket_acquisitions/
+-- participation/invitation checks) would hit a raw FK violation instead
+-- of either the RPC's friendly rejection or a clean cascade. Cascading
+-- only removes this specific target-occurrence relation row, not the
+-- Opportunity or its other targets/milestones - a selected_occurrences
+-- Opportunity whose one-and-only target Occurrence is deleted as a
+-- corrected mistake is left with zero remaining targets rather than
+-- referencing a nonexistent row, which is a data-quality question for
+-- whatever process re-reviews that Opportunity, not a deletion invariant
+-- this migration is positioned to police.
 create table public.ticket_opportunity_target_occurrences (
   opportunity_id uuid not null references public.ticket_opportunities (id) on delete cascade,
-  occurrence_id uuid not null references public.event_occurrences (id),
+  occurrence_id uuid not null references public.event_occurrences (id) on delete cascade,
   created_at timestamptz not null default now(),
   primary key (opportunity_id, occurrence_id)
 );
@@ -110,15 +146,23 @@ create index ticket_opportunity_target_occurrences_occurrence_id_idx
 -- 2. a row may only exist while the parent Opportunity's target_scope is
 --    'selected_occurrences' - closing the "event-wide snapshot" anti-pattern
 --    at the database level, not just by import-path convention.
--- SECURITY DEFINER: this table is only ever written by service_role (see the
--- grants below), which already bypasses RLS, so there is no privilege this
--- function borrows that its caller does not already have; it exists to read
--- the parent Opportunity/Occurrence rows deterministically regardless of the
--- (irrelevant here) caller-scoped RLS on those tables. search_path is
--- pinned empty per this migration file's other functions.
+-- SECURITY INVOKER (the default - no clause needed), unlike
+-- 20260826000200_create_event_occurrence_cancellation.sql's cancellation
+-- check, which genuinely needs DEFINER because most of its callers are
+-- attendees/invitees who only have SELECT-with-`using (true)` on the rows it
+-- locks, not the UPDATE-lockable access a `for share` read also needs (see
+-- that migration's own comment). This function has no such gap: both
+-- ticket_opportunities and event_occurrences already grant `authenticated`
+-- unrestricted `select ... using (true)`, and this table's own INSERT grant
+-- (below) is service_role-only, which already has BYPASSRLS - so INVOKER
+-- reads both tables identically to DEFINER today, with no elevated-privilege
+-- surface if that INSERT grant is ever loosened, matching the reasoning
+-- 20260828000300_create_import_ticket_opportunity_rpc.sql's own SECURITY
+-- INVOKER choice states for the identical "only ever called by service_role"
+-- situation. search_path is pinned empty per this migration file's other
+-- functions.
 create function public.check_ticket_opportunity_target_occurrence() returns trigger
 language plpgsql
-security definer
 set search_path = ''
 as $$
 declare
