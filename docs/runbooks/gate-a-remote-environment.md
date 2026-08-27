@@ -95,6 +95,22 @@ Dashboard での手編集）を意味し、先へ進む前に調査が必要で�
 状態をそのまま re-state するだけの新しい migration で覆い隠さないで
 ください。
 
+`supabase migration list --linked` 相当の read-only 比較（適用済み /
+未適用の migration version 一覧）は、次の deterministic wrapper でも確認
+できます（Issue #131）。
+
+```bash
+node scripts/check-migration-drift.mjs --linked
+```
+
+このコマンドは書き込みを一切行わず、上記と同じ CLI 認証（3a の `supabase
+link --project-ref <ref>`）を使います。exit code 0 は「repository と
+Production の migration version が一致している」という positive evidence
+がある場合のみ返り、pending migration がある場合は exit code 1、CLI が
+未 link / 未認証 / network failure 等で判定できない場合は exit code 2
+（`UNKNOWN`）を返します — いずれの failure も synchronized とは表示しま
+せん。`npm run supabase:migrations:drift -- --linked` でも同じです。
+
 migration を追加する merge の後は毎回 `supabase db push` を re-run します。
 hosted project へ migration を push する自動 CI ステップは存在しません。
 これは意図的な manual operator action です（Issue #61: 「multiple
@@ -169,21 +185,39 @@ migration の適用順序は、その変更が既に deploy 済みの build と
 backward-compatible かどうかで決まります。
 
 - **新しい migration がない、または backward-compatible な migration**
-  （新規 nullable column、まだ何も参照していない新規 table/RPC 等）:
-  merge して Vercel に deploy させ、その後 hosted project に対して schema
-  migration の手順を実行します。既に deploy 済みの build は新しい shape に
-  依存しないため、一時的に古い schema に対して serve しても安全です。
+  （新規 nullable column、まだ何も参照していない新規 table/RPC 等、
+  `post-deploy-safe`）: merge して Vercel に deploy させ、その後 hosted
+  project に対して schema migration の手順を実行します。既に deploy 済み
+  の build は新しい shape に依存しないため、一時的に古い schema に対して
+  serve しても安全です。
 - **新しい build が即座に必要とする migration**（新しいコードが実行直後に
-  read/write する column/table/RPC）: schema migration の手順を merge /
-  deploy の**前**に hosted project へ適用します。先に新しい build を
-  deploy すると、まだ必要なものが揃っていない schema を参照することに
-  なり、そのパスに触れるすべての request が migration が着地するまで
-  失敗します。
+  read/write する column/table/RPC、`schema-first-required`）: schema
+  migration の手順を merge / deploy の**前**に hosted project へ適用しま
+  す。先に新しい build を deploy すると、まだ必要なものが揃っていない
+  schema を参照することになり、そのパスに触れるすべての request が
+  migration が着地するまで失敗します。Issue #121 / #124 / #125 は、この
+  判断自体は正しく認識されていたにもかかわらず、実際の Production 適用が
+  3 件連続で漏れたまま Vercel デプロイが先行した実例です。
 
-いずれの場合も、`main` へ merge し（通常の PR フロー、Foundation v0.3.0
-Review Protocol）、その commit の Vercel deployment が成功して production
-URL が新しい build を serve していることを確認し、該当するケースが求める
-タイミングで上記の schema migration 手順を実行します。
+`schema-first-required` の PR は次の順序を守ります（Issue #131）。
+
+1. migration をこの repository で review する。
+2. **PR を merge する前に**、operator が hosted project へ必要な
+   migration を適用する（下記「Schema migration to the hosted project」）。
+3. `npm run supabase:migrations:drift -- --linked`（下記参照）で
+   Production の migration state を確認し、pending がないことを確かめる。
+4. PR 本文に `Migration ordering: schema-first-required` と
+   `Production migration applied: <evidence>` を記録する
+   （`.github/pull_request_template.md` 参照。`Verify / Migration
+Ordering Fence` CI job がこの記録の有無を強制する — 実際に適用された
+   かどうかまでは CI からは検証できない）。
+5. PR を merge する。
+6. Vercel deployment が成功し production URL が新しい build を serve して
+   いることを確認する。
+
+`post-deploy-safe` の PR は、PR 本文に `Migration ordering:
+post-deploy-safe` を記録した上で通常どおり merge し、Vercel deployment の
+成功を確認してから hosted project へ migration を適用します。
 
 ## Account provisioning（2 dogfood accounts）
 

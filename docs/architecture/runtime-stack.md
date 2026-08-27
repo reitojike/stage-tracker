@@ -75,12 +75,66 @@ flowchart LR
    migration 適用は **自動化されていません**。オペレーターが手動で実行する
    運用です（理由は「Local / CI / Remote 環境との差分」を参照）。
    - migration が後方互換（新規 nullable column 等、既存コードが未参照）で
-     あれば、Vercel デプロイ後に migration を適用しても安全です。
+     あれば、Vercel デプロイ後に migration を適用しても安全です。下記の
+     ordering fence ではこれを `post-deploy-safe` と呼びます。
    - 新しいビルドが直ちに参照する migration であれば、デプロイより先に
-     migration を Supabase 側へ適用する必要があります。
+     migration を Supabase 側へ適用する必要があります。下記の ordering
+     fence ではこれを `schema-first-required` と呼びます。
 
 `docs/runbooks/gate-a-remote-environment.md` の「Deploy / update」節が、この
 判断基準の canonical な記述です。
+
+### migration pre-merge ordering fence（Issue #131）
+
+Issue #121 / #124 / #125 は、上記の判断（`schema-first-required` /
+`post-deploy-safe`）自体は正しく認識されていたにもかかわらず、3 件連続で
+Production migration 適用が Vercel デプロイより後回しになった（詳細は
+Issue #131 の Context 参照）。human memory だけに依存した手順では
+recurring failure になったため、次の 2 段構えの deterministic fence を
+追加した。
+
+1. **CI merge-fence（`Verify / Migration Ordering Fence` job、
+   `.github/workflows/verify.yml`）**:
+   `scripts/check-migration-ordering-fence.mjs`。`supabase/migrations/**.sql`
+   を追加する PR は、PR 本文に次のどちらかの marker が無ければ fail する。
+
+   ```text
+   Migration ordering: schema-first-required
+   Migration ordering: post-deploy-safe
+   ```
+
+   `schema-first-required` の場合はさらに次の marker も必須とする（テンプ
+   レートは `.github/pull_request_template.md` を参照）。
+
+   ```text
+   Production migration applied: <evidence>
+   ```
+
+   この job は Production 認証情報を一切必要としない（PR 本文と `git
+diff` だけを見る）。そのため、実際に Production へ migration が適用
+   されたかどうかは検証できない — 検証できるのは「その判断が PR
+   evidence として記録されているか」だけである。この repository の
+   Secret boundary（下記「Environment Variables の所有境界」）に従い、
+   Production 認証情報を新たに CI secret として追加することは意図的に
+   避けている。
+
+2. **operator-facing read-only drift check
+   （`scripts/check-migration-drift.mjs`）**: `supabase migration list
+--linked` を wrap し、repository の migration file と Production へ
+   適用済みの migration を比較する。
+
+   ```text
+   npm run supabase:migrations:drift -- --linked
+   ```
+
+   pending（repository にはあるが Production 未適用）・unexpected
+   remote-only（Production にはあるが repository に対応 file がない）の
+   いずれかがあれば non-zero で fail する。認証・接続に失敗した場合も
+   synced とはみなさず、`UNKNOWN`（exit code 2）として fail する — CI
+   からは実行しない、operator が `supabase link --project-ref <ref>`
+   済みの shell から明示的に実行するコマンドである
+   （`docs/runbooks/gate-a-remote-environment.md` 「Deploy / update」
+   参照）。
 
 ## Environment Variables の所有境界
 
@@ -148,5 +202,11 @@ Issue #61 の docs consistency 対応で両方とも解消済みです。履歴�
   依存している Auth 設定（Site URL、Redirect URLs、Email Templates、
   signup 無効化設定）を、config-as-code で管理し drift を検知できる仕組みに
   すること。
-- **Drift 検知**: `supabase db diff --linked` は手動実行が前提であり、
-  スキーマ drift を継続的に検知する自動化は存在しません。
+- **Drift 検知の継続的自動化**: Issue #131 で `npm run
+supabase:migrations:drift -- --linked` という operator-facing の
+  on-demand deterministic command は追加したが（上記「migration
+  pre-merge ordering fence」参照）、これは手動実行が前提であり、
+  スケジュール実行等による継続的な自動検知ではない。継続的自動化には
+  CI へ Production 認証情報を持たせる必要があり、この repository の
+  Secret boundary（実質的に Production 常時到達可能な新しい attack
+  surface を作ること）との trade-off を再評価してから決める。

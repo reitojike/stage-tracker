@@ -17,6 +17,10 @@ name: Verify
 # remains the local/agent deterministic verification contract; these three
 # jobs each run one slice of it so failures are attributable per
 # responsibility instead of only via the aggregate command's exit code.
+#
+# `Verify / Migration Ordering Fence` (Issue #131) is a fourth, pull_request-
+# only job: it also needs no remote Supabase credentials, but is not part of
+# the `verify` sequence above (it inspects PR metadata, not local/CI state).
 
 on:
   push:
@@ -111,3 +115,42 @@ jobs:
 
       - name: Verify / Database
         run: npm run verify:database
+
+  # Pre-merge fence for Issue #131 (root cause: #121/#124/#125 each merged a
+  # migration-bearing PR without recording whether Production needed the
+  # migration applied before merge, and it didn't happen before Vercel
+  # auto-deployed - see docs/architecture/runtime-stack.md "デプロイ・実行
+  # 経路"). This job only checks that PRs adding a supabase/migrations/**.sql
+  # file record that ordering judgment in the PR body; it has no Production
+  # credentials and cannot verify the migration was actually applied (see
+  # "Environment Variables の所有境界" in the same doc) - actual apply and
+  # its read-only drift confirmation remain an operator action via `npm run
+  # supabase:migrations:drift -- --linked` (docs/runbooks/
+  # gate-a-remote-environment.md).
+  migration-ordering-fence:
+    name: Verify / Migration Ordering Fence
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout stage-tracker
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.6'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify / Migration Ordering Fence
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: npm run supabase:migrations:ordering-fence
