@@ -11,26 +11,19 @@ interface PrimaryNavItem {
 }
 
 /**
- * Gate A's bounded primary destinations (#70 "Bounded IA decision"):
- * Event Catalog is the shared catalog, My Calendar is the caller's own
- * participation plus event-independent personal schedule. Personal
- * Schedule management is deliberately *not* a peer here - it stays
- * reachable as a secondary path from Home and from My Calendar, so it no
- * longer sits beside My Calendar as an identical-looking top-level
- * destination whose different meaning nothing explains.
+ * The four-item bottom nav confirmed by the design refresh (Issue #140,
+ * design_handoff_stage_tracker/README.md "共通: bottom nav"). Supersedes the
+ * prior Gate A three-item set (#70 "Bounded IA decision") by adding チケット.
+ * My Page and お知らせ are deliberately not nav peers - they open from the
+ * AppBar (avatar / bell) instead, per the same handoff section.
  *
  * Labels repeat each destination's own page heading verbatim, so arriving
  * on a screen confirms which nav item was tapped.
- *
- * This is not the final IA. The current Gate A label set is materialised in
- * docs/ux-ui.md as ホーム / イベント / マイカレンダー, while the bottom-nav
- * item count, Search tab, Settings placement, and future feature navigation
- * remain intentionally unresolved. This component materialises only what the
- * current Gate A journeys need.
  */
 const ITEMS: readonly PrimaryNavItem[] = [
   { href: '/', label: 'ホーム' },
   { href: '/catalog', label: 'イベント' },
+  { href: '/tickets', label: 'チケット' },
   { href: '/calendar', label: 'マイカレンダー' },
 ];
 
