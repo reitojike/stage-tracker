@@ -148,7 +148,7 @@
   --color-surface-active: var(--color-neutral-200);
   --color-border: #d7dcde;
   /* form control boundary(input/button等)。WCAG 2.2 SC 1.4.11 Non-text
-     Contrastの3:1を--color-canvas背景に対して満たす値(約3.45:1)。generic
+     Contrastの3:1を--color-canvas背景に対して満たす値(約3.20:1)。generic
      surface borderとは別tokenとして分離する。containerへは使わない -
      container separationはcanvas/surfaceのトーン差と間隔が担う。 */
   --color-control-border: #7f878b;
