@@ -36,6 +36,23 @@ export interface MyMonthCalendarProps {
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
+/** Issue #146's own legend, one row per (shape, fill) pairing the grid
+ * above actually uses - see MyMonthCalendar.module.css's `.dot`/`.band`
+ * rules. `shapeClass`/`variantClass` name keys into `styles` directly
+ * (rather than pre-resolved class strings) so this stays a single source
+ * of truth for both the legend and, if it drifts, an easy diff against the
+ * grid's own class usage below. */
+const LEGEND_ITEMS: readonly {
+  shapeClass: 'legendDot' | 'legendSwatch';
+  variantClass: 'dotFilled' | 'dotOutline' | 'bandFilled' | 'bandOutline';
+  label: string;
+}[] = [
+  { shapeClass: 'legendDot', variantClass: 'dotFilled', label: '決まっている' },
+  { shapeClass: 'legendDot', variantClass: 'dotOutline', label: '検討中' },
+  { shapeClass: 'legendSwatch', variantClass: 'bandFilled', label: '予定を確保する' },
+  { shapeClass: 'legendSwatch', variantClass: 'bandOutline', label: '確保しない' },
+];
+
 function monthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-');
   return `${year ?? yearMonth}年${String(Number(month ?? '1'))}月`;
@@ -190,9 +207,6 @@ export function MyMonthCalendar({
                     `${participationStatusLabel('considering')}公演${String(markers.consideringCount)}件`,
                   );
                 }
-                if (markers?.hasUnconfirmedTicket) {
-                  labelParts.push('チケット未確定あり');
-                }
                 if (markers && markers.ownScheduleCount > 0) {
                   labelParts.push(`自分の予定${String(markers.ownScheduleCount)}件`);
                 }
@@ -287,6 +301,24 @@ export function MyMonthCalendar({
           );
         })}
       </div>
+
+      {/* Issue #146: one legend row under the calendar, spelling out what
+          the dot/band shapes above mean. Shape is already the primary,
+          grayscale-safe carrier (Issue #142's own acceptance criterion) -
+          this row adds the text label as a second, redundant carrier so
+          meaning never depends on color recognition alone (docs/ux-ui.md
+          accessibility baseline: color is never the sole carrier). */}
+      <ul className={styles.legend}>
+        {LEGEND_ITEMS.map(({ shapeClass, variantClass, label }) => (
+          <li key={label} className={styles.legendItem}>
+            <span
+              className={[styles[shapeClass], styles[variantClass]].join(' ')}
+              aria-hidden="true"
+            />
+            {label}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

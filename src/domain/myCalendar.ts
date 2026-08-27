@@ -468,15 +468,6 @@ export interface MyCalendarDayMarkers {
   attendingCount: number;
   /** Occurrences on this day whose participation.status is 'considering'. */
   consideringCount: number;
-  /** True when at least one occurrence on this day has a `'none'` or
-   * `'pending'` ticketStatus (Issue #34 acceptance: "ticket pending/
-   * unconfirmed状態を色だけに依存せず識別可能"). Independent of
-   * attending/considering - product-rules.md's ticket/participation
-   * concepts stay separate here too. Issue #142's marker vocabulary has no
-   * dedicated glyph for this (it never invents one - see that Issue's "Do
-   * not invent product semantics"), so this is surfaced via aria-label text
-   * only, not a visual cell marker. */
-  hasUnconfirmedTicket: boolean;
   ownScheduleCount: number;
   sharedScheduleCount: number;
 }
@@ -521,9 +512,6 @@ export function buildMyCalendarDayMarkers(
       consideringCount: dayOccurrences.filter(
         (entry) => entry.participation.status === 'considering',
       ).length,
-      hasUnconfirmedTicket: dayOccurrences.some(
-        (entry) => entry.ticketStatus === 'none' || entry.ticketStatus === 'pending',
-      ),
       ownScheduleCount: daySchedules.filter((s) => s.isOwner).length,
       sharedScheduleCount: daySchedules.filter((s) => !s.isOwner).length,
     };
