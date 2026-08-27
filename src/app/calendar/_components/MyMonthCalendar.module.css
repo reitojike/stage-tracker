@@ -297,3 +297,46 @@
 .daySelected:active {
   background-color: var(--color-surface-active);
 }
+
+/* Legend (Issue #146: "カレンダー下に凡例を1行") - one row explaining what
+   the dot/band shapes above mean, so meaning never depends on recognizing
+   the shared --color-accent/--color-band-* hues alone. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-sm);
+  row-gap: var(--space-2xs);
+  margin: 0;
+  padding: 0;
+  padding-top: var(--space-xs);
+  list-style: none;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+/* Same shape/fill rule as .dot above, sized identically so the legend
+   swatch reads as the same mark the grid actually uses. */
+.legendDot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+/* Same shape/fill rule as .band above, at a fixed small size instead of
+   the grid band's own title-driven width. */
+.legendSwatch {
+  width: 18px;
+  height: 9px;
+  border-radius: var(--radius-band);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}

@@ -190,9 +190,6 @@ export function MyMonthCalendar({
                     `${participationStatusLabel('considering')}公演${String(markers.consideringCount)}件`,
                   );
                 }
-                if (markers?.hasUnconfirmedTicket) {
-                  labelParts.push('チケット未確定あり');
-                }
                 if (markers && markers.ownScheduleCount > 0) {
                   labelParts.push(`自分の予定${String(markers.ownScheduleCount)}件`);
                 }
@@ -287,6 +284,34 @@ export function MyMonthCalendar({
           );
         })}
       </div>
+
+      {/* Issue #146: one legend row under the calendar, spelling out what
+          the dot/band shapes above mean. Shape is already the primary,
+          grayscale-safe carrier (Issue #142's own acceptance criterion) -
+          this row adds the text label as a second, redundant carrier so
+          meaning never depends on color recognition alone (docs/ux-ui.md
+          accessibility baseline: color is never the sole carrier). */}
+      <ul className={styles.legend}>
+        <li className={styles.legendItem}>
+          <span className={[styles.legendDot, styles.dotFilled].join(' ')} aria-hidden="true" />
+          決まっている
+        </li>
+        <li className={styles.legendItem}>
+          <span className={[styles.legendDot, styles.dotOutline].join(' ')} aria-hidden="true" />
+          検討中
+        </li>
+        <li className={styles.legendItem}>
+          <span className={[styles.legendSwatch, styles.bandFilled].join(' ')} aria-hidden="true" />
+          予定を確保する
+        </li>
+        <li className={styles.legendItem}>
+          <span
+            className={[styles.legendSwatch, styles.bandOutline].join(' ')}
+            aria-hidden="true"
+          />
+          確保しない
+        </li>
+      </ul>
     </section>
   );
 }
