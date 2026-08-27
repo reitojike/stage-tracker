@@ -45,7 +45,6 @@ export function ticketDisplayStatusBadgeVariant(
 ): TicketDisplayBadgeVariant {
   switch (status) {
     case 'secured':
-      return 'subtle';
     case 'pending':
       return 'subtle';
     case 'unsuccessful':

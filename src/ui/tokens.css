@@ -182,6 +182,12 @@
   --color-success: var(--color-status-success-500);
   --color-warning: var(--color-status-warning-500);
   --color-danger: #a13b2e;
+  /* Text-on-danger-fill (Issue #138): danger was previously only ever paired
+     with --color-surface-subtle, never used as a solid fill, so no "-on"
+     counterpart existed yet. Named to match --color-terminal-on below
+     rather than scoping it to Badge, since any future --color-danger fill
+     usage needs the same pairing. */
+  --color-danger-on: #f7f5f1;
   --color-info: var(--color-accent-600);
 
   /* terminal role (Issue #137, 新規): 墨。もう行動できない終了状態の塗りと、
@@ -213,12 +219,8 @@
      variants (outline/subtle/deadline/terminal) replacing the former
      success/warning/danger/info/neutral color states. outline and subtle
      reuse existing surface/text roles directly (no dedicated token
-     needed); terminal reuses the #137 terminal role. deadline needs a
-     text-on-danger-fill token the #137 token set didn't add (danger was
-     previously only ever paired with --color-surface-subtle, never used
-     as a fill), so it's added here scoped to this Badge variant rather
-     than as a general-purpose semantic role. */
-  --color-badge-deadline-text: #f7f5f1;
+     needed); deadline uses --color-danger-on above; terminal reuses the
+     #137 terminal role. */
 
   /* spacing */
   --space-2xs: var(--space-scale-hairline);
@@ -268,11 +270,12 @@
   /* Fine-print role (weekday/day-role marks, calendar overflow text).
      Distinct from --font-size-label below, which is one step larger. */
   --font-size-caption: var(--font-size-scale-0);
-  /* Short, bold micro-labels (Badge) - kept at the previous caption size
-     (12px) rather than shrinking with caption, since Badge text is the
-     sole carrier of a status's meaning (docs/ux-ui.md "色のみに意味を依存
-     しない") and must not get harder to read as the ladder is refined.
-     Also used for PrimaryNav's bottom-nav labels (Issue #140: 12px). */
+  /* Short, bold micro-labels - kept at the previous caption size (12px)
+     rather than shrinking with caption. Badge itself moved to a hardcoded
+     11px under Issue #138's own explicit spec (design_handoff_stage_
+     tracker/02-badge.md「バッジの4段階」), so Badge is no longer a
+     consumer of this token; current consumers are PrimaryNav's bottom-nav
+     labels (Issue #140: 12px) and ScheduleDetail.module.css. */
   --font-size-label: var(--font-size-scale-1);
   --font-size-body-sm: var(--font-size-scale-2);
   --font-size-body: var(--font-size-scale-3);

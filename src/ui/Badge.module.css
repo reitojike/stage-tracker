@@ -14,11 +14,16 @@
   font-weight: var(--font-weight-semibold);
   line-height: 1.4;
   white-space: nowrap;
+  /* Reserved on every variant (transparent unless overridden) so a bordered
+   * .outline badge doesn't render 2px larger than its borderless siblings
+   * when placed in the same row (same pattern as Button.module.css's
+   * .button base rule). */
+  border: 1px solid transparent;
 }
 
 /* outline: 分類 (classification) - 宝塚/月組, 一般発売, FC先行・抽選 */
 .outline {
-  border: 1px solid var(--color-control-border);
+  border-color: var(--color-control-border);
   color: var(--color-text-tertiary);
   background-color: transparent;
 }
@@ -32,7 +37,7 @@
 /* deadline: 期限。行動すれば間に合う (a deadline still actionable) - 残り1日 */
 .deadline {
   background-color: var(--color-danger);
-  color: var(--color-badge-deadline-text);
+  color: var(--color-danger-on);
 }
 
 /* terminal: 終了。行動する余地がない (ended, no action possible) - 落選, 不成立, 受付終了, 中止 */
