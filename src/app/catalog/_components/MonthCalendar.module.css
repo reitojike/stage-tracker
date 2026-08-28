@@ -311,11 +311,23 @@
   white-space: nowrap;
 }
 
-.weekOverflowLink {
+/* Issue #181: every hidden title (not just the first) renders here, in
+   overflowEvents' existing order, separated by "、" - this single wrapper
+   (not each individual .weekOverflowLink) is what truncates to one line, so
+   the ellipsis clips wherever the combined text stops fitting rather than
+   clipping each title independently. Same min-width: 0 rationale as
+   .weekOverflow itself: a flex item's default min-width is auto, which
+   would otherwise refuse to shrink below the untruncated combined width of
+   every title. */
+.weekOverflowTitles {
   composes: truncatedLine;
   flex: 1 1 auto;
   min-width: 0;
   color: var(--color-text-secondary);
+}
+
+.weekOverflowLink {
+  color: inherit;
   text-decoration: underline;
 }
 
