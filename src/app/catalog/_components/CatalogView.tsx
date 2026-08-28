@@ -154,6 +154,14 @@ export function CatalogView({
   // be wrong about, so this case also renders immediately rather than
   // waiting on a restore that cannot change the outcome.
   const readyToRenderBody = !filterData.ok || selectionReady || isEmptyRange;
+  // Issue #172 root cause C (orchestrator merge-fence follow-up): whether
+  // an applied filter reduced the *whole* current month to zero results -
+  // independent of selectedDate, reusing the same `filteredEvents` this
+  // component already computes (no second filter predicate). The Task
+  // Contract has no "only when no day is selected" exception, so this must
+  // stay true (and the distinct feedback below must keep showing) whether
+  // or not a day is currently selected.
+  const isFilteredZero = !isEmptyRange && isFilterActive && filteredEvents.length === 0;
 
   return (
     <>
@@ -224,15 +232,19 @@ export function CatalogView({
               month to zero results is a distinct situation - reuses the
               same `filteredEvents` this component already computes (no
               second filter predicate), gated so it never conflates with, or
-              fires alongside, the raw-empty message above. */}
-          {!isEmptyRange &&
-          selectedDate === null &&
-          isFilterActive &&
-          filteredEvents.length === 0 ? (
+              fires alongside, the raw-empty message above. Deliberately NOT
+              gated on selectedDate - the Task Contract requires this
+              feedback whenever the whole filtered month is zero, whether or
+              not a day is currently selected (orchestrator merge-fence
+              follow-up: a selected-day state must not leave
+              SelectedDayList's own generic per-day empty message as the
+              only/competing explanation for what is actually a filter
+              result). */}
+          {isFilteredZero ? (
             <StatePanel variant="empty" title="選択した条件に一致するイベントはありません" />
           ) : null}
 
-          {selectedDate !== null ? (
+          {selectedDate !== null && !isFilteredZero ? (
             <>
               <EventLevelFallbackList
                 events={selectEventLevelFallback(filteredEvents, selectedDate)}

@@ -77,11 +77,15 @@ void test("CatalogView.module.css defines the active dot as a supplementary (non
 
 // --- Issue #172 root cause C: applied-filter zero-result feedback ---
 
-void test('an applied filter that reduces a non-empty raw month to zero shows a distinct StatePanel, gated so it never fires alongside the raw-empty one', () => {
+void test('isFilteredZero is derived from the same filteredEvents, independent of selectedDate (no second filter predicate)', () => {
   assert.match(
     component,
-    /!isEmptyRange &&\s*selectedDate === null &&\s*isFilterActive &&\s*filteredEvents\.length === 0 \? \(/,
+    /const isFilteredZero = !isEmptyRange && isFilterActive && filteredEvents\.length === 0;/,
   );
+});
+
+void test('the filtered-zero StatePanel shows whenever isFilteredZero, with no selectedDate gate (orchestrator merge-fence follow-up)', () => {
+  assert.match(component, /\{isFilteredZero \? \(\s*<StatePanel variant="empty"/);
   assert.match(component, /選択した条件に一致するイベントはありません/);
 });
 
@@ -97,4 +101,11 @@ void test('the filtered-zero message is a distinct string from the raw-range-emp
 void test('the filtered-zero message reuses filteredEvents, never a second filter predicate', () => {
   const filterCalls = component.match(/filterCatalogEvents\(/g) ?? [];
   assert.equal(filterCalls.length, 1, 'still exactly one filterCatalogEvents call site');
+});
+
+void test('EventLevelFallbackList/SelectedDayList are suppressed while the whole filtered range is zero, so the generic per-day empty state never stands in as the only explanation', () => {
+  assert.match(
+    component,
+    /\{selectedDate !== null && !isFilteredZero \? \(\s*<>\s*<EventLevelFallbackList/,
+  );
 });
