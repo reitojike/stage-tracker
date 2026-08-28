@@ -1,0 +1,80 @@
+.row {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-card-block) 0;
+}
+
+/* Plain row divided by a bottom border, not a card Surface - mirrors
+   src/app/calendar/_components/MySelectedDayList.module.css's own precedent
+   (Issue #146: no Surface-per-row any more). */
+.row:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dateColumn {
+  flex-shrink: 0;
+  width: 6.5em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.dateLabel {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.timeLabel {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.eventTitle {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.venue {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.opportunityName {
+  font-size: var(--font-size-body);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.scopeSummary {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.sourceLink {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  align-self: flex-start;
+}
