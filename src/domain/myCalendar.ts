@@ -297,8 +297,11 @@ export function selectMyCalendarScheduleEntries(
 // Asia/Tokyo calendar date instead). Only personal-schedule entries still
 // band when their own span is multi-day; that half of Issue #142 is
 // unchanged. MyCalendarBandSegment's `kind: 'event'` arm is kept in the
-// union (MyMonthCalendar.tsx still renders a `data-band-kind` attribute from
-// it) even though nothing currently constructs a segment with that kind.
+// union even though nothing currently constructs a segment with that kind -
+// removing it would also mean narrowing MyMonthCalendar.tsx's own prop type
+// and its `data-band-kind` rendering (kept there, but currently inert: no
+// CSS or test depends on the 'event' value), which is a wider change than
+// this bounded correction needs.
 
 export interface MyCalendarBandSegment extends BandSegment {
   kind: 'event' | 'schedule';
