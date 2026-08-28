@@ -28,10 +28,20 @@
   background-color: transparent;
 }
 
-/* subtle: 進行中の状態 (in-progress state) - 申込中, 結果発表を待つ, 当選, 参加する, 自分の予定 */
+/* subtle: 進行中の状態・意思 (ongoing state/intention, not yet completed) -
+   申込中, 結果発表を待つ, 参加する, 気になる, 自分の予定 */
 .subtle {
   background-color: var(--color-surface-subtle);
   color: var(--color-text-tertiary);
+}
+
+/* done (Issue #186): user-completed action - 申し込み済み, チケット確保済み.
+ * Reuses the existing calendar band tokens (--color-band-fill/-text, #137)
+ * rather than adding a new color value; distinguished from .subtle by tone
+ * plus the component-owned checkmark (see Badge.tsx), never color alone. */
+.done {
+  background-color: var(--color-band-fill);
+  color: var(--color-band-text);
 }
 
 /* deadline: 期限。行動すれば間に合う (a deadline still actionable) - 残り1日 */

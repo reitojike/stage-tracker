@@ -219,12 +219,13 @@
   --color-calendar-sunday: var(--color-status-danger-500);
   --color-calendar-holiday: var(--color-status-danger-500);
 
-  /* badge role tint (Issue #138): Badge is redefined to 4 shape-based
-     variants (outline/subtle/deadline/terminal) replacing the former
+  /* badge role tint (Issue #138, #186): Badge is a 5 shape-based variant set
+     (outline/subtle/done/deadline/terminal) replacing the former
      success/warning/danger/info/neutral color states. outline and subtle
      reuse existing surface/text roles directly (no dedicated token
-     needed); deadline uses --color-danger-on above; terminal reuses the
-     #137 terminal role. */
+     needed); done reuses the --color-band-fill/-text role above (#137);
+     deadline uses --color-danger-on above; terminal reuses the #137
+     terminal role. */
 
   /* spacing */
   --space-2xs: var(--space-scale-hairline);
