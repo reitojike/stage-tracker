@@ -7,6 +7,15 @@
  */
 .dialog {
   position: fixed;
+  /* `<dialog>`'s own UA stylesheet sets `inset: 0` (i.e. top: 0 too) for
+     `dialog:modal` - left unset, that default wins over inset-block-end
+     below whenever both are non-auto with an intrinsic height (the
+     over-constrained case resolves in favour of top, not bottom), which
+     pins the sheet to the top of the viewport instead of the bottom.
+     Explicitly overriding inset-block-start back to auto is what actually
+     lets inset-block-end anchor this to the bottom edge - confirmed via a
+     real headless-Chrome render, not visible from source/CSS-text alone. */
+  inset-block-start: auto;
   inset-block-end: 0;
   inset-inline: 0;
   width: 100%;

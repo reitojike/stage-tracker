@@ -172,6 +172,18 @@ void test('the sheet is anchored to the bottom viewport edge with only the top c
   assert.match(dialogRule[1] ?? '', /border-top:\s*1px solid var\(--color-border\)\s*;/);
 });
 
+void test("inset-block-start is explicitly reset to auto, overriding <dialog>'s own UA-stylesheet top:0 default", () => {
+  // Regression guard (found via a real headless-Chrome render during Issue
+  // #147 visual sanity, not visible from source/CSS text alone): a native
+  // dialog:modal's UA stylesheet sets `inset: 0` (top included). Left
+  // unset, that top:0 wins over inset-block-end below in the
+  // over-constrained top+height+bottom case, pinning the sheet to the top
+  // of the viewport instead of the bottom.
+  const dialogRule = css.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
+  assert.ok(dialogRule, '.dialog rule is missing from FilterSheet.module.css');
+  assert.match(dialogRule[1] ?? '', /inset-block-start:\s*auto\s*;/);
+});
+
 void test('open/close transitions ease-out over ~200ms', () => {
   assert.match(css, /transform 200ms ease-out/);
 });
