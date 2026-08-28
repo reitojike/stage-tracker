@@ -76,7 +76,7 @@ function readFailurePanel() {
  */
 export default async function TicketsPage() {
   const now = currentInstant();
-  const today = currentTokyoDate();
+  const today = currentTokyoDate(now);
   const client = await createSupabaseServerClient();
 
   const opportunitiesResult = await listTicketOpportunitiesWithDetails(client);

@@ -11,6 +11,16 @@ export function currentInstant(): string {
   return new Date().toISOString();
 }
 
-export function currentTokyoDate(): string {
-  return tokyoCalendarDateFromInstant(currentInstant());
+/**
+ * `instantIso` lets a caller that already read `currentInstant()` derive
+ * `today` from that SAME snapshot (see src/app/tickets/page.tsx) instead of
+ * this function taking its own independent `new Date()` read - two
+ * independent reads a few milliseconds apart can disagree right at the
+ * Asia/Tokyo midnight boundary, which would make selectTicketOpportunityPrimaryRows
+ * (domain/ticketOpportunityTimeline.ts) apply `now`/`todayTokyoDate` values
+ * that come from different instants (CodeRabbit review finding, PR #177).
+ * Defaults to a fresh read for any caller that only needs the date.
+ */
+export function currentTokyoDate(instantIso: string = currentInstant()): string {
+  return tokyoCalendarDateFromInstant(instantIso);
 }
