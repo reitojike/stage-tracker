@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   formatTicketOpportunityMilestoneDisplay,
   isActionableTicketOpportunityDeadline,
+  isTicketOpportunityRowEffectivelyCanceled,
   ticketOpportunityDeadlineRemainingDaysLabel,
   ticketOpportunityMilestoneTypeLabel,
   ticketOpportunityStateBadgeVariant,
@@ -10,7 +11,22 @@ import {
   ticketOpportunityTargetScopeSummaryLabel,
   ticketOpportunityTimelineMonthHeadingLabel,
 } from '../ticketOpportunityFormatting.ts';
+import type { EventOccurrence } from '../eventCatalog.ts';
 import type { TicketOpportunityTimelineRow } from '../ticketOpportunityTimeline.ts';
+
+function occurrence(overrides: Partial<EventOccurrence> = {}): EventOccurrence {
+  return {
+    id: 'occ-1',
+    eventId: 'event-1',
+    doorsAt: null,
+    startsAt: '2026-09-10T02:00:00.000Z',
+    endsAt: null,
+    canceledAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 function baseRow(
   overrides: Partial<TicketOpportunityTimelineRow> = {},
@@ -21,10 +37,12 @@ function baseRow(
     sortInstant: '2026-09-01T00:00:00.000Z',
     eventTitle: 'イベントA',
     eventVenue: '会場A',
+    eventCanceled: false,
     opportunityDisplayName: '第1抽選',
     sourceUrl: null,
     targetScope: 'event_wide',
     targetOccurrences: [],
+    targetOccurrenceIdCount: 0,
     milestoneType: 'application_open',
     temporalPrecision: 'date',
     dateValue: '2026-09-01',
@@ -307,4 +325,255 @@ void test('ticketOpportunityTargetScopeSummaryLabel: event_wide vs selected_occu
     ),
     '対象の公演回情報がありません',
   );
+});
+
+// --- Issue #172 root cause B: Opportunity-scope cancellation aggregation
+// (Claude C1 + Codex X2 - one root cause, not "any one target canceled") ---
+
+void test('isTicketOpportunityRowEffectivelyCanceled: Event canceled is terminal regardless of scope', () => {
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({ targetScope: 'event_wide', eventCanceled: true, targetOccurrences: [] }),
+    ),
+    true,
+  );
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: true,
+        targetOccurrences: [occurrence({ canceledAt: null })],
+        targetOccurrenceIdCount: 1,
+      }),
+    ),
+    true,
+    'Event cancellation is terminal even when the selected target itself is still active',
+  );
+});
+
+void test('isTicketOpportunityRowEffectivelyCanceled: event_wide is never canceled by one current Occurrence alone', () => {
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'event_wide',
+        eventCanceled: false,
+        // event_wide never carries targetOccurrences by construction, but
+        // even if some were present, event_wide must ignore them entirely -
+        // it is a semantic fact about the whole Event, never a snapshot of
+        // current Occurrences.
+        targetOccurrences: [occurrence({ canceledAt: '2026-08-01T00:00:00.000Z' })],
+        targetOccurrenceIdCount: 1,
+      }),
+    ),
+    false,
+  );
+});
+
+void test('isTicketOpportunityRowEffectivelyCanceled: selected_occurrences is terminal only when the complete non-empty target set is all canceled', () => {
+  // All targets canceled -> terminal.
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: false,
+        targetOccurrences: [
+          occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
+          occurrence({ id: 'occ-2', canceledAt: '2026-08-02T00:00:00.000Z' }),
+        ],
+        targetOccurrenceIdCount: 2,
+      }),
+    ),
+    true,
+  );
+
+  // Only some targets canceled -> NOT terminal (remains actionable for the
+  // live target).
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: false,
+        targetOccurrences: [
+          occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
+          occurrence({ id: 'occ-2', canceledAt: null }),
+        ],
+        targetOccurrenceIdCount: 2,
+      }),
+    ),
+    false,
+  );
+
+  // No target canceled -> not terminal.
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: false,
+        targetOccurrences: [occurrence({ id: 'occ-1', canceledAt: null })],
+        targetOccurrenceIdCount: 1,
+      }),
+    ),
+    false,
+  );
+
+  // An empty resolved target set (e.g. a defensive missing-read drop) must
+  // never read as "all canceled" - that would infer global cancellation
+  // from an incomplete/unresolved target set.
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: false,
+        targetOccurrences: [],
+        targetOccurrenceIdCount: 0,
+      }),
+    ),
+    false,
+  );
+
+  // A *partially* resolved target set (Codex targeted-closure finding on
+  // PR #173: buildTicketOpportunityTimelineRows drops unresolved target
+  // ids rather than fabricating them, so a request for 3 targets can
+  // resolve only 1) must NOT read the resolved subset's ".every(canceled)"
+  // as "all targets canceled" - that is exactly the same
+  // incomplete/unresolved-target-set inference the empty-set case above
+  // already guards against, just with a non-empty but incomplete
+  // resolved list.
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: false,
+        // Only 1 of the originally-requested 3 targets resolved, and that
+        // one happens to be canceled - the other 2 are unknown, not live.
+        targetOccurrences: [occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' })],
+        targetOccurrenceIdCount: 3,
+      }),
+    ),
+    false,
+    'a partially-resolved target set must not be read as "all canceled" merely because the resolved subset happens to be',
+  );
+});
+
+void test('isActionableTicketOpportunityDeadline: never true once the whole Opportunity is effectively canceled', () => {
+  const today = '2026-09-05';
+
+  // Event canceled - would otherwise be actionable (planned +
+  // application_close + not yet past).
+  assert.equal(
+    isActionableTicketOpportunityDeadline(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'date',
+        dateValue: '2026-09-08',
+        eventCanceled: true,
+      }),
+      today,
+    ),
+    false,
+  );
+
+  // All selected targets canceled.
+  assert.equal(
+    isActionableTicketOpportunityDeadline(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'date',
+        dateValue: '2026-09-08',
+        targetScope: 'selected_occurrences',
+        targetOccurrences: [occurrence({ canceledAt: '2026-08-01T00:00:00.000Z' })],
+        targetOccurrenceIdCount: 1,
+      }),
+      today,
+    ),
+    false,
+  );
+
+  // Partial cancellation (one of several targets) must NOT suppress
+  // actionability - a live target remains.
+  assert.equal(
+    isActionableTicketOpportunityDeadline(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'date',
+        dateValue: '2026-09-08',
+        targetScope: 'selected_occurrences',
+        targetOccurrences: [
+          occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
+          occurrence({ id: 'occ-2', canceledAt: null }),
+        ],
+        targetOccurrenceIdCount: 2,
+      }),
+      today,
+    ),
+    true,
+  );
+
+  // event_wide is never canceled merely because one current Occurrence
+  // (present here only to prove it is ignored for event_wide) is
+  // canceled.
+  assert.equal(
+    isActionableTicketOpportunityDeadline(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'date',
+        dateValue: '2026-09-08',
+        targetScope: 'event_wide',
+        eventCanceled: false,
+      }),
+      today,
+    ),
+    true,
+  );
+});
+
+void test('ticketOpportunityDeadlineRemainingDaysLabel: null once the whole Opportunity is effectively canceled', () => {
+  const today = '2026-09-05';
+  assert.equal(
+    ticketOpportunityDeadlineRemainingDaysLabel(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        dateValue: '2026-09-08',
+        eventCanceled: true,
+      }),
+      today,
+    ),
+    null,
+  );
+});
+
+void test('ticketOpportunityTargetScopeSummaryLabel: a partially canceled selected_occurrences target stays distinguishable without a whole-Opportunity 中止', () => {
+  const label = ticketOpportunityTargetScopeSummaryLabel(
+    baseRow({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: [
+        occurrence({
+          id: 'occ-live',
+          startsAt: '2026-09-10T02:00:00.000Z', // 11:00 JST
+          canceledAt: null,
+        }),
+        occurrence({
+          id: 'occ-canceled',
+          startsAt: '2026-09-11T02:00:00.000Z', // 11:00 JST
+          canceledAt: '2026-08-01T00:00:00.000Z',
+        }),
+      ],
+    }),
+  );
+  assert.match(label, /対象公演回:/);
+  // Both occurrences are still listed (partial cancellation never drops or
+  // hides the live target)...
+  assert.match(label, /9月10日/);
+  assert.match(label, /9月11日/);
+  // ...but only the canceled one carries the 中止 marker.
+  const segments = label.split('、');
+  const liveSegment = segments.find((segment) => segment.includes('9月10日'));
+  const canceledSegment = segments.find((segment) => segment.includes('9月11日'));
+  assert.ok(liveSegment !== undefined && !liveSegment.includes('中止'));
+  assert.ok(canceledSegment !== undefined && canceledSegment.includes('中止'));
 });

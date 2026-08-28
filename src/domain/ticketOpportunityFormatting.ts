@@ -1,5 +1,6 @@
 import { parseTokyoCalendarDate, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
 import { tokyoTimeLabel } from './catalogFormatting.ts';
+import { isOccurrenceCanceled } from './eventCancellation.ts';
 import type {
   TicketOpportunityMilestoneType,
   UserTicketOpportunityStatus,
@@ -183,18 +184,82 @@ export function ticketOpportunityMilestoneTokyoCalendarDate(
 }
 
 /**
+ * Opportunity-scope terminal cancellation (Issue #172 root cause B / Claude
+ * C1 + Codex X2, adjudicated aggregation rule - deliberately NOT "any one
+ * selected target Occurrence is canceled"):
+ *
+ * 1. The parent Event is canceled -> the whole Opportunity is terminal,
+ *    regardless of targetScope.
+ * 2. `event_wide` with the Event not canceled -> never terminal from
+ *    Occurrence state alone. `event_wide` is a semantic fact about the
+ *    whole Event, not a snapshot of whichever Occurrences currently exist
+ *    (product-rules.md "Target scope"), so one current Occurrence being
+ *    canceled must not cancel the Opportunity.
+ * 3. `selected_occurrences` with the Event not canceled -> terminal only
+ *    when the target set is *completely resolved* (targetOccurrences.length
+ *    === targetOccurrenceIdCount), that resolved set is non-empty, AND
+ *    every resolved target Occurrence is canceled. Neither an empty
+ *    resolved set nor a *partially* resolved one (e.g. a defensive
+ *    missing-read drop for only some ids - see
+ *    ticketOpportunityTimeline.ts's own header on
+ *    buildTicketOpportunityTimelineRows) may read as "all canceled" -
+ *    both are inferring global cancellation from an incomplete/unresolved
+ *    target set, which the Issue #172 adjudication explicitly rules out.
+ *    Checking length equality (not just non-empty) is what closes this:
+ *    a request for 3 targets that resolves only 1 (2 dropped) must not
+ *    satisfy `.every(...)` on that 1 alone and falsely go terminal.
+ *
+ * A partially canceled `selected_occurrences` target (some but not all
+ * targets canceled) is NOT terminal here - see
+ * ticketOpportunityTargetScopeSummaryLabel for how that partial state stays
+ * visible without marking the whole Opportunity canceled.
+ */
+export function isTicketOpportunityRowEffectivelyCanceled(
+  row: Pick<
+    TicketOpportunityTimelineRow,
+    'targetScope' | 'eventCanceled' | 'targetOccurrences' | 'targetOccurrenceIdCount'
+  >,
+): boolean {
+  if (row.eventCanceled) {
+    return true;
+  }
+  if (row.targetScope === 'event_wide') {
+    return false;
+  }
+  if (row.targetOccurrences.length === 0) {
+    return false;
+  }
+  if (row.targetOccurrences.length !== row.targetOccurrenceIdCount) {
+    return false;
+  }
+  return row.targetOccurrences.every((occurrence) => isOccurrenceCanceled(occurrence));
+}
+
+/**
  * Issue #144 Task Contract minimum safe rule: red deadline emphasis is
  * limited to a milestone the caller can actually still act on -
  * `myState.status === 'planned'`, an `application_close` milestone, and a
  * deadline that has not already passed. Never true for
  * result_announcement/sale_start/payment_window (no outcome/settlement
  * state exists in this MVP to justify escalating those to red), and never
- * true when there is no personal `planned` state at all.
+ * true when there is no personal `planned` state at all. Also never true
+ * once the whole Opportunity is effectively canceled (Issue #172 root
+ * cause B) - a canceled target must not keep showing red actionable
+ * urgency toward a submission that no longer makes sense.
  */
 export function isActionableTicketOpportunityDeadline(
   row: Pick<
     TicketOpportunityTimelineRow,
-    'milestoneType' | 'myState' | 'dateValue' | 'at' | 'startsAt' | 'endsAt'
+    | 'milestoneType'
+    | 'myState'
+    | 'dateValue'
+    | 'at'
+    | 'startsAt'
+    | 'endsAt'
+    | 'targetScope'
+    | 'eventCanceled'
+    | 'targetOccurrences'
+    | 'targetOccurrenceIdCount'
   >,
   todayTokyoDate: string,
 ): boolean {
@@ -202,6 +267,9 @@ export function isActionableTicketOpportunityDeadline(
     return false;
   }
   if (row.milestoneType !== 'application_close') {
+    return false;
+  }
+  if (isTicketOpportunityRowEffectivelyCanceled(row)) {
     return false;
   }
   const deadlineDate = ticketOpportunityMilestoneTokyoCalendarDate(row);
@@ -226,7 +294,16 @@ function daysBetweenTokyoDates(fromDate: string, toDate: string): number {
 export function ticketOpportunityDeadlineRemainingDaysLabel(
   row: Pick<
     TicketOpportunityTimelineRow,
-    'milestoneType' | 'myState' | 'dateValue' | 'at' | 'startsAt' | 'endsAt'
+    | 'milestoneType'
+    | 'myState'
+    | 'dateValue'
+    | 'at'
+    | 'startsAt'
+    | 'endsAt'
+    | 'targetScope'
+    | 'eventCanceled'
+    | 'targetOccurrences'
+    | 'targetOccurrenceIdCount'
   >,
   todayTokyoDate: string,
 ): string | null {
@@ -255,9 +332,15 @@ export function ticketOpportunityTargetScopeSummaryLabel(
   if (row.targetOccurrences.length === 0) {
     return '対象の公演回情報がありません';
   }
+  // A partially canceled selected_occurrences target (some but not all
+  // targets canceled) is not whole-Opportunity terminal (see
+  // isTicketOpportunityRowEffectivelyCanceled) - the canceled target still
+  // needs to be distinguishable here using the same "中止" vocabulary used
+  // everywhere else, per Issue #172 root cause B's presentation rule.
   const labels = row.targetOccurrences.map((occurrence) => {
     const tokyoDate = tokyoCalendarDateFromInstant(occurrence.startsAt);
-    return `${tokyoMonthDayWeekdayLabel(tokyoDate)} ${tokyoTimeLabel(occurrence.startsAt)}`;
+    const base = `${tokyoMonthDayWeekdayLabel(tokyoDate)} ${tokyoTimeLabel(occurrence.startsAt)}`;
+    return isOccurrenceCanceled(occurrence) ? `${base}（中止）` : base;
   });
   return `対象公演回: ${labels.join('、')}`;
 }

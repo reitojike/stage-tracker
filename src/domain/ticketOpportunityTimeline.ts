@@ -1,5 +1,6 @@
 import type { EventCatalogEvent, EventOccurrence } from './eventCatalog.ts';
 import { sortOccurrences, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
+import { isEventCanceled } from './eventCancellation.ts';
 import { compareByFieldThenId } from './ordering.ts';
 import type {
   TicketOpportunityMilestoneTemporalPrecision,
@@ -36,14 +37,40 @@ export interface TicketOpportunityTimelineRow {
   sortInstant: string;
   eventTitle: string;
   eventVenue: string | null;
+  /** The parent Event's own effective cancellation (Issue #172 root cause
+   * B / Claude C1 + Codex X2): Event-level cancellation alone already
+   * makes the whole Opportunity terminal regardless of targetScope - see
+   * ticketOpportunityFormatting.ts's isTicketOpportunityRowEffectivelyCanceled,
+   * the single place this and targetOccurrences' own canceledAt are
+   * combined into the Opportunity-scope aggregation rule. */
+  eventCanceled: boolean;
   opportunityDisplayName: string;
   sourceUrl: string | null;
   targetScope: TicketOpportunityTargetScope;
   /** Only non-empty for a `selected_occurrences` Opportunity - empty for
    * `event_wide` by construction (mirrors TicketOpportunityWithDetails's own
    * targetOccurrenceIds convention, see domain/ticketOpportunity.ts). Sorted
-   * chronologically, same as every other occurrence list in this product. */
+   * chronologically, same as every other occurrence list in this product.
+   * Each occurrence's own canceledAt is preserved as-is (not collapsed) so
+   * the Opportunity-scope aggregation rule can tell "all targets canceled"
+   * from "some targets canceled" from "target set unresolved/empty".
+   * May be SHORTER than targetOccurrenceIdCount below when one or more
+   * target ids failed to resolve (dropped, not fabricated - see this
+   * module's own header) - callers must not treat that as "all resolved
+   * targets are canceled" without also checking completeness via
+   * targetOccurrenceIdCount (Issue #172 root cause B closure finding:
+   * partial target-resolution loss must never produce a false
+   * whole-Opportunity terminal state). */
   targetOccurrences: EventOccurrence[];
+  /** `detail.targetOccurrenceIds.length` - the full requested target count,
+   * independent of how many of those ids actually resolved into
+   * `targetOccurrences` above. Always 0 for `event_wide` (by construction).
+   * Exists solely so isTicketOpportunityRowEffectivelyCanceled
+   * (ticketOpportunityFormatting.ts) can require
+   * `targetOccurrences.length === targetOccurrenceIdCount` (a complete
+   * resolution) before applying the "every target canceled" rule - an
+   * incomplete resolution must never be read as "all canceled". */
+  targetOccurrenceIdCount: number;
   milestoneType: TicketOpportunityMilestoneType;
   temporalPrecision: TicketOpportunityMilestoneTemporalPrecision;
   dateValue: string | null;
@@ -103,10 +130,12 @@ export function buildTicketOpportunityTimelineRows(
         sortInstant: ticketOpportunityMilestoneSortInstant(milestone),
         eventTitle: event.title,
         eventVenue: event.venue,
+        eventCanceled: isEventCanceled(event),
         opportunityDisplayName: detail.opportunity.displayName,
         sourceUrl: detail.opportunity.sourceUrl,
         targetScope: detail.opportunity.targetScope,
         targetOccurrences,
+        targetOccurrenceIdCount: detail.targetOccurrenceIds.length,
         milestoneType: milestone.milestoneType,
         temporalPrecision: milestone.temporalPrecision,
         dateValue: milestone.dateValue,

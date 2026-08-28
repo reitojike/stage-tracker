@@ -12,6 +12,55 @@
 export const HAS_UTC_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/;
 export const HAS_CALENDAR_DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
 
+const CALENDAR_DATE_COMPONENTS = /^(\d{4})-(\d{2})-(\d{2})$/;
+const CALENDAR_DATETIME_COMPONENTS =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/;
+
+function isValidCalendarDate(year, month, day) {
+  if (month < 1 || month > 12) return false;
+  if (day < 1) return false;
+  // Date.UTC's month is 0-indexed, so passing our 1-indexed `month` with
+  // day 0 lands on the last day of the *previous* 0-indexed month - i.e.
+  // the last real day of `month` itself (year/leap-year aware, so Feb
+  // correctly reports 28 or 29 without a separate leap-year check).
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= daysInMonth;
+}
+
+function isValidClockTime(hour, minute, second) {
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 && second >= 0 && second <= 59;
+}
+
+/**
+ * Rejects impossible calendar dates (e.g. "2026-02-30") that `Date.parse`
+ * would otherwise silently normalize into a different, real instant
+ * instead of failing (Issue #172 root cause A / Codex X1: a malformed
+ * locator can resolve to the wrong Occurrence). Callers check
+ * HAS_CALENDAR_DATE_SHAPE first; this checks the actual calendar
+ * components that shape regex cannot.
+ */
+export function isValidCalendarDateString(value) {
+  const match = CALENDAR_DATE_COMPONENTS.exec(value);
+  if (match === null) return false;
+  return isValidCalendarDate(Number(match[1]), Number(match[2]), Number(match[3]));
+}
+
+/**
+ * Same hazard as isValidCalendarDateString, for a full ISO-8601
+ * date/time. Calendar date and clock-time components are validated
+ * independently of the trailing UTC offset (checked separately by
+ * callers via HAS_UTC_OFFSET) - the offset only shifts which instant a
+ * wall-clock reading names, not whether that wall-clock reading is
+ * itself real.
+ */
+export function isValidCalendarDateTimeString(value) {
+  const match = CALENDAR_DATETIME_COMPONENTS.exec(value);
+  if (match === null) return false;
+  const [, year, month, day, hour, minute, second] = match;
+  if (!isValidCalendarDate(Number(year), Number(month), Number(day))) return false;
+  return isValidClockTime(Number(hour), Number(minute), second === undefined ? 0 : Number(second));
+}
+
 // Matches ticket_opportunity_milestones' own CHECK constraint
 // (supabase/migrations/20260828000100_create_ticket_opportunity_milestones.sql)
 // - kept in sync by hand since this script has no import of src/domain/*
@@ -80,6 +129,13 @@ function validateMilestone(raw, at, problems) {
       return null;
     }
     if (date === null) return null;
+    // Shape-valid but calendar-impossible (e.g. "2026-02-30") must be
+    // rejected here rather than left to normalize into a different real
+    // date later (Issue #172 root cause A).
+    if (!isValidCalendarDateString(date)) {
+      problems.push(`${at}.date must be a real Asia/Tokyo calendar date`);
+      return null;
+    }
     return { milestone_type: type, temporal_precision: precision, date_value: date };
   }
 
@@ -97,6 +153,14 @@ function validateMilestone(raw, at, problems) {
     // close (#163 "datetimeにはexplicit offsetを要求").
     if (!HAS_UTC_OFFSET.test(atValue)) {
       problems.push(`${at}.at must carry an explicit UTC offset (e.g. +09:00)`);
+      return null;
+    }
+    // `Date.parse` above only proves the string is parseable - it still
+    // normalizes an impossible calendar/clock reading (e.g.
+    // "2026-02-30T10:00:00+09:00") into a different real instant instead
+    // of failing (Issue #172 root cause A / Codex X1).
+    if (!isValidCalendarDateTimeString(atValue)) {
+      problems.push(`${at}.at must be a real calendar date/time`);
       return null;
     }
     return { milestone_type: type, temporal_precision: precision, at: atValue };
@@ -123,6 +187,14 @@ function validateMilestone(raw, at, problems) {
   }
   if (!HAS_UTC_OFFSET.test(endsAt)) {
     problems.push(`${at}.endsAt must carry an explicit UTC offset (e.g. +09:00)`);
+    return null;
+  }
+  if (!isValidCalendarDateTimeString(startsAt)) {
+    problems.push(`${at}.startsAt must be a real calendar date/time`);
+    return null;
+  }
+  if (!isValidCalendarDateTimeString(endsAt)) {
+    problems.push(`${at}.endsAt must be a real calendar date/time`);
     return null;
   }
   if (endsAtMs < startsAtMs) {
@@ -183,6 +255,14 @@ export function validateSeedEntryShape(raw, where) {
         problems.push(
           `targetOccurrences[${index}] must carry an explicit UTC offset (e.g. +09:00)`,
         );
+        continue;
+      }
+      // A malformed locator that Date.parse still accepts by normalizing
+      // an impossible calendar/clock reading must not silently resolve to
+      // a different, real Occurrence at import time (Issue #172 root
+      // cause A / Codex X1).
+      if (!isValidCalendarDateTimeString(trimmed)) {
+        problems.push(`targetOccurrences[${index}] must be a real calendar date/time`);
         continue;
       }
       targetOccurrenceLocators.push(trimmed);

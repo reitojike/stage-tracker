@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 import { validateSeedEntryShape } from '../lib/ticketOpportunitySeed.mjs';
+import { loadAndValidateSeed } from '../lib/ticketOpportunityImport.mjs';
 
 function validEntry(overrides = {}) {
   return {
@@ -463,4 +467,203 @@ void test('artist/FC型: application window + result/payment window + a later ge
   assert.equal(generalSale.ok, true);
   const byType = new Map(fcLottery.entry.milestones.map((m) => [m.milestone_type, m]));
   assert.equal(byType.get('payment_window').temporal_precision, 'window');
+});
+
+// --- strict calendar-component validation (Issue #172 root cause A /
+// Codex X1: Date.parse() silently normalizes an impossible calendar date
+// like "2026-02-30" into a different, real instant instead of rejecting
+// it, which could resolve a malformed locator to the wrong Occurrence) ---
+
+void test('rejects an impossible date-precision milestone (Feb 30)', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [{ type: 'result_announcement', precision: 'date', date: '2026-02-30' }],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes('must be a real Asia/Tokyo calendar date')));
+});
+
+void test('rejects a non-leap-year Feb 29 date-precision milestone', () => {
+  // 2026 is not a leap year.
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [{ type: 'result_announcement', precision: 'date', date: '2026-02-29' }],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes('must be a real Asia/Tokyo calendar date')));
+});
+
+void test('accepts a valid leap-day date-precision milestone', () => {
+  // 2028 is a leap year.
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [{ type: 'result_announcement', precision: 'date', date: '2028-02-29' }],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.entry.milestones[0].date_value, '2028-02-29');
+});
+
+void test('rejects an impossible datetime-precision milestone (Feb 30)', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [
+        { type: 'application_close', precision: 'datetime', at: '2026-02-30T17:00:00+09:00' },
+      ],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes('must be a real calendar date/time')));
+});
+
+void test('rejects a datetime-precision milestone with an impossible clock time', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [
+        { type: 'application_close', precision: 'datetime', at: '2026-09-05T25:00:00+09:00' },
+      ],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, false);
+  // Date.parse() itself already rejects an out-of-range clock time (unlike
+  // an out-of-range calendar date, which it silently normalizes) - either
+  // rejection path is acceptable here, this test only pins the outcome.
+  assert.ok(
+    result.problems.some(
+      (p) =>
+        p.includes('must be a real calendar date/time') ||
+        p.includes('must be a parseable timestamp'),
+    ),
+  );
+});
+
+void test('accepts a valid leap-day datetime-precision milestone with offset', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [
+        { type: 'application_close', precision: 'datetime', at: '2028-02-29T17:00:00+09:00' },
+      ],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.entry.milestones[0].at, '2028-02-29T17:00:00+09:00');
+});
+
+void test('rejects a window milestone with an impossible startsAt', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [
+        {
+          type: 'payment_window',
+          precision: 'window',
+          startsAt: '2026-02-30T18:00:00+09:00',
+          endsAt: '2026-03-05T23:59:00+09:00',
+        },
+      ],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes('startsAt must be a real calendar date/time')));
+});
+
+void test('rejects a window milestone with an impossible endsAt', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      milestones: [
+        {
+          type: 'payment_window',
+          precision: 'window',
+          startsAt: '2026-03-01T18:00:00+09:00',
+          endsAt: '2026-02-30T23:59:00+09:00',
+        },
+      ],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes('endsAt must be a real calendar date/time')));
+});
+
+void test('rejects an impossible targetOccurrences locator', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: ['2026-02-30T10:00:00+09:00'],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes('must be a real calendar date/time')));
+});
+
+void test('accepts a valid leap-day targetOccurrences locator', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: ['2028-02-29T10:00:00+09:00'],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.entry.targetOccurrences, ['2028-02-29T10:00:00+09:00']);
+});
+
+void test('valid ISO timestamps with a required offset are still accepted across all precisions', () => {
+  const result = validateSeedEntryShape(
+    validEntry({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: ['2026-09-01T13:00:00+09:00'],
+      milestones: [
+        { type: 'application_open', precision: 'date', date: '2026-08-01' },
+        { type: 'application_close', precision: 'datetime', at: '2026-08-20T23:59:00+09:00' },
+        {
+          type: 'payment_window',
+          precision: 'window',
+          startsAt: '2026-08-21T00:00:00+09:00',
+          endsAt: '2026-08-25T23:59:00+09:00',
+        },
+      ],
+    }),
+    'x',
+  );
+  assert.equal(result.ok, true);
+});
+
+// --- invalid seed never reaches a DB write path (Issue #172) ---
+
+void test('an impossible calendar date fails loadAndValidateSeed before any DB lookup would occur', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ticket-opportunity-seed-'));
+  try {
+    const file = path.join(dir, 'seed.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify([
+        {
+          eventSourceKey: 'takarazuka:2026:example:tokyo',
+          sourceKey: 'takarazuka:2026:example:tokyo:lottery1',
+          displayName: '第1抽選',
+          targetScope: 'event_wide',
+          milestones: [{ type: 'result_announcement', precision: 'date', date: '2026-02-30' }],
+        },
+      ]),
+    );
+    const result = loadAndValidateSeed(dir);
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some((p) => p.includes('must be a real Asia/Tokyo calendar date')));
+    // ok:false here means import-ticket-opportunities.mjs's own
+    // `if (!loaded.ok) fail(...)` runs before resolveAdminTarget/
+    // resolvePlans/applyPlans are ever reached - no DB client is created
+    // for an invalid seed.
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

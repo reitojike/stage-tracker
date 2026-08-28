@@ -101,12 +101,17 @@ async function resolveParticipationEventsAndOccurrences(
  *
  * The four independent reads (identity, Opportunities, participations,
  * personal schedule) start together via Promise.all. Past that point, Block
- * A's own getEventsByIds(opportunityEventIds) call and Block B's own
+ * A's own getEventsByIds/getOccurrencesByIds(opportunityEventIds/
+ * opportunityOccurrenceIds) calls and Block B's own
  * resolveParticipationEventsAndOccurrences (its occurrences-then-their-events
- * two-hop chain) run as two separate promises in one more Promise.all,
- * rather than Block B's chain being nested *inside* a shared await that
- * would otherwise make its own second hop wait on Block A's unrelated event
- * fetch to finish first. Each block's own StatePanel then depends only on
+ * two-hop chain) run as separate promises in one more Promise.all, rather
+ * than Block B's chain being nested *inside* a shared await that would
+ * otherwise make its own second hop wait on Block A's unrelated fetches to
+ * finish first. Block A resolves its own Occurrences (not an empty Map) so
+ * the Issue #172 cancellation-aggregation rule can see each
+ * selected_occurrences target's own canceledAt, matching /tickets'
+ * (src/app/tickets/page.tsx) own composition. Each block's own StatePanel
+ * then depends only on
  * that block's own reads, so a read failure partway through one block's
  * chain never blocks the other from rendering - unlike /tickets and
  * /calendar (src/app/tickets/page.tsx, src/app/calendar/page.tsx), which
@@ -139,16 +144,29 @@ export default async function Home() {
   const opportunityEventIds = opportunitiesResult.ok
     ? [...new Set(opportunitiesResult.data.map((detail) => detail.opportunity.eventId))]
     : [];
+  // A selected_occurrences Opportunity's targets must be resolved here too
+  // (not left as an empty Map) - the Issue #172 cancellation-aggregation
+  // rule needs each target Occurrence's own canceledAt to tell "all targets
+  // canceled" from "some/none canceled", and an unresolved (always-empty)
+  // target set would otherwise silently read as "never canceled" for every
+  // selected_occurrences Opportunity Home shows.
+  const opportunityOccurrenceIds = opportunitiesResult.ok
+    ? [...new Set(opportunitiesResult.data.flatMap((detail) => detail.targetOccurrenceIds))]
+    : [];
   const participationOccurrenceIds = participationsResult.ok
     ? [...new Set(participationsResult.data.map((participation) => participation.occurrenceId))]
     : [];
 
-  const [opportunityEventsResult, participationEventsAndOccurrences] = await Promise.all([
-    opportunityEventIds.length === 0
-      ? Promise.resolve({ ok: true as const, data: [] })
-      : getEventsByIds(client, opportunityEventIds),
-    resolveParticipationEventsAndOccurrences(client, participationOccurrenceIds),
-  ]);
+  const [opportunityEventsResult, opportunityOccurrencesResult, participationEventsAndOccurrences] =
+    await Promise.all([
+      opportunityEventIds.length === 0
+        ? Promise.resolve({ ok: true as const, data: [] })
+        : getEventsByIds(client, opportunityEventIds),
+      opportunityOccurrenceIds.length === 0
+        ? Promise.resolve({ ok: true as const, data: [] })
+        : getOccurrencesByIds(client, opportunityOccurrenceIds),
+      resolveParticipationEventsAndOccurrences(client, participationOccurrenceIds),
+    ]);
   const {
     occurrencesResult: participationOccurrencesResult,
     eventsResult: participationEventsResult,
@@ -156,7 +174,7 @@ export default async function Home() {
 
   // --- Block A: 申し込み期限 ---
   let deadlineBlock: ReactNode;
-  if (!opportunitiesResult.ok || !opportunityEventsResult.ok) {
+  if (!opportunitiesResult.ok || !opportunityEventsResult.ok || !opportunityOccurrencesResult.ok) {
     deadlineBlock = (
       <StatePanel
         variant="unavailable"
@@ -168,10 +186,13 @@ export default async function Home() {
     const eventsById = new Map(
       opportunityEventsResult.data.map((event) => [event.id, event] as const),
     );
+    const occurrencesById = new Map(
+      opportunityOccurrencesResult.data.map((occurrence) => [occurrence.id, occurrence] as const),
+    );
     const timelineRows = buildTicketOpportunityTimelineRows(
       opportunitiesResult.data,
       eventsById,
-      new Map(),
+      occurrencesById,
     );
     const deadlineRows = selectHomeDeadlineRows(timelineRows, today);
     deadlineBlock =

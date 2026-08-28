@@ -212,6 +212,12 @@ void test('buildTicketOpportunityTimelineRows resolves selected_occurrences targ
     ['occ-earlier', 'occ-later'],
     'unresolvable occurrence ids are dropped, resolved ones are sorted chronologically',
   );
+  // Codex targeted-closure finding on PR #173: targetOccurrenceIdCount must
+  // reflect the full *requested* count (3, including the unresolvable
+  // occ-missing), not the resolved count (2) - this is what lets
+  // isTicketOpportunityRowEffectivelyCanceled (ticketOpportunityFormatting.ts)
+  // tell a partial resolution apart from a genuinely complete one.
+  assert.equal(rows[0].targetOccurrenceIdCount, 3);
 });
 
 void test('buildTicketOpportunityTimelineRows drops an Opportunity whose Event cannot be resolved', () => {
@@ -226,6 +232,74 @@ void test('buildTicketOpportunityTimelineRows drops an Opportunity whose Event c
 
   const rows = buildTicketOpportunityTimelineRows(details, new Map(), new Map());
   assert.deepEqual(rows, []);
+});
+
+void test("buildTicketOpportunityTimelineRows carries the parent Event's effective cancellation onto every row (Issue #172 root cause B)", () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-active' }),
+      targetOccurrenceIds: [],
+      milestones: [milestone({ id: 'ms-active', opportunityId: 'opp-active' })],
+      myState: null,
+    },
+    {
+      opportunity: opportunity({ id: 'opp-canceled', eventId: 'event-canceled' }),
+      targetOccurrenceIds: [],
+      milestones: [milestone({ id: 'ms-canceled', opportunityId: 'opp-canceled' })],
+      myState: null,
+    },
+  ];
+
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([
+      ['event-1', event({ id: 'event-1', canceledAt: null })],
+      ['event-canceled', event({ id: 'event-canceled', canceledAt: '2026-08-01T00:00:00.000Z' })],
+    ]),
+    new Map(),
+  );
+
+  const activeRow = rows.find((row) => row.id === 'ms-active');
+  const canceledRow = rows.find((row) => row.id === 'ms-canceled');
+  assert.equal(activeRow?.eventCanceled, false);
+  assert.equal(canceledRow?.eventCanceled, true);
+});
+
+void test("buildTicketOpportunityTimelineRows preserves each target Occurrence's own canceledAt (not collapsed)", () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-1', targetScope: 'selected_occurrences' }),
+      targetOccurrenceIds: ['occ-live', 'occ-canceled'],
+      milestones: [milestone({ id: 'ms-1', opportunityId: 'opp-1' })],
+      myState: null,
+    },
+  ];
+
+  const occurrencesById = new Map([
+    ['occ-live', occurrence({ id: 'occ-live', startsAt: '2026-09-10T00:00:00.000Z' })],
+    [
+      'occ-canceled',
+      occurrence({
+        id: 'occ-canceled',
+        startsAt: '2026-09-11T00:00:00.000Z',
+        canceledAt: '2026-08-01T00:00:00.000Z',
+      }),
+    ],
+  ]);
+
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    occurrencesById,
+  );
+
+  assert.equal(rows.length, 1);
+  const targets = rows[0]?.targetOccurrences ?? [];
+  assert.equal(targets.find((o) => o.id === 'occ-live')?.canceledAt, null);
+  assert.equal(
+    targets.find((o) => o.id === 'occ-canceled')?.canceledAt,
+    '2026-08-01T00:00:00.000Z',
+  );
 });
 
 void test('groupTicketOpportunityTimelineRowsByMonth groups contiguous same-month rows', () => {

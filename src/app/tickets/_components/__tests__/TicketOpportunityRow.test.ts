@@ -50,6 +50,11 @@ void test('the state controls module has no page-level "add" affordance for crea
   );
 });
 
+void test('the row shows a terminal 中止 badge when the whole Opportunity is effectively canceled (Issue #172 root cause B)', () => {
+  assert.match(rowSource, /isTicketOpportunityRowEffectivelyCanceled/);
+  assert.match(rowSource, /isCanceled \? <Badge variant="terminal">中止<\/Badge> : null/);
+});
+
 void test('the state controls cover every required transition, including applied -> planned', () => {
   // Issue #144 Task Contract: no row -> planned, planned -> applied,
   // applied -> planned, planned/applied -> remove -> no row. A prior
