@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   buildTicketOpportunityTimelineRows,
   groupTicketOpportunityTimelineRowsByMonth,
+  isTicketOpportunityTimelineRowPast,
+  selectTicketOpportunityPrimaryRows,
 } from '../ticketOpportunityTimeline.ts';
 import type { EventCatalogEvent, EventOccurrence } from '../eventCatalog.ts';
 import type {
@@ -335,4 +337,316 @@ void test('groupTicketOpportunityTimelineRowsByMonth groups contiguous same-mont
     groups[1]?.rows.map((r) => r.id),
     ['ms-oct-1'],
   );
+});
+
+// --- isTicketOpportunityTimelineRowPast (Issue #175) ------------------------
+
+void test('isTicketOpportunityTimelineRowPast: date precision is current through its own Asia/Tokyo day, past the day after', () => {
+  const row = {
+    temporalPrecision: 'date' as const,
+    dateValue: '2026-09-01',
+    at: null,
+    endsAt: null,
+  };
+  assert.equal(
+    isTicketOpportunityTimelineRowPast(row, '2026-08-31T20:00:00.000Z', '2026-09-01'),
+    false,
+    'the milestone day itself is still current, not past',
+  );
+  assert.equal(
+    isTicketOpportunityTimelineRowPast(row, '2026-09-02T20:00:00.000Z', '2026-09-02'),
+    true,
+    'the day after is past',
+  );
+});
+
+void test('isTicketOpportunityTimelineRowPast: datetime precision compares the exact instant', () => {
+  const row = {
+    temporalPrecision: 'datetime' as const,
+    dateValue: null,
+    at: '2026-09-01T08:00:00.000Z',
+    endsAt: null,
+  };
+  assert.equal(
+    isTicketOpportunityTimelineRowPast(row, '2026-09-01T07:59:59.999Z', '2026-09-01'),
+    false,
+    'just before `at` is not yet past',
+  );
+  assert.equal(
+    isTicketOpportunityTimelineRowPast(row, '2026-09-01T08:00:00.001Z', '2026-09-01'),
+    true,
+    'just after `at` is past',
+  );
+});
+
+void test('isTicketOpportunityTimelineRowPast: window precision is current for its whole span, past only after endsAt', () => {
+  const row = {
+    temporalPrecision: 'window' as const,
+    dateValue: null,
+    at: null,
+    endsAt: '2026-09-04T14:00:00.000Z',
+  };
+  assert.equal(
+    isTicketOpportunityTimelineRowPast(row, '2026-09-04T13:59:59.999Z', '2026-09-04'),
+    false,
+    'still within the window (just before endsAt) is not past',
+  );
+  assert.equal(
+    isTicketOpportunityTimelineRowPast(row, '2026-09-04T14:00:00.001Z', '2026-09-04'),
+    true,
+    'just after endsAt is past',
+  );
+});
+
+// --- selectTicketOpportunityPrimaryRows (Issue #175) ------------------------
+
+// The Issue #175 canonical worked example: one Opportunity with
+// 9/1 application_open, 9/4 application_close, 9/8 result_announcement,
+// checked at four fixed clock readings.
+function issueExampleDetails(): TicketOpportunityWithDetails[] {
+  return [
+    {
+      opportunity: opportunity({ id: 'opp-1' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({
+          id: 'ms-open',
+          opportunityId: 'opp-1',
+          milestoneType: 'application_open',
+          dateValue: '2026-09-01',
+        }),
+        milestone({
+          id: 'ms-close',
+          opportunityId: 'opp-1',
+          milestoneType: 'application_close',
+          dateValue: '2026-09-04',
+        }),
+        milestone({
+          id: 'ms-result',
+          opportunityId: 'opp-1',
+          milestoneType: 'result_announcement',
+          dateValue: '2026-09-08',
+        }),
+      ],
+      myState: null,
+    },
+  ];
+}
+
+function primaryRowIdsAt(todayTokyoDate: string): string[] {
+  const rows = buildTicketOpportunityTimelineRows(
+    issueExampleDetails(),
+    new Map([['event-1', event()]]),
+    new Map(),
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    `${todayTokyoDate}T03:00:00.000Z`,
+    todayTokyoDate,
+  );
+  return primary.map((row) => row.id);
+}
+
+void test('selectTicketOpportunityPrimaryRows: Issue #175 worked example switches as the clock advances', () => {
+  assert.deepEqual(primaryRowIdsAt('2026-08-30'), ['ms-open'], '8/30 -> 9/1だけ');
+  assert.deepEqual(
+    primaryRowIdsAt('2026-09-01'),
+    ['ms-open'],
+    'milestone day itself is still current',
+  );
+  assert.deepEqual(primaryRowIdsAt('2026-09-03'), ['ms-close'], '9/3 -> 9/4だけ');
+  assert.deepEqual(primaryRowIdsAt('2026-09-07'), ['ms-result'], '9/7 -> 9/8だけ');
+  assert.deepEqual(
+    primaryRowIdsAt('2026-09-10'),
+    [],
+    '9/10 -> Opportunity自体がprimary viewから消える',
+  );
+});
+
+void test('selectTicketOpportunityPrimaryRows: an active window is not fast-forwarded to the next milestone', () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-1' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({
+          id: 'ms-window',
+          opportunityId: 'opp-1',
+          milestoneType: 'payment_window',
+          temporalPrecision: 'window',
+          dateValue: null,
+          startsAt: '2026-09-01T00:00:00.000Z',
+          endsAt: '2026-09-05T00:00:00.000Z',
+        }),
+        milestone({
+          id: 'ms-after',
+          opportunityId: 'opp-1',
+          milestoneType: 'result_announcement',
+          dateValue: '2026-09-10',
+        }),
+      ],
+      myState: null,
+    },
+  ];
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    new Map(),
+  );
+
+  const beforeWindow = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-08-31T23:00:00.000Z',
+    '2026-09-01',
+  );
+  assert.deepEqual(
+    beforeWindow.map((r) => r.id),
+    ['ms-window'],
+    'upcoming: window not yet started',
+  );
+
+  const duringWindow = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-03T12:00:00.000Z',
+    '2026-09-03',
+  );
+  assert.deepEqual(
+    duringWindow.map((r) => r.id),
+    ['ms-window'],
+    'current: still the window, not fast-forwarded to the later milestone',
+  );
+
+  const afterWindow = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-06T00:00:00.000Z',
+    '2026-09-06',
+  );
+  assert.deepEqual(
+    afterWindow.map((r) => r.id),
+    ['ms-after'],
+    'past: window ended, advances to the next milestone',
+  );
+});
+
+void test('selectTicketOpportunityPrimaryRows: selects at most one row per Opportunity, chronologically interleaved across Opportunities', () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-a', displayName: 'A' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({ id: 'a-past', opportunityId: 'opp-a', dateValue: '2026-08-01' }),
+        milestone({
+          id: 'a-next',
+          opportunityId: 'opp-a',
+          milestoneType: 'application_close',
+          dateValue: '2026-09-05',
+        }),
+        milestone({
+          id: 'a-future',
+          opportunityId: 'opp-a',
+          milestoneType: 'result_announcement',
+          dateValue: '2026-09-20',
+        }),
+      ],
+      myState: myState({ opportunityId: 'opp-a', status: 'applied' }),
+    },
+    {
+      opportunity: opportunity({ id: 'opp-b', displayName: 'B' }),
+      targetOccurrenceIds: [],
+      milestones: [milestone({ id: 'b-next', opportunityId: 'opp-b', dateValue: '2026-09-02' })],
+      myState: null,
+    },
+  ];
+
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    new Map(),
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-01T03:00:00.000Z',
+    '2026-09-01',
+  );
+
+  assert.deepEqual(
+    primary.map((r) => r.id),
+    ['b-next', 'a-next'],
+    "one row per Opportunity, chronologically ordered - opp-a's past row and second future row are dropped",
+  );
+  assert.ok(
+    primary.every((row) => row.isFirstRowForOpportunity),
+    'every selected row is forced isFirstRowForOpportunity (personal-state control anchor)',
+  );
+  const aRow = primary.find((r) => r.opportunityId === 'opp-a');
+  assert.equal(
+    aRow?.myState,
+    'applied',
+    'personal planning state is preserved on the selected row',
+  );
+});
+
+void test('selectTicketOpportunityPrimaryRows: an Opportunity with no non-past milestones disappears entirely', () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-1' }),
+      targetOccurrenceIds: [],
+      milestones: [milestone({ id: 'ms-past', opportunityId: 'opp-1', dateValue: '2026-01-01' })],
+      myState: myState({ opportunityId: 'opp-1', status: 'planned' }),
+    },
+  ];
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    new Map(),
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-01T03:00:00.000Z',
+    '2026-09-01',
+  );
+  assert.deepEqual(
+    primary,
+    [],
+    'no future/current milestone remains, so the Opportunity is dropped',
+  );
+});
+
+void test('selectTicketOpportunityPrimaryRows: cancellation is preserved on the selected row (Issue #172)', () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-canceled', eventId: 'event-canceled' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({
+          id: 'ms-canceled-next',
+          opportunityId: 'opp-canceled',
+          dateValue: '2026-09-05',
+        }),
+      ],
+      myState: myState({ opportunityId: 'opp-canceled', status: 'planned' }),
+    },
+  ];
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([
+      ['event-canceled', event({ id: 'event-canceled', canceledAt: '2026-08-01T00:00:00.000Z' })],
+    ]),
+    new Map(),
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-01T03:00:00.000Z',
+    '2026-09-01',
+  );
+
+  assert.equal(primary.length, 1);
+  const row = primary[0];
+  assert.ok(row);
+  assert.equal(
+    row.eventCanceled,
+    true,
+    'a canceled Opportunity with a future milestone still surfaces',
+  );
+  assert.equal(row.myState, 'planned', 'canceling does not delete personal state');
 });

@@ -165,6 +165,107 @@ export function buildTicketOpportunityTimelineRows(
   });
 }
 
+/**
+ * Precision-specific past/non-past determination for one row (Issue #175
+ * Task Contract). Deliberately does NOT reuse
+ * ticketOpportunityMilestoneSortInstant (domain/ticketOpportunity.ts) as a
+ * past-判定 authority - that helper is explicitly ordering-only (see its own
+ * header: a `date` milestone's synthetic start-of-day-UTC sort value would
+ * make "past" flip at the wrong moment relative to Asia/Tokyo's own calendar
+ * day boundary). Each temporalPrecision instead compares against the
+ * semantically-correct reference:
+ *
+ * - `date`: Asia/Tokyo calendar date comparison against `todayTokyoDate` -
+ *   the milestone's own day is still non-past (current), only the day AFTER
+ *   it is past.
+ * - `datetime`: exact instant comparison against `nowInstant` - past the
+ *   moment `at` has elapsed.
+ * - `window`: past only once `endsAt` has elapsed - `startsAt` alone never
+ *   makes a window past (an active window stays non-past/current for its
+ *   whole span, matching the Task Contract's "active windowがある間は後続
+ *   milestoneへ早送りしない").
+ *
+ * `nowInstant` and a persisted `at`/`endsAt` can differ in offset notation/
+ * fractional-second precision (a client-computed `.toISOString()` vs a raw
+ * PostgREST timestamptz string) - see domain/ordering.ts's own caution on
+ * this - so instant comparisons go through Date.parse rather than a raw
+ * string compare, mirroring domain/homeUpcoming.ts's isAtOrAfter.
+ */
+export function isTicketOpportunityTimelineRowPast(
+  row: Pick<TicketOpportunityTimelineRow, 'temporalPrecision' | 'dateValue' | 'at' | 'endsAt'>,
+  nowInstant: string,
+  todayTokyoDate: string,
+): boolean {
+  if (row.temporalPrecision === 'date') {
+    if (row.dateValue === null) {
+      throw new Error('a date-precision milestone must carry dateValue');
+    }
+    return row.dateValue < todayTokyoDate;
+  }
+  if (row.temporalPrecision === 'datetime') {
+    if (row.at === null) {
+      throw new Error('a datetime-precision milestone must carry at');
+    }
+    return Date.parse(row.at) < Date.parse(nowInstant);
+  }
+  if (row.endsAt === null) {
+    throw new Error('a window-precision milestone must carry endsAt');
+  }
+  return Date.parse(row.endsAt) < Date.parse(nowInstant);
+}
+
+/**
+ * The /tickets primary-view projection (Issue #175): from the full #144
+ * chronological timeline (buildTicketOpportunityTimelineRows's output -
+ * every Opportunity's every milestone), select at most one row per
+ * Opportunity - its current-or-next (earliest non-past) milestone.
+ *
+ * `rows` MUST already be in the globally chronologically-sorted order
+ * buildTicketOpportunityTimelineRows produces. Each Opportunity's own rows
+ * form a monotonic (chronologically ascending) subsequence of that order
+ * (see that function's own header), so a single left-to-right scan that
+ * keeps the first non-past row encountered per opportunityId is exactly
+ * that Opportunity's earliest non-past milestone - no separate per-
+ * Opportunity re-sort needed. The output list's relative order is therefore
+ * already chronological, ready to feed straight into
+ * groupTicketOpportunityTimelineRowsByMonth (Task Contract: "選択済みrowだけを
+ * global chronology/month groupingへ流す").
+ *
+ * An Opportunity with zero non-past milestones contributes no row at all -
+ * it disappears from the primary view (Task Contract: "non-past milestoneが
+ * 1件も残っていないOpportunityはprimary viewに表示しない"). This is a pure
+ * past/non-past filter: it does not consult cancellation
+ * (isTicketOpportunityRowEffectivelyCanceled, ticketOpportunityFormatting.ts)
+ * - a canceled Opportunity's own non-past milestone still surfaces here, and
+ * continues to render its terminal 中止 presentation exactly as before (see
+ * that helper and TicketOpportunityRow.tsx), per #172's "canceledだから
+ * personal stateやrow自体を消さない" boundary.
+ *
+ * The selected row's isFirstRowForOpportunity is forced true: by
+ * construction at most one row survives per Opportunity here, so it is
+ * always the (only, hence first) row the UI should attach the personal
+ * `planned`/`applied` state control to (TicketOpportunityRow.tsx).
+ */
+export function selectTicketOpportunityPrimaryRows(
+  rows: readonly TicketOpportunityTimelineRow[],
+  nowInstant: string,
+  todayTokyoDate: string,
+): TicketOpportunityTimelineRow[] {
+  const selected: TicketOpportunityTimelineRow[] = [];
+  const selectedOpportunityIds = new Set<string>();
+  for (const row of rows) {
+    if (selectedOpportunityIds.has(row.opportunityId)) {
+      continue;
+    }
+    if (isTicketOpportunityTimelineRowPast(row, nowInstant, todayTokyoDate)) {
+      continue;
+    }
+    selectedOpportunityIds.add(row.opportunityId);
+    selected.push({ ...row, isFirstRowForOpportunity: true });
+  }
+  return selected;
+}
+
 export interface TicketOpportunityTimelineMonthGroup {
   /** "YYYY-MM", Asia/Tokyo. */
   monthKey: string;

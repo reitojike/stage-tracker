@@ -6,9 +6,10 @@ import { getEventsByIds, getOccurrencesByIds } from '@/infrastructure/supabase/e
 import {
   buildTicketOpportunityTimelineRows,
   groupTicketOpportunityTimelineRowsByMonth,
+  selectTicketOpportunityPrimaryRows,
 } from '@/domain/ticketOpportunityTimeline.ts';
 import type { PlanningError } from '@/domain/planningError.ts';
-import { currentTokyoDate } from './_lib/today.ts';
+import { currentInstant, currentTokyoDate } from './_lib/today.ts';
 import { TicketOpportunityTimeline } from './_components/TicketOpportunityTimeline.tsx';
 
 const AUTH_FAILURE_PANEL: Record<
@@ -50,22 +51,31 @@ function readFailurePanel() {
 }
 
 /**
- * /tickets (Issue #144): the shared official Ticket schedule timeline, plus
- * the caller's own lightweight "申し込む予定 / 申し込み済み" planning state
- * per Opportunity. Canonical read source is #162's typed boundary
- * (listTicketOpportunitiesWithDetails) - Event title/venue and target
- * Occurrence date/time are composed in from the existing Event Catalog
- * typed read boundary (getEventsByIds/getOccurrencesByIds), the same
- * composition style src/app/calendar/page.tsx already established. This
- * page never reads legacy ticket_acquisitions/tickets/ticket_transfers, and
- * adds no Opportunity-creation affordance of its own (product-rules.md
- * "Shared / personal authority boundary").
+ * /tickets (Issue #144, forward-looking primary view since Issue #175): a
+ * per-Opportunity "what's next" surface, plus the caller's own lightweight
+ * "申し込む予定 / 申し込み済み" planning state per Opportunity. Canonical read
+ * source is #162's typed boundary (listTicketOpportunitiesWithDetails) -
+ * Event title/venue and target Occurrence date/time are composed in from the
+ * existing Event Catalog typed read boundary (getEventsByIds/
+ * getOccurrencesByIds), the same composition style src/app/calendar/page.tsx
+ * already established. This page never reads legacy ticket_acquisitions/
+ * tickets/ticket_transfers, and adds no Opportunity-creation affordance of
+ * its own (product-rules.md "Shared / personal authority boundary").
+ *
+ * #144's own buildTicketOpportunityTimelineRows still flattens every
+ * Opportunity's every milestone into one chronological row list unchanged
+ * (Home's deadline projection, domain/homeDeadlines.ts, still consumes that
+ * full list) - selectTicketOpportunityPrimaryRows (domain/
+ * ticketOpportunityTimeline.ts) is the #175 projection on top of it that
+ * this page alone applies: at most one (current-or-next, non-past) row per
+ * Opportunity, before month-grouping.
  *
  * Auth/read failures are surfaced as a distinct `error` StatePanel, never
  * silently collapsed into the same "no data" empty state a genuinely empty
  * schedule would show (docs/ux-ui.md "Common states").
  */
 export default async function TicketsPage() {
+  const now = currentInstant();
   const today = currentTokyoDate();
   const client = await createSupabaseServerClient();
 
@@ -106,12 +116,13 @@ export default async function TicketsPage() {
   );
 
   const rows = buildTicketOpportunityTimelineRows(details, eventsById, occurrencesById);
-  const monthGroups = groupTicketOpportunityTimelineRowsByMonth(rows);
+  const primaryRows = selectTicketOpportunityPrimaryRows(rows, now, today);
+  const monthGroups = groupTicketOpportunityTimelineRowsByMonth(primaryRows);
 
   return (
     <>
       <PageHeading>チケット</PageHeading>
-      {rows.length === 0 ? (
+      {primaryRows.length === 0 ? (
         <StatePanel variant="empty" title="現在表示できる抽選・販売スケジュールはありません" />
       ) : (
         <TicketOpportunityTimeline monthGroups={monthGroups} todayTokyoDate={today} />
