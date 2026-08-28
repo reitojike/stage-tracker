@@ -31,6 +31,15 @@
 // occurrence(s) the caller actually registered. The Event Catalog's own
 // `/catalog` Event-range band (calendarMonth.ts) is unrelated and
 // unchanged.
+//
+// Cancellation-awareness (Issue #180): the month-level participation dot
+// and its accessible attending/considering counts exclude occurrences that
+// are effectively canceled (src/domain/eventCancellation.ts's
+// isEffectivelyCanceled, reused rather than re-derived - see
+// activeOccurrenceEntries below). This is bounded to the month-level
+// aggregation only: participation records, selected-day detail (still
+// showing canceled occurrences with the existing "中止" presentation), and
+// personal-schedule marker semantics are all unchanged.
 
 import {
   addDaysToDate,
@@ -52,6 +61,7 @@ import {
   type EventOccurrence,
   type EventWithOccurrences,
 } from './eventCatalog.ts';
+import { isEffectivelyCanceled } from './eventCancellation.ts';
 import type { Participation } from './participation.ts';
 import type { PersonalScheduleEntry } from './personalSchedule.ts';
 import type { TicketAcquisition } from './ticketAcquisition.ts';
@@ -369,7 +379,10 @@ export function buildMyCalendarWeekBandLayouts(
  * here regardless of whether its parent Event is single- or multi-day
  * (Issue #174 supersedes Issue #142's Event-band rule - see the module
  * comment above MyCalendarBandSegment): a participation marker is always an
- * exact-date dot, never a band. A multi-day *schedule* entry still never
+ * exact-date dot, never a band. An effectively-canceled occurrence (Issue
+ * #180 - see activeOccurrenceEntries below) never contributes a
+ * participation signal here, even if it is the only occurrence registered
+ * on this date. A multi-day *schedule* entry still never
  * reaches this - it is represented by a band instead (see
  * buildMyCalendarWeekBandLayouts above), so a day's dot and its schedule
  * bands are always about disjoint schedule sources. At most one dot per day
@@ -378,21 +391,39 @@ export function buildMyCalendarWeekBandLayouts(
  */
 export type MyCalendarDotState = 'filled' | 'outline' | 'none';
 
-function computeDotState(
+/**
+ * `dayOccurrences` narrowed to only those whose occurrence is not
+ * effectively canceled (Issue #180: Event-level or Occurrence-level
+ * cancellation - `src/domain/eventCancellation.ts`'s `isEffectivelyCanceled`,
+ * reused rather than re-derived). Both the visible dot (computeDotState) and
+ * the accessible attending/considering counts (buildMyCalendarDayMarkers)
+ * classify against this same filtered set, so they can never disagree about
+ * which occurrences count as active participation. A canceled occurrence's
+ * participation record is untouched and still reachable via the
+ * selected-day detail (selectMyCalendarOccurrenceEntries, which does not
+ * filter by cancellation) - only this month-level aggregation excludes it.
+ */
+function activeOccurrenceEntries(
   dayOccurrences: readonly MyCalendarOccurrenceEntry[],
+): MyCalendarOccurrenceEntry[] {
+  return dayOccurrences.filter((entry) => !isEffectivelyCanceled(entry.event, entry.occurrence));
+}
+
+function computeDotState(
+  activeDayOccurrences: readonly MyCalendarOccurrenceEntry[],
   daySchedules: readonly MyCalendarScheduleEntry[],
 ): MyCalendarDotState {
   const singleDaySchedules = daySchedules.filter((s) => isSingleDayScheduleEntry(s.entry));
 
   const filled =
-    dayOccurrences.some((entry) => entry.participation.status === 'attending') ||
+    activeDayOccurrences.some((entry) => entry.participation.status === 'attending') ||
     singleDaySchedules.some((s) => s.entry.blocking);
   if (filled) {
     return 'filled';
   }
 
   const outlined =
-    dayOccurrences.some((entry) => entry.participation.status === 'considering') ||
+    activeDayOccurrences.some((entry) => entry.participation.status === 'considering') ||
     singleDaySchedules.some((s) => !s.entry.blocking);
   return outlined ? 'outline' : 'none';
 }
@@ -409,16 +440,20 @@ export interface MyCalendarDayMarkers {
   holidayDataConfirmed: boolean;
   /** The unified single-day marker for this day - see computeDotState. */
   dot: MyCalendarDotState;
-  /** Occurrences on this day whose participation.status is 'attending'
-   * (Issue #92: month-calendar scanability requires attending/considering
-   * to read as distinct signals, never collapsed into one generic
-   * "participation-registered" count - a day with both must show both).
-   * Kept as an aria-label/emptiness signal independent of `dot` above,
-   * though both now count the same occurrences (Issue #174: participation
-   * is never band-represented, so there is no single-/multi-day Event split
-   * left for `dot` to narrow past this count). */
+  /** Occurrences on this day whose participation.status is 'attending' and
+   * whose occurrence is not effectively canceled (Issue #92: month-calendar
+   * scanability requires attending/considering to read as distinct signals,
+   * never collapsed into one generic "participation-registered" count - a
+   * day with both must show both). Kept as an aria-label/emptiness signal
+   * independent of `dot` above, though both now count the same
+   * cancellation-filtered occurrence set (Issue #174: participation is
+   * never band-represented, so there is no single-/multi-day Event split
+   * left for `dot` to narrow past this count; Issue #180: both exclude
+   * effectively-canceled occurrences via the same activeOccurrenceEntries
+   * filter, so a canceled-only day never reads as "参加予定公演N件"). */
   attendingCount: number;
-  /** Occurrences on this day whose participation.status is 'considering'. */
+  /** Occurrences on this day whose participation.status is 'considering'
+   * and whose occurrence is not effectively canceled (Issue #180). */
   consideringCount: number;
   ownScheduleCount: number;
   sharedScheduleCount: number;
@@ -447,6 +482,7 @@ export function buildMyCalendarDayMarkers(
 
   return gridDates.map((date) => {
     const dayOccurrences = selectMyCalendarOccurrenceEntries(occurrenceEntries, date);
+    const activeDayOccurrences = activeOccurrenceEntries(dayOccurrences);
     const daySchedules = selectMyCalendarScheduleEntries(
       scheduleEntries,
       callerId,
@@ -458,10 +494,11 @@ export function buildMyCalendarDayMarkers(
       date,
       role: calendarDayRole(date),
       holidayDataConfirmed: isWithinJapaneseHolidayDataCoverage(date),
-      dot: computeDotState(dayOccurrences, daySchedules),
-      attendingCount: dayOccurrences.filter((entry) => entry.participation.status === 'attending')
-        .length,
-      consideringCount: dayOccurrences.filter(
+      dot: computeDotState(activeDayOccurrences, daySchedules),
+      attendingCount: activeDayOccurrences.filter(
+        (entry) => entry.participation.status === 'attending',
+      ).length,
+      consideringCount: activeDayOccurrences.filter(
         (entry) => entry.participation.status === 'considering',
       ).length,
       ownScheduleCount: daySchedules.filter((s) => s.isOwner).length,
