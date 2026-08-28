@@ -1,0 +1,12 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-2xs);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
