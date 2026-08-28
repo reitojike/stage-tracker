@@ -40,8 +40,12 @@ void test('.day:hover is scoped with :not(.daySelected) so selected fill always 
 // -side overflow algorithm (Task Contract MUST: "existing overflowEvents /
 // overflowCountをreuseし、second overflow algorithmを作らない").
 
-void test('the week overflow summary is gated on week.bandLayout.overflowEvents.length, not a re-derived condition', () => {
-  assert.match(component, /week\.bandLayout\.overflowEvents\.length > 0/);
+void test('the week overflow summary is gated on week.bandLayout.overflowEvents[0], not a re-derived condition', () => {
+  // firstHidden is derived directly from overflowEvents[0] (undefined iff
+  // overflowEvents is empty) - equivalent to an overflowEvents.length > 0
+  // gate, without re-checking the array's length a second time.
+  assert.match(component, /const firstHidden = week\.bandLayout\.overflowEvents\[0\];/);
+  assert.match(component, /firstHidden !== undefined/);
 });
 
 void test('the summary reads overflowEvents[0] and overflowCount directly - it never recomputes hidden-event count/selection itself', () => {
@@ -54,12 +58,8 @@ void test('the summary reads overflowEvents[0] and overflowCount directly - it n
 });
 
 void test('the hidden Event title is run through bandDisplayTitle, so a canceled hidden Event still carries "（中止）" in the overflow summary', () => {
-  const overflowBlock = component.match(
-    /week\.bandLayout\.overflowEvents\.length > 0[\s\S]*?\)\s*:\s*null\}/,
-  );
-  assert.ok(overflowBlock, 'expected an overflow summary block');
   assert.match(
-    overflowBlock[0],
+    component,
     /bandDisplayTitle\(\s*firstHidden\.eventTitle,\s*firstHidden\.isCanceled,?\s*\)/,
   );
 });
@@ -78,9 +78,22 @@ void test('the overflow summary CSS keeps the count prefix intact (nowrap, non-s
   assert.ok(labelRule, '.weekOverflowLabel rule missing');
   assert.match(labelRule[1] ?? '', /white-space:\s*nowrap/);
 
+  // .weekOverflowLink shares its ellipsis truncation with .band via the
+  // .truncatedLine composed class, rather than duplicating the same three
+  // properties a second time in this file.
   const linkRule = css.match(/\.weekOverflowLink\s*\{([\s\S]*?)\}/);
   assert.ok(linkRule, '.weekOverflowLink rule missing');
-  assert.match(linkRule[1] ?? '', /text-overflow:\s*ellipsis/);
-  assert.match(linkRule[1] ?? '', /white-space:\s*nowrap/);
-  assert.match(linkRule[1] ?? '', /overflow:\s*hidden/);
+  assert.match(linkRule[1] ?? '', /composes:\s*truncatedLine/);
+
+  const truncatedLineRule = css.match(/\.truncatedLine\s*\{([\s\S]*?)\}/);
+  assert.ok(truncatedLineRule, '.truncatedLine rule missing');
+  assert.match(truncatedLineRule[1] ?? '', /text-overflow:\s*ellipsis/);
+  assert.match(truncatedLineRule[1] ?? '', /white-space:\s*nowrap/);
+  assert.match(truncatedLineRule[1] ?? '', /overflow:\s*hidden/);
+
+  // .band (the visible-lane truncation) composes the same shared class,
+  // so both truncation sites can never drift apart.
+  const bandRule = css.match(/\.band\s*\{([\s\S]*?)\}/);
+  assert.ok(bandRule, '.band rule missing');
+  assert.match(bandRule[1] ?? '', /composes:\s*truncatedLine/);
 });

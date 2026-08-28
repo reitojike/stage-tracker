@@ -258,7 +258,16 @@
    (design_handoff_stage_tracker/issues/06-calendar-markers.md); no category
    label prefix is rendered (this codebase has no classification/category
    data yet - see that Issue's "Do not invent product semantics"). */
+/* Single-line ellipsis truncation, shared by .band and .weekOverflowLink
+   below so the two never drift out of sync on how a title gets bounded. */
+.truncatedLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .band {
+  composes: truncatedLine;
   display: flex;
   align-items: center;
   padding-inline: 3px;
@@ -266,9 +275,6 @@
   font-size: var(--font-size-caption);
   line-height: 1.6;
   min-height: 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   margin-top: var(--space-2xs);
   font-weight: var(--font-weight-semibold);
 }
@@ -306,11 +312,9 @@
 }
 
 .weekOverflowLink {
+  composes: truncatedLine;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--color-text-secondary);
   text-decoration: underline;
 }
