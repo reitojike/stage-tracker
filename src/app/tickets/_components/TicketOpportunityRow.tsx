@@ -3,6 +3,7 @@ import { isRenderableHttpUrl } from '@/domain/catalogFormatting.ts';
 import {
   formatTicketOpportunityMilestoneDisplay,
   isActionableTicketOpportunityDeadline,
+  isTicketOpportunityRowEffectivelyCanceled,
   ticketOpportunityDeadlineRemainingDaysLabel,
   ticketOpportunityMilestoneTypeLabel,
   ticketOpportunityStateBadgeVariant,
@@ -32,6 +33,7 @@ export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityR
   const display = formatTicketOpportunityMilestoneDisplay(row);
   const isActionableDeadline = isActionableTicketOpportunityDeadline(row, todayTokyoDate);
   const remainingLabel = ticketOpportunityDeadlineRemainingDaysLabel(row, todayTokyoDate);
+  const isCanceled = isTicketOpportunityRowEffectivelyCanceled(row);
 
   return (
     <li className={styles.row}>
@@ -44,6 +46,7 @@ export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityR
       <div className={styles.body}>
         <div className={styles.badgeRow}>
           <Badge variant="outline">{ticketOpportunityMilestoneTypeLabel(row.milestoneType)}</Badge>
+          {isCanceled ? <Badge variant="terminal">中止</Badge> : null}
           {row.myState !== null ? (
             <Badge variant={ticketOpportunityStateBadgeVariant(row.myState)}>
               {ticketOpportunityStateLabel(row.myState)}

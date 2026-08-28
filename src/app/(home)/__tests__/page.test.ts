@@ -36,3 +36,11 @@ void test('the upcoming block reuses the shared participation + personal-schedul
 void test('an unauthenticated caller sees a page-level error, not a silently-empty dashboard', () => {
   assert.match(pageSource, /callerResult\.ok/);
 });
+
+void test('the deadline block resolves target Occurrences (not an empty Map), so cancellation-aggregation can see selected_occurrences targets (Issue #172 root cause B)', () => {
+  assert.match(pageSource, /getOccurrencesByIds\(client, opportunityOccurrenceIds\)/);
+  assert.doesNotMatch(
+    pageSource,
+    /buildTicketOpportunityTimelineRows\(\s*opportunitiesResult\.data,\s*eventsById,\s*new Map\(\),?\s*\)/,
+  );
+});

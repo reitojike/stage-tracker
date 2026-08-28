@@ -228,6 +228,74 @@ void test('buildTicketOpportunityTimelineRows drops an Opportunity whose Event c
   assert.deepEqual(rows, []);
 });
 
+void test("buildTicketOpportunityTimelineRows carries the parent Event's effective cancellation onto every row (Issue #172 root cause B)", () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-active' }),
+      targetOccurrenceIds: [],
+      milestones: [milestone({ id: 'ms-active', opportunityId: 'opp-active' })],
+      myState: null,
+    },
+    {
+      opportunity: opportunity({ id: 'opp-canceled', eventId: 'event-canceled' }),
+      targetOccurrenceIds: [],
+      milestones: [milestone({ id: 'ms-canceled', opportunityId: 'opp-canceled' })],
+      myState: null,
+    },
+  ];
+
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([
+      ['event-1', event({ id: 'event-1', canceledAt: null })],
+      ['event-canceled', event({ id: 'event-canceled', canceledAt: '2026-08-01T00:00:00.000Z' })],
+    ]),
+    new Map(),
+  );
+
+  const activeRow = rows.find((row) => row.id === 'ms-active');
+  const canceledRow = rows.find((row) => row.id === 'ms-canceled');
+  assert.equal(activeRow?.eventCanceled, false);
+  assert.equal(canceledRow?.eventCanceled, true);
+});
+
+void test("buildTicketOpportunityTimelineRows preserves each target Occurrence's own canceledAt (not collapsed)", () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-1', targetScope: 'selected_occurrences' }),
+      targetOccurrenceIds: ['occ-live', 'occ-canceled'],
+      milestones: [milestone({ id: 'ms-1', opportunityId: 'opp-1' })],
+      myState: null,
+    },
+  ];
+
+  const occurrencesById = new Map([
+    ['occ-live', occurrence({ id: 'occ-live', startsAt: '2026-09-10T00:00:00.000Z' })],
+    [
+      'occ-canceled',
+      occurrence({
+        id: 'occ-canceled',
+        startsAt: '2026-09-11T00:00:00.000Z',
+        canceledAt: '2026-08-01T00:00:00.000Z',
+      }),
+    ],
+  ]);
+
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    occurrencesById,
+  );
+
+  assert.equal(rows.length, 1);
+  const targets = rows[0]?.targetOccurrences ?? [];
+  assert.equal(targets.find((o) => o.id === 'occ-live')?.canceledAt, null);
+  assert.equal(
+    targets.find((o) => o.id === 'occ-canceled')?.canceledAt,
+    '2026-08-01T00:00:00.000Z',
+  );
+});
+
 void test('groupTicketOpportunityTimelineRowsByMonth groups contiguous same-month rows', () => {
   const details: TicketOpportunityWithDetails[] = [
     {

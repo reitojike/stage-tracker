@@ -218,6 +218,20 @@ export function CatalogView({
             <StatePanel variant="empty" title="この月に登録されている公演はありません" />
           ) : null}
 
+          {/* Issue #172 root cause C (Claude C2): the raw-range-empty
+              StatePanel above only fires when the *unfiltered* month has no
+              Events at all. An applied filter that reduces a non-empty raw
+              month to zero results is a distinct situation - reuses the
+              same `filteredEvents` this component already computes (no
+              second filter predicate), gated so it never conflates with, or
+              fires alongside, the raw-empty message above. */}
+          {!isEmptyRange &&
+          selectedDate === null &&
+          isFilterActive &&
+          filteredEvents.length === 0 ? (
+            <StatePanel variant="empty" title="選択した条件に一致するイベントはありません" />
+          ) : null}
+
           {selectedDate !== null ? (
             <>
               <EventLevelFallbackList

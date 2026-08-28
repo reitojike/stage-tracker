@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { selectHomeDeadlineRows } from '../homeDeadlines.ts';
+import type { EventOccurrence } from '../eventCatalog.ts';
 import type { TicketOpportunityTimelineRow } from '../ticketOpportunityTimeline.ts';
 
 function baseRow(
@@ -12,6 +13,7 @@ function baseRow(
     sortInstant: '2026-09-01T00:00:00.000Z',
     eventTitle: 'イベントA',
     eventVenue: '会場A',
+    eventCanceled: false,
     opportunityDisplayName: '第1抽選',
     sourceUrl: null,
     targetScope: 'event_wide',
@@ -24,6 +26,20 @@ function baseRow(
     endsAt: null,
     myState: 'planned',
     isFirstRowForOpportunity: false,
+    ...overrides,
+  };
+}
+
+function occurrence(overrides: Partial<EventOccurrence> = {}): EventOccurrence {
+  return {
+    id: 'occ-1',
+    eventId: 'event-1',
+    doorsAt: null,
+    startsAt: '2026-09-10T02:00:00.000Z',
+    endsAt: null,
+    canceledAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -106,4 +122,40 @@ void test('selectHomeDeadlineRows: today-precision deadline still counts as acti
 
 void test('selectHomeDeadlineRows: empty input yields an empty list', () => {
   assert.deepEqual(selectHomeDeadlineRows([], TODAY), []);
+});
+
+// --- Issue #172 root cause B: a whole-Opportunity-canceled target must
+// never surface as an actionable Home deadline ---
+
+void test('selectHomeDeadlineRows excludes an Event-canceled Opportunity even when otherwise actionable', () => {
+  const rows = [baseRow({ id: 'canceled-event', eventCanceled: true }), baseRow({ id: 'live' })];
+  const selected = selectHomeDeadlineRows(rows, TODAY);
+  assert.deepEqual(
+    selected.map((row) => row.id),
+    ['live'],
+  );
+});
+
+void test('selectHomeDeadlineRows excludes a selected_occurrences target only when every target is canceled', () => {
+  const rows = [
+    baseRow({
+      id: 'all-canceled',
+      targetScope: 'selected_occurrences',
+      targetOccurrences: [occurrence({ canceledAt: '2026-08-01T00:00:00.000Z' })],
+    }),
+    baseRow({
+      id: 'partially-canceled',
+      targetScope: 'selected_occurrences',
+      targetOccurrences: [
+        occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
+        occurrence({ id: 'occ-2', canceledAt: null }),
+      ],
+    }),
+  ];
+  const selected = selectHomeDeadlineRows(rows, TODAY);
+  assert.deepEqual(
+    selected.map((row) => row.id),
+    ['partially-canceled'],
+    'a live target remains actionable even though a sibling target is canceled',
+  );
 });

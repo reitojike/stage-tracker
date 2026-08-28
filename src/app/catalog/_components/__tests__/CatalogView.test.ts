@@ -74,3 +74,27 @@ void test("CatalogView.module.css defines the active dot as a supplementary (non
   assert.match(css, /\.activeDot\s*\{/);
   assert.match(css, /background-color: var\(--color-accent\);/);
 });
+
+// --- Issue #172 root cause C: applied-filter zero-result feedback ---
+
+void test('an applied filter that reduces a non-empty raw month to zero shows a distinct StatePanel, gated so it never fires alongside the raw-empty one', () => {
+  assert.match(
+    component,
+    /!isEmptyRange &&\s*selectedDate === null &&\s*isFilterActive &&\s*filteredEvents\.length === 0 \? \(/,
+  );
+  assert.match(component, /選択した条件に一致するイベントはありません/);
+});
+
+void test('the filtered-zero message is a distinct string from the raw-range-empty message', () => {
+  assert.match(component, /この月に登録されている公演はありません/);
+  assert.match(component, /選択した条件に一致するイベントはありません/);
+  assert.notEqual(
+    /この月に登録されている公演はありません/.exec(component)?.[0],
+    /選択した条件に一致するイベントはありません/.exec(component)?.[0],
+  );
+});
+
+void test('the filtered-zero message reuses filteredEvents, never a second filter predicate', () => {
+  const filterCalls = component.match(/filterCatalogEvents\(/g) ?? [];
+  assert.equal(filterCalls.length, 1, 'still exactly one filterCatalogEvents call site');
+});

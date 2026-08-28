@@ -1,5 +1,6 @@
 import type { EventCatalogEvent, EventOccurrence } from './eventCatalog.ts';
 import { sortOccurrences, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
+import { isEventCanceled } from './eventCancellation.ts';
 import { compareByFieldThenId } from './ordering.ts';
 import type {
   TicketOpportunityMilestoneTemporalPrecision,
@@ -36,13 +37,23 @@ export interface TicketOpportunityTimelineRow {
   sortInstant: string;
   eventTitle: string;
   eventVenue: string | null;
+  /** The parent Event's own effective cancellation (Issue #172 root cause
+   * B / Claude C1 + Codex X2): Event-level cancellation alone already
+   * makes the whole Opportunity terminal regardless of targetScope - see
+   * ticketOpportunityFormatting.ts's isTicketOpportunityRowEffectivelyCanceled,
+   * the single place this and targetOccurrences' own canceledAt are
+   * combined into the Opportunity-scope aggregation rule. */
+  eventCanceled: boolean;
   opportunityDisplayName: string;
   sourceUrl: string | null;
   targetScope: TicketOpportunityTargetScope;
   /** Only non-empty for a `selected_occurrences` Opportunity - empty for
    * `event_wide` by construction (mirrors TicketOpportunityWithDetails's own
    * targetOccurrenceIds convention, see domain/ticketOpportunity.ts). Sorted
-   * chronologically, same as every other occurrence list in this product. */
+   * chronologically, same as every other occurrence list in this product.
+   * Each occurrence's own canceledAt is preserved as-is (not collapsed) so
+   * the Opportunity-scope aggregation rule can tell "all targets canceled"
+   * from "some targets canceled" from "target set unresolved/empty". */
   targetOccurrences: EventOccurrence[];
   milestoneType: TicketOpportunityMilestoneType;
   temporalPrecision: TicketOpportunityMilestoneTemporalPrecision;
@@ -103,6 +114,7 @@ export function buildTicketOpportunityTimelineRows(
         sortInstant: ticketOpportunityMilestoneSortInstant(milestone),
         eventTitle: event.title,
         eventVenue: event.venue,
+        eventCanceled: isEventCanceled(event),
         opportunityDisplayName: detail.opportunity.displayName,
         sourceUrl: detail.opportunity.sourceUrl,
         targetScope: detail.opportunity.targetScope,
