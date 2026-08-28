@@ -25,70 +25,45 @@
   flex-direction: column;
 }
 
-/* Plain row divided by a bottom border, not a card Surface - mirrors
-   src/app/calendar/_components/MySelectedDayList.module.css's own
-   precedent (Issue #146: no Surface-per-row). Both occurrence and
-   personal-schedule rows share this same shape so the two read as one
-   mixed list. */
-.item:not(:last-child) {
-  border-bottom: 1px solid var(--color-border);
+/*
+ * Home's occurrence/personal-schedule row is the exact same "plain row,
+ * bottom-border, no card Surface" shape My Calendar's own selected-day list
+ * already established (Issue #146) - shared via `composes` (same mechanism
+ * page.module.css's blockHeading uses for My Page's section-heading rule)
+ * rather than a second byte-identical copy of the same nine rules.
+ */
+.item {
+  composes: item from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .itemLink {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-card-block) 0;
-  text-decoration: none;
-  color: inherit;
-  touch-action: manipulation;
-}
-
-.itemLink:hover {
-  background-color: var(--color-surface-subtle);
-}
-
-.itemLink:active {
-  background-color: var(--color-surface-active);
+  composes: itemLink from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .itemBody {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-xs);
-  min-width: 0;
+  composes: itemBody from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .chevron {
-  flex-shrink: 0;
-  color: var(--color-icon-affordance);
+  composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .time {
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-secondary);
+  composes: time from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .title {
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-title);
-  color: var(--color-text);
+  composes: title from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .venue {
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-secondary);
+  composes: venue from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .badgeRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
-  margin-top: var(--space-2xs);
+  composes: badgeRow from '../../calendar/_components/MySelectedDayList.module.css';
 }
 
 .participationBadge {
-  border: 1px solid currentColor;
+  composes: participationBadge from '../../calendar/_components/MySelectedDayList.module.css';
 }

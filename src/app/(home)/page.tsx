@@ -6,15 +6,22 @@ import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAu
 import { listTicketOpportunitiesWithDetails } from '@/infrastructure/supabase/ticketOpportunity.ts';
 import { listMyParticipations } from '@/infrastructure/supabase/participation.ts';
 import { listVisiblePersonalSchedule } from '@/infrastructure/supabase/personalSchedule.ts';
-import { getEventsByIds, getOccurrencesByIds } from '@/infrastructure/supabase/eventCatalogRead.ts';
+import {
+  getEventsByIds,
+  getOccurrencesByIds,
+  type EventCatalogQueryClient,
+} from '@/infrastructure/supabase/eventCatalogRead.ts';
 import { buildTicketOpportunityTimelineRows } from '@/domain/ticketOpportunityTimeline.ts';
 import { selectHomeDeadlineRows } from '@/domain/homeDeadlines.ts';
-import {
-  groupHomeUpcomingItemsByDate,
-  selectHomeUpcomingItems,
-  type HomeUpcomingOccurrenceCandidate,
-} from '@/domain/homeUpcoming.ts';
+import { groupOccurrencesByEvent } from '@/domain/eventCatalog.ts';
+import { buildMyCalendarOccurrenceEntries } from '@/domain/myCalendar.ts';
+import { groupHomeUpcomingItemsByDate, selectHomeUpcomingItems } from '@/domain/homeUpcoming.ts';
 import type { PlanningError } from '@/domain/planningError.ts';
+import type {
+  EventCatalogEvent,
+  EventCatalogReadResult,
+  EventOccurrence,
+} from '@/domain/eventCatalog.ts';
 import { currentInstant, currentTokyoDate } from './_lib/now.ts';
 import { HomeDeadlineList } from './_components/HomeDeadlineList.tsx';
 import { HomeUpcomingList } from './_components/HomeUpcomingList.tsx';
@@ -46,6 +53,34 @@ function authOrReadErrorPanel(error: PlanningError) {
 }
 
 /**
+ * Block B's own two-hop chain (participation occurrence ids -> their
+ * Occurrences -> those Occurrences' Events), isolated into its own function
+ * so it can run as one independent promise alongside Block A's unrelated
+ * getEventsByIds(opportunityEventIds) call, rather than both being forced
+ * through a single shared Promise.all (which would make this chain's start
+ * wait on Block A's fetch even though nothing here depends on it).
+ */
+async function resolveParticipationEventsAndOccurrences(
+  client: EventCatalogQueryClient,
+  participationOccurrenceIds: readonly string[],
+): Promise<{
+  occurrencesResult: EventCatalogReadResult<EventOccurrence[]>;
+  eventsResult: EventCatalogReadResult<EventCatalogEvent[]>;
+}> {
+  const occurrencesResult: EventCatalogReadResult<EventOccurrence[]> =
+    participationOccurrenceIds.length === 0
+      ? { ok: true, data: [] }
+      : await getOccurrencesByIds(client, participationOccurrenceIds);
+  if (!occurrencesResult.ok) {
+    return { occurrencesResult, eventsResult: occurrencesResult };
+  }
+  const eventIds = [...new Set(occurrencesResult.data.map((occurrence) => occurrence.eventId))];
+  const eventsResult: EventCatalogReadResult<EventCatalogEvent[]> =
+    eventIds.length === 0 ? { ok: true, data: [] } : await getEventsByIds(client, eventIds);
+  return { occurrencesResult, eventsResult };
+}
+
+/**
  * Home (Issue #143): a dashboard of exactly two independent blocks -
  * "申し込み期限" (deadline) and "直近の予定" (upcoming) - replacing the prior
  * generic navigation-hub surface (HomeNav, removed by this Task). Account /
@@ -65,12 +100,18 @@ function authOrReadErrorPanel(error: PlanningError) {
  *   at 8).
  *
  * The four independent reads (identity, Opportunities, participations,
- * personal schedule) start together via Promise.all, and each block then
- * resolves its own Event/Occurrence lookups independently (a second
- * Promise.all) so a read failure in one block's dependency never takes the
- * other block down with it - only a genuine identity/auth failure blocks
- * the whole page, the same "auth failure is page-level, a data-read failure
- * degrades only its own section" split /tickets and /calendar already use.
+ * personal schedule) start together via Promise.all. Past that point, Block
+ * A's own getEventsByIds(opportunityEventIds) call and Block B's own
+ * resolveParticipationEventsAndOccurrences (its occurrences-then-their-events
+ * two-hop chain) run as two separate promises in one more Promise.all,
+ * rather than Block B's chain being nested *inside* a shared await that
+ * would otherwise make its own second hop wait on Block A's unrelated event
+ * fetch to finish first. Each block's own StatePanel then depends only on
+ * that block's own reads, so a read failure partway through one block's
+ * chain never blocks the other from rendering - unlike /tickets and
+ * /calendar (src/app/tickets/page.tsx, src/app/calendar/page.tsx), which
+ * both still abort the *entire* page to one full-page error panel on any
+ * data-read failure; only a genuine identity/auth failure does that here.
  */
 export default async function Home() {
   const today = currentTokyoDate();
@@ -102,22 +143,16 @@ export default async function Home() {
     ? [...new Set(participationsResult.data.map((participation) => participation.occurrenceId))]
     : [];
 
-  const [opportunityEventsResult, participationOccurrencesResult] = await Promise.all([
+  const [opportunityEventsResult, participationEventsAndOccurrences] = await Promise.all([
     opportunityEventIds.length === 0
       ? Promise.resolve({ ok: true as const, data: [] })
       : getEventsByIds(client, opportunityEventIds),
-    participationOccurrenceIds.length === 0
-      ? Promise.resolve({ ok: true as const, data: [] })
-      : getOccurrencesByIds(client, participationOccurrenceIds),
+    resolveParticipationEventsAndOccurrences(client, participationOccurrenceIds),
   ]);
-
-  const participationEventIds = participationOccurrencesResult.ok
-    ? [...new Set(participationOccurrencesResult.data.map((occurrence) => occurrence.eventId))]
-    : [];
-  const participationEventsResult =
-    participationEventIds.length === 0
-      ? { ok: true as const, data: [] }
-      : await getEventsByIds(client, participationEventIds);
+  const {
+    occurrencesResult: participationOccurrencesResult,
+    eventsResult: participationEventsResult,
+  } = participationEventsAndOccurrences;
 
   // --- Block A: 申し込み期限 ---
   let deadlineBlock: ReactNode;
@@ -163,24 +198,26 @@ export default async function Home() {
       />
     );
   } else {
-    const eventsById = new Map(
-      participationEventsResult.data.map((event) => [event.id, event] as const),
+    // Reuses the same Event+Occurrence+Participation join My Calendar
+    // already established (src/app/calendar/page.tsx), rather than
+    // re-deriving an equivalent one - the empty acquisitions map means
+    // every entry's ticketStatus resolves to 'none', which Home simply
+    // never reads (Home's Task Contract keeps the legacy ticket_acquisitions
+    // model out of this projection entirely).
+    const eventsWithOccurrences = groupOccurrencesByEvent(
+      participationEventsResult.data,
+      participationOccurrencesResult.data,
     );
-    const occurrencesById = new Map(
-      participationOccurrencesResult.data.map((occurrence) => [occurrence.id, occurrence] as const),
+    const participationsByOccurrenceId = new Map(
+      participationsResult.data.map(
+        (participation) => [participation.occurrenceId, participation] as const,
+      ),
     );
-    const occurrenceCandidates: HomeUpcomingOccurrenceCandidate[] =
-      participationsResult.data.flatMap((participation) => {
-        const occurrence = occurrencesById.get(participation.occurrenceId);
-        if (occurrence === undefined) {
-          return [];
-        }
-        const event = eventsById.get(occurrence.eventId);
-        if (event === undefined) {
-          return [];
-        }
-        return [{ event, occurrence, participation }];
-      });
+    const occurrenceCandidates = buildMyCalendarOccurrenceEntries(
+      eventsWithOccurrences,
+      participationsByOccurrenceId,
+      new Map(),
+    );
     const scheduleCandidates = scheduleResult.data.map((entry) => ({
       entry,
       isOwner: entry.ownerId === callerId,
