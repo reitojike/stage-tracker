@@ -977,3 +977,49 @@ void test('selectMyCalendarOccurrenceEntries: an effectively canceled occurrence
   assert.equal(selected.length, 1);
   assert.equal(selected[0]?.occurrence.canceledAt, '2026-08-01T00:00:00Z');
 });
+
+void test('dot: a day with both a canceled attending and a canceled considering occurrence (no active participation, no schedule) has no dot and zero counts', () => {
+  const ev: EventWithOccurrences = {
+    event: event(),
+    occurrences: [
+      occurrence({
+        id: 'occ-canceled-attending-only',
+        startsAt: `${DATE}T09:00:00Z`,
+        canceledAt: '2026-08-01T00:00:00Z',
+      }),
+      occurrence({
+        id: 'occ-canceled-considering-only',
+        startsAt: `${DATE}T11:00:00Z`,
+        canceledAt: '2026-08-01T00:00:00Z',
+      }),
+    ],
+  };
+  const entries = buildMyCalendarOccurrenceEntries(
+    [ev],
+    new Map([
+      [
+        'occ-canceled-attending-only',
+        participation({
+          id: 'p-a',
+          occurrenceId: 'occ-canceled-attending-only',
+          status: 'attending',
+        }),
+      ],
+      [
+        'occ-canceled-considering-only',
+        participation({
+          id: 'p-c',
+          occurrenceId: 'occ-canceled-considering-only',
+          status: 'considering',
+        }),
+      ],
+    ]),
+    new Map(),
+  );
+  const markers = buildMyCalendarDayMarkers([DATE], entries, [], 'caller');
+  const day = markers.find((m) => m.date === DATE);
+  assert.ok(day);
+  assert.equal(day.dot, 'none');
+  assert.equal(day.attendingCount, 0);
+  assert.equal(day.consideringCount, 0);
+});
