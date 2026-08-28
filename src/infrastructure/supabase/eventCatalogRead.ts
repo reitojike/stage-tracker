@@ -4,15 +4,22 @@ import {
   attachOccurrencesToEvents,
   groupOccurrencesByEvent,
   mapEventRow,
+  mapGenreRow,
+  mapGroupRow,
   mapOccurrenceRow,
   mapPostgrestError,
+  sortGenres,
+  sortGroups,
   sortOccurrences,
   tokyoCalendarDateFromInstant,
   tokyoCalendarDayRangeUtc,
   type EventCatalogEvent,
   type EventCatalogReadResult,
+  type EventClassification,
   type EventOccurrence,
   type EventWithOccurrences,
+  type Genre,
+  type Group,
   type RawPostgrestError,
   type UtcInstantRange,
 } from '../../domain/eventCatalog.ts';
@@ -437,6 +444,215 @@ export async function getEventWithOccurrences(
  * domain/eventCatalogWrite.ts's validateOccurrenceWithinRange) without
  * paying for a full getEventWithOccurrences read.
  */
+// ---------------------------------------------------------------------
+// Event genre/group classification read boundary (Issue #167, PO decision
+// #158). Deliberately a separate projection rather than fields folded
+// into EventCatalogEvent/EventWithOccurrences: those two types and the
+// functions above are consumed by every existing Event read path (My
+// Calendar, Home, invitations' getEventsByIds, /tickets, ...), most of
+// which have no need for classification data - adding two more joined
+// reads to every one of those call sites would be an unrequested
+// behavior/performance change to paths this Task's regression
+// requirements explicitly protect ("既存Event/Occurrence read
+// correctnessを壊さないこと"). #147/#145 (or any future caller that does
+// need classification) instead compose EventClassification data
+// alongside EventCatalogEvent/EventWithOccurrences by event id, the same
+// read-side composition style /tickets already uses to combine
+// TicketOpportunity data with Event data from this same module.
+//
+// RLS (see supabase/migrations/20260828000400_create_event_classification.sql
+// and 20260828000500_add_events_genre.sql): genres/groups/event_groups are
+// all authenticated SELECT `using (true)`, and events.genre_id is covered
+// by events' existing table-level authenticated SELECT grant - so, like
+// every other function in this module, no application-side filtering here
+// substitutes for RLS; an unauthorized/anonymous client gets the DB's own
+// permission error back through EventCatalogReadResult.
+
+/**
+ * Every canonical genre, Gate A's fixed 宝塚→歌舞伎→アイドル display order
+ * first (genres.sort_order), id as a deterministic tie-breaker. Small,
+ * catalog-wide, and independent of any Event data - #147/#145 read this
+ * once to build the top-level genre selector and to resolve a genre's id
+ * for listCatalogGroupOptions/listCatalogVenueOptions below.
+ */
+export async function listCatalogGenres(
+  client: EventCatalogQueryClient,
+): Promise<EventCatalogReadResult<Genre[]>> {
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('genres')
+      .select('*', { count: 'exact' })
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
+  }
+  return { ok: true, data: sortGenres(result.data.map(mapGenreRow)) };
+}
+
+/**
+ * Catalog-wide known group options for one genre (Issue #167 "Catalog-wide
+ * filter options": "宝塚 groups = catalog全体の宝塚Eventにassociated
+ * するgroups"), not scoped to whichever month/range happens to be on
+ * screen - this is what keeps changing the visible month from silently
+ * redefining the filter's option universe. `genreId` is the genre's own
+ * id (from listCatalogGenres), not its key, so this join never has to
+ * resolve the key itself.
+ *
+ * A group can be associated with more than one Event of the same genre
+ * (e.g. two 月組 productions in the catalog at once), so the join
+ * naturally returns duplicate group rows - deduplicated here by group id
+ * before sorting, the same in-JS dedupe style
+ * fetchEventsByRangeOverlap/listEventCatalogInRange already use for their
+ * own event-id de-duplication.
+ */
+export async function listCatalogGroupOptions(
+  client: EventCatalogQueryClient,
+  genreId: string,
+): Promise<EventCatalogReadResult<Group[]>> {
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('event_groups')
+      .select('groups(id, key, display_name), events!inner(genre_id)', { count: 'exact' })
+      .eq('events.genre_id', genreId)
+      .order('event_id', { ascending: true })
+      .order('group_id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
+  }
+  // event_groups.group_id is `not null` (see the migration), so the
+  // embedded `groups` relation is guaranteed non-null for every row - the
+  // generated Database type reflects that guarantee directly.
+  const byId = new Map<string, Group>();
+  for (const row of result.data) {
+    const group = mapGroupRow(row.groups);
+    byId.set(group.id, group);
+  }
+  return { ok: true, data: sortGroups([...byId.values()]) };
+}
+
+/**
+ * Catalog-wide known venue text for one genre (Issue #167 "歌舞伎 venues =
+ * catalog全体の歌舞伎Eventにあるnon-null venue text"). Reuses events.venue
+ * (unchanged existing column - no venue master, per #158) rather than any
+ * new table; `genreId` is again the genre's own id, and this works
+ * identically for any genre, not just 歌舞伎 - Gate A's UI is the only
+ * thing that limits venue-facet display to 歌舞伎 (product-rules.md
+ * "これはdomain上のhard restrictionではない").
+ */
+export async function listCatalogVenueOptions(
+  client: EventCatalogQueryClient,
+  genreId: string,
+): Promise<EventCatalogReadResult<string[]>> {
+  const result = await fetchAllRows((from, to) =>
+    client
+      .from('events')
+      .select('venue', { count: 'exact' })
+      .eq('genre_id', genreId)
+      .not('venue', 'is', null)
+      .order('venue', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+  if (!result.ok) {
+    return result;
+  }
+  const venues = new Set<string>();
+  for (const row of result.data) {
+    if (row.venue !== null) {
+      venues.add(row.venue);
+    }
+  }
+  return { ok: true, data: [...venues].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) };
+}
+
+/**
+ * Each given Event's own classification (at most one genre, zero or more
+ * groups), keyed by event id - the projection #147/#145 compose alongside
+ * EventCatalogEvent/EventWithOccurrences data from elsewhere in this
+ * module, the same read-side composition style /tickets already uses for
+ * TicketOpportunity+Event data. An id with no corresponding `events` row
+ * (nonexistent event) is simply absent from the result, matching
+ * getEventsByIds' own silent-omission behavior for the same case - never
+ * fabricated as an "unclassified" entry for an event that does not exist.
+ * An id that does exist but has neither genre nor any group is present
+ * with `genre: null, groups: []`, which is the valid "unclassified" state
+ * (#158 "unclassified Eventもvalid").
+ */
+export async function getEventClassificationsByIds(
+  client: EventCatalogQueryClient,
+  eventIds: readonly string[],
+): Promise<EventCatalogReadResult<EventClassification[]>> {
+  if (eventIds.length === 0) {
+    return { ok: true, data: [] };
+  }
+
+  const genresResult = await listCatalogGenres(client);
+  if (!genresResult.ok) {
+    return genresResult;
+  }
+  const genresById = new Map(genresResult.data.map((genre) => [genre.id, genre] as const));
+
+  const genreIdByEvent = new Map<string, string | null>();
+  const groupsByEvent = new Map<string, Group[]>();
+
+  for (const idBatch of chunk(eventIds, ID_BATCH_SIZE)) {
+    const eventsBatch = await fetchAllRows((from, to) =>
+      client
+        .from('events')
+        .select('id, genre_id', { count: 'exact' })
+        .in('id', idBatch)
+        .order('id', { ascending: true })
+        .range(from, to),
+    );
+    if (!eventsBatch.ok) {
+      return eventsBatch;
+    }
+    for (const row of eventsBatch.data) {
+      genreIdByEvent.set(row.id, row.genre_id);
+    }
+
+    const groupsBatch = await fetchAllRows((from, to) =>
+      client
+        .from('event_groups')
+        .select('event_id, groups(id, key, display_name)', { count: 'exact' })
+        .in('event_id', idBatch)
+        .order('event_id', { ascending: true })
+        .order('group_id', { ascending: true })
+        .range(from, to),
+    );
+    if (!groupsBatch.ok) {
+      return groupsBatch;
+    }
+    // event_groups.group_id is `not null`, so the embedded `groups`
+    // relation is guaranteed non-null here too (see listCatalogGroupOptions
+    // above).
+    for (const row of groupsBatch.data) {
+      const bucket = groupsByEvent.get(row.event_id);
+      const group = mapGroupRow(row.groups);
+      if (bucket) {
+        bucket.push(group);
+      } else {
+        groupsByEvent.set(row.event_id, [group]);
+      }
+    }
+  }
+
+  const classifications: EventClassification[] = [];
+  for (const [eventId, genreId] of genreIdByEvent) {
+    classifications.push({
+      eventId,
+      genre: genreId === null ? null : (genresById.get(genreId) ?? null),
+      groups: sortGroups(groupsByEvent.get(eventId) ?? []),
+    });
+  }
+  return { ok: true, data: classifications };
+}
+
 export async function getEventRange(
   client: EventCatalogQueryClient,
   eventId: string,

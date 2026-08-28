@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveAdminTarget } from './lib/adminTarget.mjs';
 import { findUserByEmail } from './lib/findUserByEmail.mjs';
+import {
+  findConflictingGroupDefinitions,
+  validateClassificationShape,
+} from './lib/eventClassificationSeed.mjs';
 
 // Operator-assisted catalog import (Issue #73).
 //
@@ -214,10 +218,34 @@ function validateEntry(entry, where) {
     occurrences.push({ doorsAt, startsAt: raw.startsAt, endsAt, instant: startsAt });
   }
 
+  // Optional genre/group classification (Issue #167, PO decision #158).
+  // Absent `genre`/`groups` fields are valid and mean "leave this Event's
+  // existing classification untouched" - an old seed written before this
+  // Task exists is not a breaking case (Issue #167 "既存seedを突然壊す
+  // 必要がなければoptional extensionを優先"). See
+  // scripts/lib/eventClassificationSeed.mjs for the full field contract.
+  const classificationResult = validateClassificationShape(entry);
+  let classification = { genre: undefined, groups: undefined };
+  if (!classificationResult.ok) {
+    problems.push(...classificationResult.problems);
+  } else {
+    classification = classificationResult.classification;
+  }
+
   if (problems.length > 0) {
     fail(`${where}: invalid seed entry\n  - ${problems.join('\n  - ')}`);
   }
-  return { sourceKey, title, venue, memo, sourceUrl, startsOn, endsOn, occurrences };
+  return {
+    sourceKey,
+    title,
+    venue,
+    memo,
+    sourceUrl,
+    startsOn,
+    endsOn,
+    occurrences,
+    classification,
+  };
 }
 
 const entries = [];
@@ -239,6 +267,16 @@ const duplicateKeys = entries
   .filter((key, index, all) => all.indexOf(key) !== index);
 if (duplicateKeys.length > 0) {
   fail(`Duplicate sourceKey across seed files: ${[...new Set(duplicateKeys)].join(', ')}`);
+}
+
+// "duplicate canonical group identity conflict" (Issue #167 required
+// import validation) - a run-wide check, since two different seed
+// entries giving the same group key inconsistent displayName values is a
+// conflict across entries, not something any single entry's own shape
+// validation could catch.
+const groupConflicts = findConflictingGroupDefinitions(entries);
+if (groupConflicts.length > 0) {
+  fail(`Conflicting group definitions in this import run:\n  - ${groupConflicts.join('\n  - ')}`);
 }
 
 // ----------------------------------------------------------------- target
@@ -275,11 +313,97 @@ if (creatorRow === null) {
 
 // ------------------------------------------------------------------- plan
 
+// Genres are a small, catalog-wide lookup table (Gate A ships 3 rows) -
+// fetched once up front rather than per entry. Resolving an unknown genre
+// key here, during planning, gives the operator a clear dry-run failure
+// instead of only discovering it from import_event_classification's own
+// "unknown genre key" error at --apply time.
+const { data: genreRows, error: genresError } = await admin
+  .from('genres')
+  .select('id, key, display_name');
+if (genresError) {
+  fail(`Failed to read genres: ${genresError.message}`);
+}
+const genresByKey = new Map(genreRows.map((row) => [row.key, row]));
+const genresById = new Map(genreRows.map((row) => [row.id, row]));
+
+// Classification diffing (Issue #167 "dry-runでclassification changesを
+// 確認できる"): entry.classification.genre/groups being `undefined` means
+// the seed did not mention that facet at all, so the plan must not touch
+// it - matching import_event_classification's own p_set_genre/
+// p_set_groups "touch or not" split.
+function planGenre(entry, currentGenreId) {
+  if (entry.classification.genre === undefined) {
+    const current = currentGenreId === null ? null : (genresById.get(currentGenreId) ?? null);
+    return { setGenre: false, genreKey: null, changed: false, current, proposed: current };
+  }
+  const genreKey = entry.classification.genre;
+  if (genreKey !== null && !genresByKey.has(genreKey)) {
+    fail(
+      `${entry.sourceKey}: unknown genre key "${genreKey}" (known genres: ${[...genresByKey.keys()].join(', ')})`,
+    );
+  }
+  const proposed = genreKey === null ? null : genresByKey.get(genreKey);
+  const current = currentGenreId === null ? null : (genresById.get(currentGenreId) ?? null);
+  return {
+    setGenre: true,
+    genreKey,
+    changed: (current?.id ?? null) !== (proposed?.id ?? null),
+    current,
+    proposed,
+  };
+}
+
+function planGroups(entry, currentGroups) {
+  if (entry.classification.groups === undefined) {
+    return {
+      setGroups: false,
+      groups: [],
+      changed: false,
+      current: currentGroups,
+      added: [],
+      removed: [],
+      renamed: [],
+    };
+  }
+  const proposed = entry.classification.groups;
+  const currentByKey = new Map(currentGroups.map((group) => [group.key, group]));
+  const proposedKeys = new Set(proposed.map((group) => group.key));
+  const added = proposed.filter((group) => !currentByKey.has(group.key));
+  const removed = currentGroups.filter((group) => !proposedKeys.has(group.key));
+  const renamed = proposed.filter((group) => {
+    const current = currentByKey.get(group.key);
+    return current !== undefined && current.displayName !== group.displayName;
+  });
+  return {
+    setGroups: true,
+    groups: proposed,
+    changed: added.length > 0 || removed.length > 0 || renamed.length > 0,
+    current: currentGroups,
+    added,
+    removed,
+    renamed,
+  };
+}
+
+async function fetchCurrentGroups(eventId) {
+  const { data, error } = await admin
+    .from('event_groups')
+    .select('groups(key, display_name)')
+    .eq('event_id', eventId);
+  if (error) {
+    fail(`Failed to read group associations for event ${eventId}: ${error.message}`);
+  }
+  return data
+    .filter((row) => row.groups !== null)
+    .map((row) => ({ key: row.groups.key, displayName: row.groups.display_name }));
+}
+
 const plans = [];
 for (const entry of entries) {
   const { data: existing, error } = await admin
     .from('events')
-    .select('id, title, venue, source_url, memo, owner_id, starts_on, ends_on')
+    .select('id, title, venue, source_url, memo, owner_id, starts_on, ends_on, genre_id')
     .eq('source_key', entry.sourceKey)
     .maybeSingle();
   if (error) {
@@ -297,6 +421,8 @@ for (const entry of entries) {
       endsAtFixes: [],
       doorsAtFixes: [],
       keptOccurrences: 0,
+      genrePlan: planGenre(entry, null),
+      groupsPlan: planGroups(entry, []),
     });
     continue;
   }
@@ -406,6 +532,12 @@ for (const entry of entries) {
   // exactly the discrepancy this comparison exists to surface and correct.
   const rangeChanged = existing.starts_on !== entry.startsOn || existing.ends_on !== entry.endsOn;
 
+  const genrePlan = planGenre(entry, existing.genre_id);
+  const groupsPlan = planGroups(
+    entry,
+    entry.classification.groups === undefined ? [] : await fetchCurrentGroups(existing.id),
+  );
+
   plans.push({
     entry,
     action:
@@ -423,6 +555,8 @@ for (const entry of entries) {
     endsAtFixes,
     doorsAtFixes,
     keptOccurrences: kept.length,
+    genrePlan,
+    groupsPlan,
   });
 }
 
@@ -505,6 +639,38 @@ for (const plan of plans) {
       );
     }
   }
+
+  // Classification (Issue #167) is reported independently of `action`
+  // above: a seed can correct genre/groups on an otherwise-unchanged
+  // Event, and the operator needs to see that even when nothing else in
+  // this plan would otherwise print a line.
+  if (plan.genrePlan.setGenre && plan.genrePlan.changed) {
+    const currentLabel =
+      plan.genrePlan.current === null ? '(none)' : plan.genrePlan.current.display_name;
+    const proposedLabel =
+      plan.genrePlan.proposed === null ? '(none)' : plan.genrePlan.proposed.display_name;
+    console.log(`          ~ genre  ${currentLabel} -> ${proposedLabel}`);
+  }
+  if (plan.groupsPlan.setGroups && plan.groupsPlan.changed) {
+    if (plan.groupsPlan.added.length > 0) {
+      console.log(
+        `          + groups  ${plan.groupsPlan.added.map((group) => group.displayName).join(', ')}`,
+      );
+    }
+    if (plan.groupsPlan.removed.length > 0) {
+      console.log(
+        `          - groups  ${plan.groupsPlan.removed.map((group) => group.displayName).join(', ')}`,
+      );
+    }
+    if (plan.groupsPlan.renamed.length > 0) {
+      for (const group of plan.groupsPlan.renamed) {
+        const current = plan.groupsPlan.current.find((existing) => existing.key === group.key);
+        console.log(
+          `          ~ group displayName  ${current.displayName} -> ${group.displayName}`,
+        );
+      }
+    }
+  }
 }
 
 const totals = plans.reduce(
@@ -549,6 +715,7 @@ if (!apply) {
 // between two requests.
 for (const plan of plans) {
   const { entry } = plan;
+  let createdEvent = null;
 
   if (plan.action === 'create') {
     const { data, error } = await admin.rpc('import_event_with_occurrences', {
@@ -569,6 +736,7 @@ for (const plan of plans) {
     if (error) {
       fail(`Failed to create ${entry.sourceKey}: ${error.message}`);
     }
+    createdEvent = data;
   } else if (plan.action === 'update') {
     const fixesById = new Map();
     for (const fix of plan.endsAtFixes) {
@@ -597,7 +765,37 @@ for (const plan of plans) {
     }
   }
 
-  if (plan.action !== 'unchanged') {
+  // Classification (Issue #167) is written through a separate, dedicated
+  // RPC call from the event-fields/occurrences one above - genre/group
+  // correction is a fully independent concern from title/venue/occurrence
+  // changes (an Event whose occurrences are unchanged can still need a
+  // genre correction, and vice versa), the same separation
+  // import_ticket_opportunity draws from events' own create/update RPCs.
+  // Only called when there is actually something to write: `changed`
+  // already accounts for "seed touched this facet but the value matches
+  // what is already there", so a plan with no real classification change
+  // makes no RPC call at all, not even a no-op one.
+  const eventId = plan.action === 'create' ? createdEvent.id : plan.event.id;
+  const classificationChanged = plan.genrePlan.changed || plan.groupsPlan.changed;
+  if (classificationChanged) {
+    const { error: classificationError } = await admin.rpc('import_event_classification', {
+      p_event_id: eventId,
+      p_set_genre: plan.genrePlan.setGenre,
+      p_genre_key: plan.genrePlan.genreKey,
+      p_set_groups: plan.groupsPlan.setGroups,
+      p_groups: plan.groupsPlan.groups.map((group) => ({
+        key: group.key,
+        displayName: group.displayName,
+      })),
+    });
+    if (classificationError) {
+      fail(
+        `Failed to update classification for ${entry.sourceKey}: ${classificationError.message}`,
+      );
+    }
+  }
+
+  if (plan.action !== 'unchanged' || classificationChanged) {
     console.log(`applied ${entry.sourceKey}`);
   }
 }

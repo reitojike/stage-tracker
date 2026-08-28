@@ -24,6 +24,39 @@ export type Database = {
         }
         Relationships: []
       }
+      event_groups: {
+        Row: {
+          created_at: string
+          event_id: string
+          group_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          group_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_groups_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_occurrences: {
         Row: {
           canceled_at: string | null
@@ -70,6 +103,7 @@ export type Database = {
           canceled_at: string | null
           created_at: string
           ends_on: string
+          genre_id: string | null
           id: string
           memo: string | null
           owner_id: string
@@ -84,6 +118,7 @@ export type Database = {
           canceled_at?: string | null
           created_at?: string
           ends_on: string
+          genre_id?: string | null
           id?: string
           memo?: string | null
           owner_id: string
@@ -98,6 +133,7 @@ export type Database = {
           canceled_at?: string | null
           created_at?: string
           ends_on?: string
+          genre_id?: string | null
           id?: string
           memo?: string | null
           owner_id?: string
@@ -107,6 +143,65 @@ export type Database = {
           title?: string
           updated_at?: string
           venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_genre_id_fkey"
+            columns: ["genre_id"]
+            isOneToOne: false
+            referencedRelation: "genres"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      genres: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          key: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          key: string
+          sort_order: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          key?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      groups: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          key?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -608,6 +703,7 @@ export type Database = {
           canceled_at: string | null
           created_at: string
           ends_on: string
+          genre_id: string | null
           id: string
           memo: string | null
           owner_id: string
@@ -652,6 +748,36 @@ export type Database = {
         Args: { p_occurrence_id: string }
         Returns: boolean
       }
+      import_event_classification: {
+        Args: {
+          p_event_id: string
+          p_genre_key?: string
+          p_groups?: Json
+          p_set_genre?: boolean
+          p_set_groups?: boolean
+        }
+        Returns: {
+          canceled_at: string | null
+          created_at: string
+          ends_on: string
+          genre_id: string | null
+          id: string
+          memo: string | null
+          owner_id: string
+          source_key: string | null
+          source_url: string | null
+          starts_on: string
+          title: string
+          updated_at: string
+          venue: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       import_event_with_occurrences: {
         Args: {
           p_ends_on: string
@@ -668,6 +794,7 @@ export type Database = {
           canceled_at: string | null
           created_at: string
           ends_on: string
+          genre_id: string | null
           id: string
           memo: string | null
           owner_id: string
@@ -730,6 +857,7 @@ export type Database = {
           canceled_at: string | null
           created_at: string
           ends_on: string
+          genre_id: string | null
           id: string
           memo: string | null
           owner_id: string
