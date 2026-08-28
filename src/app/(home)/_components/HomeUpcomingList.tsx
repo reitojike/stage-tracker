@@ -55,9 +55,7 @@ function UpcomingRow({ item }: { item: HomeUpcomingItem }) {
           <span className={styles.title}>{event.title}</span>
           {event.venue !== null ? <span className={styles.venue}>{event.venue}</span> : null}
           <span className={styles.badgeRow}>
-            <Badge variant="subtle" className={styles.participationBadge}>
-              {participationStatusLabel(participation.status)}
-            </Badge>
+            <Badge variant="subtle">{participationStatusLabel(participation.status)}</Badge>
             {isEffectivelyCanceled(event, occurrence) ? (
               <Badge variant="terminal">中止</Badge>
             ) : null}

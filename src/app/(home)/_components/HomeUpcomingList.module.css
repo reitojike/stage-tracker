@@ -63,7 +63,3 @@
 .badgeRow {
   composes: badgeRow from '../../calendar/_components/MySelectedDayList.module.css';
 }
-
-.participationBadge {
-  composes: participationBadge from '../../calendar/_components/MySelectedDayList.module.css';
-}

@@ -76,9 +76,7 @@ export function MySelectedDayList({
                     <span className={styles.venue}>{event.venue}</span>
                   ) : null}
                   <span className={styles.badgeRow}>
-                    <Badge variant="subtle" className={styles.participationBadge}>
-                      {participationStatusLabel(participation.status)}
-                    </Badge>
+                    <Badge variant="subtle">{participationStatusLabel(participation.status)}</Badge>
                     <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
                       {ticketDisplayStatusLabel(ticketStatus)}
                     </Badge>

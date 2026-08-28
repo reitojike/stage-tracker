@@ -17,6 +17,10 @@ export const Subtle: Story = {
   args: { variant: 'subtle', children: '申込中' },
 };
 
+export const Done: Story = {
+  args: { variant: 'done', children: '申し込み済み' },
+};
+
 export const Deadline: Story = {
   args: { variant: 'deadline', children: '残り1日' },
 };
