@@ -46,3 +46,8 @@ storybook-static
 # data than to product code; this repository is public, so it stays local.
 # See docs/runbooks/catalog-import.md.
 /data/catalog-imports/
+
+# operator-held Ticket Opportunity import seed data (Issue #163). Same
+# reasoning as /data/catalog-imports/ above - see
+# docs/runbooks/ticket-opportunity-import.md.
+/data/ticket-imports/
