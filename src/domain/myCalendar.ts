@@ -13,20 +13,30 @@
 // module performs no additional filtering that could substitute for RLS.
 //
 // Band/dot scope (Issue #142, superseding #34's original "run-period
-// presentation is out of scope" note): My Calendar now follows the same
-// multi-day-band/single-day-dot marker rule the Event Catalog uses
-// (calendarMonth.ts's own layoutWeekBands, reused directly rather than
-// re-implemented - see buildMyCalendarWeekBandLayouts below), for both of
-// its entry kinds - a participation-registered occurrence whose Event spans
-// multiple days, and a personal-schedule entry whose own span does.
+// presentation is out of scope" note; further narrowed by Issue #174 - see
+// below): My Calendar reuses the Event Catalog's own multi-day-band/
+// single-day-dot layout machinery (calendarMonth.ts's own layoutWeekBands -
+// see buildMyCalendarWeekBandLayouts below) for its personal-schedule
+// entries, whose own span can be single- or multi-day.
+//
+// Participation is different (Issue #174, superseding the participation
+// half of #142): a participation-registered occurrence is always an
+// exact-date dot on its own Asia/Tokyo calendar date, never a band, even
+// when its parent Event spans multiple days. #142 originally banded a
+// multi-day Event's whole starts_on..endsOn range once the caller had any
+// participation-registered occurrence in it; dogfood use showed this reads
+// as "I've reserved the entire run" rather than "I'm registered for this
+// one occurrence", so My Calendar's participation presentation no longer
+// derives anything from the Event's range at all - only from the specific
+// occurrence(s) the caller actually registered. The Event Catalog's own
+// `/catalog` Event-range band (calendarMonth.ts) is unrelated and
+// unchanged.
 
 import {
   addDaysToDate,
   compareDates,
-  isSingleDayEvent,
   layoutWeekBands,
   MAX_BAND_LANES,
-  selectEventLevelFallback,
   type BandSegment,
   type WeekBandLayout,
 } from './calendarMonth.ts';
@@ -35,7 +45,6 @@ import {
   isWithinJapaneseHolidayDataCoverage,
   type CalendarDayRole,
 } from './calendarDayRole.ts';
-import { isEventCanceled } from './eventCancellation.ts';
 import {
   compareOccurrencesByStartsAt,
   tokyoCalendarDateFromInstant,
@@ -131,31 +140,6 @@ export function selectMyCalendarOccurrenceEntries(
   return entries
     .filter((entry) => tokyoCalendarDateFromInstant(entry.occurrence.startsAt) === date)
     .sort((a, b) => compareOccurrencesByStartsAt(a.occurrence, b.occurrence));
-}
-
-/**
- * The selected-day counterpart to a multi-day Event band (Issue #142):
- * events the caller participates in (has at least one occurrence entry for)
- * whose Event range covers `date` but have no actual occurrence on it -
- * same complement relationship calendarMonth.ts's own
- * selectEventLevelFallback has with selectDayOccurrences for the Event
- * Catalog. Without this, a day inside a multi-day Event's band the caller
- * is attending/considering, but with no occurrence that specific day, would
- * show My Calendar's own "no entries" empty state despite the band visibly
- * covering it - this closes that gap by reusing calendarMonth.ts's own
- * selector rather than re-deriving the range-membership check, narrowed to
- * only the Events `occurrenceEntries` actually names (My Calendar must
- * never surface a catalog Event the caller has no participation in at all).
- */
-export function selectMyCalendarEventLevelFallback(
-  eventsWithOccurrences: readonly EventWithOccurrences[],
-  occurrenceEntries: readonly MyCalendarOccurrenceEntry[],
-  date: string,
-): EventWithOccurrences[] {
-  const participatingEventIds = new Set(occurrenceEntries.map((entry) => entry.event.id));
-  return selectEventLevelFallback(eventsWithOccurrences, date).filter((group) =>
-    participatingEventIds.has(group.event.id),
-  );
 }
 
 /**
@@ -297,65 +281,31 @@ export function selectMyCalendarScheduleEntries(
     .map((entry) => ({ entry, isOwner: entry.ownerId === callerId }));
 }
 
-// --- Multi-day band segments (Issue #142) ---
+// --- Multi-day band segments ---
 //
-// Issue #142 unifies the Event Catalog's own multi-day/single-day marker
-// rule ("複数日にまたがるものは帯、単日は dot") across My Calendar too, for
-// both of its two entry kinds: a participation-registered occurrence whose
-// *Event* spans multiple days, and a personal-schedule entry whose own span
-// (scheduleEntryDateRange above) does. Both reuse calendarMonth.ts's own
-// layoutWeekBands - the lane-packing/overflow algorithm is not
-// feature-specific - via the shared MyCalendarBandSegment shape below, which
-// extends BandSegment with the blocking/non-blocking (fill vs. outline) axis
-// and which of the two source kinds a segment came from.
+// Issue #142 originally unified the Event Catalog's own multi-day/single-day
+// marker rule ("複数日にまたがるものは帯、単日は dot") across My Calendar's
+// two entry kinds - a participation-registered occurrence whose *Event*
+// spans multiple days, and a personal-schedule entry whose own span
+// (scheduleEntryDateRange above) does. Issue #174 supersedes the Event half
+// of that: banding a participation by its parent Event's whole
+// starts_on..endsOn range reads, in real dogfood use, as "I've reserved the
+// entire run" rather than "I'm registered for this one occurrence" - so
+// participation no longer contributes any band, regardless of whether its
+// Event is single- or multi-day (see computeDotState below, which now
+// treats every occurrence entry as a per-day dot signal on its own exact
+// Asia/Tokyo calendar date instead). Only personal-schedule entries still
+// band when their own span is multi-day; that half of Issue #142 is
+// unchanged. MyCalendarBandSegment's `kind: 'event'` arm is kept in the
+// union (MyMonthCalendar.tsx still renders a `data-band-kind` attribute from
+// it) even though nothing currently constructs a segment with that kind.
 
 export interface MyCalendarBandSegment extends BandSegment {
   kind: 'event' | 'schedule';
   /** Fill (true) vs. outline (false) - Issue #142's shared axis: a
-   * confirmed/attending Event or a `blocking` schedule entry fills, a
-   * considering-only Event or a `non-blocking` schedule entry outlines. */
+   * `blocking` schedule entry fills, a `non-blocking` schedule entry
+   * outlines. */
   blocking: boolean;
-}
-
-/**
- * One band segment per distinct multi-day Event the caller has at least one
- * attending/considering occurrence for, deduplicated by event id (an event
- * with several participation-registered occurrences still bands once - same
- * "one Event, one band" rule calendarMonth.ts's own eventRangeBandSegment
- * follows). The segment spans the full Event range (starts_on..ends_on), not
- * just the caller's own occurrence dates - matching calendarMonth.ts's
- * "band means the officially published run period, independent of
- * occurrence evidence" rule (product-rules.md "Event 開催期間"), so My
- * Calendar's own band for the same Event is never a narrower shape than the
- * Event Catalog's. A single-day Event never contributes here (isSingleDayEvent) -
- * it is represented by the per-day dot instead (see computeDotState below).
- *
- * `blocking` is true iff at least one of the caller's occurrences for this
- * Event is `attending` - present alongside any `considering`-only occurrence
- * for the same Event, attending is the more committed state and wins (same
- * "attending is the fill signal" priority the per-day dot uses).
- */
-export function buildMyCalendarEventBandSegments(
-  occurrenceEntries: readonly MyCalendarOccurrenceEntry[],
-): MyCalendarBandSegment[] {
-  const byEventId = new Map<string, { event: EventCatalogEvent; blocking: boolean }>();
-  for (const { event, participation } of occurrenceEntries) {
-    if (isSingleDayEvent(event)) {
-      continue;
-    }
-    const existing = byEventId.get(event.id);
-    const blocking = (existing?.blocking ?? false) || participation.status === 'attending';
-    byEventId.set(event.id, { event, blocking });
-  }
-  return [...byEventId.values()].map(({ event, blocking }) => ({
-    eventId: event.id,
-    eventTitle: event.title,
-    startDate: event.startsOn,
-    endDate: event.endsOn,
-    isCanceled: isEventCanceled(event),
-    kind: 'event',
-    blocking,
-  }));
 }
 
 /**
@@ -391,36 +341,37 @@ export function buildMyCalendarScheduleBandSegments(
 /**
  * One WeekBandLayout per week in `gridWeeks` (same shape/order as
  * calendarMonth.buildMonthGrid's own MonthGrid.weeks), laying out this
- * caller's Event bands and personal-schedule bands together into the same
- * bounded lane set (MAX_BAND_LANES) - the two kinds share lane capacity on a
- * given day exactly like the Event Catalog's own bands do, per Issue #142's
- * "1セルの marker は最大3（dot 1個 + 帯 2本）" cap.
+ * caller's personal-schedule bands into the same bounded lane set
+ * (MAX_BAND_LANES) the Event Catalog's own bands use, per Issue #142's
+ * "1セルの marker は最大3（dot 1個 + 帯 2本）" cap. Participation no longer
+ * contributes any band here (Issue #174 - see the module comment above
+ * MyCalendarBandSegment) - schedule entries are the only source.
  */
 export function buildMyCalendarWeekBandLayouts(
   gridWeeks: readonly (readonly string[])[],
-  occurrenceEntries: readonly MyCalendarOccurrenceEntry[],
   scheduleEntries: readonly PersonalScheduleEntry[],
 ): WeekBandLayout<MyCalendarBandSegment>[] {
-  const segments = [
-    ...buildMyCalendarEventBandSegments(occurrenceEntries),
-    ...buildMyCalendarScheduleBandSegments(scheduleEntries),
-  ];
+  const segments = buildMyCalendarScheduleBandSegments(scheduleEntries);
   return gridWeeks.map((weekDates) => layoutWeekBands(weekDates, segments, MAX_BAND_LANES));
 }
 
 // --- Per-day markers for the month view ---
 
 /**
- * The unified dot state for one day (Issue #142): `'filled'` when a
- * confirmed/blocking single-day signal is present (an `attending`
- * single-day-Event occurrence, or a `blocking` single-day schedule entry),
- * `'outline'` when only a considering/non-blocking single-day signal is
- * present, `'none'` otherwise. Multi-day Events/entries never reach this -
- * they are represented by a band instead (see buildMyCalendarWeekBandLayouts
- * above), so a day's dot and its bands are always about disjoint sources,
- * the same "never the same thing twice" invariant calendarMonth.ts's own
- * badge/band split follows. At most one dot per day regardless of how many
- * qualifying single-day sources it has (Issue #142: "dot は1セル1個").
+ * The unified dot state for one day: `'filled'` when a confirmed/blocking
+ * signal is present (an `attending` participation-registered occurrence on
+ * this exact date, or a `blocking` single-day schedule entry), `'outline'`
+ * when only a considering/non-blocking signal is present, `'none'`
+ * otherwise. Every participation-registered occurrence on this date counts
+ * here regardless of whether its parent Event is single- or multi-day
+ * (Issue #174 supersedes Issue #142's Event-band rule - see the module
+ * comment above MyCalendarBandSegment): a participation marker is always an
+ * exact-date dot, never a band. A multi-day *schedule* entry still never
+ * reaches this - it is represented by a band instead (see
+ * buildMyCalendarWeekBandLayouts above), so a day's dot and its schedule
+ * bands are always about disjoint schedule sources. At most one dot per day
+ * regardless of how many qualifying sources it has (Issue #142: "dot は
+ * 1セル1個" - unchanged).
  */
 export type MyCalendarDotState = 'filled' | 'outline' | 'none';
 
@@ -428,18 +379,17 @@ function computeDotState(
   dayOccurrences: readonly MyCalendarOccurrenceEntry[],
   daySchedules: readonly MyCalendarScheduleEntry[],
 ): MyCalendarDotState {
-  const singleDayOccurrences = dayOccurrences.filter((entry) => isSingleDayEvent(entry.event));
   const singleDaySchedules = daySchedules.filter((s) => isSingleDayScheduleEntry(s.entry));
 
   const filled =
-    singleDayOccurrences.some((entry) => entry.participation.status === 'attending') ||
+    dayOccurrences.some((entry) => entry.participation.status === 'attending') ||
     singleDaySchedules.some((s) => s.entry.blocking);
   if (filled) {
     return 'filled';
   }
 
   const outlined =
-    singleDayOccurrences.some((entry) => entry.participation.status === 'considering') ||
+    dayOccurrences.some((entry) => entry.participation.status === 'considering') ||
     singleDaySchedules.some((s) => !s.entry.blocking);
   return outlined ? 'outline' : 'none';
 }
@@ -460,11 +410,10 @@ export interface MyCalendarDayMarkers {
    * (Issue #92: month-calendar scanability requires attending/considering
    * to read as distinct signals, never collapsed into one generic
    * "participation-registered" count - a day with both must show both).
-   * Kept as an aria-label/emptiness signal independent of `dot` above -
-   * unlike `dot`, this counts every occurrence on the day regardless of
-   * whether its Event is single- or multi-day (Issue #142's dot/band split
-   * is a *visual* marker rule, not a narrower definition of "has
-   * participation"). */
+   * Kept as an aria-label/emptiness signal independent of `dot` above,
+   * though both now count the same occurrences (Issue #174: participation
+   * is never band-represented, so there is no single-/multi-day Event split
+   * left for `dot` to narrow past this count). */
   attendingCount: number;
   /** Occurrences on this day whose participation.status is 'considering'. */
   consideringCount: number;
