@@ -9,9 +9,12 @@ export interface TicketOpportunityTimelineProps {
 }
 
 /**
- * The flattened, chronologically-ascending Ticket Opportunity milestone
- * timeline (Issue #144 Task Contract): milestones interleave across
- * Opportunities and Events, grouped only by month - never by milestone type.
+ * The forward-looking Ticket Opportunity primary view (Issue #175): at most
+ * one (current-or-next) row per Opportunity, chronologically ascending and
+ * interleaved across Opportunities/Events, grouped only by month - never by
+ * milestone type. `monthGroups` is expected to already be built from
+ * selectTicketOpportunityPrimaryRows's output (domain/
+ * ticketOpportunityTimeline.ts), not the raw #144 flattened timeline.
  */
 export function TicketOpportunityTimeline({
   monthGroups,
