@@ -196,13 +196,18 @@ export function ticketOpportunityMilestoneTokyoCalendarDate(
  *    (product-rules.md "Target scope"), so one current Occurrence being
  *    canceled must not cancel the Opportunity.
  * 3. `selected_occurrences` with the Event not canceled -> terminal only
- *    when the resolved target set is non-empty AND every resolved target
- *    Occurrence is canceled. An empty resolved set (e.g. a defensive
- *    missing-read drop - see ticketOpportunityTimeline.ts's own header on
- *    buildTicketOpportunityTimelineRows) must never read as "all
- *    canceled" - that would be inferring global cancellation from an
- *    incomplete/unresolved target set, which the Issue #172 adjudication
- *    explicitly rules out.
+ *    when the target set is *completely resolved* (targetOccurrences.length
+ *    === targetOccurrenceIdCount), that resolved set is non-empty, AND
+ *    every resolved target Occurrence is canceled. Neither an empty
+ *    resolved set nor a *partially* resolved one (e.g. a defensive
+ *    missing-read drop for only some ids - see
+ *    ticketOpportunityTimeline.ts's own header on
+ *    buildTicketOpportunityTimelineRows) may read as "all canceled" -
+ *    both are inferring global cancellation from an incomplete/unresolved
+ *    target set, which the Issue #172 adjudication explicitly rules out.
+ *    Checking length equality (not just non-empty) is what closes this:
+ *    a request for 3 targets that resolves only 1 (2 dropped) must not
+ *    satisfy `.every(...)` on that 1 alone and falsely go terminal.
  *
  * A partially canceled `selected_occurrences` target (some but not all
  * targets canceled) is NOT terminal here - see
@@ -210,7 +215,10 @@ export function ticketOpportunityMilestoneTokyoCalendarDate(
  * visible without marking the whole Opportunity canceled.
  */
 export function isTicketOpportunityRowEffectivelyCanceled(
-  row: Pick<TicketOpportunityTimelineRow, 'targetScope' | 'eventCanceled' | 'targetOccurrences'>,
+  row: Pick<
+    TicketOpportunityTimelineRow,
+    'targetScope' | 'eventCanceled' | 'targetOccurrences' | 'targetOccurrenceIdCount'
+  >,
 ): boolean {
   if (row.eventCanceled) {
     return true;
@@ -219,6 +227,9 @@ export function isTicketOpportunityRowEffectivelyCanceled(
     return false;
   }
   if (row.targetOccurrences.length === 0) {
+    return false;
+  }
+  if (row.targetOccurrences.length !== row.targetOccurrenceIdCount) {
     return false;
   }
   return row.targetOccurrences.every((occurrence) => isOccurrenceCanceled(occurrence));
@@ -248,6 +259,7 @@ export function isActionableTicketOpportunityDeadline(
     | 'targetScope'
     | 'eventCanceled'
     | 'targetOccurrences'
+    | 'targetOccurrenceIdCount'
   >,
   todayTokyoDate: string,
 ): boolean {
@@ -291,6 +303,7 @@ export function ticketOpportunityDeadlineRemainingDaysLabel(
     | 'targetScope'
     | 'eventCanceled'
     | 'targetOccurrences'
+    | 'targetOccurrenceIdCount'
   >,
   todayTokyoDate: string,
 ): string | null {

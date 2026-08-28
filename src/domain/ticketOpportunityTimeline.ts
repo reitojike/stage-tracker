@@ -53,8 +53,24 @@ export interface TicketOpportunityTimelineRow {
    * chronologically, same as every other occurrence list in this product.
    * Each occurrence's own canceledAt is preserved as-is (not collapsed) so
    * the Opportunity-scope aggregation rule can tell "all targets canceled"
-   * from "some targets canceled" from "target set unresolved/empty". */
+   * from "some targets canceled" from "target set unresolved/empty".
+   * May be SHORTER than targetOccurrenceIdCount below when one or more
+   * target ids failed to resolve (dropped, not fabricated - see this
+   * module's own header) - callers must not treat that as "all resolved
+   * targets are canceled" without also checking completeness via
+   * targetOccurrenceIdCount (Issue #172 root cause B closure finding:
+   * partial target-resolution loss must never produce a false
+   * whole-Opportunity terminal state). */
   targetOccurrences: EventOccurrence[];
+  /** `detail.targetOccurrenceIds.length` - the full requested target count,
+   * independent of how many of those ids actually resolved into
+   * `targetOccurrences` above. Always 0 for `event_wide` (by construction).
+   * Exists solely so isTicketOpportunityRowEffectivelyCanceled
+   * (ticketOpportunityFormatting.ts) can require
+   * `targetOccurrences.length === targetOccurrenceIdCount` (a complete
+   * resolution) before applying the "every target canceled" rule - an
+   * incomplete resolution must never be read as "all canceled". */
+  targetOccurrenceIdCount: number;
   milestoneType: TicketOpportunityMilestoneType;
   temporalPrecision: TicketOpportunityMilestoneTemporalPrecision;
   dateValue: string | null;
@@ -119,6 +135,7 @@ export function buildTicketOpportunityTimelineRows(
         sourceUrl: detail.opportunity.sourceUrl,
         targetScope: detail.opportunity.targetScope,
         targetOccurrences,
+        targetOccurrenceIdCount: detail.targetOccurrenceIds.length,
         milestoneType: milestone.milestoneType,
         temporalPrecision: milestone.temporalPrecision,
         dateValue: milestone.dateValue,

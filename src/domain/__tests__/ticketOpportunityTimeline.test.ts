@@ -212,6 +212,12 @@ void test('buildTicketOpportunityTimelineRows resolves selected_occurrences targ
     ['occ-earlier', 'occ-later'],
     'unresolvable occurrence ids are dropped, resolved ones are sorted chronologically',
   );
+  // Codex targeted-closure finding on PR #173: targetOccurrenceIdCount must
+  // reflect the full *requested* count (3, including the unresolvable
+  // occ-missing), not the resolved count (2) - this is what lets
+  // isTicketOpportunityRowEffectivelyCanceled (ticketOpportunityFormatting.ts)
+  // tell a partial resolution apart from a genuinely complete one.
+  assert.equal(rows[0].targetOccurrenceIdCount, 3);
 });
 
 void test('buildTicketOpportunityTimelineRows drops an Opportunity whose Event cannot be resolved', () => {

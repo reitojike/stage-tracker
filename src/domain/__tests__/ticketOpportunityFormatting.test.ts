@@ -42,6 +42,7 @@ function baseRow(
     sourceUrl: null,
     targetScope: 'event_wide',
     targetOccurrences: [],
+    targetOccurrenceIdCount: 0,
     milestoneType: 'application_open',
     temporalPrecision: 'date',
     dateValue: '2026-09-01',
@@ -342,6 +343,7 @@ void test('isTicketOpportunityRowEffectivelyCanceled: Event canceled is terminal
         targetScope: 'selected_occurrences',
         eventCanceled: true,
         targetOccurrences: [occurrence({ canceledAt: null })],
+        targetOccurrenceIdCount: 1,
       }),
     ),
     true,
@@ -360,6 +362,7 @@ void test('isTicketOpportunityRowEffectivelyCanceled: event_wide is never cancel
         // it is a semantic fact about the whole Event, never a snapshot of
         // current Occurrences.
         targetOccurrences: [occurrence({ canceledAt: '2026-08-01T00:00:00.000Z' })],
+        targetOccurrenceIdCount: 1,
       }),
     ),
     false,
@@ -377,6 +380,7 @@ void test('isTicketOpportunityRowEffectivelyCanceled: selected_occurrences is te
           occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
           occurrence({ id: 'occ-2', canceledAt: '2026-08-02T00:00:00.000Z' }),
         ],
+        targetOccurrenceIdCount: 2,
       }),
     ),
     true,
@@ -393,6 +397,7 @@ void test('isTicketOpportunityRowEffectivelyCanceled: selected_occurrences is te
           occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
           occurrence({ id: 'occ-2', canceledAt: null }),
         ],
+        targetOccurrenceIdCount: 2,
       }),
     ),
     false,
@@ -405,6 +410,7 @@ void test('isTicketOpportunityRowEffectivelyCanceled: selected_occurrences is te
         targetScope: 'selected_occurrences',
         eventCanceled: false,
         targetOccurrences: [occurrence({ id: 'occ-1', canceledAt: null })],
+        targetOccurrenceIdCount: 1,
       }),
     ),
     false,
@@ -415,9 +421,37 @@ void test('isTicketOpportunityRowEffectivelyCanceled: selected_occurrences is te
   // from an incomplete/unresolved target set.
   assert.equal(
     isTicketOpportunityRowEffectivelyCanceled(
-      baseRow({ targetScope: 'selected_occurrences', eventCanceled: false, targetOccurrences: [] }),
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: false,
+        targetOccurrences: [],
+        targetOccurrenceIdCount: 0,
+      }),
     ),
     false,
+  );
+
+  // A *partially* resolved target set (Codex targeted-closure finding on
+  // PR #173: buildTicketOpportunityTimelineRows drops unresolved target
+  // ids rather than fabricating them, so a request for 3 targets can
+  // resolve only 1) must NOT read the resolved subset's ".every(canceled)"
+  // as "all targets canceled" - that is exactly the same
+  // incomplete/unresolved-target-set inference the empty-set case above
+  // already guards against, just with a non-empty but incomplete
+  // resolved list.
+  assert.equal(
+    isTicketOpportunityRowEffectivelyCanceled(
+      baseRow({
+        targetScope: 'selected_occurrences',
+        eventCanceled: false,
+        // Only 1 of the originally-requested 3 targets resolved, and that
+        // one happens to be canceled - the other 2 are unknown, not live.
+        targetOccurrences: [occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' })],
+        targetOccurrenceIdCount: 3,
+      }),
+    ),
+    false,
+    'a partially-resolved target set must not be read as "all canceled" merely because the resolved subset happens to be',
   );
 });
 
@@ -450,6 +484,7 @@ void test('isActionableTicketOpportunityDeadline: never true once the whole Oppo
         dateValue: '2026-09-08',
         targetScope: 'selected_occurrences',
         targetOccurrences: [occurrence({ canceledAt: '2026-08-01T00:00:00.000Z' })],
+        targetOccurrenceIdCount: 1,
       }),
       today,
     ),
@@ -470,6 +505,7 @@ void test('isActionableTicketOpportunityDeadline: never true once the whole Oppo
           occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
           occurrence({ id: 'occ-2', canceledAt: null }),
         ],
+        targetOccurrenceIdCount: 2,
       }),
       today,
     ),

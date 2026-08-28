@@ -18,6 +18,7 @@ function baseRow(
     sourceUrl: null,
     targetScope: 'event_wide',
     targetOccurrences: [],
+    targetOccurrenceIdCount: 0,
     milestoneType: 'application_close',
     temporalPrecision: 'date',
     dateValue: '2026-09-05',
@@ -142,6 +143,7 @@ void test('selectHomeDeadlineRows excludes a selected_occurrences target only wh
       id: 'all-canceled',
       targetScope: 'selected_occurrences',
       targetOccurrences: [occurrence({ canceledAt: '2026-08-01T00:00:00.000Z' })],
+      targetOccurrenceIdCount: 1,
     }),
     baseRow({
       id: 'partially-canceled',
@@ -150,6 +152,7 @@ void test('selectHomeDeadlineRows excludes a selected_occurrences target only wh
         occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' }),
         occurrence({ id: 'occ-2', canceledAt: null }),
       ],
+      targetOccurrenceIdCount: 2,
     }),
   ];
   const selected = selectHomeDeadlineRows(rows, TODAY);
@@ -157,5 +160,25 @@ void test('selectHomeDeadlineRows excludes a selected_occurrences target only wh
     selected.map((row) => row.id),
     ['partially-canceled'],
     'a live target remains actionable even though a sibling target is canceled',
+  );
+});
+
+void test('selectHomeDeadlineRows keeps a target actionable when its target set is only partially resolved (Codex targeted-closure finding on PR #173)', () => {
+  const rows = [
+    baseRow({
+      id: 'partially-resolved',
+      targetScope: 'selected_occurrences',
+      // Only 1 of 3 originally-requested targets resolved, and that one
+      // happens to be canceled - the other 2 are unknown, not confirmed
+      // canceled, so the Opportunity must not be read as terminal.
+      targetOccurrences: [occurrence({ id: 'occ-1', canceledAt: '2026-08-01T00:00:00.000Z' })],
+      targetOccurrenceIdCount: 3,
+    }),
+  ];
+  const selected = selectHomeDeadlineRows(rows, TODAY);
+  assert.deepEqual(
+    selected.map((row) => row.id),
+    ['partially-resolved'],
+    'an incomplete target resolution must not be read as "all targets canceled"',
   );
 });
