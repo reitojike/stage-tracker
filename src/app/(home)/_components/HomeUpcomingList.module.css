@@ -1,0 +1,69 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Repeated per date group - lighter than the block-level section heading
+   (that one carries the bold border-bottom, see ../page.module.css), the
+   same "grouping heading, no border" weight
+   src/app/tickets/_components/TicketOpportunityTimeline.module.css's own
+   .monthHeading uses for its repeated month headings. */
+.dateHeading {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
+  color: var(--color-text);
+  margin: 0 0 var(--space-xs);
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Home's occurrence/personal-schedule row is the exact same "plain row,
+ * bottom-border, no card Surface" shape My Calendar's own selected-day list
+ * already established (Issue #146) - shared via `composes` (same mechanism
+ * page.module.css's blockHeading uses for My Page's section-heading rule)
+ * rather than a second byte-identical copy of the same nine rules.
+ */
+.item {
+  composes: item from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.itemLink {
+  composes: itemLink from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.itemBody {
+  composes: itemBody from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.chevron {
+  composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.time {
+  composes: time from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.title {
+  composes: title from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.venue {
+  composes: venue from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.badgeRow {
+  composes: badgeRow from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.participationBadge {
+  composes: participationBadge from '../../calendar/_components/MySelectedDayList.module.css';
+}

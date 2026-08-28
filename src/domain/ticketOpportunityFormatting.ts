@@ -146,8 +146,18 @@ export function formatTicketOpportunityMilestoneDisplay(
  * formatTicketOpportunityMilestoneDisplay avoids). Prefers the most precise
  * value available, same priority order as
  * ticketOpportunityMilestoneSortInstant.
+ *
+ * Exported (not just used internally) so Home's deadline-ordering projection
+ * (domain/homeDeadlines.ts, Issue #143) can sort by the same window-end-
+ * preferring deadline date this module already uses for actionability/
+ * remaining-days, rather than re-deriving it or falling back to
+ * ticketOpportunityMilestoneSortInstant's window-*start* ordering (see that
+ * function's own header - it is chronological-display ordering, not
+ * deadline-date resolution, and using it for deadline sort would rank a
+ * window-precision application_close by when the window *opened*, not when
+ * it *closes*).
  */
-function ticketOpportunityMilestoneTokyoCalendarDate(
+export function ticketOpportunityMilestoneTokyoCalendarDate(
   row: Pick<TicketOpportunityTimelineRow, 'dateValue' | 'at' | 'startsAt' | 'endsAt'>,
 ): string {
   if (row.at !== null) {

@@ -1,0 +1,57 @@
+/*
+ * Horizontal-scroll compact card row (Issue #143 Task Contract: 158px card
+ * width, 8px gap). `overflow-x: auto` here (rather than on some ancestor)
+ * is what keeps this row's own intrinsic content width from forcing the
+ * page itself wider at 375px - setting overflow to anything but `visible`
+ * makes a flex item's auto min-width resolve to 0 instead of its content's
+ * natural size, so AppShell's column can size this row to the viewport and
+ * only the row's own contents scroll internally.
+ */
+.row {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  scroll-snap-type: x proximity;
+  /* Otherwise iOS Safari renders a plain (non-momentum) scroll here. */
+  -webkit-overflow-scrolling: touch;
+}
+
+.card {
+  flex: 0 0 158px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border-radius: var(--radius-surface);
+  background-color: var(--color-surface-subtle);
+}
+
+.badge {
+  align-self: flex-start;
+}
+
+.eventTitle {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-title);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.opportunityName {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.deadline {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
