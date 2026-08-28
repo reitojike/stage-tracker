@@ -142,22 +142,20 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
       <div className={styles.grid}>
         {viewModel.weeks.map((week, weekIndex) => {
           // Issue #142 removed the full per-hidden-event overflow list
-          // (still true here: no per-title listing, no third band lane)
-          // but Issue #176 restores a *compact* existence/count disclosure
-          // so a week with 3+ concurrent multi-day Events doesn't read
-          // identically to one with exactly 2. This reads
+          // (still true here in spirit: no third band lane) but Issue #176
+          // restored a *compact* existence/count disclosure, and Issue
+          // #181 extends it to name every hidden Event (not just the
+          // first) in the same single-line summary. This reads
           // week.bandLayout.overflowEvents/overflowCount as-is (already
-          // deduplicated by eventId - see layoutWeekBands in
-          // calendarMonth.ts) rather than re-deriving which Events are
-          // hidden; the 2-band lane cap itself (MAX_BAND_LANES) is
-          // unchanged. `noUncheckedIndexedAccess` requires the `undefined`
-          // check below even though `overflowEvents[0]` always exists once
-          // .length > 0.
-          const firstHidden = week.bandLayout.overflowEvents[0];
-          const firstHiddenTitle =
-            firstHidden === undefined
-              ? null
-              : bandDisplayTitle(firstHidden.eventTitle, firstHidden.isCanceled);
+          // deduplicated by eventId, in existing order - see
+          // layoutWeekBands in calendarMonth.ts) rather than re-deriving
+          // which Events are hidden or how many fit; the 2-band lane cap
+          // itself (MAX_BAND_LANES) is unchanged. Which titles actually
+          // stay visible is left entirely to .weekOverflowTitles's CSS
+          // single-line ellipsis (MonthCalendar.module.css) - no JS
+          // measurement of text/viewport width, no independent slice of
+          // this array (Issue #181 MUST).
+          const overflowEvents = week.bandLayout.overflowEvents;
 
           return (
             // Weeks are a stable, never-reordered sequence within one
@@ -280,26 +278,38 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
                 </span>
               ))}
 
-              {firstHidden !== undefined && firstHiddenTitle !== null ? (
+              {overflowEvents.length > 0 ? (
                 <p
                   className={styles.weekOverflow}
                   style={{ gridColumn: '1 / -1', gridRow: MAX_BAND_LANES + 2 }}
                 >
-                  {/* Visible text (never color-only) carries the count; the
-                      truncated title stays fully present in the DOM/
-                      accessible name even where CSS ellipsis clips it
-                      visually - see .weekOverflow / .weekOverflowLink
-                      below. */}
+                  {/* Visible text (never color-only) carries the count; every
+                      hidden title stays fully present in the DOM/accessible
+                      name even where CSS ellipsis clips the line visually -
+                      see .weekOverflow / .weekOverflowTitles below. Titles
+                      render in overflowEvents' existing order, separated by
+                      a compact "、", with no re-derived count or hidden-set
+                      selection (Issue #181). */}
                   <span className={styles.weekOverflowLabel}>
                     {`この週にほか${String(week.bandLayout.overflowCount)}件：`}
                   </span>
-                  <Link
-                    href={catalogEventHref(firstHidden.eventId, catalogContext)}
-                    className={styles.weekOverflowLink}
-                    title={firstHiddenTitle}
-                  >
-                    {firstHiddenTitle}
-                  </Link>
+                  <span className={styles.weekOverflowTitles}>
+                    {overflowEvents.map((hidden, index) => {
+                      const title = bandDisplayTitle(hidden.eventTitle, hidden.isCanceled);
+                      return (
+                        <span key={hidden.eventId}>
+                          {index > 0 ? '、' : null}
+                          <Link
+                            href={catalogEventHref(hidden.eventId, catalogContext)}
+                            className={styles.weekOverflowLink}
+                            title={title}
+                          >
+                            {title}
+                          </Link>
+                        </span>
+                      );
+                    })}
+                  </span>
                 </p>
               ) : null}
             </div>
