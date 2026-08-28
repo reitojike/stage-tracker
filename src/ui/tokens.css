@@ -71,8 +71,12 @@
 
   /*
    * ---- primitive: radius (moderate control, non-oversized surface) ----
-   * `--radius-scale-xs` (8px) is the V2 refined "small control" step,
-   * between the pre-existing `sm` (6px) and `md` (10px) steps.
+   * `--radius-scale-xs` (8px) / `--radius-scale-md` (10px) were the V2
+   * refined control-radius steps; Design Wave 2 (Issue #185) moved
+   * --radius-control/--radius-control-sm onto --radius-scale-sheet (4px)
+   * instead, so these two are no longer referenced by the semantic layer.
+   * Left defined rather than removed - this Task's scope is the semantic
+   * radius vocabulary, not primitive-scale cleanup.
    * `--radius-scale-container` (12px) and `--radius-scale-band` (5px) are
    * V2 refined "surface polish" (#96 -> #102) off-grid exceptions: the
    * former is the frozen white-container corner radius (distinct from the
@@ -241,11 +245,18 @@
   --space-xl: var(--space-scale-6);
 
   /* radius */
-  --radius-control: var(--radius-scale-md);
+  /* Design Wave 2 (Issue #185): converged onto the 4px "sheet" step so
+     control shape reads as one vocabulary with the bottom-sheet corner
+     below, rather than the earlier 10px step that made secondary/small
+     Buttons read as an oversized white surface. Reuses the existing
+     --radius-scale-sheet primitive rather than adding a new radius value. */
+  --radius-control: var(--radius-scale-sheet);
   /* Compact controls (Button small/quiet/icon variants) and small inline
-     panels - the V2 refined "small control" radius step. Also month
-     calendar's own day cell radius (#96 -> #102 calendar presentation). */
-  --radius-control-sm: var(--radius-scale-xs);
+     panels - also month calendar's own day cell radius (#96 -> #102
+     calendar presentation). Converged to the same 4px step as
+     --radius-control above (Issue #185); the two are no longer distinct
+     steps. */
+  --radius-control-sm: var(--radius-scale-sheet);
   /* Borderless white container radius (#96 -> #102: Surface / StatePanel /
      HomeNav / container-vocabulary consumers, and the calendar card
      itself). Distinct from --radius-control's smaller step. */
