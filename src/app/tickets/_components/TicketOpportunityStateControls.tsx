@@ -6,7 +6,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_TICKET_OPPORTUNITY_OPERATION_STATE } from '@/domain/ticketOpportunityFeedback.ts';
 import type { UserTicketOpportunityStatus } from '@/domain/ticketOpportunity.ts';
 import { updateTicketOpportunityStateAction } from '../_actions/ticketOpportunityWrite.ts';
-import { WriteNotice } from '../../catalog/_components/WriteNotice.tsx';
+import { TicketOpportunityWriteNotice } from './TicketOpportunityWriteNotice.tsx';
 import styles from './TicketOpportunityStateControls.module.css';
 
 export interface TicketOpportunityStateControlsProps {
@@ -46,7 +46,7 @@ export function TicketOpportunityStateControls({
           description={state.feedback.description}
         />
       ) : null}
-      <WriteNotice notice={state.notice} attempt={state.attempt} />
+      <TicketOpportunityWriteNotice notice={state.notice} attempt={state.attempt} />
 
       <div className={styles.actions}>
         {myState === null ? (

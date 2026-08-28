@@ -163,6 +163,37 @@ void test('isActionableTicketOpportunityDeadline: only planned + application_clo
     false,
   );
 
+  // A window-precision application_close (nothing ties milestone_type to
+  // temporal_precision in the schema) is judged by its *end*, not its
+  // start - the window's start alone would make this look already past
+  // days before it actually closes.
+  assert.equal(
+    isActionableTicketOpportunityDeadline(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'window',
+        startsAt: '2026-09-01T00:00:00.000Z',
+        endsAt: '2026-09-08T00:00:00.000Z',
+      }),
+      today,
+    ),
+    true,
+  );
+  assert.equal(
+    ticketOpportunityDeadlineRemainingDaysLabel(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'window',
+        startsAt: '2026-09-01T00:00:00.000Z',
+        endsAt: '2026-09-08T00:00:00.000Z',
+      }),
+      today,
+    ),
+    '残り3日',
+  );
+
   // result_announcement/sale_start/payment_window never escalate to red.
   for (const milestoneType of ['result_announcement', 'sale_start', 'payment_window'] as const) {
     assert.equal(

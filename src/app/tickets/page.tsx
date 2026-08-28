@@ -36,13 +36,18 @@ function authOrReadErrorPanel(error: PlanningError) {
   );
 }
 
-const READ_FAILURE_PANEL = (
-  <StatePanel
-    variant="error"
-    title="チケットスケジュールを読み込めませんでした"
-    description="通信状況を確認し、もう一度お試しください。"
-  />
-);
+/** Same "failure" wording authOrReadErrorPanel uses for a PlanningError - for
+ * the Event Catalog composition reads below, which report a bare
+ * EventCatalogReadError (no `kind` to branch on), not a PlanningError. */
+function readFailurePanel() {
+  return (
+    <StatePanel
+      variant="error"
+      title={AUTH_FAILURE_PANEL.failure.title}
+      description={AUTH_FAILURE_PANEL.failure.description}
+    />
+  );
+}
 
 /**
  * /tickets (Issue #144): the shared official Ticket schedule timeline, plus
@@ -90,7 +95,7 @@ export default async function TicketsPage() {
     return (
       <>
         <PageHeading>チケット</PageHeading>
-        {READ_FAILURE_PANEL}
+        {readFailurePanel()}
       </>
     );
   }

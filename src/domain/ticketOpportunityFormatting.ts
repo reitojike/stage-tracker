@@ -148,10 +148,20 @@ export function formatTicketOpportunityMilestoneDisplay(
  * ticketOpportunityMilestoneSortInstant.
  */
 function ticketOpportunityMilestoneTokyoCalendarDate(
-  row: Pick<TicketOpportunityTimelineRow, 'dateValue' | 'at' | 'startsAt'>,
+  row: Pick<TicketOpportunityTimelineRow, 'dateValue' | 'at' | 'startsAt' | 'endsAt'>,
 ): string {
   if (row.at !== null) {
     return tokyoCalendarDateFromInstant(row.at);
+  }
+  // A window's *end* is the date this concerns for deadline purposes - e.g.
+  // an application_close milestone can legitimately be window-precision
+  // (nothing in the schema ties milestone_type to temporal_precision; see
+  // supabase/migrations/20260828000100_create_ticket_opportunity_milestones.sql).
+  // Preferring startsAt here would read the window's *open* as the
+  // deadline, escalating "still actionable" to false days before the
+  // window actually closes.
+  if (row.endsAt !== null) {
+    return tokyoCalendarDateFromInstant(row.endsAt);
   }
   if (row.startsAt !== null) {
     return tokyoCalendarDateFromInstant(row.startsAt);
@@ -174,7 +184,7 @@ function ticketOpportunityMilestoneTokyoCalendarDate(
 export function isActionableTicketOpportunityDeadline(
   row: Pick<
     TicketOpportunityTimelineRow,
-    'milestoneType' | 'myState' | 'dateValue' | 'at' | 'startsAt'
+    'milestoneType' | 'myState' | 'dateValue' | 'at' | 'startsAt' | 'endsAt'
   >,
   todayTokyoDate: string,
 ): boolean {
@@ -206,7 +216,7 @@ function daysBetweenTokyoDates(fromDate: string, toDate: string): number {
 export function ticketOpportunityDeadlineRemainingDaysLabel(
   row: Pick<
     TicketOpportunityTimelineRow,
-    'milestoneType' | 'myState' | 'dateValue' | 'at' | 'startsAt'
+    'milestoneType' | 'myState' | 'dateValue' | 'at' | 'startsAt' | 'endsAt'
   >,
   todayTokyoDate: string,
 ): string | null {
