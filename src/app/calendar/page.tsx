@@ -15,7 +15,6 @@ import {
   buildMyCalendarOccurrenceEntries,
   buildMyCalendarWeekBandLayouts,
   isOccurrenceStartUtcDateInGridSuperset,
-  selectMyCalendarEventLevelFallback,
   selectMyCalendarOccurrenceEntries,
   selectMyCalendarScheduleEntries,
 } from '@/domain/myCalendar.ts';
@@ -26,7 +25,6 @@ import type { PlanningError } from '@/domain/planningError.ts';
 import { currentTokyoDate } from './_lib/today.ts';
 import { MyMonthCalendar } from './_components/MyMonthCalendar.tsx';
 import { MySelectedDayList } from './_components/MySelectedDayList.tsx';
-import { EventLevelFallbackList } from '../catalog/_components/EventLevelFallbackList.tsx';
 
 interface MyCalendarPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -205,11 +203,7 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
     callerId,
   );
   const markersByDate = new Map(dayMarkers.map((m) => [m.date, m] as const));
-  const weekBandLayouts = buildMyCalendarWeekBandLayouts(
-    grid.weeks,
-    occurrenceEntries,
-    scheduleResult.data,
-  );
+  const weekBandLayouts = buildMyCalendarWeekBandLayouts(grid.weeks, scheduleResult.data);
 
   // Emptiness is judged only over dates actually inside the displayed
   // month, not the lead/trail adjacent-month cells `dayMarkers` also
@@ -261,37 +255,23 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
       ) : null}
 
       {selectedDate !== null ? (
-        <>
-          {/* Issue #142: a multi-day Event's band covers its whole official
-              range, but selectMyCalendarOccurrenceEntries below only matches
-              an actual occurrence on selectedDate - without this, a day
-              inside the band the caller has no occurrence on would show
-              MySelectedDayList's own empty state despite the band visibly
-              covering it (see selectMyCalendarEventLevelFallback's own
-              header). Narrowed to Events the caller actually participates
-              in, unlike the Event Catalog's own EventLevelFallbackList use
-              (src/app/catalog/page.tsx), which shows every such Event. */}
-          <EventLevelFallbackList
-            events={selectMyCalendarEventLevelFallback(
-              eventsWithOccurrences,
-              occurrenceEntries,
-              selectedDate,
-            )}
-            context={{ yearMonth, selectedDate }}
-          />
-          <MySelectedDayList
-            date={selectedDate}
-            occurrenceEntries={selectMyCalendarOccurrenceEntries(occurrenceEntries, selectedDate)}
-            scheduleEntries={selectMyCalendarScheduleEntries(
-              scheduleResult.data,
-              callerId,
-              selectedDate,
-              gridFirstDate,
-              gridLastDate,
-            )}
-            eventDetailContext={{ yearMonth, selectedDate }}
-          />
-        </>
+        // Issue #174: My Calendar's selected-day detail only ever shows
+        // participation-registered occurrences that actually fall on
+        // selectedDate - there is no Event-range-derived fallback for a day
+        // with no occurrence (superseding #142's own fallback, which banded
+        // participation by the whole Event range and needed one).
+        <MySelectedDayList
+          date={selectedDate}
+          occurrenceEntries={selectMyCalendarOccurrenceEntries(occurrenceEntries, selectedDate)}
+          scheduleEntries={selectMyCalendarScheduleEntries(
+            scheduleResult.data,
+            callerId,
+            selectedDate,
+            gridFirstDate,
+            gridLastDate,
+          )}
+          eventDetailContext={{ yearMonth, selectedDate }}
+        />
       ) : null}
     </>
   );

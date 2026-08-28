@@ -3,14 +3,12 @@ import { test } from 'node:test';
 import {
   aggregateTicketDisplayStatus,
   buildMyCalendarDayMarkers,
-  buildMyCalendarEventBandSegments,
   buildMyCalendarOccurrenceEntries,
   buildMyCalendarScheduleBandSegments,
   buildMyCalendarWeekBandLayouts,
   isSingleDayScheduleEntry,
   scheduleEntryDatesInRange,
   isOccurrenceStartUtcDateInGridSuperset,
-  selectMyCalendarEventLevelFallback,
   selectMyCalendarOccurrenceEntries,
   selectMyCalendarScheduleEntries,
 } from '../myCalendar.ts';
@@ -488,7 +486,12 @@ void test('dot: no single-day source on a day is "none"', () => {
   assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'none');
 });
 
-void test('dot: a multi-day Event never fills/outlines the dot - it is represented by a band instead', () => {
+// --- Issue #174: a multi-day Event's participation marker is an exact-date
+// dot on the registered occurrence's own date, never a band over the
+// Event's whole starts_on..endsOn range (superseding #142's Event-band
+// rule). ---
+
+void test("dot: a multi-day Event with an attending occurrence fills the dot on the occurrence's own exact date", () => {
   const ev: EventWithOccurrences = {
     event: event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
     occurrences: [
@@ -500,8 +503,95 @@ void test('dot: a multi-day Event never fills/outlines the dot - it is represent
     new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
     new Map(),
   );
+  const markers = buildMyCalendarDayMarkers(
+    ['2026-08-08', '2026-08-09', '2026-08-10', '2026-08-11', '2026-08-12'],
+    entries,
+    [],
+    'caller',
+  );
+  assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'filled');
+});
+
+void test("dot: a multi-day Event's participation marker never appears on any other date within the Event range, even days with no occurrence", () => {
+  const ev: EventWithOccurrences = {
+    event: event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
+    occurrences: [
+      occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
+    ],
+  };
+  const entries = buildMyCalendarOccurrenceEntries(
+    [ev],
+    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
+    new Map(),
+  );
+  const markers = buildMyCalendarDayMarkers(
+    ['2026-08-08', '2026-08-09', '2026-08-10', '2026-08-11', '2026-08-12'],
+    entries,
+    [],
+    'caller',
+  );
+  for (const date of ['2026-08-08', '2026-08-09', '2026-08-11', '2026-08-12']) {
+    assert.equal(markers.find((m) => m.date === date)?.dot, 'none', `expected no dot on ${date}`);
+  }
+});
+
+void test("dot: a multi-day Event with only a considering occurrence outlines the dot on the occurrence's own exact date", () => {
+  const ev: EventWithOccurrences = {
+    event: event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
+    occurrences: [
+      occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
+    ],
+  };
+  const entries = buildMyCalendarOccurrenceEntries(
+    [ev],
+    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'considering' })]]),
+    new Map(),
+  );
   const markers = buildMyCalendarDayMarkers(['2026-08-10'], entries, [], 'caller');
-  assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'none');
+  assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'outline');
+});
+
+void test('dot: on the same day, attending wins over considering across multiple occurrences of a multi-day Event', () => {
+  const ev: EventWithOccurrences = {
+    event: event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
+    occurrences: [
+      occurrence({ id: 'occ-a', eventId: 'multi', startsAt: '2026-08-10T01:00:00Z' }),
+      occurrence({ id: 'occ-b', eventId: 'multi', startsAt: '2026-08-10T09:00:00Z' }),
+    ],
+  };
+  const entries = buildMyCalendarOccurrenceEntries(
+    [ev],
+    new Map([
+      ['occ-a', participation({ id: 'p-a', occurrenceId: 'occ-a', status: 'considering' })],
+      ['occ-b', participation({ id: 'p-b', occurrenceId: 'occ-b', status: 'attending' })],
+    ]),
+    new Map(),
+  );
+  const markers = buildMyCalendarDayMarkers(['2026-08-10'], entries, [], 'caller');
+  assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'filled');
+});
+
+void test('dot: same-day multiple occurrences (single Event) still render exactly one dot for the day', () => {
+  const ev: EventWithOccurrences = {
+    event: event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
+    occurrences: [
+      occurrence({ id: 'occ-a', eventId: 'multi', startsAt: '2026-08-10T01:00:00Z' }),
+      occurrence({ id: 'occ-b', eventId: 'multi', startsAt: '2026-08-10T09:00:00Z' }),
+    ],
+  };
+  const entries = buildMyCalendarOccurrenceEntries(
+    [ev],
+    new Map([
+      ['occ-a', participation({ id: 'p-a', occurrenceId: 'occ-a', status: 'considering' })],
+      ['occ-b', participation({ id: 'p-b', occurrenceId: 'occ-b', status: 'considering' })],
+    ]),
+    new Map(),
+  );
+  const markers = buildMyCalendarDayMarkers(['2026-08-10'], entries, [], 'caller');
+  // MyCalendarDotState is a single union value per day - by construction
+  // there is only ever one dot regardless of how many occurrences fall on
+  // it.
+  assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'outline');
 });
 
 void test('dot: a multi-day schedule entry never fills/outlines the dot - it is represented by a band instead', () => {
@@ -566,79 +656,6 @@ void test('isSingleDayScheduleEntry: false for a time-bounded entry whose end fa
   );
 });
 
-// --- buildMyCalendarEventBandSegments (Issue #142: multi-day Events band) ---
-
-void test('buildMyCalendarEventBandSegments: a multi-day Event with an attending occurrence bands filled (blocking)', () => {
-  const ev: EventWithOccurrences = {
-    event: event({ id: 'multi', title: '長期公演', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
-    occurrences: [
-      occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
-    ],
-  };
-  const entries = buildMyCalendarOccurrenceEntries(
-    [ev],
-    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
-    new Map(),
-  );
-  const segments = buildMyCalendarEventBandSegments(entries);
-  assert.deepEqual(segments, [
-    {
-      eventId: 'multi',
-      eventTitle: '長期公演',
-      startDate: '2026-08-08',
-      endDate: '2026-08-12',
-      isCanceled: false,
-      kind: 'event',
-      blocking: true,
-    },
-  ]);
-});
-
-void test('buildMyCalendarEventBandSegments: a multi-day Event with only considering occurrences bands outline (non-blocking)', () => {
-  const ev: EventWithOccurrences = {
-    event: event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
-    occurrences: [
-      occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
-    ],
-  };
-  const entries = buildMyCalendarOccurrenceEntries(
-    [ev],
-    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'considering' })]]),
-    new Map(),
-  );
-  const segments = buildMyCalendarEventBandSegments(entries);
-  assert.equal(segments.length, 1);
-  assert.equal(segments[0]?.blocking, false);
-});
-
-void test('buildMyCalendarEventBandSegments: one attending occurrence among several considering ones for the same Event still bands filled (attending wins)', () => {
-  const ev: EventWithOccurrences = {
-    event: event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' }),
-    occurrences: [
-      occurrence({ id: 'occ-a', eventId: 'multi', startsAt: '2026-08-08T10:00:00Z' }),
-      occurrence({ id: 'occ-b', eventId: 'multi', startsAt: '2026-08-12T10:00:00Z' }),
-    ],
-  };
-  const entries = buildMyCalendarOccurrenceEntries(
-    [ev],
-    new Map([
-      ['occ-a', participation({ id: 'p-a', occurrenceId: 'occ-a', status: 'considering' })],
-      ['occ-b', participation({ id: 'p-b', occurrenceId: 'occ-b', status: 'attending' })],
-    ]),
-    new Map(),
-  );
-  const segments = buildMyCalendarEventBandSegments(entries);
-  // Deduplicated by event id - one band, not two - and filled since at
-  // least one occurrence is attending.
-  assert.equal(segments.length, 1);
-  assert.equal(segments[0]?.blocking, true);
-});
-
-void test('buildMyCalendarEventBandSegments: a single-day Event never bands, regardless of participation', () => {
-  const entries = singleDayOccurrenceEntries('attending', '2026-08-10');
-  assert.deepEqual(buildMyCalendarEventBandSegments(entries), []);
-});
-
 // --- buildMyCalendarScheduleBandSegments ---
 
 void test('buildMyCalendarScheduleBandSegments: a multi-day blocking entry bands filled', () => {
@@ -683,7 +700,7 @@ void test('buildMyCalendarScheduleBandSegments: a single-day entry never bands',
 
 // --- buildMyCalendarWeekBandLayouts ---
 
-void test('buildMyCalendarWeekBandLayouts: lays out Event bands and schedule bands together, sharing lane capacity', () => {
+void test('buildMyCalendarWeekBandLayouts: lays out schedule bands (the only band source since Issue #174)', () => {
   const week = [
     '2026-08-09',
     '2026-08-10',
@@ -693,17 +710,6 @@ void test('buildMyCalendarWeekBandLayouts: lays out Event bands and schedule ban
     '2026-08-14',
     '2026-08-15',
   ];
-  const ev: EventWithOccurrences = {
-    event: event({ id: 'multi', title: '長期公演', startsOn: '2026-08-09', endsOn: '2026-08-11' }),
-    occurrences: [
-      occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
-    ],
-  };
-  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
-    [ev],
-    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
-    new Map(),
-  );
   const scheduleEntries = [
     scheduleEntry({
       id: 'trip',
@@ -713,10 +719,36 @@ void test('buildMyCalendarWeekBandLayouts: lays out Event bands and schedule ban
     }),
   ];
 
-  const [layout] = buildMyCalendarWeekBandLayouts([week], occurrenceEntries, scheduleEntries);
+  const [layout] = buildMyCalendarWeekBandLayouts([week], scheduleEntries);
   assert.ok(layout);
-  assert.equal(layout.segments.length, 2);
-  assert.deepEqual(layout.segments.map((s) => s.kind).sort(), ['event', 'schedule']);
+  assert.equal(layout.segments.length, 1);
+  assert.equal(layout.segments[0]?.kind, 'schedule');
+});
+
+void test("buildMyCalendarWeekBandLayouts: a participation-registered occurrence of a multi-day Event never contributes a band, only the caller's schedule entries do (Issue #174)", () => {
+  const week = [
+    '2026-08-09',
+    '2026-08-10',
+    '2026-08-11',
+    '2026-08-12',
+    '2026-08-13',
+    '2026-08-14',
+    '2026-08-15',
+  ];
+  // A participating multi-day Event exists in the fetched data (as it would
+  // via page.tsx's occurrenceEntries), but buildMyCalendarWeekBandLayouts no
+  // longer takes it as input at all - it can only see schedule entries.
+  const scheduleEntries = [
+    scheduleEntry({
+      id: 'trip',
+      blocking: true,
+      temporal: { kind: 'all-day', startsOn: '2026-08-12', endsOn: '2026-08-13' },
+    }),
+  ];
+  const [layout] = buildMyCalendarWeekBandLayouts([week], scheduleEntries);
+  assert.ok(layout);
+  assert.equal(layout.segments.length, 1);
+  assert.equal(layout.segments[0]?.kind, 'schedule');
 });
 
 void test('buildMyCalendarWeekBandLayouts: caps at MAX_BAND_LANES (2) with the third overflowing, matching the Event Catalog', () => {
@@ -736,73 +768,8 @@ void test('buildMyCalendarWeekBandLayouts: caps at MAX_BAND_LANES (2) with the t
       temporal: { kind: 'all-day', startsOn: '2026-08-09', endsOn: '2026-08-10' },
     }),
   );
-  const [layout] = buildMyCalendarWeekBandLayouts([week], [], scheduleEntries);
+  const [layout] = buildMyCalendarWeekBandLayouts([week], scheduleEntries);
   assert.ok(layout);
   assert.equal(layout.segments.length, 2);
   assert.equal(layout.overflowCount, 1);
-});
-
-// --- selectMyCalendarEventLevelFallback (Issue #142 review fix: a
-// multi-day Event's band covers its whole range, so the selected-day list
-// must be able to surface it on a day it has no occurrence on) ---
-
-void test('selectMyCalendarEventLevelFallback surfaces a participating multi-day Event on a day inside its range with no occurrence', () => {
-  const ev = event({
-    id: 'multi',
-    title: '長期公演',
-    startsOn: '2026-08-08',
-    endsOn: '2026-08-12',
-  });
-  const eventsWithOccurrences: EventWithOccurrences[] = [
-    {
-      event: ev,
-      occurrences: [
-        occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
-      ],
-    },
-  ];
-  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
-    eventsWithOccurrences,
-    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
-    new Map(),
-  );
-
-  // 2026-08-09 is inside the Event range but has no occurrence.
-  const fallback = selectMyCalendarEventLevelFallback(
-    eventsWithOccurrences,
-    occurrenceEntries,
-    '2026-08-09',
-  );
-  assert.equal(fallback.length, 1);
-  assert.equal(fallback[0]?.event.id, 'multi');
-});
-
-void test('selectMyCalendarEventLevelFallback never surfaces an Event the caller has no participation in, even if its range covers the date', () => {
-  const ev = event({ id: 'not-mine', startsOn: '2026-08-08', endsOn: '2026-08-12' });
-  const eventsWithOccurrences: EventWithOccurrences[] = [{ event: ev, occurrences: [] }];
-  // occurrenceEntries is empty - the caller has no participation for this Event at all.
-  const fallback = selectMyCalendarEventLevelFallback(eventsWithOccurrences, [], '2026-08-09');
-  assert.deepEqual(fallback, []);
-});
-
-void test('selectMyCalendarEventLevelFallback excludes a date the caller does have an actual occurrence on (complementary to selectMyCalendarOccurrenceEntries)', () => {
-  const ev = event({ id: 'multi', startsOn: '2026-08-08', endsOn: '2026-08-12' });
-  const eventsWithOccurrences: EventWithOccurrences[] = [
-    {
-      event: ev,
-      occurrences: [
-        occurrence({ id: 'occ-multi', eventId: 'multi', startsAt: '2026-08-10T10:00:00Z' }),
-      ],
-    },
-  ];
-  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
-    eventsWithOccurrences,
-    new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
-    new Map(),
-  );
-
-  assert.deepEqual(
-    selectMyCalendarEventLevelFallback(eventsWithOccurrences, occurrenceEntries, '2026-08-10'),
-    [],
-  );
 });
