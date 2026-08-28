@@ -17,33 +17,34 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+}
+
+/*
+ * Line + 1px separator layout (Issue #145: "Surface card面を外す", visual
+ * reference design_handoff_stage_tracker/09-catalog.md) - no rounded
+ * card/background per row any more, only a border between consecutive
+ * items so the list reads as one continuous scannable block.
+ */
+.items > li + li {
+  border-top: 1px solid var(--color-border);
 }
 
 .itemLink {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-block: var(--space-card-block);
   text-decoration: none;
   color: inherit;
   touch-action: manipulation;
 }
 
-/*
- * The row's own Surface is what shows hover/pressed state (#70): the link
- * itself has no background of its own, and .subtle would otherwise keep
- * the row looking untouched for the whole navigation.
- */
-.itemLink:hover .item {
+.itemLink:hover {
   background-color: var(--color-surface-subtle);
 }
 
-.itemLink:active .item {
+.itemLink:active {
   background-color: var(--color-surface-active);
-}
-
-.item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
 }
 
 .itemBody {
@@ -57,17 +58,6 @@
 .chevron {
   flex-shrink: 0;
   color: var(--color-icon-affordance);
-}
-
-/*
- * `.itemLink .item` (not bare `.item`) so this reliably outranks Surface's
- * own `.surface { padding: var(--space-md) }` (same 0-1-0 specificity as a
- * bare `.item` would be, which would otherwise be a same-specificity,
- * import-order-dependent tie) - same escalation the hover/active overrides
- * above already rely on.
- */
-.itemLink .item {
-  padding: var(--space-card-block) var(--space-md);
 }
 
 .time {
@@ -85,4 +75,10 @@
 .venue {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
 }

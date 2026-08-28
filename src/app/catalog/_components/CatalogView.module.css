@@ -1,0 +1,59 @@
+/*
+ * PageHeading keeps its own margin:0 (see PageHeading.module.css) - vertical
+ * rhythm to this row's siblings comes entirely from AppShell's `.content`
+ * flex `gap` (Issue #145: this row is a plain flex child there, same as the
+ * bare PageHeading it replaces).
+ */
+.headingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/*
+ * `Button variant="icon"` is already a 40x40 fill (#96 icon control
+ * vocabulary) - this wrapper only provides the `position: relative` anchor
+ * the active dot below is placed against, same technique as AppBar's own
+ * `.bellIcon` wrapper around its unread dot.
+ */
+.filterButtonWrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/*
+ * 7px accent dot with a canvas-colored ring so it stays legible over the
+ * icon behind it - identical presentation to AppBar.module.css's
+ * `.unreadDot`, reused here rather than re-derived: `appliedSelection.genre
+ * !== null` drives it (Issue #158 "specific genre自体がfilter"), never a
+ * standalone visual invention. This is a supplementary cue only - the
+ * filter button's own `aria-label` carries the same "適用中" state for
+ * assistive tech and for anyone who cannot rely on a 7px color dot alone
+ * (Issue #145 "dotだけを唯一のcueにしない").
+ */
+.activeDot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  box-shadow: 0 0 0 1.5px var(--color-canvas);
+  pointer-events: none;
+}
+
+/*
+ * Issue #145 addendum "Initial hydration / restore": while FilterSheet's own
+ * mount-restore effect has not yet reported the current applied selection,
+ * this replaces the whole calendar/list body (never a stale/unfiltered
+ * result) - centered so a brief flash still reads as "loading", not as an
+ * empty page.
+ */
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-lg) 0;
+}
