@@ -22,6 +22,7 @@ import {
   createEventWithoutOccurrence,
   eventFixtureTitle,
 } from './support/eventFixtures.ts';
+import { requireOk } from './support/result.ts';
 
 // Real local Supabase/Postgres tests for the typed event catalog read
 // layer itself (Issue #12), as opposed to test/rls/events.test.ts and
@@ -63,14 +64,6 @@ after(async () => {
     throw new Error(`test actor cleanup failed:\n${messages.join('\n')}`);
   }
 });
-
-function requireOk<T>(result: { ok: true; data: T } | { ok: false; error: unknown }): T {
-  assert.ok(
-    result.ok,
-    `expected ok:true, got error: ${JSON.stringify('error' in result ? result.error : null)}`,
-  );
-  return result.data;
-}
 
 function secondsAfter(isoStart: string, offsetSeconds: number): string {
   return new Date(new Date(isoStart).getTime() + offsetSeconds * 1000).toISOString();

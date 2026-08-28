@@ -14,6 +14,8 @@
 // and testable from anywhere without pulling infrastructure in (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { sortByFieldThenId } from './ordering.ts';
+
 export interface EventCatalogEvent {
   id: string;
   ownerId: string;
@@ -357,4 +359,203 @@ export interface RawPostgrestError {
 
 export function mapPostgrestError(error: RawPostgrestError): EventCatalogReadError {
   return { message: error.message, code: error.code };
+}
+
+// ---------------------------------------------------------------------
+// Event genre/group classification (Issue #167, PO decision #158).
+//
+// - genre is a canonical lookup-table identity (public.genres), not a raw
+//   UI string or a DB enum: Gate A's 3 identities (宝塚/歌舞伎/アイドル)
+//   are seed *data*, not a closed schema-level vocabulary, so a future
+//   genre can be added without a constraint-touching migration (#158
+//   "この3genreを永久closed worldとして固定しない").
+// - group is one generic canonical identity shared by 宝塚's 組 and idol
+//   グループ alike (#158 "同じgeneric canonical group identity
+//   mechanismで扱う") - nothing here binds a group to a genre; that
+//   association only exists through which Events reference the group.
+// - An Event has at most one genre (0..1) and any number of groups (0..N):
+//   festival/joint Events are represented by multiple group associations,
+//   never by multiple genres (#158 "future-only理由でmulti-genre
+//   many-to-many machineryを先行しない").
+
+export interface Genre {
+  id: string;
+  key: string;
+  displayName: string;
+  sortOrder: number;
+}
+
+export interface Group {
+  id: string;
+  key: string;
+  displayName: string;
+}
+
+/** An Event's classification: at most one genre, zero or more groups.
+ * Absence of a genre/any group is a valid, non-error state - see
+ * EventClassificationRead.getEventClassificationsByIds. */
+export interface EventClassification {
+  eventId: string;
+  genre: Genre | null;
+  groups: Group[];
+}
+
+export interface RawGenreRow {
+  id: string;
+  key: string;
+  display_name: string;
+  sort_order: number;
+}
+
+export interface RawGroupRow {
+  id: string;
+  key: string;
+  display_name: string;
+}
+
+export function mapGenreRow(row: RawGenreRow): Genre {
+  return { id: row.id, key: row.key, displayName: row.display_name, sortOrder: row.sort_order };
+}
+
+export function mapGroupRow(row: RawGroupRow): Group {
+  return { id: row.id, key: row.key, displayName: row.display_name };
+}
+
+/** Gate A's fixed display ordering (product-rules.md: 宝塚 -> 歌舞伎 ->
+ * アイドル) comes from genres.sort_order, a plain integer - not string
+ * comparable, so this does not reuse domain/ordering.ts's
+ * compareByFieldThenId (built for string fields). id is still the
+ * tie-breaker for two genres that somehow share a sort_order, so the
+ * result is deterministic regardless. */
+export function sortGenres(genres: readonly Genre[]): Genre[] {
+  return [...genres].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) {
+      return a.sortOrder - b.sortOrder;
+    }
+    if (a.id === b.id) {
+      return 0;
+    }
+    return a.id < b.id ? -1 : 1;
+  });
+}
+
+/** Deterministic group ordering for both an Event's own group list and a
+ * catalog-wide group option list (Issue #167 "stable deterministic
+ * ordering"): display_name first (what a user actually scans), id as the
+ * tie-breaker for two groups that happen to share a display name.
+ * displayName is a plain string field, so - unlike sortGenres above, which
+ * has to hand-roll its own comparator for a numeric field -
+ * domain/ordering.ts's shared compareByFieldThenId/sortByFieldThenId apply
+ * directly here. */
+export function sortGroups(groups: readonly Group[]): Group[] {
+  return sortByFieldThenId(groups, (group) => group.displayName);
+}
+
+/**
+ * A genre-scoped filter facet selection plus the catalog-wide universe of
+ * options that facet currently has (Issue #167 "Catalog-wide filter
+ * options" / "Filtering contract"). `selected` and `universeKeys`/
+ * `universeVenues` name group *keys* and raw venue *text* respectively -
+ * both are exact-identity comparisons (#158 "same facet内の複数selection
+ * はOR" / venue "exact text match"), never fuzzy/partial matches.
+ *
+ * "No selection" and "every known option selected" are both defined as
+ * "this facet does not filter" (#158 "none selected / all selected はその
+ * facetでは絞り込まない") - isEffectiveFacetSelection below is what tells
+ * matchesCatalogFilter which case it is in, so callers (#147/#145) never
+ * have to special-case "select everything" themselves to get a no-op.
+ */
+export interface CatalogFilterSelection {
+  /** Top-level genre, single-select. `null` = すべて (no genre filter). */
+  genre: string | null;
+  /** Selected group keys - only meaningful when the active genre's facet
+   * is group (宝塚/アイドル in Gate A), but harmless to pass either way:
+   * an event with no groups simply never matches a non-empty selection. */
+  groups: readonly string[];
+  /** Selected venue text - only meaningful when the active genre's facet
+   * is venue (歌舞伎 in Gate A), same harmlessness as groups above. */
+  venues: readonly string[];
+}
+
+/** The catalog-wide known-option universe for whichever genre is
+ * currently selected (Issue #167 "catalog全体でknownなoptions"), used only
+ * to decide the none/all no-op cases above - never to filter results
+ * directly. */
+export interface CatalogFilterOptionUniverse {
+  groupKeys: readonly string[];
+  venues: readonly string[];
+}
+
+/** True when `selected` should actually narrow results for this facet:
+ * false for both "nothing selected" and "every known option selected"
+ * (#158's none-or-all no-op rule). An empty `known` (no options exist yet
+ * for this genre) makes any non-empty `selected` still effective - there
+ * is no "select all of zero options" case to collapse to a no-op.
+ * `selected` is expected to come from UI multi-select state (never
+ * containing a duplicate), but a duplicate is de-duplicated via
+ * `selectedSet` before the size comparison rather than trusted outright -
+ * comparing raw `selected.length` against `knownSet.size` would
+ * misclassify a selection with a repeated value (e.g. `['a','a']` against
+ * known `['a','b']`) as "everything selected" by coincidental length
+ * match. */
+function isEffectiveFacetSelection(selected: readonly string[], known: readonly string[]): boolean {
+  if (selected.length === 0) {
+    return false;
+  }
+  if (known.length === 0) {
+    return true;
+  }
+  const knownSet = new Set(known);
+  const selectedSet = new Set(selected);
+  return !(selectedSet.size === knownSet.size && selected.every((value) => knownSet.has(value)));
+}
+
+/** Shared OR-match core for both facet blocks in matchesCatalogFilter
+ * below: does any selected value equal one of this event's values for the
+ * facet. Both facets are exact-identity comparisons over a small value set
+ * per event (a handful of groups at most, one venue), so a plain `.some`
+ * scan needs no intermediate Set. */
+function facetOrMatch(selected: readonly string[], eventValues: readonly string[]): boolean {
+  return selected.some((value) => eventValues.includes(value));
+}
+
+/**
+ * Pure genre/group/venue filter predicate (Issue #167 "Filtering
+ * contract"), reusable as-is by #147/#145 rather than each re-deriving
+ * OR/AND/none/all semantics. `classification` is `null` for an
+ * unclassified Event (no genre, no groups) - it never matches a specific
+ * `selection.genre`, only "すべて" (#158 "unclassified Eventは...specific
+ * genre filterにはhitしない"). `venue` is passed separately since it lives
+ * on EventCatalogEvent, not EventClassification - venue is not a
+ * classification concept, just another independent filterable dimension
+ * (#158 "genre / group / venueを独立semantic dimensionとし").
+ */
+export function matchesCatalogFilter(
+  event: {
+    classification: EventClassification | null;
+    venue: string | null;
+  },
+  selection: CatalogFilterSelection,
+  universe: CatalogFilterOptionUniverse,
+): boolean {
+  if (selection.genre !== null) {
+    if (event.classification?.genre?.key !== selection.genre) {
+      return false;
+    }
+  }
+
+  if (isEffectiveFacetSelection(selection.groups, universe.groupKeys)) {
+    const eventGroupKeys = event.classification?.groups.map((group) => group.key) ?? [];
+    if (!facetOrMatch(selection.groups, eventGroupKeys)) {
+      return false;
+    }
+  }
+
+  if (isEffectiveFacetSelection(selection.venues, universe.venues)) {
+    if (event.venue === null || !facetOrMatch(selection.venues, [event.venue])) {
+      return false;
+    }
+  }
+
+  return true;
 }

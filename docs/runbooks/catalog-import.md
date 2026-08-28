@@ -169,6 +169,67 @@ event** です。このとき概要ページ = `sourceUrl` は両者で同一に
 `sourceUrl` は同一性の判定に使えません。`source_key` が独立した列として
 存在するのはこのためです。
 
+### genre / groups（分類, Issue #167）
+
+`genre` / `groups` は任意 field です。**どちらも省略可能で、省略した
+field は既存の分類に一切触れません。** 分類情報が無い旧 seed をそのまま
+再適用しても、既存の genre / groups は保持されます。
+
+```json
+{
+  "sourceKey": "takarazuka:2026:example:tokyo",
+  "title": "...",
+  "genre": "takarazuka",
+  "groups": [{ "key": "takarazuka-tsuki", "displayName": "月組" }],
+  "startsOn": "...",
+  "endsOn": "...",
+  "occurrences": [...]
+}
+```
+
+- **`genre`**: canonical genre key（1 つ、または `null`）。
+  - 省略 = 既存の genre に触れない（backward-compatible no-op）。
+  - `null` を明示 = genre を解除する。
+  - 文字列を指定 = その genre へ設定・訂正する。dry run 時点で、その
+    key が現在の `genres` table に存在するか確認します（存在しなければ
+    fail）。Gate A の canonical key は `takarazuka` / `kabuki` / `idol`
+    ですが、この script 自身は closed set をハードコードしません -
+    genre の正本は DB 側の `genres` table です。
+- **`groups`**: `{ "key": "...", "displayName": "..." }` の配列（0 件以上）。
+  - 省略 = 既存の group association に触れない。
+  - `[]` を明示 = 既存の group association を全て解除する。
+  - 配列を指定 = **replace-style**（1 回の import で、その Event の
+    group association をこの配列の内容へ置き換える）。前回の import に
+    あって今回に無い group は解除され、新しく現れた group は追加され
+    ます。
+  - `key` は同一 group を指し示す stable canonical identity です。
+    `月組` や `Meme Tokyo` を import のたびに別 group row として増やさ
+    ないため、既存 event で使われた `key` を再利用してください
+    （URL や表示名に依存しない、human-reviewable な slug を推奨: 例
+    `takarazuka-tsuki` / `idol-meme-tokyo`）。`displayName` は表示名の
+    訂正のために独立して変更できます（identity は `key` のまま）。
+  - 1 Event の `groups` 内で同じ `key` を重複させることはできません
+    (dry run 時点で reject)。
+  - 同じ import 実行内で、異なる seed entry が同じ `key` に異なる
+    `displayName` を与えると（例: `Meme Tokyo` と `meme tokyo`）、dry
+    run 時点で reject します - どちらが正しい canonical displayName か
+    を判断できないためです。
+
+dry run では、genre / groups に変更がある event についてのみ
+`~ genre  (none) -> 宝塚` / `+ groups  月組` / `- groups  星組` のように
+差分が出力されます。変更が無い（または seed が触れていない）event には
+何も出力されません。
+
+classification の write path は、この script が呼ぶ
+`import_event_classification` RPC（service_role のみ実行可能）に
+限定されています。ordinary authenticated user は owner であっても、
+通常の write path から genre / groups を変更できません。
+
+既存 Event への genre / groups の一括 backfill は行いません。title や
+venue からの heuristic 推測で分類しないでください - 分類が不明な既存
+Event は unclassified のまま valid です。必要な分類は、公式情報を
+確認した上で reviewed seed へ明示的に追加してください。
+
 ### 取り込まないもの
 
 - **貸切公演**: 宝塚では開始時刻がそもそも公表されません（表のセルが
