@@ -9,6 +9,7 @@ import { createTestActor, deleteTestActor, type TestActor } from '../rls/support
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { deleteUser } from './support/authActors.ts';
 import { signInThroughApp } from './support/signInThroughApp.ts';
+import { launchBrowser, type Browser, type BrowserPage } from './support/browserPage.ts';
 
 // Real end-to-end acceptance evidence for the authenticated shared Event
 // catalog vertical slice (Issue #20): a real Next.js app server, a real
@@ -22,16 +23,35 @@ import { signInThroughApp } from './support/signInThroughApp.ts';
 // Fixture dates are chosen in far-future months (2096-2098) not used by any
 // other test file's fixtures, so this file's badge/empty assertions cannot
 // be polluted by unrelated fixtures already present in the shared local DB.
+//
+// Issue #145: /catalog's calendar/list body is now a client-gated render
+// (CatalogView.tsx's `readyToRenderBody`) whenever the range read is
+// non-empty - deliberately, so a restored browser-local filter selection
+// never gets overridden by a briefly-shown unfiltered flash (the Issue's
+// canonical addendum). A plain `fetch()` never executes client JS, so it can
+// only ever observe the pending state for a populated catalog - it can no
+// longer prove real data reaches the rendered UI the way this file's own
+// stated purpose requires. Tests that need the resolved calendar/list markup
+// therefore drive a real headless Chrome via `renderedHtml` below instead;
+// tests whose assertions are about synchronously-rendered content (auth
+// redirects, the heading, a genuinely empty range) keep using plain fetch,
+// since #145 does not gate those.
 
 let app: AppServer;
+let browser: Browser;
+let page: BrowserPage;
 const createdViewerIds: string[] = [];
 const createdFixtureActors: TestActor[] = [];
 
 before(async () => {
   app = await startAppServer();
+  browser = await launchBrowser();
+  page = await browser.newPage();
 });
 
 after(async () => {
+  await page.close();
+  await browser.close();
   await app.stop();
   const results = await Promise.allSettled([
     ...createdViewerIds.map((id) => deleteUser(id)),
@@ -45,6 +65,37 @@ after(async () => {
     throw new Error(`cleanup failed:\n${messages.join('\n')}`);
   }
 });
+
+interface RenderedPage {
+  /** `outerHTML` - for regex/attribute-based assertions (data-band-event-id,
+   * data-badge-count, aria-label) and for static UI copy, which is baked
+   * into the client bundle's own code, never the hydration payload. */
+  html: string;
+  /** `document.body.innerText` - for "is this event's title actually shown
+   * on screen" checks. `html` above is NOT safe for that: a client
+   * component's serialized *props* (e.g. CatalogView's `events`) are
+   * embedded in a `<script>` tag for hydration regardless of whether the
+   * component's own render ever displays them (see browserPage.ts's own
+   * content()/visibleText() doc comments) - Issue #109's 0-occurrence-event
+   * title deliberately never renders on month landing, but is still present
+   * in `html` via that payload. */
+  visibleText: string;
+}
+
+/** Navigates the shared real browser page to a /catalog(-rooted) URL under
+ * `cookie`'s session, waits for CatalogView's own `data-catalog-ready="true"`
+ * marker (i.e. `readyToRenderBody`, see CatalogView.tsx), and returns both
+ * the resulting live DOM and its visible text - the post-hydration
+ * equivalent of the pre-#145 `(await fetch(url, {headers: {cookie}})).text()`
+ * calls this file used to make directly. Only for routes CatalogView
+ * actually renders; a route without that marker (e.g. event detail) would
+ * hang here - those keep using plain fetch below. */
+async function renderedPage(url: string, cookie: string): Promise<RenderedPage> {
+  await page.navigate(url, cookie);
+  await page.waitForSelector('[data-catalog-ready="true"]');
+  const [html, visibleText] = await Promise.all([page.content(), page.visibleText()]);
+  return { html, visibleText };
+}
 
 /** A real signed-in session's cookie, via the app's own magic-link flow.
  * The provisioned user is tracked for cleanup as soon as it exists (not
@@ -182,16 +233,14 @@ void test('same-day multiple occurrences are shown losslessly, and a null end ti
   await insertOccurrence(owner, event.id, '2096-05-15T09:00:00.000Z', '2096-05-15T11:00:00.000Z'); // 18:00-20:00 JST (evening)
 
   const cookie = await signedInCookie();
-  const response = await fetch(`${app.baseUrl}/catalog?month=2096-05&date=2096-05-15`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  assert.equal(response.status, 200);
-  const html = await response.text();
+  const { html, visibleText } = await renderedPage(
+    `${app.baseUrl}/catalog?month=2096-05&date=2096-05-15`,
+    cookie,
+  );
 
   assert.match(html, /14:00〜(?:（|\()終了時刻未定(?:）|\))/);
   assert.match(html, /18:00〜20:00/);
-  const titleOccurrences = html.split(event.title).length - 1;
+  const titleOccurrences = visibleText.split(event.title).length - 1;
   assert.ok(
     titleOccurrences >= 2,
     'expected the event title to appear once per occurrence, not collapsed',
@@ -232,12 +281,7 @@ void test('a multi-day event bands by its Event range and never counts; a single
   await insertOccurrence(owner, secondRun.id, '2097-07-21T02:00:00.000Z');
 
   const cookie = await signedInCookie();
-  const monthResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  assert.equal(monthResponse.status, 200);
-  const monthHtml = await monthResponse.text();
+  const { html: monthHtml } = await renderedPage(`${app.baseUrl}/catalog?month=2097-07`, cookie);
 
   // Multi-day events band; the single-day event never does (Issue #91 PO
   // decision).
@@ -261,26 +305,24 @@ void test('a multi-day event bands by its Event range and never counts; a single
 
   // 07-12 has no occurrence for anything: the day list must be empty, never
   // a fabricated performance, even though the month band covers this day.
-  const restDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-12`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  const restDayHtml = await restDayResponse.text();
+  const { html: restDayHtml, visibleText: restDayText } = await renderedPage(
+    `${app.baseUrl}/catalog?month=2097-07&date=2097-07-12`,
+    cookie,
+  );
   assert.match(restDayHtml, /この日に登録されている公演はありません/);
   // Issue #109 minimum regression case 6: kabuki has occurrences elsewhere
   // in its range (07-10, 07-13) but none on 07-12 - it must still surface
   // as an Event-level fallback for 07-12, since 07-12 is inside its range.
   assert.match(restDayHtml, /開催期間で該当するイベント/);
-  assert.ok(restDayHtml.includes(kabuki.title));
+  assert.ok(restDayText.includes(kabuki.title));
 
   // An inner run day (only shown as part of the band in month view) still
   // reaches full detail through the selected-day list.
-  const innerDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-11`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  const innerDayHtml = await innerDayResponse.text();
-  assert.ok(innerDayHtml.includes(kabuki.title));
+  const { html: innerDayHtml, visibleText: innerDayText } = await renderedPage(
+    `${app.baseUrl}/catalog?month=2097-07&date=2097-07-11`,
+    cookie,
+  );
+  assert.ok(innerDayText.includes(kabuki.title));
   // kabuki has an actual occurrence on 07-11, and no other event's range
   // covers 07-11 with no occurrence there: no Event-level fallback
   // candidate, so the fallback section must not render (no duplication).
@@ -290,13 +332,12 @@ void test('a multi-day event bands by its Event range and never counts; a single
   // non-banded single-day event's 2 occurrences - the selected-day list
   // still shows every actual occurrence individually, regardless of band
   // status.
-  const mixedDayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-07&date=2097-07-10`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  const mixedDayHtml = await mixedDayResponse.text();
-  assert.ok(mixedDayHtml.includes(kabuki.title));
-  const liveOccurrencesShown = mixedDayHtml.split(live.title).length - 1;
+  const { html: mixedDayHtml, visibleText: mixedDayText } = await renderedPage(
+    `${app.baseUrl}/catalog?month=2097-07&date=2097-07-10`,
+    cookie,
+  );
+  assert.ok(mixedDayText.includes(kabuki.title));
+  const liveOccurrencesShown = mixedDayText.split(live.title).length - 1;
   assert.ok(liveOccurrencesShown >= 2, "expected live's 2 occurrences to appear individually");
   // Both kabuki and live have an actual occurrence on 07-10: no fallback
   // candidate, so kabuki's title must come only from the actual-occurrence
@@ -311,12 +352,10 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
   });
 
   const cookie = await signedInCookie();
-  const monthResponse = await fetch(`${app.baseUrl}/catalog?month=2097-08`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  assert.equal(monthResponse.status, 200);
-  const monthHtml = await monthResponse.text();
+  const { html: monthHtml, visibleText: monthText } = await renderedPage(
+    `${app.baseUrl}/catalog?month=2097-08`,
+    cookie,
+  );
 
   assert.doesNotMatch(monthHtml, new RegExp(`data-band-event-id="${event.id}"`, 'u'));
   assert.equal(badgeCountOf(monthHtml, '2097-08-15'), 1);
@@ -324,7 +363,7 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
   // Event-level fallback section at all - a 0-occurrence single-day event's
   // only landing-view presentation is the day-number count (badge is just a
   // number, no title/link anywhere on the grid).
-  assert.ok(!monthHtml.includes(event.title));
+  assert.ok(!monthText.includes(event.title));
   assert.doesNotMatch(monthHtml, /開催期間で該当するイベント/);
 
   // No band was named for this day, so its aria-label must stand on its
@@ -333,17 +372,16 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
   assert.match(label, /イベント1件/);
   assert.doesNotMatch(label, /ほか/);
 
-  const dayResponse = await fetch(`${app.baseUrl}/catalog?month=2097-08&date=2097-08-15`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  const dayHtml = await dayResponse.text();
+  const { html: dayHtml, visibleText: dayText } = await renderedPage(
+    `${app.baseUrl}/catalog?month=2097-08&date=2097-08-15`,
+    cookie,
+  );
   // No actual occurrence that day: the actual-occurrence list stays empty...
   assert.match(dayHtml, /この日に登録されている公演はありません/);
   // ...but selecting the event's own date reaches it through the
   // Event-level fallback section instead (selectEventLevelFallback).
   assert.match(dayHtml, /開催期間で該当するイベント/);
-  assert.ok(dayHtml.includes(event.title));
+  assert.ok(dayText.includes(event.title));
 });
 
 // --- 0-occurrence event visibility (Issue #88, revised by #109) ---
@@ -364,15 +402,10 @@ void test('a 0-occurrence event whose Event range covers the month is visible on
   });
 
   const cookie = await signedInCookie();
-  const response = await fetch(`${app.baseUrl}/catalog?month=2098-04`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  assert.equal(response.status, 200);
-  const html = await response.text();
+  const { html, visibleText } = await renderedPage(`${app.baseUrl}/catalog?month=2098-04`, cookie);
 
   assert.ok(
-    html.includes(event.title),
+    visibleText.includes(event.title),
     'expected the 0-occurrence event to be visible on the month landing view via its Event-range band, without selecting a day',
   );
   assert.match(html, new RegExp(`data-band-event-id="${event.id}"`, 'u'));
@@ -387,13 +420,11 @@ void test('a 0-occurrence event whose Event range covers the month is visible on
 
   // Selecting a day inside the event's range (which has no occurrence at
   // all) reaches it through the Event-level fallback section instead.
-  const dayResponse = await fetch(`${app.baseUrl}/catalog?month=2098-04&date=2098-04-10`, {
-    headers: { cookie },
-    redirect: 'manual',
-  });
-  assert.equal(dayResponse.status, 200);
-  const dayHtml = await dayResponse.text();
+  const { html: dayHtml, visibleText: dayText } = await renderedPage(
+    `${app.baseUrl}/catalog?month=2098-04&date=2098-04-10`,
+    cookie,
+  );
   assert.match(dayHtml, /開催期間で該当するイベント/);
-  assert.ok(dayHtml.includes(event.title));
+  assert.ok(dayText.includes(event.title));
   assert.match(dayHtml, /この日に登録されている公演はありません/);
 });

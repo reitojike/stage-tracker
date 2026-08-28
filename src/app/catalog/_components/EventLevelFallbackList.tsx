@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
-import { Surface } from '@/ui/Surface';
-import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
+import type { EventClassification, EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import { isEventCanceled } from '@/domain/eventCancellation.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import styles from './EventLevelFallbackList.module.css';
@@ -12,7 +11,16 @@ export interface EventLevelFallbackListProps {
    * renders only, it never re-derives which events qualify. */
   events: readonly EventWithOccurrences[];
   context: CatalogParams;
+  /** Event id -> #167 classification, for the optional genre Badge below -
+   * same "absent = unclassified = no badge" contract as SelectedDayList's
+   * own classificationByEventId. Optional: this component is also reused by
+   * src/app/calendar/page.tsx (My Calendar), which has no classification
+   * data of its own and is out of #145's scope - omitting the prop there
+   * renders every row with no genre badge, never a crash. */
+  classificationByEventId?: ReadonlyMap<string, EventClassification>;
 }
+
+const NO_CLASSIFICATIONS: ReadonlyMap<string, EventClassification> = new Map();
 
 /**
  * The selected-day counterpart to SelectedDayList (Issue #109): events whose
@@ -36,7 +44,11 @@ export interface EventLevelFallbackListProps {
  * ("開催期間で該当するイベント") does not claim more than "this event's
  * range covers the selected day".
  */
-export function EventLevelFallbackList({ events, context }: EventLevelFallbackListProps) {
+export function EventLevelFallbackList({
+  events,
+  context,
+  classificationByEventId = NO_CLASSIFICATIONS,
+}: EventLevelFallbackListProps) {
   if (events.length === 0) {
     return null;
   }
@@ -45,10 +57,12 @@ export function EventLevelFallbackList({ events, context }: EventLevelFallbackLi
     <section aria-label="開催期間で該当するイベント" className={styles.list}>
       <h2 className={styles.heading}>開催期間で該当するイベント</h2>
       <ul className={styles.items}>
-        {events.map(({ event }) => (
-          <li key={event.id}>
-            <Link href={catalogEventHref(event.id, context)} className={styles.itemLink}>
-              <Surface className={styles.item}>
+        {events.map(({ event }) => {
+          const genre = classificationByEventId.get(event.id)?.genre ?? null;
+          const canceled = isEventCanceled(event);
+          return (
+            <li key={event.id}>
+              <Link href={catalogEventHref(event.id, context)} className={styles.itemLink}>
                 <span className={styles.itemBody}>
                   <span className={styles.title}>{event.title}</span>
                   <span className={styles.range}>
@@ -57,15 +71,20 @@ export function EventLevelFallbackList({ events, context }: EventLevelFallbackLi
                   {event.venue !== null ? (
                     <span className={styles.venue}>{event.venue}</span>
                   ) : null}
-                  {isEventCanceled(event) ? <Badge variant="terminal">中止</Badge> : null}
+                  {genre !== null || canceled ? (
+                    <span className={styles.badges}>
+                      {genre !== null ? <Badge variant="outline">{genre.displayName}</Badge> : null}
+                      {canceled ? <Badge variant="terminal">中止</Badge> : null}
+                    </span>
+                  ) : null}
                 </span>
                 <span className={styles.chevron} aria-hidden="true">
                   ›
                 </span>
-              </Surface>
-            </Link>
-          </li>
-        ))}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

@@ -1,17 +1,22 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
 import { StatePanel } from '@/ui/StatePanel';
-import { Surface } from '@/ui/Surface';
 import type { SelectedDayOccurrence } from '@/domain/calendarMonth.ts';
 import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
+import type { EventClassification } from '@/domain/eventCatalog.ts';
 import styles from './SelectedDayList.module.css';
 
 export interface SelectedDayListProps {
   date: string;
   occurrences: readonly SelectedDayOccurrence[];
   context: CatalogParams;
+  /** Event id -> #167 classification, for the optional genre Badge below -
+   * an id absent here renders no badge, the same treatment as an event with
+   * no genre (Issue #145 "unclassifiedはbadgeなし"). This component never
+   * derives/推測 a genre from title/venue text itself. */
+  classificationByEventId: ReadonlyMap<string, EventClassification>;
 }
 
 function dayLabel(date: string): string {
@@ -26,7 +31,12 @@ function dayLabel(date: string): string {
  * entries). This is the full-detail escape hatch for whatever the month
  * view bounded for scanability (badge exclusion, band overflow).
  */
-export function SelectedDayList({ date, occurrences, context }: SelectedDayListProps) {
+export function SelectedDayList({
+  date,
+  occurrences,
+  context,
+  classificationByEventId,
+}: SelectedDayListProps) {
   return (
     <section aria-label={`${dayLabel(date)}の公演一覧`} className={styles.list}>
       <h2 className={styles.heading}>{dayLabel(date)}</h2>
@@ -34,13 +44,15 @@ export function SelectedDayList({ date, occurrences, context }: SelectedDayListP
         <StatePanel variant="empty" title="この日に登録されている公演はありません" />
       ) : (
         <ul className={styles.items}>
-          {occurrences.map(({ event, occurrence }) => (
-            <li key={occurrence.id}>
-              <Link
-                href={catalogEventHref(event.id, context, occurrence.id)}
-                className={styles.itemLink}
-              >
-                <Surface className={styles.item}>
+          {occurrences.map(({ event, occurrence }) => {
+            const genre = classificationByEventId.get(event.id)?.genre ?? null;
+            const canceled = isEffectivelyCanceled(event, occurrence);
+            return (
+              <li key={occurrence.id}>
+                <Link
+                  href={catalogEventHref(event.id, context, occurrence.id)}
+                  className={styles.itemLink}
+                >
                   <span className={styles.itemBody}>
                     <span className={styles.time}>
                       {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
@@ -49,17 +61,22 @@ export function SelectedDayList({ date, occurrences, context }: SelectedDayListP
                     {event.venue !== null ? (
                       <span className={styles.venue}>{event.venue}</span>
                     ) : null}
-                    {isEffectivelyCanceled(event, occurrence) ? (
-                      <Badge variant="terminal">中止</Badge>
+                    {genre !== null || canceled ? (
+                      <span className={styles.badges}>
+                        {genre !== null ? (
+                          <Badge variant="outline">{genre.displayName}</Badge>
+                        ) : null}
+                        {canceled ? <Badge variant="terminal">中止</Badge> : null}
+                      </span>
                     ) : null}
                   </span>
                   <span className={styles.chevron} aria-hidden="true">
                     ›
                   </span>
-                </Surface>
-              </Link>
-            </li>
-          ))}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

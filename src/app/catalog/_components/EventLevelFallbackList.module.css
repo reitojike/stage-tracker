@@ -17,28 +17,30 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+}
+
+/* See SelectedDayList.module.css's identical rule for why this uses a
+   border separator between items rather than a per-row Surface card. */
+.items > li + li {
+  border-top: 1px solid var(--color-border);
 }
 
 .itemLink {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-block: var(--space-card-block);
   text-decoration: none;
   color: inherit;
   touch-action: manipulation;
 }
 
-.itemLink:hover .item {
+.itemLink:hover {
   background-color: var(--color-surface-subtle);
 }
 
-.itemLink:active .item {
+.itemLink:active {
   background-color: var(--color-surface-active);
-}
-
-.item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
 }
 
 .itemBody {
@@ -52,12 +54,6 @@
 .chevron {
   flex-shrink: 0;
   color: var(--color-icon-affordance);
-}
-
-/* See SelectedDayList.module.css's identical rule for why this targets
-   `.itemLink .item` rather than the bare `.item` class. */
-.itemLink .item {
-  padding: var(--space-card-block) var(--space-md);
 }
 
 .title {
@@ -75,4 +71,10 @@
 .venue {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
 }
