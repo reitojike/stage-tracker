@@ -22,11 +22,7 @@ export interface StatePanelProps {
  */
 export function StatePanel({ variant, title, description, action }: StatePanelProps) {
   return (
-    <div
-      className={styles.panel}
-      data-variant={variant}
-      role={variant === 'error' ? 'alert' : 'status'}
-    >
+    <div className={styles.panel} role={variant === 'error' ? 'alert' : 'status'}>
       <p className={styles.title}>{title}</p>
       {description ? <p className={styles.description}>{description}</p> : null}
       {action}
