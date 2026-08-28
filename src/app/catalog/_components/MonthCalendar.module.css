@@ -258,7 +258,16 @@
    (design_handoff_stage_tracker/issues/06-calendar-markers.md); no category
    label prefix is rendered (this codebase has no classification/category
    data yet - see that Issue's "Do not invent product semantics"). */
+/* Single-line ellipsis truncation, shared by .band and .weekOverflowLink
+   below so the two never drift out of sync on how a title gets bounded. */
+.truncatedLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .band {
+  composes: truncatedLine;
   display: flex;
   align-items: center;
   padding-inline: 3px;
@@ -266,9 +275,6 @@
   font-size: var(--font-size-caption);
   line-height: 1.6;
   min-height: 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   margin-top: var(--space-2xs);
   font-weight: var(--font-weight-semibold);
 }
@@ -276,6 +282,45 @@
 .bandFilled {
   background-color: var(--color-band-fill);
   color: var(--color-band-text);
+}
+
+/* Week overflow summary (Issue #176): a compact, bounded existence/count
+   disclosure for the Events pushed past the 2-band lane cap
+   (week.bandLayout.overflowEvents) - not a third band lane, not a
+   per-hidden-title list. min-width: 0 on both this flex container and the
+   link lets the link's own text-overflow:ellipsis actually take effect
+   inside a CSS grid track (a flex/grid item's default min-width is auto,
+   which otherwise refuses to shrink below its content's natural width). */
+.weekOverflow {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  min-width: 0;
+  margin: var(--space-2xs) 0 0;
+  padding-inline: 3px;
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+/* Fixed, never-truncated "この週にほかN件：" prefix - only the hidden
+   Event's own title (the variable-length part) is ever clipped, so the
+   count itself is always fully readable. */
+.weekOverflowLabel {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.weekOverflowLink {
+  composes: truncatedLine;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+}
+
+.weekOverflowLink:hover {
+  color: var(--color-text);
 }
 
 /*

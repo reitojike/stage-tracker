@@ -2,11 +2,14 @@ import Link from 'next/link';
 import { LinkButton } from '@/ui/LinkButton';
 import type { CalendarDayRole } from '@/domain/calendarDayRole.ts';
 import type { MonthCalendarViewModel } from '@/domain/calendarMonth.ts';
+import { MAX_BAND_LANES } from '@/domain/calendarMonth.ts';
 import {
   catalogDayHref,
+  catalogEventHref,
   catalogMonthHref,
   nextYearMonth,
   previousYearMonth,
+  type CatalogParams,
 } from '@/domain/catalogNavigation.ts';
 import styles from './MonthCalendar.module.css';
 
@@ -57,6 +60,12 @@ function roleClassName(role: CalendarDayRole): string {
 }
 
 export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalendarProps) {
+  // Same CatalogParams shape catalogEventHref's other Event Catalog callers
+  // (EventLevelFallbackList/SelectedDayList) build from - lets the week
+  // overflow summary link land back on this exact month/selected-day
+  // context instead of a bare event detail page (Issue #176).
+  const catalogContext: CatalogParams = { yearMonth: viewModel.yearMonth, selectedDate };
+
   return (
     <section
       className={styles.calendar}
@@ -132,6 +141,24 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
           visual month grid itself. */}
       <div className={styles.grid}>
         {viewModel.weeks.map((week, weekIndex) => {
+          // Issue #142 removed the full per-hidden-event overflow list
+          // (still true here: no per-title listing, no third band lane)
+          // but Issue #176 restores a *compact* existence/count disclosure
+          // so a week with 3+ concurrent multi-day Events doesn't read
+          // identically to one with exactly 2. This reads
+          // week.bandLayout.overflowEvents/overflowCount as-is (already
+          // deduplicated by eventId - see layoutWeekBands in
+          // calendarMonth.ts) rather than re-deriving which Events are
+          // hidden; the 2-band lane cap itself (MAX_BAND_LANES) is
+          // unchanged. `noUncheckedIndexedAccess` requires the `undefined`
+          // check below even though `overflowEvents[0]` always exists once
+          // .length > 0.
+          const firstHidden = week.bandLayout.overflowEvents[0];
+          const firstHiddenTitle =
+            firstHidden === undefined
+              ? null
+              : bandDisplayTitle(firstHidden.eventTitle, firstHidden.isCanceled);
+
           return (
             // Weeks are a stable, never-reordered sequence within one
             // render, so the positional index is a safe React key here.
@@ -253,13 +280,28 @@ export function MonthCalendar({ viewModel, selectedDate, todayDate }: MonthCalen
                 </span>
               ))}
 
-              {/* No overflow list any more (Issue #142: "1セルの marker は
-                  最大3...溢れる分は表示しない"). An Event beyond the 2-band
-                  lane cap for this week is still reachable: every day
-                  within its range is its own link above, and the day page
-                  surfaces range-only Events via selectEventLevelFallback
-                  (calendarMonth.ts) even when this week's band never shows
-                  it. */}
+              {firstHidden !== undefined && firstHiddenTitle !== null ? (
+                <p
+                  className={styles.weekOverflow}
+                  style={{ gridColumn: '1 / -1', gridRow: MAX_BAND_LANES + 2 }}
+                >
+                  {/* Visible text (never color-only) carries the count; the
+                      truncated title stays fully present in the DOM/
+                      accessible name even where CSS ellipsis clips it
+                      visually - see .weekOverflow / .weekOverflowLink
+                      below. */}
+                  <span className={styles.weekOverflowLabel}>
+                    {`この週にほか${String(week.bandLayout.overflowCount)}件：`}
+                  </span>
+                  <Link
+                    href={catalogEventHref(firstHidden.eventId, catalogContext)}
+                    className={styles.weekOverflowLink}
+                    title={firstHiddenTitle}
+                  >
+                    {firstHiddenTitle}
+                  </Link>
+                </p>
+              ) : null}
             </div>
           );
         })}
