@@ -104,9 +104,11 @@
      still well past WCAG 2.2 AA SC 2.5.8's 24px floor. */
   min-height: 44px;
   padding-block: var(--space-xs);
-  /* Day cell radius (#96 -> #102 approved direction: 8, distinct from the
-     10px --radius-control used elsewhere). Also Issue #142's "選択中" ring
-     radius (--radius-control-sm is the same 8px step). */
+  /* Day cell radius (#96 -> #102 approved direction). Also Issue #142's
+     "選択中" ring radius. Design Wave 2 (Issue #185) converged
+     --radius-control-sm from 8px onto the same 4px step as --radius-control
+     - the two control-radius roles are no longer distinct sizes anywhere in
+     the app, this cell/ring included. */
   border-radius: var(--radius-control-sm);
   color: var(--color-text);
   text-decoration: none;
