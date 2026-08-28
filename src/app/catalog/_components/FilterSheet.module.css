@@ -1,0 +1,143 @@
+/*
+ * Native <dialog> reset to a bottom sheet (design_handoff_stage_tracker/
+ * 11-filter-sheet.md: 画面下から出る / 上端のみ角丸4px / 1px境界 / 背後は
+ * 暗幕 / 200ms程度のease-out). `<dialog>` supplies the modal focus trap,
+ * Escape-to-dismiss, and ::backdrop for free - only position/shape/motion
+ * are this file's own concern.
+ */
+.dialog {
+  position: fixed;
+  /* `<dialog>`'s own UA stylesheet sets `inset: 0` (i.e. top: 0 too) for
+     `dialog:modal` - left unset, that default wins over inset-block-end
+     below whenever both are non-auto with an intrinsic height (the
+     over-constrained case resolves in favour of top, not bottom), which
+     pins the sheet to the top of the viewport instead of the bottom.
+     Explicitly overriding inset-block-start back to auto is what actually
+     lets inset-block-end anchor this to the bottom edge - confirmed via a
+     real headless-Chrome render, not visible from source/CSS-text alone. */
+  inset-block-start: auto;
+  inset-block-end: 0;
+  inset-inline: 0;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  border-start-start-radius: var(--radius-sheet);
+  border-start-end-radius: var(--radius-sheet);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  max-height: 85vh;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    transform 200ms ease-out,
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+}
+
+/* Closed state: off-screen below the viewport - `<dialog>` itself still
+   owns display:none/[open] toggling (native behaviour, untouched). */
+.dialog:not([open]) {
+  transform: translateY(100%);
+}
+
+/* Entry animation: `@starting-style` is the pre-open frame the browser
+   transitions *from* the instant `showModal()` flips `[open]` on, so this
+   only ever applies while the dialog is transitioning in - no JS state
+   machine needed to animate a display:none -> block element. */
+@starting-style {
+  .dialog[open] {
+    transform: translateY(100%);
+  }
+}
+
+.dialog::backdrop {
+  background-color: rgb(23 25 27 / 45%);
+  transition:
+    background-color 200ms ease-out,
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+}
+
+@starting-style {
+  .dialog[open]::backdrop {
+    background-color: rgb(23 25 27 / 0%);
+  }
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.title {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.body {
+  overflow-y: auto;
+  padding: 0 var(--space-md);
+}
+
+.section {
+  padding-block: var(--space-sm);
+}
+
+.section + .section {
+  border-top: 1px solid var(--color-border);
+}
+
+.sectionLabel {
+  padding-block: var(--space-xs);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+/* Genre row: a plain radio, same 44px tap target / hidden-native-input
+   convention as TriStateCheckbox.module.css's own .row/.input, but for a
+   single-select control rather than a tri-state one. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.radio {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.radio:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.rowLabel {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-base);
+}
+
+.footer {
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+/* The sheet's one filled primary action (design handoff: "この画面の塗り
+   ボタンはこれだけ") - full width so it reads as the sheet's single
+   commit affordance rather than an inline control. */
+.confirmButton {
+  width: 100%;
+}
