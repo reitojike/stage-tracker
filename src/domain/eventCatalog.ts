@@ -14,6 +14,8 @@
 // and testable from anywhere without pulling infrastructure in (see the
 // architecture import boundary in eslint.config.mjs).
 
+import { sortByFieldThenId } from './ordering.ts';
+
 export interface EventCatalogEvent {
   id: string;
   ownerId: string;
@@ -440,17 +442,13 @@ export function sortGenres(genres: readonly Genre[]): Genre[] {
 /** Deterministic group ordering for both an Event's own group list and a
  * catalog-wide group option list (Issue #167 "stable deterministic
  * ordering"): display_name first (what a user actually scans), id as the
- * tie-breaker for two groups that happen to share a display name. */
+ * tie-breaker for two groups that happen to share a display name.
+ * displayName is a plain string field, so - unlike sortGenres above, which
+ * has to hand-roll its own comparator for a numeric field -
+ * domain/ordering.ts's shared compareByFieldThenId/sortByFieldThenId apply
+ * directly here. */
 export function sortGroups(groups: readonly Group[]): Group[] {
-  return [...groups].sort((a, b) => {
-    if (a.displayName !== b.displayName) {
-      return a.displayName < b.displayName ? -1 : 1;
-    }
-    if (a.id === b.id) {
-      return 0;
-    }
-    return a.id < b.id ? -1 : 1;
-  });
+  return sortByFieldThenId(groups, (group) => group.displayName);
 }
 
 /**
@@ -492,7 +490,11 @@ export interface CatalogFilterOptionUniverse {
  * false for both "nothing selected" and "every known option selected"
  * (#158's none-or-all no-op rule). An empty `known` (no options exist yet
  * for this genre) makes any non-empty `selected` still effective - there
- * is no "select all of zero options" case to collapse to a no-op. */
+ * is no "select all of zero options" case to collapse to a no-op.
+ * `selected` comes from UI multi-select state, never containing a
+ * duplicate, so a length-then-membership check against one Set (built from
+ * `known`) is enough to test "selected is exactly the known set" - no
+ * second Set is needed just to compare sizes. */
 function isEffectiveFacetSelection(selected: readonly string[], known: readonly string[]): boolean {
   if (selected.length === 0) {
     return false;
@@ -501,16 +503,16 @@ function isEffectiveFacetSelection(selected: readonly string[], known: readonly 
     return true;
   }
   const knownSet = new Set(known);
-  const selectedSet = new Set(selected);
-  if (selectedSet.size !== knownSet.size) {
-    return true;
-  }
-  for (const value of selectedSet) {
-    if (!knownSet.has(value)) {
-      return true;
-    }
-  }
-  return false;
+  return !(selected.length === knownSet.size && selected.every((value) => knownSet.has(value)));
+}
+
+/** Shared OR-match core for both facet blocks in matchesCatalogFilter
+ * below: does any selected value equal one of this event's values for the
+ * facet. Both facets are exact-identity comparisons over a small value set
+ * per event (a handful of groups at most, one venue), so a plain `.some`
+ * scan needs no intermediate Set. */
+function facetOrMatch(selected: readonly string[], eventValues: readonly string[]): boolean {
+  return selected.some((value) => eventValues.includes(value));
 }
 
 /**
@@ -539,14 +541,14 @@ export function matchesCatalogFilter(
   }
 
   if (isEffectiveFacetSelection(selection.groups, universe.groupKeys)) {
-    const eventGroupKeys = new Set(event.classification?.groups.map((group) => group.key) ?? []);
-    if (!selection.groups.some((key) => eventGroupKeys.has(key))) {
+    const eventGroupKeys = event.classification?.groups.map((group) => group.key) ?? [];
+    if (!facetOrMatch(selection.groups, eventGroupKeys)) {
       return false;
     }
   }
 
   if (isEffectiveFacetSelection(selection.venues, universe.venues)) {
-    if (event.venue === null || !selection.venues.includes(event.venue)) {
+    if (event.venue === null || !facetOrMatch(selection.venues, [event.venue])) {
       return false;
     }
   }

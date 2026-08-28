@@ -120,21 +120,25 @@ begin
     -- affect row a second time" error - the calling script's validator is
     -- the primary defense against that case ("duplicate group within one
     -- Event seed" / "inconsistent classification payload").
+    -- `returning id` on the upsert itself is what every touched group's id
+    -- comes from - jsonb_array_elements(p_groups) is scanned exactly once,
+    -- not re-scanned afterwards to look the ids back up by key. Scanning
+    -- it twice would let the two representations of "which groups this
+    -- call touches" drift apart if the parsing logic on one side ever
+    -- changed without the other.
     with input_groups as (
       select distinct
         btrim(elem ->> 'key') as key,
         btrim(elem ->> 'displayName') as display_name
       from jsonb_array_elements(p_groups) as elem
+    ),
+    upserted_groups as (
+      insert into public.groups (key, display_name)
+      select key, display_name from input_groups
+      on conflict (key) do update set display_name = excluded.display_name
+      returning id
     )
-    insert into public.groups (key, display_name)
-    select key, display_name from input_groups
-    on conflict (key) do update set display_name = excluded.display_name;
-
-    select array_agg(g.id) into v_group_ids
-    from public.groups g
-    where g.key in (
-      select distinct btrim(elem ->> 'key') from jsonb_array_elements(p_groups) as elem
-    );
+    select array_agg(id) into v_group_ids from upserted_groups;
 
     -- Replace-all on the touched facet (#167 "Current reviewed seedを
     -- そのEventのclassification truthとして扱うreplace-style semantics

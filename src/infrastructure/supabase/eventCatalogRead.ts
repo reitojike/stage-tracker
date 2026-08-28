@@ -591,42 +591,45 @@ export async function getEventClassificationsByIds(
     return { ok: true, data: [] };
   }
 
-  const genresResult = await listCatalogGenres(client);
-  if (!genresResult.ok) {
-    return genresResult;
-  }
-  const genresById = new Map(genresResult.data.map((genre) => [genre.id, genre] as const));
-
   const genreIdByEvent = new Map<string, string | null>();
   const groupsByEvent = new Map<string, Group[]>();
 
-  for (const idBatch of chunk(eventIds, ID_BATCH_SIZE)) {
-    const eventsBatch = await fetchAllRows((from, to) =>
-      client
-        .from('events')
-        .select('id, genre_id', { count: 'exact' })
-        .in('id', idBatch)
-        .order('id', { ascending: true })
-        .range(from, to),
-    );
+  /**
+   * Both queries below read from the same idBatch but are otherwise
+   * independent (different tables, neither's result shapes the other's
+   * request), so they run concurrently via Promise.all - the same pattern
+   * listEventCatalogInRange above uses for its own two independent
+   * per-call queries, rather than paying two sequential round trips per
+   * batch.
+   */
+  async function fetchBatch(idBatch: string[]): Promise<EventCatalogReadResult<void>> {
+    const [eventsBatch, groupsBatch] = await Promise.all([
+      fetchAllRows((from, to) =>
+        client
+          .from('events')
+          .select('id, genre_id', { count: 'exact' })
+          .in('id', idBatch)
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+      fetchAllRows((from, to) =>
+        client
+          .from('event_groups')
+          .select('event_id, groups(id, key, display_name)', { count: 'exact' })
+          .in('event_id', idBatch)
+          .order('event_id', { ascending: true })
+          .order('group_id', { ascending: true })
+          .range(from, to),
+      ),
+    ]);
     if (!eventsBatch.ok) {
       return eventsBatch;
     }
-    for (const row of eventsBatch.data) {
-      genreIdByEvent.set(row.id, row.genre_id);
-    }
-
-    const groupsBatch = await fetchAllRows((from, to) =>
-      client
-        .from('event_groups')
-        .select('event_id, groups(id, key, display_name)', { count: 'exact' })
-        .in('event_id', idBatch)
-        .order('event_id', { ascending: true })
-        .order('group_id', { ascending: true })
-        .range(from, to),
-    );
     if (!groupsBatch.ok) {
       return groupsBatch;
+    }
+    for (const row of eventsBatch.data) {
+      genreIdByEvent.set(row.id, row.genre_id);
     }
     // event_groups.group_id is `not null`, so the embedded `groups`
     // relation is guaranteed non-null here too (see listCatalogGroupOptions
@@ -640,7 +643,26 @@ export async function getEventClassificationsByIds(
         groupsByEvent.set(row.event_id, [group]);
       }
     }
+    return { ok: true, data: undefined };
   }
+
+  // The genres lookup (small, catalog-wide) and every id batch are
+  // themselves mutually independent, so all of them run concurrently
+  // rather than fetching genres first and then working through batches
+  // one at a time.
+  const [genresResult, ...batchResults] = await Promise.all([
+    listCatalogGenres(client),
+    ...chunk(eventIds, ID_BATCH_SIZE).map(fetchBatch),
+  ]);
+  if (!genresResult.ok) {
+    return genresResult;
+  }
+  for (const batchResult of batchResults) {
+    if (!batchResult.ok) {
+      return batchResult;
+    }
+  }
+  const genresById = new Map(genresResult.data.map((genre) => [genre.id, genre] as const));
 
   const classifications: EventClassification[] = [];
   for (const [eventId, genreId] of genreIdByEvent) {

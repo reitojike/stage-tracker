@@ -5,9 +5,7 @@
 // already draws between "is this shaped correctly" (here) and "does it
 // resolve against the current catalog" (import-catalog-events.mjs's own
 // plan phase, which needs a DB client to diff against the current
-// genre_id/event_groups state) - and the same split
-// scripts/lib/ticketOpportunitySeed.mjs draws for the sibling
-// TicketOpportunity import. Kept separate so the shape rules are
+// genre_id/event_groups state). Kept separate so the shape rules are
 // unit-testable without a running Supabase instance.
 //
 // `genre` is deliberately validated only as "a non-empty string, or

@@ -371,9 +371,20 @@ function planGroups(entry, currentGroups) {
   const proposedKeys = new Set(proposed.map((group) => group.key));
   const added = proposed.filter((group) => !currentByKey.has(group.key));
   const removed = currentGroups.filter((group) => !proposedKeys.has(group.key));
-  const renamed = proposed.filter((group) => {
+  // Carries previousDisplayName up front (computed here, where
+  // currentByKey is already in scope) so the report loop below can print
+  // the rename without a second lookup back into `current` by key.
+  const renamed = proposed.flatMap((group) => {
     const current = currentByKey.get(group.key);
-    return current !== undefined && current.displayName !== group.displayName;
+    return current !== undefined && current.displayName !== group.displayName
+      ? [
+          {
+            key: group.key,
+            displayName: group.displayName,
+            previousDisplayName: current.displayName,
+          },
+        ]
+      : [];
   });
   return {
     setGroups: true,
@@ -664,9 +675,8 @@ for (const plan of plans) {
     }
     if (plan.groupsPlan.renamed.length > 0) {
       for (const group of plan.groupsPlan.renamed) {
-        const current = plan.groupsPlan.current.find((existing) => existing.key === group.key);
         console.log(
-          `          ~ group displayName  ${current.displayName} -> ${group.displayName}`,
+          `          ~ group displayName  ${group.previousDisplayName} -> ${group.displayName}`,
         );
       }
     }
@@ -680,12 +690,20 @@ const totals = plans.reduce(
     endsAt: acc.endsAt + plan.endsAtFixes.length,
     doorsAt: acc.doorsAt + plan.doorsAtFixes.length,
     ranges: acc.ranges + (plan.rangeChanged ? 1 : 0),
+    // A seed can correct genre/groups on an otherwise fully-unchanged
+    // Event (see the per-plan classification report block above) - this
+    // summary line must count that too, or a reclassification-only run
+    // would print "+0 events, +0 occurrences, ..." and read as a no-op
+    // even though real classification writes are about to happen.
+    genres: acc.genres + (plan.genrePlan.changed ? 1 : 0),
+    groups: acc.groups + (plan.groupsPlan.changed ? 1 : 0),
   }),
-  { events: 0, occurrences: 0, endsAt: 0, doorsAt: 0, ranges: 0 },
+  { events: 0, occurrences: 0, endsAt: 0, doorsAt: 0, ranges: 0, genres: 0, groups: 0 },
 );
 console.log(
   `\n${plans.length} seed entries: +${totals.events} events, +${totals.occurrences} occurrences, ` +
-    `~${totals.endsAt} end times, ~${totals.doorsAt} doors times, ~${totals.ranges} Event ranges\n`,
+    `~${totals.endsAt} end times, ~${totals.doorsAt} doors times, ~${totals.ranges} Event ranges, ` +
+    `~${totals.genres} genres, ~${totals.groups} group associations\n`,
 );
 
 if (!apply) {
@@ -771,18 +789,25 @@ for (const plan of plans) {
   // changes (an Event whose occurrences are unchanged can still need a
   // genre correction, and vice versa), the same separation
   // import_ticket_opportunity draws from events' own create/update RPCs.
-  // Only called when there is actually something to write: `changed`
-  // already accounts for "seed touched this facet but the value matches
-  // what is already there", so a plan with no real classification change
-  // makes no RPC call at all, not even a no-op one.
+  // Only called when there is actually something to write, and only for
+  // the facet(s) that actually changed: `changed` already accounts for
+  // "seed touched this facet but the value matches what is already
+  // there", so a plan with no real classification change makes no RPC
+  // call at all, and - independently - a plan where only one facet
+  // changed passes p_set_genre/p_set_groups = true for that facet alone.
+  // Without this, a seed entry that reconfirms an already-correct groups
+  // list alongside an unrelated genre correction would still make the RPC
+  // delete-and-reinsert every event_groups row and re-upsert every group
+  // for no actual change, churning groups.updated_at/event_groups.created_at
+  // on rows nothing about which had changed.
   const eventId = plan.action === 'create' ? createdEvent.id : plan.event.id;
   const classificationChanged = plan.genrePlan.changed || plan.groupsPlan.changed;
   if (classificationChanged) {
     const { error: classificationError } = await admin.rpc('import_event_classification', {
       p_event_id: eventId,
-      p_set_genre: plan.genrePlan.setGenre,
+      p_set_genre: plan.genrePlan.setGenre && plan.genrePlan.changed,
       p_genre_key: plan.genrePlan.genreKey,
-      p_set_groups: plan.groupsPlan.setGroups,
+      p_set_groups: plan.groupsPlan.setGroups && plan.groupsPlan.changed,
       p_groups: plan.groupsPlan.groups.map((group) => ({
         key: group.key,
         displayName: group.displayName,

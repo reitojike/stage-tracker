@@ -8,6 +8,7 @@ import {
   type TestActor,
 } from './support/testActors.ts';
 import { createEventWithoutOccurrence, eventFixtureTitle } from './support/eventFixtures.ts';
+import { requireOk } from './support/result.ts';
 import {
   getEventClassificationsByIds,
   listCatalogGenres,
@@ -68,18 +69,6 @@ async function genreId(key: string): Promise<string> {
   const { data, error } = await admin.from('genres').select('id').eq('key', key).single();
   assert.equal(error, null, `failed to look up genre "${key}"`);
   return data.id;
-}
-
-/** Unwraps an EventCatalogReadResult, matching test/rls/eventCatalogRead.test.ts's
- * own requireOk convention - asserts ok:true (assert.ok's `asserts` signature
- * narrows the type, so every caller works with `data` directly with no
- * leftover optional chaining/re-checking of `.ok`). */
-function requireOk<T>(result: { ok: true; data: T } | { ok: false; error: unknown }): T {
-  assert.ok(
-    result.ok,
-    `expected ok:true, got error: ${JSON.stringify('error' in result ? result.error : null)}`,
-  );
-  return result.data;
 }
 
 /** Asserts `array` has exactly one element and returns it - avoids both a
@@ -422,9 +411,19 @@ void test('an authenticated user - including the Event owner - cannot write genr
     .insert({ key: `denied-${event.id}`, display_name: 'Denied' });
   assert.notEqual(insertGroup.error, null);
 
+  // A real group id (created via the admin/import path, not a genres.id)
+  // so this insert is denied on grants alone - not incidentally rejected
+  // by the event_groups -> groups FK check for an id from the wrong table,
+  // which would prove nothing about the actual write boundary under test.
+  const { data: realGroup, error: realGroupError } = await admin
+    .from('groups')
+    .insert({ key: `real-for-denial-test-${event.id}`, display_name: 'Real Group' })
+    .select('id')
+    .single();
+  assert.equal(realGroupError, null);
   const insertEventGroup = await owner.client
     .from('event_groups')
-    .insert({ event_id: event.id, group_id: takarazukaId });
+    .insert({ event_id: event.id, group_id: realGroup.id });
   assert.notEqual(insertEventGroup.error, null);
 
   // Confirm nothing actually landed despite the attempt.
