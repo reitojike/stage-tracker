@@ -17,6 +17,16 @@ import type { CatalogFilterSelection } from './eventCatalog.ts';
 
 export type CatalogFilterSecondaryFacetKind = 'group' | 'venue';
 
+/** A genre's own active secondary facet, kind and label bound together so
+ * they can never drift apart (a component can hold one `const` and safely
+ * narrow both from a single non-null check, rather than two separately
+ * nullable lookups that happen to share a key set only by convention). */
+export interface CatalogFilterActiveFacet {
+  genreKey: string;
+  kind: CatalogFilterSecondaryFacetKind;
+  label: string;
+}
+
 /**
  * Gate A's fixed genre-key -> active secondary facet mapping (#158 "宝塚 →
  * 組 / 歌舞伎 → 会場 / アイドル → グループ", product-rules.md "Facet model").
@@ -28,36 +38,23 @@ export type CatalogFilterSecondaryFacetKind = 'group' | 'venue';
  * 固定しない"): a genre key absent from this map (a future genre) simply has
  * no active secondary facet yet, rather than the UI inventing one.
  */
-const GENRE_FACET_KIND: Readonly<Record<string, CatalogFilterSecondaryFacetKind>> = {
-  takarazuka: 'group',
-  kabuki: 'venue',
-  idol: 'group',
+const GENRE_FACET: Readonly<
+  Record<string, { kind: CatalogFilterSecondaryFacetKind; label: string }>
+> = {
+  takarazuka: { kind: 'group', label: '組' },
+  kabuki: { kind: 'venue', label: '会場' },
+  idol: { kind: 'group', label: 'グループ' },
 };
 
-/** UI label for each Gate A genre's active facet (product-rules.md "Facet
- * model" table). Separate from GENRE_FACET_KIND's identity mapping so a
- * future genre with, say, a group facet but a different label does not have
- * to fight this table's assumption that facet kind implies label. */
-const GENRE_FACET_LABEL: Readonly<Record<string, string>> = {
-  takarazuka: '組',
-  kabuki: '会場',
-  idol: 'グループ',
-};
-
-export function secondaryFacetKindForGenreKey(
-  genreKey: string | null,
-): CatalogFilterSecondaryFacetKind | null {
+/** すべて (genre `null`) and a genre absent from GENRE_FACET (a future,
+ * not-yet-configured genre) both resolve to `null` - no active secondary
+ * facet - identically. */
+export function activeSecondaryFacet(genreKey: string | null): CatalogFilterActiveFacet | null {
   if (genreKey === null) {
     return null;
   }
-  return GENRE_FACET_KIND[genreKey] ?? null;
-}
-
-export function secondaryFacetLabelForGenreKey(genreKey: string | null): string | null {
-  if (genreKey === null) {
-    return null;
-  }
-  return GENRE_FACET_LABEL[genreKey] ?? null;
+  const config = GENRE_FACET[genreKey];
+  return config === undefined ? null : { genreKey, kind: config.kind, label: config.label };
 }
 
 /** One selectable secondary-facet row: `value` is the exact-identity value
@@ -98,6 +95,13 @@ export function selectedSecondaryValues(
   return state.secondarySelections[genreKey] ?? [];
 }
 
+/** The active genre's own selection, or `[]` for すべて (no active genre) -
+ * the one accessor both toCatalogFilterSelection below and FilterSheet's
+ * own render use, so "no active genre -> no selection" is expressed once. */
+export function activeSecondarySelection(state: CatalogFilterState): readonly string[] {
+  return state.genre !== null ? selectedSecondaryValues(state, state.genre) : [];
+}
+
 export function withGenre(state: CatalogFilterState, genreKey: string | null): CatalogFilterState {
   return { ...state, genre: genreKey };
 }
@@ -117,6 +121,20 @@ export function toggleSecondaryValue(selected: readonly string[], value: string)
   return selected.includes(value)
     ? selected.filter((existing) => existing !== value)
     : [...selected, value];
+}
+
+/** Narrows a selection down to values present in `known` - used wherever a
+ * caller must guarantee it only ever applies a value currently backed by
+ * loaded option data (see FilterSheet.tsx's mount-restore and confirm: a
+ * selection pruneStaleCatalogFilterState below deliberately left untouched
+ * because that genre's option data was not loaded *yet* must still never
+ * be applied as a live filter the UI cannot show a selected row for). */
+export function intersectWithKnownValues(
+  selected: readonly string[],
+  known: readonly string[],
+): string[] {
+  const knownSet = new Set(known);
+  return selected.filter((value) => knownSet.has(value));
 }
 
 /**
@@ -151,14 +169,22 @@ export function applyAggregateToggle(
  * it) must never leak into the applied filter while its facet isn't even
  * shown, or matchesCatalogFilter would silently filter by a facet the UI
  * doesn't currently display.
+ *
+ * This performs no known-option validation of its own - see
+ * intersectWithKnownValues above for that. Callers that only have a
+ * pruned-but-possibly-still-unloaded CatalogFilterState (see
+ * pruneStaleCatalogFilterState's own "not loaded yet" doc comment) must
+ * intersect the active selection against currently-known values themselves
+ * before calling this, the same way FilterSheet.tsx's mount-restore and
+ * confirm both do.
  */
 export function toCatalogFilterSelection(state: CatalogFilterState): CatalogFilterSelection {
-  const facetKind = secondaryFacetKindForGenreKey(state.genre);
-  const selected = state.genre !== null ? selectedSecondaryValues(state, state.genre) : [];
+  const facet = activeSecondaryFacet(state.genre);
+  const selected = activeSecondarySelection(state);
   return {
     genre: state.genre,
-    groups: facetKind === 'group' ? selected : [],
-    venues: facetKind === 'venue' ? selected : [],
+    groups: facet?.kind === 'group' ? selected : [],
+    venues: facet?.kind === 'venue' ? selected : [],
   };
 }
 
@@ -170,7 +196,11 @@ export function toCatalogFilterSelection(state: CatalogFilterState): CatalogFilt
  *
  * - a saved genre key absent from `knownGenreKeys` falls back to `null`
  *   (すべて) rather than keeping a filter pinned to a genre that no longer
- *   exists.
+ *   exists - *unless* `knownGenreKeys` itself is empty, which this treats
+ *   as "genre data not loaded yet" (Gate A always has at least one known
+ *   genre once loaded) rather than "every genre was just retired", the
+ *   same "absent != stale" distinction the secondary-value branch below
+ *   already makes.
  * - a genre entirely absent from `knownSecondaryValuesByGenre` (no option
  *   data loaded for it yet) is left untouched - a transient "options still
  *   loading" state must never be misread as "every saved value for this
@@ -183,7 +213,10 @@ export function pruneStaleCatalogFilterState(
   knownGenreKeys: readonly string[],
   knownSecondaryValuesByGenre: Readonly<Record<string, readonly string[]>>,
 ): CatalogFilterState {
-  const genre = state.genre !== null && knownGenreKeys.includes(state.genre) ? state.genre : null;
+  const genre =
+    state.genre === null || knownGenreKeys.length === 0 || knownGenreKeys.includes(state.genre)
+      ? state.genre
+      : null;
 
   const secondarySelections: Record<string, readonly string[]> = {};
   for (const [genreKey, selected] of Object.entries(state.secondarySelections)) {
@@ -192,8 +225,7 @@ export function pruneStaleCatalogFilterState(
       secondarySelections[genreKey] = selected;
       continue;
     }
-    const knownSet = new Set(known);
-    secondarySelections[genreKey] = selected.filter((value) => knownSet.has(value));
+    secondarySelections[genreKey] = intersectWithKnownValues(selected, known);
   }
 
   return { genre, secondarySelections };

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  activeSecondaryFacet,
+  activeSecondarySelection,
   applyAggregateToggle,
   EMPTY_CATALOG_FILTER_STATE,
+  intersectWithKnownValues,
   parseCatalogFilterState,
   pruneStaleCatalogFilterState,
   secondaryAggregateState,
-  secondaryFacetKindForGenreKey,
-  secondaryFacetLabelForGenreKey,
   selectedSecondaryValues,
   serializeCatalogFilterState,
   toCatalogFilterSelection,
@@ -17,22 +18,27 @@ import {
   type CatalogFilterState,
 } from '../catalogFilterSheet.ts';
 
-void test('secondaryFacetKindForGenreKey maps Gate A genres to their #158 facet', () => {
-  assert.equal(secondaryFacetKindForGenreKey('takarazuka'), 'group');
-  assert.equal(secondaryFacetKindForGenreKey('kabuki'), 'venue');
-  assert.equal(secondaryFacetKindForGenreKey('idol'), 'group');
+void test('activeSecondaryFacet maps Gate A genres to their #158 facet kind/label together', () => {
+  assert.deepEqual(activeSecondaryFacet('takarazuka'), {
+    genreKey: 'takarazuka',
+    kind: 'group',
+    label: '組',
+  });
+  assert.deepEqual(activeSecondaryFacet('kabuki'), {
+    genreKey: 'kabuki',
+    kind: 'venue',
+    label: '会場',
+  });
+  assert.deepEqual(activeSecondaryFacet('idol'), {
+    genreKey: 'idol',
+    kind: 'group',
+    label: 'グループ',
+  });
 });
 
-void test('secondaryFacetKindForGenreKey has no facet for すべて (null) or an unmapped genre', () => {
-  assert.equal(secondaryFacetKindForGenreKey(null), null);
-  assert.equal(secondaryFacetKindForGenreKey('some-future-genre'), null);
-});
-
-void test('secondaryFacetLabelForGenreKey matches product-rules.md facet labels', () => {
-  assert.equal(secondaryFacetLabelForGenreKey('takarazuka'), '組');
-  assert.equal(secondaryFacetLabelForGenreKey('kabuki'), '会場');
-  assert.equal(secondaryFacetLabelForGenreKey('idol'), 'グループ');
-  assert.equal(secondaryFacetLabelForGenreKey(null), null);
+void test('activeSecondaryFacet is null for すべて (null) or an unmapped genre', () => {
+  assert.equal(activeSecondaryFacet(null), null);
+  assert.equal(activeSecondaryFacet('some-future-genre'), null);
 });
 
 void test('withGenre only changes the active genre, never touching remembered secondary selections', () => {
@@ -49,10 +55,25 @@ void test('withSecondarySelection replaces only the given genre entry', () => {
   assert.deepEqual(selectedSecondaryValues(next, 'idol'), ['group-a']);
 });
 
+void test('activeSecondarySelection reads the active genre only, [] for すべて', () => {
+  let state = withSecondarySelection(EMPTY_CATALOG_FILTER_STATE, 'takarazuka', ['hana']);
+  state = withGenre(state, 'takarazuka');
+  assert.deepEqual(activeSecondarySelection(state), ['hana']);
+
+  state = withGenre(state, null);
+  assert.deepEqual(activeSecondarySelection(state), []);
+});
+
 void test('toggleSecondaryValue adds an absent value and removes a present one', () => {
   assert.deepEqual(toggleSecondaryValue([], 'hana'), ['hana']);
   assert.deepEqual(toggleSecondaryValue(['hana'], 'hana'), []);
   assert.deepEqual(toggleSecondaryValue(['hana'], 'tsuki'), ['hana', 'tsuki']);
+});
+
+void test('intersectWithKnownValues keeps only values present in known', () => {
+  assert.deepEqual(intersectWithKnownValues(['hana', 'retired'], ['hana', 'tsuki']), ['hana']);
+  assert.deepEqual(intersectWithKnownValues(['hana'], []), []);
+  assert.deepEqual(intersectWithKnownValues([], ['hana']), []);
 });
 
 void test('secondaryAggregateState is unchecked for none selected (including zero known options)', () => {
@@ -115,6 +136,17 @@ void test('pruneStaleCatalogFilterState keeps a still-known active genre untouch
   const state = withGenre(EMPTY_CATALOG_FILTER_STATE, 'takarazuka');
   const pruned = pruneStaleCatalogFilterState(state, ['takarazuka', 'kabuki', 'idol'], {});
   assert.equal(pruned.genre, 'takarazuka');
+});
+
+void test('pruneStaleCatalogFilterState leaves the active genre untouched when the genre list itself was not supplied (still loading)', () => {
+  const state = withGenre(EMPTY_CATALOG_FILTER_STATE, 'takarazuka');
+  const pruned = pruneStaleCatalogFilterState(state, [], {});
+  assert.equal(pruned.genre, 'takarazuka');
+});
+
+void test('pruneStaleCatalogFilterState keeps すべて (null) untouched regardless of the known genre list', () => {
+  const pruned = pruneStaleCatalogFilterState(EMPTY_CATALOG_FILTER_STATE, [], {});
+  assert.equal(pruned.genre, null);
 });
 
 void test('pruneStaleCatalogFilterState drops selected values no longer in the known universe', () => {

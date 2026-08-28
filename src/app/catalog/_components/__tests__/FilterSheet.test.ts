@@ -14,7 +14,7 @@ const css = readFileSync(cssPath, 'utf8');
 
 void test('renders a native <dialog> - real modal focus trap/Escape-to-dismiss/::backdrop, no hand-rolled overlay', () => {
   assert.match(component, /<dialog\b/);
-  assert.match(component, /dialogRef\.current\.showModal\(\)|dialog\.showModal\(\)/);
+  assert.match(component, /dialog\.showModal\(\)/);
 });
 
 void test('Escape/backdrop dismissal only fires onOpenChange, never touches applied state', () => {
@@ -28,11 +28,62 @@ void test('a backdrop click (target is the dialog itself, never a child) closes 
   assert.match(component, /event\.target === dialogRef\.current/);
 });
 
-void test('the sheet open transition copies applied into draft, never the reverse', () => {
-  const openEffect = component.match(
-    /useEffect\(\(\) => \{\s*if \(open\) \{\s*setDraft\(applied\);/,
+void test('the genre/facet dispatch (secondaryOptionsForFacet vs knownSecondaryValuesByGenre) shares one source: activeSecondaryFacet', () => {
+  const facetCalls = component.match(/activeSecondaryFacet\(/g) ?? [];
+  // knownSecondaryValuesByGenre, secondaryOptionsForFacet's caller (render
+  // body), and the mount-restore effect all resolve a facet through this
+  // one function - never re-deriving group-vs-venue dispatch themselves.
+  assert.ok(facetCalls.length >= 2);
+});
+
+void test('known-option lookups use the `in` operator, never `??` defaulting, so "not loaded yet" stays distinguishable from "loaded, zero options"', () => {
+  const knownFn = component.match(/function knownSecondaryValuesByGenre\([\s\S]*?\n\}/);
+  assert.ok(knownFn, 'knownSecondaryValuesByGenre is missing');
+  assert.match(knownFn[0], /facet\.genreKey in groupOptionsByGenreKey/);
+  assert.match(knownFn[0], /facet\.genreKey in venueOptionsByGenreKey/);
+});
+
+void test('a value not currently backed by known option data is stripped before being handed to the caller as a live filter (sanitizeForApply)', () => {
+  assert.match(component, /function sanitizeForApply\(/);
+  assert.match(component, /intersectWithKnownValues\(selected, knownValues\)/);
+  // Used at both the mount-restore hydration point and at confirm() - not
+  // just one of the two entry points that can hand a selection to the
+  // caller.
+  const sanitizeCalls = component.match(/sanitizeForApply\(/g) ?? [];
+  assert.equal(sanitizeCalls.length, 3); // the function's own declaration + 2 call sites
+});
+
+void test('confirm persists and applies the raw draft (so a not-yet-visible value can still be restored later), while only the reported selection is sanitized', () => {
+  const confirmFn = component.match(/function confirm\(\) \{([\s\S]*?)\n {2}\}/);
+  assert.ok(confirmFn, 'confirm() is missing');
+  const body = confirmFn[1] ?? '';
+  assert.match(
+    body,
+    /window\.localStorage\.setItem\(CATALOG_FILTER_STORAGE_KEY, serializeCatalogFilterState\(draft\)\)/,
   );
-  assert.ok(openEffect, 'open->draft copy effect is missing or does not read applied into draft');
+  assert.match(body, /setApplied\(draft\)/);
+  assert.match(body, /sanitizeForApply\(draft, activeFacet, knownValues\)/);
+});
+
+void test('the sheet open transition copies applied into draft only on a genuine false->true transition, not on every mount', () => {
+  assert.match(component, /const wasOpenRef = useRef\(open\);/);
+  const transitionEffect = component.match(
+    /useEffect\(\(\) => \{\s*const wasOpen = wasOpenRef\.current;[\s\S]*?\n {2}\}, \[open, applied\]\);/,
+  );
+  assert.ok(
+    transitionEffect,
+    'open-transition effect is missing or does not match the guarded shape',
+  );
+  assert.match(transitionEffect[0], /if \(open && !wasOpen\) \{/);
+});
+
+void test('the mount-restore effect seeds both applied and draft, so an already-open mount never renders a stale pre-restore draft', () => {
+  const restoreEffect = component.match(
+    /useEffect\(\(\) => \{\s*let restored[\s\S]*?\n {2}\}, \[\]\);/,
+  );
+  assert.ok(restoreEffect, 'mount-time restore effect is missing');
+  assert.match(restoreEffect[0], /setApplied\(pruned\)/);
+  assert.match(restoreEffect[0], /setDraft\(pruned\)/);
 });
 
 void test('every in-sheet option interaction calls setDraft, never setApplied directly', () => {
@@ -42,18 +93,6 @@ void test('every in-sheet option interaction calls setDraft, never setApplied di
   // neither is an onChange handler for an option row.
   const setAppliedCalls = bodySection.match(/setApplied\(/g) ?? [];
   assert.equal(setAppliedCalls.length, 2);
-});
-
-void test('confirm persists to localStorage, commits draft to applied, and reports the derived CatalogFilterSelection', () => {
-  const confirmFn = component.match(/function confirm\(\) \{([\s\S]*?)\n  \}/);
-  assert.ok(confirmFn, 'confirm() is missing');
-  const body = confirmFn[1] ?? '';
-  assert.match(
-    body,
-    /window\.localStorage\.setItem\(CATALOG_FILTER_STORAGE_KEY, serializeCatalogFilterState\(draft\)\)/,
-  );
-  assert.match(body, /setApplied\(draft\)/);
-  assert.match(body, /onAppliedSelectionChange\(toCatalogFilterSelection\(draft\)\)/);
 });
 
 void test('genre selection is a single radiogroup sharing one radio input name (single-select)', () => {
@@ -71,8 +110,19 @@ void test('すべて is a synthetic UI option (genre: null), not a fabricated ge
   assert.match(component, />すべて<\/span>/);
 });
 
-void test('secondary facet section only renders when the active genre has one (すべて has none)', () => {
-  assert.match(component, /facetKind !== null \? \(/);
+void test('secondary facet section only renders when the active genre has one (すべて has none), with no dead null-guard inside its onChange handlers', () => {
+  const facetSection = component.match(/\{activeFacet !== null \? \(([\s\S]*?)\n {10}\) : null\}/);
+  assert.ok(
+    facetSection,
+    'active-facet conditional block is missing or does not match the expected shape',
+  );
+  // activeFacet is narrowed once by the surrounding `activeFacet !== null`
+  // conditional - the onChange handlers inside must reuse that narrowed
+  // `const activeFacet.genreKey` directly, never re-check
+  // `draft.genre === null` (which would be unreachable dead code inside a
+  // block already gated on activeFacet !== null).
+  assert.doesNotMatch(facetSection[1] ?? '', /draft\.genre === null/);
+  assert.match(facetSection[1] ?? '', /activeFacet\.genreKey/);
 });
 
 void test('the aggregate すべて control only appears when there are known options for the active facet', () => {
