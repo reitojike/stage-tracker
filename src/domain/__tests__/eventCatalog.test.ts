@@ -599,3 +599,21 @@ void test('matchesCatalogFilter: an empty selection with a non-empty universe is
   const opts = universe({ groupKeys: ['tsuki', 'hoshi'] });
   assert.equal(matchesCatalogFilter(anyEvent, selection, opts), true);
 });
+
+void test('matchesCatalogFilter: a duplicated selected value is not miscounted as "every known option selected"', () => {
+  // selected = ['tsuki', 'tsuki'] has the same .length as known = ['tsuki',
+  // 'hoshi'], but is not actually a full selection - it must still filter,
+  // not collapse to the none-or-all no-op.
+  const tsukiEvent = {
+    classification: classification({ genre: TAKARAZUKA, groups: [TSUKI] }),
+    venue: null,
+  };
+  const hoshiEvent = {
+    classification: classification({ genre: TAKARAZUKA, groups: [HOSHI] }),
+    venue: null,
+  };
+  const selection = emptySelection({ groups: ['tsuki', 'tsuki'] });
+  const opts = universe({ groupKeys: ['tsuki', 'hoshi'] });
+  assert.equal(matchesCatalogFilter(tsukiEvent, selection, opts), true);
+  assert.equal(matchesCatalogFilter(hoshiEvent, selection, opts), false);
+});

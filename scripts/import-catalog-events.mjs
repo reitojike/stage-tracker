@@ -613,7 +613,15 @@ function logFixes(label, fixes, formatValue) {
 
 for (const plan of plans) {
   const { entry } = plan;
-  console.log(`${plan.action.toUpperCase().padEnd(9)} ${entry.sourceKey}`);
+  // `action` alone reflects only event-fields/occurrence changes; a plan
+  // can have action === 'unchanged' while still carrying a real genre/group
+  // correction (printed a few lines below as `~ genre`/`+ groups`/...). An
+  // operator scanning just this label column would otherwise read
+  // "UNCHANGED" and miss that a classification write is about to happen.
+  const classificationOnlyChange =
+    plan.action === 'unchanged' && (plan.genrePlan.changed || plan.groupsPlan.changed);
+  const label = classificationOnlyChange ? 'RECLASSIFY' : plan.action.toUpperCase();
+  console.log(`${label.padEnd(9)} ${entry.sourceKey}`);
   console.log(`          ${entry.title}${entry.venue === null ? '' : ` / ${entry.venue}`}`);
   console.log(`          Event range ${entry.startsOn} .. ${entry.endsOn}`);
   if (plan.action === 'create') {

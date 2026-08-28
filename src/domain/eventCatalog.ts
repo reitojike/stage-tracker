@@ -491,10 +491,13 @@ export interface CatalogFilterOptionUniverse {
  * (#158's none-or-all no-op rule). An empty `known` (no options exist yet
  * for this genre) makes any non-empty `selected` still effective - there
  * is no "select all of zero options" case to collapse to a no-op.
- * `selected` comes from UI multi-select state, never containing a
- * duplicate, so a length-then-membership check against one Set (built from
- * `known`) is enough to test "selected is exactly the known set" - no
- * second Set is needed just to compare sizes. */
+ * `selected` is expected to come from UI multi-select state (never
+ * containing a duplicate), but a duplicate is de-duplicated via
+ * `selectedSet` before the size comparison rather than trusted outright -
+ * comparing raw `selected.length` against `knownSet.size` would
+ * misclassify a selection with a repeated value (e.g. `['a','a']` against
+ * known `['a','b']`) as "everything selected" by coincidental length
+ * match. */
 function isEffectiveFacetSelection(selected: readonly string[], known: readonly string[]): boolean {
   if (selected.length === 0) {
     return false;
@@ -503,7 +506,8 @@ function isEffectiveFacetSelection(selected: readonly string[], known: readonly 
     return true;
   }
   const knownSet = new Set(known);
-  return !(selected.length === knownSet.size && selected.every((value) => knownSet.has(value)));
+  const selectedSet = new Set(selected);
+  return !(selectedSet.size === knownSet.size && selected.every((value) => knownSet.has(value)));
 }
 
 /** Shared OR-match core for both facet blocks in matchesCatalogFilter
