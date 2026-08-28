@@ -1,0 +1,20 @@
+.blocks {
+  display: flex;
+  flex-direction: column;
+  /* Issue #143 Task Contract: ~32px between the two blocks. */
+  gap: var(--space-xl);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Same bold-rule "太罫見出し" the Design authority specifies for Home's two
+   block headings - shared with My Page's AccountSection/PasskeySection
+   (Issue #148/#159) via `composes` rather than a second copy of the same
+   rule (src/app/mypage/_components/sectionHeading.module.css). */
+.blockHeading {
+  composes: heading from '../mypage/_components/sectionHeading.module.css';
+}

@@ -241,6 +241,12 @@ const JS_DATE_MAX_EPOCH_MS = 100_000_000 * 24 * 60 * 60 * 1000;
  * the exact same floating-point sum in an earlier revision of this
  * function, which is exactly the kind of drift this sort key exists to
  * prevent. `BigInt` addition and `.toString()` are exact at any magnitude.
+ *
+ * Exported (not just used internally) so Home's upcoming-projection helper
+ * (domain/homeUpcoming.ts, Issue #143) can build one chronological sort key
+ * across both an Occurrence's raw `startsAt` and a PersonalScheduleEntry's
+ * own start (via entryStart below) without re-deriving this same
+ * format/precision normalization a second time.
  */
 const EPOCH_MS_OFFSET = BigInt(JS_DATE_MAX_EPOCH_MS);
 const EPOCH_MS_WIDTH = (EPOCH_MS_OFFSET * BigInt(2)).toString().length;
@@ -292,7 +298,7 @@ const UNORDERABLE_INSTANT_SORT_KEY = '9'.repeat(EPOCH_MS_WIDTH + 3 + 1);
  * and stable, rather than throwing past listVisiblePersonalSchedule's
  * PlanningResult boundary.
  */
-function instantSortKey(instantIso: string): string {
+export function instantSortKey(instantIso: string): string {
   const epochMs = Date.parse(instantIso);
   if (Number.isNaN(epochMs)) {
     return UNORDERABLE_INSTANT_SORT_KEY;
@@ -332,7 +338,13 @@ function instantSortKey(instantIso: string): string {
  * collapsing sub-millisecond-apart instants into ties. instantSortKey
  * normalizes both formatting differences and precision loss at once.
  */
-function entryStart(entry: PersonalScheduleEntry): string {
+/**
+ * Exported so Home's upcoming-projection helper (domain/homeUpcoming.ts,
+ * Issue #143) can compute the same normalized sort key for a
+ * PersonalScheduleEntry directly, to place it in one unified chronological
+ * order alongside participation-registered Occurrences.
+ */
+export function entryStart(entry: PersonalScheduleEntry): string {
   return entry.temporal.kind === 'all-day'
     ? instantSortKey(tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startUtc)
     : instantSortKey(entry.temporal.startsAt);
