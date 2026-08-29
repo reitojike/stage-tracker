@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
@@ -40,6 +41,43 @@ const AUTH_FAILURE_PANEL: Record<
     description: '通信状況を確認し、もう一度お試しください。',
   },
 };
+
+/** A block's own outcome, independent of the other block's (Issue #143's
+ * per-block failure isolation) - `'unavailable'` (read failed) and
+ * `'empty'` (read succeeded, nothing to show) are kept distinct so a
+ * genuine read failure is never silently downgraded into "empty" (Issue
+ * #194 Task Contract: "block-level read失敗をsuccessful emptyへ潰さない").
+ * `data` holds the already-built populated ReactNode (not raw rows/groups),
+ * so both blocks share the exact same outcome->panel mapping below
+ * (renderHomeBlockPanel) regardless of what each block's own data shape is. */
+type HomeBlockOutcome =
+  { status: 'unavailable' } | { status: 'empty' } | { status: 'populated'; data: ReactNode };
+
+/** The single outcome->panel mapping both blocks share (Issue #194): a read
+ * failure always gets its own `unavailable` panel; an empty result gets its
+ * own `emptyTitle` panel unless `bothEmpty` says the combined guidance panel
+ * (rendered once, after both sections) covers it instead; a populated
+ * outcome renders its already-built content as-is. */
+function renderHomeBlockPanel(
+  outcome: HomeBlockOutcome,
+  unavailableTitle: string,
+  emptyTitle: string,
+  bothEmpty: boolean,
+): ReactNode {
+  if (outcome.status === 'unavailable') {
+    return (
+      <StatePanel
+        variant="unavailable"
+        title={unavailableTitle}
+        description="通信状況を確認し、もう一度お試しください。"
+      />
+    );
+  }
+  if (outcome.status === 'empty') {
+    return bothEmpty ? null : <StatePanel variant="empty" title={emptyTitle} />;
+  }
+  return outcome.data;
+}
 
 function authOrReadErrorPanel(error: PlanningError) {
   const key = error.kind === 'unauthenticated' ? 'unauthenticated' : 'failure';
@@ -177,15 +215,9 @@ export default async function Home() {
   } = participationEventsAndOccurrences;
 
   // --- Block A: 申し込み期限 ---
-  let deadlineBlock: ReactNode;
+  let deadlineOutcome: HomeBlockOutcome;
   if (!opportunitiesResult.ok || !opportunityEventsResult.ok || !opportunityOccurrencesResult.ok) {
-    deadlineBlock = (
-      <StatePanel
-        variant="unavailable"
-        title="申し込み期限を読み込めませんでした"
-        description="通信状況を確認し、もう一度お試しください。"
-      />
-    );
+    deadlineOutcome = { status: 'unavailable' };
   } else {
     const eventsById = new Map(
       opportunityEventsResult.data.map((event) => [event.id, event] as const),
@@ -199,29 +231,24 @@ export default async function Home() {
       occurrencesById,
     );
     const deadlineRows = selectHomeDeadlineRows(timelineRows, today);
-    deadlineBlock =
-      deadlineRows.length === 0 ? (
-        <StatePanel variant="empty" title="現在、申し込み予定の締切はありません" />
-      ) : (
-        <HomeDeadlineList rows={deadlineRows} todayTokyoDate={today} />
-      );
+    deadlineOutcome =
+      deadlineRows.length === 0
+        ? { status: 'empty' }
+        : {
+            status: 'populated',
+            data: <HomeDeadlineList rows={deadlineRows} todayTokyoDate={today} />,
+          };
   }
 
   // --- Block B: 直近の予定 ---
-  let upcomingBlock: ReactNode;
+  let upcomingOutcome: HomeBlockOutcome;
   if (
     !participationsResult.ok ||
     !scheduleResult.ok ||
     !participationOccurrencesResult.ok ||
     !participationEventsResult.ok
   ) {
-    upcomingBlock = (
-      <StatePanel
-        variant="unavailable"
-        title="直近の予定を読み込めませんでした"
-        description="通信状況を確認し、もう一度お試しください。"
-      />
-    );
+    upcomingOutcome = { status: 'unavailable' };
   } else {
     // Reuses the same Event+Occurrence+Participation join My Calendar
     // already established (src/app/calendar/page.tsx), rather than
@@ -250,22 +277,46 @@ export default async function Home() {
 
     const items = selectHomeUpcomingItems(occurrenceCandidates, scheduleCandidates, now, today);
     const dateGroups = groupHomeUpcomingItemsByDate(items);
-    upcomingBlock =
-      items.length === 0 ? (
-        <StatePanel variant="empty" title="直近の予定はありません" />
-      ) : (
-        <HomeUpcomingList dateGroups={dateGroups} />
-      );
+    upcomingOutcome =
+      dateGroups.length === 0
+        ? { status: 'empty' }
+        : { status: 'populated', data: <HomeUpcomingList dateGroups={dateGroups} /> };
   }
+
+  // Issue #194: when both blocks are independently empty (not merely one of
+  // them - a genuine read failure on the other block must still surface as
+  // its own `unavailable` panel, never silently folded into this "nothing to
+  // show" case), rendering two near-identical empty StatePanels back to back
+  // reads as redundant. Both per-block empty panels are suppressed below in
+  // favor of the single combined one rendered once after both sections.
+  const bothEmpty = deadlineOutcome.status === 'empty' && upcomingOutcome.status === 'empty';
+
+  const deadlineBlock = renderHomeBlockPanel(
+    deadlineOutcome,
+    '申し込み期限を読み込めませんでした',
+    '期限が近いものはありません',
+    bothEmpty,
+  );
+  const upcomingBlock = renderHomeBlockPanel(
+    upcomingOutcome,
+    '直近の予定を読み込めませんでした',
+    '予定はありません',
+    bothEmpty,
+  );
 
   return (
     <>
       <PageHeading>ホーム</PageHeading>
       <div className={styles.blocks}>
         <section aria-labelledby="home-deadline-heading" className={styles.block}>
-          <h2 id="home-deadline-heading" className={styles.blockHeading}>
-            申し込み期限
-          </h2>
+          <div className={styles.deadlineHeadingRow}>
+            <h2 id="home-deadline-heading" className={styles.deadlineHeadingText}>
+              申し込み期限
+            </h2>
+            <Link href="/tickets" className={styles.deadlineAllLink}>
+              すべて見る ›
+            </Link>
+          </div>
           {deadlineBlock}
         </section>
         <section aria-labelledby="home-upcoming-heading" className={styles.block}>
@@ -274,6 +325,9 @@ export default async function Home() {
           </h2>
           {upcomingBlock}
         </section>
+        {bothEmpty ? (
+          <StatePanel variant="empty" title="期限が近い申し込みも、直近の予定もありません" />
+        ) : null}
       </div>
     </>
   );

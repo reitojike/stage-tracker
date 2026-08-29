@@ -3,10 +3,9 @@ import { Badge } from '@/ui/Badge';
 import { DayRoleText } from '@/ui/DayRoleText';
 import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
-import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
+import { occurrenceEventDetailHref } from '@/domain/catalogNavigation.ts';
 import { participationStatusLabel } from '@/domain/myCalendarFormatting.ts';
 import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
-import { tokyoCalendarDateFromInstant } from '@/domain/eventCatalog.ts';
 import {
   calendarDateAccessibleWeekdayLabel,
   calendarDateWeekdayLabel,
@@ -21,25 +20,12 @@ export interface HomeUpcomingListProps {
   dateGroups: readonly HomeUpcomingDateGroup[];
 }
 
-/** The occurrence's own Tokyo calendar date as an Event-detail deep-link
- * context (CatalogParams) - Home has no month/day navigation state of its
- * own to carry, unlike My Calendar (src/app/calendar/page.tsx), so this
- * derives one directly from the occurrence being linked. */
-function occurrenceEventDetailContext(startsAt: string): CatalogParams {
-  const date = tokyoCalendarDateFromInstant(startsAt);
-  return { yearMonth: date.slice(0, 7), selectedDate: date };
-}
-
 function UpcomingRow({ item }: { item: HomeUpcomingItem }) {
   if (item.kind === 'occurrence') {
     const { event, occurrence, participation } = item;
     return (
       <Link
-        href={catalogEventHref(
-          event.id,
-          occurrenceEventDetailContext(occurrence.startsAt),
-          occurrence.id,
-        )}
+        href={occurrenceEventDetailHref(event.id, occurrence.id, occurrence.startsAt)}
         className={styles.itemLink}
       >
         <span className={styles.itemBody}>

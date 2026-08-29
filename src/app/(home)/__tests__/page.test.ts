@@ -44,3 +44,47 @@ void test('the deadline block resolves target Occurrences (not an empty Map), so
     /buildTicketOpportunityTimelineRows\(\s*opportunitiesResult\.data,\s*eventsById,\s*new Map\(\),?\s*\)/,
   );
 });
+
+void test('Issue #194: the deadline heading row carries a "すべて見る" link to /tickets', () => {
+  assert.match(pageSource, /<Link href="\/tickets" className=\{styles\.deadlineAllLink\}>/);
+  assert.match(pageSource, /すべて見る ›/);
+});
+
+void test('Issue #194: a block read failure stays its own `unavailable` outcome, never collapsed into the combined empty guidance', () => {
+  const fnMatch = /function renderHomeBlockPanel\([\s\S]*?\n\}/.exec(pageSource);
+  assert.ok(fnMatch, 'expected a shared renderHomeBlockPanel(outcome, ...) function in page.tsx');
+  const fnBody = fnMatch[0];
+  const unavailableBranch = /if \(outcome\.status === 'unavailable'\) \{([\s\S]*?)\n  \}/.exec(
+    fnBody,
+  );
+  const unavailableBody = unavailableBranch?.[1];
+  assert.equal(typeof unavailableBody, 'string', 'expected an unavailable-status branch');
+  // The unavailable branch must return unconditionally - bothEmpty must never
+  // gate it, unlike the empty branch just below.
+  assert.doesNotMatch(unavailableBody ?? '', /bothEmpty/);
+  assert.match(
+    fnBody,
+    /if \(outcome\.status === 'empty'\) \{\s*return bothEmpty \? null : <StatePanel variant="empty" title=\{emptyTitle\}/,
+  );
+});
+
+void test('Issue #194: the combined empty guidance only fires when both blocks are independently empty, not merely one', () => {
+  assert.match(
+    pageSource,
+    /const bothEmpty = deadlineOutcome\.status === 'empty' && upcomingOutcome\.status === 'empty';/,
+  );
+});
+
+void test('Issue #194: both blocks share one outcome->panel mapping (renderHomeBlockPanel), each with its own distinct empty copy', () => {
+  assert.match(pageSource, /期限が近いものはありません/);
+  assert.match(pageSource, /予定はありません/);
+  assert.match(pageSource, /期限が近い申し込みも、直近の予定もありません/);
+  assert.match(
+    pageSource,
+    /renderHomeBlockPanel\(\s*deadlineOutcome,\s*'申し込み期限を読み込めませんでした',\s*'期限が近いものはありません',\s*bothEmpty,?\s*\)/,
+  );
+  assert.match(
+    pageSource,
+    /renderHomeBlockPanel\(\s*upcomingOutcome,\s*'直近の予定を読み込めませんでした',\s*'予定はありません',\s*bothEmpty,?\s*\)/,
+  );
+});

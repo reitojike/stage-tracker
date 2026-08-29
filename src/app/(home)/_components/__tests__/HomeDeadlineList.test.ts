@@ -34,3 +34,25 @@ void test('the card shows the Opportunity display name alongside the Event title
   assert.match(source, /row\.eventTitle/);
   assert.match(source, /row\.opportunityDisplayName/);
 });
+
+void test("Issue #194: the card is now an Event-detail Link, built from the row's own eventId via the shared catalog navigation helper", () => {
+  assert.match(source, /from ['"]next\/link['"]/);
+  assert.match(source, /<Link\s+href=\{deadlineCardHref\(row, todayTokyoDate\)\}/);
+  assert.match(source, /catalogEventHref\(row\.eventId,/);
+});
+
+void test('Issue #194: the trailing chevron only renders when the source milestone carries a time - a date-only milestone shows no chevron', () => {
+  assert.match(source, /display\.timeLabel !== null \? \(\s*<span className=\{styles\.chevron\}/);
+});
+
+void test('Issue #194: deadlineCardHref picks the nearest *upcoming* target Occurrence, not simply the earliest resolved one', () => {
+  // row.targetOccurrences is only chronologically sorted (see
+  // ticketOpportunityTimeline.ts) - nothing constrains every target to be
+  // non-past, so index 0 can be stale for a bundled application spanning
+  // past and future Occurrences. The fix must filter by today before
+  // picking, not take array index 0 unconditionally.
+  assert.doesNotMatch(source, /targetOccurrences\[0\]/);
+  assert.match(source, /row\.targetOccurrences\.find\(/);
+  assert.match(source, /tokyoCalendarDateFromInstant\(occurrence\.startsAt\) >= todayTokyoDate/);
+  assert.match(source, /row\.targetOccurrences\.at\(-1\)/);
+});

@@ -22,8 +22,15 @@ void test('cancellation stays visible via the shared isEffectivelyCanceled check
   assert.match(source, /中止/);
 });
 
-void test('an occurrence row carries occurrence.id into catalogEventHref, matching the Event Catalog exact-Occurrence navigation contract', () => {
-  assert.match(source, /catalogEventHref\(\s*event\.id,[\s\S]{0,80}occurrence\.id,?\s*\)/);
+void test('an occurrence row carries event.id/occurrence.id/occurrence.startsAt into the shared occurrenceEventDetailHref helper, matching the Event Catalog exact-Occurrence navigation contract (Issue #194: shared with HomeDeadlineList rather than a local re-derivation)', () => {
+  assert.match(
+    source,
+    /import \{ occurrenceEventDetailHref \} from '@\/domain\/catalogNavigation\.ts'/,
+  );
+  assert.match(
+    source,
+    /occurrenceEventDetailHref\(\s*event\.id,\s*occurrence\.id,\s*occurrence\.startsAt,?\s*\)/,
+  );
 });
 
 void test('a personal schedule row reuses scheduleTemporalLabel rather than a bespoke period/time formatter', () => {
