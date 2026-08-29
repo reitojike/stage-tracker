@@ -26,6 +26,7 @@ import { after, before, test } from 'node:test';
 import pg from 'pg';
 import { createTestActor, deleteTestActor, type TestActor } from './support/testActors.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
+import { withDeadlockRetry } from './support/deadlockRetry.ts';
 
 const status = readLocalSupabaseStatus();
 const SCHEMA = 'issue17_migration_preservation_test';
@@ -57,26 +58,33 @@ async function withPgClient<T>(run: (client: pg.Client) => Promise<T>): Promise<
   }
 }
 
-let owner: TestActor;
+interface PreMigrationFixtureRow {
+  id: string;
+  owner_id: string;
+  title: string;
+  venue: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  source_url: string | null;
+  memo: string | null;
+  created_at: string;
+}
 
-before(async () => {
-  // No designated catalog creator membership needed: this test inserts its
-  // fixture rows directly with a superuser connection into an isolated
-  // scratch schema, never through the create RPC that the membership gates.
-  owner = await createTestActor('migration-preservation-owner', 'Str0ng-Test-Passw0rd!');
-  await withPgClient(async (client) => {
+interface PreMigrationFixtures {
+  fixtureWithEnd: PreMigrationFixtureRow;
+  fixtureWithoutEnd: PreMigrationFixtureRow;
+}
+
+// One retryable unit: dropping and recreating the schema at the start of
+// each attempt clears any partial state (including fixture rows) a prior
+// attempt left behind, so retrying the whole seed-and-migrate sequence from
+// scratch is always safe here. See support/deadlockRetry.ts for why this
+// can transiently deadlock at all.
+async function seedAndMigrate(client: pg.Client, ownerId: string): Promise<PreMigrationFixtures> {
+  return withDeadlockRetry(client, async () => {
     await client.query(`drop schema if exists ${SCHEMA} cascade`);
     await client.query(`create schema ${SCHEMA}`);
-  });
-});
 
-after(async () => {
-  await withPgClient((client) => client.query(`drop schema if exists ${SCHEMA} cascade`));
-  await deleteTestActor(owner);
-});
-
-void test('existing events.starts_at/ends_at survive migration as exactly one occurrence each, and the columns are dropped afterward', async () => {
-  await withPgClient(async (client) => {
     // 1. Pre-migration baseline only: events with flat starts_at/ends_at,
     // no occurrence table yet - this is the real shape the migration must
     // handle existing rows under.
@@ -86,22 +94,12 @@ void test('existing events.starts_at/ends_at survive migration as exactly one oc
     // simulating data that already existed before this Task's migrations
     // ever ran. One with a non-null ends_at, one with ends_at left unset,
     // to prove both the value and the nullability survive.
-    const withEnd = await client.query<{
-      id: string;
-      owner_id: string;
-      title: string;
-      venue: string | null;
-      starts_at: string;
-      ends_at: string | null;
-      source_url: string | null;
-      memo: string | null;
-      created_at: string;
-    }>(
+    const withEnd = await client.query<PreMigrationFixtureRow>(
       `insert into ${SCHEMA}.events (owner_id, title, venue, starts_at, ends_at, source_url, memo)
        values ($1, $2, $3, $4, $5, $6, $7)
        returning *`,
       [
-        owner.user.id,
+        ownerId,
         'pre-migration fixture event with end',
         'Fixture Hall',
         '2026-01-10T10:00:00.000Z',
@@ -110,15 +108,11 @@ void test('existing events.starts_at/ends_at survive migration as exactly one oc
         'fixture memo',
       ],
     );
-    const withoutEnd = await client.query<{
-      id: string;
-      starts_at: string;
-      ends_at: string | null;
-    }>(
+    const withoutEnd = await client.query<PreMigrationFixtureRow>(
       `insert into ${SCHEMA}.events (owner_id, title, starts_at)
        values ($1, $2, $3)
        returning *`,
-      [owner.user.id, 'pre-migration fixture event without end', '2026-02-01T09:00:00.000Z'],
+      [ownerId, 'pre-migration fixture event without end', '2026-02-01T09:00:00.000Z'],
     );
 
     const fixtureWithEnd = withEnd.rows[0];
@@ -130,6 +124,28 @@ void test('existing events.starts_at/ends_at survive migration as exactly one oc
     // them: create occurrence persistence, then backfill + drop.
     await client.query(scopedToTestSchema(readMigration(CREATE_OCCURRENCES_MIGRATION)));
     await client.query(scopedToTestSchema(readMigration(BACKFILL_AND_DROP_MIGRATION)));
+
+    return { fixtureWithEnd, fixtureWithoutEnd };
+  });
+}
+
+let owner: TestActor;
+
+before(async () => {
+  // No designated catalog creator membership needed: this test inserts its
+  // fixture rows directly with a superuser connection into an isolated
+  // scratch schema, never through the create RPC that the membership gates.
+  owner = await createTestActor('migration-preservation-owner', 'Str0ng-Test-Passw0rd!');
+});
+
+after(async () => {
+  await withPgClient((client) => client.query(`drop schema if exists ${SCHEMA} cascade`));
+  await deleteTestActor(owner);
+});
+
+void test('existing events.starts_at/ends_at survive migration as exactly one occurrence each, and the columns are dropped afterward', async () => {
+  await withPgClient(async (client) => {
+    const { fixtureWithEnd, fixtureWithoutEnd } = await seedAndMigrate(client, owner.user.id);
 
     // 4. The event rows themselves survive with identity/descriptive
     // fields intact.

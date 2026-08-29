@@ -20,6 +20,7 @@ import { after, before, test } from 'node:test';
 import pg from 'pg';
 import { createTestActor, deleteTestActor, type TestActor } from './support/testActors.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
+import { withDeadlockRetry } from './support/deadlockRetry.ts';
 
 const status = readLocalSupabaseStatus();
 
@@ -47,38 +48,19 @@ async function withPgClient<T>(run: (client: pg.Client) => Promise<T>): Promise<
   }
 }
 
-// DDL this heavy (create/drop schema, table-locking migrations) run
-// alongside every other test/rls/*.test.ts file's own DDL/DML in the same
-// local Postgres instance (`npm run test:rls` runs files concurrently), and
-// occasionally contends for catalog-level locks with them - a transient
-// deadlock (SQLSTATE 40P01) here reflects that shared-database contention,
-// not a correctness problem in the migration under test. Retrying is
-// Postgres's own documented mitigation for this.
-async function withDeadlockRetry<T>(run: () => Promise<T>): Promise<T> {
-  const ATTEMPTS = 3;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await run();
-    } catch (error) {
-      const isDeadlock =
-        typeof error === 'object' && error !== null && 'code' in error && error.code === '40P01';
-      if (!isDeadlock || attempt >= ATTEMPTS) {
-        throw error;
-      }
-    }
-  }
-}
-
+// The whole replay (drop/create schema through every migration statement)
+// is one retryable unit: dropping and recreating the schema at the start of
+// each attempt clears any partial state a prior attempt left behind, so
+// retrying from scratch is always safe here. See support/deadlockRetry.ts
+// for why this can transiently deadlock at all.
 async function replayToPreIssue88Baseline(client: pg.Client, schema: string): Promise<void> {
-  await withDeadlockRetry(async () => {
+  await withDeadlockRetry(client, async () => {
     await client.query(`drop schema if exists ${schema} cascade`);
     await client.query(`create schema ${schema}`);
+    await client.query(scopedToTestSchema(readMigration(BASELINE_MIGRATION), schema));
+    await client.query(scopedToTestSchema(readMigration(CREATE_OCCURRENCES_MIGRATION), schema));
+    await client.query(scopedToTestSchema(readMigration(BACKFILL_AND_DROP_MIGRATION), schema));
   });
-  await client.query(scopedToTestSchema(readMigration(BASELINE_MIGRATION), schema));
-  await client.query(scopedToTestSchema(readMigration(CREATE_OCCURRENCES_MIGRATION), schema));
-  await withDeadlockRetry(() =>
-    client.query(scopedToTestSchema(readMigration(BACKFILL_AND_DROP_MIGRATION), schema)),
-  );
 }
 
 let owner: TestActor;
@@ -121,7 +103,7 @@ void test('backfill derives starts_on/ends_on from an event’s occurrences’ T
       [eventId],
     );
 
-    await withDeadlockRetry(() =>
+    await withDeadlockRetry(client, () =>
       client.query(scopedToTestSchema(readMigration(ADD_EVENT_RANGE_MIGRATION), SCHEMA)),
     );
 
@@ -177,7 +159,7 @@ void test('backfill fails closed (aborts, no partial schema change) for an event
 
     await assert.rejects(
       () =>
-        withDeadlockRetry(() =>
+        withDeadlockRetry(client, () =>
           client.query(scopedToTestSchema(readMigration(ADD_EVENT_RANGE_MIGRATION), SCHEMA)),
         ),
       /left \d+ row\(s\) with a null starts_on\/ends_on/,

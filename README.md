@@ -87,7 +87,14 @@ local / agent向けのone-command full deterministic verificationです。内部
   `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`残存privilegeを
   検知するclient-role table privilege guardrail (`client-role-privileges:check`)
   を実行します。remote Supabase projectやremote credentialsは不要です。
-  Docker が起動していない場合、このステップで失敗します。
+  Docker が起動していない場合、このステップで失敗します。起動は
+  `verify:database:start`（Database/RLS/Auth checksが使わないStudio/
+  Realtime/Storage等のservice - `supabase:start --exclude`の対象 - を
+  除いたもの）、checkは`verify:database:checks`として分けており、
+  GitHub Actions (`Verify / Database` job) は同じ`verify:database:start`
+  の後にresetを省く`verify:database:ci`を使います（Issue #209 -
+  GitHub-hosted runnerは常にfreshなため、既存local Supabaseがdirtyな
+  状態を引きずるlocal/agent実行と異なりresetが不要と実証済み）。
 
 `verify:profile` は、Foundation v0.4.0のcanonical extension point命名
 （`.ai-dev-foundation/quality/README.md` が定める `verify:profile:code` /
