@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
 import type { EventClassification, EventWithOccurrences } from '@/domain/eventCatalog.ts';
+import { classificationBadgeLabel } from '@/domain/catalogFilterIntegration.ts';
 import { isEventCanceled } from '@/domain/eventCancellation.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import styles from './EventLevelFallbackList.module.css';
@@ -58,7 +59,10 @@ export function EventLevelFallbackList({
       <h2 className={styles.heading}>開催期間で該当するイベント</h2>
       <ul className={styles.items}>
         {events.map(({ event }) => {
-          const genre = classificationByEventId.get(event.id)?.genre ?? null;
+          const badgeLabel = classificationBadgeLabel(
+            classificationByEventId.get(event.id) ?? null,
+            event.venue,
+          );
           const canceled = isEventCanceled(event);
           return (
             <li key={event.id}>
@@ -71,9 +75,9 @@ export function EventLevelFallbackList({
                   {event.venue !== null ? (
                     <span className={styles.venue}>{event.venue}</span>
                   ) : null}
-                  {genre !== null || canceled ? (
+                  {badgeLabel !== null || canceled ? (
                     <span className={styles.badges}>
-                      {genre !== null ? <Badge variant="outline">{genre.displayName}</Badge> : null}
+                      {badgeLabel !== null ? <Badge variant="outline">{badgeLabel}</Badge> : null}
                       {canceled ? <Badge variant="terminal">中止</Badge> : null}
                     </span>
                   ) : null}

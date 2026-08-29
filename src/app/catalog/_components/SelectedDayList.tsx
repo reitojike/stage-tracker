@@ -3,6 +3,7 @@ import { Badge } from '@/ui/Badge';
 import { DayRoleText } from '@/ui/DayRoleText';
 import { StatePanel } from '@/ui/StatePanel';
 import type { SelectedDayOccurrence } from '@/domain/calendarMonth.ts';
+import { classificationBadgeLabel } from '@/domain/catalogFilterIntegration.ts';
 import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
@@ -51,7 +52,10 @@ export function SelectedDayList({
       ) : (
         <ul className={styles.items}>
           {occurrences.map(({ event, occurrence }) => {
-            const genre = classificationByEventId.get(event.id)?.genre ?? null;
+            const badgeLabel = classificationBadgeLabel(
+              classificationByEventId.get(event.id) ?? null,
+              event.venue,
+            );
             const canceled = isEffectivelyCanceled(event, occurrence);
             return (
               <li key={occurrence.id}>
@@ -67,11 +71,9 @@ export function SelectedDayList({
                     {event.venue !== null ? (
                       <span className={styles.venue}>{event.venue}</span>
                     ) : null}
-                    {genre !== null || canceled ? (
+                    {badgeLabel !== null || canceled ? (
                       <span className={styles.badges}>
-                        {genre !== null ? (
-                          <Badge variant="outline">{genre.displayName}</Badge>
-                        ) : null}
+                        {badgeLabel !== null ? <Badge variant="outline">{badgeLabel}</Badge> : null}
                         {canceled ? <Badge variant="terminal">中止</Badge> : null}
                       </span>
                     ) : null}

@@ -19,13 +19,20 @@ void test('CSS separates rows with a 1px border between consecutive items, not a
   assert.match(css, /\.items > li \+ li \{[\s\S]*?border-top: 1px solid var\(--color-border\);/);
 });
 
-void test('the genre badge uses the classification lookup and canonical displayName, with variant="outline"', () => {
-  assert.match(component, /classificationByEventId\.get\(event\.id\)\?\.genre/);
-  assert.match(component, /<Badge variant="outline">\{genre\.displayName\}<\/Badge>/);
+void test('the classification badge uses the shared genre/lower authority (classificationBadgeLabel), with variant="outline"', () => {
+  assert.match(
+    component,
+    /import \{ classificationBadgeLabel \} from '@\/domain\/catalogFilterIntegration\.ts';/,
+  );
+  assert.match(
+    component,
+    /classificationBadgeLabel\(\s*classificationByEventId\.get\(event\.id\) \?\? null,\s*event\.venue,\s*\)/,
+  );
+  assert.match(component, /<Badge variant="outline">\{badgeLabel\}<\/Badge>/);
 });
 
-void test('no badge renders for an unclassified event (genre === null short-circuits the badge span)', () => {
-  assert.match(component, /genre !== null \|\| canceled \? \(/);
+void test('no badge renders for an unclassified event (badgeLabel === null short-circuits the badge span)', () => {
+  assert.match(component, /badgeLabel !== null \|\| canceled \? \(/);
 });
 
 void test('the existing 中止 terminal badge is preserved, driven by isEffectivelyCanceled (Event OR Occurrence)', () => {

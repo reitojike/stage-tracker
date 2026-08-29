@@ -46,9 +46,12 @@ void test('known-option lookups use the `in` operator, never `??` defaulting, so
 void test('a value not currently backed by known option data is stripped before being handed to the caller as a live filter (sanitizeForApply)', () => {
   assert.match(component, /function sanitizeForApply\(/);
   assert.match(component, /intersectWithKnownValues\(selected, knownValues\)/);
-  // Used at both the mount-restore hydration point and at confirm() - not
-  // just one of the two entry points that can hand a selection to the
-  // caller.
+  // Used at the mount-restore hydration point, confirm(), and the
+  // imperative clear() handle's own toCatalogFilterSelection call is
+  // EMPTY_CATALOG_FILTER_STATE-based and does not go through
+  // sanitizeForApply (there is nothing to sanitize against an already-empty
+  // state) - so this stays 3 (the function's own declaration + 2 call
+  // sites), unchanged by Issue #195.
   const sanitizeCalls = component.match(/sanitizeForApply\(/g) ?? [];
   assert.equal(sanitizeCalls.length, 3); // the function's own declaration + 2 call sites
 });
@@ -86,13 +89,11 @@ void test('the mount-restore effect seeds both applied and draft, so an already-
   assert.match(restoreEffect[0], /setDraft\(pruned\)/);
 });
 
-void test('every in-sheet option interaction calls setDraft, never setApplied directly', () => {
+void test('every in-sheet option interaction calls setDraft, never setApplied directly - setApplied stays confined to the mount-restore effect, confirm(), and the imperative clear() handle', () => {
   const bodySection = component.split('const [applied')[1];
   assert.ok(bodySection);
-  // setApplied only appears in the mount-restore effect and confirm() -
-  // neither is an onChange handler for an option row.
   const setAppliedCalls = bodySection.match(/setApplied\(/g) ?? [];
-  assert.equal(setAppliedCalls.length, 2);
+  assert.equal(setAppliedCalls.length, 3);
 });
 
 void test('genre selection is a single radiogroup sharing one radio input name (single-select)', () => {
@@ -125,6 +126,10 @@ void test('secondary facet section only renders when the active genre has one (�
   assert.match(facetSection[1] ?? '', /activeFacet\.genreKey/);
 });
 
+void test("the secondary facet heading distinguishes its multi-select semantics from the genre chips' single-select above (Issue #195)", () => {
+  assert.match(component, /\{activeFacet\.label\}（複数選べます）/);
+});
+
 void test('the aggregate すべて control only appears when there are known options for the active facet', () => {
   assert.match(component, /secondaryOptions\.length > 0 \? \(\s*<TriStateCheckbox/);
 });
@@ -144,10 +149,12 @@ void test('no result count is displayed', () => {
   assert.doesNotMatch(component, /[0-9０-９]+件|count/i);
 });
 
-void test('exactly one filled primary action exists (the bottom confirm button)', () => {
+void test("exactly one filled primary action exists (the bottom confirm button) - the footer's own クリア action is a separate, lower-emphasis quiet control", () => {
   const primaryButtons = component.match(/variant="primary"/g) ?? [];
   assert.equal(primaryButtons.length, 1);
   assert.match(component, /この条件で絞り込む/);
+  assert.match(component, /variant="quiet"/);
+  assert.match(component, /条件をクリア/);
 });
 
 void test('stale saved values are pruned against the known option universe before ever reaching applied state', () => {
@@ -184,6 +191,12 @@ void test("inset-block-start is explicitly reset to auto, overriding <dialog>'s 
   assert.match(dialogRule[1] ?? '', /inset-block-start:\s*auto\s*;/);
 });
 
+void test('the sheet surface is the paper canvas token, not the white content-surface fill (Issue #195)', () => {
+  const dialogRule = css.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
+  assert.ok(dialogRule, '.dialog rule is missing from FilterSheet.module.css');
+  assert.match(dialogRule[1] ?? '', /background-color:\s*var\(--color-canvas\)\s*;/);
+});
+
 void test('open/close transitions ease-out over ~200ms', () => {
   assert.match(css, /transform 200ms ease-out/);
 });
@@ -192,15 +205,71 @@ void test('the backdrop is a dark scrim behind the sheet', () => {
   assert.match(css, /\.dialog::backdrop\s*\{/);
 });
 
-void test('genre/option rows meet the 44px tap target and suppress double-tap zoom', () => {
-  const rowRule = css.match(/(?:^|\n)\.row\s*\{([^}]*)\}/);
-  assert.ok(rowRule, '.row rule is missing from FilterSheet.module.css');
-  assert.match(rowRule[1] ?? '', /min-height:\s*44px\s*;/);
-  assert.match(rowRule[1] ?? '', /touch-action:\s*manipulation\s*;/);
+void test('genre chips wrap (never scroll) and meet the 44px tap target', () => {
+  const chipsRule = css.match(/(?:^|\n)\.chips\s*\{([^}]*)\}/);
+  assert.ok(chipsRule, '.chips rule is missing from FilterSheet.module.css');
+  assert.match(chipsRule[1] ?? '', /flex-wrap:\s*wrap\s*;/);
+  const chipRule = css.match(/(?:^|\n)\.chip\s*\{([^}]*)\}/);
+  assert.ok(chipRule, '.chip rule is missing from FilterSheet.module.css');
+  assert.match(chipRule[1] ?? '', /flex:\s*1 1 76px\s*;/);
+  assert.match(chipRule[1] ?? '', /min-height:\s*44px\s*;/);
+  assert.match(chipRule[1] ?? '', /border-radius:\s*var\(--radius-control\)\s*;/);
+  // Unselected chip boundary reuses --color-control-border (WCAG 2.2 SC
+  // 1.4.11 3:1-against-canvas token), not a bespoke lighter value - see the
+  // CSS's own doc comment above .chip.
+  assert.match(chipRule[1] ?? '', /border:\s*1px solid var\(--color-control-border\)\s*;/);
 });
 
-void test('the confirm button fills the sheet width as the sole filled action', () => {
+void test('the selected chip uses the accent fill / foreground pairing at 600 weight', () => {
+  const selectedRule = css.match(/(?:^|\n)\.chipSelected\s*\{([^}]*)\}/);
+  assert.ok(selectedRule, '.chipSelected rule is missing from FilterSheet.module.css');
+  assert.match(selectedRule[1] ?? '', /background-color:\s*var\(--color-accent\)\s*;/);
+  assert.match(selectedRule[1] ?? '', /color:\s*var\(--color-accent-foreground\)\s*;/);
+  assert.match(selectedRule[1] ?? '', /font-weight:\s*var\(--font-weight-semibold\)\s*;/);
+});
+
+void test('more than 10 known genres falls back to a bounded <select>, not an unbounded chip set', () => {
+  assert.match(component, /const MAX_GENRE_CHIPS = 10;/);
+  assert.match(component, /genres\.length > MAX_GENRE_CHIPS \? \(\s*\/\/[\s\S]*?<select/);
+  assert.match(component, /<option value="">すべて<\/option>/);
+});
+
+void test('the footer holds both a quiet draft-only clear action and the primary confirm action, sharing the row', () => {
+  const footerRule = css.match(/(?:^|\n)\.footer\s*\{([^}]*)\}/);
+  assert.ok(footerRule, '.footer rule is missing from FilterSheet.module.css');
+  assert.match(footerRule[1] ?? '', /display:\s*flex\s*;/);
   const confirmButtonRule = css.match(/(?:^|\n)\.confirmButton\s*\{([^}]*)\}/);
   assert.ok(confirmButtonRule, '.confirmButton rule is missing from FilterSheet.module.css');
-  assert.match(confirmButtonRule[1] ?? '', /width:\s*100%\s*;/);
+  assert.match(confirmButtonRule[1] ?? '', /flex:\s*1 1 auto\s*;/);
+});
+
+void test('条件をクリア resets draft only - never applied/localStorage - distinct from the imperative clear() handle', () => {
+  const clearButtonHandler = component.match(
+    /variant="quiet"[\s\S]*?onClick=\{\(\) => \{([\s\S]*?)\}\}/,
+  );
+  assert.ok(clearButtonHandler, '条件をクリア button onClick handler is missing');
+  assert.match(clearButtonHandler[1] ?? '', /setDraft\(EMPTY_CATALOG_FILTER_STATE\)/);
+  assert.doesNotMatch(clearButtonHandler[1] ?? '', /setApplied/);
+  assert.doesNotMatch(clearButtonHandler[1] ?? '', /localStorage/);
+});
+
+void test('FilterSheet is a forwardRef component exposing an imperative clear() handle for the applied-filter summary row (Issue #195)', () => {
+  assert.match(
+    component,
+    /export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>/,
+  );
+  assert.match(component, /export interface FilterSheetHandle \{\s*clear: \(\) => void;\s*\}/);
+});
+
+void test('clear() resets both applied and draft, persists the empty state, and reports it via onAppliedSelectionChange', () => {
+  const clearHandle = component.match(/clear\(\) \{([\s\S]*?)\n {6}\},/);
+  assert.ok(clearHandle, 'useImperativeHandle clear() implementation is missing');
+  const body = clearHandle[1] ?? '';
+  assert.match(body, /setApplied\(EMPTY_CATALOG_FILTER_STATE\)/);
+  assert.match(body, /setDraft\(EMPTY_CATALOG_FILTER_STATE\)/);
+  assert.match(body, /window\.localStorage\.setItem\(/);
+  assert.match(
+    body,
+    /onAppliedSelectionChange\(toCatalogFilterSelection\(EMPTY_CATALOG_FILTER_STATE\)\)/,
+  );
 });

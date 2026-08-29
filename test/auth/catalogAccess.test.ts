@@ -207,7 +207,7 @@ void test('a month with no occurrences shows the empty state, not fabricated dat
   });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /この月に登録されている公演はありません/);
+  assert.match(html, /この月に登録されているイベントはありません/);
 });
 
 void test('a non-existent event id is a distinct not-found state, not an error', async () => {
@@ -390,7 +390,7 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
 // returns a range-only event (result.data.length > 0), but a purely
 // occurrence-driven month view would render nowhere for it - no calendar
 // marker, and (since the result wasn't empty) no
-// "この月に登録されている公演はありません" message either. Since Issue #91
+// "この月に登録されているイベントはありません" message either. Since Issue #91
 // this is closed by MonthCalendar's own multi-day Event-range band, not by
 // a separate fallback list (Issue #109 removes that list from month
 // landing entirely) - this proves the real page HTML, not just the read
@@ -411,7 +411,7 @@ void test('a 0-occurrence event whose Event range covers the month is visible on
   assert.match(html, new RegExp(`data-band-event-id="${event.id}"`, 'u'));
   assert.doesNotMatch(
     html,
-    /この月に登録されている公演はありません/,
+    /この月に登録されているイベントはありません/,
     'expected the empty-state message to be suppressed once a range-only event is present',
   );
   // Issue #109: month landing must not render the Event-level fallback
