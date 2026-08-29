@@ -19,6 +19,7 @@ import {
   resolveOperationFeedbackForError,
   resolveOperationNotice,
   resolveParticipationSetNotice,
+  type OperationFeedback,
   type OperationState,
 } from '@/domain/participationFeedback.ts';
 import { readId } from './formHelpers.ts';
@@ -139,28 +140,117 @@ export async function inviteToOccurrenceAction(
   return acceptedOperationState(previous, resolveOperationNotice('invite-to-occurrence'));
 }
 
-/** Declines an invitation as its invitee (Issue #36). */
-export async function declineInvitationAction(
-  previous: OperationState,
-  formData: FormData,
-): Promise<OperationState> {
-  const invitationId = readId(formData, 'invitationId');
-  if (invitationId === null) {
-    return rejectedOperationState(
-      previous,
-      resolveOperationFeedback('decline-invitation', 'failure'),
-    );
+/**
+ * Quick-action result for imperative, non-<form> call sites (Issue #225/#230
+ * addendum): the Invitation list's InvitationCard (instant accept, an
+ * 8-second client-local decline-undo window) and the Event detail
+ * Participation sheet (a row click saves immediately and closes the sheet,
+ * with no separate confirm/save button) both drive their writes
+ * imperatively from local component state rather than through
+ * useActionState + <form>, so these actions take plain parameters and
+ * return a small ok/feedback shape instead of OperationState.
+ */
+export interface QuickActionResult {
+  ok: boolean;
+  feedback: OperationFeedback | null;
+}
+
+/**
+ * Sets or withdraws the caller's own participation for one occurrence from
+ * the Event detail Participation sheet (Issue #230 addendum). Dispatches the
+ * same three choices as updateParticipationAction above (considering /
+ * attending / withdraw) through the same typed boundary calls - this is a
+ * second, imperative-call-shaped entry point onto that same behavior, not a
+ * second implementation of it.
+ */
+export async function setParticipationChoiceAction(
+  eventId: string,
+  occurrenceId: string,
+  choice: ParticipationIntent,
+  participationId: string | null,
+): Promise<QuickActionResult> {
+  const client = await createSupabaseServerClient();
+
+  if (choice === 'withdraw') {
+    if (participationId === null) {
+      return { ok: true, feedback: null };
+    }
+    const result = await withdrawParticipation(client, participationId);
+    if (!result.ok) {
+      return {
+        ok: false,
+        feedback: resolveOperationFeedback('withdraw-participation', result.error.kind),
+      };
+    }
+    revalidatePath(`/catalog/events/${eventId}`);
+    return { ok: true, feedback: null };
   }
 
+  const result = await setParticipation(client, occurrenceId, { status: choice });
+  if (!result.ok) {
+    return {
+      ok: false,
+      feedback: resolveOperationFeedbackForError('set-participation', result.error),
+    };
+  }
+  revalidatePath(`/catalog/events/${eventId}`);
+  return { ok: true, feedback: null };
+}
+
+/**
+ * Accepts a pending invitation by setting the caller's own participation for
+ * its occurrence to `attending` - this *is* "accept" under the new pending-
+ * only model (Issue #225/#230): there is no separate accept RPC, because the
+ * resulting Participation must be indistinguishable from one set through the
+ * ordinary Event/Occurrence UI, and both now go through this exact same
+ * setParticipation call. The DB trigger `occurrence_participations_resolve_
+ * invitations_on_attending` (supabase/migrations/20260830000000_simplify_
+ * invitation_pending_only.sql) is what resolves the pending invitation(s) as
+ * a side effect of this write - not this action.
+ */
+export async function acceptInvitationAction(
+  occurrenceId: string,
+  eventId: string | null,
+): Promise<QuickActionResult> {
+  const client = await createSupabaseServerClient();
+  const result = await setParticipation(client, occurrenceId, { status: 'attending' });
+  if (!result.ok) {
+    return {
+      ok: false,
+      feedback: resolveOperationFeedbackForError('set-participation', result.error),
+    };
+  }
+  revalidatePath('/catalog/invitations');
+  if (eventId !== null) {
+    revalidatePath(`/catalog/events/${eventId}`);
+  }
+  return { ok: true, feedback: null };
+}
+
+/**
+ * Finalizes a decline: resolves (deletes) the pending invitation without
+ * touching the invitee's own Participation. Called once the client-local
+ * 8-second undo window elapses or the invitations screen is left, never
+ * directly from the "参加しない" click itself (see
+ * src/app/catalog/_components/InvitationCard.tsx) - the addendum's undo
+ * requirement is implemented entirely client-side by delaying this call,
+ * with no new persisted "declining" state.
+ *
+ * declineInvitation's `data: null` (already resolved) is treated the same as
+ * a fresh deletion - both mean "no longer pending", which is exactly what
+ * this finalize call is trying to ensure.
+ */
+export async function finalizeDeclineInvitationAction(
+  invitationId: string,
+): Promise<QuickActionResult> {
   const client = await createSupabaseServerClient();
   const result = await declineInvitation(client, invitationId);
   if (!result.ok) {
-    return rejectedOperationState(
-      previous,
-      resolveOperationFeedback('decline-invitation', result.error.kind),
-    );
+    return {
+      ok: false,
+      feedback: resolveOperationFeedback('decline-invitation', result.error.kind),
+    };
   }
-
   revalidatePath('/catalog/invitations');
-  return acceptedOperationState(previous, resolveOperationNotice('decline-invitation'));
+  return { ok: true, feedback: null };
 }

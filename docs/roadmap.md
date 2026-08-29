@@ -45,12 +45,16 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   `attending`のみで`not_attending`は持たない・default private
   visibility・withdrawは自分のrow削除で表現、invitationはoccurrence
   単位でinviterが対象occurrenceで`attending`の場合のみ作成でき、event
-  ownershipはinvite権を与えない・invitee側3分岐（row無し→invitation+
-  `considering` / `considering`→invitationのみ / `attending`→invite
-  対象外）・declineはinvitation側の`declined_at`で表現し
-  `not_attending` participationを作らない。invitationのcreateと
-  declineはそれぞれ専用RPCのみがwrite pathで、`occurrence_invitations`
-  へのINSERT/UPDATE grantもpolicyも持たない。invite結果はinviterに
+  ownershipはinvite権を与えない・invitee側3分岐（row無し→invitationのみ
+  / `considering`→invitationのみ・participation不変 / `attending`→
+  invite対象外）。Issue #225/#230でpending-onlyへ収束し、旧
+  auto-considering作成とdecline後の永久re-invite拒否をsupersede：
+  accept（=通常のattending participation writeと同一operation）・
+  decline・通常participation UIからのgeneric attending convergence
+  のいずれでもpending invitationは即resolve（削除）され、durableな
+  accepted/declined historyは持たない。invitationのcreateとdeclineは
+  それぞれ専用RPCのみがwrite pathで、`occurrence_invitations`への
+  INSERT/UPDATE/DELETE grantもpolicyも持たない。invite結果はinviterに
   対して不透明で、3分岐すべてが同一の結果を返し、invitation rowの
   通常readはinvitee本人に限定する。inviter向けinvitation historyは
   committed scope外）
@@ -63,8 +67,12 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   transferはeligibleなregistered invitee向け・recipientのacceptance
   必須・accept前はsenderがcancel可・accept後はownershipがrecipientへ
   移りsourceとのprovenanceは保持・participationを自動変更しない。
-  invitationをdeclineしたinviteeもtransfer eligibilityを維持する。
-  pending中のtransfer offerは、accept前まで前ownerのassignment情報を
+  この機構自体はDROPされていないが、Issue #225/#230でlegacy Ticket
+  acquisition/inventory/assignment/transferはcurrent runtimeの
+  supported UI/API pathから切り離され、`ticket_transfer_recipient_is_
+eligible`のoccurrence_invitations参照はもはやcurrent product
+  journeyから到達不能。pending中のtransfer offerは、accept前まで前
+  ownerのassignment情報を
   recipientへ開示しません。recipientがsource acquisition ownerを兼ねる
   場合も同様に非開示で、source acquisition provenance read自体は維持
   されます）
@@ -110,11 +118,16 @@ calendar上のSaturday/Sunday/Japanese holiday presentation（`docs/ux-ui.md`
 
 occurrence-level participation / invitationはschema/RLS baseline・typed
 read/write boundaryに加え、MVP user-facing UI journeyも実装済みです
-（Issue #36。event詳細画面からのconsidering/attending登録・切替・
-participation解除、attending occurrenceからのinvite-by-email、
-`/catalog/invitations`でのinvitee側一覧・decline）。招待の宛先選択は
-上記「Authenticated-user targeting」節のとおり登録済みemail address
-のexact inputで、`invite_to_occurrence_by_email`で解決します。
+（Issue #36。Issue #225/#230でpending-only invitation UIとevent詳細の
+bottom sheet UIへ更新）。event詳細画面の各occurrence rowはconsidering/
+attending/未定の状態テキストと、quietな「変更」（Participation sheet）・
+「招待」（attending時のみ、Invite sheet）を提供します。
+`/catalog/invitations`はpendingなinvitationのみを一覧し、「参加する」
+（通常のattending participation writeと同一operation）・「参加しない」
+（pending invitationをresolveしparticipationは変更しない、8秒の
+client-local undo付き）で直接応答できます。招待の宛先選択は上記
+「Authenticated-user targeting」節のとおり登録済みemail addressの
+exact inputで、`invite_to_occurrence_by_email`で解決します。
 
 event-independent personal scheduleも同様に、schema/RLS baseline・typed
 read/write boundaryに加え、MVP user-facing UI journeyが実装済みです
@@ -129,22 +142,26 @@ exact inputで、`share_schedule_entry_by_email`で解決します。owner向け
 recipient一覧は`list_schedule_share_recipient_emails`が返す、そのentryに
 実際にshare済みのrecipientのみのbounded projectionです。
 
-ticket acquisition / ticket / ticket transferはschema/RLS baselineとtyped
-read/write boundaryのみ成立済みで、acquisition/ticketの新規作成・編集
-user-facing UI journeyは次節のMVP personal planning capabilityの中で
-実装します。
+ticket acquisition / ticket / ticket transferはschema/RLS baselineと
+typed read/write boundaryが成立済みですが、Issue #225（PO decision）で
+acquisition/ticketの新規作成・編集user-facing UI journeyの方向性自体を
+撤回しました。現時点で価値が確認できているTicket capabilityは次節の
+Ticket Opportunity（`TicketOpportunity` + `UserTicketOpportunityState`
+`planned`/`applied`）のみで、legacy Ticket acquisition/inventory/
+transferは実利用要求が確認された時点でcurrent TicketOpportunityを前提に
+再設計します（詳細は`.ai-dev-foundation/product-rules.md`「Ticket
+acquisition / Ticket」参照）。
 
-**My Calendar**（Issue #34）は、participation登録済みoccurrence・
-event-independent personal schedule（own/shared）・ticket acquisitionの
-状態表示、およびcalendar上のSaturday/Sunday/Japanese holiday
-presentationを統合したuser-facing UI journeyとして実装済みです。`/calendar`
-で月表示とselected-day詳細を提供し、ticket状態（pending/secured/
-unsuccessful/未取得）を色だけに依存せず表示します。共有されたpersonal
-scheduleはrecipient側My Calendarにも反映されます。祝日データは内閣府
-「国民の祝日について」CSVのsnapshotを正本とし、更新手順は
-[`docs/holiday-data.md`](./holiday-data.md)に記録されています。My
-Calendarはticket acquisitionの状態を表示するのみで、新規作成・編集は
-含みません（次節のticket acquisition / ticket capability参照）。
+**My Calendar**（Issue #34）は、participation登録済みoccurrenceと
+event-independent personal schedule（own/shared）の状態表示、および
+calendar上のSaturday/Sunday/Japanese holiday presentationを統合した
+user-facing UI journeyとして実装済みです。`/calendar`で月表示と
+selected-day詳細を提供します。共有されたpersonal scheduleはrecipient側
+My Calendarにも反映されます。祝日データは内閣府「国民の祝日について」
+CSVのsnapshotを正本とし、更新手順は
+[`docs/holiday-data.md`](./holiday-data.md)に記録されています。
+Issue #225/#230でlegacy Ticket acquisitionの状態表示は除去済みで、My
+Calendarのcanonical sourceはParticipation + Personal Scheduleのみです。
 
 catalog classification / venueについては、将来の分類導入を阻害しない
 MVP data boundary（event-level・複数value許容・`troupe`等の
@@ -162,15 +179,19 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
 を正本とします。
 
-- **ticket acquisition / ticket** — チケット入手情報とticketの管理、
-  ticket transferを含む（詳細は
-  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  参照）。persistence / RLS baselineとtyped read/write boundaryは
-  Completed baseline のとおり成立済みで、残るのはuser-facing UI
-  journeyです。My Calendarはticket状態の表示までを含み、acquisition/
-  ticketの新規作成・編集UIは残っています。
 - **expense / budget** — event単位の支出と横断的な予算管理（semanticsは
   未確定）
+
+legacy **ticket acquisition / ticket / ticket transfer**は、Issue #225
+（PO decision）によりこの方向性の対象から外れました。persistence / RLS
+baselineとtyped read/write boundaryはCompleted baselineのとおり
+schemaとして残存しますが（destructive DROPは別途bounded Issueで
+Production preflight後に検討）、acquisition/ticketの新規作成・編集UI
+journeyを実装する計画はありません。現行のTicket capabilityは
+Ticket Opportunity（`TicketOpportunity` + `UserTicketOpportunityState`
+`planned`/`applied`。schema/RLS/UIとも実装済み - 詳細は
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+「Ticket Opportunity（Ticket planning MVP）」参照）のみです。
 
 ## 3. Post-MVP direction
 

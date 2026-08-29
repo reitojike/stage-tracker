@@ -7,8 +7,6 @@ import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation
 import {
   myCalendarScheduleTemporalLabel,
   participationStatusLabel,
-  ticketDisplayStatusBadgeVariant,
-  ticketDisplayStatusLabel,
 } from '@/domain/myCalendarFormatting.ts';
 import styles from './MySelectedDayList.module.css';
 
@@ -28,7 +26,7 @@ export interface MyCalendarEntryRowProps {
  */
 export function MyCalendarEntryRow({ item, eventDetailContext }: MyCalendarEntryRowProps) {
   if (item.kind === 'occurrence') {
-    const { event, occurrence, participation, ticketStatus } = item.occurrenceEntry;
+    const { event, occurrence, participation } = item.occurrenceEntry;
     return (
       <Link
         href={catalogEventHref(event.id, eventDetailContext, occurrence.id)}
@@ -42,9 +40,6 @@ export function MyCalendarEntryRow({ item, eventDetailContext }: MyCalendarEntry
           {event.venue !== null ? <span className={styles.venue}>{event.venue}</span> : null}
           <span className={styles.badgeRow}>
             <Badge variant="subtle">{participationStatusLabel(participation.status)}</Badge>
-            <Badge variant={ticketDisplayStatusBadgeVariant(ticketStatus)}>
-              {ticketDisplayStatusLabel(ticketStatus)}
-            </Badge>
             {isEffectivelyCanceled(event, occurrence) ? (
               <Badge variant="terminal">中止</Badge>
             ) : null}

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  aggregateTicketDisplayStatus,
   buildMyCalendarDayMarkers,
   buildMyCalendarMonthAgenda,
   buildMyCalendarOccurrenceEntries,
@@ -16,7 +15,6 @@ import {
 import type { EventCatalogEvent, EventOccurrence, EventWithOccurrences } from '../eventCatalog.ts';
 import type { Participation } from '../participation.ts';
 import type { PersonalScheduleEntry } from '../personalSchedule.ts';
-import type { TicketAcquisition } from '../ticketAcquisition.ts';
 
 function event(overrides: Partial<EventCatalogEvent> = {}): EventCatalogEvent {
   return {
@@ -62,19 +60,6 @@ function participation(overrides: Partial<Participation> = {}): Participation {
   };
 }
 
-function acquisition(overrides: Partial<TicketAcquisition> = {}): TicketAcquisition {
-  return {
-    id: 'a-1',
-    ownerId: 'user-1',
-    occurrenceId: 'occ-1',
-    status: 'pending',
-    memo: null,
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
-
 function scheduleEntry(overrides: Partial<PersonalScheduleEntry> = {}): PersonalScheduleEntry {
   return {
     id: 'sched-1',
@@ -89,36 +74,6 @@ function scheduleEntry(overrides: Partial<PersonalScheduleEntry> = {}): Personal
   };
 }
 
-// --- aggregateTicketDisplayStatus ---
-
-void test('aggregateTicketDisplayStatus: no acquisitions is none', () => {
-  assert.equal(aggregateTicketDisplayStatus([]), 'none');
-});
-
-void test('aggregateTicketDisplayStatus: any secured wins over pending/unsuccessful', () => {
-  const acquisitions = [
-    acquisition({ id: 'a1', status: 'unsuccessful' }),
-    acquisition({ id: 'a2', status: 'pending' }),
-    acquisition({ id: 'a3', status: 'secured' }),
-  ];
-  assert.equal(aggregateTicketDisplayStatus(acquisitions), 'secured');
-});
-
-void test('aggregateTicketDisplayStatus: pending wins over unsuccessful when no secured exists', () => {
-  const acquisitions = [
-    acquisition({ id: 'a1', status: 'unsuccessful' }),
-    acquisition({ id: 'a2', status: 'pending' }),
-  ];
-  assert.equal(aggregateTicketDisplayStatus(acquisitions), 'pending');
-});
-
-void test('aggregateTicketDisplayStatus: all-unsuccessful is unsuccessful', () => {
-  assert.equal(
-    aggregateTicketDisplayStatus([acquisition({ status: 'unsuccessful' })]),
-    'unsuccessful',
-  );
-});
-
 // --- buildMyCalendarOccurrenceEntries / selectMyCalendarOccurrenceEntries ---
 
 void test('buildMyCalendarOccurrenceEntries only includes participation-registered occurrences', () => {
@@ -132,15 +87,13 @@ void test('buildMyCalendarOccurrenceEntries only includes participation-register
   const participations = new Map([
     ['occ-registered', participation({ occurrenceId: 'occ-registered' })],
   ]);
-  const acquisitions = new Map<string, TicketAcquisition[]>();
 
-  const entries = buildMyCalendarOccurrenceEntries([ev], participations, acquisitions);
+  const entries = buildMyCalendarOccurrenceEntries([ev], participations);
 
   assert.equal(entries.length, 1);
   const [entry] = entries;
   assert.ok(entry);
   assert.equal(entry.occurrence.id, 'occ-registered');
-  assert.equal(entry.ticketStatus, 'none');
 });
 
 void test('selectMyCalendarOccurrenceEntries filters to the Asia/Tokyo calendar date', () => {
@@ -157,7 +110,7 @@ void test('selectMyCalendarOccurrenceEntries filters to the Asia/Tokyo calendar 
     ['occ-a', participation({ occurrenceId: 'occ-a' })],
     ['occ-b', participation({ occurrenceId: 'occ-b' })],
   ]);
-  const entries = buildMyCalendarOccurrenceEntries([ev], participations, new Map());
+  const entries = buildMyCalendarOccurrenceEntries([ev], participations);
 
   assert.deepEqual(
     selectMyCalendarOccurrenceEntries(entries, '2026-08-10').map((e) => e.occurrence.id),
@@ -336,7 +289,6 @@ void test('buildMyCalendarMonthAgenda composes mixed sources by Tokyo date and c
       ['occ-trail', participation({ occurrenceId: 'occ-trail' })],
       ['occ-early', participation({ occurrenceId: 'occ-early' })],
     ]),
-    new Map(),
   );
   const scheduleEntries = [
     scheduleEntry({
@@ -443,7 +395,6 @@ void test('buildMyCalendarDayMarkers reports weekday role, occurrence/ticket sta
   const occurrenceEntries = buildMyCalendarOccurrenceEntries(
     [ev],
     new Map([['occ-1', participation({ occurrenceId: 'occ-1' })]]),
-    new Map(),
   );
   const scheduleEntries = [
     scheduleEntry({ id: 'own', ownerId: 'caller' }),
@@ -497,7 +448,6 @@ void test('buildMyCalendarDayMarkers reports an attending-only day with zero con
         participation({ occurrenceId: 'occ-attending-only', status: 'attending' }),
       ],
     ]),
-    new Map(),
   );
   const attendingMarkers = buildMyCalendarDayMarkers(
     ['2026-08-11'],
@@ -528,7 +478,6 @@ void test('buildMyCalendarDayMarkers reports an attending-only day with zero con
         participation({ occurrenceId: 'occ-considering-only', status: 'considering' }),
       ],
     ]),
-    new Map(),
   );
   const consideringMarkers = buildMyCalendarDayMarkers(
     ['2026-08-12'],
@@ -562,7 +511,6 @@ void test('buildMyCalendarDayMarkers keeps attending and considering as distinct
         participation({ id: 'p-c', occurrenceId: 'occ-considering', status: 'considering' }),
       ],
     ]),
-    new Map(),
   );
 
   const markers = buildMyCalendarDayMarkers(['2026-08-10'], occurrenceEntries, [], 'caller');
@@ -602,7 +550,6 @@ function singleDayOccurrenceEntries(
   return buildMyCalendarOccurrenceEntries(
     [ev],
     new Map([[`occ-${eventId}`, participation({ occurrenceId: `occ-${eventId}`, status })]]),
-    new Map(),
   );
 }
 
@@ -662,7 +609,6 @@ void test("dot: a multi-day Event with an attending occurrence fills the dot on 
   const entries = buildMyCalendarOccurrenceEntries(
     [ev],
     new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers(
     ['2026-08-08', '2026-08-09', '2026-08-10', '2026-08-11', '2026-08-12'],
@@ -683,7 +629,6 @@ void test("dot: a multi-day Event's participation marker never appears on any ot
   const entries = buildMyCalendarOccurrenceEntries(
     [ev],
     new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'attending' })]]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers(
     ['2026-08-08', '2026-08-09', '2026-08-10', '2026-08-11', '2026-08-12'],
@@ -706,7 +651,6 @@ void test("dot: a multi-day Event with only a considering occurrence outlines th
   const entries = buildMyCalendarOccurrenceEntries(
     [ev],
     new Map([['occ-multi', participation({ occurrenceId: 'occ-multi', status: 'considering' })]]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers(['2026-08-10'], entries, [], 'caller');
   assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'outline');
@@ -726,7 +670,6 @@ void test('dot: on the same day, attending wins over considering across multiple
       ['occ-a', participation({ id: 'p-a', occurrenceId: 'occ-a', status: 'considering' })],
       ['occ-b', participation({ id: 'p-b', occurrenceId: 'occ-b', status: 'attending' })],
     ]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers(['2026-08-10'], entries, [], 'caller');
   assert.equal(markers.find((m) => m.date === '2026-08-10')?.dot, 'filled');
@@ -746,7 +689,6 @@ void test('dot: same-day multiple occurrences (single Event) still render exactl
       ['occ-a', participation({ id: 'p-a', occurrenceId: 'occ-a', status: 'considering' })],
       ['occ-b', participation({ id: 'p-b', occurrenceId: 'occ-b', status: 'considering' })],
     ]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers(['2026-08-10'], entries, [], 'caller');
   // MyCalendarDotState is a single union value per day - by construction
@@ -957,7 +899,6 @@ function occurrenceEntriesFor(
   return buildMyCalendarOccurrenceEntries(
     [ev],
     new Map([['occ-1', participation({ occurrenceId: 'occ-1', status })]]),
-    new Map(),
   );
 }
 
@@ -1046,7 +987,6 @@ void test('dot: canceled attending + active considering on the same day is outli
         }),
       ],
     ]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers([DATE], entries, [], 'caller');
   const day = markers.find((m) => m.date === DATE);
@@ -1084,7 +1024,6 @@ void test('dot: active attending + canceled considering on the same day is fille
         }),
       ],
     ]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers([DATE], entries, [], 'caller');
   const day = markers.find((m) => m.date === DATE);
@@ -1175,7 +1114,6 @@ void test('dot: a day with both a canceled attending and a canceled considering 
         }),
       ],
     ]),
-    new Map(),
   );
   const markers = buildMyCalendarDayMarkers([DATE], entries, [], 'caller');
   const day = markers.find((m) => m.date === DATE);

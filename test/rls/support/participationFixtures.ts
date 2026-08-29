@@ -177,15 +177,47 @@ export async function invitationReceived(
   return rows[0] ?? null;
 }
 
+/**
+ * Issue #225/#230: decline_occurrence_invitation genuinely returns SQL NULL
+ * when no matching pending row was found, but PostgREST does not serialize a
+ * NULL `public.occurrence_invitations` composite as JSON `null` - it comes
+ * back as an object with every column set to `null` (confirmed against
+ * local Supabase; mirrors src/infrastructure/supabase/invitation.ts's own
+ * isRawInvitationRow narrowing for the same reason). This fixture normalizes
+ * that shape back to a real `null` so every test asserting `data === null`
+ * means what it says, rather than each call site re-deriving the same
+ * `data?.id === null` check.
+ */
 export async function declineInvitation(
   actor: TestActor,
   invitationId: string,
 ): Promise<{ data: InvitationRow | null; error: PostgrestError | null }> {
-  return actor.client.rpc('decline_occurrence_invitation', {
+  const { data, error } = await actor.client.rpc('decline_occurrence_invitation', {
     p_invitation_id: invitationId,
   });
+  // Narrowed via `unknown` rather than a type assertion (this repo's lint
+  // profile forbids `as`/`<T>` assertions) - see this function's own header
+  // comment for why the generated row type does not actually reflect
+  // nullability here.
+  const rawData: unknown = data;
+  const isResolvedRow =
+    typeof rawData === 'object' &&
+    rawData !== null &&
+    'id' in rawData &&
+    typeof rawData.id === 'string';
+  return { data: isResolvedRow ? data : null, error };
 }
 
+/**
+ * Issue #225/#230: decline_occurrence_invitation now DELETEs the invitation
+ * row (pending-only model) instead of stamping declined_at, and returns
+ * `data: null` - not an error - when no matching pending row was found
+ * (idempotent: already declined by an earlier call, already resolved by the
+ * invitee accepting elsewhere, or a genuinely unknown/foreign id). Callers
+ * that expect an actual pending row to have existed use
+ * declineInvitationOrThrow; callers exercising the idempotent/not-found path
+ * call declineInvitation directly and assert on `data === null`.
+ */
 export async function declineInvitationOrThrow(
   actor: TestActor,
   invitationId: string,
@@ -195,7 +227,7 @@ export async function declineInvitationOrThrow(
     throw new Error(`fixture decline_occurrence_invitation failed: ${error.message}`);
   }
   if (!data) {
-    throw new Error('fixture decline_occurrence_invitation returned no invitation');
+    throw new Error('fixture decline_occurrence_invitation resolved no pending invitation');
   }
   return data;
 }

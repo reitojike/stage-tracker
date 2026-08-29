@@ -46,3 +46,20 @@
 .chevron {
   composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
 }
+
+/* Pending-invitation count badge (Issue #230 addendum): pale surface, sits
+   immediately before the chevron, hidden entirely (not just its number)
+   when the count is zero - the 招待一覧 row itself is always shown. */
+.countBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5em;
+  padding-inline: var(--space-2xs);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-subtle);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}

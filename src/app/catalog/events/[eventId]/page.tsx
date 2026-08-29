@@ -83,9 +83,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   // to be reachable in practice; it is not treated as a read failure. An
   // actual read failure while authenticated (participationReadFailed) is
   // reported as StatePanel `error`, never silently as "no participation" -
-  // the absence of a map entry is what makes EventDetail skip rendering
-  // ParticipationPanel for that occurrence instead of guessing at a
-  // default (see EventDetail.tsx). Every occurrence gets an explicit entry
+  // the absence of a map entry is what makes EventDetail skip rendering the
+  // occurrence's participation row instead of guessing at a default (see
+  // EventDetail.tsx). Every occurrence gets an explicit entry
   // (null when the batched read found no row for it), preserving that
   // has()-based distinction even though the batched read itself only
   // returns entries for occurrences that do have a row.

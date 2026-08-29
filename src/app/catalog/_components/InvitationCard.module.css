@@ -18,3 +18,47 @@
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
 }
+
+/* Issue #225/#230 addendum: "both sit on one right-aligned row below the
+   card body" - deliberately no filled indigo button on this screen, even
+   with multiple rows (参加する is Button's own `secondary`/outline variant,
+   参加しない/閉じる are `quiet` - see InvitationCard.tsx). Button already
+   guarantees a >=44px tap target regardless of visible fill height
+   (Button.module.css composes expand44), so this row adds no extra sizing. */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+/* Decline-undo row (Issue #230 addendum): replaces the card body in place
+   for up to 8 seconds after "参加しない", or until the invitee undoes it -
+   see InvitationCard.tsx's DECLINE_UNDO_WINDOW_MS. Deliberately not a
+   confirm() dialog and not a new persisted state: this is a purely visual,
+   client-local substitution while the actual decline call is delayed. */
+.undoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding-inline: var(--space-md);
+  border-radius: var(--radius-control-sm);
+  background-color: var(--color-surface-subtle);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-body-sm);
+}
+
+.undoButton {
+  composes: expand44 from '../../../ui/tapTarget.module.css';
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  cursor: pointer;
+  touch-action: manipulation;
+}

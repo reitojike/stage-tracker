@@ -96,7 +96,9 @@ participation / invitation のpersistence / RLS baseline
 （participationはoccurrence単位・statusは`considering`/`attending`のみ・
 default private visibility・withdrawはrow削除で表現、invitationは
 occurrence単位でinviterが対象occurrenceで`attending`である場合のみ・
-invitee側3分岐・declineはinvitation側の`declined_at`で表現）、および
+invitee側3分岐、pending-onlyのcoordination state（Issue #225/#230）で
+accept/decline/generic attending convergenceのいずれかで即resolve（削除）
+され durable な accepted/declined history は保持しない）、および
 ticket acquisition / ticket / ticket transferのpersistence / RLS
 baseline（acquisitionはuser-owned・occurrence-linkedで同一user/occurrence
 に複数attempt可・statusは`pending`/`secured`/`unsuccessful`、ticketは
@@ -127,11 +129,19 @@ lint guardrailで抑止されています。これはUI-facing boundaryの実装
 実装されていません（Issue #35）。
 
 occurrence-level participation / invitationについては、上記typed
-boundaryに加えてMVP user-facing UI journeyも実装済みです（Issue #36）。
-event catalogのevent詳細画面から、公演回ごとに`considering`/`attending`
-participationの登録・切替と参加予定の解除（row削除）ができ、`attending`
-状態の occurrence では invite-by-email affordance が表示されます。invitee側は
-`/catalog/invitations`で自分が受け取ったinvitationを一覧・declineできます。
+boundaryに加えてMVP user-facing UI journeyも実装済みです（Issue #36、
+Issue #225/#230でpending-only invitation UIとevent詳細のbottom sheet
+UIへ更新）。event catalogのevent詳細画面から、公演回ごとに
+`considering`/`attending`/`参加をやめる`（withdraw）を選ぶbottom sheetで
+participationを切替でき、`attending`かつeffectively canceledでない
+occurrenceでは招待sheetが表示されます。invitee側は`/catalog/invitations`
+でpendingなinvitationのみを一覧し、「参加する」（=通常のattending
+participation writeと同一operation）または「参加しない」（pending
+invitationをresolve、participationは変更しない）で直接応答できます。
+resolved（accept/decline済み）なinvitationは一覧に残らず、durableな
+辞退済みhistory表示は行いません。「参加しない」直後は8秒間（または画面
+離脱まで）client-localなundo windowを提供しますが、これは新しい
+persisted stateを追加せず、finalize呼び出しを遅延させるだけの実装です。
 RLS/auth failureはempty stateへ潰さず、読み込み失敗を区別して表示します。
 
 event-independent personal scheduleについても、上記typed boundaryに加えて
@@ -151,21 +161,24 @@ not-found stateへ潰さず、識別できないauth check失敗はfail-closed�
 error stateとして扱います（owner/shareeの判定を否定推論で行わない -
 詳細は該当実装のコメントを参照）。
 
-**My Calendar**（Issue #34）は、participation登録済みoccurrence・
-event-independent personal schedule（own/shared）・ticket acquisitionの
-状態表示を統合したuser-facing UI journeyです。`/calendar`で月表示と
-selected-day詳細を提供し、参加登録済みのoccurrenceにはparticipation
-statusとticket状態（`pending`/`secured`/`unsuccessful`、または未取得）を
-色だけに依存せず表示します。personal scheduleは自分の予定と共有された
-予定を区別して表示し、共有されたentryはrecipient側My Calendarにも
-反映されます。calendar上のSaturday blue / Sunday red / Japanese holiday
-red（holiday優先、色のみに依存しない表示）は
-[`docs/ux-ui.md`](./ux-ui.md)のglobal ruleに従い、内閣府「国民の祝日に
-ついて」CSVをsnapshot化したデータ（更新手順は
+**My Calendar**（Issue #34）は、participation登録済みoccurrenceと
+event-independent personal schedule（own/shared）の状態表示を統合した
+user-facing UI journeyです（Issue #225/#230で、以前表示していたlegacy
+Ticket acquisition状態表示を除去し、canonical sourceを
+`Participation + Personal Schedule`の2 domainへ収束しました）。
+`/calendar`で月表示とselected-day詳細を提供し、参加登録済みの
+occurrenceにはparticipation statusを色だけに依存せず表示します。
+personal scheduleは自分の予定と共有された予定を区別して表示し、
+共有されたentryはrecipient側My Calendarにも反映されます。calendar上の
+Saturday blue / Sunday red / Japanese holiday red（holiday優先、色の
+みに依存しない表示）は[`docs/ux-ui.md`](./ux-ui.md)のglobal ruleに
+従い、内閣府「国民の祝日について」CSVをsnapshot化したデータ（更新手順は
 [`docs/holiday-data.md`](./holiday-data.md)参照）で判定します。My
-Calendarはこれら3 domainの既存read boundaryを合成する読み取り専用の
-統合UIであり、ticket acquisitionの新規作成・編集（Issue #35）は含み
-ません。
+Calendarはこれら2 domainの既存read boundaryを合成する読み取り専用の
+統合UIです。legacy Ticket acquisition/inventory/transferはcurrent
+runtimeから参照しません（`/tickets`・HomeのTicket MVPは
+TicketOpportunity + UserTicketOpportunityState(`planned`/`applied`)を
+引き続きcanonical sourceとして維持し、この変更の影響を受けません）。
 
 invitationのMVP write/read boundaryには、participation privacyを守る
 ための追加の制約があります。invite操作の結果はinviterに対して不透明
@@ -177,6 +190,11 @@ invitee statusを理由とするerrorを返しません。あわせてinvitation
 「invitation rowを作らない」分岐から同じ情報が復元できるためです。
 inviter向けのinvitation history表示は現時点のcommitted scopeに含めず、
 必要になった時点でこの境界を壊さないprojectionとして別途設計します。
+Issue #225/#230でpending-onlyへ収束したことにより、resolve済み
+（accept/decline済み）のinvitationはrow自体が削除されるため、旧
+`declined_at`ベースの履歴表示は行いません。decline操作は idempotent
+で、既に解消済みのinvitationへの再declineは成功（no-op）として扱い、
+errorを返しません。
 
 招待の宛先選択（invitee selection）は、`.ai-dev-foundation/
 product-rules.md`の「Authenticated-user targeting（identity boundary）」

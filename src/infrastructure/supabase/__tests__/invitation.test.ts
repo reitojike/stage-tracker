@@ -8,16 +8,17 @@ import {
 } from '../invitation.ts';
 
 // Pure classification tests for invite_to_occurrence's / decline_occurrence_
-// invitation's `raise exception` message rules (Issue #33). Every message
-// tested here is copied verbatim from the corresponding migration's `raise
+// invitation's `raise exception` message rules (Issue #33, updated for
+// Issue #225/#230's pending-only Invitation model). Every message tested
+// here is copied verbatim from the corresponding migration's `raise
 // exception '...'` text (see the RawInvitationRow-adjacent RPCs in
-// supabase/migrations/20260822010200_create_invite_to_occurrence_rpc.sql and
-// 20260822010300_create_decline_occurrence_invitation_rpc.sql), so a future
-// re-wording of any of those messages that silently stops matching its rule
-// (and falls through to a generic `failure`) fails one of these tests rather
-// than going unnoticed. The real network/RPC call itself is exercised
-// end-to-end in test/rls/typedBoundaryInvitation.test.ts; this file only
-// pins the pure message -> PlanningErrorKind mapping.
+// supabase/migrations/20260830000000_simplify_invitation_pending_only.sql,
+// which supersedes the original 20260822010200/20260822010300 versions), so
+// a future re-wording of any of those messages that silently stops matching
+// its rule (and falls through to a generic `failure`) fails one of these
+// tests rather than going unnoticed. The real network/RPC call itself is
+// exercised end-to-end in test/rls/typedBoundaryInvitation.test.ts; this
+// file only pins the pure message -> PlanningErrorKind mapping.
 
 function classifyInvite(message: string) {
   return classifyRpcError({ message, code: 'P0001' }, INVITE_ERROR_RULES).kind;
@@ -50,13 +51,6 @@ void test('invite_to_occurrence: not-attending message -> permission-denied', ()
   );
 });
 
-void test('invite_to_occurrence: re-invite-after-decline message -> validation', () => {
-  assert.equal(
-    classifyInvite('this invitation was declined; re-inviting is not a supported operation'),
-    'validation',
-  );
-});
-
 void test('invite_to_occurrence: an unrecognized message falls back to classifyPostgrestError', () => {
   assert.equal(classifyInvite('some future message this rule set does not know about'), 'failure');
 });
@@ -69,9 +63,10 @@ void test('decline_occurrence_invitation: "invitation is required" -> validation
   assert.equal(classifyDecline('invitation is required'), 'validation');
 });
 
-void test('decline_occurrence_invitation: "invitation not found" -> not-found', () => {
-  assert.equal(classifyDecline('invitation not found'), 'not-found');
-});
+// Issue #225/#230: decline_occurrence_invitation no longer raises for "not
+// found" at all - it returns `data: null` instead (see declineInvitation's
+// own header in ../invitation.ts), so there is deliberately no rule/test for
+// that message here anymore; a rule for it would be dead code.
 
 void test('invite_to_occurrence_by_email: "authentication required" -> unauthenticated', () => {
   assert.equal(classifyInviteByEmail('authentication required'), 'unauthenticated');

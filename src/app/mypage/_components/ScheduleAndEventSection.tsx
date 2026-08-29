@@ -13,6 +13,11 @@ export interface ScheduleAndEventSectionProps {
    * navigation state of its own, unlike Catalog's own ActionRow, so this is
    * derived from "today" rather than from an in-flight month/day. */
   newEventHref: string;
+  /** Count of the viewer's own pending (unresolved) received invitations
+   * (Issue #230 addendum). The 招待一覧 row itself is always shown - only
+   * the count badge is conditional ("pending count = 0: badgeだけ非表示,
+   * 招待一覧row自体は消さない"). */
+  pendingInvitationCount: number;
 }
 
 const PERSONAL_SCHEDULE_HREF = '/schedule';
@@ -30,6 +35,7 @@ const PERSONAL_SCHEDULE_HREF = '/schedule';
 export function ScheduleAndEventSection({
   canCreateEvent,
   newEventHref,
+  pendingInvitationCount,
 }: ScheduleAndEventSectionProps) {
   return (
     <section className={styles.section} aria-labelledby="mypage-schedule-event-heading">
@@ -48,6 +54,9 @@ export function ScheduleAndEventSection({
         <li className={styles.item}>
           <Link href={catalogInvitationsHref()} className={styles.itemLink}>
             <span className={styles.label}>招待一覧</span>
+            {pendingInvitationCount > 0 ? (
+              <span className={styles.countBadge}>{pendingInvitationCount}</span>
+            ) : null}
             <span className={styles.chevron} aria-hidden="true">
               ›
             </span>

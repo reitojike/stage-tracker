@@ -54,7 +54,7 @@ after(async () => {
   }
 });
 
-void test('inviteToOccurrence creates an invitation and a considering participation for the invitee', async () => {
+void test('inviteToOccurrence creates only the invitation - Issue #225/#230 removes the former auto-considering side effect', async () => {
   const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
   const result = await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
   assert.deepEqual(result, { ok: true, data: undefined });
@@ -66,7 +66,7 @@ void test('inviteToOccurrence creates an invitation and a considering participat
   );
 
   const participation = await readOwnParticipation(invitee, occurrenceId);
-  assert.equal(participation?.status, 'considering');
+  assert.equal(participation, null, 'inviting a rowless invitee must not create a participation');
 });
 
 void test('inviteToOccurrence is opaque when the invitee is already attending: no error, no invitation row', async () => {
@@ -100,7 +100,7 @@ void test('inviteToOccurrence reports permission-denied when the inviter is only
   assert.equal(result.error.kind, 'permission-denied');
 });
 
-void test('inviteToOccurrence reports validation when re-inviting a declined invitee', async () => {
+void test('inviteToOccurrence creates a new pending invitation after a prior decline (not a permanent block, Issue #225/#230)', async () => {
   const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
   const first = await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
   assert.equal(first.ok, true);
@@ -113,11 +113,14 @@ void test('inviteToOccurrence reports validation when re-inviting a declined inv
   assert.equal(declined.ok, true);
 
   const second = await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
-  assert.equal(second.ok, false);
-  assert.equal(second.error.kind, 'validation');
+  assert.deepEqual(second, { ok: true, data: undefined });
+
+  const receivedAfter = await listMyReceivedInvitations(invitee.client);
+  assert.equal(receivedAfter.ok, true);
+  assert.ok(receivedAfter.data.some((i) => i.occurrenceId === occurrenceId));
 });
 
-void test('declineInvitation is idempotent: declining twice returns the same declinedAt', async () => {
+void test('declineInvitation is idempotent: a second decline reports ok:true with data: null', async () => {
   const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
   await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
   const received = await listMyReceivedInvitations(invitee.client);
@@ -127,12 +130,13 @@ void test('declineInvitation is idempotent: declining twice returns the same dec
 
   const firstDecline = await declineInvitation(invitee.client, invitation.id);
   assert.equal(firstDecline.ok, true);
+  assert.equal(firstDecline.data?.id, invitation.id);
+
   const secondDecline = await declineInvitation(invitee.client, invitation.id);
-  assert.equal(secondDecline.ok, true);
-  assert.equal(secondDecline.data.declinedAt, firstDecline.data.declinedAt);
+  assert.deepEqual(secondDecline, { ok: true, data: null });
 });
 
-void test('declineInvitation reports not-found for an id the caller cannot see', async () => {
+void test('declineInvitation reports ok:true with data: null for an id the caller cannot see', async () => {
   const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
   await inviteToOccurrence(inviter.client, occurrenceId, invitee.user.id);
   const received = await listMyReceivedInvitations(invitee.client);
@@ -140,13 +144,19 @@ void test('declineInvitation reports not-found for an id the caller cannot see',
   const invitation = received.data.find((i) => i.occurrenceId === occurrenceId);
   assert.ok(invitation);
 
-  // The inviter is not the invitee, so this id is invisible to them - the
-  // RPC must report the same "not found" whether the row does not exist or
-  // simply belongs to someone else (see decline_occurrence_invitation's
-  // header comment).
+  // The inviter is not the invitee, so this id matches no row for them - the
+  // RPC reports the same benign `data: null` whether the row does not
+  // exist, belongs to someone else, or was already resolved (see
+  // decline_occurrence_invitation's header comment: this must not become a
+  // probe for whether a given id exists).
   const result = await declineInvitation(inviter.client, invitation.id);
-  assert.equal(result.ok, false);
-  assert.equal(result.error.kind, 'not-found');
+  assert.deepEqual(result, { ok: true, data: null });
+
+  // The invitation itself is untouched - only the invitee's own call can
+  // actually resolve it.
+  const stillPending = await listMyReceivedInvitations(invitee.client);
+  assert.equal(stillPending.ok, true);
+  assert.ok(stillPending.data.some((i) => i.id === invitation.id));
 });
 
 void test('listMyReceivedInvitations never includes an invitation the caller sent', async () => {
@@ -191,7 +201,7 @@ void test('declineInvitation reports unauthenticated for a client with no sessio
 // branch (no account, no participation row, considering, attending,
 // previously declined) must be indistinguishable from the inviter's side.
 
-void test('inviteToOccurrenceByEmail creates an invitation and a considering participation for the invitee', async () => {
+void test('inviteToOccurrenceByEmail creates only the invitation - Issue #225/#230 removes the former auto-considering side effect', async () => {
   const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
   assert.ok(invitee.user.email);
   const result = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, invitee.user.email);
@@ -204,7 +214,7 @@ void test('inviteToOccurrenceByEmail creates an invitation and a considering par
   );
 
   const participation = await readOwnParticipation(invitee, occurrenceId);
-  assert.equal(participation?.status, 'considering');
+  assert.equal(participation, null, 'inviting a rowless invitee must not create a participation');
 });
 
 void test('inviteToOccurrenceByEmail is case-insensitive on the registered email', async () => {
@@ -253,7 +263,7 @@ void test('inviteToOccurrenceByEmail is opaque when the invitee is already atten
   assert.equal(participation?.status, 'attending', 'attending must be left unchanged, not demoted');
 });
 
-void test('inviteToOccurrenceByEmail is opaque (ok:true, void) for a previously declined invitee - unlike the id-based RPC', async () => {
+void test('inviteToOccurrenceByEmail creates a new pending invitation after a prior decline (not a permanent block, Issue #225/#230)', async () => {
   const { occurrenceId } = await createOccurrenceWithAttendee(catalogOwner, inviter);
   assert.ok(invitee.user.email);
   const first = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, invitee.user.email);
@@ -266,13 +276,15 @@ void test('inviteToOccurrenceByEmail is opaque (ok:true, void) for a previously 
   const declined = await declineInvitation(invitee.client, invitation.id);
   assert.equal(declined.ok, true);
 
-  // The id-based RPC raises a distinct `validation` exception for this
-  // branch (see typedBoundaryInvitation's earlier "re-inviting a declined
-  // invitee" test) - the email-based RPC must not, since that would let an
-  // inviter who only has an email confirm the address belongs to a real,
-  // previously-invited account.
+  // Issue #225/#230 removes the id-based RPC's former distinct exception for
+  // this branch too, so both entrypoints now behave the same way here: a
+  // prior decline never permanently blocks re-invitation.
   const second = await inviteToOccurrenceByEmail(inviter.client, occurrenceId, invitee.user.email);
   assert.deepEqual(second, { ok: true, data: undefined });
+
+  const receivedAfter = await listMyReceivedInvitations(invitee.client);
+  assert.equal(receivedAfter.ok, true);
+  assert.ok(receivedAfter.data.some((i) => i.occurrenceId === occurrenceId));
 });
 
 void test('inviteToOccurrenceByEmail reports validation for a malformed email', async () => {

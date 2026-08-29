@@ -252,10 +252,11 @@ export default async function Home() {
   } else {
     // Reuses the same Event+Occurrence+Participation join My Calendar
     // already established (src/app/calendar/page.tsx), rather than
-    // re-deriving an equivalent one - the empty acquisitions map means
-    // every entry's ticketStatus resolves to 'none', which Home simply
-    // never reads (Home's Task Contract keeps the legacy ticket_acquisitions
-    // model out of this projection entirely).
+    // re-deriving an equivalent one. Issue #225/#230 removed the legacy
+    // ticket_acquisitions parameter from buildMyCalendarOccurrenceEntries
+    // entirely - Home never read it (Home's Task Contract keeps the legacy
+    // ticket_acquisitions model out of this projection), so this call site
+    // simply drops the argument rather than passing an empty placeholder.
     const eventsWithOccurrences = groupOccurrencesByEvent(
       participationEventsResult.data,
       participationOccurrencesResult.data,
@@ -268,7 +269,6 @@ export default async function Home() {
     const occurrenceCandidates = buildMyCalendarOccurrenceEntries(
       eventsWithOccurrences,
       participationsByOccurrenceId,
-      new Map(),
     );
     const scheduleCandidates = scheduleResult.data.map((entry) => ({
       entry,

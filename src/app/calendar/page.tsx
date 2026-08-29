@@ -4,7 +4,6 @@ import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClie
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import { listMyParticipations } from '@/infrastructure/supabase/participation.ts';
 import { listVisiblePersonalSchedule } from '@/infrastructure/supabase/personalSchedule.ts';
-import { listMyAcquisitions } from '@/infrastructure/supabase/ticketAcquisition.ts';
 import { getEventsByIds, getOccurrencesByIds } from '@/infrastructure/supabase/eventCatalogRead.ts';
 import { groupOccurrencesByEvent } from '@/domain/eventCatalog.ts';
 import { buildMonthGrid } from '@/domain/calendarMonth.ts';
@@ -19,7 +18,6 @@ import {
 } from '@/domain/myCalendar.ts';
 import { resolveMyCalendarParams } from '@/domain/myCalendarNavigation.ts';
 import type { Participation } from '@/domain/participation.ts';
-import type { TicketAcquisition } from '@/domain/ticketAcquisition.ts';
 import type { PlanningError } from '@/domain/planningError.ts';
 import { currentTokyoDate } from './_lib/today.ts';
 import { MyCalendarAgenda } from './_components/MyCalendarAgenda.tsx';
@@ -93,25 +91,17 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   }
   const callerId = callerResult.data;
 
-  const [participationsResult, scheduleResult, acquisitionsResult] = await Promise.all([
+  const [participationsResult, scheduleResult] = await Promise.all([
     listMyParticipations(client),
     listVisiblePersonalSchedule(client),
-    listMyAcquisitions(client),
   ]);
 
   const firstError = !participationsResult.ok
     ? participationsResult.error
     : !scheduleResult.ok
       ? scheduleResult.error
-      : !acquisitionsResult.ok
-        ? acquisitionsResult.error
-        : null;
-  if (
-    firstError !== null ||
-    !participationsResult.ok ||
-    !scheduleResult.ok ||
-    !acquisitionsResult.ok
-  ) {
+      : null;
+  if (firstError !== null || !participationsResult.ok || !scheduleResult.ok) {
     return (
       <>
         <PageHeading>カレンダー</PageHeading>
@@ -121,7 +111,6 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   }
 
   const participations: Participation[] = participationsResult.data;
-  const acquisitions: TicketAcquisition[] = acquisitionsResult.data;
 
   const occurrenceIds = [...new Set(participations.map((p) => p.occurrenceId))];
   const occurrencesResult =
@@ -180,20 +169,10 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   const participationsByOccurrenceId = new Map(
     participations.map((p) => [p.occurrenceId, p] as const),
   );
-  const acquisitionsByOccurrenceId = new Map<string, TicketAcquisition[]>();
-  for (const acquisition of acquisitions) {
-    const bucket = acquisitionsByOccurrenceId.get(acquisition.occurrenceId);
-    if (bucket) {
-      bucket.push(acquisition);
-    } else {
-      acquisitionsByOccurrenceId.set(acquisition.occurrenceId, [acquisition]);
-    }
-  }
 
   const occurrenceEntries = buildMyCalendarOccurrenceEntries(
     eventsWithOccurrences,
     participationsByOccurrenceId,
-    acquisitionsByOccurrenceId,
   );
 
   const dayMarkers = buildMyCalendarDayMarkers(

@@ -259,7 +259,7 @@
      steps. */
   --radius-control-sm: var(--radius-scale-sheet);
   /* Borderless white container radius (#96 -> #102: Surface / EventDetail /
-     InvitationCard / ParticipationPanel / ScheduleList). Design Wave 2
+     InvitationCard / ScheduleList). Design Wave 2
      (Issue #190) removed the calendar card's and CalendarSkeleton's own use
      of this token along with their white background - the remaining
      consumers above are unrelated broad white cards this Task's scope does

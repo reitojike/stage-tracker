@@ -321,8 +321,19 @@ void test('cancelTransfer reports unauthenticated for a client with no session',
 
 void test('requestTransfer does not change participation: considering stays considering, attending stays attending', async () => {
   const { occurrenceId, ticketId } = await offerableTicket();
-  // makeTransferEligible leaves the recipient `considering` (via invite) and
-  // the sender `attending` (the eligibility precondition for inviting).
+  // Issue #225/#230: invite no longer auto-creates a `considering`
+  // participation for a rowless invitee, so the recipient has no row at all
+  // straight out of offerableTicket()'s makeTransferEligible call - set it
+  // explicitly here. This does not disturb the invitation makeTransferEligible
+  // already created (only a transition *to* `attending` ever resolves a
+  // pending invitation - see supabase/migrations/20260830000000_simplify_
+  // invitation_pending_only.sql), so eligibility for the requestTransfer
+  // call below is unaffected.
+  const setConsidering = await setParticipationTyped(recipient.client, occurrenceId, {
+    status: 'considering',
+  });
+  assert.equal(setConsidering.ok, true);
+
   const senderBefore = await readOwnParticipation(acquirer, occurrenceId);
   const recipientBefore = await readOwnParticipation(recipient, occurrenceId);
   assert.equal(senderBefore?.status, 'attending');
@@ -337,12 +348,28 @@ void test('requestTransfer does not change participation: considering stays cons
   assert.deepEqual(recipientAfter, recipientBefore);
 });
 
-void test('acceptTransfer does not change participation, including when the recipient is already attending', async () => {
+// Issue #225/#230 removes the "recipient already attending at the moment
+// eligibility is established" variant of this regression entirely: reaching
+// `attending` now resolves (deletes) any pending invitation for that
+// (occurrence, invitee) pair, and invite_to_occurrence's own attending
+// branch never creates one in the first place - so there is no longer a
+// reachable state where a recipient is simultaneously `attending` *and*
+// eligible via a still-existing invitation at request time. This is the
+// intended effect of decoupling Invitation semantics from legacy Ticket
+// transfer eligibility (#230 "Legacy Ticket runtime separation").
+//
+// What remains true, and worth pinning, is the more realistic ordering:
+// eligibility is established while the recipient is not yet attending,
+// `request_ticket_transfer` only consults it once (at request time, not
+// again on accept - see request_ticket_transfer's own migration), so the
+// recipient can freely become attending *after* the transfer is already
+// pending, and acceptTransfer still must not touch that Participation row.
+void test('acceptTransfer does not change participation, including when the recipient becomes attending after the transfer was already requested', async () => {
   const { occurrenceId, ticketId } = await offerableTicket();
-  // Promote the recipient beyond the invite's `considering` floor, so this
-  // pins the "attending stays attending" half of the regression too. Uses
-  // the typed setParticipation (an upsert) rather than a raw insert, since
-  // the invite already created the recipient's `considering` row.
+
+  const requested = await requestTransfer(acquirer.client, ticketId, recipient.user.id);
+  assert.equal(requested.ok, true);
+
   const promoted = await setParticipationTyped(recipient.client, occurrenceId, {
     status: 'attending',
   });
@@ -352,9 +379,6 @@ void test('acceptTransfer does not change participation, including when the reci
   const recipientBefore = await readOwnParticipation(recipient, occurrenceId);
   assert.equal(senderBefore?.status, 'attending');
   assert.equal(recipientBefore?.status, 'attending');
-
-  const requested = await requestTransfer(acquirer.client, ticketId, recipient.user.id);
-  assert.equal(requested.ok, true);
 
   const accepted = await acceptTransfer(recipient.client, requested.data.id);
   assert.equal(accepted.ok, true);

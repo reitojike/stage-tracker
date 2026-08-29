@@ -1,0 +1,17 @@
+.occurrenceTime {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* One right-aligned filled indigo execution button (Issue #230 addendum). */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -958,12 +958,18 @@ try {
   );
 
   // 20. occurrence_invitations has no UPDATE grant and no UPDATE policy at
-  // all: declined_at is written only by decline_occurrence_invitation, which
-  // stamps now() and never clears it. That absence is what keeps decline-undo
-  // - an operation no product rule has decided - out of the schema, so it is
-  // worth proving the negative test depends on it. Both layers have to be
-  // added together (like guardrail items 2 and 4): a grant with no policy
-  // still default-denies, and a policy with no grant is never reached.
+  // all (Issue #225/#230: decline_occurrence_invitation now resolves an
+  // invitation by DELETing it, not by stamping declined_at - the column
+  // still exists on the table but no write path sets it anymore, see
+  // supabase/migrations/20260830000000_simplify_invitation_pending_only.sql).
+  // That absence is what keeps a client from writing declined_at directly at
+  // all, so it is worth proving the negative test depends on it. Both layers
+  // have to be added together (like guardrail items 2 and 4): a grant with
+  // no policy still default-denies, and a policy with no grant is never
+  // reached. Deliberately exercised against a still-*pending* invitation
+  // (not a declined one - decline now deletes the row, leaving nothing left
+  // to UPDATE regardless of this policy), mirroring the real
+  // "declined_at is not writable through the table API" test.
   await withBrokenPolicy(
     'occurrence_invitations declined_at UPDATE grant + policy (added together)',
     `grant update (declined_at) on public.occurrence_invitations to authenticated;
@@ -992,24 +998,17 @@ try {
       if (readError || !invitation) {
         throw new Error(`fixture invitation read failed: ${readError?.message}`);
       }
-      const { error: declineError } = await actorB.client.rpc('decline_occurrence_invitation', {
-        p_invitation_id: invitation.id,
-      });
-      if (declineError) {
-        throw new Error(`fixture decline_occurrence_invitation failed: ${declineError.message}`);
-      }
 
       const { data, error } = await actorB.client
         .from('occurrence_invitations')
-        .update({ declined_at: null })
+        .update({ declined_at: new Date().toISOString() })
         .eq('id', invitation.id)
         .select();
       assert.equal(error, null);
-      assert.equal(data.length, 1);
       assert.equal(
-        data[0].declined_at,
-        null,
-        'expected un-declining to go red (succeed) once a declined_at UPDATE grant and policy exist',
+        data.length,
+        1,
+        'expected a direct declined_at UPDATE to go red (succeed) once a declined_at UPDATE grant and policy exist',
       );
     },
   );

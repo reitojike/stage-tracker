@@ -1203,29 +1203,57 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
 
 ## Invitation
 
+Issue #225/#230 で pending-only coordination へ収束しました。以下が現行の
+canonical semantics です（#30 時点の旧 semantics — auto-considering の作成、
+decline 後の re-invite 恒久拒否 — は supersede 済みです）。
+
 - invitation の対象は **公演回（occurrence）単位** です。event 単位の
   invitation は持ちません。
+- Invitation は **未回答の招待という temporary coordination state だけ** を
+  表します。durable な accepted/declined history は保持しません。
 - invite できるのは、対象 occurrence で participation status が
   `attending` の user だけです。`considering` の user は invite できません。
 - event owner であることは invite eligibility を与えません。owner でも
   対象 occurrence で `attending` でなければ invite できません。
 - invite 時の invitee 側 participation の扱いは、invite 対象 occurrence
   における invitee の現在状態ごとに次のとおりです。
-  - participation row なし → invitation を作成し、`considering`
-    participation を作成します。
-  - 既に `considering` → invitation を作成し、`considering` を維持します。
+  - participation row なし → pending invitation を作成します。invitee の
+    participation は作成・変更しません（旧 `considering` 自動作成は廃止）。
+  - 既に `considering` → pending invitation を作成し、`considering` を
+    維持します。participation は変更しません。
   - 既に `attending` → その occurrence への invite 対象外とします。
     invitation record を新規作成せず、既存の `attending` participation
-    をそのまま維持します。
+    をそのまま維持します（current opacity boundary を維持）。
 - invitation operation によって、invitee 本人が確定した participation
   status（`attending`）を `considering` へ降格させることはありません。
-- `considering -> attending` への確定は invitee 本人だけが行えます。
-  inviter が invitee を `attending` へ確定させることはできません。
-- invitation は participation とは別の、最低限の独立 record を持ちます。
-  少なくとも「誰が誰をどの occurrence へ招待したか」と「invitee が辞退
-  したか」を後から確認できる data boundary を持ちます。
-- invitee が辞退した場合、participation 側に `not_attending` を作るのでは
-  なく、invitation lifecycle 側で decline を表現します。
+- inviter が invitee を `attending` へ確定させることはできません。
+- **Accept（参加する）**: invitee が pending invitation に対して「参加する」
+  を選択した場合、通常の participation write（`considering`/rowなし →
+  `attending`）と全く同じ operation を行います。専用の accept RPC は
+  持ちません。結果として成立する `attending` Participation は
+  self-created attending とデータ上区別しません。`participation_source` /
+  `invited_by_user_id` / `accepted_at` / invited 専用 status 等の
+  origin/history field を Participation へ追加しません。
+- **Generic attending convergence**: invitee が Invitation UI 以外の通常
+  participation UI から `attending` になった場合も、同一 occurrence /
+  invitee に残る pending invitation はすべて解消します。同一 occurrence /
+  invitee に複数 inviter からの pending invitation が存在できる現行
+  schema では、attending 成立時に未解決 pending invitation を全て解消
+  する方向を default とします。
+- **Decline（参加しない）**: invitee が「参加しない」を選択した場合、
+  pending invitation を解消（削除）します。`not_attending` Participation は
+  作りません。invitee に既存の self-created `considering` がある場合は
+  変更しません。decline は invitation へのresponseであり、invitee 自身の
+  別途存在する participation intention を勝手に変更しません。
+- **Re-invite**: 過去の decline を永久 opt-out として扱いません。invitee が
+  現在 `attending` でなければ、後日同じ inviter が再度 invite でき、新しい
+  pending invitation を作成できます。accept 後に invitee 本人が withdraw
+  した場合も、将来の re-invite を永久に block しません。
+- invitation は participation とは別の、最低限の独立 record です。resolve
+  （accept/decline/generic attending convergence のいずれか）された
+  invitation row は削除され、durable な accepted/declined history として
+  保持しません。「誰が誰をどの occurrence へ招待したか」は resolve される
+  までの pending 期間中のみ確認できる data boundary です。
 - invite 操作の結果は inviter に対して不透明です。対象 occurrence における
   invitee の現在状態（上記 3 分岐のどれが実行されたか）を inviter へ開示
   しません。invitee の private な participation status を、invite 操作の
@@ -1242,6 +1270,12 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
   dispatch・opacity 要件は上記と同一で、resolution を追加したことを
   理由に緩めません。「no such account」を含む invitee-dependent な分岐は
   すべて同一の結果を返し、inviter からは区別できません。
+- old Ticket transfer eligibility（`ticket_transfer_recipient_is_eligible`）
+  は legacy Ticket transfer model の一部として historical に
+  occurrence_invitations の行の有無を参照しますが、Invitation semantics の
+  決定（pending-only への収束を含む）は legacy Ticket transfer の都合に
+  制約されません。legacy Ticket transfer は current runtime から
+  decommission 済みです（下記「Ticket acquisition / Ticket」節参照）。
 
 ## Event-independent personal schedule
 
@@ -1308,10 +1342,16 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
 
 このセクションは既存の legacy model の記述です。#157（Ticket planning
 MVP checkpoint）以降、この model は現行 MVP の main ticket journey では
-ありません。以下の semantics は今も schema として存在し、削除・repurpose
-されていませんが、`/tickets` や Home 等の新しい read/write path は
-consumeしません。現行 MVP の canonical model は次の「Ticket Opportunity
-（Ticket planning MVP）」セクションです。
+ありません。#225/#230（PR A）で、legacy Ticket acquisition / inventory /
+assignment / transfer への current runtime（UI / server action /
+navigation reachability）からの依存を切り離しました。My Calendar は
+legacy acquisition read / status projection をもう行いません。以下の
+semantics は今も schema として存在し、DB objects 自体は DROP・
+repurpose されていません（destructive schema cleanup は #225 の後続
+bounded Issue として、Production read-only preflight を経てから別途
+行います）。`/tickets` や Home、および現行 runtime の他の read/write path
+は consume しません。現行 MVP の canonical model は次の「Ticket
+Opportunity（Ticket planning MVP）」セクションです。
 
 ### Concept boundary
 
