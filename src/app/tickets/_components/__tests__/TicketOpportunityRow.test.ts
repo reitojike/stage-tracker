@@ -55,6 +55,12 @@ void test('the row shows a terminal 中止 badge when the whole Opportunity is e
   assert.match(rowSource, /isCanceled \? <Badge variant="terminal">中止<\/Badge> : null/);
 });
 
+void test('the row never re-derives its own deadline urgency threshold - it only renders the variant/label ticketOpportunityDeadlineBadge returns (Issue #191)', () => {
+  assert.match(rowSource, /ticketOpportunityDeadlineBadge/);
+  assert.doesNotMatch(rowSource, /myState\s*===|milestoneType\s*===/);
+  assert.doesNotMatch(rowSource, /<=\s*3|<\s*14|days?\s*[<>]=?\s*\d/i);
+});
+
 void test('the state controls cover every required transition, including applied -> planned', () => {
   // Issue #144 Task Contract: no row -> planned, planned -> applied,
   // applied -> planned, planned/applied -> remove -> no row. A prior

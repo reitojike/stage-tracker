@@ -236,16 +236,47 @@ export function isTicketOpportunityRowEffectivelyCanceled(
 }
 
 /**
+ * Issue #144 Task Contract minimum safe rule, factored out of
+ * isActionableTicketOpportunityDeadline (Issue #191): the "which milestones
+ * ever get urgency treatment" gate - `myState === 'planned'`, an
+ * `application_close` milestone, and a non-canceled Opportunity. Never true
+ * for result_announcement/sale_start/payment_window (no outcome/settlement
+ * state exists in this MVP to justify escalating those), and never true
+ * when there is no personal `planned` state at all or once the whole
+ * Opportunity is effectively canceled (Issue #172 root cause B).
+ *
+ * Deliberately excludes the not-yet-past condition
+ * isActionableTicketOpportunityDeadline adds on top of this - that
+ * condition alone must not decide "does this milestone even carry urgency
+ * vocabulary", since Issue #191's `terminal`/受付終了 classification
+ * intentionally still applies to an already-past deadline of this same
+ * shape (see ticketOpportunityDeadlineBadge).
+ */
+function isDeadlineRelevantMilestone(
+  row: Pick<
+    TicketOpportunityTimelineRow,
+    | 'milestoneType'
+    | 'myState'
+    | 'targetScope'
+    | 'eventCanceled'
+    | 'targetOccurrences'
+    | 'targetOccurrenceIdCount'
+  >,
+): boolean {
+  if (row.myState !== 'planned') {
+    return false;
+  }
+  if (row.milestoneType !== 'application_close') {
+    return false;
+  }
+  return !isTicketOpportunityRowEffectivelyCanceled(row);
+}
+
+/**
  * Issue #144 Task Contract minimum safe rule: red deadline emphasis is
- * limited to a milestone the caller can actually still act on -
- * `myState.status === 'planned'`, an `application_close` milestone, and a
- * deadline that has not already passed. Never true for
- * result_announcement/sale_start/payment_window (no outcome/settlement
- * state exists in this MVP to justify escalating those to red), and never
- * true when there is no personal `planned` state at all. Also never true
- * once the whole Opportunity is effectively canceled (Issue #172 root
- * cause B) - a canceled target must not keep showing red actionable
- * urgency toward a submission that no longer makes sense.
+ * limited to a milestone the caller can actually still act on - see
+ * isDeadlineRelevantMilestone for the shape of milestone this ever applies
+ * to - and a deadline that has not already passed.
  */
 export function isActionableTicketOpportunityDeadline(
   row: Pick<
@@ -263,13 +294,7 @@ export function isActionableTicketOpportunityDeadline(
   >,
   todayTokyoDate: string,
 ): boolean {
-  if (row.myState !== 'planned') {
-    return false;
-  }
-  if (row.milestoneType !== 'application_close') {
-    return false;
-  }
-  if (isTicketOpportunityRowEffectivelyCanceled(row)) {
+  if (!isDeadlineRelevantMilestone(row)) {
     return false;
   }
   const deadlineDate = ticketOpportunityMilestoneTokyoCalendarDate(row);
@@ -286,12 +311,63 @@ function daysBetweenTokyoDates(fromDate: string, toDate: string): number {
   return Math.round((toMs - fromMs) / (24 * 60 * 60 * 1000));
 }
 
+/** The exact source time a milestone's deadline falls on, in the same
+ * `at` > `endsAt` precision-priority order ticketOpportunityMilestoneTokyoCalendarDate
+ * uses for the date itself - null for a date-only milestone (never a fake
+ * time; Issue #191 Task Contract "date-only → fake timeを作らない"), and
+ * for a window/datetime malformed enough to carry neither (defensive; both
+ * are otherwise guaranteed present for their own precision). */
+function ticketOpportunityMilestoneTokyoTimeLabel(
+  row: Pick<TicketOpportunityTimelineRow, 'at' | 'endsAt'>,
+): string | null {
+  if (row.at !== null) {
+    return tokyoTimeLabel(row.at);
+  }
+  if (row.endsAt !== null) {
+    return tokyoTimeLabel(row.endsAt);
+  }
+  return null;
+}
+
+/** A Badge variant string matching ui/Badge's own BadgeVariant values -
+ * spelled out here rather than imported, since domain code may not depend
+ * on @/ui (see the architecture import boundary in eslint.config.mjs);
+ * ticketOpportunityStateBadgeVariant follows the same precedent. */
+export type TicketOpportunityDeadlineBadgeVariant = 'deadline' | 'outline' | 'terminal';
+
+export interface TicketOpportunityDeadlineBadge {
+  variant: TicketOpportunityDeadlineBadgeVariant;
+  label: string;
+}
+
 /**
- * "残り3日" / "本日締切" for an actionable deadline row, or null when the
- * row is not actionable (see isActionableTicketOpportunityDeadline) - the
- * caller must gate rendering on that function, this only formats the count.
+ * The single deadline-urgency classification authority (Issue #191 Task
+ * Contract): Home (homeDeadlines.ts) and /tickets (TicketOpportunityRow)
+ * both call this instead of holding their own <=3-day/<14-day/red
+ * threshold, so "how many days until this turns red" is decided in exactly
+ * one place. Canonical thresholds, all counted as whole Asia/Tokyo
+ * calendar-day differences (never an hour-duration split):
+ *
+ * | day difference | variant    | label                                    |
+ * | --------------- | ---------- | ---------------------------------------- |
+ * | already past    | `terminal` | 受付終了                                  |
+ * | 0 (today)       | `deadline` | 本日 HH:MMまで (source time) / 本日締切 (date-only) |
+ * | 1-3             | `deadline` | 残りN日                                   |
+ * | 4-13            | `outline`  | 残りN日                                   |
+ * | 14+             | (none)     | null                                     |
+ *
+ * Scoped to exactly the rows isDeadlineRelevantMilestone calls relevant - a
+ * no-state/applied/non-application_close/effectively-canceled row always
+ * returns null, never red or terminal (Issue #191 Task Contract "絶対に
+ * redへ昇格しない"). The `terminal` case is the one bounded addition this
+ * Task makes on top of isActionableTicketOpportunityDeadline's actionable
+ * (not-yet-past) rows: a previously-actionable application_close deadline
+ * that has already passed still classifies, so a caller that elects to
+ * retain such a row (e.g. the #192 visible-window Task's bounded
+ * post-final retention) has vocabulary to render it - this module makes no
+ * retention/visibility decision of its own.
  */
-export function ticketOpportunityDeadlineRemainingDaysLabel(
+export function ticketOpportunityDeadlineBadge(
   row: Pick<
     TicketOpportunityTimelineRow,
     | 'milestoneType'
@@ -306,13 +382,26 @@ export function ticketOpportunityDeadlineRemainingDaysLabel(
     | 'targetOccurrenceIdCount'
   >,
   todayTokyoDate: string,
-): string | null {
-  if (!isActionableTicketOpportunityDeadline(row, todayTokyoDate)) {
+): TicketOpportunityDeadlineBadge | null {
+  if (!isDeadlineRelevantMilestone(row)) {
     return null;
   }
   const deadlineDate = ticketOpportunityMilestoneTokyoCalendarDate(row);
   const days = daysBetweenTokyoDates(todayTokyoDate, deadlineDate);
-  return days === 0 ? '本日締切' : `残り${String(days)}日`;
+  if (days < 0) {
+    return { variant: 'terminal', label: '受付終了' };
+  }
+  if (days === 0) {
+    const time = ticketOpportunityMilestoneTokyoTimeLabel(row);
+    return { variant: 'deadline', label: time !== null ? `本日 ${time}まで` : '本日締切' };
+  }
+  if (days <= 3) {
+    return { variant: 'deadline', label: `残り${String(days)}日` };
+  }
+  if (days <= 13) {
+    return { variant: 'outline', label: `残り${String(days)}日` };
+  }
+  return null;
 }
 
 /**
