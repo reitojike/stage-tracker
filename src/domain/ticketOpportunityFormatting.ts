@@ -41,14 +41,18 @@ export function ticketOpportunityStateLabel(status: UserTicketOpportunityStatus)
   return status === 'applied' ? '申し込み済み' : '申し込む予定';
 }
 
-/** Issue #138: both `planned` and `applied` are an in-progress personal
- * planning state, so both map to the same 'subtle' Badge variant - there is
- * no separate "done" visual distinct from "still to do" for this MVP. */
-export function ticketOpportunityStateBadgeVariant(status: UserTicketOpportunityStatus): 'subtle' {
+/** Issue #197 (supersedes #138's undifferentiated mapping now that Issue
+ * #186 gives Badge its own `done` variant): `applied` is a user-completed
+ * action ("申し込み済み"), so it maps to `done`; `planned` is still only an
+ * intention ("申し込む予定にする"), so it stays `subtle`. */
+export function ticketOpportunityStateBadgeVariant(
+  status: UserTicketOpportunityStatus,
+): 'subtle' | 'done' {
   switch (status) {
     case 'planned':
-    case 'applied':
       return 'subtle';
+    case 'applied':
+      return 'done';
   }
 }
 

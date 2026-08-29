@@ -12,6 +12,7 @@ function baseRow(
     id: 'ms-1',
     opportunityId: 'opp-1',
     sortInstant: '2026-09-01T00:00:00.000Z',
+    eventId: 'event-1',
     eventTitle: 'イベントA',
     eventVenue: '会場A',
     eventCanceled: false,
