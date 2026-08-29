@@ -35,9 +35,17 @@ const FULL_OPTIONS: Pick<FilterSheetProps, 'groupOptionsByGenreKey' | 'venueOpti
 };
 
 function FilterSheetDemo({
+  genresOverride,
   groupOptionsByGenreKey,
   venueOptionsByGenreKey,
-}: Pick<FilterSheetProps, 'groupOptionsByGenreKey' | 'venueOptionsByGenreKey'>) {
+}: Pick<FilterSheetProps, 'groupOptionsByGenreKey' | 'venueOptionsByGenreKey'> & {
+  /** Gate A's real 3-genre catalog never exercises the chip-wrap or
+   * >10-genre dropdown-fallback presentation - these two states are
+   * demonstrated with a synthetic genre list a real catalog cannot
+   * currently produce (see ManyGenresWrapping/TooManyGenresDropdownFallback
+   * below). Defaults to the real 3-genre fixture. */
+  genresOverride?: readonly Genre[];
+}) {
   const [open, setOpen] = useState(true);
   const [selection, setSelection] = useState<CatalogFilterSelection | null>(null);
 
@@ -56,7 +64,7 @@ function FilterSheetDemo({
       <FilterSheet
         open={open}
         onOpenChange={setOpen}
-        genres={GENRES}
+        genres={genresOverride ?? GENRES}
         groupOptionsByGenreKey={groupOptionsByGenreKey}
         venueOptionsByGenreKey={venueOptionsByGenreKey}
         onAppliedSelectionChange={setSelection}
@@ -81,4 +89,45 @@ export const Default: Story = {
 export const NoOptionsLoadedYet: Story = {
   name: '選択したgenreのsecondary option未取得 (empty universe)',
   render: () => <FilterSheetDemo groupOptionsByGenreKey={{}} venueOptionsByGenreKey={{}} />,
+};
+
+// Issue #195: Gate A only ever has 3 genres today, so real data never
+// exercises the chip-wrap or >10-genre dropdown-fallback paths - these two
+// stories exist purely as visual/regression evidence for those two states,
+// with synthetic genre counts a real catalog cannot currently produce.
+
+const SIX_GENRES: Genre[] = [
+  ...GENRES,
+  { id: 'genre-4', key: 'genre-4', displayName: 'ジャンル4', sortOrder: 4 },
+  { id: 'genre-5', key: 'genre-5', displayName: 'ジャンル5', sortOrder: 5 },
+  { id: 'genre-6', key: 'genre-6', displayName: 'ジャンル6', sortOrder: 6 },
+];
+
+export const ManyGenresWrapping: Story = {
+  name: 'genre chipsが2行以上に折り返す (6 genres, no horizontal scroll)',
+  render: () => (
+    <FilterSheetDemo
+      genresOverride={SIX_GENRES}
+      groupOptionsByGenreKey={FULL_OPTIONS.groupOptionsByGenreKey}
+      venueOptionsByGenreKey={FULL_OPTIONS.venueOptionsByGenreKey}
+    />
+  ),
+};
+
+const ELEVEN_GENRES: Genre[] = Array.from({ length: 11 }, (_, index) => ({
+  id: `genre-many-${String(index)}`,
+  key: `genre-many-${String(index)}`,
+  displayName: `ジャンル${String(index + 1)}`,
+  sortOrder: index + 1,
+}));
+
+export const TooManyGenresDropdownFallback: Story = {
+  name: 'known genreが10を超えるとdropdownへbounded fallback (11 genres)',
+  render: () => (
+    <FilterSheetDemo
+      genresOverride={ELEVEN_GENRES}
+      groupOptionsByGenreKey={{}}
+      venueOptionsByGenreKey={{}}
+    />
+  ),
 };
