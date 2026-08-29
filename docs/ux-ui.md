@@ -108,9 +108,9 @@ font stackです。追加のwebfontは導入しません。
 - **title** — 16px / 600 / 1.35（list / card title、section heading）
 - **body** — 16px / 400 / 1.5
 - **body-sm** — 14px
-- **label** — 12px / 600（短い項目名・Badge・bottom-nav labelのmicro-label。
+- **label** — 12px / 600（短い項目名・Badge）
+- **caption** — 11px（weekday、補助情報、PrimaryNavのbottom-nav label等。
   現在地のnav labelは600、非現在地は400）
-- **caption** — 11px（weekday、補助情報等）
 
 見出しが、その直下でhierarchy上 subordinateな本文より小さくなる構成は作りません。
 例えばPersonal Schedule detailの「共有」は16px / 600のsection headingとして、
