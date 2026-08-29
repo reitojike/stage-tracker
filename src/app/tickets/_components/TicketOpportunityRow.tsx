@@ -37,10 +37,22 @@ export interface TicketOpportunityRowProps {
  * application window has already objectively closed, so offering
  * `申し込む予定にする`/`申し込み済みにする` would let a caller newly register
  * planning state against an Opportunity nothing can still be done for.
+ *
+ * Issue #191's own ticketOpportunityDeadlineBadge independently classifies
+ * an already-past planned application_close row as the identical
+ * `terminal`/`受付終了` badge (see that function's own header) - so a
+ * retained row is never also fed to deadlineBadge below, which would
+ * otherwise render that exact same label a second time (or, for any other
+ * milestone shape, contribute nothing at all, since
+ * ticketOpportunityDeadlineBadge only ever returns null for a row this
+ * confirmed-past). #191's classification authority itself is unchanged;
+ * this is presentation-layer de-duplication only.
  */
 export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityRowProps) {
   const display = formatTicketOpportunityMilestoneDisplay(row);
-  const deadlineBadge = ticketOpportunityDeadlineBadge(row, todayTokyoDate);
+  const deadlineBadge = row.isPostFinalRetainedHistory
+    ? null
+    : ticketOpportunityDeadlineBadge(row, todayTokyoDate);
   const isCanceled = isTicketOpportunityRowEffectivelyCanceled(row);
 
   return (

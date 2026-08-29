@@ -75,6 +75,13 @@ void test('the row never re-derives its own deadline urgency threshold - it only
   assert.doesNotMatch(rowSource, /<=\s*3|<\s*14|days?\s*[<>]=?\s*\d/i);
 });
 
+void test('a bounded post-final retained history row never also queries ticketOpportunityDeadlineBadge (Issue #191/#192 integration) - would otherwise duplicate 受付終了 for a planned application_close row', () => {
+  assert.match(
+    rowSource,
+    /const deadlineBadge = row\.isPostFinalRetainedHistory\s*\?\s*null\s*:\s*ticketOpportunityDeadlineBadge\(row, todayTokyoDate\);/,
+  );
+});
+
 void test('the state controls cover every required transition, including applied -> planned', () => {
   // Issue #144 Task Contract: no row -> planned, planned -> applied,
   // applied -> planned, planned/applied -> remove -> no row. A prior
