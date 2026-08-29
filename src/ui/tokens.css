@@ -259,12 +259,12 @@
      --radius-control above (Issue #185); the two are no longer distinct
      steps. */
   --radius-control-sm: var(--radius-scale-sheet);
-  /* Borderless white container radius (#96 -> #102: Surface / StatePanel /
-     HomeNav / EventDetail / InvitationCard / ParticipationPanel /
-     ScheduleList / CalendarSkeleton). Design Wave 2 (Issue #190) removed
-     the calendar card's own use of this token along with its white
-     background - the remaining consumers above are unrelated broad white
-     cards this Task's scope does not cover (see Issue #190 report). */
+  /* Borderless white container radius (#96 -> #102: Surface / EventDetail /
+     InvitationCard / ParticipationPanel / ScheduleList). Design Wave 2
+     (Issue #190) removed the calendar card's and CalendarSkeleton's own use
+     of this token along with their white background - the remaining
+     consumers above are unrelated broad white cards this Task's scope does
+     not cover (see Issue #190 report). */
   --radius-surface: var(--radius-scale-container);
   /* Calendar Event-range band's radius (#96 -> #102). Design Wave 2 (Issue
      #190) converged this onto the shared 2px badge step below rather than

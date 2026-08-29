@@ -270,8 +270,9 @@ screenのcalendar marker semantics（date dot / run period band等）とは
 - 実際の祝日は列位置から導出できないため、per-cellの`祝` cueを残します。
 - 前後月の日付は`text-secondary`で表示します。色だけを唯一の意味表現にせず、
   accessible name等のsemantic cueを併用します。
-- Event rangeのcalendar bandには専用のradius vocabulary（現行値5px）を使い、
-  cardやcontainerのradiusと混同しません。
+- Event rangeのcalendar bandのradiusは、Design Wave 2（Issue #190）以降
+  badgeと共通の2pxステップ（`--radius-band` = `--radius-scale-badge`）を
+  使い、cardやcontainerのradiusとは混同しません。
 - month navigationはicon control vocabularyを使います（visible 40px × 40px、
   tap 44px × 44px以上）。
 - `holiday-unconfirmed`はmonth-level noticeだけで表現します。per-cellの`?`や
