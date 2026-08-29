@@ -85,13 +85,15 @@
   margin-top: var(--space-2xs);
 }
 
-/* Issue #196: the trailing "add" row always carries its own top/bottom
-   hairline, regardless of list position - unlike `.item`'s own
-   `:not(:last-child)` rule above (which only ever draws a *bottom* border,
-   and never on the true last row), this row is always last and still needs
-   both edges closed off. */
+/* Issue #196: the trailing "add" row is always appended after at least one
+   `.item` (an empty day short-circuits to the empty-state branch below and
+   never renders this list at all), which means the preceding `.item` is no
+   longer `:last-child` once `.addRow` follows it - `.item`'s own
+   `:not(:last-child)` rule above already draws that row's bottom border,
+   so this only needs its own `border-bottom` to close off the list's true
+   bottom edge; a `border-top` here would double up against the `.item`'s
+   border directly above it. */
 .addRow {
-  border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
 }
 

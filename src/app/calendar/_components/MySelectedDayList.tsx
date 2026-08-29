@@ -132,10 +132,9 @@ export function MySelectedDayList({
           ))}
 
           {/* Issue #196: a selected day's list always ends with this add
-              row (own top/bottom hairline, independent of `.item`'s own
-              adjacency-based border rule - see .addRow in the CSS module),
-              so adding another entry for the same day is always one tap
-              away without leaving the list. */}
+              row (its own closing hairline - see .addRow in the CSS
+              module), so adding another entry for the same day is always
+              one tap away without leaving the list. */}
           <li className={styles.addRow}>
             <Link href={addHref} className={styles.addRowLink}>
               <span className={styles.addRowIcon} aria-hidden="true">

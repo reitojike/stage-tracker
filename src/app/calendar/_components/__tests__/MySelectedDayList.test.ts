@@ -63,7 +63,7 @@ void test('both the empty-state action and the trailing add row link to schedule
   );
 });
 
-void test('the trailing add row carries its own addRow class (top+bottom hairline) and a "+" icon, not the shared .item row shape', () => {
+void test('the trailing add row carries its own addRow class (closing hairline) and a "+" icon, not the shared .item row shape', () => {
   const source = readFileSync(sourcePath, 'utf8');
   assert.match(source, /<li className=\{styles\.addRow\}>/);
   assert.match(source, /className=\{styles\.addRowLink\}/);
@@ -73,4 +73,13 @@ void test('the trailing add row carries its own addRow class (top+bottom hairlin
 void test('the add-row copy is date-specific ("{M月D日}に予定を追加"), reusing myCalendarMonthDayLabel rather than a generic label', () => {
   const source = readFileSync(sourcePath, 'utf8');
   assert.match(source, /const addLabel = `\$\{myCalendarMonthDayLabel\(date\)\}に予定を追加`;/);
+});
+
+void test('.addRow sets only border-bottom, not border-top (review fix: .addRow always follows an .item, whose own :not(:last-child) rule already supplies the border between them - a border-top here would double that hairline)', () => {
+  const cssPath = fileURLToPath(new URL('../MySelectedDayList.module.css', import.meta.url));
+  const css = readFileSync(cssPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const addRowRule = /\.addRow\s*\{([^}]*)\}/.exec(css);
+  assert.ok(addRowRule, '.addRow rule not found');
+  assert.match(addRowRule[1] ?? '', /border-bottom:\s*1px solid/);
+  assert.doesNotMatch(addRowRule[1] ?? '', /border-top/);
 });
