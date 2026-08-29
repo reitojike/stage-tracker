@@ -35,6 +35,7 @@ function baseRow(
     id: 'ms-1',
     opportunityId: 'opp-1',
     sortInstant: '2026-09-01T00:00:00.000Z',
+    eventId: 'event-1',
     eventTitle: 'イベントA',
     eventVenue: '会場A',
     eventCanceled: false,
@@ -68,7 +69,7 @@ void test('ticketOpportunityStateLabel / ticketOpportunityStateBadgeVariant', ()
   assert.equal(ticketOpportunityStateLabel('planned'), '申し込む予定');
   assert.equal(ticketOpportunityStateLabel('applied'), '申し込み済み');
   assert.equal(ticketOpportunityStateBadgeVariant('planned'), 'subtle');
-  assert.equal(ticketOpportunityStateBadgeVariant('applied'), 'subtle');
+  assert.equal(ticketOpportunityStateBadgeVariant('applied'), 'done');
 });
 
 void test('ticketOpportunityTimelineMonthHeadingLabel formats a "YYYY-MM" key', () => {

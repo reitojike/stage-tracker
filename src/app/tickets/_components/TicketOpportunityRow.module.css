@@ -1,7 +1,9 @@
 .row {
+  position: relative;
   display: flex;
+  align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-card-block) 0;
+  padding: var(--space-sm) 0;
 }
 
 /* Plain row divided by a bottom border, not a card Surface - mirrors
@@ -9,6 +11,34 @@
    (Issue #146: no Surface-per-row any more). */
 .row:not(:last-child) {
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Issue #197 whole-row Event-detail link: a real anchor stretched over the
+   entire row via absolute positioning (`.row` above is the positioned
+   ancestor), painted before the row's own static content in the stacking
+   order - see .actions below for how the quiet controls/source link stay
+   independently clickable above it instead of triggering navigation. */
+.rowLink {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* The classic sr-only pattern (not display:none, which would also drop it
+   from the tab order) - same technique as
+   src/ui/TriStateCheckbox.module.css's own .input. The row link has no
+   other visible text of its own (the visible date/title/badges below are
+   plain, non-link text), so this is its only accessible name. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .dateColumn {
@@ -21,11 +51,28 @@
   gap: var(--space-2xs);
 }
 
-.dateLabel {
+.milestoneLabel {
   font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.dateLabel {
+  font-size: var(--font-size-title);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
   margin: 0;
+}
+
+/* Issue #197: the full-width weekday parentheses render smaller/lighter
+   than the day-of-month numerals beside them - see
+   TicketOpportunityRow.tsx's renderDateLabelWithWeekdayEmphasis. Inherits
+   DayRoleText's own inline role color (Saturday/Sunday/holiday), never a
+   separate color of its own. */
+.weekday {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
 }
 
 .timeLabel {
@@ -35,6 +82,7 @@
 }
 
 .body {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -56,15 +104,12 @@
   margin: 0;
 }
 
-.venue {
+/* Issue #197: replaces the old separate venue/opportunityName lines with
+   one compact source-backed line (compactSecondaryLine in
+   TicketOpportunityRow.tsx). */
+.secondaryLine {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.opportunityName {
-  font-size: var(--font-size-body);
-  color: var(--color-text);
   margin: 0;
 }
 
@@ -74,9 +119,34 @@
   margin: 0;
 }
 
+/* Issue #197: wraps the quiet source link + state mutation control so both
+   can be elevated (position + z-index) above the stretched .rowLink overlay
+   - a positioned descendant with a higher z-index paints, and receives
+   pointer events, above a positioned sibling with a lower one, regardless
+   of DOM order. Without this, clicking either would be intercepted by the
+   full-row link instead of triggering its own action. */
+.actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+}
+
 .sourceLink {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
   text-decoration: underline;
   align-self: flex-start;
+}
+
+.chevron {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: var(--font-size-title);
+  color: var(--color-neutral-500);
+  /* Purely decorative (aria-hidden) - never intercepts a click of its own,
+     always passing through to the stretched .rowLink beneath it. */
+  pointer-events: none;
 }

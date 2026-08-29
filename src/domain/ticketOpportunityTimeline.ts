@@ -37,6 +37,10 @@ export interface TicketOpportunityTimelineRow {
    * ticketOpportunityMilestoneSortInstant) - ordering-only, never displayed
    * directly (see ticketOpportunityFormatting.ts). */
   sortInstant: string;
+  /** The parent Event's own id (Issue #197: the row's whole-row link target,
+   * `/catalog/events/[eventId]`) - the Event Catalog's own identifier, not
+   * this Opportunity's id. */
+  eventId: string;
   eventTitle: string;
   eventVenue: string | null;
   /** The parent Event's own effective cancellation (Issue #172 root cause
@@ -142,6 +146,7 @@ export function buildTicketOpportunityTimelineRows(
         id: milestone.id,
         opportunityId: detail.opportunity.id,
         sortInstant: ticketOpportunityMilestoneSortInstant(milestone),
+        eventId: event.id,
         eventTitle: event.title,
         eventVenue: event.venue,
         eventCanceled: isEventCanceled(event),
