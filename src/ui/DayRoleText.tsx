@@ -17,14 +17,30 @@ export interface DayRoleTextProps {
   'aria-label'?: string;
 }
 
-/** Sunday / confirmed Japanese holiday -> `#a13b2e`; Saturday -> `#2f4a7a` -
- * the exact same semantic tokens (`--color-danger` / `--color-accent`) the
+/** Issue #189's own canonical color table: Sunday / confirmed Japanese
+ * holiday -> `#a13b2e` (`--color-danger`), Saturday -> `#2f4a7a`
+ * (`--color-accent`). `'weekday'` has no entry: it always inherits the
+ * caller's own text color (`--color-text` in every current consumer),
+ * never overridden here.
+ *
+ * For holiday and Saturday this happens to be the exact same token the
  * month calendar's own day-role CSS already pairs with those roles (see
- * MonthCalendar.module.css / MyMonthCalendar.module.css, which this
- * component does not touch - those stay a separate, out-of-scope styling
- * surface). `'weekday'` has no entry: it always inherits the caller's own
- * text color (`--color-text` in every current consumer), never overridden
- * here. */
+ * `.day.roleHoliday`/`.day.roleSaturday` in MonthCalendar.module.css /
+ * MyMonthCalendar.module.css, which this component does not touch - those
+ * stay a separate, out-of-scope styling surface). Sunday is the one
+ * exception: the calendar's own `.day.roleSunday` still points at
+ * `--color-calendar-sunday` (tokens.css), which currently resolves to
+ * `--color-status-danger-500` (`#b3413a`) - a distinct, not-yet-repinned
+ * value the calendar CSS's own comment (Issue #142) explains was
+ * deliberately kept separate from `--color-danger` pending a later
+ * convergence. This component uses `--color-danger` for Sunday because
+ * that is Issue #189's explicit canonical value (the table above), and
+ * repinning `--color-calendar-sunday`/the calendar's own CSS is calendar
+ * cell redesign - out of scope for this Task. The 4 list-date surfaces
+ * this component serves are therefore internally consistent with each
+ * other and with Issue #189's table, but a Sunday list-date and a Sunday
+ * calendar cell do not yet render the identical red until a future Task
+ * repins `--color-calendar-sunday` to close that gap. */
 const ROLE_COLOR: Partial<Record<CalendarDayRole, string>> = {
   holiday: 'var(--color-danger)',
   sunday: 'var(--color-danger)',

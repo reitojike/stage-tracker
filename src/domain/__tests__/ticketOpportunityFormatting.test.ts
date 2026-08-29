@@ -167,6 +167,31 @@ void test('formatTicketOpportunityMilestoneDisplay: accessibleDateLabel carries 
   assert.equal(ordinaryDisplay.accessibleDateLabel, ordinaryDisplay.dateLabel);
 });
 
+void test('formatTicketOpportunityMilestoneDisplay: holiday role and accessibleDateLabel also resolve correctly for datetime and window precision, not just date precision', () => {
+  // 2025-12-31T15:00:00Z = 2026-01-01 00:00 JST (元日, a confirmed holiday).
+  const datetimeDisplay = formatTicketOpportunityMilestoneDisplay(
+    baseRow({ temporalPrecision: 'datetime', dateValue: null, at: '2025-12-31T15:00:00.000Z' }),
+  );
+  assert.equal(datetimeDisplay.role, 'holiday');
+  assert.equal(datetimeDisplay.dateLabel, '1月1日（木）');
+  assert.equal(datetimeDisplay.accessibleDateLabel, '1月1日（木）（元日）');
+
+  // Window starting 2026-01-01 (元日) through 2026-01-03 - role/accessible
+  // label derive from the *start* date per this module's own documented
+  // convention, even though the visible dateLabel shows both ends.
+  const windowDisplay = formatTicketOpportunityMilestoneDisplay(
+    baseRow({
+      temporalPrecision: 'window',
+      dateValue: null,
+      startsAt: '2025-12-31T20:00:00.000Z', // 2026-01-01 05:00 JST
+      endsAt: '2026-01-03T10:00:00.000Z', // 2026-01-03 19:00 JST
+    }),
+  );
+  assert.equal(windowDisplay.role, 'holiday');
+  assert.match(windowDisplay.dateLabel, /^1月1日（木） 〜 1月3日（.）$/);
+  assert.equal(windowDisplay.accessibleDateLabel, '1月1日（木）（元日）');
+});
+
 void test('formatTicketOpportunityMilestoneDisplay: datetime/window precision derive role from the same shared authority', () => {
   // 2026-09-05T08:00:00Z = 2026-09-05 17:00 JST, a Saturday.
   assert.equal(

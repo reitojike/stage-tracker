@@ -32,3 +32,9 @@ void test('the selected-day heading reuses the shared calendarDayRole authority 
   );
   assert.doesNotMatch(source, /getUTCDay|getDay\(\)/);
 });
+
+void test('the DayRoleText role and the section aria-label are both wired to date, not to an unrelated or swapped value', () => {
+  const source = readFileSync(sourcePath, 'utf8');
+  assert.match(source, /<DayRoleText[\s\S]{0,40}role=\{calendarDayRole\(date\)\}/);
+  assert.match(source, /calendarDateAccessibleWeekdayLabel\(date\)/);
+});

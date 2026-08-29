@@ -44,3 +44,8 @@ void test('the date heading reuses the shared calendarDayRole authority and DayR
   );
   assert.doesNotMatch(source, /getUTCDay|getDay\(\)/);
 });
+
+void test('the DayRoleText role and the section aria-label are both wired to group.date, not to an unrelated or swapped value', () => {
+  assert.match(source, /<DayRoleText[\s\S]{0,40}role=\{calendarDayRole\(group\.date\)\}/);
+  assert.match(source, /aria-label=\{calendarDateAccessibleWeekdayLabel\(group\.date\)\}/);
+});
