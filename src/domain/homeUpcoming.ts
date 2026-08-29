@@ -62,13 +62,21 @@ function isAtOrAfter(candidateInstantIso: string, referenceInstantIso: string): 
   return Date.parse(candidateInstantIso) >= Date.parse(referenceInstantIso);
 }
 
-/** Issue #143 Task Contract minimum candidacy rule for a participation-
- * registered occurrence: `startsAt` at or after "now" - an occurrence
- * already in progress does not qualify (deliberately narrower than the
- * "currently active" allowance personal schedule gets below; the Task
- * Contract states this rule for occurrences with no such allowance). */
-function isOccurrenceCandidate(occurrence: EventOccurrence, nowInstant: string): boolean {
-  return isAtOrAfter(occurrence.startsAt, nowInstant);
+/** Issue #215 follow-up to the Issue #143 candidacy rule for a
+ * participation-registered occurrence: an occurrence whose registered start
+ * date is today in Asia/Tokyo remains a candidate for the whole Tokyo day,
+ * even after its start instant. Occurrences on a later date retain the old
+ * future-instant rule, while earlier Tokyo dates remain excluded. */
+function isOccurrenceCandidate(
+  occurrence: EventOccurrence,
+  nowInstant: string,
+  todayTokyoDate: string,
+): boolean {
+  const startTokyoDate = tokyoCalendarDateFromInstant(occurrence.startsAt);
+  return (
+    startTokyoDate === todayTokyoDate ||
+    (startTokyoDate > todayTokyoDate && isAtOrAfter(occurrence.startsAt, nowInstant))
+  );
 }
 
 /**
@@ -78,23 +86,20 @@ function isOccurrenceCandidate(occurrence: EventOccurrence, nowInstant: string):
  *   (`endsOn >= today`), including one already in progress today - this is
  *   exactly what lets a currently-active multi-day entry surface ahead of
  *   pure-future items once sorted by start (see compareHomeUpcomingItems).
- * - time-bounded with a known end: a candidate while that end is still at
- *   or after "now".
+ * - time-bounded with a known end: a candidate while that end's Tokyo
+ *   calendar date is today or later, including after today's end instant
+ *   until the Tokyo day changes (Issue #215).
  * - time-bounded with no end: never implicitly extended forever (the same
  *   "never assume it never ends" rule domain/myCalendar.ts's
  *   scheduleEntryDatesInRange documents) - a candidate only while its own
  *   start date hasn't already passed.
  */
-function isScheduleCandidate(
-  entry: PersonalScheduleEntry,
-  nowInstant: string,
-  todayTokyoDate: string,
-): boolean {
+function isScheduleCandidate(entry: PersonalScheduleEntry, todayTokyoDate: string): boolean {
   if (entry.temporal.kind === 'all-day') {
     return entry.temporal.endsOn >= todayTokyoDate;
   }
   if (entry.temporal.endsAt !== null) {
-    return isAtOrAfter(entry.temporal.endsAt, nowInstant);
+    return tokyoCalendarDateFromInstant(entry.temporal.endsAt) >= todayTokyoDate;
   }
   return tokyoCalendarDateFromInstant(entry.temporal.startsAt) >= todayTokyoDate;
 }
@@ -164,11 +169,11 @@ export function selectHomeUpcomingItems(
   todayTokyoDate: string,
 ): HomeUpcomingItem[] {
   const occurrenceItems: HomeUpcomingItem[] = occurrenceCandidates
-    .filter((candidate) => isOccurrenceCandidate(candidate.occurrence, nowInstant))
+    .filter((candidate) => isOccurrenceCandidate(candidate.occurrence, nowInstant, todayTokyoDate))
     .map((candidate) => ({ kind: 'occurrence', ...candidate }));
 
   const scheduleItems: HomeUpcomingItem[] = scheduleCandidates
-    .filter((candidate) => isScheduleCandidate(candidate.entry, nowInstant, todayTokyoDate))
+    .filter((candidate) => isScheduleCandidate(candidate.entry, todayTokyoDate))
     .map((candidate) => ({ kind: 'schedule', ...candidate }));
 
   const sorted = [...occurrenceItems, ...scheduleItems].sort(compareHomeUpcomingItems);
