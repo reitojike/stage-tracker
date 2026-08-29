@@ -81,8 +81,14 @@
   margin: 0;
 }
 
+/* Deliberately NOT `position: relative` - that would make .body's own
+   static content (title/badges/etc.) a positioned stacking-order
+   participant that paints *above* the static-content stacking step
+   .rowLink's absolute positioning already paints above, blocking
+   click-through to the row link everywhere except .dateColumn/.chevron.
+   Only .actions below needs its own stacking position, to outrank
+   .rowLink specifically. */
 .body {
-  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
