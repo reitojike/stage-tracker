@@ -321,7 +321,7 @@ export interface MyCalendarAgendaDateGroup {
   items: MyCalendarAgendaItem[];
 }
 
-function agendaItemId(item: MyCalendarAgendaItem): string {
+export function agendaItemId(item: MyCalendarAgendaItem): string {
   return item.kind === 'occurrence'
     ? item.occurrenceEntry.occurrence.id
     : item.scheduleEntry.entry.id;

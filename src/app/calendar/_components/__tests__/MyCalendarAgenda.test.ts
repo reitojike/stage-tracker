@@ -19,7 +19,7 @@ void test('month agenda uses the shared date-role authority and row presenter', 
 
 void test('month agenda row keys include source kind and logical id for deterministic identity', () => {
   const source = readFileSync(agendaPath, 'utf8');
-  assert.match(source, /key=\{`\$\{item\.kind\}-\$\{itemId\(item\)\}`\}/);
+  assert.match(source, /key=\{`\$\{item\.kind\}-\$\{agendaItemId\(item\)\}`\}/);
   assert.match(source, /data-agenda-date=\{group\.date\}/);
   assert.match(source, /data-agenda-item-kind=\{item\.kind\}/);
 });

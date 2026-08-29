@@ -1,5 +1,5 @@
 import { DayRoleText } from '@/ui/DayRoleText';
-import type { MyCalendarAgendaDateGroup, MyCalendarAgendaItem } from '@/domain/myCalendar.ts';
+import { agendaItemId, type MyCalendarAgendaDateGroup } from '@/domain/myCalendar.ts';
 import {
   calendarDateAccessibleWeekdayLabel,
   calendarDateWeekdayLabel,
@@ -12,12 +12,6 @@ export interface MyCalendarAgendaProps {
   /** Already projected, grouped, and ordered by domain/myCalendar.ts. */
   dateGroups: readonly MyCalendarAgendaDateGroup[];
   yearMonth: string;
-}
-
-function itemId(item: MyCalendarAgendaItem): string {
-  return item.kind === 'occurrence'
-    ? item.occurrenceEntry.occurrence.id
-    : item.scheduleEntry.entry.id;
 }
 
 /**
@@ -39,11 +33,11 @@ export function MyCalendarAgenda({ dateGroups, yearMonth }: MyCalendarAgendaProp
           <ul className={styles.items}>
             {group.items.map((item) => (
               <li
-                key={`${item.kind}-${itemId(item)}`}
+                key={`${item.kind}-${agendaItemId(item)}`}
                 className={styles.item}
                 data-agenda-date={group.date}
                 data-agenda-item-kind={item.kind}
-                data-agenda-item-id={itemId(item)}
+                data-agenda-item-id={agendaItemId(item)}
               >
                 <MyCalendarEntryRow
                   item={item}
