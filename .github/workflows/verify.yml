@@ -21,11 +21,36 @@ name: Verify
 # `Verify / Migration Ordering Fence` (Issue #131) is a fourth, pull_request-
 # only job: it also needs no remote Supabase credentials, but is not part of
 # the `verify` sequence above (it inspects PR metadata, not local/CI state).
+#
+# `Verify / Database` runs `npm run verify:database:ci`, not the `verify:
+# database` in the sequence above - identical DB/RLS/Auth/generated-types/
+# client-role coverage (see verify:database:checks in package.json) plus a
+# CI-specific initialization path (Issue #209): it skips `supabase db
+# reset` (redundant on this always-fresh runner - see the step's own
+# comment below) and excludes Supabase services no Database/RLS/Auth check
+# uses (Studio, Realtime, Storage/imgproxy, Edge Runtime, postgres-meta,
+# Analytics/Logflare/Vector, Supavisor - Mailpit and PostgREST/GoTrue/Kong
+# stay, since test/auth's magic-link flow and every RLS/Auth request need
+# them) to reduce cold-start image pulls and container registry exposure.
 
 on:
   push:
     branches: [main]
   pull_request:
+
+# Issue #209: cancel a PR's own obsolete Verify run when a new commit is
+# pushed to it, without serializing unrelated PRs against each other and
+# without cancelling a `main` push's post-merge Verify. `pull_request`
+# events group by PR number, so successive pushes to the same PR share one
+# group (and cancel-in-progress replaces the stale run); different PRs get
+# different groups and stay parallel. `push` events (main only, per the
+# trigger above) group by commit SHA, which is unique per push - so even
+# though cancel-in-progress evaluates to false for them, there is never
+# another run sharing that group to cancel, and a later merge's push (a
+# different SHA) cannot cancel an earlier merge's still-running Verify.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FOUNDATION_CHECKOUT: ${{ github.workspace }}/.foundation-checkout
@@ -113,8 +138,43 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Issue #209: this runner is always a fresh GitHub-hosted VM with no
+      # pre-existing Docker volumes, so `supabase start` here is always the
+      # true first start for this project (never a restore of an older,
+      # possibly stale local backup) and already applies every migration
+      # from disk - unlike a long-lived local/agent Supabase instance, where
+      # `supabase start` alone can silently resume from a prior backup
+      # instead of re-applying migrations, which is why `npm run
+      # verify:database` (the local/agent contract) still runs `supabase db
+      # reset` explicitly. `verify:database:ci` skips that redundant reset
+      # here; both scripts otherwise run the identical
+      # verify:database:checks (types drift, RLS, Auth, client-role
+      # privileges), so CI keeps the same coverage.
       - name: Verify / Database
-        run: npm run verify:database
+        run: npm run verify:database:ci
+
+      # Distinguishes deadlock/concurrency failures (SQLSTATE 40P01, already
+      # visible in the step above's own test output) from container
+      # startup/registry/network failures by capturing container health and
+      # each service's own logs. Every command is best-effort (`|| true`)
+      # so a diagnostics failure cannot mask or flip the primary failure
+      # above. Local Supabase only ever runs with its published local demo
+      # keys/JWT secret (never real credentials), so these logs carry
+      # nothing sensitive.
+      - name: Verify / Database diagnostics
+        if: failure()
+        run: |
+          echo "::group::supabase status"
+          npx supabase status || true
+          echo "::endgroup::"
+          echo "::group::docker ps -a"
+          docker ps -a || true
+          echo "::endgroup::"
+          for container in supabase_db_stage-tracker supabase_auth_stage-tracker supabase_rest_stage-tracker supabase_kong_stage-tracker supabase_inbucket_stage-tracker; do
+            echo "::group::docker logs $container (tail 300)"
+            docker logs "$container" --tail 300 2>&1 || true
+            echo "::endgroup::"
+          done
 
   # Pre-merge fence for Issue #131 (root cause: #121/#124/#125 each merged a
   # migration-bearing PR without recording whether Production needed the
