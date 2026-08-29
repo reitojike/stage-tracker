@@ -14,12 +14,15 @@ export interface StatePanelProps {
  * Common state presentation primitive. `variant`とmessageの意味づけは
  * feature/domain層が所有し、このcomponentはpresentationのみを持つ
  * (docs/ux-ui.md「Common states」参照)。
+ *
+ * empty/error/unavailableはtitle -> description -> actionという同一の
+ * structural compositionと上下hairlineを共有する。違いはcopy（とrole）
+ * だけで表現し、赤やwarning iconでerrorを特別扱いしない
+ * (Issue #187: 赤は期限専用のtokenのため)。
  */
 export function StatePanel({ variant, title, description, action }: StatePanelProps) {
-  const classes = [styles.panel, styles[variant]].join(' ');
-
   return (
-    <div className={classes} role={variant === 'error' ? 'alert' : 'status'}>
+    <div className={styles.panel} role={variant === 'error' ? 'alert' : 'status'}>
       <p className={styles.title}>{title}</p>
       {description ? <p className={styles.description}>{description}</p> : null}
       {action}
