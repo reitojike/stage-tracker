@@ -271,6 +271,82 @@ void test('empty candidates yield an empty list', () => {
   assert.deepEqual(selectHomeUpcomingItems([], [], NOW, TODAY), []);
 });
 
+// --- Issue #192: HOME_WINDOW_DAYS bounds the window, with a next-1 fallback
+// when the window itself is empty ---
+
+void test('an occurrence exactly 14 days out is inside the window', () => {
+  const items = selectHomeUpcomingItems(
+    [
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'day-14', startsAt: '2026-08-24T00:00:00Z' }),
+      }),
+    ],
+    [],
+    NOW,
+    TODAY,
+  );
+  assert.deepEqual(itemIds(items), ['day-14']);
+});
+
+void test('zero candidates inside the 14-day window falls back to the single nearest outside-window item', () => {
+  const items = selectHomeUpcomingItems(
+    [
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'day-15', startsAt: '2026-08-25T00:00:00Z' }),
+      }),
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'day-20', startsAt: '2026-08-30T00:00:00Z' }),
+      }),
+    ],
+    [],
+    NOW,
+    TODAY,
+  );
+  assert.deepEqual(
+    itemIds(items),
+    ['day-15'],
+    'only the single nearest outside-window item, not both',
+  );
+});
+
+void test('at least one candidate inside the window means no outside-window fallback item is added', () => {
+  const items = selectHomeUpcomingItems(
+    [
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'inside-window', startsAt: '2026-08-11T00:00:00Z' }),
+      }),
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'outside-window', startsAt: '2026-08-30T00:00:00Z' }),
+      }),
+    ],
+    [],
+    NOW,
+    TODAY,
+  );
+  assert.deepEqual(itemIds(items), ['inside-window']);
+});
+
+void test('a currently-active multi-day schedule entry that started before the window still counts as inside it', () => {
+  const items = selectHomeUpcomingItems(
+    [],
+    [
+      scheduleCandidate({
+        entry: scheduleEntry({
+          id: 'active-multi-day',
+          temporal: { kind: 'all-day', startsOn: '2026-08-01', endsOn: '2026-08-20' },
+        }),
+      }),
+    ],
+    NOW,
+    TODAY,
+  );
+  assert.deepEqual(itemIds(items), ['active-multi-day']);
+});
+
+void test('zero candidates at all (nothing current/future) yields an empty list, not a fabricated fallback', () => {
+  assert.deepEqual(selectHomeUpcomingItems([], [], NOW, TODAY), []);
+});
+
 // --- grouping ---
 
 void test('groupHomeUpcomingItemsByDate groups contiguous same-date items, preserving order', () => {

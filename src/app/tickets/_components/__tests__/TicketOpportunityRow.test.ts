@@ -34,7 +34,14 @@ void test('the row never renders legacy outcome/inventory vocabulary', () => {
 void test('the personal-state control only renders for the first row of an Opportunity', () => {
   assert.match(
     rowSource,
-    /row\.isFirstRowForOpportunity\s*\?\s*\(\s*<TicketOpportunityStateControls/,
+    /row\.isFirstRowForOpportunity\s*&&[\s\S]{0,40}\?\s*\(\s*<TicketOpportunityStateControls/,
+  );
+});
+
+void test('the personal-state control never renders on a bounded post-final retained history row (Issue #192) - its application window has already closed', () => {
+  assert.match(
+    rowSource,
+    /row\.isFirstRowForOpportunity\s*&&\s*!row\.isPostFinalRetainedHistory\s*\?\s*\(\s*<TicketOpportunityStateControls/,
   );
 });
 
@@ -52,13 +59,27 @@ void test('the state controls module has no page-level "add" affordance for crea
 
 void test('the row shows a terminal 中止 badge when the whole Opportunity is effectively canceled (Issue #172 root cause B)', () => {
   assert.match(rowSource, /isTicketOpportunityRowEffectivelyCanceled/);
-  assert.match(rowSource, /isCanceled \? <Badge variant="terminal">中止<\/Badge> : null/);
+  assert.match(rowSource, /isCanceled \? \(\s*<Badge variant="terminal">中止<\/Badge>/);
+});
+
+void test('the row shows a terminal 受付終了 badge for bounded post-final retained history (Issue #192), deferring to 中止 when both are true', () => {
+  assert.match(
+    rowSource,
+    /isCanceled \? \(\s*<Badge variant="terminal">中止<\/Badge>\s*\) : row\.isPostFinalRetainedHistory \? \(\s*<Badge variant="terminal">受付終了<\/Badge>/,
+  );
 });
 
 void test('the row never re-derives its own deadline urgency threshold - it only renders the variant/label ticketOpportunityDeadlineBadge returns (Issue #191)', () => {
   assert.match(rowSource, /ticketOpportunityDeadlineBadge/);
   assert.doesNotMatch(rowSource, /myState\s*===|milestoneType\s*===/);
   assert.doesNotMatch(rowSource, /<=\s*3|<\s*14|days?\s*[<>]=?\s*\d/i);
+});
+
+void test('a bounded post-final retained history row never also queries ticketOpportunityDeadlineBadge (Issue #191/#192 integration) - would otherwise duplicate 受付終了 for a planned application_close row', () => {
+  assert.match(
+    rowSource,
+    /const deadlineBadge = row\.isPostFinalRetainedHistory\s*\?\s*null\s*:\s*ticketOpportunityDeadlineBadge\(row, todayTokyoDate\);/,
+  );
 });
 
 void test('the state controls cover every required transition, including applied -> planned', () => {

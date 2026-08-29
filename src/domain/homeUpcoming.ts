@@ -23,11 +23,9 @@ import {
   type EventOccurrence,
 } from './eventCatalog.ts';
 import type { Participation } from './participation.ts';
+import { HOME_UPCOMING_LIMIT, HOME_WINDOW_DAYS, isOnOrBeforeDaysAhead } from './visibleWindow.ts';
 
-/** Home shows only the 8 nearest current/future items - a bounded glance
- * surface, not a substitute for My Calendar's full planning view (Issue
- * #143 Task Contract: "Homeはfull calendarの代替ではない"). */
-export const HOME_UPCOMING_LIMIT = 8;
+export { HOME_UPCOMING_LIMIT, HOME_WINDOW_DAYS };
 
 export interface HomeUpcomingOccurrenceCandidate {
   event: EventCatalogEvent;
@@ -138,15 +136,26 @@ function compareHomeUpcomingItems(a: HomeUpcomingItem, b: HomeUpcomingItem): num
 }
 
 /**
- * Selects and orders Home's "直近の予定" items: every current/future
- * candidate from both sources (see isOccurrenceCandidate/isScheduleCandidate),
- * merged into one nearest-first list and capped at HOME_UPCOMING_LIMIT. Both
+ * Selects and orders Home's "直近の予定" items (Issue #192 bounded
+ * supersede of Issue #143's max-8/no-window projection): every current/
+ * future candidate from both sources (see isOccurrenceCandidate/
+ * isScheduleCandidate) is merged into one nearest-first list, then narrowed
+ * to HOME_WINDOW_DAYS (today..+14 Asia/Tokyo calendar days, inclusive) and
+ * capped at HOME_UPCOMING_LIMIT.
+ *
+ * When zero candidates fall inside that window, the single nearest
+ * candidate outside it is returned instead (Task Contract: "14日以内に1件も
+ * 無いときは、次の1件だけを日付付きで出す") - never an empty section as long
+ * as at least one current/future candidate exists at all. This fallback
+ * only ever contributes when the windowed list is empty: any candidate
+ * inside the window means no outside-window item is added.
+ *
  * `occurrenceCandidates` and `scheduleCandidates` are expected to already be
  * whatever the caller's own typed reads (listMyParticipations +
  * listVisiblePersonalSchedule, composed with the Event Catalog read
  * boundary) returned - this function performs no additional visibility
  * filtering that could substitute for RLS, only the temporal
- * candidacy/ordering/cap Home's Task Contract specifies.
+ * candidacy/window/ordering/cap Home's Task Contract specifies.
  */
 export function selectHomeUpcomingItems(
   occurrenceCandidates: readonly HomeUpcomingOccurrenceCandidate[],
@@ -162,9 +171,16 @@ export function selectHomeUpcomingItems(
     .filter((candidate) => isScheduleCandidate(candidate.entry, nowInstant, todayTokyoDate))
     .map((candidate) => ({ kind: 'schedule', ...candidate }));
 
-  return [...occurrenceItems, ...scheduleItems]
-    .sort(compareHomeUpcomingItems)
-    .slice(0, HOME_UPCOMING_LIMIT);
+  const sorted = [...occurrenceItems, ...scheduleItems].sort(compareHomeUpcomingItems);
+
+  const withinWindow = sorted.filter((item) =>
+    isOnOrBeforeDaysAhead(homeUpcomingItemTokyoDate(item), todayTokyoDate, HOME_WINDOW_DAYS),
+  );
+
+  if (withinWindow.length > 0) {
+    return withinWindow.slice(0, HOME_UPCOMING_LIMIT);
+  }
+  return sorted.slice(0, 1);
 }
 
 export interface HomeUpcomingDateGroup {
