@@ -13,7 +13,9 @@
 
 .dateColumn {
   flex-shrink: 0;
-  width: 6.5em;
+  /* Issue #189: widened from 6.5em so the full-width weekday parentheses
+     ("8月30日（日）") never clip - the design handoff's own 7.1em basis. */
+  width: 7.1em;
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);

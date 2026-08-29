@@ -1,11 +1,17 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
+import { DayRoleText } from '@/ui/DayRoleText';
 import { StatePanel } from '@/ui/StatePanel';
 import type { SelectedDayOccurrence } from '@/domain/calendarMonth.ts';
 import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import type { EventClassification } from '@/domain/eventCatalog.ts';
+import {
+  calendarDateAccessibleWeekdayLabel,
+  calendarDateWeekdayLabel,
+  calendarDayRole,
+} from '@/domain/calendarDayRole.ts';
 import styles from './SelectedDayList.module.css';
 
 export interface SelectedDayListProps {
@@ -17,11 +23,6 @@ export interface SelectedDayListProps {
    * no genre (Issue #145 "unclassifiedはbadgeなし"). This component never
    * derives/推測 a genre from title/venue text itself. */
   classificationByEventId: ReadonlyMap<string, EventClassification>;
-}
-
-function dayLabel(date: string): string {
-  const [, monthStr, dayStr] = date.split('-');
-  return `${String(Number(monthStr ?? '1'))}月${String(Number(dayStr ?? '1'))}日`;
 }
 
 /**
@@ -38,8 +39,13 @@ export function SelectedDayList({
   classificationByEventId,
 }: SelectedDayListProps) {
   return (
-    <section aria-label={`${dayLabel(date)}の公演一覧`} className={styles.list}>
-      <h2 className={styles.heading}>{dayLabel(date)}</h2>
+    <section
+      aria-label={`${calendarDateAccessibleWeekdayLabel(date)}の公演一覧`}
+      className={styles.list}
+    >
+      <DayRoleText as="h2" role={calendarDayRole(date)} className={styles.heading}>
+        {calendarDateWeekdayLabel(date)}
+      </DayRoleText>
       {occurrences.length === 0 ? (
         <StatePanel variant="empty" title="この日に登録されている公演はありません" />
       ) : (

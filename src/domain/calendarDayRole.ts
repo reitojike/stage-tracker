@@ -96,3 +96,52 @@ export function calendarDayRoleLabel(tokyoDate: string): string | null {
   }
   return null;
 }
+
+const WEEKDAY_GLYPHS = ['日', '月', '火', '水', '木', '金', '土'] as const;
+
+/** The visible weekday character for a date, always present regardless of
+ * role - unlike calendarDayRoleLabel above, which returns the *holiday
+ * name* for a holiday and `null` for an ordinary weekday. Issue #189: a
+ * list-date heading's visible weekday glyph must never be replaced by the
+ * holiday name (that would suppress "which day of the week" information a
+ * holiday-on-Tuesday date still needs to show). */
+export function calendarDateWeekdayGlyph(tokyoDate: string): string {
+  const glyph = WEEKDAY_GLYPHS[weekdayOf(tokyoDate)];
+  if (glyph === undefined) {
+    throw new Error(`unexpected weekday index for ${tokyoDate}`);
+  }
+  return glyph;
+}
+
+/**
+ * "8月30日（日）" - the single shared "M月D日（曜）" list-date label (Issue
+ * #189 Task Contract), full-width parentheses, every weekday included (not
+ * just Saturday/Sunday/holiday). This is the one place every list-date
+ * surface (Home upcoming, Event Catalog selected-date, My Calendar
+ * selected-date, Tickets date column) derives its visible date text from -
+ * callers must not re-implement their own month/day/weekday formatting.
+ */
+export function calendarDateWeekdayLabel(tokyoDate: string): string {
+  const { month, day } = parseTokyoCalendarDate(tokyoDate);
+  return `${String(month)}月${String(day)}日（${calendarDateWeekdayGlyph(tokyoDate)}）`;
+}
+
+/**
+ * `calendarDateWeekdayLabel` plus the official holiday name for a
+ * `'holiday'`-role date - for a non-visible-text accessibility channel
+ * (e.g. an `aria-label`), since the visible label itself deliberately never
+ * substitutes the holiday name for the weekday glyph (see
+ * calendarDateWeekdayGlyph). Color is never the sole carrier of a holiday's
+ * meaning (this module's own accessibility baseline, see header) - callers
+ * that render this module's color role for a date should pair it with this
+ * label somewhere non-color, not just the plain calendarDateWeekdayLabel.
+ * Identical to calendarDateWeekdayLabel for every non-holiday role.
+ */
+export function calendarDateAccessibleWeekdayLabel(tokyoDate: string): string {
+  const label = calendarDateWeekdayLabel(tokyoDate);
+  const holidayName = calendarDayRoleLabel(tokyoDate);
+  if (calendarDayRole(tokyoDate) !== 'holiday' || holidayName === null) {
+    return label;
+  }
+  return `${label}（${holidayName}）`;
+}

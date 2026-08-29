@@ -1,4 +1,5 @@
 import { Badge } from '@/ui/Badge';
+import { DayRoleText } from '@/ui/DayRoleText';
 import { isRenderableHttpUrl } from '@/domain/catalogFormatting.ts';
 import {
   formatTicketOpportunityMilestoneDisplay,
@@ -64,7 +65,14 @@ export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityR
   return (
     <li className={styles.row}>
       <div className={styles.dateColumn}>
-        <p className={styles.dateLabel}>{display.dateLabel}</p>
+        <DayRoleText
+          as="p"
+          role={display.role}
+          className={styles.dateLabel}
+          aria-label={display.accessibleDateLabel}
+        >
+          {display.dateLabel}
+        </DayRoleText>
         {display.timeLabel !== null ? (
           <p className={styles.timeLabel}>{display.timeLabel}</p>
         ) : null}

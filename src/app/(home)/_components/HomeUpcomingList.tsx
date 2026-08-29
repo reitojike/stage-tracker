@@ -1,12 +1,17 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
+import { DayRoleText } from '@/ui/DayRoleText';
 import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import { participationStatusLabel } from '@/domain/myCalendarFormatting.ts';
 import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
 import { tokyoCalendarDateFromInstant } from '@/domain/eventCatalog.ts';
-import { calendarDayRole, calendarDayRoleLabel } from '@/domain/calendarDayRole.ts';
+import {
+  calendarDateAccessibleWeekdayLabel,
+  calendarDateWeekdayLabel,
+  calendarDayRole,
+} from '@/domain/calendarDayRole.ts';
 import type { HomeUpcomingDateGroup, HomeUpcomingItem } from '@/domain/homeUpcoming.ts';
 import styles from './HomeUpcomingList.module.css';
 
@@ -14,17 +19,6 @@ export interface HomeUpcomingListProps {
   /** Already selected/ordered/grouped via domain/homeUpcoming.ts - this
    * component adds no candidacy/ordering judgment of its own. */
   dateGroups: readonly HomeUpcomingDateGroup[];
-}
-
-/** "8月28日（金）" - same weekday-aware date label MySelectedDayList uses
- * for its own selected-day heading, reused here per date group instead of
- * per selected day. */
-function dateGroupHeadingLabel(date: string): string {
-  const [, monthStr, dayStr] = date.split('-');
-  const role = calendarDayRole(date);
-  const roleLabel = calendarDayRoleLabel(date);
-  const base = `${String(Number(monthStr ?? '1'))}月${String(Number(dayStr ?? '1'))}日`;
-  return role === 'weekday' || roleLabel === null ? base : `${base}（${roleLabel}）`;
 }
 
 /** The occurrence's own Tokyo calendar date as an Event-detail deep-link
@@ -100,8 +94,10 @@ export function HomeUpcomingList({ dateGroups }: HomeUpcomingListProps) {
   return (
     <div className={styles.list}>
       {dateGroups.map((group) => (
-        <section key={group.date} aria-label={dateGroupHeadingLabel(group.date)}>
-          <h3 className={styles.dateHeading}>{dateGroupHeadingLabel(group.date)}</h3>
+        <section key={group.date} aria-label={calendarDateAccessibleWeekdayLabel(group.date)}>
+          <DayRoleText as="h3" role={calendarDayRole(group.date)} className={styles.dateHeading}>
+            {calendarDateWeekdayLabel(group.date)}
+          </DayRoleText>
           <ul className={styles.items}>
             {group.items.map((item) => (
               <li

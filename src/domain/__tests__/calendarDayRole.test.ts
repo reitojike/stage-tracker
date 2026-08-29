@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  calendarDateAccessibleWeekdayLabel,
+  calendarDateWeekdayGlyph,
+  calendarDateWeekdayLabel,
   calendarDayRole,
   calendarDayRoleLabel,
   isWithinJapaneseHolidayDataCoverage,
@@ -53,4 +56,45 @@ void test('a date outside the snapshot coverage never reports the holiday role, 
 
 void test('the last date within coverage can still report the holiday role', () => {
   assert.equal(isWithinJapaneseHolidayDataCoverage(JAPANESE_HOLIDAY_DATA_COVERAGE_END), true);
+});
+
+// --- Issue #189: shared "M月D日（曜）" list-date label authority ---
+
+void test('calendarDateWeekdayGlyph always returns a weekday character, never null, regardless of role', () => {
+  assert.equal(calendarDateWeekdayGlyph('2026-08-25'), '火'); // ordinary weekday
+  assert.equal(calendarDateWeekdayGlyph('2026-08-22'), '土'); // saturday
+  assert.equal(calendarDateWeekdayGlyph('2026-08-23'), '日'); // sunday
+  assert.equal(calendarDateWeekdayGlyph('2026-01-01'), '木'); // holiday (元日, a Thursday)
+});
+
+void test('calendarDateWeekdayLabel uses full-width parentheses and never half-width', () => {
+  assert.equal(calendarDateWeekdayLabel('2026-08-30'), '8月30日（日）');
+  assert.doesNotMatch(calendarDateWeekdayLabel('2026-08-30'), /[()]/);
+});
+
+void test('calendarDateWeekdayLabel includes a weekday glyph for an ordinary weekday too, not just Saturday/Sunday', () => {
+  assert.equal(calendarDateWeekdayLabel('2026-08-25'), '8月25日（火）');
+});
+
+void test('calendarDateWeekdayLabel never substitutes the holiday name for the visible weekday glyph', () => {
+  // 2026-01-01 (元日) is a Thursday - the visible label must still read
+  // "木", never "元日".
+  const label = calendarDateWeekdayLabel('2026-01-01');
+  assert.equal(label, '1月1日（木）');
+  assert.doesNotMatch(label, /元日/);
+});
+
+void test('calendarDateAccessibleWeekdayLabel appends the official holiday name only for the holiday role', () => {
+  assert.equal(calendarDateAccessibleWeekdayLabel('2026-01-01'), '1月1日（木）（元日）');
+  assert.equal(calendarDateAccessibleWeekdayLabel('2026-08-30'), '8月30日（日）');
+  assert.equal(calendarDateAccessibleWeekdayLabel('2026-08-22'), '8月22日（土）');
+  assert.equal(calendarDateAccessibleWeekdayLabel('2026-08-25'), '8月25日（火）');
+});
+
+void test('a coverage-outside date still gets a plain weekday label, never a fabricated holiday annotation', () => {
+  const dayAfterCoverageEnd = '2027-11-24';
+  assert.equal(isWithinJapaneseHolidayDataCoverage(dayAfterCoverageEnd), false);
+  const label = calendarDateAccessibleWeekdayLabel(dayAfterCoverageEnd);
+  assert.equal(label, calendarDateWeekdayLabel(dayAfterCoverageEnd));
+  assert.doesNotMatch(label, /（.*）（.*）/); // no second holiday-name parenthetical appended
 });
