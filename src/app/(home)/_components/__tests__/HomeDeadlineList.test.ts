@@ -34,3 +34,13 @@ void test('the card shows the Opportunity display name alongside the Event title
   assert.match(source, /row\.eventTitle/);
   assert.match(source, /row\.opportunityDisplayName/);
 });
+
+void test("Issue #194: the card is now an Event-detail Link, built from the row's own eventId via the shared catalog navigation helper", () => {
+  assert.match(source, /from ['"]next\/link['"]/);
+  assert.match(source, /<Link\s+href=\{deadlineCardHref\(row, todayTokyoDate\)\}/);
+  assert.match(source, /catalogEventHref\(row\.eventId,/);
+});
+
+void test('Issue #194: the trailing chevron only renders when the source milestone carries a time - a date-only milestone shows no chevron', () => {
+  assert.match(source, /display\.timeLabel !== null \? \(\s*<span className=\{styles\.chevron\}/);
+});

@@ -18,3 +18,32 @@
 .blockHeading {
   composes: heading from '../mypage/_components/sectionHeading.module.css';
 }
+
+/* Issue #194: the deadline block's own heading row - unlike the plain
+   .blockHeading <h2> above, this section pairs the heading with a
+   "すべて見る ›" link to /tickets, so the shared bold rule moves onto this
+   row (a flex container) instead of directly on the <h2>, keeping the rule
+   under the row as a whole rather than just under the heading text. */
+.deadlineHeadingRow {
+  composes: heading from '../mypage/_components/sectionHeading.module.css';
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/* Resets the <h2>'s own UA font styling to inherit .deadlineHeadingRow's
+   (font-size/font-weight already come from the composed `heading` rule
+   above) - margin: 0 since the row itself, not this element, carries the
+   border/padding. */
+.deadlineHeadingText {
+  margin: 0;
+  font: inherit;
+}
+
+.deadlineAllLink {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-accent);
+  text-decoration: none;
+  white-space: nowrap;
+}

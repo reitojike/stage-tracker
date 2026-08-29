@@ -44,3 +44,33 @@ void test('the deadline block resolves target Occurrences (not an empty Map), so
     /buildTicketOpportunityTimelineRows\(\s*opportunitiesResult\.data,\s*eventsById,\s*new Map\(\),?\s*\)/,
   );
 });
+
+void test('Issue #194: the deadline heading row carries a "すべて見る" link to /tickets', () => {
+  assert.match(pageSource, /<Link href="\/tickets" className=\{styles\.deadlineAllLink\}>/);
+  assert.match(pageSource, /すべて見る ›/);
+});
+
+void test('Issue #194: a block read failure stays its own `unavailable` outcome, never collapsed into the combined empty guidance', () => {
+  assert.match(pageSource, /status === 'unavailable' \? \(\s*<StatePanel/);
+});
+
+void test('Issue #194: the combined empty guidance only fires when both blocks are independently empty, not merely one', () => {
+  assert.match(
+    pageSource,
+    /const bothEmpty = deadlineOutcome\.status === 'empty' && upcomingOutcome\.status === 'empty';/,
+  );
+});
+
+void test('Issue #194: per-block empty copy is distinct from the combined guidance copy, and each per-block panel is suppressed when both are empty', () => {
+  assert.match(pageSource, /期限が近いものはありません/);
+  assert.match(pageSource, /予定はありません/);
+  assert.match(pageSource, /期限が近い申し込みも、直近の予定もありません/);
+  assert.match(
+    pageSource,
+    /bothEmpty \? null : \(\s*<StatePanel variant="empty" title="期限が近いものはありません" \/>\s*\)/,
+  );
+  assert.match(
+    pageSource,
+    /bothEmpty \? null : \(\s*<StatePanel variant="empty" title="予定はありません" \/>\s*\)/,
+  );
+});

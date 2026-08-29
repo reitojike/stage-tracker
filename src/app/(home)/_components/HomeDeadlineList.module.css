@@ -32,9 +32,6 @@
 .card {
   flex: 0 0 150px;
   scroll-snap-align: start;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2xs);
   padding-block: var(--space-xs);
   padding-inline-end: var(--space-compact);
 }
@@ -44,6 +41,17 @@
 .card + .card {
   padding-inline-start: var(--space-compact);
   border-inline-start: 1px solid var(--color-border);
+}
+
+/* Issue #194: the whole card is now the tap target (Event detail link) -
+   this is what used to be .card's own flex column, moved onto the Link so
+   the anchor itself fills the card face rather than sitting inside it. */
+.cardLink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  color: inherit;
+  text-decoration: none;
 }
 
 .badge {
@@ -65,7 +73,21 @@
 }
 
 .deadline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2xs);
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
   margin: 0;
+}
+
+/* Issue #194 Task Contract: 15px, --color-icon-affordance (#737b82) - only
+   shown when the source milestone carries a time (see HomeDeadlineList.tsx's
+   own header); a date-only milestone shows no chevron even though the card
+   itself is still a link. */
+.chevron {
+  flex-shrink: 0;
+  font-size: 15px;
+  color: var(--color-icon-affordance);
 }

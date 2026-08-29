@@ -39,7 +39,11 @@ export interface TicketOpportunityTimelineRow {
   sortInstant: string;
   /** The parent Event's own id (Issue #197: the row's whole-row link target,
    * `/catalog/events/[eventId]`) - the Event Catalog's own identifier, not
-   * this Opportunity's id. */
+   * this Opportunity's id. Also consumed by Home's own deadline card link
+   * (Issue #194) for the same reason: every other Event-derived field on
+   * this row is already display text (eventTitle/eventVenue/eventCanceled),
+   * so this is the one consumers need to build a navigation href
+   * themselves rather than this domain module owning any UI/URL concern. */
   eventId: string;
   eventTitle: string;
   eventVenue: string | null;
