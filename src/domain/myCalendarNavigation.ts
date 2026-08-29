@@ -26,3 +26,12 @@ export function myCalendarMonthHref(yearMonth: string): string {
 export function myCalendarDayHref(yearMonth: string, date: string): string {
   return `/calendar?month=${yearMonth}&date=${date}`;
 }
+
+/** Issue #196: the selected-day "add" action/row's destination - carries
+ * the selected date into /schedule/new's own bounded prefill contract (see
+ * personalScheduleWrite.ts's resolveScheduleCreatePrefill), the same
+ * "pass current context along" convention myCalendarDayHref/
+ * catalogNewEventHref already use. */
+export function scheduleNewHrefForDate(date: string): string {
+  return `/schedule/new?date=${date}`;
+}

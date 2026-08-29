@@ -38,3 +38,39 @@ void test('the DayRoleText role and the section aria-label are both wired to dat
   assert.match(source, /<DayRoleText[\s\S]{0,40}role=\{calendarDayRole\(date\)\}/);
   assert.match(source, /calendarDateAccessibleWeekdayLabel\(date\)/);
 });
+
+// --- Issue #196: selected-day add row / empty-state primary add action ---
+
+void test('the empty selected-day state shows the #196 copy and a primary add action, not the old quiet empty panel', () => {
+  const source = readFileSync(sourcePath, 'utf8');
+  assert.match(source, /この日の予定はまだありません/);
+  assert.doesNotMatch(source, /この日に登録されている予定はありません/);
+  assert.match(source, /<StatePanel[\s\S]{0,120}variant="empty"[\s\S]{0,200}action=\{<LinkButton/);
+});
+
+void test('both the empty-state action and the trailing add row link to scheduleNewHrefForDate(date), not a hand-built href', () => {
+  const source = readFileSync(sourcePath, 'utf8');
+  assert.match(
+    source,
+    /import \{\s*scheduleNewHrefForDate\s*\} from '@\/domain\/myCalendarNavigation\.ts'/,
+  );
+  assert.match(source, /const addHref = scheduleNewHrefForDate\(date\);/);
+  const addHrefUsages = source.match(/href=\{addHref\}/g) ?? [];
+  assert.equal(
+    addHrefUsages.length,
+    2,
+    'addHref must be used by both the empty-state action and the trailing add row',
+  );
+});
+
+void test('the trailing add row carries its own addRow class (top+bottom hairline) and a "+" icon, not the shared .item row shape', () => {
+  const source = readFileSync(sourcePath, 'utf8');
+  assert.match(source, /<li className=\{styles\.addRow\}>/);
+  assert.match(source, /className=\{styles\.addRowLink\}/);
+  assert.match(source, />\s*\+\s*<\/span>/);
+});
+
+void test('the add-row copy is date-specific ("{M月D日}に予定を追加"), reusing myCalendarMonthDayLabel rather than a generic label', () => {
+  const source = readFileSync(sourcePath, 'utf8');
+  assert.match(source, /const addLabel = `\$\{myCalendarMonthDayLabel\(date\)\}に予定を追加`;/);
+});

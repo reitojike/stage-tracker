@@ -234,3 +234,32 @@ export function personalScheduleEntryToFormValues(
     ...temporalValues,
   };
 }
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * Issue #196's bounded prefill contract for /schedule/new: My Calendar's
+ * selected-day "add" action carries only a *date* (see
+ * myCalendarNavigation.ts's scheduleNewHrefForDate) - never a time, since
+ * none was ever selected - so this seeds the all-day temporal mode with a
+ * single-day range rather than fabricating a time the create form would
+ * otherwise have to guess (matching this module's own product-rules.md
+ * discipline: never fabricate precision a source didn't provide).
+ *
+ * A malformed/missing `date` query param is ignored (returns `{}`, the same
+ * empty initial `values` INITIAL_SCHEDULE_WRITE_FORM_STATE already uses) -
+ * this is client-supplied navigation state, not domain data, the same
+ * "ignore, don't error" treatment catalogNavigation.ts's
+ * resolveCatalogParams gives its own `date` param.
+ */
+export function resolveScheduleCreatePrefill(
+  searchParams: Readonly<Record<string, string | string[] | undefined>>,
+): RawFormValues {
+  const rawDate = firstValue(searchParams.date);
+  if (rawDate === undefined || !isValidCalendarDate(rawDate)) {
+    return {};
+  }
+  return { temporalMode: 'all-day', startsOn: rawDate, endsOn: rawDate };
+}

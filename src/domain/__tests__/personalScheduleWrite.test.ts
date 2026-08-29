@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   parsePersonalScheduleEntry,
   personalScheduleEntryToFormValues,
+  resolveScheduleCreatePrefill,
   type RawFormValues,
 } from '../personalScheduleWrite.ts';
 
@@ -178,4 +179,31 @@ void test('personalScheduleEntryToFormValues round-trips a time-bounded entry wi
   assert.equal(values.temporalMode, 'time-bounded');
   assert.equal(values.startsAt, '2026-03-01T09:00');
   assert.equal(values.endsAt, '');
+});
+
+// --- Issue #196: resolveScheduleCreatePrefill (/schedule/new's bounded
+// selected-date prefill contract, driven by My Calendar's own selected-day
+// add action) ---
+
+void test('resolveScheduleCreatePrefill seeds an all-day single-day range for a valid date param', () => {
+  const values = resolveScheduleCreatePrefill({ date: '2026-09-11' });
+  assert.deepEqual(values, {
+    temporalMode: 'all-day',
+    startsOn: '2026-09-11',
+    endsOn: '2026-09-11',
+  });
+});
+
+void test('resolveScheduleCreatePrefill takes the first value when date is repeated', () => {
+  const values = resolveScheduleCreatePrefill({ date: ['2026-09-11', '2026-09-12'] });
+  assert.equal(values.startsOn, '2026-09-11');
+});
+
+void test('resolveScheduleCreatePrefill ignores a missing date param', () => {
+  assert.deepEqual(resolveScheduleCreatePrefill({}), {});
+});
+
+void test('resolveScheduleCreatePrefill ignores a malformed date param', () => {
+  assert.deepEqual(resolveScheduleCreatePrefill({ date: '2026-13-40' }), {});
+  assert.deepEqual(resolveScheduleCreatePrefill({ date: 'not-a-date' }), {});
 });

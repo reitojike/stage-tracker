@@ -84,3 +84,39 @@
   gap: var(--space-xs);
   margin-top: var(--space-2xs);
 }
+
+/* Issue #196: the trailing "add" row always carries its own top/bottom
+   hairline, regardless of list position - unlike `.item`'s own
+   `:not(:last-child)` rule above (which only ever draws a *bottom* border,
+   and never on the true last row), this row is always last and still needs
+   both edges closed off. */
+.addRow {
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.addRowLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: var(--space-card-block) 0;
+  text-decoration: none;
+  color: var(--color-accent);
+  font-size: var(--font-size-body);
+  touch-action: manipulation;
+}
+
+.addRowLink:hover {
+  background-color: var(--color-surface-subtle);
+}
+
+.addRowLink:active {
+  background-color: var(--color-surface-active);
+}
+
+.addRowIcon {
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+}
