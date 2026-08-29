@@ -1,0 +1,48 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.heading {
+  composes: heading from './sectionHeading.module.css';
+}
+
+/*
+ * Row shape reuses the exact "plain row, bottom-border, no card Surface"
+ * vocabulary src/app/calendar/_components/MySelectedDayList.module.css
+ * already established (Issue #146) and HomeUpcomingList.module.css already
+ * composes onto Home's own list (Issue #143) - a third copy of the same
+ * nine rules would drift from those over time.
+ */
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  composes: item from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+.itemLink {
+  composes: itemLink from '../../calendar/_components/MySelectedDayList.module.css';
+}
+
+/* Single-line row label - deliberately not MySelectedDayList's `.title`
+   (font-weight-semibold): these are plain navigation rows, not event/entry
+   titles, and the design handoff's 12f mock renders them at regular
+   weight. */
+.label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text);
+}
+
+.chevron {
+  composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
+}
