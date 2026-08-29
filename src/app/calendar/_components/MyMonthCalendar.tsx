@@ -41,14 +41,28 @@ const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
  * rules. `shapeClass`/`variantClass` name keys into `styles` directly
  * (rather than pre-resolved class strings) so this stays a single source
  * of truth for both the legend and, if it drifts, an easy diff against the
- * grid's own class usage below. */
+ * grid's own class usage below.
+ *
+ * Issue #196: the participation rows reuse participationStatusLabel
+ * (rather than their own literal strings) so the legend can never drift
+ * from the exact wording MySelectedDayList's own row Badge already shows
+ * for the same statuses. The Personal Schedule swatch labels are untouched
+ * by #196 (kept as-is per that Issue's own instruction). */
 const LEGEND_ITEMS: readonly {
   shapeClass: 'legendDot' | 'legendSwatch';
   variantClass: 'dotFilled' | 'dotOutline' | 'bandFilled' | 'bandOutline';
   label: string;
 }[] = [
-  { shapeClass: 'legendDot', variantClass: 'dotFilled', label: '決まっている' },
-  { shapeClass: 'legendDot', variantClass: 'dotOutline', label: '検討中' },
+  {
+    shapeClass: 'legendDot',
+    variantClass: 'dotFilled',
+    label: participationStatusLabel('attending'),
+  },
+  {
+    shapeClass: 'legendDot',
+    variantClass: 'dotOutline',
+    label: participationStatusLabel('considering'),
+  },
   { shapeClass: 'legendSwatch', variantClass: 'bandFilled', label: '予定を確保する' },
   { shapeClass: 'legendSwatch', variantClass: 'bandOutline', label: '確保しない' },
 ];

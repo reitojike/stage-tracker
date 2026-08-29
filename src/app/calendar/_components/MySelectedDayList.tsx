@@ -1,22 +1,25 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
 import { DayRoleText } from '@/ui/DayRoleText';
+import { LinkButton } from '@/ui/LinkButton';
 import { StatePanel } from '@/ui/StatePanel';
 import type { MyCalendarOccurrenceEntry, MyCalendarScheduleEntry } from '@/domain/myCalendar.ts';
 import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
 import { occurrenceTimeRangeLabel } from '@/domain/catalogFormatting.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
 import {
+  myCalendarMonthDayLabel,
+  myCalendarScheduleTemporalLabel,
   participationStatusLabel,
   ticketDisplayStatusBadgeVariant,
   ticketDisplayStatusLabel,
 } from '@/domain/myCalendarFormatting.ts';
-import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
 import {
   calendarDateAccessibleWeekdayLabel,
   calendarDateWeekdayLabel,
   calendarDayRole,
 } from '@/domain/calendarDayRole.ts';
+import { scheduleNewHrefForDate } from '@/domain/myCalendarNavigation.ts';
 import styles from './MySelectedDayList.module.css';
 
 export interface MySelectedDayListProps {
@@ -46,6 +49,8 @@ export function MySelectedDayList({
   eventDetailContext,
 }: MySelectedDayListProps) {
   const isEmpty = occurrenceEntries.length === 0 && scheduleEntries.length === 0;
+  const addLabel = `${myCalendarMonthDayLabel(date)}に予定を追加`;
+  const addHref = scheduleNewHrefForDate(date);
 
   return (
     <section
@@ -57,7 +62,14 @@ export function MySelectedDayList({
       </DayRoleText>
 
       {isEmpty ? (
-        <StatePanel variant="empty" title="この日に登録されている予定はありません" />
+        // Issue #196: a first-time user is especially likely to land on an
+        // empty day, so this state gets a **primary** add action rather than
+        // the plain add row below (which non-empty days get instead).
+        <StatePanel
+          variant="empty"
+          title="この日の予定はまだありません"
+          action={<LinkButton href={addHref}>{addLabel}</LinkButton>}
+        />
       ) : (
         <ul className={styles.items}>
           {occurrenceEntries.map(({ event, occurrence, participation, ticketStatus }) => (
@@ -105,7 +117,9 @@ export function MySelectedDayList({
                     {!entry.blocking ? <Badge variant="outline">予定を確保しない</Badge> : null}
                   </span>
                   <span className={styles.title}>{entry.title}</span>
-                  <span className={styles.time}>{scheduleTemporalLabel(entry.temporal)}</span>
+                  <span className={styles.time}>
+                    {myCalendarScheduleTemporalLabel(entry.temporal)}
+                  </span>
                   {entry.memo !== null && entry.memo.length > 0 ? (
                     <span className={styles.venue}>{entry.memo}</span>
                   ) : null}
@@ -116,6 +130,19 @@ export function MySelectedDayList({
               </Link>
             </li>
           ))}
+
+          {/* Issue #196: a selected day's list always ends with this add
+              row (its own closing hairline - see .addRow in the CSS
+              module), so adding another entry for the same day is always
+              one tap away without leaving the list. */}
+          <li className={styles.addRow}>
+            <Link href={addHref} className={styles.addRowLink}>
+              <span className={styles.addRowIcon} aria-hidden="true">
+                +
+              </span>
+              {addLabel}
+            </Link>
+          </li>
         </ul>
       )}
     </section>

@@ -84,3 +84,41 @@
   gap: var(--space-xs);
   margin-top: var(--space-2xs);
 }
+
+/* Issue #196: the trailing "add" row is always appended after at least one
+   `.item` (an empty day short-circuits to the empty-state branch below and
+   never renders this list at all), which means the preceding `.item` is no
+   longer `:last-child` once `.addRow` follows it - `.item`'s own
+   `:not(:last-child)` rule above already draws that row's bottom border,
+   so this only needs its own `border-bottom` to close off the list's true
+   bottom edge; a `border-top` here would double up against the `.item`'s
+   border directly above it. */
+.addRow {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.addRowLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: var(--space-card-block) 0;
+  text-decoration: none;
+  color: var(--color-accent);
+  font-size: var(--font-size-body);
+  touch-action: manipulation;
+}
+
+.addRowLink:hover {
+  background-color: var(--color-surface-subtle);
+}
+
+.addRowLink:active {
+  background-color: var(--color-surface-active);
+}
+
+.addRowIcon {
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+}

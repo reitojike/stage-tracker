@@ -1,5 +1,3 @@
-import { ActionRow } from '@/ui/ActionRow';
-import { LinkButton } from '@/ui/LinkButton';
 import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
@@ -234,11 +232,6 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   return (
     <>
       <PageHeading>カレンダー</PageHeading>
-      <ActionRow>
-        <LinkButton href="/schedule" variant="secondary">
-          個人予定を管理
-        </LinkButton>
-      </ActionRow>
 
       <MyMonthCalendar
         yearMonth={yearMonth}

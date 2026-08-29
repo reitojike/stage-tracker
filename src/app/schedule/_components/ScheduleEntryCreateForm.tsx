@@ -4,10 +4,19 @@ import { useActionState } from 'react';
 import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
+import type { RawFormValues } from '@/domain/personalScheduleWrite.ts';
 import { INITIAL_SCHEDULE_WRITE_FORM_STATE } from '@/domain/personalScheduleWriteFeedback.ts';
 import { createScheduleEntryAction } from '../_actions/scheduleWrite.ts';
 import { ScheduleFields } from './ScheduleFields.tsx';
 import styles from './ScheduleWriteForm.module.css';
+
+export interface ScheduleEntryCreateFormProps {
+  /** Issue #196: My Calendar's selected-day add action's bounded prefill
+   * (see personalScheduleWrite.ts's resolveScheduleCreatePrefill) - the
+   * page composes this from the `date` query param and passes it down, so
+   * this component itself stays free of Next.js searchParams handling. */
+  initialValues?: RawFormValues;
+}
 
 /**
  * Creates a personal schedule entry (Issue #37). Makes no permission
@@ -16,10 +25,12 @@ import styles from './ScheduleWriteForm.module.css';
  * form this needs no gating page above it - reachability alone
  * (src/proxy.ts) is enough.
  */
-export function ScheduleEntryCreateForm() {
+export function ScheduleEntryCreateForm({ initialValues }: ScheduleEntryCreateFormProps) {
   const [state, formAction, isPending] = useActionState(
     createScheduleEntryAction,
-    INITIAL_SCHEDULE_WRITE_FORM_STATE,
+    initialValues === undefined
+      ? INITIAL_SCHEDULE_WRITE_FORM_STATE
+      : { ...INITIAL_SCHEDULE_WRITE_FORM_STATE, values: initialValues },
   );
 
   return (
