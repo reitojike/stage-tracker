@@ -27,6 +27,12 @@ export interface TicketOpportunityRowProps {
  * row.isFirstRowForOpportunity - every other row for the same Opportunity
  * still shows the same current state as a quiet Badge, so state reads
  * consistently across every row without repeating the control.
+ *
+ * A row can also be Issue #192's bounded post-final terminal history
+ * (row.isPostFinalRetainedHistory) - the TURN 12 `受付終了` terminal badge
+ * for that case defers to the existing whole-Opportunity `中止` badge
+ * whenever both are true, never showing both at once (Task Contract:
+ * "Retained rowはcurrent cancellation terminal `中止`を上書きしない").
  */
 export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityRowProps) {
   const display = formatTicketOpportunityMilestoneDisplay(row);
@@ -44,7 +50,11 @@ export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityR
       <div className={styles.body}>
         <div className={styles.badgeRow}>
           <Badge variant="outline">{ticketOpportunityMilestoneTypeLabel(row.milestoneType)}</Badge>
-          {isCanceled ? <Badge variant="terminal">中止</Badge> : null}
+          {isCanceled ? (
+            <Badge variant="terminal">中止</Badge>
+          ) : row.isPostFinalRetainedHistory ? (
+            <Badge variant="terminal">受付終了</Badge>
+          ) : null}
           {row.myState !== null ? (
             <Badge variant={ticketOpportunityStateBadgeVariant(row.myState)}>
               {ticketOpportunityStateLabel(row.myState)}

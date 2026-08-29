@@ -1,7 +1,9 @@
 import type { EventCatalogEvent, EventOccurrence } from './eventCatalog.ts';
 import { sortOccurrences, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
 import { isEventCanceled } from './eventCancellation.ts';
+import { addDaysToDate } from './calendarMonth.ts';
 import { compareByFieldThenId } from './ordering.ts';
+import { ticketOpportunityMilestoneTokyoCalendarDate } from './ticketOpportunityFormatting.ts';
 import type {
   TicketOpportunityMilestoneTemporalPrecision,
   TicketOpportunityMilestoneType,
@@ -10,6 +12,7 @@ import type {
   UserTicketOpportunityStatus,
 } from './ticketOpportunity.ts';
 import { ticketOpportunityMilestoneSortInstant } from './ticketOpportunity.ts';
+import { TICKET_POST_FINAL_RETENTION_DAYS } from './visibleWindow.ts';
 
 // Flattens the #162 typed read boundary's per-Opportunity shape
 // (TicketOpportunityWithDetails: Opportunity + its milestones + caller's own
@@ -88,6 +91,18 @@ export interface TicketOpportunityTimelineRow {
    * milestone row and cluttering the timeline (Task Contract: "全milestone
    * rowに同じ大量controlを置いて timelineを著しく読みにくくしない"). */
   isFirstRowForOpportunity: boolean;
+  /** True only for a row selectTicketOpportunityPrimaryRows synthesizes as
+   * bounded post-final terminal history (Issue #192) - this Opportunity's
+   * last milestone is itself past, and today is still within
+   * TICKET_POST_FINAL_RETENTION_DAYS of that milestone's own final day.
+   * Always false on every row buildTicketOpportunityTimelineRows itself
+   * produces (that function has no notion of "today"); the /tickets
+   * presentation layer (TicketOpportunityRow.tsx) uses this to show the
+   * TURN 12 terminal `受付終了` vocabulary, deferring to the existing
+   * whole-Opportunity `中止` vocabulary when isTicketOpportunityRowEffectivelyCanceled
+   * is also true (Task Contract: "Retained rowはcurrent cancellation
+   * terminal `中止`を上書きしない"). */
+  isPostFinalRetainedHistory: boolean;
 }
 
 /**
@@ -144,6 +159,7 @@ export function buildTicketOpportunityTimelineRows(
         endsAt: milestone.endsAt,
         myState,
         isFirstRowForOpportunity: false,
+        isPostFinalRetainedHistory: false,
       });
     }
   }
@@ -215,34 +231,76 @@ export function isTicketOpportunityTimelineRowPast(
 }
 
 /**
- * The /tickets primary-view projection (Issue #175): from the full #144
+ * Whether an Opportunity's own chronologically-last row - already
+ * confirmed past by the caller (see selectTicketOpportunityPrimaryRows) -
+ * still falls within the Issue #192 bounded post-final retention window:
+ * TICKET_POST_FINAL_RETENTION_DAYS Asia/Tokyo calendar days after that
+ * milestone's own final day, inclusive of the boundary day itself (day 7
+ * still retained, day 8 dropped - Task Contract: "最後のマイルストーンも
+ * 過ぎたものは、その日から7日だけ残す").
+ *
+ * Reuses ticketOpportunityFormatting.ts's own
+ * ticketOpportunityMilestoneTokyoCalendarDate for "the final day" so this
+ * matches the exact same date/datetime/window precision priority Home's
+ * deadline projection already relies on (at > window end > start > bare
+ * date) - not a second, possibly-diverging date derivation.
+ */
+export function isTicketOpportunityPostFinalRetained(
+  finalRow: Pick<TicketOpportunityTimelineRow, 'dateValue' | 'at' | 'startsAt' | 'endsAt'>,
+  todayTokyoDate: string,
+): boolean {
+  const finalDay = ticketOpportunityMilestoneTokyoCalendarDate(finalRow);
+  const retentionEndDate = addDaysToDate(finalDay, TICKET_POST_FINAL_RETENTION_DAYS);
+  return todayTokyoDate <= retentionEndDate;
+}
+
+/**
+ * The /tickets primary-view projection (Issue #175, bounded post-final
+ * retention supersede by Issue #192): from the full #144
  * chronological timeline (buildTicketOpportunityTimelineRows's output -
  * every Opportunity's every milestone), select at most one row per
- * Opportunity - its current-or-next (earliest non-past) milestone.
+ * Opportunity.
  *
  * `rows` MUST already be in the globally chronologically-sorted order
  * buildTicketOpportunityTimelineRows produces. Each Opportunity's own rows
  * form a monotonic (chronologically ascending) subsequence of that order
  * (see that function's own header), so a single left-to-right scan that
  * keeps the first non-past row encountered per opportunityId is exactly
- * that Opportunity's earliest non-past milestone - no separate per-
- * Opportunity re-sort needed. The output list's relative order is therefore
- * already chronological, ready to feed straight into
- * groupTicketOpportunityTimelineRowsByMonth (Task Contract: "選択済みrowだけを
- * global chronology/month groupingへ流す").
+ * that Opportunity's earliest non-past (current-or-next) milestone - no
+ * separate per-Opportunity re-sort needed for that part. The same scan also
+ * records each Opportunity's chronologically-*last* row (last-write-wins
+ * over the same monotonic subsequence), which is what a second pass uses to
+ * decide bounded post-final retention for any Opportunity that never got a
+ * current/next row.
  *
- * An Opportunity with zero non-past milestones contributes no row at all -
- * it disappears from the primary view (Task Contract: "non-past milestoneが
- * 1件も残っていないOpportunityはprimary viewに表示しない"). This is a pure
- * past/non-past filter: it does not consult cancellation
+ * An Opportunity with zero non-past milestones no longer disappears
+ * immediately (Issue #175's original rule): if today is still within
+ * TICKET_POST_FINAL_RETENTION_DAYS of that Opportunity's own final
+ * milestone's final day (see isTicketOpportunityPostFinalRetained), that
+ * final row is kept as bounded terminal history
+ * (isPostFinalRetainedHistory: true); past the retention window, it drops
+ * entirely, exactly as #175 did (Task Contract: "7日を過ぎたら一覧から
+ * 落とす"). Neither path consults cancellation
  * (isTicketOpportunityRowEffectivelyCanceled, ticketOpportunityFormatting.ts)
- * - a canceled Opportunity's own non-past milestone still surfaces here, and
- * continues to render its terminal 中止 presentation exactly as before (see
- * that helper and TicketOpportunityRow.tsx), per #172's "canceledだから
- * personal stateやrow自体を消さない" boundary.
+ * - a canceled Opportunity's own surfaced row (current/next or retained)
+ * still renders its terminal 中止 presentation, which the presentation layer
+ * (TicketOpportunityRow.tsx) prefers over 受付終了 when both are true (Task
+ * Contract: "Retained rowはcurrent cancellation terminal `中止`を上書き
+ * しない"), per #172's "canceledだから personal stateやrow自体を消さない"
+ * boundary.
  *
- * The selected row's isFirstRowForOpportunity is forced true: by
- * construction at most one row survives per Opportunity here, so it is
+ * Because a current/next row and a retained-history row can never coexist
+ * for the same Opportunity (the second pass only runs for Opportunities the
+ * first pass didn't already select), and both scans preserve each
+ * Opportunity's own row content otherwise unchanged, the combined result is
+ * re-sorted chronologically (same comparator buildTicketOpportunityTimelineRows
+ * itself uses) before returning - retained-history rows sort by their own
+ * (past) sortInstant, ahead of any current/future row, ready to feed
+ * straight into groupTicketOpportunityTimelineRowsByMonth (Task Contract:
+ * "選択済みrowだけをglobal chronology/month groupingへ流す").
+ *
+ * The selected row's isFirstRowForOpportunity is forced true in both paths:
+ * by construction at most one row survives per Opportunity here, so it is
  * always the (only, hence first) row the UI should attach the personal
  * `planned`/`applied` state control to (TicketOpportunityRow.tsx).
  */
@@ -253,7 +311,10 @@ export function selectTicketOpportunityPrimaryRows(
 ): TicketOpportunityTimelineRow[] {
   const selected: TicketOpportunityTimelineRow[] = [];
   const selectedOpportunityIds = new Set<string>();
+  const lastRowByOpportunityId = new Map<string, TicketOpportunityTimelineRow>();
+
   for (const row of rows) {
+    lastRowByOpportunityId.set(row.opportunityId, row);
     if (selectedOpportunityIds.has(row.opportunityId)) {
       continue;
     }
@@ -261,9 +322,27 @@ export function selectTicketOpportunityPrimaryRows(
       continue;
     }
     selectedOpportunityIds.add(row.opportunityId);
-    selected.push({ ...row, isFirstRowForOpportunity: true });
+    selected.push({ ...row, isFirstRowForOpportunity: true, isPostFinalRetainedHistory: false });
   }
-  return selected;
+
+  for (const [opportunityId, finalRow] of lastRowByOpportunityId) {
+    if (selectedOpportunityIds.has(opportunityId)) {
+      continue;
+    }
+    // Every row of this Opportunity failed the non-past check above
+    // (otherwise selectedOpportunityIds would already contain it), so
+    // finalRow - its own chronologically-last row - is itself confirmed
+    // past here.
+    if (isTicketOpportunityPostFinalRetained(finalRow, todayTokyoDate)) {
+      selected.push({
+        ...finalRow,
+        isFirstRowForOpportunity: true,
+        isPostFinalRetainedHistory: true,
+      });
+    }
+  }
+
+  return [...selected].sort((a, b) => compareByFieldThenId(a, b, (row) => row.sortInstant));
 }
 
 export interface TicketOpportunityTimelineMonthGroup {

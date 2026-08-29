@@ -28,6 +28,7 @@ function baseRow(
     endsAt: null,
     myState: 'planned',
     isFirstRowForOpportunity: false,
+    isPostFinalRetainedHistory: false,
     ...overrides,
   };
 }
@@ -74,7 +75,10 @@ void test('selectHomeDeadlineRows keeps only planned + application_close + today
 
 void test('selectHomeDeadlineRows orders nearest deadline first', () => {
   const rows = [
-    baseRow({ id: 'far', dateValue: '2026-09-20' }),
+    // '2026-09-14' is the furthest date still inside the 14-day window from
+    // TODAY ('2026-09-01') - see the dedicated window-boundary tests below
+    // for the day 14/15 cutoff itself.
+    baseRow({ id: 'far', dateValue: '2026-09-14' }),
     baseRow({ id: 'near', dateValue: '2026-09-02' }),
     baseRow({ id: 'mid', dateValue: '2026-09-10' }),
   ];
@@ -89,20 +93,21 @@ void test('selectHomeDeadlineRows orders nearest deadline first', () => {
 void test('selectHomeDeadlineRows orders a window-precision application_close by its end, not its start', () => {
   const rows = [
     // Opens first (earlier start) but closes *after* the other row's close -
-    // must not sort ahead of it by window start.
+    // must not sort ahead of it by window start. Both ends stay inside the
+    // 14-day window from TODAY ('2026-09-01').
     baseRow({
       id: 'opens-early-closes-late',
       temporalPrecision: 'window',
       dateValue: null,
       startsAt: '2026-09-01T00:00:00.000Z',
-      endsAt: '2026-09-15T23:59:00.000Z',
+      endsAt: '2026-09-14T10:00:00.000Z',
     }),
     baseRow({
       id: 'opens-late-closes-early',
       temporalPrecision: 'window',
       dateValue: null,
       startsAt: '2026-09-08T00:00:00.000Z',
-      endsAt: '2026-09-09T23:59:00.000Z',
+      endsAt: '2026-09-09T10:00:00.000Z',
     }),
   ];
 
@@ -142,6 +147,24 @@ void test('a row Home selects classifies via ticketOpportunityDeadlineBadge exac
     variant: 'deadline',
     label: '残り2日',
   });
+});
+
+// --- Issue #192: HOME_WINDOW_DAYS bounds the deadline block to today..+14
+// calendar days, with no count cap inside that window ---
+
+void test('selectHomeDeadlineRows: a deadline exactly 14 days out is still included, no count cap', () => {
+  const rows = [baseRow({ id: 'day-14', dateValue: '2026-09-15' })];
+  const selected = selectHomeDeadlineRows(rows, TODAY);
+  assert.deepEqual(
+    selected.map((row) => row.id),
+    ['day-14'],
+  );
+});
+
+void test('selectHomeDeadlineRows: a deadline 15 days out falls outside the window', () => {
+  const rows = [baseRow({ id: 'day-15', dateValue: '2026-09-16' })];
+  const selected = selectHomeDeadlineRows(rows, TODAY);
+  assert.deepEqual(selected, []);
 });
 
 // --- Issue #172 root cause B: a whole-Opportunity-canceled target must

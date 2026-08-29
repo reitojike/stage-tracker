@@ -51,6 +51,7 @@ function baseRow(
     endsAt: null,
     myState: null,
     isFirstRowForOpportunity: false,
+    isPostFinalRetainedHistory: false,
     ...overrides,
   };
 }

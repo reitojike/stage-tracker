@@ -52,7 +52,14 @@ void test('the state controls module has no page-level "add" affordance for crea
 
 void test('the row shows a terminal 中止 badge when the whole Opportunity is effectively canceled (Issue #172 root cause B)', () => {
   assert.match(rowSource, /isTicketOpportunityRowEffectivelyCanceled/);
-  assert.match(rowSource, /isCanceled \? <Badge variant="terminal">中止<\/Badge> : null/);
+  assert.match(rowSource, /isCanceled \? \(\s*<Badge variant="terminal">中止<\/Badge>/);
+});
+
+void test('the row shows a terminal 受付終了 badge for bounded post-final retained history (Issue #192), deferring to 中止 when both are true', () => {
+  assert.match(
+    rowSource,
+    /isCanceled \? \(\s*<Badge variant="terminal">中止<\/Badge>\s*\) : row\.isPostFinalRetainedHistory \? \(\s*<Badge variant="terminal">受付終了<\/Badge>/,
+  );
 });
 
 void test('the row never re-derives its own deadline urgency threshold - it only renders the variant/label ticketOpportunityDeadlineBadge returns (Issue #191)', () => {

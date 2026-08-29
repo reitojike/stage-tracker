@@ -456,10 +456,26 @@ void test('selectTicketOpportunityPrimaryRows: Issue #175 worked example switche
   );
   assert.deepEqual(primaryRowIdsAt('2026-09-03'), ['ms-close'], '9/3 -> 9/4だけ');
   assert.deepEqual(primaryRowIdsAt('2026-09-07'), ['ms-result'], '9/7 -> 9/8だけ');
+  // Issue #192 bounded post-final retention supersedes #175's original
+  // immediate-disappearance rule: the final milestone (9/8) going past no
+  // longer drops the Opportunity outright - it stays as terminal history
+  // through TICKET_POST_FINAL_RETENTION_DAYS (7 days: 9/9..9/15), and only
+  // disappears from 9/16 onward. See the dedicated retention boundary tests
+  // below for the exact day 7/8 cutoff.
   assert.deepEqual(
     primaryRowIdsAt('2026-09-10'),
+    ['ms-result'],
+    '9/10 -> 9/8終了から2日後、bounded post-final terminal historyとして残る',
+  );
+  assert.deepEqual(
+    primaryRowIdsAt('2026-09-15'),
+    ['ms-result'],
+    '9/15 -> 9/8終了から7日後、まだ残る（retention最終日）',
+  );
+  assert.deepEqual(
+    primaryRowIdsAt('2026-09-16'),
     [],
-    '9/10 -> Opportunity自体がprimary viewから消える',
+    '9/16 -> 9/8終了から8日後、retentionを過ぎてOpportunity自体がprimary viewから消える',
   );
 });
 
@@ -649,4 +665,217 @@ void test('selectTicketOpportunityPrimaryRows: cancellation is preserved on the 
     'a canceled Opportunity with a future milestone still surfaces',
   );
   assert.equal(row.myState, 'planned', 'canceling does not delete personal state');
+});
+
+// --- Issue #192: bounded post-final retention ------------------------------
+
+function singleMilestoneOpportunityRows(
+  finalMilestoneOverrides: Partial<TicketOpportunityMilestone>,
+  detailOverrides: Partial<TicketOpportunityWithDetails> = {},
+) {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-1' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({
+          id: 'ms-final',
+          opportunityId: 'opp-1',
+          milestoneType: 'application_close',
+          ...finalMilestoneOverrides,
+        }),
+      ],
+      myState: myState({ opportunityId: 'opp-1', status: 'planned' }),
+      ...detailOverrides,
+    },
+  ];
+  return buildTicketOpportunityTimelineRows(details, new Map([['event-1', event()]]), new Map());
+}
+
+void test('selectTicketOpportunityPrimaryRows: a date-precision final milestone is retained through day 7 and dropped on day 8', () => {
+  const rows = singleMilestoneOpportunityRows({
+    temporalPrecision: 'date',
+    dateValue: '2026-09-01',
+  });
+
+  const day7 = selectTicketOpportunityPrimaryRows(rows, '2026-09-08T03:00:00.000Z', '2026-09-08');
+  assert.deepEqual(
+    day7.map((r) => r.id),
+    ['ms-final'],
+    'day 7 after the final day: still retained',
+  );
+  assert.equal(day7[0]?.isPostFinalRetainedHistory, true);
+
+  const day8 = selectTicketOpportunityPrimaryRows(rows, '2026-09-09T03:00:00.000Z', '2026-09-09');
+  assert.deepEqual(day8, [], 'day 8 after the final day: dropped entirely');
+});
+
+void test('selectTicketOpportunityPrimaryRows: a datetime-precision final milestone retains using the Tokyo calendar date of `at`', () => {
+  // `at` is 2026-09-01T20:00:00Z, which is 2026-09-02 05:00 Asia/Tokyo - the
+  // retention window must anchor on that Tokyo calendar day (9/2), not the
+  // raw UTC date (9/1).
+  const rows = singleMilestoneOpportunityRows({
+    temporalPrecision: 'datetime',
+    dateValue: null,
+    at: '2026-09-01T20:00:00.000Z',
+  });
+
+  const day7 = selectTicketOpportunityPrimaryRows(rows, '2026-09-09T03:00:00.000Z', '2026-09-09');
+  assert.deepEqual(
+    day7.map((r) => r.id),
+    ['ms-final'],
+    'day 7 after the Tokyo final day (9/2): retained',
+  );
+
+  const day8 = selectTicketOpportunityPrimaryRows(rows, '2026-09-10T03:00:00.000Z', '2026-09-10');
+  assert.deepEqual(day8, [], 'day 8 after the Tokyo final day (9/2): dropped');
+});
+
+void test('selectTicketOpportunityPrimaryRows: a window-precision final milestone retains using the Tokyo calendar date of endsAt', () => {
+  const rows = singleMilestoneOpportunityRows({
+    temporalPrecision: 'window',
+    dateValue: null,
+    startsAt: '2026-08-28T00:00:00.000Z',
+    endsAt: '2026-09-01T00:00:00.000Z',
+  });
+
+  const day7 = selectTicketOpportunityPrimaryRows(rows, '2026-09-08T03:00:00.000Z', '2026-09-08');
+  assert.deepEqual(
+    day7.map((r) => r.id),
+    ['ms-final'],
+    'day 7 after endsAt (9/1): retained',
+  );
+
+  const day8 = selectTicketOpportunityPrimaryRows(rows, '2026-09-09T03:00:00.000Z', '2026-09-09');
+  assert.deepEqual(day8, [], 'day 8 after endsAt (9/1): dropped');
+});
+
+void test('selectTicketOpportunityPrimaryRows: a retained row never coexists with a current/next row for the same Opportunity (max 1 invariant)', () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-retained' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({
+          id: 'ms-retained-final',
+          opportunityId: 'opp-retained',
+          dateValue: '2026-09-01',
+        }),
+      ],
+      myState: null,
+    },
+    {
+      opportunity: opportunity({ id: 'opp-current' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({ id: 'ms-current-next', opportunityId: 'opp-current', dateValue: '2026-09-10' }),
+      ],
+      myState: null,
+    },
+  ];
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    new Map(),
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-05T03:00:00.000Z',
+    '2026-09-05',
+  );
+
+  assert.equal(primary.length, 2, 'exactly one row per Opportunity, whichever kind');
+  const retained = primary.find((r) => r.opportunityId === 'opp-retained');
+  const current = primary.find((r) => r.opportunityId === 'opp-current');
+  assert.equal(retained?.isPostFinalRetainedHistory, true);
+  assert.equal(current?.isPostFinalRetainedHistory, false);
+  assert.ok(
+    primary.every((r) => r.isFirstRowForOpportunity),
+    'both remain the personal-state control anchor for their own Opportunity',
+  );
+});
+
+void test('selectTicketOpportunityPrimaryRows: retained rows sort chronologically alongside current/next rows, ready for month grouping', () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-current', displayName: 'current' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({ id: 'ms-current', opportunityId: 'opp-current', dateValue: '2026-09-10' }),
+      ],
+      myState: null,
+    },
+    {
+      opportunity: opportunity({ id: 'opp-retained', displayName: 'retained' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({ id: 'ms-retained', opportunityId: 'opp-retained', dateValue: '2026-09-01' }),
+      ],
+      myState: null,
+    },
+  ];
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    new Map(),
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-05T03:00:00.000Z',
+    '2026-09-05',
+  );
+
+  assert.deepEqual(
+    primary.map((r) => r.id),
+    ['ms-retained', 'ms-current'],
+    'the past retained row sorts ahead of the future current/next row',
+  );
+});
+
+void test('selectTicketOpportunityPrimaryRows: personal planned/applied state is preserved on a retained row, never mutated', () => {
+  const rows = singleMilestoneOpportunityRows(
+    { dateValue: '2026-09-01' },
+    { myState: myState({ opportunityId: 'opp-1', status: 'applied' }) },
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-05T03:00:00.000Z',
+    '2026-09-05',
+  );
+  assert.equal(primary[0]?.myState, 'applied');
+});
+
+void test('selectTicketOpportunityPrimaryRows: a canceled Opportunity retains eventCanceled alongside isPostFinalRetainedHistory - presentation, not domain, decides which terminal badge wins', () => {
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-canceled', eventId: 'event-canceled' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({
+          id: 'ms-canceled-final',
+          opportunityId: 'opp-canceled',
+          dateValue: '2026-09-01',
+        }),
+      ],
+      myState: myState({ opportunityId: 'opp-canceled', status: 'planned' }),
+    },
+  ];
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([
+      ['event-canceled', event({ id: 'event-canceled', canceledAt: '2026-08-01T00:00:00.000Z' })],
+    ]),
+    new Map(),
+  );
+  const primary = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-05T03:00:00.000Z',
+    '2026-09-05',
+  );
+
+  assert.equal(primary.length, 1);
+  const row = primary[0];
+  assert.ok(row);
+  assert.equal(row.eventCanceled, true);
+  assert.equal(row.isPostFinalRetainedHistory, true);
 });
