@@ -1,19 +1,27 @@
 /*
- * Horizontal-scroll compact card row (Issue #143 Task Contract: 158px card
- * width, 8px gap). `overflow-x: auto` here (rather than on some ancestor)
- * is what keeps this row's own intrinsic content width from forcing the
- * page itself wider at 375px - setting overflow to anything but `visible`
- * makes a flex item's auto min-width resolve to 0 instead of its content's
- * natural size, so AppShell's column can size this row to the viewport and
- * only the row's own contents scroll internally.
+ * Horizontal-scroll compact card row (Design Wave 2, Issue #190: 150px card
+ * width, columns separated by a left hairline rather than a row gap).
+ * `overflow-x: auto` here (rather than on some ancestor) is what keeps this
+ * row's own intrinsic content width from forcing the page itself wider at
+ * 375px - setting overflow to anything but `visible` makes a flex item's
+ * auto min-width resolve to 0 instead of its content's natural size, so
+ * AppShell's column can size this row to the viewport and only the row's
+ * own contents scroll internally. `width: calc(100% + var(--space-md))` +
+ * `margin-inline-end: calc(-1 * var(--space-md))` together cancel AppShell's
+ * own trailing content padding (--space-md) so the row's own scrollport -
+ * not just its margin box - actually reaches the viewport edge (a bare
+ * negative margin alone changes only the box's margin box, not its own
+ * width/scrollport - `width: 100%` still resolves against the padded
+ * container first). `max-width: 100%` is dropped since it would otherwise
+ * re-clamp this expanded width back down. This lets a partially visible
+ * next card signal scrollability (Issue #190 Task Contract).
  */
 .row {
   display: flex;
-  width: 100%;
-  max-width: 100%;
+  width: calc(100% + var(--space-md));
   overflow-x: auto;
-  gap: var(--space-sm);
   margin: 0;
+  margin-inline-end: calc(-1 * var(--space-md));
   padding: 0;
   list-style: none;
   scroll-snap-type: x proximity;
@@ -22,14 +30,20 @@
 }
 
 .card {
-  flex: 0 0 158px;
+  flex: 0 0 150px;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
-  padding: var(--space-sm);
-  border-radius: var(--radius-surface);
-  background-color: var(--color-surface-subtle);
+  padding-block: var(--space-xs);
+  padding-inline-end: var(--space-compact);
+}
+
+/* Left hairline separates the 2nd column onward instead of a row gap - the
+   first card carries no leading rule (Issue #190 Task Contract). */
+.card + .card {
+  padding-inline-start: var(--space-compact);
+  border-inline-start: 1px solid var(--color-border);
 }
 
 .badge {

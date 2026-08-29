@@ -77,22 +77,23 @@
    * instead, so these two are no longer referenced by the semantic layer.
    * Left defined rather than removed - this Task's scope is the semantic
    * radius vocabulary, not primitive-scale cleanup.
-   * `--radius-scale-container` (12px) and `--radius-scale-band` (5px) are
-   * V2 refined "surface polish" (#96 -> #102) off-grid exceptions: the
-   * former is the frozen white-container corner radius (distinct from the
-   * smaller `md` control radius it replaces on containers), the latter is
-   * the calendar Event-range band's own dedicated step.
+   * `--radius-scale-container` (12px) is a V2 refined "surface polish"
+   * (#96 -> #102) off-grid exception - the frozen white-container corner
+   * radius (distinct from the smaller `md` control radius it replaces on
+   * containers). Design Wave 2 (Issue #190) removed the former
+   * `--radius-scale-band` (5px) primitive - the calendar Event-range band
+   * now points `--radius-band` (below) directly at the shared 2px badge
+   * step instead of a dedicated step.
    */
   --radius-scale-xs: 8px;
   --radius-scale-sm: 6px;
   --radius-scale-md: 10px;
   --radius-scale-container: 12px;
   --radius-scale-lg: 16px;
-  --radius-scale-band: 5px;
   --radius-scale-full: 999px;
   /* Design refresh (Issue #137, 藍と墨): badge/sheet corner radii for the
-     new paper/rule/border direction - distinct from the container/band
-     steps above, which later issues (#138+) migrate away from. */
+     new paper/rule/border direction - distinct from the container step
+     above, which later issues (#138+) migrate away from. */
   --radius-scale-badge: 2px;
   --radius-scale-sheet: 4px;
 
@@ -258,19 +259,22 @@
      --radius-control above (Issue #185); the two are no longer distinct
      steps. */
   --radius-control-sm: var(--radius-scale-sheet);
-  /* Borderless white container radius (#96 -> #102: Surface / StatePanel /
-     HomeNav / container-vocabulary consumers, and the calendar card
-     itself). Distinct from --radius-control's smaller step. */
+  /* Borderless white container radius (#96 -> #102: Surface / EventDetail /
+     InvitationCard / ParticipationPanel / ScheduleList). Design Wave 2
+     (Issue #190) removed the calendar card's and CalendarSkeleton's own use
+     of this token along with their white background - the remaining
+     consumers above are unrelated broad white cards this Task's scope does
+     not cover (see Issue #190 report). */
   --radius-surface: var(--radius-scale-container);
-  /* Calendar Event-range band's own dedicated radius (#96 -> #102) -
-     smaller than every other radius step, so the band reads as a thin
-     inline marker rather than another card-like shape. */
-  --radius-band: var(--radius-scale-band);
+  /* Calendar Event-range band's radius (#96 -> #102). Design Wave 2 (Issue
+     #190) converged this onto the shared 2px badge step below rather than
+     keeping its own dedicated primitive, so the band reads as one radius
+     vocabulary with Badge instead of a third bespoke step. */
+  --radius-band: var(--radius-scale-badge);
   --radius-pill: var(--radius-scale-full);
   /* Design refresh (Issue #137): badge corner (2px) and bottom-sheet top
      corner (4px) - the only two radius steps the new direction uses for
-     those roles. --radius-surface (12px) becomes unused as consumers
-     migrate in later issues, but stays defined per Issue #137's scope. */
+     those roles. */
   --radius-badge: var(--radius-scale-badge);
   --radius-sheet: var(--radius-scale-sheet);
 

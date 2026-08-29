@@ -1,13 +1,12 @@
+/* Design Wave 2 (Issue #190): the white card surface/radius/outer padding
+   this container previously carried (#96 -> #102) is removed - the grid now
+   sits directly on the page's own paper background, matching the other
+   hairline-composed screens. `gap` here is internal rhythm between the
+   header/weekday row/week rows/legend, not outer padding. */
 .calendar {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  background-color: var(--color-surface);
-  border-radius: var(--radius-surface);
-  /* Calendar card inner padding (#96 -> #102 approved direction: 8-10px,
-     distinct from Surface's own --space-md). Non-tappable container - no
-     chevron affordance (see docs/ux-ui.md container vocabulary). */
-  padding: var(--space-sm);
 }
 
 .header {
