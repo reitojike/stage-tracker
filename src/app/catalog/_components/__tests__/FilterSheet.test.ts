@@ -214,10 +214,10 @@ void test('genre chips wrap (never scroll) and meet the 44px tap target', () => 
   assert.match(chipRule[1] ?? '', /flex:\s*1 1 76px\s*;/);
   assert.match(chipRule[1] ?? '', /min-height:\s*44px\s*;/);
   assert.match(chipRule[1] ?? '', /border-radius:\s*var\(--radius-control\)\s*;/);
-  assert.match(
-    chipRule[1] ?? '',
-    /border-color:\s*var\(--color-chip-unselected-border\)\s*;|border:\s*1px solid var\(--color-chip-unselected-border\)\s*;/,
-  );
+  // Unselected chip boundary reuses --color-control-border (WCAG 2.2 SC
+  // 1.4.11 3:1-against-canvas token), not a bespoke lighter value - see the
+  // CSS's own doc comment above .chip.
+  assert.match(chipRule[1] ?? '', /border:\s*1px solid var\(--color-control-border\)\s*;/);
 });
 
 void test('the selected chip uses the accent fill / foreground pairing at 600 weight', () => {
