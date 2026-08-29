@@ -26,9 +26,11 @@
 
 /* The classic sr-only pattern (not display:none, which would also drop it
    from the tab order) - same technique as
-   src/ui/TriStateCheckbox.module.css's own .input. The row link has no
-   other visible text of its own (the visible date/title/badges below are
-   plain, non-link text), so this is its only accessible name. */
+   src/ui/TriStateCheckbox.module.css's own .input, but using clip-path
+   instead of the deprecated `clip` property (CodeRabbit finding on this
+   PR). The row link has no other visible text of its own (the visible
+   date/title/badges below are plain, non-link text), so this is its only
+   accessible name. */
 .srOnly {
   position: absolute;
   width: 1px;
@@ -36,7 +38,7 @@
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }

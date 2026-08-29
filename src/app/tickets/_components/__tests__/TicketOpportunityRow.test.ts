@@ -179,7 +179,7 @@ void test('the actions wrapper (state controls + source link) is elevated above 
 
 void test('the row-link has an accessible name via visually-hidden text, not by wrapping the visible title (avoids double announcement)', () => {
   assert.match(rowSource, /<span className=\{styles\.srOnly\}>\{row\.eventTitle\}/);
-  assert.match(rowCss, /\.srOnly\s*\{[\s\S]*?clip:\s*rect\(0, 0, 0, 0\);/);
+  assert.match(rowCss, /\.srOnly\s*\{[\s\S]*?clip-path:\s*inset\(50%\);/);
 });
 
 // --- Issue #197: official source reachability preserved ---
