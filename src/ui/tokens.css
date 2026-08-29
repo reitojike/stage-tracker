@@ -213,12 +213,11 @@
      holiday red, holiday優先). Saturday follows --color-accent itself (per
      Issue #137: 「土曜も同値」「現行の扱いを踏襲」) rather than the raw
      accent-600 primitive, so it tracks any future --color-accent repin.
-     Sunday/holiday keep the existing danger primitive until a later issue
-     revisits them; usage side always pairs this with a non-color cue
-     (text/icon), never color alone. */
+     Sunday/holiday follow the semantic --color-danger role; usage side
+     always pairs this with a non-color cue (text/icon), never color alone. */
   --color-calendar-saturday: var(--color-accent);
-  --color-calendar-sunday: var(--color-status-danger-500);
-  --color-calendar-holiday: var(--color-status-danger-500);
+  --color-calendar-sunday: var(--color-danger);
+  --color-calendar-holiday: var(--color-danger);
 
   /* badge role tint (Issue #138, #186): Badge is a 5 shape-based variant set
      (outline/subtle/done/deadline/terminal) replacing the former
