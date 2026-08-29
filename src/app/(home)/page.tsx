@@ -93,11 +93,15 @@ async function resolveParticipationEventsAndOccurrences(
  * - Block A: listTicketOpportunitiesWithDetails + getEventsByIds, filtered/
  *   ordered by domain/homeDeadlines.ts's selectHomeDeadlineRows (which
  *   reuses #144's own isActionableTicketOpportunityDeadline - "planned" +
- *   future/today "application_close" only).
+ *   future/today "application_close" only - bounded to HOME_WINDOW_DAYS by
+ *   Issue #192, no count cap within that window).
  * - Block B: listMyParticipations + listVisiblePersonalSchedule, composed
  *   with getOccurrencesByIds/getEventsByIds, projected by
- *   domain/homeUpcoming.ts's selectHomeUpcomingItems (nearest-first, capped
- *   at 8).
+ *   domain/homeUpcoming.ts's selectHomeUpcomingItems (nearest-first, bounded
+ *   to HOME_WINDOW_DAYS and capped at HOME_UPCOMING_LIMIT, with a single
+ *   nearest-outside-window fallback item when the window itself is empty -
+ *   Issue #192 bounded supersede of this Task's original max-8/unbounded
+ *   projection).
  *
  * The four independent reads (identity, Opportunities, participations,
  * personal schedule) start together via Promise.all. Past that point, Block

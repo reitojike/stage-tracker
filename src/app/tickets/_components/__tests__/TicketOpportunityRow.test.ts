@@ -34,7 +34,14 @@ void test('the row never renders legacy outcome/inventory vocabulary', () => {
 void test('the personal-state control only renders for the first row of an Opportunity', () => {
   assert.match(
     rowSource,
-    /row\.isFirstRowForOpportunity\s*\?\s*\(\s*<TicketOpportunityStateControls/,
+    /row\.isFirstRowForOpportunity\s*&&[\s\S]{0,40}\?\s*\(\s*<TicketOpportunityStateControls/,
+  );
+});
+
+void test('the personal-state control never renders on a bounded post-final retained history row (Issue #192) - its application window has already closed', () => {
+  assert.match(
+    rowSource,
+    /row\.isFirstRowForOpportunity\s*&&\s*!row\.isPostFinalRetainedHistory\s*\?\s*\(\s*<TicketOpportunityStateControls/,
   );
 });
 

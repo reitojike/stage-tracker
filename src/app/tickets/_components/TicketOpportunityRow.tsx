@@ -32,7 +32,11 @@ export interface TicketOpportunityRowProps {
  * (row.isPostFinalRetainedHistory) - the TURN 12 `受付終了` terminal badge
  * for that case defers to the existing whole-Opportunity `中止` badge
  * whenever both are true, never showing both at once (Task Contract:
- * "Retained rowはcurrent cancellation terminal `中止`を上書きしない").
+ * "Retained rowはcurrent cancellation terminal `中止`を上書きしない"). Such a
+ * row never renders the personal-state mutation control either - its
+ * application window has already objectively closed, so offering
+ * `申し込む予定にする`/`申し込み済みにする` would let a caller newly register
+ * planning state against an Opportunity nothing can still be done for.
  */
 export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityRowProps) {
   const display = formatTicketOpportunityMilestoneDisplay(row);
@@ -78,7 +82,7 @@ export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityR
             公式情報
           </a>
         ) : null}
-        {row.isFirstRowForOpportunity ? (
+        {row.isFirstRowForOpportunity && !row.isPostFinalRetainedHistory ? (
           <TicketOpportunityStateControls opportunityId={row.opportunityId} myState={row.myState} />
         ) : null}
       </div>

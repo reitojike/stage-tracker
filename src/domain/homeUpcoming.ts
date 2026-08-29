@@ -17,14 +17,13 @@
 // architecture import boundary in eslint.config.mjs).
 
 import { entryStart, instantSortKey, type PersonalScheduleEntry } from './personalSchedule.ts';
-import { addDaysToDate } from './calendarMonth.ts';
 import {
   tokyoCalendarDateFromInstant,
   type EventCatalogEvent,
   type EventOccurrence,
 } from './eventCatalog.ts';
 import type { Participation } from './participation.ts';
-import { HOME_UPCOMING_LIMIT, HOME_WINDOW_DAYS } from './visibleWindow.ts';
+import { HOME_UPCOMING_LIMIT, HOME_WINDOW_DAYS, isOnOrBeforeDaysAhead } from './visibleWindow.ts';
 
 export { HOME_UPCOMING_LIMIT, HOME_WINDOW_DAYS };
 
@@ -174,8 +173,9 @@ export function selectHomeUpcomingItems(
 
   const sorted = [...occurrenceItems, ...scheduleItems].sort(compareHomeUpcomingItems);
 
-  const windowEndDate = addDaysToDate(todayTokyoDate, HOME_WINDOW_DAYS);
-  const withinWindow = sorted.filter((item) => homeUpcomingItemTokyoDate(item) <= windowEndDate);
+  const withinWindow = sorted.filter((item) =>
+    isOnOrBeforeDaysAhead(homeUpcomingItemTokyoDate(item), todayTokyoDate, HOME_WINDOW_DAYS),
+  );
 
   if (withinWindow.length > 0) {
     return withinWindow.slice(0, HOME_UPCOMING_LIMIT);

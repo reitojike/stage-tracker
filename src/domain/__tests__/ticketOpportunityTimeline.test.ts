@@ -750,6 +750,83 @@ void test('selectTicketOpportunityPrimaryRows: a window-precision final mileston
   assert.deepEqual(day8, [], 'day 8 after endsAt (9/1): dropped');
 });
 
+void test('selectTicketOpportunityPrimaryRows: the true final milestone is the one with the latest final day, not the one that scans last by sortInstant', () => {
+  // application_close (window) starts 9/1 but does not truly end until 9/10
+  // - ticketOpportunityMilestoneSortInstant orders it by its *start*
+  // (9/1), placing it BEFORE result_announcement (datetime, 9/5) in the
+  // globally-sorted row list even though application_close's real final
+  // day (9/10) is later. Anchoring retention on "whichever row this scan
+  // happens to visit last" (sortInstant order) would wrongly pick
+  // result_announcement as final and retain/drop on the wrong dates.
+  const details: TicketOpportunityWithDetails[] = [
+    {
+      opportunity: opportunity({ id: 'opp-1' }),
+      targetOccurrenceIds: [],
+      milestones: [
+        milestone({
+          id: 'ms-application-close',
+          opportunityId: 'opp-1',
+          milestoneType: 'application_close',
+          temporalPrecision: 'window',
+          dateValue: null,
+          startsAt: '2026-09-01T00:00:00.000Z',
+          endsAt: '2026-09-10T00:00:00.000Z',
+        }),
+        milestone({
+          id: 'ms-result',
+          opportunityId: 'opp-1',
+          milestoneType: 'result_announcement',
+          temporalPrecision: 'datetime',
+          dateValue: null,
+          at: '2026-09-05T00:00:00.000Z',
+        }),
+      ],
+      myState: null,
+    },
+  ];
+  const rows = buildTicketOpportunityTimelineRows(
+    details,
+    new Map([['event-1', event()]]),
+    new Map(),
+  );
+
+  // Both milestones are past by 9/12 (application_close's window ended
+  // 9/10, result_announcement's instant passed 9/5) - the retained row
+  // must be the true final one (application_close, final day 9/10), not
+  // result_announcement (final day 9/5).
+  const day2AfterTrueFinal = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-12T03:00:00.000Z',
+    '2026-09-12',
+  );
+  assert.deepEqual(
+    day2AfterTrueFinal.map((r) => r.id),
+    ['ms-application-close'],
+    'retains the row whose own final day (9/10) is latest, not whichever sorted last',
+  );
+
+  // Retention must run through day 7 after 9/10 (i.e. through 9/17), not
+  // day 7 after the wrongly-anchored 9/5 (which would already have dropped
+  // by 9/13).
+  const day7AfterTrueFinal = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-17T03:00:00.000Z',
+    '2026-09-17',
+  );
+  assert.deepEqual(
+    day7AfterTrueFinal.map((r) => r.id),
+    ['ms-application-close'],
+    'day 7 after the true final day (9/10): still retained',
+  );
+
+  const day8AfterTrueFinal = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-18T03:00:00.000Z',
+    '2026-09-18',
+  );
+  assert.deepEqual(day8AfterTrueFinal, [], 'day 8 after the true final day (9/10): dropped');
+});
+
 void test('selectTicketOpportunityPrimaryRows: a retained row never coexists with a current/next row for the same Opportunity (max 1 invariant)', () => {
   const details: TicketOpportunityWithDetails[] = [
     {
@@ -791,7 +868,7 @@ void test('selectTicketOpportunityPrimaryRows: a retained row never coexists wit
   assert.equal(current?.isPostFinalRetainedHistory, false);
   assert.ok(
     primary.every((r) => r.isFirstRowForOpportunity),
-    'both remain the personal-state control anchor for their own Opportunity',
+    'both are the sole surfaced row for their own Opportunity (TicketOpportunityRow.tsx additionally gates the mutation control on !isPostFinalRetainedHistory)',
   );
 });
 

@@ -11,14 +11,13 @@
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).
 
-import { addDaysToDate } from './calendarMonth.ts';
 import { sortByFieldThenId } from './ordering.ts';
 import {
   isActionableTicketOpportunityDeadline,
   ticketOpportunityMilestoneTokyoCalendarDate,
 } from './ticketOpportunityFormatting.ts';
 import type { TicketOpportunityTimelineRow } from './ticketOpportunityTimeline.ts';
-import { HOME_WINDOW_DAYS } from './visibleWindow.ts';
+import { HOME_WINDOW_DAYS, isOnOrBeforeDaysAhead } from './visibleWindow.ts';
 
 /**
  * Every actionable deadline row within HOME_WINDOW_DAYS (today..+14 Asia/
@@ -41,12 +40,15 @@ export function selectHomeDeadlineRows(
   rows: readonly TicketOpportunityTimelineRow[],
   todayTokyoDate: string,
 ): TicketOpportunityTimelineRow[] {
-  const windowEndDate = addDaysToDate(todayTokyoDate, HOME_WINDOW_DAYS);
   const actionable = rows.filter((row) => {
     if (!isActionableTicketOpportunityDeadline(row, todayTokyoDate)) {
       return false;
     }
-    return ticketOpportunityMilestoneTokyoCalendarDate(row) <= windowEndDate;
+    return isOnOrBeforeDaysAhead(
+      ticketOpportunityMilestoneTokyoCalendarDate(row),
+      todayTokyoDate,
+      HOME_WINDOW_DAYS,
+    );
   });
   return sortByFieldThenId(actionable, (row) => ticketOpportunityMilestoneTokyoCalendarDate(row));
 }

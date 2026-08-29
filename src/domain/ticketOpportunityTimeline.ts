@@ -1,8 +1,7 @@
 import type { EventCatalogEvent, EventOccurrence } from './eventCatalog.ts';
 import { sortOccurrences, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
 import { isEventCanceled } from './eventCancellation.ts';
-import { addDaysToDate } from './calendarMonth.ts';
-import { compareByFieldThenId } from './ordering.ts';
+import { compareByFieldThenId, sortByFieldThenId } from './ordering.ts';
 import { ticketOpportunityMilestoneTokyoCalendarDate } from './ticketOpportunityFormatting.ts';
 import type {
   TicketOpportunityMilestoneTemporalPrecision,
@@ -12,7 +11,7 @@ import type {
   UserTicketOpportunityStatus,
 } from './ticketOpportunity.ts';
 import { ticketOpportunityMilestoneSortInstant } from './ticketOpportunity.ts';
-import { TICKET_POST_FINAL_RETENTION_DAYS } from './visibleWindow.ts';
+import { isOnOrBeforeDaysAhead, TICKET_POST_FINAL_RETENTION_DAYS } from './visibleWindow.ts';
 
 // Flattens the #162 typed read boundary's per-Opportunity shape
 // (TicketOpportunityWithDetails: Opportunity + its milestones + caller's own
@@ -250,8 +249,7 @@ export function isTicketOpportunityPostFinalRetained(
   todayTokyoDate: string,
 ): boolean {
   const finalDay = ticketOpportunityMilestoneTokyoCalendarDate(finalRow);
-  const retentionEndDate = addDaysToDate(finalDay, TICKET_POST_FINAL_RETENTION_DAYS);
-  return todayTokyoDate <= retentionEndDate;
+  return isOnOrBeforeDaysAhead(todayTokyoDate, finalDay, TICKET_POST_FINAL_RETENTION_DAYS);
 }
 
 /**
@@ -311,10 +309,29 @@ export function selectTicketOpportunityPrimaryRows(
 ): TicketOpportunityTimelineRow[] {
   const selected: TicketOpportunityTimelineRow[] = [];
   const selectedOpportunityIds = new Set<string>();
-  const lastRowByOpportunityId = new Map<string, TicketOpportunityTimelineRow>();
+  const finalRowByOpportunityId = new Map<string, TicketOpportunityTimelineRow>();
 
   for (const row of rows) {
-    lastRowByOpportunityId.set(row.opportunityId, row);
+    // Tracks the row with the LATEST final day (ticketOpportunityMilestoneTokyoCalendarDate)
+    // seen so far for this Opportunity - deliberately not "the last row this
+    // scan happens to visit". `rows` is sorted by sortInstant, and
+    // ticketOpportunityMilestoneSortInstant orders a window-precision
+    // milestone by its *start*, never its endsAt (see that function's own
+    // header) - so a window milestone whose real end is later than a
+    // later-sorting datetime/date milestone would otherwise be wrongly
+    // passed over as "not the final one" if this just kept the
+    // last-scanned row. Ties (same final day) keep the later-scanned row
+    // via `>=`, which is the closer-to-true-last choice within a single
+    // day, though the exact tie-break has no product-visible effect.
+    const existingFinalRow = finalRowByOpportunityId.get(row.opportunityId);
+    if (
+      existingFinalRow === undefined ||
+      ticketOpportunityMilestoneTokyoCalendarDate(row) >=
+        ticketOpportunityMilestoneTokyoCalendarDate(existingFinalRow)
+    ) {
+      finalRowByOpportunityId.set(row.opportunityId, row);
+    }
+
     if (selectedOpportunityIds.has(row.opportunityId)) {
       continue;
     }
@@ -325,14 +342,15 @@ export function selectTicketOpportunityPrimaryRows(
     selected.push({ ...row, isFirstRowForOpportunity: true, isPostFinalRetainedHistory: false });
   }
 
-  for (const [opportunityId, finalRow] of lastRowByOpportunityId) {
+  for (const [opportunityId, finalRow] of finalRowByOpportunityId) {
     if (selectedOpportunityIds.has(opportunityId)) {
       continue;
     }
     // Every row of this Opportunity failed the non-past check above
     // (otherwise selectedOpportunityIds would already contain it), so
-    // finalRow - its own chronologically-last row - is itself confirmed
-    // past here.
+    // finalRow - drawn from that same all-past row set - is itself
+    // confirmed past here, regardless of which one has the latest final
+    // day among them.
     if (isTicketOpportunityPostFinalRetained(finalRow, todayTokyoDate)) {
       selected.push({
         ...finalRow,
@@ -342,7 +360,7 @@ export function selectTicketOpportunityPrimaryRows(
     }
   }
 
-  return [...selected].sort((a, b) => compareByFieldThenId(a, b, (row) => row.sortInstant));
+  return sortByFieldThenId(selected, (row) => row.sortInstant);
 }
 
 export interface TicketOpportunityTimelineMonthGroup {
