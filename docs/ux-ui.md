@@ -71,7 +71,7 @@ personal participationを同一semanticとして混在させません。
 Catalog / Followed catalog / Personal scheduleの間をmobileで自然に移動
 できるIA（情報設計）とします。Design refresh（Issue #140）により、
 current PrimaryNavは画面に表示するlabelとして
-**ホーム / イベント / チケット / マイカレンダー** の4項目をmaterializeして
+**ホーム / イベント / チケット / カレンダー** の4項目をmaterializeして
 います。これは design_handoff_stage_tracker/README.md「共通: bottom nav」
 で確定したlabel setですが、Searchの独立tab化、Settings配置、future
 feature navまでをfreezeするものではありません（「本ドキュメントで固定
@@ -386,7 +386,7 @@ product-rules.md` が定めるEvent range（first-class data。Issue #87）と�
   `.ai-dev-foundation/product-rules.md`で承認済み）、category
   cardinality、saved filter preference
 - bottom navのSearch tab化 / Settings placement / future feature
-  navigation（Issue #140でホーム / イベント / チケット / マイカレンダーの
+  navigation（Issue #140でホーム / イベント / チケット / カレンダーの
   4項目label setは確定済みだが、これ以上の項目追加や永久的なfinal IAは
   未確定。チケット項目のリンク先 `/tickets` 自体は #144 の product
   semantics確定待ちで、この時点ではdead destination）

@@ -100,7 +100,7 @@ export function MyMonthCalendar({
   hasUnconfirmedHolidayCoverage,
 }: MyMonthCalendarProps) {
   return (
-    <section className={styles.calendar} aria-label={`${monthLabel(yearMonth)}のマイカレンダー`}>
+    <section className={styles.calendar} aria-label={`${monthLabel(yearMonth)}のカレンダー`}>
       {/* No showPending={false} here (Issue #103, supersedes #102's
           opt-out): LinkButton's default LinkPending now provides the
           tapped control's pending feedback. The chevron glyph itself is

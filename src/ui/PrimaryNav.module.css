@@ -32,6 +32,10 @@
 .link {
   position: relative;
   display: flex;
+  /* Fill the equal-width .item track (Issue #206): without this, the link
+     sizes to its own content and sits at the track's start, so the icon +
+     label center follows label width instead of the track center. */
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
