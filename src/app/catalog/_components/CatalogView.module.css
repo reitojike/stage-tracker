@@ -1,12 +1,13 @@
 /*
- * PageHeading keeps its own margin:0 (see PageHeading.module.css) - vertical
- * rhythm to this row's siblings comes entirely from AppShell's `.content`
- * flex `gap` (Issue #145: this row is a plain flex child there, same as the
- * bare PageHeading it replaces).
+ * PageHeading keeps its own margin:0 (see PageHeading.module.css) - the
+ * heading's top coordinate therefore stays at the row's top, matching the
+ * bare PageHeading in loading.tsx and the other AppShell screens. The row
+ * still grows to the filter control's 40px fill, but the title is not
+ * vertically centered inside that extra height.
  */
 .headingRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-sm);
 }
