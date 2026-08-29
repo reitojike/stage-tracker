@@ -38,15 +38,21 @@ export interface TicketOpportunityRowProps {
  * `申し込む予定にする`/`申し込み済みにする` would let a caller newly register
  * planning state against an Opportunity nothing can still be done for.
  *
- * Issue #191's own ticketOpportunityDeadlineBadge independently classifies
- * an already-past planned application_close row as the identical
- * `terminal`/`受付終了` badge (see that function's own header) - so a
- * retained row is never also fed to deadlineBadge below, which would
- * otherwise render that exact same label a second time (or, for any other
- * milestone shape, contribute nothing at all, since
- * ticketOpportunityDeadlineBadge only ever returns null for a row this
- * confirmed-past). #191's classification authority itself is unchanged;
- * this is presentation-layer de-duplication only.
+ * A retained row is never also fed to Issue #191's own
+ * ticketOpportunityDeadlineBadge below. That function classifies purely by
+ * Asia/Tokyo *calendar-day* difference (see its own header), so a planned
+ * application_close row whose deadline calendar day is still today but
+ * whose exact instant has already elapsed (datetime/window precision) is
+ * itself already past by isTicketOpportunityTimelineRowPast's instant
+ * comparison - and hence already isPostFinalRetainedHistory-eligible - yet
+ * ticketOpportunityDeadlineBadge would still classify it as the non-
+ * terminal `本日 HH:MMまで`, not `terminal`/受付終了, for that same calendar
+ * day. Unconditionally skipping it here (rather than trusting it to always
+ * resolve to the identical terminal label) is what keeps a retained row's
+ * terminal vocabulary from ever being contradicted by a still-looks-
+ * actionable deadline badge for a deadline that has, in fact, already
+ * passed. #191's classification authority itself is unchanged; this is
+ * presentation-layer de-duplication only.
  */
 export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityRowProps) {
   const display = formatTicketOpportunityMilestoneDisplay(row);

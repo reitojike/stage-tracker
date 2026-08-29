@@ -731,6 +731,34 @@ void test('selectTicketOpportunityPrimaryRows: a datetime-precision final milest
   assert.deepEqual(day8, [], 'day 8 after the Tokyo final day (9/2): dropped');
 });
 
+void test('selectTicketOpportunityPrimaryRows: a datetime deadline whose calendar day is still today but whose exact instant already elapsed is immediately retained (Issue #191/#192 integration edge case)', () => {
+  // `at` 09:00 JST, `now` 15:00 JST the same Tokyo calendar day - past by
+  // isTicketOpportunityTimelineRowPast's exact-instant comparison, so this
+  // enters the retention path on day 0 itself, even though
+  // ticketOpportunityDeadlineFormatting's own day-difference classification
+  // (ticketOpportunityFormatting.ts's ticketOpportunityDeadlineBadge) would
+  // still call this same calendar day "today" (`本日 09:00まで`), not
+  // `terminal`. TicketOpportunityRow.tsx must not surface that non-terminal
+  // label alongside this retained row's own `受付終了` - see its own
+  // isPostFinalRetainedHistory-gated deadlineBadge suppression.
+  const rows = singleMilestoneOpportunityRows({
+    temporalPrecision: 'datetime',
+    dateValue: null,
+    at: '2026-09-05T00:00:00.000Z', // 09:00 JST
+  });
+
+  const sameDayAfterInstant = selectTicketOpportunityPrimaryRows(
+    rows,
+    '2026-09-05T06:00:00.000Z', // 15:00 JST, same Tokyo calendar day
+    '2026-09-05',
+  );
+  assert.deepEqual(
+    sameDayAfterInstant.map((r) => r.id),
+    ['ms-final'],
+  );
+  assert.equal(sameDayAfterInstant[0]?.isPostFinalRetainedHistory, true);
+});
+
 void test('selectTicketOpportunityPrimaryRows: a window-precision final milestone retains using the Tokyo calendar date of endsAt', () => {
   const rows = singleMilestoneOpportunityRows({
     temporalPrecision: 'window',
