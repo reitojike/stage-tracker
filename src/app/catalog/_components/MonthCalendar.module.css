@@ -205,12 +205,9 @@
 }
 
 /* Issue #142 names --color-danger specifically for the holiday role
-   ("祝日 = 日付を600 + --color-danger"), not --color-calendar-holiday (which
-   still aliases the pre-redesign danger primitive - tokens.css's own
-   comment defers that repin to a later issue). Kept distinct from
-   .roleSunday above rather than folded together, even though both render a
-   similarly-toned red today, so a future repin of one doesn't silently
-   move the other. */
+   ("祝日 = 日付を600 + --color-danger"). Kept distinct from .roleSunday
+   above rather than folded together, even though both render the same
+   semantic danger red today, so holiday precedence remains explicit. */
 .day.roleHoliday .dayNumber {
   color: var(--color-danger);
   font-weight: var(--font-weight-semibold);
