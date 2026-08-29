@@ -75,6 +75,13 @@ void test("CatalogView.module.css defines the active dot as a supplementary (non
   assert.match(css, /background-color: var\(--color-accent\);/);
 });
 
+void test('Catalog heading row top-aligns PageHeading with the loading and bare page headings', () => {
+  const headingRow = css.match(/(?:^|\n)\.headingRow\s*\{([^}]*)\}/);
+  assert.ok(headingRow, '.headingRow rule is missing from CatalogView.module.css');
+  assert.match(headingRow[1] ?? '', /align-items:\s*flex-start\s*;/);
+  assert.doesNotMatch(headingRow[1] ?? '', /align-items:\s*center\s*;/);
+});
+
 // --- Issue #172 root cause C: applied-filter zero-result feedback ---
 
 void test('isFilteredZero is derived from the same filteredEvents, independent of selectedDate (no second filter predicate)', () => {
