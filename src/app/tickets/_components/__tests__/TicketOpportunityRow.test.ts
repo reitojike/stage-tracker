@@ -189,6 +189,13 @@ void test('the official source link capability is preserved (never silently drop
   assert.match(rowSource, />\s*公式情報\s*</);
 });
 
+// --- Issue #227: chevron semantic token convergence ---
+
+void test('the trailing chevron consumes the shared semantic icon-affordance token, never the raw neutral primitive directly', () => {
+  assert.match(rowCss, /\.chevron\s*\{[\s\S]*?color:\s*var\(--color-icon-affordance\);/);
+  assert.doesNotMatch(rowCss, /\.chevron\s*\{[\s\S]*?color:\s*var\(--color-neutral-500\);/);
+});
+
 void test('the state controls cover every required transition, including applied -> planned', () => {
   // Issue #144 Task Contract: no row -> planned, planned -> applied,
   // applied -> planned, planned/applied -> remove -> no row. A prior
