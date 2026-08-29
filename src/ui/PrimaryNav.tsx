@@ -49,15 +49,23 @@ function HomeIcon(props: NavIconProps) {
 /**
  * Base calendar glyph shared by イベント and マイカレンダー (design handoff:
  * "同じカレンダーなので、チェックの有無で区別する"). CalendarCheckIcon below
- * reuses this shape rather than duplicating the grid/ring paths.
+ * composes this shape rather than duplicating the grid/ring paths.
  */
-function CalendarIcon(props: NavIconProps) {
+function CalendarGlyph() {
   return (
-    <NavIconShell {...props}>
+    <>
       <rect x="4" y="5" width="16" height="15" rx="2" />
       <path d="M4 9.5h16" />
       <path d="M8 3v4" />
       <path d="M16 3v4" />
+    </>
+  );
+}
+
+function CalendarIcon(props: NavIconProps) {
+  return (
+    <NavIconShell {...props}>
+      <CalendarGlyph />
     </NavIconShell>
   );
 }
@@ -65,10 +73,7 @@ function CalendarIcon(props: NavIconProps) {
 function CalendarCheckIcon(props: NavIconProps) {
   return (
     <NavIconShell {...props}>
-      <rect x="4" y="5" width="16" height="15" rx="2" />
-      <path d="M4 9.5h16" />
-      <path d="M8 3v4" />
-      <path d="M16 3v4" />
+      <CalendarGlyph />
       <path d="M8.5 14.7 10.6 16.8 15.5 12.3" />
     </NavIconShell>
   );
