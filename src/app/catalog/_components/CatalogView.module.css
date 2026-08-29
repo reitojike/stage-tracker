@@ -57,3 +57,62 @@
   justify-content: center;
   padding: var(--space-lg) 0;
 }
+
+/*
+ * Applied-filter summary row (Issue #195): 44px, top/bottom hairline, no
+ * fill - only rendered while an applied filter is active (CatalogView.tsx),
+ * so an inactive state reserves no space at all rather than collapsing an
+ * empty row.
+ */
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 44px;
+  border-block: 1px solid var(--color-border);
+}
+
+.summaryText {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text);
+}
+
+.summaryGenre {
+  font-weight: var(--font-weight-semibold);
+}
+
+.summaryLower {
+  font-weight: var(--font-weight-regular);
+}
+
+/*
+ * 30px visible fill, 44px tap target (same expand44 technique Button/
+ * BackLink already use) - the row's full clear action.
+ */
+.summaryClear {
+  composes: expand44 from '../../../ui/tapTarget.module.css';
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.summaryClear:hover {
+  background-color: var(--color-surface-subtle);
+}
+
+.summaryClear:active {
+  background-color: var(--color-surface-active);
+}

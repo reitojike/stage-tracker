@@ -145,6 +145,12 @@
      surface borderとは別tokenとして分離する。containerへは使わない -
      container separationはcanvas/surfaceのトーン差と間隔が担う。 */
   --color-control-border: #7f878b;
+  /* Unselected chip boundary (Issue #195 genre chip vocabulary) - lighter
+     than --color-control-border, paired with --color-text-tertiary for an
+     unselected chip's text so the two form the same "quiet, still legible"
+     pairing an unselected chip needs without competing with the selected
+     chip's solid accent fill. */
+  --color-chip-unselected-border: #b9bfc4;
   --color-text: #1f2426;
   --color-text-secondary: #5c6467;
   /* Badge本文専用の第3階層(Issue #137で新規)。--color-text-secondaryより

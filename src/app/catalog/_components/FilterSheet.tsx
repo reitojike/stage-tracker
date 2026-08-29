@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { Button } from '@/ui/Button';
 import { TriStateCheckbox } from '@/ui/TriStateCheckbox';
 import type { CatalogFilterSelection, Genre, Group } from '@/domain/eventCatalog.ts';
@@ -52,6 +52,21 @@ export interface FilterSheetProps {
    * own. */
   onAppliedSelectionChange: (selection: CatalogFilterSelection) => void;
 }
+
+/** Imperative handle (Issue #195): the applied-filter summary row's own ×
+ * control lives outside this component entirely (CatalogView.tsx), so
+ * clearing the *applied* filter from there needs an explicit entry point -
+ * this component still owns applied/draft/persistence, `clear()` is just
+ * another mutator alongside confirm()'s own, reachable from outside. */
+export interface FilterSheetHandle {
+  clear: () => void;
+}
+
+/** Bounded fallback threshold (Issue #195: more than 10 known genres falls
+ * back to a dropdown rather than a chip set) - Gate A only ever has 3
+ * genres today, this exists purely so a future larger catalog degrades to a
+ * plain <select> instead of an unbounded wrapping chip wall. */
+const MAX_GENRE_CHIPS = 10;
 
 /** This genre's currently known secondary option rows, dispatched by its
  * own active facet kind - the single dispatch point knownSecondaryValuesByGenre
@@ -154,14 +169,17 @@ function sanitizeForApply(
  * none of them touch `applied` except the confirm button's own handler,
  * which runs before it calls `.close()`.
  */
-export function FilterSheet({
-  open,
-  onOpenChange,
-  genres,
-  groupOptionsByGenreKey,
-  venueOptionsByGenreKey,
-  onAppliedSelectionChange,
-}: FilterSheetProps) {
+export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(function FilterSheet(
+  {
+    open,
+    onOpenChange,
+    genres,
+    groupOptionsByGenreKey,
+    venueOptionsByGenreKey,
+    onAppliedSelectionChange,
+  },
+  handleRef,
+) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [applied, setApplied] = useState<CatalogFilterState>(EMPTY_CATALOG_FILTER_STATE);
@@ -170,6 +188,33 @@ export function FilterSheet({
   // false->true transition below - not a state value, so updating it never
   // triggers a re-render by itself.
   const wasOpenRef = useRef(open);
+
+  // Issue #195: lets a caller outside this component (the applied-filter
+  // summary row's × control) fully clear the applied filter without going
+  // through the sheet's own open/confirm flow. Mirrors confirm()'s own
+  // persistence write, just with EMPTY_CATALOG_FILTER_STATE instead of
+  // `draft` - draft is reset too so a subsequent open never briefly shows a
+  // stale pre-clear selection before the open-transition effect below
+  // re-syncs it from `applied`.
+  useImperativeHandle(
+    handleRef,
+    () => ({
+      clear() {
+        setApplied(EMPTY_CATALOG_FILTER_STATE);
+        setDraft(EMPTY_CATALOG_FILTER_STATE);
+        try {
+          window.localStorage.setItem(
+            CATALOG_FILTER_STORAGE_KEY,
+            serializeCatalogFilterState(EMPTY_CATALOG_FILTER_STATE),
+          );
+        } catch {
+          // Storage unavailable - same non-blocking fallback as confirm().
+        }
+        onAppliedSelectionChange(toCatalogFilterSelection(EMPTY_CATALOG_FILTER_STATE));
+      },
+    }),
+    [onAppliedSelectionChange],
+  );
 
   // Restores browser-local persistence once on mount (Issue #147 "reload /
   // revisitでも復元する"), pruning any saved genre/value no longer part of
@@ -303,38 +348,75 @@ export function FilterSheet({
         </p>
 
         <div className={styles.body}>
-          <div className={styles.section} role="radiogroup" aria-label="ジャンル">
-            <label className={styles.row}>
-              <input
-                type="radio"
-                name="catalog-filter-genre"
-                className={styles.radio}
-                checked={draft.genre === null}
-                onChange={() => {
-                  setDraft(withGenre(draft, null));
+          <div className={styles.section}>
+            {genres.length > MAX_GENRE_CHIPS ? (
+              // Bounded fallback (Issue #195): a native <select> reads its
+              // own single-choice semantics without a role="radiogroup" -
+              // this is a genuinely different control, not a chip wall that
+              // happens to overflow.
+              <select
+                aria-label="ジャンル"
+                className={styles.genreSelect}
+                value={draft.genre ?? ''}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setDraft(withGenre(draft, next === '' ? null : next));
                 }}
-              />
-              <span className={styles.rowLabel}>すべて</span>
-            </label>
-            {genres.map((genre) => (
-              <label key={genre.id} className={styles.row}>
-                <input
-                  type="radio"
-                  name="catalog-filter-genre"
-                  className={styles.radio}
-                  checked={draft.genre === genre.key}
-                  onChange={() => {
-                    setDraft(withGenre(draft, genre.key));
-                  }}
-                />
-                <span className={styles.rowLabel}>{genre.displayName}</span>
-              </label>
-            ))}
+              >
+                <option value="">すべて</option>
+                {genres.map((genre) => (
+                  <option key={genre.id} value={genre.key}>
+                    {genre.displayName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className={styles.chips} role="radiogroup" aria-label="ジャンル">
+                <label
+                  className={[styles.chip, draft.genre === null ? styles.chipSelected : '']
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <input
+                    type="radio"
+                    name="catalog-filter-genre"
+                    className={styles.chipInput}
+                    checked={draft.genre === null}
+                    onChange={() => {
+                      setDraft(withGenre(draft, null));
+                    }}
+                  />
+                  <span className={styles.chipLabel}>すべて</span>
+                </label>
+                {genres.map((genre) => (
+                  <label
+                    key={genre.id}
+                    className={[styles.chip, draft.genre === genre.key ? styles.chipSelected : '']
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    <input
+                      type="radio"
+                      name="catalog-filter-genre"
+                      className={styles.chipInput}
+                      checked={draft.genre === genre.key}
+                      onChange={() => {
+                        setDraft(withGenre(draft, genre.key));
+                      }}
+                    />
+                    <span className={styles.chipLabel}>{genre.displayName}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {activeFacet !== null ? (
             <div className={styles.section}>
-              <p className={styles.sectionLabel}>{activeFacet.label}</p>
+              {/* Issue #195: the trailing hint distinguishes this
+                  multi-select facet's copy from the genre chips' own
+                  single-select semantics above. */}
+              <p className={styles.sectionLabel}>{activeFacet.label}（複数選べます）</p>
               {secondaryOptions.length > 0 ? (
                 <TriStateCheckbox
                   state={aggregateState}
@@ -371,6 +453,22 @@ export function FilterSheet({
         </div>
 
         <div className={styles.footer}>
+          {/* Issue #195: draft-only reset - never touches `applied` or
+              persistence, same "no commit without confirm" rule every other
+              in-sheet interaction follows (see confirm()'s own doc comment
+              above). Clearing the already-applied filter from outside the
+              sheet is the summary row's own × control (useImperativeHandle
+              above), a separate action. */}
+          <Button
+            type="button"
+            variant="quiet"
+            className={styles.clearButton}
+            onClick={() => {
+              setDraft(EMPTY_CATALOG_FILTER_STATE);
+            }}
+          >
+            条件をクリア
+          </Button>
           <Button variant="primary" className={styles.confirmButton} onClick={confirm}>
             この条件で絞り込む
           </Button>
@@ -378,4 +476,4 @@ export function FilterSheet({
       </div>
     </dialog>
   );
-}
+});

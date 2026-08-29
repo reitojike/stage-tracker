@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  classificationBadgeLabel,
   classificationsByEventId,
   catalogFilterOptionUniverseForGenre,
+  catalogFilterSummary,
   filterCatalogEvents,
 } from '../catalogFilterIntegration.ts';
 import type {
@@ -220,4 +222,102 @@ void test('filterCatalogEvents never mutates its input array', () => {
     },
   );
   assert.deepEqual(events, before);
+});
+
+// --- classificationBadgeLabel (Issue #195: "genre / lower") ---
+
+void test('classificationBadgeLabel returns null for an unclassified event (no classification at all)', () => {
+  assert.equal(classificationBadgeLabel(null, null), null);
+});
+
+void test('classificationBadgeLabel returns null when classification exists but genre is null', () => {
+  assert.equal(classificationBadgeLabel(classification({ genre: null }), null), null);
+});
+
+void test('classificationBadgeLabel returns genre-only for a group-facet genre with no groups', () => {
+  const label = classificationBadgeLabel(classification({ genre: genre(), groups: [] }), null);
+  assert.equal(label, '宝塚');
+});
+
+void test('classificationBadgeLabel appends the first canonically-ordered group for a group-facet genre', () => {
+  const label = classificationBadgeLabel(
+    classification({
+      genre: genre(),
+      groups: [
+        group({ id: 'group-yuki', key: 'yuki', displayName: '雪組' }),
+        group({ id: 'group-hana', key: 'hana', displayName: '花組' }),
+      ],
+    }),
+    null,
+  );
+  // sortGroups orders by displayName then id - 花組 sorts before 雪組
+  // regardless of the input array's own order, and never both are joined.
+  assert.equal(label, '宝塚 / 花組');
+});
+
+void test('classificationBadgeLabel reads the venue-facet lower value from the Event.venue field, never classification.groups', () => {
+  const kabuki = genre({ id: 'genre-kabuki', key: 'kabuki', displayName: '歌舞伎' });
+  const label = classificationBadgeLabel(
+    classification({ genre: kabuki, groups: [group()] }),
+    '歌舞伎座',
+  );
+  assert.equal(label, '歌舞伎 / 歌舞伎座');
+});
+
+void test('classificationBadgeLabel collapses to genre-only when a venue-facet genre has no Event venue', () => {
+  const kabuki = genre({ id: 'genre-kabuki', key: 'kabuki', displayName: '歌舞伎' });
+  const label = classificationBadgeLabel(classification({ genre: kabuki }), null);
+  assert.equal(label, '歌舞伎');
+});
+
+// --- catalogFilterSummary (Issue #195: applied-filter summary row text) ---
+
+void test('catalogFilterSummary returns null for すべて (no active genre)', () => {
+  const summary = catalogFilterSummary({ genre: null, groups: [], venues: [] }, [genre()], {}, {});
+  assert.equal(summary, null);
+});
+
+void test('catalogFilterSummary returns null when the selected genre key is not among the known genres', () => {
+  const summary = catalogFilterSummary(
+    { genre: 'unknown-genre', groups: [], venues: [] },
+    [genre()],
+    {},
+    {},
+  );
+  assert.equal(summary, null);
+});
+
+void test('catalogFilterSummary returns genreLabel with a null lowerLabel when no secondary value is selected', () => {
+  const summary = catalogFilterSummary(
+    { genre: 'takarazuka', groups: [], venues: [] },
+    [genre()],
+    { takarazuka: [group()] },
+    {},
+  );
+  assert.deepEqual(summary, { genreLabel: '宝塚', lowerLabel: null });
+});
+
+void test('catalogFilterSummary joins multiple selected groups in the catalog-wide canonical option order, not selection click order', () => {
+  const hana = group({ key: 'hana', displayName: '花組' });
+  const yuki = group({ id: 'group-yuki', key: 'yuki', displayName: '雪組' });
+  const summary = catalogFilterSummary(
+    // Selected in click order 雪組 then 花組 - the option list itself
+    // (already sorted, per listCatalogGroupOptions) decides display order.
+    { genre: 'takarazuka', groups: ['yuki', 'hana'], venues: [] },
+    [genre()],
+    { takarazuka: [hana, yuki] },
+    {},
+  );
+  assert.deepEqual(summary, { genreLabel: '宝塚', lowerLabel: '花組・雪組' });
+});
+
+void test('catalogFilterSummary joins selected venue text for a venue-facet genre', () => {
+  const kabuki = genre({ id: 'genre-kabuki', key: 'kabuki', displayName: '歌舞伎' });
+  const summary = catalogFilterSummary(
+    { genre: 'kabuki', groups: [], venues: ['歌舞伎座'] },
+    [kabuki],
+    {},
+    { kabuki: ['歌舞伎座', '南座'] },
+  );
+  assert.deepEqual(summary, { genreLabel: '歌舞伎', lowerLabel: '歌舞伎座' });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Button } from '@/ui/Button';
 import { LoadingIndicator } from '@/ui/LoadingIndicator';
 import { PageHeading } from '@/ui/PageHeading';
@@ -12,6 +12,7 @@ import {
 } from '@/domain/calendarMonth.ts';
 import {
   catalogFilterOptionUniverseForGenre,
+  catalogFilterSummary,
   classificationsByEventId,
   filterCatalogEvents,
 } from '@/domain/catalogFilterIntegration.ts';
@@ -27,7 +28,7 @@ import type {
 } from '@/domain/eventCatalog.ts';
 import type { CatalogFilterData } from '../_lib/catalogFilterData.ts';
 import { EventLevelFallbackList } from './EventLevelFallbackList.tsx';
-import { FilterSheet } from './FilterSheet.tsx';
+import { FilterSheet, type FilterSheetHandle } from './FilterSheet.tsx';
 import { MonthCalendar } from './MonthCalendar.tsx';
 import { SelectedDayList } from './SelectedDayList.tsx';
 import styles from './CatalogView.module.css';
@@ -44,11 +45,6 @@ export interface CatalogViewProps {
    * all (independent of any filter selection) - drives the existing
    * month-landing empty state, unrelated to "filter matched zero events". */
   isEmptyRange: boolean;
-  /** Pre-rendered server subtree (creator-only "+ 追加" / "招待一覧") - this
-   * component has no opinion on catalog write permissions, it only places
-   * this between the heading row and the filter-unavailable notice/body,
-   * same position it held in page.tsx before Issue #145. */
-  actionRow: ReactNode;
   context: CatalogParams;
   filterData: CatalogFilterData;
 }
@@ -100,17 +96,26 @@ export function CatalogView({
   todayDate,
   events,
   isEmptyRange,
-  actionRow,
   context,
   filterData,
 }: CatalogViewProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectionReady, setSelectionReady] = useState(false);
   const [appliedSelection, setAppliedSelection] = useState<CatalogFilterSelection>(EMPTY_SELECTION);
+  const filterSheetRef = useRef<FilterSheetHandle>(null);
 
   const handleAppliedSelectionChange = useCallback((selection: CatalogFilterSelection) => {
     setAppliedSelection(selection);
     setSelectionReady(true);
+  }, []);
+
+  // Issue #195: the applied-filter summary row's × control and the
+  // filtered-zero StatePanel's own action both fully clear the applied
+  // filter - both go through FilterSheet's own imperative clear() (it owns
+  // applied/draft/persistence) rather than either duplicating that state
+  // mutation locally.
+  const handleClearFilter = useCallback(() => {
+    filterSheetRef.current?.clear();
   }, []);
 
   const classificationByEventId = useMemo<ReadonlyMap<string, EventClassification>>(
@@ -145,6 +150,22 @@ export function CatalogView({
   // comment), so a remembered-but-not-currently-shown secondary selection
   // for a different genre can never surface here.
   const isFilterActive = filterData.ok && selectionReady && appliedSelection.genre !== null;
+  // Applied state only, never draft (Issue #195 "summary follows applied not
+  // draft state") - `appliedSelection` is what FilterSheet's own
+  // onAppliedSelectionChange reports, which only ever fires on mount-restore
+  // and confirm(), never while the sheet's in-sheet draft is being edited.
+  const filterSummary = useMemo(
+    () =>
+      filterData.ok
+        ? catalogFilterSummary(
+            appliedSelection,
+            filterData.genres,
+            filterData.groupOptionsByGenreKey,
+            filterData.venueOptionsByGenreKey,
+          )
+        : null,
+    [filterData, appliedSelection],
+  );
   const canOpenSheet = filterData.ok;
   // Nothing to restore when filter data itself never loaded - the unfiltered
   // body is the whole story in that branch, immediately. Likewise, when the
@@ -193,7 +214,28 @@ export function CatalogView({
         </span>
       </div>
 
-      {actionRow}
+      {/* Issue #195: only when an applied filter is active, and follows
+          `appliedSelection`/`filterSummary` exclusively - never renders (or
+          reserves space) while inactive, and never reflects an in-sheet
+          draft the user hasn't confirmed yet. */}
+      {isFilterActive && filterSummary !== null ? (
+        <div className={styles.summaryRow}>
+          <p className={styles.summaryText}>
+            絞り込み中: <span className={styles.summaryGenre}>{filterSummary.genreLabel}</span>
+            {filterSummary.lowerLabel !== null ? (
+              <span className={styles.summaryLower}> / {filterSummary.lowerLabel}</span>
+            ) : null}
+          </p>
+          <button
+            type="button"
+            className={styles.summaryClear}
+            aria-label="絞り込みを解除"
+            onClick={handleClearFilter}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      ) : null}
 
       {!filterData.ok ? (
         <StatePanel
@@ -205,6 +247,7 @@ export function CatalogView({
 
       {filterData.ok ? (
         <FilterSheet
+          ref={filterSheetRef}
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           genres={filterData.genres}
@@ -223,7 +266,7 @@ export function CatalogView({
           />
 
           {isEmptyRange && selectedDate === null ? (
-            <StatePanel variant="empty" title="この月に登録されている公演はありません" />
+            <StatePanel variant="empty" title="この月に登録されているイベントはありません" />
           ) : null}
 
           {/* Issue #172 root cause C (Claude C2): the raw-range-empty
@@ -239,9 +282,18 @@ export function CatalogView({
               follow-up: a selected-day state must not leave
               SelectedDayList's own generic per-day empty message as the
               only/competing explanation for what is actually a filter
-              result). */}
+              result). Issue #195/#187 canonical copy + clear action, same
+              handleClearFilter the summary row's own × control uses. */}
           {isFilteredZero ? (
-            <StatePanel variant="empty" title="選択した条件に一致するイベントはありません" />
+            <StatePanel
+              variant="empty"
+              title="条件に合うイベントがありません"
+              action={
+                <Button type="button" variant="secondary" onClick={handleClearFilter}>
+                  条件を解除する
+                </Button>
+              }
+            />
           ) : null}
 
           {selectedDate !== null && !isFilteredZero ? (

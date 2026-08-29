@@ -1,28 +1,18 @@
-import { ActionRow } from '@/ui/ActionRow';
 import { CalendarSkeleton } from '@/ui/CalendarSkeleton';
-import { LinkButton } from '@/ui/LinkButton';
 import { PageHeading } from '@/ui/PageHeading';
-import { catalogInvitationsHref } from '@/domain/catalogNavigation.ts';
 
 /**
- * Restates page.tsx's own PageHeading/ActionRow (Issue #103, P2) so a
- * `?month=` navigation doesn't drop the page title and primary action out
- * of the layout while pending, only to have them reflow back in - and
- * shift the calendar down - once the real page commits. The
- * designated-catalog-creator-only "+ 追加" button is
- * intentionally omitted: unlike 招待一覧 (always shown), it depends
- * on an async membership check page.tsx itself awaits, which this static
- * fallback has no way to know before that check resolves.
+ * Restates page.tsx's own PageHeading (Issue #103, P2) so a `?month=`
+ * navigation doesn't drop the page title out of the layout while pending,
+ * only to have it reflow back in - and shift the calendar down - once the
+ * real page commits. Issue #195 removed page.tsx's own ActionRow ("+ 追加" /
+ * "招待一覧" - both are reachable through My Page's own "予定とイベント"
+ * section now), so this fallback no longer restates one either.
  */
 export default function CatalogLoading() {
   return (
     <>
       <PageHeading>イベント</PageHeading>
-      <ActionRow>
-        <LinkButton href={catalogInvitationsHref()} variant="secondary">
-          招待一覧
-        </LinkButton>
-      </ActionRow>
       <CalendarSkeleton sectionLabel="イベントカレンダー" fallbackLabel="カレンダーを読み込み中" />
     </>
   );

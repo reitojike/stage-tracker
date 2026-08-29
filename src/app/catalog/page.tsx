@@ -1,25 +1,17 @@
-import { ActionRow } from '@/ui/ActionRow';
-import { LinkButton } from '@/ui/LinkButton';
 import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient';
-import { getAuthenticatedUser } from '@/infrastructure/supabase/session';
 import {
   listCatalogGenres,
   listEventCatalogInRange,
-  type EventCatalogQueryClient,
 } from '@/infrastructure/supabase/eventCatalogRead';
-import { isDesignatedCatalogCreator } from '@/infrastructure/supabase/eventCatalogWrite';
 import { buildMonthGrid } from '@/domain/calendarMonth';
 import { tokyoCalendarDateRangeUtc, type EventWithOccurrences } from '@/domain/eventCatalog';
 import { resolveCatalogReadState } from '@/domain/catalogReadState';
-import {
-  catalogInvitationsHref,
-  catalogNewEventHref,
-  resolveCatalogParams,
-} from '@/domain/catalogNavigation';
+import { resolveCatalogParams } from '@/domain/catalogNavigation';
 import { currentTokyoDate } from './_lib/today.ts';
 import { loadCatalogFilterData, startCatalogFilterFacetOptions } from './_lib/catalogFilterData.ts';
+import { CatalogReloadButton } from './_components/CatalogReloadButton.tsx';
 import { CatalogView } from './_components/CatalogView.tsx';
 
 interface CatalogPageProps {
@@ -47,23 +39,13 @@ const isEmptyCatalog = (data: EventWithOccurrences[]) => data.length === 0;
  * applied filter selection only exists client-side, via #147's FilterSheet
  * browser-local persistence, so this server component cannot pre-filter its
  * own read).
+ *
+ * Issue #195: the "+ 追加" / "招待一覧" ActionRow this screen used to render
+ * between the heading and the body is removed - Issue #193's My Page
+ * "予定とイベント" section is now the reachable destination for both (creator
+ * gating and the invitation route themselves are untouched, only this
+ * screen's own duplicate entry point is gone).
  */
-/**
- * The create affordance is shown only to designated catalog creators (Issue
- * #29). A failed or indeterminate membership check hides the link rather
- * than showing one that would only lead to a denial. Kept as its own
- * function so it can run concurrently with the other reads below via
- * Promise.all - getAuthenticatedUser() is React-cache()'d per request (it is
- * already called once from AppShell's AppBar), but isDesignatedCatalogCreator
- * is its own Supabase round trip that must not add sequential latency on top
- * of the catalog range/genre reads.
- */
-async function resolveCanCreateEvent(client: EventCatalogQueryClient): Promise<boolean> {
-  const user = await getAuthenticatedUser();
-  const creatorCheck = user === null ? null : await isDesignatedCatalogCreator(client, user.id);
-  return creatorCheck !== null && creatorCheck.ok && creatorCheck.data;
-}
-
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const rawParams = await searchParams;
   const today = currentTokyoDate();
@@ -72,55 +54,31 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const grid = buildMonthGrid(yearMonth);
   const client = await createSupabaseServerClient();
   // #167's catalog-wide genre list -> per-genre group/venue option chain
-  // starts immediately, not after the Promise.all below - it only ever
+  // starts immediately, not after the range read below - it only ever
   // depends on genres, never on the catalog range read, so gating it behind
-  // that Promise.all (which also awaits the range read, typically this
-  // page's slowest query) would delay it until the *slowest* of those
-  // unrelated reads finished for no reason. See
+  // that read (typically this page's slowest query) would delay it until
+  // the slowest of the two finished for no reason. See
   // startCatalogFilterFacetOptions's own doc comment.
   const facetOptionsPromise = startCatalogFilterFacetOptions(client, listCatalogGenres(client));
-  // The catalog range read and the creator-permission check are themselves
-  // mutually independent of each other and of the facet chain above -
-  // running all three concurrently (rather than #145 bolting the new genre
-  // read on as an extra sequential `await` after the others) keeps this
-  // page's total round-trip depth close to what it was before Issue #145,
-  // instead of pushing page render latency past Next's streaming-fallback
-  // threshold (this page's own loading.tsx would otherwise start being
-  // served as the actual response more often - see
-  // test/auth/catalogAccess.test.ts, which asserts on the fully-resolved
-  // HTML).
-  const [result, canCreateEvent] = await Promise.all([
-    listEventCatalogInRange(
-      client,
-      tokyoCalendarDateRangeUtc(grid.gridFirstDate, grid.gridLastDate),
-    ),
-    resolveCanCreateEvent(client),
-  ]);
-  const state = resolveCatalogReadState(result, isEmptyCatalog);
-
-  const actionRow = (
-    <ActionRow>
-      {canCreateEvent ? (
-        <LinkButton href={catalogNewEventHref({ yearMonth, selectedDate })}>+ 追加</LinkButton>
-      ) : null}
-      <LinkButton href={catalogInvitationsHref()} variant="secondary">
-        招待一覧
-      </LinkButton>
-    </ActionRow>
+  const result = await listEventCatalogInRange(
+    client,
+    tokyoCalendarDateRangeUtc(grid.gridFirstDate, grid.gridLastDate),
   );
+  const state = resolveCatalogReadState(result, isEmptyCatalog);
 
   if (!result.ok) {
     // A failed catalog read leaves nothing to filter - the filter icon is
     // omitted entirely here (CatalogView is never mounted), same "error
-    // blocks everything else" shape the pre-#145 page had.
+    // blocks everything else" shape the pre-#145 page had. Issue #195/#187
+    // canonical read-failure copy + retry action.
     return (
       <>
         <PageHeading>イベント</PageHeading>
-        {actionRow}
         <StatePanel
           variant="error"
-          title="カレンダーを読み込めませんでした"
-          description="通信状況を確認し、もう一度お試しください。"
+          title="読み込めませんでした"
+          description="通信状況を確認して、もう一度お試しください"
+          action={<CatalogReloadButton />}
         />
       </>
     );
@@ -137,7 +95,6 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
       todayDate={today}
       events={events}
       isEmptyRange={state === 'empty'}
-      actionRow={actionRow}
       context={{ yearMonth, selectedDate }}
       filterData={filterData}
     />
