@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
 import type { EventClassification, EventWithOccurrences } from '@/domain/eventCatalog.ts';
+import { eventDateRangeLabel } from '@/domain/catalogFormatting.ts';
 import { classificationBadgeLabel } from '@/domain/catalogFilterIntegration.ts';
 import { isEventCanceled } from '@/domain/eventCancellation.ts';
 import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
@@ -70,7 +71,7 @@ export function EventLevelFallbackList({
                 <span className={styles.itemBody}>
                   <span className={styles.title}>{event.title}</span>
                   <span className={styles.range}>
-                    {event.startsOn}〜{event.endsOn}
+                    {eventDateRangeLabel(event.startsOn, event.endsOn)}
                   </span>
                   {event.venue !== null ? (
                     <span className={styles.venue}>{event.venue}</span>
