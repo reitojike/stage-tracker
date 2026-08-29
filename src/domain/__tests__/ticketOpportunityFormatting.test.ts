@@ -4,7 +4,7 @@ import {
   formatTicketOpportunityMilestoneDisplay,
   isActionableTicketOpportunityDeadline,
   isTicketOpportunityRowEffectivelyCanceled,
-  ticketOpportunityDeadlineRemainingDaysLabel,
+  ticketOpportunityDeadlineBadge,
   ticketOpportunityMilestoneTypeLabel,
   ticketOpportunityStateBadgeVariant,
   ticketOpportunityStateLabel,
@@ -198,8 +198,8 @@ void test('isActionableTicketOpportunityDeadline: only planned + application_clo
     ),
     true,
   );
-  assert.equal(
-    ticketOpportunityDeadlineRemainingDaysLabel(
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
       baseRow({
         myState: 'planned',
         milestoneType: 'application_close',
@@ -209,7 +209,7 @@ void test('isActionableTicketOpportunityDeadline: only planned + application_clo
       }),
       today,
     ),
-    '残り3日',
+    { variant: 'deadline', label: '残り3日' },
   );
 
   // result_announcement/sale_start/payment_window never escalate to red.
@@ -257,39 +257,202 @@ void test('isActionableTicketOpportunityDeadline: only planned + application_clo
   );
 });
 
-void test('ticketOpportunityDeadlineRemainingDaysLabel: null unless actionable, else a day count', () => {
+// --- Issue #191: ticketOpportunityDeadlineBadge canonical threshold ---
+//
+// | day difference | variant  | label                        |
+// | 0 (today)       | deadline | 本日 HH:MMまで / 本日締切     |
+// | 1-3             | deadline | 残りN日                      |
+// | 4-13            | outline  | 残りN日                      |
+// | 14+             | (none)   | null                         |
+// | already past    | terminal | 受付終了                     |
+
+void test('ticketOpportunityDeadlineBadge: today with an exact source datetime shows "本日 HH:MMまで", never "残り0日"', () => {
+  const today = '2026-09-05';
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'datetime',
+        dateValue: null,
+        at: '2026-09-05T14:59:00.000Z', // 23:59 JST
+      }),
+      today,
+    ),
+    { variant: 'deadline', label: '本日 23:59まで' },
+  );
+});
+
+void test('ticketOpportunityDeadlineBadge: today with only a date-only source never fabricates a time', () => {
+  const today = '2026-09-05';
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'date',
+        dateValue: today,
+      }),
+      today,
+    ),
+    { variant: 'deadline', label: '本日締切' },
+  );
+});
+
+void test('ticketOpportunityDeadlineBadge: day 1 and day 3 are both red (deadline)', () => {
+  const today = '2026-09-05';
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: 'planned', milestoneType: 'application_close', dateValue: '2026-09-06' }),
+      today,
+    ),
+    { variant: 'deadline', label: '残り1日' },
+  );
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: 'planned', milestoneType: 'application_close', dateValue: '2026-09-08' }),
+      today,
+    ),
+    { variant: 'deadline', label: '残り3日' },
+  );
+});
+
+void test('ticketOpportunityDeadlineBadge: day 4 and day 13 are both outline, not red - the 9-day-early-red regression this Task fixes', () => {
+  const today = '2026-09-05';
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: 'planned', milestoneType: 'application_close', dateValue: '2026-09-09' }),
+      today,
+    ),
+    { variant: 'outline', label: '残り4日' },
+  );
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: 'planned', milestoneType: 'application_close', dateValue: '2026-09-18' }),
+      today,
+    ),
+    { variant: 'outline', label: '残り13日' },
+  );
+});
+
+void test('ticketOpportunityDeadlineBadge: day 14 shows no badge at all', () => {
+  const today = '2026-09-05';
+  assert.equal(
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: 'planned', milestoneType: 'application_close', dateValue: '2026-09-19' }),
+      today,
+    ),
+    null,
+  );
+});
+
+void test('ticketOpportunityDeadlineBadge: Tokyo midnight boundary - 23:59 JST today is still today, 00:00 JST tomorrow already rolled to day 1', () => {
+  const today = '2026-09-05';
+  // 2026-09-05T14:59:00Z = 2026-09-05 23:59 JST - the last instant of "today".
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'datetime',
+        dateValue: null,
+        at: '2026-09-05T14:59:00.000Z',
+      }),
+      today,
+    ),
+    { variant: 'deadline', label: '本日 23:59まで' },
+  );
+  // 2026-09-05T15:00:00Z = 2026-09-06 00:00 JST - already the next Tokyo
+  // calendar day, so this is day 1, not day 0.
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        temporalPrecision: 'datetime',
+        dateValue: null,
+        at: '2026-09-05T15:00:00.000Z',
+      }),
+      today,
+    ),
+    { variant: 'deadline', label: '残り1日' },
+  );
+});
+
+void test('ticketOpportunityDeadlineBadge: an already-past deadline classifies as terminal 受付終了, for a caller that intentionally retains the row', () => {
+  const today = '2026-09-05';
+  assert.deepEqual(
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: 'planned', milestoneType: 'application_close', dateValue: '2026-09-04' }),
+      today,
+    ),
+    { variant: 'terminal', label: '受付終了' },
+  );
+});
+
+void test('ticketOpportunityDeadlineBadge: never broadens which milestones get urgency treatment - no-state, applied, and non-application milestones all return null', () => {
   const today = '2026-09-05';
 
+  // No personal state at all.
   assert.equal(
-    ticketOpportunityDeadlineRemainingDaysLabel(
-      baseRow({ myState: null, milestoneType: 'application_close', dateValue: '2026-09-08' }),
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: null, milestoneType: 'application_close', dateValue: '2026-09-06' }),
       today,
     ),
     null,
   );
 
+  // Already applied - not "still to act on", even 1 day out.
   assert.equal(
-    ticketOpportunityDeadlineRemainingDaysLabel(
-      baseRow({
-        myState: 'planned',
-        milestoneType: 'application_close',
-        dateValue: '2026-09-08',
-      }),
+    ticketOpportunityDeadlineBadge(
+      baseRow({ myState: 'applied', milestoneType: 'application_close', dateValue: '2026-09-06' }),
       today,
     ),
-    '残り3日',
+    null,
   );
 
+  // result_announcement/sale_start/payment_window never escalate to red or
+  // any other urgency variant, even with a `planned` personal state.
+  for (const milestoneType of ['result_announcement', 'sale_start', 'payment_window'] as const) {
+    assert.equal(
+      ticketOpportunityDeadlineBadge(
+        baseRow({ myState: 'planned', milestoneType, dateValue: '2026-09-06' }),
+        today,
+      ),
+      null,
+    );
+  }
+});
+
+void test('ticketOpportunityDeadlineBadge: an effectively canceled Opportunity never shows deadline urgency, past or future (Issue #172 root cause B)', () => {
+  const today = '2026-09-05';
+
   assert.equal(
-    ticketOpportunityDeadlineRemainingDaysLabel(
+    ticketOpportunityDeadlineBadge(
       baseRow({
         myState: 'planned',
         milestoneType: 'application_close',
-        dateValue: today,
+        dateValue: '2026-09-06',
+        eventCanceled: true,
       }),
       today,
     ),
-    '本日締切',
+    null,
+  );
+
+  // Even an already-past deadline of a canceled Opportunity must not show
+  // 受付終了 - the existing 中止 terminal authority owns that row instead.
+  assert.equal(
+    ticketOpportunityDeadlineBadge(
+      baseRow({
+        myState: 'planned',
+        milestoneType: 'application_close',
+        dateValue: '2026-09-01',
+        eventCanceled: true,
+      }),
+      today,
+    ),
+    null,
   );
 });
 
@@ -528,22 +691,6 @@ void test('isActionableTicketOpportunityDeadline: never true once the whole Oppo
       today,
     ),
     true,
-  );
-});
-
-void test('ticketOpportunityDeadlineRemainingDaysLabel: null once the whole Opportunity is effectively canceled', () => {
-  const today = '2026-09-05';
-  assert.equal(
-    ticketOpportunityDeadlineRemainingDaysLabel(
-      baseRow({
-        myState: 'planned',
-        milestoneType: 'application_close',
-        dateValue: '2026-09-08',
-        eventCanceled: true,
-      }),
-      today,
-    ),
-    null,
   );
 });
 

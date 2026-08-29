@@ -2,9 +2,8 @@ import { Badge } from '@/ui/Badge';
 import { isRenderableHttpUrl } from '@/domain/catalogFormatting.ts';
 import {
   formatTicketOpportunityMilestoneDisplay,
-  isActionableTicketOpportunityDeadline,
   isTicketOpportunityRowEffectivelyCanceled,
-  ticketOpportunityDeadlineRemainingDaysLabel,
+  ticketOpportunityDeadlineBadge,
   ticketOpportunityMilestoneTypeLabel,
   ticketOpportunityStateBadgeVariant,
   ticketOpportunityStateLabel,
@@ -31,8 +30,7 @@ export interface TicketOpportunityRowProps {
  */
 export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityRowProps) {
   const display = formatTicketOpportunityMilestoneDisplay(row);
-  const isActionableDeadline = isActionableTicketOpportunityDeadline(row, todayTokyoDate);
-  const remainingLabel = ticketOpportunityDeadlineRemainingDaysLabel(row, todayTokyoDate);
+  const deadlineBadge = ticketOpportunityDeadlineBadge(row, todayTokyoDate);
   const isCanceled = isTicketOpportunityRowEffectivelyCanceled(row);
 
   return (
@@ -52,8 +50,8 @@ export function TicketOpportunityRow({ row, todayTokyoDate }: TicketOpportunityR
               {ticketOpportunityStateLabel(row.myState)}
             </Badge>
           ) : null}
-          {isActionableDeadline && remainingLabel !== null ? (
-            <Badge variant="deadline">{remainingLabel}</Badge>
+          {deadlineBadge !== null ? (
+            <Badge variant={deadlineBadge.variant}>{deadlineBadge.label}</Badge>
           ) : null}
         </div>
         <p className={styles.eventTitle}>{row.eventTitle}</p>

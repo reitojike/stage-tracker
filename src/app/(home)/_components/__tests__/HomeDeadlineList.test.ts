@@ -15,7 +15,11 @@ const source = readFileSync(
 
 void test('the deadline card never re-derives actionability/red-badge logic of its own - it only formats what selectHomeDeadlineRows already filtered', () => {
   assert.doesNotMatch(source, /myState\s*===|milestoneType\s*===/);
-  assert.match(source, /ticketOpportunityDeadlineRemainingDaysLabel/);
+  assert.match(source, /ticketOpportunityDeadlineBadge/);
+});
+
+void test('the deadline card never holds its own urgency threshold - it only renders the variant/label ticketOpportunityDeadlineBadge returns', () => {
+  assert.doesNotMatch(source, /<=\s*3|<\s*14|days?\s*[<>]=?\s*\d/i);
 });
 
 void test('the deadline date/time reuses the #144 precision-preserving formatter, never a bespoke date string', () => {

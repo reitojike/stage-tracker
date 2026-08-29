@@ -1,7 +1,7 @@
 import { Badge } from '@/ui/Badge';
 import {
   formatTicketOpportunityMilestoneDisplay,
-  ticketOpportunityDeadlineRemainingDaysLabel,
+  ticketOpportunityDeadlineBadge,
 } from '@/domain/ticketOpportunityFormatting.ts';
 import type { TicketOpportunityTimelineRow } from '@/domain/ticketOpportunityTimeline.ts';
 import styles from './HomeDeadlineList.module.css';
@@ -34,12 +34,12 @@ export function HomeDeadlineList({ rows, todayTokyoDate }: HomeDeadlineListProps
     <ul className={styles.row}>
       {rows.map((row) => {
         const display = formatTicketOpportunityMilestoneDisplay(row);
-        const remainingLabel = ticketOpportunityDeadlineRemainingDaysLabel(row, todayTokyoDate);
+        const deadlineBadge = ticketOpportunityDeadlineBadge(row, todayTokyoDate);
         return (
           <li key={row.id} className={styles.card}>
-            {remainingLabel !== null ? (
-              <Badge variant="deadline" className={styles.badge}>
-                {remainingLabel}
+            {deadlineBadge !== null ? (
+              <Badge variant={deadlineBadge.variant} className={styles.badge}>
+                {deadlineBadge.label}
               </Badge>
             ) : null}
             <p className={styles.eventTitle}>{row.eventTitle}</p>

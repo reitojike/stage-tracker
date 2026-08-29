@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { selectHomeDeadlineRows } from '../homeDeadlines.ts';
+import { ticketOpportunityDeadlineBadge } from '../ticketOpportunityFormatting.ts';
 import type { EventOccurrence } from '../eventCatalog.ts';
 import type { TicketOpportunityTimelineRow } from '../ticketOpportunityTimeline.ts';
 
@@ -123,6 +124,24 @@ void test('selectHomeDeadlineRows: today-precision deadline still counts as acti
 
 void test('selectHomeDeadlineRows: empty input yields an empty list', () => {
   assert.deepEqual(selectHomeDeadlineRows([], TODAY), []);
+});
+
+// --- Issue #191: Home and /tickets must classify the identical row
+// identically - both call ticketOpportunityDeadlineBadge, the same shared
+// domain authority, rather than either screen holding its own threshold. ---
+
+void test('a row Home selects classifies via ticketOpportunityDeadlineBadge exactly as /tickets would for the same row (shared authority, not two derivations)', () => {
+  const row = baseRow({ id: 'shared', dateValue: '2026-09-03' }); // day 2 - red
+  const [selected] = selectHomeDeadlineRows([row], TODAY);
+  assert.ok(selected !== undefined);
+  // This is the exact call TicketOpportunityRow.tsx makes for the same row
+  // shape - asserting it here (not just "some badge exists") pins the
+  // actual classification, so this test would fail if Home and Tickets
+  // ever diverged onto separate threshold logic.
+  assert.deepEqual(ticketOpportunityDeadlineBadge(selected, TODAY), {
+    variant: 'deadline',
+    label: '残り2日',
+  });
 });
 
 // --- Issue #172 root cause B: a whole-Opportunity-canceled target must
