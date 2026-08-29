@@ -115,11 +115,17 @@ void test('a future occurrence participates regardless of attending/considering'
   assert.deepEqual(itemIds(items), ['attending-occ', 'considering-occ']);
 });
 
-void test('an occurrence that already started is excluded (strictly startsAt >= now)', () => {
+void test('a Tokyo-today occurrence remains after its start instant, while a prior Tokyo day stays excluded', () => {
   const items = selectHomeUpcomingItems(
     [
       occurrenceCandidate({
-        occurrence: occurrence({ id: 'already-started', startsAt: '2026-08-09T23:59:59.000Z' }),
+        occurrence: occurrence({
+          id: 'today-already-started',
+          startsAt: '2026-08-09T23:59:59.000Z',
+        }),
+      }),
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'previous-tokyo-day', startsAt: '2026-08-09T14:59:59.000Z' }),
       }),
       occurrenceCandidate({
         occurrence: occurrence({ id: 'right-now', startsAt: NOW }),
@@ -129,7 +135,35 @@ void test('an occurrence that already started is excluded (strictly startsAt >= 
     NOW,
     TODAY,
   );
-  assert.deepEqual(itemIds(items), ['right-now']);
+  assert.deepEqual(itemIds(items), ['today-already-started', 'right-now']);
+});
+
+void test('an occurrence on the next Tokyo calendar day remains a future candidate', () => {
+  const items = selectHomeUpcomingItems(
+    [
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'next-tokyo-day', startsAt: '2026-08-10T15:00:00.000Z' }),
+      }),
+    ],
+    [],
+    '2026-08-10T14:59:59.999Z',
+    TODAY,
+  );
+  assert.deepEqual(itemIds(items), ['next-tokyo-day']);
+});
+
+void test('the previous Tokyo day is excluded after the Tokyo date boundary passes', () => {
+  const items = selectHomeUpcomingItems(
+    [
+      occurrenceCandidate({
+        occurrence: occurrence({ id: 'previous-tokyo-day', startsAt: '2026-08-10T14:59:59.999Z' }),
+      }),
+    ],
+    [],
+    '2026-08-10T15:00:00.000Z',
+    '2026-08-11',
+  );
+  assert.deepEqual(itemIds(items), []);
 });
 
 // --- schedule candidacy ---
@@ -197,6 +231,68 @@ void test('a time-bounded entry with a known end is a candidate while the end is
     TODAY,
   );
   assert.deepEqual(itemIds(items), ['ongoing-timed']);
+});
+
+void test('a time-bounded entry ending today remains after its end instant, including one started earlier', () => {
+  const items = selectHomeUpcomingItems(
+    [],
+    [
+      scheduleCandidate({
+        entry: scheduleEntry({
+          id: 'ended-today',
+          temporal: {
+            kind: 'time-bounded',
+            startsAt: '2026-08-09T20:00:00Z',
+            endsAt: '2026-08-10T00:00:00Z',
+          },
+        }),
+      }),
+      scheduleCandidate({
+        entry: scheduleEntry({
+          id: 'ended-previous-tokyo-day',
+          temporal: {
+            kind: 'time-bounded',
+            startsAt: '2026-08-08T20:00:00Z',
+            endsAt: '2026-08-09T14:59:59Z',
+          },
+        }),
+      }),
+      scheduleCandidate({
+        entry: scheduleEntry({
+          id: 'ends-today-at-day-boundary',
+          temporal: {
+            kind: 'time-bounded',
+            startsAt: '2026-08-10T10:00:00Z',
+            endsAt: '2026-08-10T14:59:59.999Z',
+          },
+        }),
+      }),
+    ],
+    '2026-08-10T06:00:00Z',
+    TODAY,
+  );
+  assert.deepEqual(itemIds(items), ['ended-today', 'ends-today-at-day-boundary']);
+});
+
+void test('a time-bounded entry ending on the next Tokyo calendar day remains a future candidate', () => {
+  const items = selectHomeUpcomingItems(
+    [],
+    [
+      scheduleCandidate({
+        entry: scheduleEntry({
+          id: 'ends-next-tokyo-day',
+          temporal: {
+            kind: 'time-bounded',
+            startsAt: '2026-08-10T20:00:00Z',
+            endsAt: '2026-08-11T00:00:00Z',
+          },
+        }),
+      }),
+    ],
+    '2026-08-10T15:00:00Z',
+    TODAY,
+  );
+  assert.deepEqual(itemIds(items), ['ends-next-tokyo-day']);
 });
 
 void test('an open-ended time-bounded entry is a candidate only while its own start date has not passed - never assumed to continue forever', () => {
