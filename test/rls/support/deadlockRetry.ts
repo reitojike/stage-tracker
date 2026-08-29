@@ -14,7 +14,19 @@
 // auth.users writers this needs another test file for, so this retry is
 // now a defense-in-depth fallback (e.g. GoTrue's own background
 // housekeeping touching auth.users) rather than the primary mitigation.
-export async function withDeadlockRetry<T>(run: () => Promise<T>): Promise<T> {
+//
+// `client` is required (not just `run`) because some replayed migrations
+// (e.g. 20260821000100_backfill_and_drop_event_temporal_columns.sql,
+// 20260825000000_add_event_range.sql) contain an explicit `begin;
+// ... commit;` in their SQL text, sent as one `client.query()` call. A
+// 40P01 mid-transaction there leaves the connection in a failed-transaction
+// block (every statement errors with 25P02 until an explicit rollback), so
+// retrying `run()` on the same connection without rolling back first would
+// mask the original deadlock behind a confusing 25P02.
+export async function withDeadlockRetry<T>(
+  client: { query: (text: string) => Promise<unknown> },
+  run: () => Promise<T>,
+): Promise<T> {
   const ATTEMPTS = 3;
   for (let attempt = 1; ; attempt++) {
     try {
@@ -25,6 +37,7 @@ export async function withDeadlockRetry<T>(run: () => Promise<T>): Promise<T> {
       if (!isDeadlock || attempt >= ATTEMPTS) {
         throw error;
       }
+      await client.query('rollback').catch(() => {});
     }
   }
 }

@@ -54,7 +54,7 @@ async function withPgClient<T>(run: (client: pg.Client) => Promise<T>): Promise<
 // retrying from scratch is always safe here. See support/deadlockRetry.ts
 // for why this can transiently deadlock at all.
 async function replayToPreIssue88Baseline(client: pg.Client, schema: string): Promise<void> {
-  await withDeadlockRetry(async () => {
+  await withDeadlockRetry(client, async () => {
     await client.query(`drop schema if exists ${schema} cascade`);
     await client.query(`create schema ${schema}`);
     await client.query(scopedToTestSchema(readMigration(BASELINE_MIGRATION), schema));
@@ -103,7 +103,7 @@ void test('backfill derives starts_on/ends_on from an event’s occurrences’ T
       [eventId],
     );
 
-    await withDeadlockRetry(() =>
+    await withDeadlockRetry(client, () =>
       client.query(scopedToTestSchema(readMigration(ADD_EVENT_RANGE_MIGRATION), SCHEMA)),
     );
 
@@ -159,7 +159,7 @@ void test('backfill fails closed (aborts, no partial schema change) for an event
 
     await assert.rejects(
       () =>
-        withDeadlockRetry(() =>
+        withDeadlockRetry(client, () =>
           client.query(scopedToTestSchema(readMigration(ADD_EVENT_RANGE_MIGRATION), SCHEMA)),
         ),
       /left \d+ row\(s\) with a null starts_on\/ends_on/,

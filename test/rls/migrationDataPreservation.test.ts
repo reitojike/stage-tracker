@@ -81,7 +81,7 @@ interface PreMigrationFixtures {
 // scratch is always safe here. See support/deadlockRetry.ts for why this
 // can transiently deadlock at all.
 async function seedAndMigrate(client: pg.Client, ownerId: string): Promise<PreMigrationFixtures> {
-  return withDeadlockRetry(async () => {
+  return withDeadlockRetry(client, async () => {
     await client.query(`drop schema if exists ${SCHEMA} cascade`);
     await client.query(`create schema ${SCHEMA}`);
 
