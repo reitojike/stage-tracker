@@ -46,6 +46,7 @@ import {
   compareDates,
   layoutWeekBands,
   MAX_BAND_LANES,
+  monthBounds,
   type BandSegment,
   type WeekBandLayout,
 } from './calendarMonth.ts';
@@ -63,7 +64,7 @@ import {
 } from './eventCatalog.ts';
 import { isEffectivelyCanceled } from './eventCancellation.ts';
 import type { Participation } from './participation.ts';
-import type { PersonalScheduleEntry } from './personalSchedule.ts';
+import { entryStart, instantSortKey, type PersonalScheduleEntry } from './personalSchedule.ts';
 import type { TicketAcquisition } from './ticketAcquisition.ts';
 
 // --- Occurrence + participation + ticket state ---
@@ -289,6 +290,159 @@ export function selectMyCalendarScheduleEntries(
       scheduleEntryDatesInRange(entry, rangeFirstDate, rangeLastDate).includes(date),
     )
     .map((entry) => ({ entry, isOwner: entry.ownerId === callerId }));
+}
+
+// --- Month landing agenda ---
+
+/** A presentation-ready item shared by the selected-day list and the month
+ * landing agenda. Keeping the two source shapes explicit lets their row
+ * presenter reuse the exact same Badge, link, and temporal semantics without
+ * making either source look like the other. */
+export type MyCalendarEntry =
+  | {
+      kind: 'occurrence';
+      occurrenceEntry: MyCalendarOccurrenceEntry;
+    }
+  | {
+      kind: 'schedule';
+      scheduleEntry: MyCalendarScheduleEntry;
+    };
+
+/** One item in the month landing agenda. `date` is the date group/anchor,
+ * not necessarily the schedule's actual start date: a multi-day schedule
+ * that carries in from a previous month is anchored at the displayed
+ * month's first date while its row still renders its actual temporal range. */
+export type MyCalendarAgendaItem = MyCalendarEntry & {
+  date: string;
+};
+
+export interface MyCalendarAgendaDateGroup {
+  date: string;
+  items: MyCalendarAgendaItem[];
+}
+
+export function agendaItemId(item: MyCalendarAgendaItem): string {
+  return item.kind === 'occurrence'
+    ? item.occurrenceEntry.occurrence.id
+    : item.scheduleEntry.entry.id;
+}
+
+/** One normalized chronological key across raw occurrence instants and
+ * all-day/time-bounded schedule starts. These are the same precision-aware
+ * helpers used by Home's mixed upcoming projection; direct comparison of a
+ * raw timestamp with an all-day calendar date would not be safe here. */
+function agendaItemStartKey(item: MyCalendarAgendaItem): string {
+  return item.kind === 'occurrence'
+    ? instantSortKey(item.occurrenceEntry.occurrence.startsAt)
+    : entryStart(item.scheduleEntry.entry);
+}
+
+/** Stable same-date ordering for the mixed agenda. The temporal key is the
+ * actual source start (so a previous-month carry-in naturally precedes a
+ * timed item on the month-start anchor date); id and kind make equal starts
+ * deterministic across the two source tables. */
+function compareAgendaItems(a: MyCalendarAgendaItem, b: MyCalendarAgendaItem): number {
+  const startA = agendaItemStartKey(a);
+  const startB = agendaItemStartKey(b);
+  if (startA !== startB) {
+    return startA < startB ? -1 : 1;
+  }
+
+  const idA = agendaItemId(a);
+  const idB = agendaItemId(b);
+  if (idA !== idB) {
+    return idA < idB ? -1 : 1;
+  }
+  if (a.kind === b.kind) {
+    return 0;
+  }
+  return a.kind === 'occurrence' ? -1 : 1;
+}
+
+/** True when an entry's own Tokyo calendar-date range overlaps the inclusive
+ * displayed-month range. The range is intentionally not expanded to the
+ * calendar grid's lead/trail dates: month landing owns only the actual
+ * displayed month, while the calendar grid may still show adjacent-cell
+ * markers for navigation context. */
+function scheduleOverlapsMonth(
+  entry: PersonalScheduleEntry,
+  monthFirstDate: string,
+  monthLastDate: string,
+): boolean {
+  const { startDate, endDate } = scheduleEntryDateRange(entry);
+  return compareDates(startDate, monthLastDate) <= 0 && compareDates(endDate, monthFirstDate) >= 0;
+}
+
+/**
+ * Builds the displayed month's chronological agenda from the same
+ * participation-registered occurrence and visible schedule slices used by
+ * the calendar grid and selected-day detail.
+ *
+ * Occurrences are included once on their own exact Asia/Tokyo start date,
+ * including canceled occurrences so their existing detail semantics remain
+ * reachable from the month landing. Schedules are included once per logical
+ * entry when their own date range overlaps the month. A schedule that starts
+ * before the month is anchored to the first displayed date, but its row keeps
+ * the un-clipped temporal label via the original entry. Lead/trail
+ * adjacent-month occurrence dates never enter this projection.
+ */
+export function buildMyCalendarMonthAgenda(
+  yearMonth: string,
+  occurrenceEntries: readonly MyCalendarOccurrenceEntry[],
+  scheduleEntries: readonly PersonalScheduleEntry[],
+  callerId: string,
+): MyCalendarAgendaDateGroup[] {
+  const { firstDate: monthFirstDate, lastDate: monthLastDate } = monthBounds(yearMonth);
+  const items: MyCalendarAgendaItem[] = [];
+  const seenOccurrenceIds = new Set<string>();
+  const seenScheduleIds = new Set<string>();
+
+  for (const occurrenceEntry of occurrenceEntries) {
+    const occurrenceId = occurrenceEntry.occurrence.id;
+    const date = tokyoCalendarDateFromInstant(occurrenceEntry.occurrence.startsAt);
+    if (compareDates(date, monthFirstDate) < 0 || compareDates(date, monthLastDate) > 0) {
+      continue;
+    }
+    if (seenOccurrenceIds.has(occurrenceId)) {
+      continue;
+    }
+    seenOccurrenceIds.add(occurrenceId);
+    items.push({ date, kind: 'occurrence', occurrenceEntry });
+  }
+
+  for (const entry of scheduleEntries) {
+    if (!scheduleOverlapsMonth(entry, monthFirstDate, monthLastDate)) {
+      continue;
+    }
+    if (seenScheduleIds.has(entry.id)) {
+      continue;
+    }
+    seenScheduleIds.add(entry.id);
+    const { startDate } = scheduleEntryDateRange(entry);
+    const date = compareDates(startDate, monthFirstDate) < 0 ? monthFirstDate : startDate;
+    items.push({
+      date,
+      kind: 'schedule',
+      scheduleEntry: { entry, isOwner: entry.ownerId === callerId },
+    });
+  }
+
+  const itemsByDate = new Map<string, MyCalendarAgendaItem[]>();
+  for (const item of items) {
+    const bucket = itemsByDate.get(item.date);
+    if (bucket === undefined) {
+      itemsByDate.set(item.date, [item]);
+    } else {
+      bucket.push(item);
+    }
+  }
+
+  return [...itemsByDate.entries()]
+    .sort(([dateA], [dateB]) => compareDates(dateA, dateB))
+    .map(([date, dateItems]) => ({
+      date,
+      items: dateItems.sort(compareAgendaItems),
+    }));
 }
 
 // --- Multi-day band segments ---

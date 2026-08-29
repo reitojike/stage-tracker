@@ -1,0 +1,18 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.dateHeading {
+  composes: heading from './MySelectedDayList.module.css';
+  margin-bottom: var(--space-xs);
+}
+
+.items {
+  composes: items from './MySelectedDayList.module.css';
+}
+
+.item {
+  composes: item from './MySelectedDayList.module.css';
+}
