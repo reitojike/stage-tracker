@@ -11,14 +11,22 @@ import { fileURLToPath } from 'node:url';
 // Occurrence identity on the way to the shared Event detail page, even
 // though the Event Catalog's own SelectedDayList carries it correctly.
 const sourcePath = fileURLToPath(new URL('../MySelectedDayList.tsx', import.meta.url));
+const rowSourcePath = fileURLToPath(new URL('../MyCalendarEntryRow.tsx', import.meta.url));
 
-void test('the occurrence row link carries occurrence.id to catalogEventHref, matching the Event Catalog SelectedDayList exact-Occurrence navigation contract', () => {
-  const source = readFileSync(sourcePath, 'utf8');
+void test('the shared occurrence row link carries occurrence.id to catalogEventHref, matching the Event Catalog SelectedDayList exact-Occurrence navigation contract', () => {
+  const source = readFileSync(rowSourcePath, 'utf8');
   assert.match(
     source,
     /catalogEventHref\(event\.id,\s*eventDetailContext,\s*occurrence\.id\)/,
-    "MySelectedDayList must pass occurrence.id as catalogEventHref's third argument",
+    "MyCalendarEntryRow must pass occurrence.id as catalogEventHref's third argument",
   );
+});
+
+void test('MySelectedDayList delegates occurrence and schedule rows to the shared presenter', () => {
+  const source = readFileSync(sourcePath, 'utf8');
+  assert.match(source, /import \{\s*MyCalendarEntryRow\s*\}/);
+  assert.match(source, /kind: 'occurrence'/);
+  assert.match(source, /kind: 'schedule'/);
 });
 
 // --- Issue #189: shared day-role/date label authority, not a local one ---

@@ -10,6 +10,7 @@ import { groupOccurrencesByEvent } from '@/domain/eventCatalog.ts';
 import { buildMonthGrid } from '@/domain/calendarMonth.ts';
 import {
   buildMyCalendarDayMarkers,
+  buildMyCalendarMonthAgenda,
   buildMyCalendarOccurrenceEntries,
   buildMyCalendarWeekBandLayouts,
   isOccurrenceStartUtcDateInGridSuperset,
@@ -21,6 +22,7 @@ import type { Participation } from '@/domain/participation.ts';
 import type { TicketAcquisition } from '@/domain/ticketAcquisition.ts';
 import type { PlanningError } from '@/domain/planningError.ts';
 import { currentTokyoDate } from './_lib/today.ts';
+import { MyCalendarAgenda } from './_components/MyCalendarAgenda.tsx';
 import { MyMonthCalendar } from './_components/MyMonthCalendar.tsx';
 import { MySelectedDayList } from './_components/MySelectedDayList.tsx';
 
@@ -202,22 +204,18 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   );
   const markersByDate = new Map(dayMarkers.map((m) => [m.date, m] as const));
   const weekBandLayouts = buildMyCalendarWeekBandLayouts(grid.weeks, scheduleResult.data);
+  const monthAgenda = buildMyCalendarMonthAgenda(
+    yearMonth,
+    occurrenceEntries,
+    scheduleResult.data,
+    callerId,
+  );
 
-  // Emptiness is judged only over dates actually inside the displayed
-  // month, not the lead/trail adjacent-month cells `dayMarkers` also
-  // carries (see buildMyCalendarDayMarkers's own header - it spans the
-  // whole grid, including days outside `yearMonth`). A marker on an
-  // adjacent-month lead/trail cell must not suppress "この月に登録され
-  // ている予定はありません" for an otherwise-empty displayed month.
-  const isEmpty = dayMarkers
-    .filter((m) => m.date.startsWith(yearMonth))
-    .every(
-      (m) =>
-        m.attendingCount === 0 &&
-        m.consideringCount === 0 &&
-        m.ownScheduleCount === 0 &&
-        m.sharedScheduleCount === 0,
-    );
+  // The month landing's empty state is based on the same displayed-month
+  // projection it would otherwise render. This keeps an effectively canceled
+  // registered occurrence visible in the agenda/detail surface even though
+  // Issue #180 correctly excludes it from the month marker counts.
+  const isEmpty = monthAgenda.length === 0;
 
   // Same displayed-month scoping as isEmpty above (not the lead/trail
   // adjacent-month cells): true when any date actually inside `yearMonth`
@@ -243,8 +241,12 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
         hasUnconfirmedHolidayCoverage={hasUnconfirmedHolidayCoverage}
       />
 
-      {isEmpty && selectedDate === null ? (
-        <StatePanel variant="empty" title="この月に登録されている予定はありません" />
+      {selectedDate === null ? (
+        isEmpty ? (
+          <StatePanel variant="empty" title="この月に登録されている予定はありません" />
+        ) : (
+          <MyCalendarAgenda dateGroups={monthAgenda} yearMonth={yearMonth} />
+        )
       ) : null}
 
       {selectedDate !== null ? (

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   aggregateTicketDisplayStatus,
   buildMyCalendarDayMarkers,
+  buildMyCalendarMonthAgenda,
   buildMyCalendarOccurrenceEntries,
   buildMyCalendarScheduleBandSegments,
   buildMyCalendarWeekBandLayouts,
@@ -271,6 +272,166 @@ void test('selectMyCalendarScheduleEntries labels owner vs. shared correctly', (
       ['own', true],
       ['shared', false],
     ],
+  );
+});
+
+// --- buildMyCalendarMonthAgenda (Issue #217) ---
+
+void test('buildMyCalendarMonthAgenda composes mixed sources by Tokyo date and chronological start', () => {
+  const earlyEvent = event({ id: 'event-early', title: 'Early show' });
+  const lateEvent = event({ id: 'event-late', title: 'Late show' });
+  const leadEvent = event({ id: 'event-lead', title: 'Lead show' });
+  const trailEvent = event({ id: 'event-trail', title: 'Trail show' });
+  const occurrenceEntries = buildMyCalendarOccurrenceEntries(
+    [
+      {
+        event: lateEvent,
+        occurrences: [
+          occurrence({
+            id: 'occ-late',
+            eventId: lateEvent.id,
+            startsAt: '2026-08-10T05:00:00Z', // 14:00 JST
+          }),
+        ],
+      },
+      {
+        event: leadEvent,
+        occurrences: [
+          occurrence({
+            id: 'occ-lead',
+            eventId: leadEvent.id,
+            startsAt: '2026-07-31T10:00:00Z',
+          }),
+        ],
+      },
+      {
+        event: trailEvent,
+        occurrences: [
+          occurrence({
+            id: 'occ-trail',
+            eventId: trailEvent.id,
+            startsAt: '2026-09-01T00:00:00Z',
+          }),
+        ],
+      },
+      {
+        event: earlyEvent,
+        occurrences: [
+          occurrence({
+            id: 'occ-early',
+            eventId: earlyEvent.id,
+            startsAt: '2026-08-10T00:00:00Z', // 09:00 JST
+          }),
+          occurrence({
+            id: 'occ-early',
+            eventId: earlyEvent.id,
+            startsAt: '2026-08-10T00:00:00Z', // duplicate logical occurrence
+          }),
+        ],
+      },
+    ],
+    new Map([
+      ['occ-late', participation({ occurrenceId: 'occ-late' })],
+      ['occ-lead', participation({ occurrenceId: 'occ-lead' })],
+      ['occ-trail', participation({ occurrenceId: 'occ-trail' })],
+      ['occ-early', participation({ occurrenceId: 'occ-early' })],
+    ]),
+    new Map(),
+  );
+  const scheduleEntries = [
+    scheduleEntry({
+      id: 'carry-in',
+      ownerId: 'caller',
+      temporal: { kind: 'all-day', startsOn: '2026-07-30', endsOn: '2026-08-02' },
+    }),
+    scheduleEntry({
+      id: 'carry-in',
+      ownerId: 'caller',
+      temporal: { kind: 'all-day', startsOn: '2026-07-30', endsOn: '2026-08-02' },
+    }),
+    scheduleEntry({
+      id: 'timed-between',
+      ownerId: 'caller',
+      temporal: {
+        kind: 'time-bounded',
+        startsAt: '2026-08-10T01:00:00Z', // 10:00 JST, between the shows
+        endsAt: '2026-08-10T02:00:00Z',
+      },
+    }),
+    scheduleEntry({
+      id: 'multi-day',
+      ownerId: 'someone-else',
+      temporal: { kind: 'all-day', startsOn: '2026-08-11', endsOn: '2026-08-13' },
+    }),
+    scheduleEntry({
+      id: 'before-month',
+      temporal: { kind: 'all-day', startsOn: '2026-07-01', endsOn: '2026-07-02' },
+    }),
+    scheduleEntry({
+      id: 'after-month',
+      temporal: { kind: 'all-day', startsOn: '2026-09-01', endsOn: '2026-09-02' },
+    }),
+  ];
+
+  const groups = buildMyCalendarMonthAgenda(
+    '2026-08',
+    occurrenceEntries,
+    scheduleEntries,
+    'caller',
+  );
+
+  assert.deepEqual(
+    groups.map((group) => group.date),
+    ['2026-08-01', '2026-08-10', '2026-08-11'],
+  );
+  const monthStart = groups[0];
+  assert.ok(monthStart);
+  assert.deepEqual(
+    monthStart.items.map((item) => item.kind),
+    ['schedule'],
+  );
+  const carryIn = monthStart.items[0];
+  assert.ok(carryIn?.kind === 'schedule');
+  assert.equal(carryIn.scheduleEntry.entry.id, 'carry-in');
+  assert.deepEqual(carryIn.scheduleEntry.entry.temporal, {
+    kind: 'all-day',
+    startsOn: '2026-07-30',
+    endsOn: '2026-08-02',
+  });
+
+  const sameDate = groups.find((group) => group.date === '2026-08-10');
+  assert.ok(sameDate);
+  assert.deepEqual(
+    sameDate.items.map((item) =>
+      item.kind === 'occurrence'
+        ? `${item.kind}:${item.occurrenceEntry.occurrence.id}`
+        : `${item.kind}:${item.scheduleEntry.entry.id}`,
+    ),
+    ['occurrence:occ-early', 'schedule:timed-between', 'occurrence:occ-late'],
+  );
+
+  const multiDay = groups.find((group) => group.date === '2026-08-11');
+  assert.ok(multiDay);
+  assert.deepEqual(
+    multiDay.items.map((item) => item.kind),
+    ['schedule'],
+  );
+  assert.equal(
+    multiDay.items[0]?.kind === 'schedule' ? multiDay.items[0].scheduleEntry.entry.id : null,
+    'multi-day',
+  );
+  assert.equal(
+    groups.flatMap((group) => group.items).filter((item) => item.kind === 'occurrence').length,
+    2,
+    'lead/trail adjacent-month occurrences must not enter the month agenda',
+  );
+  assert.equal(
+    groups
+      .flatMap((group) => group.items)
+      .filter((item) => item.kind === 'schedule' && item.scheduleEntry.entry.id === 'multi-day')
+      .length,
+    1,
+    'a multi-day schedule is one logical agenda item, not one item per active date',
   );
 });
 
