@@ -40,7 +40,7 @@ void test('the classification badge uses the shared genre/lower authority (class
   assert.match(component, /<Badge variant="outline">\{badgeLabel\}<\/Badge>/);
 });
 
-void test('classificationByEventId is optional, defaulting to an empty map - My Calendar (src/app/calendar/page.tsx) reuses this component without classification data', () => {
+void test('classificationByEventId is optional, defaulting to an empty map - so a caller without per-event classification data still renders without crashing', () => {
   assert.match(component, /classificationByEventId\?: ReadonlyMap<string, EventClassification>;/);
   assert.match(
     component,
