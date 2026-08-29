@@ -14,13 +14,13 @@ import { PageHeading } from '@/ui/PageHeading';
 export default function MyCalendarLoading() {
   return (
     <>
-      <PageHeading>マイカレンダー</PageHeading>
+      <PageHeading>カレンダー</PageHeading>
       <ActionRow>
         <LinkButton href="/schedule" variant="secondary">
           個人予定を管理
         </LinkButton>
       </ActionRow>
-      <CalendarSkeleton sectionLabel="マイカレンダー" fallbackLabel="マイカレンダーを読み込み中" />
+      <CalendarSkeleton sectionLabel="カレンダー" fallbackLabel="カレンダーを読み込み中" />
     </>
   );
 }

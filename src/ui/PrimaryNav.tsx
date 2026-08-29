@@ -47,7 +47,7 @@ function HomeIcon(props: NavIconProps) {
 }
 
 /**
- * Base calendar glyph shared by イベント and マイカレンダー (design handoff:
+ * Base calendar glyph shared by イベント and カレンダー (design handoff:
  * "同じカレンダーなので、チェックの有無で区別する"). CalendarCheckIcon below
  * composes this shape rather than duplicating the grid/ring paths.
  */
@@ -109,7 +109,7 @@ const ITEMS: readonly PrimaryNavItem[] = [
   { href: '/', label: 'ホーム', Icon: HomeIcon },
   { href: '/catalog', label: 'イベント', Icon: CalendarIcon },
   { href: '/tickets', label: 'チケット', Icon: TicketIcon },
-  { href: '/calendar', label: 'マイカレンダー', Icon: CalendarCheckIcon },
+  { href: '/calendar', label: 'カレンダー', Icon: CalendarCheckIcon },
 ];
 
 /**

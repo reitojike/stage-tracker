@@ -39,7 +39,7 @@ const AUTH_FAILURE_PANEL: Record<
     description: 'セッションの有効期限が切れている可能性があります。再度ログインしてください。',
   },
   failure: {
-    title: 'マイカレンダーを読み込めませんでした',
+    title: 'カレンダーを読み込めませんでした',
     description: '通信状況を確認し、もう一度お試しください。',
   },
 };
@@ -86,7 +86,7 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   if (!callerResult.ok) {
     return (
       <>
-        <PageHeading>マイカレンダー</PageHeading>
+        <PageHeading>カレンダー</PageHeading>
         {authOrReadErrorPanel(callerResult.error)}
       </>
     );
@@ -114,7 +114,7 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   ) {
     return (
       <>
-        <PageHeading>マイカレンダー</PageHeading>
+        <PageHeading>カレンダー</PageHeading>
         {firstError !== null ? authOrReadErrorPanel(firstError) : null}
       </>
     );
@@ -131,10 +131,10 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   if (!occurrencesResult.ok) {
     return (
       <>
-        <PageHeading>マイカレンダー</PageHeading>
+        <PageHeading>カレンダー</PageHeading>
         <StatePanel
           variant="error"
-          title="マイカレンダーを読み込めませんでした"
+          title="カレンダーを読み込めませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
       </>
@@ -165,10 +165,10 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
   if (!eventsResult.ok) {
     return (
       <>
-        <PageHeading>マイカレンダー</PageHeading>
+        <PageHeading>カレンダー</PageHeading>
         <StatePanel
           variant="error"
-          title="マイカレンダーを読み込めませんでした"
+          title="カレンダーを読み込めませんでした"
           description="通信状況を確認し、もう一度お試しください。"
         />
       </>
@@ -233,7 +233,7 @@ export default async function MyCalendarPage({ searchParams }: MyCalendarPagePro
 
   return (
     <>
-      <PageHeading>マイカレンダー</PageHeading>
+      <PageHeading>カレンダー</PageHeading>
       <ActionRow>
         <LinkButton href="/schedule" variant="secondary">
           個人予定を管理
