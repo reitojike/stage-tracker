@@ -12,6 +12,7 @@
 // instead of being ignored like any other malformed value.
 
 import { isValidCalendarDate, isValidYearMonth } from './calendarMonth.ts';
+import { tokyoCalendarDateFromInstant } from './eventCatalog.ts';
 
 export interface CatalogParams {
   yearMonth: string;
@@ -105,6 +106,27 @@ export function catalogEventHref(
   }
   params.set('occurrence', occurrenceId);
   return `/catalog/events/${eventId}?${params.toString()}#${occurrenceAnchorId(occurrenceId)}`;
+}
+
+/**
+ * The Event-detail deep-link href for a screen that has no ambient month/day
+ * navigation state of its own to carry as context (Issue #194) - Home's
+ * upcoming rows and deadline cards both derive one directly from whichever
+ * Occurrence they are about, rather than each re-deriving the same
+ * `tokyoCalendarDateFromInstant(startsAt) -> { yearMonth, selectedDate }`
+ * shape independently.
+ */
+export function occurrenceEventDetailHref(
+  eventId: string,
+  occurrenceId: string,
+  occurrenceStartsAt: string,
+): string {
+  const date = tokyoCalendarDateFromInstant(occurrenceStartsAt);
+  return catalogEventHref(
+    eventId,
+    { yearMonth: date.slice(0, 7), selectedDate: date },
+    occurrenceId,
+  );
 }
 
 /**

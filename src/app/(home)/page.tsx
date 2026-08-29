@@ -12,18 +12,11 @@ import {
   getOccurrencesByIds,
   type EventCatalogQueryClient,
 } from '@/infrastructure/supabase/eventCatalogRead.ts';
-import {
-  buildTicketOpportunityTimelineRows,
-  type TicketOpportunityTimelineRow,
-} from '@/domain/ticketOpportunityTimeline.ts';
+import { buildTicketOpportunityTimelineRows } from '@/domain/ticketOpportunityTimeline.ts';
 import { selectHomeDeadlineRows } from '@/domain/homeDeadlines.ts';
 import { groupOccurrencesByEvent } from '@/domain/eventCatalog.ts';
 import { buildMyCalendarOccurrenceEntries } from '@/domain/myCalendar.ts';
-import {
-  groupHomeUpcomingItemsByDate,
-  selectHomeUpcomingItems,
-  type HomeUpcomingDateGroup,
-} from '@/domain/homeUpcoming.ts';
+import { groupHomeUpcomingItemsByDate, selectHomeUpcomingItems } from '@/domain/homeUpcoming.ts';
 import type { PlanningError } from '@/domain/planningError.ts';
 import type {
   EventCatalogEvent,
@@ -53,9 +46,38 @@ const AUTH_FAILURE_PANEL: Record<
  * per-block failure isolation) - `'unavailable'` (read failed) and
  * `'empty'` (read succeeded, nothing to show) are kept distinct so a
  * genuine read failure is never silently downgraded into "empty" (Issue
- * #194 Task Contract: "block-level read失敗をsuccessful emptyへ潰さない"). */
-type HomeBlockOutcome<T> =
-  { status: 'unavailable' } | { status: 'empty' } | { status: 'populated'; data: T };
+ * #194 Task Contract: "block-level read失敗をsuccessful emptyへ潰さない").
+ * `data` holds the already-built populated ReactNode (not raw rows/groups),
+ * so both blocks share the exact same outcome->panel mapping below
+ * (renderHomeBlockPanel) regardless of what each block's own data shape is. */
+type HomeBlockOutcome =
+  { status: 'unavailable' } | { status: 'empty' } | { status: 'populated'; data: ReactNode };
+
+/** The single outcome->panel mapping both blocks share (Issue #194): a read
+ * failure always gets its own `unavailable` panel; an empty result gets its
+ * own `emptyTitle` panel unless `bothEmpty` says the combined guidance panel
+ * (rendered once, after both sections) covers it instead; a populated
+ * outcome renders its already-built content as-is. */
+function renderHomeBlockPanel(
+  outcome: HomeBlockOutcome,
+  unavailableTitle: string,
+  emptyTitle: string,
+  bothEmpty: boolean,
+): ReactNode {
+  if (outcome.status === 'unavailable') {
+    return (
+      <StatePanel
+        variant="unavailable"
+        title={unavailableTitle}
+        description="通信状況を確認し、もう一度お試しください。"
+      />
+    );
+  }
+  if (outcome.status === 'empty') {
+    return bothEmpty ? null : <StatePanel variant="empty" title={emptyTitle} />;
+  }
+  return outcome.data;
+}
 
 function authOrReadErrorPanel(error: PlanningError) {
   const key = error.kind === 'unauthenticated' ? 'unauthenticated' : 'failure';
@@ -193,7 +215,7 @@ export default async function Home() {
   } = participationEventsAndOccurrences;
 
   // --- Block A: 申し込み期限 ---
-  let deadlineOutcome: HomeBlockOutcome<readonly TicketOpportunityTimelineRow[]>;
+  let deadlineOutcome: HomeBlockOutcome;
   if (!opportunitiesResult.ok || !opportunityEventsResult.ok || !opportunityOccurrencesResult.ok) {
     deadlineOutcome = { status: 'unavailable' };
   } else {
@@ -210,11 +232,16 @@ export default async function Home() {
     );
     const deadlineRows = selectHomeDeadlineRows(timelineRows, today);
     deadlineOutcome =
-      deadlineRows.length === 0 ? { status: 'empty' } : { status: 'populated', data: deadlineRows };
+      deadlineRows.length === 0
+        ? { status: 'empty' }
+        : {
+            status: 'populated',
+            data: <HomeDeadlineList rows={deadlineRows} todayTokyoDate={today} />,
+          };
   }
 
   // --- Block B: 直近の予定 ---
-  let upcomingOutcome: HomeBlockOutcome<readonly HomeUpcomingDateGroup[]>;
+  let upcomingOutcome: HomeBlockOutcome;
   if (
     !participationsResult.ok ||
     !scheduleResult.ok ||
@@ -251,7 +278,9 @@ export default async function Home() {
     const items = selectHomeUpcomingItems(occurrenceCandidates, scheduleCandidates, now, today);
     const dateGroups = groupHomeUpcomingItemsByDate(items);
     upcomingOutcome =
-      dateGroups.length === 0 ? { status: 'empty' } : { status: 'populated', data: dateGroups };
+      dateGroups.length === 0
+        ? { status: 'empty' }
+        : { status: 'populated', data: <HomeUpcomingList dateGroups={dateGroups} /> };
   }
 
   // Issue #194: when both blocks are independently empty (not merely one of
@@ -262,35 +291,18 @@ export default async function Home() {
   // favor of the single combined one rendered once after both sections.
   const bothEmpty = deadlineOutcome.status === 'empty' && upcomingOutcome.status === 'empty';
 
-  const deadlineBlock: ReactNode =
-    deadlineOutcome.status === 'unavailable' ? (
-      <StatePanel
-        variant="unavailable"
-        title="申し込み期限を読み込めませんでした"
-        description="通信状況を確認し、もう一度お試しください。"
-      />
-    ) : deadlineOutcome.status === 'empty' ? (
-      bothEmpty ? null : (
-        <StatePanel variant="empty" title="期限が近いものはありません" />
-      )
-    ) : (
-      <HomeDeadlineList rows={deadlineOutcome.data} todayTokyoDate={today} />
-    );
-
-  const upcomingBlock: ReactNode =
-    upcomingOutcome.status === 'unavailable' ? (
-      <StatePanel
-        variant="unavailable"
-        title="直近の予定を読み込めませんでした"
-        description="通信状況を確認し、もう一度お試しください。"
-      />
-    ) : upcomingOutcome.status === 'empty' ? (
-      bothEmpty ? null : (
-        <StatePanel variant="empty" title="予定はありません" />
-      )
-    ) : (
-      <HomeUpcomingList dateGroups={upcomingOutcome.data} />
-    );
+  const deadlineBlock = renderHomeBlockPanel(
+    deadlineOutcome,
+    '申し込み期限を読み込めませんでした',
+    '期限が近いものはありません',
+    bothEmpty,
+  );
+  const upcomingBlock = renderHomeBlockPanel(
+    upcomingOutcome,
+    '直近の予定を読み込めませんでした',
+    '予定はありません',
+    bothEmpty,
+  );
 
   return (
     <>

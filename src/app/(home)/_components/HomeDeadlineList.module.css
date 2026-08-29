@@ -82,12 +82,13 @@
   margin: 0;
 }
 
-/* Issue #194 Task Contract: 15px, --color-icon-affordance (#737b82) - only
-   shown when the source milestone carries a time (see HomeDeadlineList.tsx's
-   own header); a date-only milestone shows no chevron even though the card
-   itself is still a link. */
+/* Issue #194 Task Contract: 15px - only shown when the source milestone
+   carries a time (see HomeDeadlineList.tsx's own header); a date-only
+   milestone shows no chevron even though the card itself is still a link.
+   Composes the same flex-shrink/color rule every other list-row chevron in
+   the app shares (Issue #190's own precedent, HomeUpcomingList.module.css
+   included), adding only the size override this card's own spec calls for. */
 .chevron {
-  flex-shrink: 0;
+  composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
   font-size: 15px;
-  color: var(--color-icon-affordance);
 }

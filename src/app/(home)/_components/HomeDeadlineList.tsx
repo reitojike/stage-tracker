@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
 import { tokyoCalendarDateFromInstant } from '@/domain/eventCatalog.ts';
-import { catalogEventHref, type CatalogParams } from '@/domain/catalogNavigation.ts';
+import { catalogEventHref, occurrenceEventDetailHref } from '@/domain/catalogNavigation.ts';
 import {
   formatTicketOpportunityMilestoneDisplay,
   ticketOpportunityDeadlineBadge,
@@ -19,23 +19,38 @@ export interface HomeDeadlineListProps {
 
 /** The Event-detail deep-link href for a deadline card (Issue #194 TURN 12:
  * the card itself is now a navigation destination, unlike TURN <12's glance-
- * only card). A `selected_occurrences` row focuses its nearest target
- * Occurrence (already chronologically sorted - see
- * domain/ticketOpportunityTimeline.ts), matching the same
- * event+occurrence deep-link shape HomeUpcomingList uses. An `event_wide`
- * row has no Occurrence to focus, so it links to the Event alone; Home has
- * no month/day navigation state of its own to carry as context (same
- * reasoning as HomeUpcomingList's own occurrenceEventDetailContext), so
+ * only card).
+ *
+ * A `selected_occurrences` row focuses the nearest *upcoming* target
+ * Occurrence (calendar date on or after today), not simply the earliest of
+ * whichever targets resolved - `row.targetOccurrences` is only sorted
+ * chronologically (domain/ticketOpportunityTimeline.ts), and nothing in the
+ * actionability gate (isActionableTicketOpportunityDeadline) constrains
+ * target-occurrence dates relative to today, so a bundled application
+ * spanning already-past and future Occurrences could otherwise deep-link to
+ * a stale one. If every target has already passed, this falls back to the
+ * latest of them (still an imperfect choice, but closer to "current" than
+ * the earliest). This mirrors HomeUpcomingList's own event+occurrence
+ * deep-link shape via the shared occurrenceEventDetailHref.
+ *
+ * With no target at all - true for every `event_wide` row by construction,
+ * and also possible for a `selected_occurrences` row whose target ids all
+ * failed to resolve (domain/ticketOpportunityTimeline.ts's own "dropped,
+ * not fabricated" behavior) - this links to the Event alone; Home has no
+ * month/day navigation state of its own to carry as context, so
  * `todayTokyoDate` stands in for it. */
 function deadlineCardHref(row: TicketOpportunityTimelineRow, todayTokyoDate: string): string {
-  const firstTarget = row.targetOccurrences[0];
-  if (firstTarget === undefined) {
-    const context: CatalogParams = { yearMonth: todayTokyoDate.slice(0, 7), selectedDate: null };
-    return catalogEventHref(row.eventId, context);
+  const nearestUpcomingTarget = row.targetOccurrences.find(
+    (occurrence) => tokyoCalendarDateFromInstant(occurrence.startsAt) >= todayTokyoDate,
+  );
+  const target = nearestUpcomingTarget ?? row.targetOccurrences.at(-1);
+  if (target === undefined) {
+    return catalogEventHref(row.eventId, {
+      yearMonth: todayTokyoDate.slice(0, 7),
+      selectedDate: null,
+    });
   }
-  const date = tokyoCalendarDateFromInstant(firstTarget.startsAt);
-  const context: CatalogParams = { yearMonth: date.slice(0, 7), selectedDate: date };
-  return catalogEventHref(row.eventId, context, firstTarget.id);
+  return occurrenceEventDetailHref(row.eventId, target.id, target.startsAt);
 }
 
 /**

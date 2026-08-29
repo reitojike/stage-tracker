@@ -6,6 +6,7 @@ import {
   catalogMonthHref,
   nextYearMonth,
   occurrenceAnchorId,
+  occurrenceEventDetailHref,
   previousYearMonth,
   resolveCatalogParams,
   resolveFocusedOccurrenceId,
@@ -132,4 +133,11 @@ void test('resolveFocusedOccurrenceId: an array-valued param uses its first entr
 
 void test('occurrenceAnchorId: prefixes the occurrence id for use as a DOM/CSS id', () => {
   assert.equal(occurrenceAnchorId('3fa85f64-abcd'), 'occurrence-3fa85f64-abcd');
+});
+
+void test('occurrenceEventDetailHref: derives yearMonth/selectedDate from the occurrence startsAt and carries the occurrence anchor (Issue #194: shared by Home upcoming rows and deadline cards)', () => {
+  assert.equal(
+    occurrenceEventDetailHref('event-1', 'occ-1', '2026-09-03T09:00:00.000Z'),
+    '/catalog/events/event-1?month=2026-09&date=2026-09-03&occurrence=occ-1#occurrence-occ-1',
+  );
 });

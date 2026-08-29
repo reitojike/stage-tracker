@@ -42,6 +42,11 @@
 }
 
 .deadlineAllLink {
+  /* .deadlineHeadingRow's composed `heading` rule sets font-weight:
+     semibold for the row as a whole (the heading text's own weight) - this
+     link is action text, not part of the heading, so it resets back to
+     regular rather than inheriting that bold. */
+  font-weight: var(--font-weight-regular);
   font-size: var(--font-size-body-sm);
   color: var(--color-accent);
   text-decoration: none;
