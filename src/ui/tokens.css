@@ -286,8 +286,9 @@
      rather than shrinking with caption. Badge itself moved to a hardcoded
      11px under Issue #138's own explicit spec (design_handoff_stage_
      tracker/02-badge.md「バッジの4段階」), so Badge is no longer a
-     consumer of this token; current consumers are PrimaryNav's bottom-nav
-     labels (Issue #140: 12px) and ScheduleDetail.module.css. */
+     consumer of this token; PrimaryNav's bottom-nav labels moved onto
+     --font-size-caption (Issue #188: 12px -> 11px), so current consumers
+     are AppBar.module.css and ScheduleDetail.module.css. */
   --font-size-label: var(--font-size-scale-1);
   --font-size-body-sm: var(--font-size-scale-2);
   --font-size-body: var(--font-size-scale-3);

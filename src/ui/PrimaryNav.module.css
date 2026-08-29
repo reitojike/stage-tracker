@@ -31,15 +31,19 @@
 .link {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-xs);
+  /* Icon-label gap (Issue #188): off-grid, one step below --space-xs (4px) -
+     no existing token matches, same precedent as Badge's raw 3px padding. */
+  gap: 3px;
   /* WCAG 2.5.8 target size, with room for a two-line label on narrow
-     viewports. */
-  min-height: 56px;
+     viewports (Issue #188: 56px -> 60px now that icon + label stack
+     vertically). */
+  min-height: 60px;
   padding: var(--space-xs);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-caption);
   font-weight: var(--font-weight-regular);
   text-align: center;
   text-decoration: none;
@@ -75,6 +79,10 @@
   height: var(--space-2xs);
   border-radius: var(--radius-pill);
   background-color: var(--color-accent);
+}
+
+.icon {
+  flex-shrink: 0;
 }
 
 .label {
