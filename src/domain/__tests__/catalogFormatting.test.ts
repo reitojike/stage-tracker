@@ -1,12 +1,35 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  eventDateRangeLabel,
   isRenderableHttpUrl,
   occurrenceTimeRangeLabel,
   tokyoDateLabel,
   tokyoTimeLabel,
   UNKNOWN_END_TIME_LABEL,
 } from '../catalogFormatting.ts';
+
+void test('eventDateRangeLabel: same-month ranges omit the repeated month', () => {
+  assert.equal(eventDateRangeLabel('2026-09-01', '2026-09-30'), '9月1日〜30日');
+  assert.equal(eventDateRangeLabel('2026-09-10', '2026-09-20'), '9月10日〜20日');
+});
+
+void test('eventDateRangeLabel: same-year ranges include both months without years', () => {
+  assert.equal(eventDateRangeLabel('2026-09-28', '2026-10-02'), '9月28日〜10月2日');
+});
+
+void test('eventDateRangeLabel: year-crossing ranges include both years', () => {
+  assert.equal(eventDateRangeLabel('2026-12-28', '2027-01-05'), '2026年12月28日〜2027年1月5日');
+});
+
+void test('eventDateRangeLabel: single-day ranges omit the separator', () => {
+  assert.equal(eventDateRangeLabel('2026-09-13', '2026-09-13'), '9月13日');
+});
+
+void test('eventDateRangeLabel: malformed date-only values fail through the shared parser', () => {
+  assert.throws(() => eventDateRangeLabel('2026-02-30', '2026-03-01'), /not a valid/);
+  assert.throws(() => eventDateRangeLabel('2026-09-01', 'not-a-date'), /expected an Asia\/Tokyo/);
+});
 
 void test('tokyoTimeLabel: converts a UTC instant to Asia/Tokyo HH:mm', () => {
   assert.equal(tokyoTimeLabel('2026-08-10T02:00:00.000Z'), '11:00');

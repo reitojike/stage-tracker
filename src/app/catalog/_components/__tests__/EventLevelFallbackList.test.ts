@@ -10,6 +10,15 @@ const cssPath = fileURLToPath(new URL('../EventLevelFallbackList.module.css', im
 const component = readFileSync(componentPath, 'utf8');
 const css = readFileSync(cssPath, 'utf8');
 
+void test('Event range presentation reuses the date-only Catalog formatter instead of echoing ISO values', () => {
+  assert.match(
+    component,
+    /import \{ eventDateRangeLabel \} from '@\/domain\/catalogFormatting\.ts';/,
+  );
+  assert.match(component, /eventDateRangeLabel\(event\.startsOn, event\.endsOn\)/);
+  assert.doesNotMatch(component, /\{event\.startsOn\}〜\{event\.endsOn\}/);
+});
+
 void test('rows no longer use the Surface card component (Issue #145: line + separator layout)', () => {
   assert.doesNotMatch(component, /Surface/);
   assert.doesNotMatch(css, /\bborder-radius\b/);

@@ -1,4 +1,8 @@
-import { tokyoCalendarDateFromInstant, tokyoLocalInstant } from './eventCatalog.ts';
+import {
+  parseTokyoCalendarDate,
+  tokyoCalendarDateFromInstant,
+  tokyoLocalInstant,
+} from './eventCatalog.ts';
 
 // Pure Asia/Tokyo display formatting for the Catalog feature (Issue #20).
 // Uses the same fixed +9h offset as the rest of this domain (never the JS
@@ -17,6 +21,29 @@ export function tokyoTimeLabel(instantIso: string): string {
 export function tokyoDateLabel(instantIso: string): string {
   const tokyo = tokyoLocalInstant(instantIso);
   return `${String(tokyo.getUTCFullYear())}年${String(tokyo.getUTCMonth() + 1)}月${String(tokyo.getUTCDate())}日`;
+}
+
+/** Compact Japanese display for an Event's inclusive date-only range.
+ * `startsOn`/`endsOn` are calendar dates, not instants, so this intentionally
+ * validates and formats their fields directly without applying a timezone
+ * conversion. */
+export function eventDateRangeLabel(startsOn: string, endsOn: string): string {
+  const start = parseTokyoCalendarDate(startsOn);
+  const end = parseTokyoCalendarDate(endsOn);
+  const dateLabel = (date: typeof start, includeYear: boolean): string =>
+    `${includeYear ? `${String(date.year)}年` : ''}${String(date.month)}月${String(date.day)}日`;
+
+  if (startsOn === endsOn) {
+    return dateLabel(start, false);
+  }
+
+  const sameYear = start.year === end.year;
+  const startLabel = dateLabel(start, !sameYear);
+  const endLabel =
+    start.year === end.year && start.month === end.month
+      ? `${String(end.day)}日`
+      : dateLabel(end, !sameYear);
+  return `${startLabel}〜${endLabel}`;
 }
 
 export const UNKNOWN_END_TIME_LABEL = '終了時刻未定';
