@@ -33,3 +33,14 @@ void test('a personal schedule row reuses scheduleTemporalLabel rather than a be
 void test('a non-blocking schedule entry keeps the current outline vocabulary, not a new label', () => {
   assert.match(source, /!entry\.blocking[\s\S]{0,40}予定を確保しない/);
 });
+
+// --- Issue #189: shared day-role/date label authority, not a local one ---
+
+void test('the date heading reuses the shared calendarDayRole authority and DayRoleText, never re-deriving weekday/holiday judgment locally', () => {
+  assert.match(source, /import \{\s*DayRoleText\s*\} from '@\/ui\/DayRoleText'/);
+  assert.match(
+    source,
+    /calendarDateAccessibleWeekdayLabel|calendarDateWeekdayLabel|calendarDayRole/,
+  );
+  assert.doesNotMatch(source, /getUTCDay|getDay\(\)/);
+});

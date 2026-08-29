@@ -36,3 +36,14 @@ void test('the existing 中止 terminal badge is preserved, driven by isEffectiv
 void test('classificationByEventId is a required prop (this component is Catalog-only, not shared with My Calendar)', () => {
   assert.match(component, /classificationByEventId: ReadonlyMap<string, EventClassification>;/);
 });
+
+// --- Issue #189: shared day-role/date label authority, not a local one ---
+
+void test('the selected-day heading reuses the shared calendarDayRole authority and DayRoleText, never re-deriving weekday/holiday judgment locally', () => {
+  assert.match(component, /import \{\s*DayRoleText\s*\} from '@\/ui\/DayRoleText'/);
+  assert.match(
+    component,
+    /calendarDateAccessibleWeekdayLabel|calendarDateWeekdayLabel|calendarDayRole/,
+  );
+  assert.doesNotMatch(component, /getUTCDay|getDay\(\)/);
+});

@@ -1,6 +1,12 @@
 import { parseTokyoCalendarDate, tokyoCalendarDateFromInstant } from './eventCatalog.ts';
 import { tokyoTimeLabel } from './catalogFormatting.ts';
 import { isOccurrenceCanceled } from './eventCancellation.ts';
+import {
+  calendarDateAccessibleWeekdayLabel,
+  calendarDateWeekdayLabel,
+  calendarDayRole,
+  type CalendarDayRole,
+} from './calendarDayRole.ts';
 import type {
   TicketOpportunityMilestoneType,
   UserTicketOpportunityStatus,
@@ -46,29 +52,6 @@ export function ticketOpportunityStateBadgeVariant(status: UserTicketOpportunity
   }
 }
 
-const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'] as const;
-
-/** Plain proleptic-Gregorian weekday-of, matching calendarDayRole.ts's own
- * (private) weekdayOf - calendar arithmetic independent of any timezone
- * offset. Duplicated rather than imported, following that module's own
- * precedent for this exact one-line calculation (cheaper than a cross-module
- * dependency solely for this reuse). */
-function weekdayOf(tokyoDate: string): number {
-  const { year, month, day } = parseTokyoCalendarDate(tokyoDate);
-  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-}
-
-/** "9月10日(火)" - a plain weekday marker, not the Japanese-holiday-aware
- * role calendarDayRole.ts computes for the month calendar: this timeline has
- * no red/blue day-role presentation requirement, only a Fri/Sat/Sun-legible
- * date label, so this always resolves regardless of holiday-snapshot
- * coverage. */
-function tokyoMonthDayWeekdayLabel(tokyoDate: string): string {
-  const { month, day } = parseTokyoCalendarDate(tokyoDate);
-  const weekday = WEEKDAY_LABELS[weekdayOf(tokyoDate)] ?? '?';
-  return `${String(month)}月${String(day)}日(${weekday})`;
-}
-
 /** "2026年9月" month-separator heading, from a "YYYY-MM" grouping key (see
  * ticketOpportunityTimeline.ts's groupTicketOpportunityTimelineRowsByMonth). */
 export function ticketOpportunityTimelineMonthHeadingLabel(monthKey: string): string {
@@ -84,12 +67,27 @@ export function ticketOpportunityTimelineMonthHeadingLabel(monthKey: string): st
 }
 
 export interface TicketOpportunityMilestoneDisplay {
-  /** e.g. "9月10日(火)", or "9月10日(木) 〜 9月13日(日)" for a window
-   * spanning more than one Tokyo calendar day. */
+  /** e.g. "9月10日（火）", or "9月10日（木） 〜 9月13日（日）" for a window
+   * spanning more than one Tokyo calendar day - full-width parentheses, the
+   * same shared "M月D日（曜）" label every list-date surface uses (Issue
+   * #189, calendarDayRole.ts's calendarDateWeekdayLabel). */
   dateLabel: string;
   /** e.g. "17:00", or "18:00〜23:59" for a same-day window; null for a
    * date-only milestone, since the source gave no time to show. */
   timeLabel: string | null;
+  /** The shared calendar day-role (Issue #189) for this milestone's primary
+   * displayed date - the window's *start* date for a window-precision
+   * milestone, since dateLabel itself is a single row's color. Callers pair
+   * this with `@/ui/DayRoleText`, the same shared color authority Home/
+   * Catalog/My Calendar use - this module never re-derives its own
+   * weekday/holiday judgment or color mapping. */
+  role: CalendarDayRole;
+  /** The primary displayed date's calendarDateAccessibleWeekdayLabel -
+   * identical to dateLabel except for a holiday, when it additionally
+   * carries the official holiday name (accessibility baseline: color is
+   * never the sole carrier of a holiday's meaning - see calendarDayRole.ts's
+   * header). */
+  accessibleDateLabel: string;
 }
 
 /**
@@ -110,7 +108,12 @@ export function formatTicketOpportunityMilestoneDisplay(
     if (row.dateValue === null) {
       throw new Error('a date-precision milestone must carry dateValue');
     }
-    return { dateLabel: tokyoMonthDayWeekdayLabel(row.dateValue), timeLabel: null };
+    return {
+      dateLabel: calendarDateWeekdayLabel(row.dateValue),
+      timeLabel: null,
+      role: calendarDayRole(row.dateValue),
+      accessibleDateLabel: calendarDateAccessibleWeekdayLabel(row.dateValue),
+    };
   }
 
   if (row.temporalPrecision === 'datetime') {
@@ -118,7 +121,12 @@ export function formatTicketOpportunityMilestoneDisplay(
       throw new Error('a datetime-precision milestone must carry at');
     }
     const tokyoDate = tokyoCalendarDateFromInstant(row.at);
-    return { dateLabel: tokyoMonthDayWeekdayLabel(tokyoDate), timeLabel: tokyoTimeLabel(row.at) };
+    return {
+      dateLabel: calendarDateWeekdayLabel(tokyoDate),
+      timeLabel: tokyoTimeLabel(row.at),
+      role: calendarDayRole(tokyoDate),
+      accessibleDateLabel: calendarDateAccessibleWeekdayLabel(tokyoDate),
+    };
   }
 
   if (row.startsAt === null || row.endsAt === null) {
@@ -128,15 +136,21 @@ export function formatTicketOpportunityMilestoneDisplay(
   const endDate = tokyoCalendarDateFromInstant(row.endsAt);
   const startTime = tokyoTimeLabel(row.startsAt);
   const endTime = tokyoTimeLabel(row.endsAt);
+  const role = calendarDayRole(startDate);
+  const accessibleDateLabel = calendarDateAccessibleWeekdayLabel(startDate);
   if (startDate === endDate) {
     return {
-      dateLabel: tokyoMonthDayWeekdayLabel(startDate),
+      dateLabel: calendarDateWeekdayLabel(startDate),
       timeLabel: `${startTime}〜${endTime}`,
+      role,
+      accessibleDateLabel,
     };
   }
   return {
-    dateLabel: `${tokyoMonthDayWeekdayLabel(startDate)} 〜 ${tokyoMonthDayWeekdayLabel(endDate)}`,
+    dateLabel: `${calendarDateWeekdayLabel(startDate)} 〜 ${calendarDateWeekdayLabel(endDate)}`,
     timeLabel: `${startTime} 〜 ${endTime}`,
+    role,
+    accessibleDateLabel,
   };
 }
 
@@ -428,7 +442,7 @@ export function ticketOpportunityTargetScopeSummaryLabel(
   // everywhere else, per Issue #172 root cause B's presentation rule.
   const labels = row.targetOccurrences.map((occurrence) => {
     const tokyoDate = tokyoCalendarDateFromInstant(occurrence.startsAt);
-    const base = `${tokyoMonthDayWeekdayLabel(tokyoDate)} ${tokyoTimeLabel(occurrence.startsAt)}`;
+    const base = `${calendarDateWeekdayLabel(tokyoDate)} ${tokyoTimeLabel(occurrence.startsAt)}`;
     return isOccurrenceCanceled(occurrence) ? `${base}（中止）` : base;
   });
   return `対象公演回: ${labels.join('、')}`;

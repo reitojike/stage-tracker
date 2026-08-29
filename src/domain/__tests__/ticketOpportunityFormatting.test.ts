@@ -81,7 +81,7 @@ void test('formatTicketOpportunityMilestoneDisplay: date precision never fabrica
     baseRow({ temporalPrecision: 'date', dateValue: '2026-09-10' }),
   );
   assert.equal(display.timeLabel, null);
-  assert.match(display.dateLabel, /^9月10日\(.\)$/);
+  assert.match(display.dateLabel, /^9月10日（.）$/);
 });
 
 void test('formatTicketOpportunityMilestoneDisplay: datetime precision shows the exact time', () => {
@@ -93,7 +93,7 @@ void test('formatTicketOpportunityMilestoneDisplay: datetime precision shows the
     }),
   );
   assert.equal(display.timeLabel, '17:00');
-  assert.match(display.dateLabel, /^9月5日\(.\)$/);
+  assert.match(display.dateLabel, /^9月5日（.）$/);
 });
 
 void test('formatTicketOpportunityMilestoneDisplay: same-day window compacts the time range', () => {
@@ -106,7 +106,7 @@ void test('formatTicketOpportunityMilestoneDisplay: same-day window compacts the
     }),
   );
   assert.equal(display.timeLabel, '18:00〜23:59');
-  assert.match(display.dateLabel, /^9月10日\(.\)$/);
+  assert.match(display.dateLabel, /^9月10日（.）$/);
 });
 
 void test('formatTicketOpportunityMilestoneDisplay: multi-day window shows both dates', () => {
@@ -118,8 +118,79 @@ void test('formatTicketOpportunityMilestoneDisplay: multi-day window shows both 
       endsAt: '2026-09-13T14:59:00.000Z', // 9/13 23:59 JST
     }),
   );
-  assert.match(display.dateLabel, /9月10日\(.\) 〜 9月13日\(.\)/);
+  assert.match(display.dateLabel, /9月10日（.） 〜 9月13日（.）/);
   assert.equal(display.timeLabel, '18:00 〜 23:59');
+});
+
+// --- Issue #189: shared day-role/color authority reused for the date column ---
+
+void test('formatTicketOpportunityMilestoneDisplay: role reflects the shared calendarDayRole authority, not a re-derived judgment', () => {
+  // 2026-09-05 is a Saturday, 2026-09-06 is a Sunday (both plain, not
+  // holidays).
+  assert.equal(
+    formatTicketOpportunityMilestoneDisplay(
+      baseRow({ temporalPrecision: 'date', dateValue: '2026-09-05' }),
+    ).role,
+    'saturday',
+  );
+  assert.equal(
+    formatTicketOpportunityMilestoneDisplay(
+      baseRow({ temporalPrecision: 'date', dateValue: '2026-09-06' }),
+    ).role,
+    'sunday',
+  );
+  assert.equal(
+    formatTicketOpportunityMilestoneDisplay(
+      baseRow({ temporalPrecision: 'date', dateValue: '2026-09-10' }),
+    ).role,
+    'weekday',
+  );
+  // 2026-01-01 (元日) is a confirmed holiday.
+  assert.equal(
+    formatTicketOpportunityMilestoneDisplay(
+      baseRow({ temporalPrecision: 'date', dateValue: '2026-01-01' }),
+    ).role,
+    'holiday',
+  );
+});
+
+void test('formatTicketOpportunityMilestoneDisplay: accessibleDateLabel carries the holiday name only for the holiday role, and the visible dateLabel never substitutes it for the weekday glyph', () => {
+  const holidayDisplay = formatTicketOpportunityMilestoneDisplay(
+    baseRow({ temporalPrecision: 'date', dateValue: '2026-01-01' }),
+  );
+  assert.equal(holidayDisplay.dateLabel, '1月1日（木）');
+  assert.equal(holidayDisplay.accessibleDateLabel, '1月1日（木）（元日）');
+
+  const ordinaryDisplay = formatTicketOpportunityMilestoneDisplay(
+    baseRow({ temporalPrecision: 'date', dateValue: '2026-09-10' }),
+  );
+  assert.equal(ordinaryDisplay.accessibleDateLabel, ordinaryDisplay.dateLabel);
+});
+
+void test('formatTicketOpportunityMilestoneDisplay: datetime/window precision derive role from the same shared authority', () => {
+  // 2026-09-05T08:00:00Z = 2026-09-05 17:00 JST, a Saturday.
+  assert.equal(
+    formatTicketOpportunityMilestoneDisplay(
+      baseRow({
+        temporalPrecision: 'datetime',
+        dateValue: null,
+        at: '2026-09-05T08:00:00.000Z',
+      }),
+    ).role,
+    'saturday',
+  );
+  // Window role is derived from the *start* date (2026-09-10, a Thursday).
+  assert.equal(
+    formatTicketOpportunityMilestoneDisplay(
+      baseRow({
+        temporalPrecision: 'window',
+        dateValue: null,
+        startsAt: '2026-09-10T09:00:00.000Z',
+        endsAt: '2026-09-13T14:59:00.000Z',
+      }),
+    ).role,
+    'weekday',
+  );
 });
 
 void test('formatTicketOpportunityMilestoneDisplay throws on a malformed row rather than guessing', () => {

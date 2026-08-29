@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
+import { DayRoleText } from '@/ui/DayRoleText';
 import { StatePanel } from '@/ui/StatePanel';
 import type { MyCalendarOccurrenceEntry, MyCalendarScheduleEntry } from '@/domain/myCalendar.ts';
 import { isEffectivelyCanceled } from '@/domain/eventCancellation.ts';
@@ -11,7 +12,11 @@ import {
   ticketDisplayStatusLabel,
 } from '@/domain/myCalendarFormatting.ts';
 import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
-import { calendarDayRole, calendarDayRoleLabel } from '@/domain/calendarDayRole.ts';
+import {
+  calendarDateAccessibleWeekdayLabel,
+  calendarDateWeekdayLabel,
+  calendarDayRole,
+} from '@/domain/calendarDayRole.ts';
 import styles from './MySelectedDayList.module.css';
 
 export interface MySelectedDayListProps {
@@ -24,17 +29,6 @@ export interface MySelectedDayListProps {
    * event detail page itself is the shared Event Catalog one, not a
    * My-Calendar-specific copy. */
   eventDetailContext: CatalogParams;
-}
-
-function dayLabel(date: string): string {
-  const [, monthStr, dayStr] = date.split('-');
-  const role = calendarDayRole(date);
-  const roleLabel = calendarDayRoleLabel(date);
-  const base = `${String(Number(monthStr ?? '1'))}月${String(Number(dayStr ?? '1'))}日`;
-  if (role === 'weekday' || roleLabel === null) {
-    return base;
-  }
-  return `${base}（${roleLabel}）`;
 }
 
 /**
@@ -54,8 +48,13 @@ export function MySelectedDayList({
   const isEmpty = occurrenceEntries.length === 0 && scheduleEntries.length === 0;
 
   return (
-    <section aria-label={`${dayLabel(date)}のカレンダー詳細`} className={styles.list}>
-      <h2 className={styles.heading}>{dayLabel(date)}</h2>
+    <section
+      aria-label={`${calendarDateAccessibleWeekdayLabel(date)}のカレンダー詳細`}
+      className={styles.list}
+    >
+      <DayRoleText as="h2" role={calendarDayRole(date)} className={styles.heading}>
+        {calendarDateWeekdayLabel(date)}
+      </DayRoleText>
 
       {isEmpty ? (
         <StatePanel variant="empty" title="この日に登録されている予定はありません" />

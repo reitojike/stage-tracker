@@ -12,6 +12,10 @@ const rowSource = readFileSync(
   fileURLToPath(new URL('../TicketOpportunityRow.tsx', import.meta.url)),
   'utf8',
 );
+const rowCss = readFileSync(
+  fileURLToPath(new URL('../TicketOpportunityRow.module.css', import.meta.url)),
+  'utf8',
+);
 
 void test('the row never imports the legacy ticket_acquisitions/tickets/ticket_transfers boundary', () => {
   assert.doesNotMatch(rowSource, /ticketAcquisition|ticketTransfer|from '.*\/ticket\.ts'/);
@@ -80,6 +84,18 @@ void test('a bounded post-final retained history row never also queries ticketOp
     rowSource,
     /const deadlineBadge = row\.isPostFinalRetainedHistory\s*\?\s*null\s*:\s*ticketOpportunityDeadlineBadge\(row, todayTokyoDate\);/,
   );
+});
+
+// --- Issue #189: shared date-role color authority, not a re-derived one ---
+
+void test("the date column reuses the shared DayRoleText color primitive and the formatting module's own role, rather than a local role/color mapping", () => {
+  assert.match(rowSource, /import \{ DayRoleText \} from '@\/ui\/DayRoleText'/);
+  assert.match(rowSource, /<DayRoleText[\s\S]{0,80}role=\{display\.role\}/);
+  assert.doesNotMatch(rowSource, /role === 'holiday'|role === 'saturday'|role === 'sunday'/);
+});
+
+void test('the date column width is 7.1em (Issue #189: full-width parentheses no longer clip at the old 6.5em)', () => {
+  assert.match(rowCss, /\.dateColumn\s*\{[\s\S]*?width:\s*7\.1em;/);
 });
 
 void test('the state controls cover every required transition, including applied -> planned', () => {
