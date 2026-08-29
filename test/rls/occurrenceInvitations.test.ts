@@ -703,9 +703,11 @@ void test('an invite racing the invitee’s own confirmation ends with attending
   assert.equal(await invitationReceived(invitee, occurrence), null);
 });
 
-// decline_occurrence_invitation is also a check-then-act (find the row,
-// delete it). FOR UPDATE is what keeps only one of several concurrent
-// declines from actually finding (and deleting) the row.
+// decline_occurrence_invitation is a single DELETE ... WHERE ... RETURNING -
+// no separate SELECT/lock step. Postgres's own implicit row lock on that
+// DELETE is what keeps only one of several concurrent declines from actually
+// finding (and deleting) the row; the rest simply match zero rows once the
+// first one commits.
 void test('concurrent declines settle on exactly one deletion; the rest report data: null with no error', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);

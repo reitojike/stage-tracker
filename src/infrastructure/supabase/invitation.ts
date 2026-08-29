@@ -42,8 +42,13 @@ export type InvitationQueryClient = SupabaseClient<Database>;
  * Supabase). `'id' in value` alone would treat that as a real row (id:
  * null), so this checks that `id` is actually a non-null string - the one
  * field that is never null on a genuine row.
+ *
+ * Exported so test/rls/support/participationFixtures.ts's own declineInvitation
+ * fixture - which calls the RPC directly rather than through this module, to
+ * exercise the real client boundary - can reuse this exact narrowing instead
+ * of re-deriving it.
  */
-function isRawInvitationRow(value: unknown): value is RawInvitationRow {
+export function isRawInvitationRow(value: unknown): value is RawInvitationRow {
   return (
     typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'string'
   );

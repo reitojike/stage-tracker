@@ -1,5 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { Database } from '../../../src/infrastructure/supabase/database.types.ts';
+import { isRawInvitationRow } from '../../../src/infrastructure/supabase/invitation.ts';
 import type { TestActor } from './testActors.ts';
 import { createEventWithOccurrence } from './eventFixtures.ts';
 
@@ -182,11 +183,12 @@ export async function invitationReceived(
  * when no matching pending row was found, but PostgREST does not serialize a
  * NULL `public.occurrence_invitations` composite as JSON `null` - it comes
  * back as an object with every column set to `null` (confirmed against
- * local Supabase; mirrors src/infrastructure/supabase/invitation.ts's own
- * isRawInvitationRow narrowing for the same reason). This fixture normalizes
- * that shape back to a real `null` so every test asserting `data === null`
- * means what it says, rather than each call site re-deriving the same
- * `data?.id === null` check.
+ * local Supabase). This fixture normalizes that shape back to a real `null`
+ * so every test asserting `data === null` means what it says, rather than
+ * each call site re-deriving the same check - reusing
+ * src/infrastructure/supabase/invitation.ts's own isRawInvitationRow
+ * narrowing (the production code path this fixture exists to exercise
+ * independently of) rather than a second copy of it.
  */
 export async function declineInvitation(
   actor: TestActor,
@@ -195,17 +197,7 @@ export async function declineInvitation(
   const { data, error } = await actor.client.rpc('decline_occurrence_invitation', {
     p_invitation_id: invitationId,
   });
-  // Narrowed via `unknown` rather than a type assertion (this repo's lint
-  // profile forbids `as`/`<T>` assertions) - see this function's own header
-  // comment for why the generated row type does not actually reflect
-  // nullability here.
-  const rawData: unknown = data;
-  const isResolvedRow =
-    typeof rawData === 'object' &&
-    rawData !== null &&
-    'id' in rawData &&
-    typeof rawData.id === 'string';
-  return { data: isResolvedRow ? data : null, error };
+  return { data: isRawInvitationRow(data) ? data : null, error };
 }
 
 /**

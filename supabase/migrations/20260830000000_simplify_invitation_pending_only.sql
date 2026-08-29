@@ -106,10 +106,30 @@ begin
 end;
 $$;
 
-create trigger occurrence_participations_resolve_invitations_on_attending
-  after insert or update on public.occurrence_participations
+-- Split into two triggers (Postgres rejects `OLD` in a combined INSERT-OR-
+-- UPDATE trigger's WHEN clause with "INSERT trigger's WHEN condition cannot
+-- reference OLD values", SQLSTATE 42P17): every INSERT is by definition a
+-- transition into whatever status it sets, so the INSERT trigger only needs
+-- `new.status = 'attending'`; the UPDATE trigger additionally requires
+-- `old.status is distinct from new.status` to scope it to genuine
+-- transitions *into* attending, not every subsequent no-op write (e.g. a
+-- visibility-only toggle) that merely leaves status at attending - such a
+-- write still satisfies a bare `new.status = 'attending'` check, which would
+-- otherwise re-acquire the advisory lock and re-scan for nothing to delete
+-- on every unrelated update.
+create trigger occurrence_participations_resolve_invitations_on_attending_ins
+  after insert on public.occurrence_participations
   for each row
   when (new.status = 'attending'::public.participation_status)
+  execute function public.resolve_pending_invitations_on_attending();
+
+create trigger occurrence_participations_resolve_invitations_on_attending_upd
+  after update on public.occurrence_participations
+  for each row
+  when (
+    new.status = 'attending'::public.participation_status
+    and old.status is distinct from new.status
+  )
   execute function public.resolve_pending_invitations_on_attending();
 
 -- decline_occurrence_invitation: DELETE instead of stamp declined_at (see

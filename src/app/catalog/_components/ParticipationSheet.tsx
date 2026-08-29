@@ -6,7 +6,9 @@ import { StatePanel } from '@/ui/StatePanel';
 import type { OperationFeedback } from '@/domain/participationFeedback.ts';
 import type { Participation, ParticipationStatus } from '@/domain/participation.ts';
 import { occurrenceTimeRangeLabel, tokyoDateLabel } from '@/domain/catalogFormatting.ts';
+import { participationStatusLabel } from '@/domain/myCalendarFormatting.ts';
 import { setParticipationChoiceAction } from '../_actions/participationWrite.ts';
+import { WriteNotice } from './WriteNotice.tsx';
 import styles from './ParticipationSheet.module.css';
 
 export interface ParticipationSheetProps {
@@ -30,9 +32,13 @@ export interface ParticipationSheetProps {
 
 type Choice = 'attending' | 'considering' | 'withdraw';
 
+// Reuses myCalendarFormatting.ts's participationStatusLabel for the two real
+// statuses instead of re-deriving the same two strings a third time (also
+// used by OccurrenceParticipationRow.tsx's own statusText); "withdraw" has
+// no participation-status counterpart to reuse.
 const CHOICE_LABEL: Record<Choice, string> = {
-  attending: '参加する',
-  considering: '気になる',
+  attending: participationStatusLabel('attending'),
+  considering: participationStatusLabel('considering'),
   withdraw: '参加をやめる',
 };
 
@@ -64,14 +70,26 @@ export function ParticipationSheet({
 }: ParticipationSheetProps) {
   const [pendingChoice, setPendingChoice] = useState<Choice | null>(null);
   const [feedback, setFeedback] = useState<OperationFeedback | null>(null);
+  // WriteNotice's own live region (not this sheet's visible content) is what
+  // announces a successful choice to assistive tech - the sheet closes
+  // immediately per the addendum's "no separate confirm/save button", so
+  // there is deliberately no visible confirmation text to read instead.
+  const [notice, setNotice] = useState<{ text: string; attempt: number } | null>(null);
 
   const selected = currentChoice(participation?.status ?? null);
 
+  // "参加をやめる" only makes sense when there is a participation to
+  // withdraw - offering it against a rowless caller would let them "choose"
+  // a no-op (setParticipationChoiceAction's withdraw branch short-circuits
+  // to ok:true with no write when participationId is null), which reads as
+  // a silent failure: the sheet closes as if something happened.
   const choices: Choice[] = isEffectivelyCanceled
     ? participation !== null
       ? ['withdraw']
       : []
-    : ['attending', 'considering', 'withdraw'];
+    : participation !== null
+      ? ['attending', 'considering', 'withdraw']
+      : ['attending', 'considering'];
 
   function handleChoose(choice: Choice) {
     if (choice === selected) {
@@ -92,6 +110,10 @@ export function ParticipationSheet({
         setFeedback(result.feedback);
         return;
       }
+      setNotice((previous) => ({
+        text: `「${CHOICE_LABEL[choice]}」に設定しました。`,
+        attempt: (previous?.attempt ?? 0) + 1,
+      }));
       onOpenChange(false);
     })();
   }
@@ -110,11 +132,12 @@ export function ParticipationSheet({
           description={feedback.description}
         />
       ) : null}
+      <WriteNotice notice={notice?.text ?? null} attempt={notice?.attempt ?? 0} />
 
       {choices.length === 0 ? (
         <p className={styles.empty}>この公演は中止されているため、選択できる項目がありません。</p>
       ) : (
-        <ul className={styles.choices}>
+        <ul className={styles.choices} aria-busy={pendingChoice !== null}>
           {choices.map((choice) => {
             const isSelected = choice === selected;
             return (

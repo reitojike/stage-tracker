@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
@@ -41,8 +42,11 @@ export interface InvitationCardProps {
    * parent list (InvitationList.tsx) can drop it from view immediately,
    * without a full page reload - the pending-only list has no "resolved"
    * row to render (Issue #225/#230 addendum: "resolved accept/decline rows
-   * are not shown as history"). */
-  onResolved: () => void;
+   * are not shown as history"). `noticeText` is a short confirmation for
+   * InvitationList's shared WriteNotice live region: this card is removed
+   * from the DOM the instant this fires, so a live region local to the card
+   * itself would never get a chance to be announced by assistive tech. */
+  onResolved: (noticeText: string) => void;
 }
 
 type CardPhase = 'pending' | 'busy' | 'declining';
@@ -84,6 +88,7 @@ export function InvitationCard({
 }: InvitationCardProps) {
   const [phase, setPhase] = useState<CardPhase>('pending');
   const [feedback, setFeedback] = useState<OperationFeedback | null>(null);
+  const router = useRouter();
 
   // Read at unmount time via a ref (not the `phase` state closure directly):
   // an effect keyed on `phase` would re-run its cleanup on every transition
@@ -139,7 +144,17 @@ export function InvitationCard({
         setPhase('pending');
         return;
       }
-      onResolved();
+      onResolved(`${eventTitle ?? 'この招待'}への参加を承諾しました。`);
+      // Accepting can resolve more than just this card: the same occurrence
+      // may have pending invitations from other inviters too, and the DB
+      // trigger (occurrence_participations_resolve_invitations_on_attending)
+      // resolves all of them server-side as one atomic side effect of this
+      // same write (see acceptInvitationAction's own header comment).
+      // onResolved() above only removes *this* card from the client-local
+      // resolved set; refresh so any sibling card - now stale - is dropped
+      // by the next server render instead of continuing to render as
+      // actionable until the invitee happens to reload the page.
+      router.refresh();
     })();
   }
 
@@ -148,7 +163,7 @@ export function InvitationCard({
     setPhase('declining');
     timerRef.current = setTimeout(() => {
       finalizeDeclineOnce();
-      onResolved();
+      onResolved(`${eventTitle ?? 'この招待'}を辞退しました。`);
     }, DECLINE_UNDO_WINDOW_MS);
   }
 
@@ -167,13 +182,12 @@ export function InvitationCard({
     setPhase('busy');
     void (async () => {
       const result = await finalizeDeclineInvitationAction(invitation.id);
-      finalizedRef.current = true;
       if (!result.ok) {
         setFeedback(result.feedback);
         setPhase('pending');
         return;
       }
-      onResolved();
+      onResolved(`${eventTitle ?? 'この招待'}を閉じました。`);
     })();
   }
 
@@ -193,7 +207,7 @@ export function InvitationCard({
   const isBusy = phase === 'busy';
 
   return (
-    <div className={styles.card}>
+    <div className={styles.card} aria-busy={isBusy}>
       <p className={styles.title}>{eventTitle ?? '（イベント情報を読み込めませんでした）'}</p>
       {occurrence !== null ? (
         <p className={styles.occurrenceTime}>

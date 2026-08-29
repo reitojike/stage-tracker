@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/ui/Button';
 import type { Participation } from '@/domain/participation.ts';
+import { participationStatusLabel } from '@/domain/myCalendarFormatting.ts';
 import { ParticipationSheet } from './ParticipationSheet.tsx';
 import { InviteSheet } from './InviteSheet.tsx';
 import styles from './OccurrenceParticipationRow.module.css';
@@ -18,14 +19,12 @@ export interface OccurrenceParticipationRowProps {
   isEffectivelyCanceled: boolean;
 }
 
+// Reuses myCalendarFormatting.ts's participationStatusLabel for the two real
+// statuses (that module's own doc comment names this component as the
+// reason those exact strings are canonical) rather than re-deriving them;
+// only the no-row case ("未定") is specific to this row.
 function statusText(status: Participation['status'] | null): string {
-  if (status === 'attending') {
-    return '参加する';
-  }
-  if (status === 'considering') {
-    return '気になる';
-  }
-  return '未定';
+  return status === null ? '未定' : participationStatusLabel(status);
 }
 
 /**

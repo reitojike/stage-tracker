@@ -10,7 +10,6 @@ import {
   declineInvitation,
   inviteToOccurrenceByEmail,
 } from '@/infrastructure/supabase/invitation.ts';
-import type { ParticipationStatus } from '@/domain/participation.ts';
 import { parseInviteeEmail } from '@/domain/invitationWrite.ts';
 import {
   acceptedOperationState,
@@ -18,83 +17,24 @@ import {
   resolveOperationFeedback,
   resolveOperationFeedbackForError,
   resolveOperationNotice,
-  resolveParticipationSetNotice,
   type OperationFeedback,
   type OperationState,
 } from '@/domain/participationFeedback.ts';
 import { readId } from './formHelpers.ts';
 
-// Server actions for the MVP participation / invitation UI journey (Issue
-// #36). None of these actions decides permission or eligibility - that is
-// enforced by the typed planning boundary these call
-// (src/infrastructure/supabase/participation.ts, invitation.ts) and, under
-// it, by RLS/RPC (supabase/migrations/). What happens here is reading
-// FormData, dispatching, and turning the typed boundary's own
-// PlanningResult into the state a form renders - mirroring
-// src/app/catalog/_actions/eventWrite.ts's shape for the Event catalog
-// write boundary.
+// Server actions for the participation / invitation UI journey (Issue #36,
+// updated by Issue #225/#230's pending-only Invitation model). None of these
+// actions decides permission or eligibility - that is enforced by the typed
+// planning boundary these call (src/infrastructure/supabase/participation.ts,
+// invitation.ts) and, under it, by RLS/RPC (supabase/migrations/).
+// inviteToOccurrenceAction below still reads FormData and turns the typed
+// boundary's own PlanningResult into the state a <form> renders, mirroring
+// src/app/catalog/_actions/eventWrite.ts's shape; the other actions below are
+// imperative, plain-parameter entry points for call sites that drive their
+// writes from local component state instead (see QuickActionResult's own
+// doc comment).
 
 type ParticipationIntent = 'considering' | 'attending' | 'withdraw';
-
-function isParticipationIntent(value: string | null): value is ParticipationIntent {
-  return value === 'considering' || value === 'attending' || value === 'withdraw';
-}
-
-/**
- * Sets or withdraws the caller's own participation for one occurrence. One
- * action serves all three intents (rather than three bound actions) so the
- * occurrence's participation controls stay a single <form> with several
- * submit buttons, following the same "one form, dispatch on the submitted
- * value" shape addOccurrenceAction/updateOccurrenceAction use.
- */
-export async function updateParticipationAction(
-  previous: OperationState,
-  formData: FormData,
-): Promise<OperationState> {
-  const eventId = readId(formData, 'eventId');
-  const occurrenceId = readId(formData, 'occurrenceId');
-  const intentRaw = formData.get('intent');
-  const intent = typeof intentRaw === 'string' ? intentRaw : null;
-
-  if (eventId === null || occurrenceId === null || !isParticipationIntent(intent)) {
-    return rejectedOperationState(
-      previous,
-      resolveOperationFeedback('set-participation', 'failure'),
-    );
-  }
-
-  const client = await createSupabaseServerClient();
-
-  if (intent === 'withdraw') {
-    const participationId = readId(formData, 'participationId');
-    if (participationId === null) {
-      return rejectedOperationState(
-        previous,
-        resolveOperationFeedback('withdraw-participation', 'failure'),
-      );
-    }
-    const result = await withdrawParticipation(client, participationId);
-    if (!result.ok) {
-      return rejectedOperationState(
-        previous,
-        resolveOperationFeedback('withdraw-participation', result.error.kind),
-      );
-    }
-    revalidatePath(`/catalog/events/${eventId}`);
-    return acceptedOperationState(previous, resolveOperationNotice('withdraw-participation'));
-  }
-
-  const status: ParticipationStatus = intent;
-  const result = await setParticipation(client, occurrenceId, { status });
-  if (!result.ok) {
-    return rejectedOperationState(
-      previous,
-      resolveOperationFeedbackForError('set-participation', result.error),
-    );
-  }
-  revalidatePath(`/catalog/events/${eventId}`);
-  return acceptedOperationState(previous, resolveParticipationSetNotice(status));
-}
 
 /**
  * Invites a user, by their exact registered email address, to an
@@ -157,11 +97,10 @@ export interface QuickActionResult {
 
 /**
  * Sets or withdraws the caller's own participation for one occurrence from
- * the Event detail Participation sheet (Issue #230 addendum). Dispatches the
- * same three choices as updateParticipationAction above (considering /
- * attending / withdraw) through the same typed boundary calls - this is a
- * second, imperative-call-shaped entry point onto that same behavior, not a
- * second implementation of it.
+ * the Event detail Participation sheet (Issue #230 addendum): considering /
+ * attending / withdraw, through the same typed boundary calls
+ * (src/infrastructure/supabase/participation.ts) as every other participation
+ * write in this file.
  */
 export async function setParticipationChoiceAction(
   eventId: string,
@@ -194,6 +133,16 @@ export async function setParticipationChoiceAction(
     };
   }
   revalidatePath(`/catalog/events/${eventId}`);
+  if (choice === 'attending') {
+    // A transition to attending here converges pending invitations via the
+    // occurrence_participations_resolve_invitations_on_attending trigger
+    // (supabase/migrations/20260830000000_simplify_invitation_pending_only.sql)
+    // exactly like acceptInvitationAction below - revalidate the same two
+    // surfaces that read pending invitation state so a soft-navigation back
+    // to either never shows an already-resolved invitation as still pending.
+    revalidatePath('/catalog/invitations');
+    revalidatePath('/mypage');
+  }
   return { ok: true, feedback: null };
 }
 
@@ -221,6 +170,7 @@ export async function acceptInvitationAction(
     };
   }
   revalidatePath('/catalog/invitations');
+  revalidatePath('/mypage');
   if (eventId !== null) {
     revalidatePath(`/catalog/events/${eventId}`);
   }
