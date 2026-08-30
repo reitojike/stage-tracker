@@ -133,12 +133,12 @@ export function EventDetail({
                     選択した公演回
                   </Badge>
                 ) : null}
-                {isEffectivelyCanceled(event, occurrence) ? (
-                  <Badge variant="terminal" className={styles.canceledBadge}>
-                    中止
-                  </Badge>
-                ) : null}
                 <p className={styles.occurrenceTime}>
+                  {isEffectivelyCanceled(event, occurrence) ? (
+                    <Badge variant="terminal" className={styles.occurrenceCanceledBadge}>
+                      中止
+                    </Badge>
+                  ) : null}
                   {tokyoDateLabel(occurrence.startsAt)}{' '}
                   {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
                 </p>

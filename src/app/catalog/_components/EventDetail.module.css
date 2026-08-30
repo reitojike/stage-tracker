@@ -122,8 +122,26 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/*
+ * Issue #245 (TURN 27a): the canceled badge moves onto this same row
+ * (left of the datetime) instead of its own line above - same
+ * badge-inline-with-text row shape as InvitationCard.module.css's
+ * `.title` (Issue #240). align-items: flex-start (rather than that
+ * `.title`'s center) so a wrapped datetime keeps the badge pinned to the
+ * leading line instead of centering it across the wrapped block.
+ */
 .occurrenceTime {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 0 0 var(--space-xs);
+}
+
+/* Issue #245: distinct from the event-level `.canceledBadge` below (which
+   stays on its own line under the title) - this one is a flex child of
+   .occurrenceTime and must not shrink when the datetime wraps. */
+.occurrenceCanceledBadge {
+  flex-shrink: 0;
 }
 
 /* Marks the exact occurrence a selected-day row was chosen for (Issue
