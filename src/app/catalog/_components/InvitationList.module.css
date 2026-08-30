@@ -1,0 +1,43 @@
+/*
+ * Issue #240 (TURN 25c): page heading + "未回答 {n}件" pending count share
+ * one row, reusing the same "太罫見出し" rule sectionHeading.module.css
+ * already established (mypage's AccountSection/PasskeySection/
+ * ScheduleAndEventSection) - see EventDetail.module.css's .titleRow for the
+ * identical pattern on the Event detail screen. font-size/font-weight from
+ * the composed class are harmless: PageHeading sets its own explicit
+ * font-size.
+ */
+.headingRow {
+  composes: heading from '../../mypage/_components/sectionHeading.module.css';
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.pendingCount {
+  flex-shrink: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+/*
+ * Issue #240: flat hairline list replacing the former per-item white
+ * card/gap - same MySelectedDayList.module.css vocabulary (#146: plain row,
+ * bottom border, no card Surface) InvitationCard.module.css's own comment
+ * points back to.
+ */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  padding-block: var(--space-card-block);
+}
+
+.item:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}

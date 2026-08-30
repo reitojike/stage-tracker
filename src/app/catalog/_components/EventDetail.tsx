@@ -1,8 +1,7 @@
-import { ActionRow } from '@/ui/ActionRow';
+import Link from 'next/link';
 import { Badge } from '@/ui/Badge';
-import { LinkButton } from '@/ui/LinkButton';
+import { LinkPending } from '@/ui/LinkPending';
 import { PageHeading } from '@/ui/PageHeading';
-import { Surface } from '@/ui/Surface';
 import type { EventWithOccurrences } from '@/domain/eventCatalog.ts';
 import type { Participation } from '@/domain/participation.ts';
 import { isEffectivelyCanceled, isEventCanceled } from '@/domain/eventCancellation.ts';
@@ -66,20 +65,20 @@ export function EventDetail({
   return (
     <article className={styles.detail}>
       <FocusedOccurrenceScroll occurrenceId={focusedOccurrenceId} />
-      <PageHeading>{event.title}</PageHeading>
+      <div className={styles.titleRow}>
+        <PageHeading>{event.title}</PageHeading>
+        {editHref !== null ? (
+          <Link href={editHref} className={styles.editLink}>
+            編集
+            <LinkPending />
+          </Link>
+        ) : null}
+      </div>
 
       {isEventCanceled(event) ? (
         <Badge variant="terminal" className={styles.canceledBadge}>
           中止
         </Badge>
-      ) : null}
-
-      {editHref !== null ? (
-        <ActionRow>
-          <LinkButton href={editHref} variant="secondary">
-            この公演情報を編集
-          </LinkButton>
-        </ActionRow>
       ) : null}
 
       <dl className={styles.meta}>
@@ -112,47 +111,50 @@ export function EventDetail({
       </dl>
 
       <div>
-        <h2 className={styles.subheading}>公演回</h2>
-        <Surface variant="subtle">
-          <ul className={styles.occurrenceList}>
-            {occurrences.map((occurrence) => {
-              const isFocused = occurrence.id === focusedOccurrenceId;
-              return (
-                <li
-                  key={occurrence.id}
-                  id={occurrenceAnchorId(occurrence.id)}
-                  tabIndex={isFocused ? -1 : undefined}
-                  aria-current={isFocused ? 'true' : undefined}
-                  className={isFocused ? styles.occurrenceFocused : undefined}
-                >
-                  {isFocused ? (
-                    <Badge variant="outline" className={styles.focusedBadge}>
-                      選択した公演回
-                    </Badge>
-                  ) : null}
-                  {isEffectivelyCanceled(event, occurrence) ? (
-                    <Badge variant="terminal" className={styles.canceledBadge}>
-                      中止
-                    </Badge>
-                  ) : null}
-                  <p className={styles.occurrenceTime}>
-                    {tokyoDateLabel(occurrence.startsAt)}{' '}
-                    {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
-                  </p>
-                  {participationsByOccurrenceId.has(occurrence.id) ? (
-                    <OccurrenceParticipationRow
-                      eventId={event.id}
-                      occurrenceId={occurrence.id}
-                      occurrence={{ startsAt: occurrence.startsAt, endsAt: occurrence.endsAt }}
-                      participation={participationsByOccurrenceId.get(occurrence.id) ?? null}
-                      isEffectivelyCanceled={isEffectivelyCanceled(event, occurrence)}
-                    />
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </Surface>
+        <h2 className={styles.occurrenceHeading}>
+          <span>公演回</span>
+          <span className={styles.occurrenceCount}>{occurrences.length}件</span>
+        </h2>
+        <ul className={styles.occurrenceList}>
+          {occurrences.map((occurrence) => {
+            const isFocused = occurrence.id === focusedOccurrenceId;
+            return (
+              <li
+                key={occurrence.id}
+                id={occurrenceAnchorId(occurrence.id)}
+                tabIndex={isFocused ? -1 : undefined}
+                aria-current={isFocused ? 'true' : undefined}
+                className={[styles.occurrenceItem, isFocused ? styles.occurrenceFocused : undefined]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {isFocused ? (
+                  <Badge variant="outline" className={styles.focusedBadge}>
+                    選択した公演回
+                  </Badge>
+                ) : null}
+                {isEffectivelyCanceled(event, occurrence) ? (
+                  <Badge variant="terminal" className={styles.canceledBadge}>
+                    中止
+                  </Badge>
+                ) : null}
+                <p className={styles.occurrenceTime}>
+                  {tokyoDateLabel(occurrence.startsAt)}{' '}
+                  {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
+                </p>
+                {participationsByOccurrenceId.has(occurrence.id) ? (
+                  <OccurrenceParticipationRow
+                    eventId={event.id}
+                    occurrenceId={occurrence.id}
+                    occurrence={{ startsAt: occurrence.startsAt, endsAt: occurrence.endsAt }}
+                    participation={participationsByOccurrenceId.get(occurrence.id) ?? null}
+                    isEffectivelyCanceled={isEffectivelyCanceled(event, occurrence)}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </article>
   );

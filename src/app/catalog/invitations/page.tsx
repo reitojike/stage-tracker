@@ -81,15 +81,26 @@ export default async function InvitationsPage() {
   return (
     <>
       <BackLink href={catalogMonthHref(currentTokyoDate().slice(0, 7))}>カレンダーに戻る</BackLink>
-      <PageHeading>招待一覧</PageHeading>
 
       {state === 'error' ? (
-        <StatePanel
-          variant="error"
-          title="招待を読み込めませんでした"
-          description="通信状況を確認し、もう一度お試しください。"
-        />
-      ) : null}
+        <>
+          <PageHeading>招待一覧</PageHeading>
+          <StatePanel
+            variant="error"
+            title="招待を読み込めませんでした"
+            description="通信状況を確認し、もう一度お試しください。"
+          />
+        </>
+      ) : (
+        // Issue #240: the page heading + "未回答 {n}件" pending count now
+        // live inside InvitationList (a client component - the count must
+        // react to client-local decline/undo state a server component can't
+        // see). This also covers the `state === 'empty'` case:
+        // InvitationList already renders its own "招待はありません"
+        // StatePanel whenever `items` resolves to zero visible rows, so a
+        // separate top-level empty branch here would only duplicate it.
+        <InvitationList items={listItems} />
+      )}
       {contextReadFailed ? (
         <StatePanel
           variant="error"
@@ -97,9 +108,6 @@ export default async function InvitationsPage() {
           description="通信状況を確認し、ページを再読み込みしてください。"
         />
       ) : null}
-      {state === 'empty' ? <StatePanel variant="empty" title="招待はありません" /> : null}
-
-      {state === 'populated' ? <InvitationList items={listItems} /> : null}
     </>
   );
 }

@@ -4,6 +4,53 @@
   gap: var(--space-md);
 }
 
+/*
+ * Issue #240 (TURN 25a): title + quiet edit link share one row, with the
+ * same bold "太罫見出し" rule sectionHeading.module.css already established
+ * (mypage's AccountSection/PasskeySection/ScheduleAndEventSection) -
+ * reusing it here rather than a second copy of the same border/padding
+ * rule. font-size/font-weight from the composed class are harmless: both
+ * children (PageHeading, .editLink) set their own explicit font-size.
+ */
+.titleRow {
+  composes: heading from '../../mypage/_components/sectionHeading.module.css';
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/*
+ * Quiet text-only affordance (Issue #240: "filled/outlined button surface
+ * にしない") - mirrors src/ui/BackLink.module.css's own quiet-link
+ * treatment (expand44 tap target, secondary text color, hover/active
+ * feedback) rather than a Button variant, none of which render as plain
+ * text with no visible chrome at rest.
+ */
+.editLink {
+  composes: expand44 from '../../../ui/tapTarget.module.css';
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-inline: var(--space-sm);
+  margin-inline-end: calc(var(--space-sm) * -1);
+  border-radius: var(--radius-control-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.editLink:hover {
+  background-color: var(--color-surface-subtle);
+  color: var(--color-text);
+}
+
+.editLink:active {
+  background-color: var(--color-surface-active);
+  color: var(--color-text);
+}
+
 .meta {
   display: flex;
   flex-direction: column;
@@ -28,20 +75,51 @@
   overflow-wrap: anywhere;
 }
 
-.subheading {
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  margin: 0;
+/*
+ * Issue #240 (TURN 25a): same heading-rule reuse as .titleRow above -
+ * "公演回" + actual rendered count share the row, count in secondary/
+ * regular weight so it reads as a lighter annotation, not a second heading.
+ */
+.occurrenceHeading {
+  composes: heading from '../../mypage/_components/sectionHeading.module.css';
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
 }
 
+.occurrenceCount {
+  flex-shrink: 0;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+/*
+ * Issue #240 (TURN 25a): removed the broad Surface(subtle) panel - #dfe4e7
+ * background / 12px radius wrapping the whole list - in favor of a flat
+ * paper list, each row divided by a 1px hairline (same
+ * MySelectedDayList.module.css vocabulary #146 established: plain row,
+ * bottom border, no card Surface). gap replaced by .occurrenceItem's own
+ * block padding + border below.
+ */
 .occurrenceList {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
   font-size: var(--font-size-body-sm);
+}
+
+.occurrenceItem {
+  /* --space-compact is the existing 12px semantic step (otherwise used for
+     notice/inline-panel padding) - reused here rather than adding a new
+     token for this exact px value (Issue #240 requires 12px, distinct from
+     Invitations' own 14px row - see InvitationList.module.css). */
+  padding-block: var(--space-compact);
+}
+
+.occurrenceItem:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
 }
 
 .occurrenceTime {
@@ -51,12 +129,16 @@
 /* Marks the exact occurrence a selected-day row was chosen for (Issue
    #107), scrolled/focused into view by FocusedOccurrenceScroll - the ring
    plus badge give sighted users the same "this one" identification that
-   aria-current + programmatic focus give assistive technology. */
+   aria-current + programmatic focus give assistive technology. Issue #240:
+   the negative-margin "expand into the surrounding Surface padding" trick
+   is dropped along with that Surface wrapper - inset padding alone keeps
+   the ring inside the row's own bounds instead of bleeding into the page's
+   content-column padding now that there is no Surface padding to absorb
+   it. */
 .occurrenceFocused {
   box-shadow: inset 0 0 0 1.5px var(--color-accent);
   border-radius: var(--radius-surface);
   padding: var(--space-sm);
-  margin: calc(var(--space-sm) * -1);
 }
 
 .focusedBadge {

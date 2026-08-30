@@ -47,6 +47,13 @@ export interface InvitationCardProps {
    * from the DOM the instant this fires, so a live region local to the card
    * itself would never get a chance to be announced by assistive tech. */
   onResolved: (noticeText: string) => void;
+  /** Issue #240: fires whenever this card enters/exits the 8-second
+   * decline-undo window, so InvitationList can exclude it from the
+   * "未回答 {n}件" pending count while it's showing the undo row (a
+   * declining card is not yet finalized as declined, but it also is not an
+   * unanswered invitation the count should include). Optional so this
+   * component has no hard dependency on a parent that tracks it. */
+  onDecliningChange?: (isDeclining: boolean) => void;
 }
 
 type CardPhase = 'pending' | 'busy' | 'declining';
@@ -85,6 +92,7 @@ export function InvitationCard({
   eventTitle,
   isEffectivelyCanceled,
   onResolved,
+  onDecliningChange,
 }: InvitationCardProps) {
   const [phase, setPhase] = useState<CardPhase>('pending');
   const [feedback, setFeedback] = useState<OperationFeedback | null>(null);
@@ -166,6 +174,7 @@ export function InvitationCard({
   function handleDecline() {
     setFeedback(null);
     setPhase('declining');
+    onDecliningChange?.(true);
     timerRef.current = setTimeout(() => {
       void (async () => {
         const result = await finalizeDeclineOnce();
@@ -182,8 +191,10 @@ export function InvitationCard({
           finalizedRef.current = false;
           setFeedback(result.feedback);
           setPhase('pending');
+          onDecliningChange?.(false);
           return;
         }
+        onDecliningChange?.(false);
         onResolved(`${eventTitle ?? 'この招待'}を辞退しました。`);
       })();
     }, DECLINE_UNDO_WINDOW_MS);
@@ -192,6 +203,7 @@ export function InvitationCard({
   function handleUndoDecline() {
     clearUndoTimer();
     setPhase('pending');
+    onDecliningChange?.(false);
   }
 
   function handleCloseCanceled() {
@@ -230,15 +242,20 @@ export function InvitationCard({
 
   return (
     <div className={styles.card} aria-busy={isBusy}>
-      <p className={styles.title}>{eventTitle ?? '（イベント情報を読み込めませんでした）'}</p>
+      <p className={styles.title}>
+        {isEffectivelyCanceled ? (
+          <Badge variant="terminal" className={styles.canceledBadge}>
+            中止
+          </Badge>
+        ) : null}
+        {eventTitle ?? '（イベント情報を読み込めませんでした）'}
+      </p>
       {occurrence !== null ? (
         <p className={styles.occurrenceTime}>
           {tokyoDateLabel(occurrence.startsAt)}{' '}
           {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
         </p>
       ) : null}
-
-      {isEffectivelyCanceled ? <Badge variant="terminal">中止</Badge> : null}
 
       {feedback !== null ? (
         <StatePanel
@@ -250,15 +267,33 @@ export function InvitationCard({
 
       <div className={styles.actions}>
         {isEffectivelyCanceled ? (
-          <Button type="button" variant="quiet" disabled={isBusy} onClick={handleCloseCanceled}>
+          <Button
+            type="button"
+            variant="quiet"
+            className={styles.quietAction}
+            disabled={isBusy}
+            onClick={handleCloseCanceled}
+          >
             閉じる
           </Button>
         ) : (
           <>
-            <Button type="button" variant="quiet" disabled={isBusy} onClick={handleDecline}>
+            <Button
+              type="button"
+              variant="quiet"
+              className={styles.quietAction}
+              disabled={isBusy}
+              onClick={handleDecline}
+            >
               参加しない
             </Button>
-            <Button type="button" variant="secondary" disabled={isBusy} onClick={handleAccept}>
+            <Button
+              type="button"
+              variant="secondary"
+              className={styles.acceptButton}
+              disabled={isBusy}
+              onClick={handleAccept}
+            >
               {isBusy ? '処理中…' : '参加する'}
             </Button>
           </>
