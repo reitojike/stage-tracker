@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 import { Sheet } from '@/ui/Sheet';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
@@ -41,12 +41,17 @@ export function InviteSheet({
 
   // A successful submission (notice set, no feedback) closes the sheet -
   // the addendum shows one execution button per sheet, not a persistent
-  // "sent invitees" surface to keep open afterward. Closing an
-  // already-closed sheet is a harmless no-op, so including onOpenChange in
-  // the dependency array (it is a new closure on every parent render) never
-  // causes an incorrect re-fire.
+  // "sent invitees" surface to keep open afterward. This component stays
+  // mounted across opens/closes (OccurrenceParticipationRow only toggles
+  // `open`), and useActionState's `state` persists with it - so without
+  // tracking which `attempt` was already handled, this effect would re-fire
+  // on every re-render after the first success (onOpenChange is a fresh
+  // closure each render) and immediately close the sheet the next time it's
+  // opened, before the user could submit again (caught in review on #230).
+  const closedAttemptRef = useRef<number | null>(null);
   useEffect(() => {
-    if (state.notice !== null) {
+    if (state.notice !== null && closedAttemptRef.current !== state.attempt) {
+      closedAttemptRef.current = state.attempt;
       onOpenChange(false);
     }
   }, [state.attempt, state.notice, onOpenChange]);

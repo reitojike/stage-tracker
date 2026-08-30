@@ -108,16 +108,17 @@ export function InvitationCard({
     }
   }
 
+  // Returns the result so the timer-driven caller (handleDecline) can keep
+  // the card hidden only on success, and the unmount-driven caller (the
+  // effect below) can stay fire-and-forget - there is no UI left to update
+  // once this component has actually unmounted.
   function finalizeDeclineOnce() {
     if (finalizedRef.current) {
-      return;
+      return Promise.resolve(null);
     }
     finalizedRef.current = true;
     clearUndoTimer();
-    // Fire-and-forget: by the time this runs (timer elapsed, or the screen
-    // is being left) the row is already gone from view either way - there
-    // is nothing left to show a failure against.
-    void finalizeDeclineInvitationAction(invitation.id);
+    return finalizeDeclineInvitationAction(invitation.id);
   }
 
   // Mount/unmount only, deliberately not depending on `phase` or the
@@ -125,7 +126,11 @@ export function InvitationCard({
   useEffect(() => {
     return () => {
       if (phaseRef.current === 'declining') {
-        finalizeDeclineOnce();
+        // Fire-and-forget: the component has actually unmounted (screen
+        // left), there is no UI left here to update on failure. A failed
+        // finalize simply leaves the invitation pending server-side, where
+        // the next fetch of /catalog/invitations will show it again.
+        void finalizeDeclineOnce();
       }
     };
     // eslint config forbids suppression comments (foundation/no-suppression)
@@ -162,8 +167,25 @@ export function InvitationCard({
     setFeedback(null);
     setPhase('declining');
     timerRef.current = setTimeout(() => {
-      finalizeDeclineOnce();
-      onResolved(`${eventTitle ?? 'この招待'}を辞退しました。`);
+      void (async () => {
+        const result = await finalizeDeclineOnce();
+        // null only when this timer fired after finalizeDeclineOnce had
+        // already run once (it hasn't - clearUndoTimer inside
+        // finalizeDeclineOnce cancels this very timer on its first call -
+        // but guarding keeps this branch correct even if that changes).
+        if (result === null) {
+          return;
+        }
+        if (!result.ok) {
+          // Allow a retry: this attempt never reached the server as a
+          // successful decline, so the invitation is still pending there.
+          finalizedRef.current = false;
+          setFeedback(result.feedback);
+          setPhase('pending');
+          return;
+        }
+        onResolved(`${eventTitle ?? 'この招待'}を辞退しました。`);
+      })();
     }, DECLINE_UNDO_WINDOW_MS);
   }
 
