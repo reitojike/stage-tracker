@@ -1,9 +1,7 @@
 /*
- * Native <dialog> reset to a bottom sheet - same pattern as
- * src/app/catalog/_components/FilterSheet.module.css's own .dialog/.sheet
- * (Issue #230 addendum: reuse the existing sheet vocabulary). See that
- * file's own header comment for why inset-block-start must be reset to auto
- * for inset-block-end to actually anchor this to the bottom edge.
+ * Native <dialog> is reset to a bottom sheet. Modal UA style applies inset: 0,
+ * so inset-block-start must be reset to auto for inset-block-end: 0 to anchor
+ * the sheet to the bottom edge.
  */
 .dialog {
   position: fixed;

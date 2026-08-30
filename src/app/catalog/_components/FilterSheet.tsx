@@ -1,7 +1,8 @@
 'use client';
 
-import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Button } from '@/ui/Button';
+import { Sheet } from '@/ui/Sheet';
 import { TriStateCheckbox } from '@/ui/TriStateCheckbox';
 import type { CatalogFilterSelection, Genre, Group } from '@/domain/eventCatalog.ts';
 import {
@@ -160,14 +161,11 @@ function sanitizeForApply(
  * selection to Catalog results, and the filter icon/active-indicator that
  * opens this sheet, are #145's responsibility, not this component's.
  *
- * Uses the native `<dialog>` element rather than a hand-rolled overlay: it
- * gets a real modal focus trap, Escape-to-dismiss, and a `::backdrop` for
- * free, all of which "backdrop/close/dismissalで確定せず閉じた場合、
- * current applied selectionは変更しない" needs anyway - the dialog's
- * native `close` event is the single place this component reacts to any
- * kind of dismissal (Escape, backdrop click, or the confirm button), and
- * none of them touch `applied` except the confirm button's own handler,
- * which runs before it calls `.close()`.
+ * Composes the shared `Sheet` primitive for the native dialog lifecycle,
+ * focus trap, Escape/backdrop dismissal, and sheet frame. This component
+ * retains only Filter-specific state, body controls, and footer actions, so
+ * dismissals still leave `applied` untouched while confirm is the only
+ * action that commits `draft`.
  */
 export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(function FilterSheet(
   {
@@ -180,8 +178,6 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
   },
   handleRef,
 ) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
   const [applied, setApplied] = useState<CatalogFilterState>(EMPTY_CATALOG_FILTER_STATE);
   const [draft, setDraft] = useState<CatalogFilterState>(EMPTY_CATALOG_FILTER_STATE);
   // Tracks the *previous* render's `open`, purely to detect a genuine
@@ -280,18 +276,6 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
     }
   }, [open, applied]);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog === null) {
-      return;
-    }
-    if (open && !dialog.open) {
-      dialog.showModal();
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open]);
-
   const activeFacet = activeSecondaryFacet(draft.genre);
   const secondaryOptions = secondaryOptionsForFacet(
     activeFacet,
@@ -320,138 +304,17 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
     onAppliedSelectionChange(
       toCatalogFilterSelection(sanitizeForApply(draft, activeFacet, knownValues)),
     );
-    dialogRef.current?.close();
+    onOpenChange(false);
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      className={styles.dialog}
-      aria-labelledby={titleId}
-      onClose={() => {
-        onOpenChange(false);
-      }}
-      onClick={(event) => {
-        // A click landing on the <dialog> element itself (never a child -
-        // children stop propagation from ever reaching this handler's
-        // target check) is a backdrop click: dismiss without committing
-        // draft, same as Escape (Issue #147 "backdrop / close / dismissal
-        // で確定せず閉じた場合、current applied selectionは変更しない").
-        if (event.target === dialogRef.current) {
-          dialogRef.current.close();
-        }
-      }}
-    >
-      <div className={styles.sheet}>
-        <p id={titleId} className={styles.title}>
-          絞り込み
-        </p>
-
-        <div className={styles.body}>
-          <div className={styles.section}>
-            {genres.length > MAX_GENRE_CHIPS ? (
-              // Bounded fallback (Issue #195): a native <select> reads its
-              // own single-choice semantics without a role="radiogroup" -
-              // this is a genuinely different control, not a chip wall that
-              // happens to overflow.
-              <select
-                aria-label="ジャンル"
-                className={styles.genreSelect}
-                value={draft.genre ?? ''}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setDraft(withGenre(draft, next === '' ? null : next));
-                }}
-              >
-                <option value="">すべて</option>
-                {genres.map((genre) => (
-                  <option key={genre.id} value={genre.key}>
-                    {genre.displayName}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className={styles.chips} role="radiogroup" aria-label="ジャンル">
-                <label
-                  className={[styles.chip, draft.genre === null ? styles.chipSelected : '']
-                    .filter(Boolean)
-                    .join(' ')}
-                >
-                  <input
-                    type="radio"
-                    name="catalog-filter-genre"
-                    className={styles.chipInput}
-                    checked={draft.genre === null}
-                    onChange={() => {
-                      setDraft(withGenre(draft, null));
-                    }}
-                  />
-                  <span className={styles.chipLabel}>すべて</span>
-                </label>
-                {genres.map((genre) => (
-                  <label
-                    key={genre.id}
-                    className={[styles.chip, draft.genre === genre.key ? styles.chipSelected : '']
-                      .filter(Boolean)
-                      .join(' ')}
-                  >
-                    <input
-                      type="radio"
-                      name="catalog-filter-genre"
-                      className={styles.chipInput}
-                      checked={draft.genre === genre.key}
-                      onChange={() => {
-                        setDraft(withGenre(draft, genre.key));
-                      }}
-                    />
-                    <span className={styles.chipLabel}>{genre.displayName}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {activeFacet !== null ? (
-            <div className={styles.section}>
-              {/* Issue #195: the trailing hint distinguishes this
-                  multi-select facet's copy from the genre chips' own
-                  single-select semantics above. */}
-              <p className={styles.sectionLabel}>{activeFacet.label}（複数選べます）</p>
-              {secondaryOptions.length > 0 ? (
-                <TriStateCheckbox
-                  state={aggregateState}
-                  label={`${activeFacet.label}すべて`}
-                  onChange={(next) => {
-                    setDraft(
-                      withSecondarySelection(
-                        draft,
-                        activeFacet.genreKey,
-                        applyAggregateToggle(knownValues, next),
-                      ),
-                    );
-                  }}
-                />
-              ) : null}
-              {secondaryOptions.map((option) => (
-                <TriStateCheckbox
-                  key={option.value}
-                  state={selectedValues.includes(option.value) ? 'checked' : 'unchecked'}
-                  label={option.label}
-                  onChange={() => {
-                    setDraft(
-                      withSecondarySelection(
-                        draft,
-                        activeFacet.genreKey,
-                        toggleSecondaryValue(selectedValues, option.value),
-                      ),
-                    );
-                  }}
-                />
-              ))}
-            </div>
-          ) : null}
-        </div>
-
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="絞り込み"
+      showCloseButton={false}
+      bodyClassName={styles.body}
+      footer={
         <div className={styles.footer}>
           {/* Issue #195: draft-only reset - never touches `applied` or
               persistence, same "no commit without confirm" rule every other
@@ -473,7 +336,110 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
             この条件で絞り込む
           </Button>
         </div>
+      }
+    >
+      <div className={styles.section}>
+        {genres.length > MAX_GENRE_CHIPS ? (
+          // Bounded fallback (Issue #195): a native <select> reads its
+          // own single-choice semantics without a role="radiogroup" -
+          // this is a genuinely different control, not a chip wall that
+          // happens to overflow.
+          <select
+            aria-label="ジャンル"
+            className={styles.genreSelect}
+            value={draft.genre ?? ''}
+            onChange={(event) => {
+              const next = event.target.value;
+              setDraft(withGenre(draft, next === '' ? null : next));
+            }}
+          >
+            <option value="">すべて</option>
+            {genres.map((genre) => (
+              <option key={genre.id} value={genre.key}>
+                {genre.displayName}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className={styles.chips} role="radiogroup" aria-label="ジャンル">
+            <label
+              className={[styles.chip, draft.genre === null ? styles.chipSelected : '']
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <input
+                type="radio"
+                name="catalog-filter-genre"
+                className={styles.chipInput}
+                checked={draft.genre === null}
+                onChange={() => {
+                  setDraft(withGenre(draft, null));
+                }}
+              />
+              <span className={styles.chipLabel}>すべて</span>
+            </label>
+            {genres.map((genre) => (
+              <label
+                key={genre.id}
+                className={[styles.chip, draft.genre === genre.key ? styles.chipSelected : '']
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                <input
+                  type="radio"
+                  name="catalog-filter-genre"
+                  className={styles.chipInput}
+                  checked={draft.genre === genre.key}
+                  onChange={() => {
+                    setDraft(withGenre(draft, genre.key));
+                  }}
+                />
+                <span className={styles.chipLabel}>{genre.displayName}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
-    </dialog>
+
+      {activeFacet !== null ? (
+        <div className={styles.section}>
+          {/* Issue #195: the trailing hint distinguishes this
+                  multi-select facet's copy from the genre chips' own
+                  single-select semantics above. */}
+          <p className={styles.sectionLabel}>{activeFacet.label}（複数選べます）</p>
+          {secondaryOptions.length > 0 ? (
+            <TriStateCheckbox
+              state={aggregateState}
+              label={`${activeFacet.label}すべて`}
+              onChange={(next) => {
+                setDraft(
+                  withSecondarySelection(
+                    draft,
+                    activeFacet.genreKey,
+                    applyAggregateToggle(knownValues, next),
+                  ),
+                );
+              }}
+            />
+          ) : null}
+          {secondaryOptions.map((option) => (
+            <TriStateCheckbox
+              key={option.value}
+              state={selectedValues.includes(option.value) ? 'checked' : 'unchecked'}
+              label={option.label}
+              onChange={() => {
+                setDraft(
+                  withSecondarySelection(
+                    draft,
+                    activeFacet.genreKey,
+                    toggleSecondaryValue(selectedValues, option.value),
+                  ),
+                );
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+    </Sheet>
   );
 });
