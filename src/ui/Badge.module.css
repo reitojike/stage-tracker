@@ -1,7 +1,8 @@
-/* Issue #138: 4 shape-based variants (outline/subtle/deadline/terminal)
- * replace the former success/warning/danger/info/neutral color states.
- * Common sizing per the design handoff (design_handoff_stage_tracker/
- * 02-badge.md「バッジの4段階」): padding 3px 8px, radius 2px, 11px/600/1.4.
+/* Issue #138: 5 shape-based variants (outline/subtle/done/deadline/terminal)
+ * replace the former success/warning/danger/info/neutral color states (done
+ * added by Issue #186). Common sizing per the design handoff
+ * (design_handoff_v3/RULES.md「バッジ — 5段階」): padding 3px 8px, radius
+ * 2px, 11px/600/1.4.
  */
 .badge {
   display: inline-flex;

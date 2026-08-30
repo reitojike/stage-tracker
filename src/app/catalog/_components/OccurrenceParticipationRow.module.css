@@ -16,23 +16,3 @@
   display: flex;
   gap: var(--space-xs);
 }
-
-/*
- * Issue #240 (TURN 25a reference check): 変更/招待 render as plain text at
- * rest in reference/event-detail-390.png - no --color-surface-subtle pill
- * behind them, unlike Button's shared `quiet` variant default. Scoped to
- * this row's two actions only (not a Button.module.css change): Sheet.tsx's
- * own quiet「閉じる」is explicitly preserved as-is per Issue #240, and other
- * quiet-variant consumers (FilterSheet, TicketOpportunityStateControls)
- * have no TURN 25 reference to verify a background-removal against. Hover/
- * active feedback is kept (same treatment BackLink/.editLink already use)
- * so the row stays identifiable as interactive once touched/hovered.
- */
-button.quietAction {
-  background-color: transparent;
-}
-
-button.quietAction:hover:not(:disabled),
-button.quietAction:active:not(:disabled) {
-  background-color: var(--color-surface-active);
-}

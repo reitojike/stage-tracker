@@ -56,7 +56,6 @@ export function OccurrenceParticipationRow({
         <Button
           type="button"
           variant="quiet"
-          className={styles.quietAction}
           onClick={() => {
             setSheet('participation');
           }}
@@ -67,7 +66,6 @@ export function OccurrenceParticipationRow({
           <Button
             type="button"
             variant="quiet"
-            className={styles.quietAction}
             onClick={() => {
               setSheet('invite');
             }}

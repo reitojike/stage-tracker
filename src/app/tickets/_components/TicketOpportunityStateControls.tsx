@@ -50,22 +50,50 @@ export function TicketOpportunityStateControls({
 
       <div className={styles.actions}>
         {myState === null ? (
-          <Button type="submit" name="intent" value="planned" variant="quiet" disabled={isPending}>
+          <Button
+            type="submit"
+            name="intent"
+            value="planned"
+            variant="quiet"
+            className={styles.stateButton}
+            disabled={isPending}
+          >
             申し込む予定にする
           </Button>
         ) : null}
         {myState === 'planned' ? (
-          <Button type="submit" name="intent" value="applied" variant="quiet" disabled={isPending}>
+          <Button
+            type="submit"
+            name="intent"
+            value="applied"
+            variant="quiet"
+            className={styles.stateButton}
+            disabled={isPending}
+          >
             申し込み済みにする
           </Button>
         ) : null}
         {myState === 'applied' ? (
-          <Button type="submit" name="intent" value="planned" variant="quiet" disabled={isPending}>
+          <Button
+            type="submit"
+            name="intent"
+            value="planned"
+            variant="quiet"
+            className={styles.stateButton}
+            disabled={isPending}
+          >
             申し込む予定に戻す
           </Button>
         ) : null}
         {myState !== null ? (
-          <Button type="submit" name="intent" value="remove" variant="quiet" disabled={isPending}>
+          <Button
+            type="submit"
+            name="intent"
+            value="remove"
+            variant="quiet"
+            className={styles.stateButton}
+            disabled={isPending}
+          >
             登録を解除
           </Button>
         ) : null}

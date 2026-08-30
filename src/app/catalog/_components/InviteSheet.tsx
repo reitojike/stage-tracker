@@ -57,12 +57,7 @@ export function InviteSheet({
   }, [state.attempt, state.notice, onOpenChange]);
 
   return (
-    <Sheet
-      open={open}
-      onOpenChange={onOpenChange}
-      title="招待する"
-      closeButtonClassName={styles.quietAction}
-    >
+    <Sheet open={open} onOpenChange={onOpenChange} title="招待する">
       <p className={styles.occurrenceTime}>
         {tokyoDateLabel(occurrence.startsAt)}{' '}
         {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
@@ -96,12 +91,7 @@ export function InviteSheet({
         />
 
         <div className={styles.actions}>
-          <Button
-            type="submit"
-            variant="primary"
-            className={styles.submitButton}
-            disabled={isPending}
-          >
+          <Button type="submit" variant="primary" disabled={isPending}>
             {isPending ? '送信中…' : '招待する'}
           </Button>
         </div>

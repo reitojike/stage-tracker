@@ -202,8 +202,12 @@ void test('the state controls cover every required transition, including applied
   // revision of this component was missing the applied -> planned button -
   // caught only by rendering the fixture, since typecheck/lint cannot see a
   // missing JSX branch.
-  assert.match(controlsSource, /myState === null[\s\S]{0,80}value="planned"/);
-  assert.match(controlsSource, /myState === 'planned'[\s\S]{0,80}value="applied"/);
-  assert.match(controlsSource, /myState === 'applied'[\s\S]{0,80}value="planned"/);
-  assert.match(controlsSource, /myState !== null[\s\S]{0,80}value="remove"/);
+  // Issue #244: each Button now also carries a className (RULES.md's "quiet
+  // の例外" - see TicketOpportunityStateControls.module.css's .stateButton),
+  // which pushes Prettier to wrap every prop onto its own line, so the gap
+  // tolerance is wider than a single-line attribute list would need.
+  assert.match(controlsSource, /myState === null[\s\S]{0,160}value="planned"/);
+  assert.match(controlsSource, /myState === 'planned'[\s\S]{0,160}value="applied"/);
+  assert.match(controlsSource, /myState === 'applied'[\s\S]{0,160}value="planned"/);
+  assert.match(controlsSource, /myState !== null[\s\S]{0,160}value="remove"/);
 });
