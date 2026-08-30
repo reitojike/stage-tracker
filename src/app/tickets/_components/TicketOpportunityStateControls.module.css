@@ -20,7 +20,12 @@
  * that. Scoped to this one control via its own class, not a reversion of
  * Button.module.css's shared `.quiet` default - the exception exists
  * because the row is a whole-row link, not because this action is quiet.
+ * The `button` element selector (specificity 0,1,1) is deliberate, not
+ * decorative - Button.tsx composes `.quiet`/`.stateButton` as two
+ * equal-specificity (0,1,0) classes on the same element, so without this a
+ * bundler/import-order change could silently flip which rest background
+ * wins. Same technique the removed #240 `.quietAction` overrides used.
  */
-.stateButton {
+button.stateButton {
   background-color: var(--color-surface-subtle);
 }
