@@ -20,8 +20,6 @@ export interface ScheduleAndEventSectionProps {
   pendingInvitationCount: number;
 }
 
-const PERSONAL_SCHEDULE_HREF = '/schedule';
-
 /**
  * "予定とイベント" (Issue #193 / design_handoff_v2/issues/13-mypage.md,
  * visual reference 12f): the low-frequency management destinations moved
@@ -43,14 +41,6 @@ export function ScheduleAndEventSection({
         予定とイベント
       </h2>
       <ul className={styles.items}>
-        <li className={styles.item}>
-          <Link href={PERSONAL_SCHEDULE_HREF} className={styles.itemLink}>
-            <span className={styles.label}>個人予定を管理</span>
-            <span className={styles.chevron} aria-hidden="true">
-              ›
-            </span>
-          </Link>
-        </li>
         <li className={styles.item}>
           <Link href={catalogInvitationsHref()} className={styles.itemLink}>
             <span className={styles.label}>招待一覧</span>

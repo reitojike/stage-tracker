@@ -14,6 +14,7 @@ import {
 } from '@/infrastructure/supabase/personalSchedule.ts';
 import { resolvePlanningReadState } from '@/domain/planningError.ts';
 import { scheduleTemporalLabel } from '@/domain/personalScheduleFormatting.ts';
+import { scheduleEntryEditHref, scheduleEntryBackHref } from '@/domain/myCalendarNavigation.ts';
 import {
   findOwnScheduleShare,
   type PersonalScheduleEntry,
@@ -27,6 +28,7 @@ import styles from '../_components/ScheduleDetail.module.css';
 
 interface ScheduleEntryPageProps {
   params: Promise<{ entryId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 const isMissingEntry = (data: PersonalScheduleEntry | null) => data === null;
@@ -59,8 +61,11 @@ const isEmptyRecipientList = (data: ScheduleShareRecipient[]) => data.length ===
  * explicit error state below, never silently treated as "this caller is a
  * recipient".
  */
-export default async function ScheduleEntryPage({ params }: ScheduleEntryPageProps) {
+export default async function ScheduleEntryPage({ params, searchParams }: ScheduleEntryPageProps) {
   const { entryId } = await params;
+  const rawSearchParams = await searchParams;
+  const backHref = scheduleEntryBackHref(rawSearchParams.month);
+  const editHref = scheduleEntryEditHref(entryId, rawSearchParams.month);
 
   const client = await createSupabaseServerClient();
   const [result, callerResult] = await Promise.all([
@@ -101,7 +106,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
 
   return (
     <>
-      <BackLink href="/schedule">個人の予定に戻る</BackLink>
+      <BackLink href={backHref}>マイカレンダーに戻る</BackLink>
 
       {state === 'error' ? (
         <StatePanel
@@ -141,7 +146,7 @@ export default async function ScheduleEntryPage({ params }: ScheduleEntryPagePro
                 {isOwner ? (
                   <>
                     <ActionRow>
-                      <LinkButton href={`/schedule/${entry.id}/edit`} variant="secondary">
+                      <LinkButton href={editHref} variant="secondary">
                         編集する
                       </LinkButton>
                     </ActionRow>

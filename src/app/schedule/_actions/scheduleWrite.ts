@@ -11,14 +11,9 @@ import {
   shareScheduleEntryByEmail,
   updatePersonalScheduleEntry,
 } from '@/infrastructure/supabase/personalSchedule.ts';
-import {
-  parsePersonalScheduleEntry,
-  personalScheduleEntryToFormValues,
-  type RawFormValues,
-} from '@/domain/personalScheduleWrite.ts';
+import { parsePersonalScheduleEntry, type RawFormValues } from '@/domain/personalScheduleWrite.ts';
 import {
   acceptedShareAddFormState,
-  acceptedWriteFormState,
   rejectedScheduleEntryDeleteFormState,
   rejectedShareAddFormState,
   rejectedShareRemoveFormState,
@@ -28,7 +23,6 @@ import {
   resolveRemoveShareFeedback,
   resolveShareByEmailOutcome,
   resolveWriteFeedback,
-  resolveWriteNotice,
   type ScheduleEntryDeleteFormState,
   type ScheduleShareAddFormState,
   type ScheduleShareRemoveFormState,
@@ -95,10 +89,10 @@ export async function createScheduleEntryAction(
     );
   }
 
-  revalidatePath('/schedule');
+  revalidatePath('/calendar');
   // Outside the failure branches above: redirect() signals by throwing, so
   // it must not run where a catch could absorb it.
-  redirect(`/schedule/${result.data.id}`);
+  redirect('/calendar');
 }
 
 export async function updateScheduleEntryAction(
@@ -132,16 +126,9 @@ export async function updateScheduleEntryAction(
     );
   }
 
-  revalidatePath('/schedule');
+  revalidatePath('/calendar');
   revalidatePath(`/schedule/${entryId}`);
-  // What persisted, not what was typed - parsing trimmed the values and
-  // mapped blanks to null, so echoing `values` would show the form a
-  // slightly different string from the one now in the database.
-  return acceptedWriteFormState(
-    previous,
-    personalScheduleEntryToFormValues(parsed.value),
-    resolveWriteNotice('update-schedule-entry'),
-  );
+  redirect('/calendar');
 }
 
 /**
@@ -149,7 +136,7 @@ export async function updateScheduleEntryAction(
  * personal_schedule_shares rows are cleaned up at the DB layer (ON DELETE
  * CASCADE - see deletePersonalScheduleEntry's own comment), so this action
  * has nothing else to revalidate on the recipient side: a recipient's next
- * read of /schedule or /calendar simply no longer includes a row that no
+ * read of /calendar simply no longer includes a row that no
  * longer exists.
  */
 export async function deleteScheduleEntryAction(
@@ -170,12 +157,11 @@ export async function deleteScheduleEntryAction(
     );
   }
 
-  revalidatePath('/schedule');
   revalidatePath('/calendar');
   // Outside the failure branch above - see createScheduleEntryAction. The
   // entry this page was showing no longer exists, so there is nothing left
   // on the detail/edit pages to return to.
-  redirect('/schedule');
+  redirect('/calendar');
 }
 
 export async function removeScheduleShareAction(
@@ -193,13 +179,13 @@ export async function removeScheduleShareAction(
     return rejectedShareRemoveFormState(previous, resolveRemoveShareFeedback(result.error.kind));
   }
 
-  revalidatePath('/schedule');
+  revalidatePath('/calendar');
   // Outside the failure branch above - see createScheduleEntryAction. The
   // entry this share pointed at drops out of the caller's own visibility
   // the moment this commits (personal_schedule_entries_select_owner_or_
   // shared no longer matches), so there is nothing left on the detail page
   // to return to.
-  redirect('/schedule');
+  redirect('/calendar');
 }
 
 /** Reads the trimmed raw email a form submitted, defaulting to '' rather
@@ -234,6 +220,7 @@ export async function addScheduleShareByEmailAction(
   }
 
   revalidatePath(`/schedule/${entryId}`);
+  revalidatePath('/calendar');
   return acceptedShareAddFormState(previous);
 }
 
@@ -266,5 +253,6 @@ export async function removeScheduleShareAsOwnerAction(
   // share, so this stays on the page (revalidating it) rather than
   // redirecting.
   revalidatePath(`/schedule/${entryId}`);
+  revalidatePath('/calendar');
   return { attempt: previous.attempt + 1, feedback: null };
 }

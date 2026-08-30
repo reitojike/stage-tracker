@@ -41,8 +41,8 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 - My Calendarは Participation + Personal Schedule を、Homeは
   TicketOpportunity deadlines と Participation + Personal Schedule を
   既存のtyped boundaryから合成します。MVP user-facing journeyは
-  `/calendar`、`/schedule`、`/catalog/invitations`、`/tickets`、Home
-  に実装済みです。
+  `/calendar`、Personal Scheduleのdetail/create/edit routes、
+  `/catalog/invitations`、`/tickets`、Homeに実装済みです。
 - Issue #234で、従来の詳細なticket acquisition / inventory / assignment /
   ownership transfer modelをcurrent schema、runtime、専用テストから
   decommissionしました。将来の詳細な申込管理やinventoryは、

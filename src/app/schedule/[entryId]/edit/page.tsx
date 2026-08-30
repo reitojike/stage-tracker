@@ -7,11 +7,13 @@ import { getVisiblePersonalScheduleEntry } from '@/infrastructure/supabase/perso
 import { resolvePlanningReadState } from '@/domain/planningError.ts';
 import { resolveWriteFeedback } from '@/domain/personalScheduleWriteFeedback.ts';
 import { personalScheduleEntryToFormValues } from '@/domain/personalScheduleWrite.ts';
+import { scheduleEntryDetailHref } from '@/domain/myCalendarNavigation.ts';
 import type { PersonalScheduleEntry } from '@/domain/personalSchedule.ts';
 import { ScheduleEntryEditForm } from '../../_components/ScheduleEntryEditForm.tsx';
 
 interface EditScheduleEntryPageProps {
   params: Promise<{ entryId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 const isMissingEntry = (data: PersonalScheduleEntry | null) => data === null;
@@ -34,9 +36,13 @@ const isMissingEntry = (data: PersonalScheduleEntry | null) => data === null;
  * misreport a transient failure as "not the owner" (see the detail page's
  * identical reasoning at ../page.tsx).
  */
-export default async function EditScheduleEntryPage({ params }: EditScheduleEntryPageProps) {
+export default async function EditScheduleEntryPage({
+  params,
+  searchParams,
+}: EditScheduleEntryPageProps) {
   const { entryId } = await params;
-  const detailHref = `/schedule/${entryId}`;
+  const rawSearchParams = await searchParams;
+  const detailHref = scheduleEntryDetailHref(entryId, rawSearchParams.month);
 
   const client = await createSupabaseServerClient();
   const [result, callerResult] = await Promise.all([
