@@ -306,7 +306,7 @@ export async function updateEventRange(
 /**
  * Hard delete an event occurrence (Issue #124). Calls the delete_event_occurrence
  * RPC which enforces owner-only access, checks for downstream participation/
- * invitation/ticket-acquisition data, and raises custom SQLSTATE '90001' if
+ * invitation data, and raises custom SQLSTATE '90001' if
  * blocked by downstream data. The RPC itself is SECURITY DEFINER so raw
  * DELETE access is never exposed to authenticated clients - this is the only
  * path to delete an occurrence.
@@ -327,8 +327,8 @@ export async function deleteEventOccurrence(
 /**
  * Hard delete an event and all its child occurrences (Issue #124). Calls the
  * delete_event RPC which enforces: owner-only access, all child occurrences
- * must be safe to delete (no downstream participation/invitation/
- * ticket-acquisition), and atomic deletion of event + all children. The RPC
+ * must be safe to delete (no downstream participation/invitation), and
+ * atomic deletion of event + all children. The RPC
  * raises custom SQLSTATE '90001' if any child has downstream data or if the
  * event itself is not found/owned.
  */

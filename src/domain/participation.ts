@@ -10,8 +10,8 @@
 //   "not participating".
 // - Visibility defaults to `private` (owner only); `public` means every
 //   authenticated user.
-// - Independent of ticket acquisition: nothing here reads or is driven by
-//   ticket state.
+// - Independent of TicketOpportunity planning state: nothing here reads or is
+//   driven by ticket-planning state.
 //
 // This module is pure domain logic: no Supabase/DB import (see the
 // architecture import boundary in eslint.config.mjs).

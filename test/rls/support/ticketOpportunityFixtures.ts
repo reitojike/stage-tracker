@@ -61,8 +61,8 @@ export interface ImportOpportunityOptions {
  * Imports one TicketOpportunity through the real service_role RPC, for an
  * event created via the normal catalogOwner fixture path. Errors are
  * surfaced (not swallowed) so a fixture that stopped working cannot quietly
- * turn a positive test into a vacuous one, matching the convention in
- * support/ticketFixtures.ts.
+ * turn a positive test into a vacuous one, matching the repository's fixture
+ * conventions.
  */
 export async function importOpportunity(eventId: string, options: ImportOpportunityOptions = {}) {
   const admin = createAdminClient();

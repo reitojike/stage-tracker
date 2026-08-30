@@ -28,9 +28,8 @@ export interface Invitation {
    * 20260830000000_simplify_invitation_pending_only.sql). A fetched
    * Invitation is therefore always effectively pending; this field is
    * retained only because the underlying `occurrence_invitations.declined_at`
-   * column itself is not dropped in this PR (legacy-schema-drop is deferred
-   * to a later bounded Issue) - no current write path ever sets it again,
-   * and no current read path should branch on it.
+   * column remains as historical schema compatibility - no current write path
+   * sets it, and no current read path should branch on it.
    */
   declinedAt: string | null;
   createdAt: string;

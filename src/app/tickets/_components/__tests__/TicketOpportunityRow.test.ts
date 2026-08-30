@@ -18,7 +18,7 @@ const rowCss = readFileSync(
   'utf8',
 );
 
-void test('the row never imports the legacy ticket_acquisitions/tickets/ticket_transfers boundary', () => {
+void test('the row never imports the removed acquired-ticket boundary', () => {
   assert.doesNotMatch(rowSource, /ticketAcquisition|ticketTransfer|from '.*\/ticket\.ts'/);
 });
 

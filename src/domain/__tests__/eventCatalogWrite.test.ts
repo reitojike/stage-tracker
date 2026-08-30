@@ -347,7 +347,7 @@ void test('classifyWriteError maps unique_violation to duplicate-occurrence', ()
 void test('classifyWriteError maps the custom delete-blocked SQLSTATE to delete-blocked', () => {
   const error = classifyWriteError({
     code: '90001',
-    message: 'occurrence cannot be deleted: participation, invitation, or ticket data exists',
+    message: 'occurrence cannot be deleted: participation or invitation data exists',
   });
   assert.equal(error.kind, 'delete-blocked');
   assert.equal(error.code, '90001');

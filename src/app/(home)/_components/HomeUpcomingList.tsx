@@ -73,8 +73,8 @@ function UpcomingRow({ item }: { item: HomeUpcomingItem }) {
  * presentation - no card Surface (docs/ux-ui.md "Spacing / surface /
  * radius", Issue #146 precedent this mirrors, same row vocabulary as
  * src/app/calendar/_components/MySelectedDayList.tsx). Deliberately carries
- * no ticket-acquisition status badge - Home's upcoming projection never
- * reads the legacy ticket_acquisitions boundary.
+ * no ticket-planning status badge; TicketOpportunity deadlines belong to
+ * Home's separate deadline block.
  */
 export function HomeUpcomingList({ dateGroups }: HomeUpcomingListProps) {
   return (

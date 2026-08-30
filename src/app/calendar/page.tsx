@@ -54,9 +54,9 @@ function authOrReadErrorPanel(error: PlanningError) {
 }
 
 /**
- * My Calendar (Issue #34): merges participation-registered occurrences,
- * event-independent personal schedule (own + shared), and ticket
- * acquisition state into one month view + selected-day detail, following
+ * My Calendar (Issue #34): merges participation-registered occurrences and
+ * event-independent personal schedule (own + shared) into one month view +
+ * selected-day detail, following
  * the same "month calendar -> selected-day list" pattern
  * src/app/catalog/page.tsx already established (docs/ux-ui.md primary
  * interaction pattern).

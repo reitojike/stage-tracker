@@ -355,44 +355,6 @@ export type Database = {
           },
         ]
       }
-      ticket_acquisitions: {
-        Row: {
-          created_at: string
-          id: string
-          memo: string | null
-          occurrence_id: string
-          owner_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          memo?: string | null
-          occurrence_id: string
-          owner_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          memo?: string | null
-          occurrence_id?: string
-          owner_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ticket_acquisitions_occurrence_id_fkey"
-            columns: ["occurrence_id"]
-            isOneToOne: false
-            referencedRelation: "event_occurrences"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ticket_opportunities: {
         Row: {
           created_at: string
@@ -517,94 +479,6 @@ export type Database = {
           },
         ]
       }
-      ticket_transfers: {
-        Row: {
-          created_at: string
-          id: string
-          recipient_id: string
-          responded_at: string | null
-          sender_id: string
-          status: string
-          ticket_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          recipient_id: string
-          responded_at?: string | null
-          sender_id: string
-          status?: string
-          ticket_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          recipient_id?: string
-          responded_at?: string | null
-          sender_id?: string
-          status?: string
-          ticket_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ticket_transfers_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tickets: {
-        Row: {
-          acquisition_id: string
-          assigned_to_user_id: string | null
-          assignee_external_name: string | null
-          created_at: string
-          id: string
-          medium: string | null
-          owner_id: string
-          queue_number: string | null
-          seat_label: string | null
-          updated_at: string
-        }
-        Insert: {
-          acquisition_id: string
-          assigned_to_user_id?: string | null
-          assignee_external_name?: string | null
-          created_at?: string
-          id?: string
-          medium?: string | null
-          owner_id: string
-          queue_number?: string | null
-          seat_label?: string | null
-          updated_at?: string
-        }
-        Update: {
-          acquisition_id?: string
-          assigned_to_user_id?: string | null
-          assignee_external_name?: string | null
-          created_at?: string
-          id?: string
-          medium?: string | null
-          owner_id?: string
-          queue_number?: string | null
-          seat_label?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tickets_acquisition_id_fkey"
-            columns: ["acquisition_id"]
-            isOneToOne: false
-            referencedRelation: "ticket_acquisitions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_ticket_opportunity_states: {
         Row: {
           created_at: string
@@ -645,48 +519,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      accept_ticket_transfer: {
-        Args: { p_transfer_id: string }
-        Returns: {
-          created_at: string
-          id: string
-          recipient_id: string
-          responded_at: string | null
-          sender_id: string
-          status: string
-          ticket_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "ticket_transfers"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      can_view_ticket_provenance: {
-        Args: { p_ticket_id: string }
-        Returns: boolean
-      }
-      cancel_ticket_transfer: {
-        Args: { p_transfer_id: string }
-        Returns: {
-          created_at: string
-          id: string
-          recipient_id: string
-          responded_at: string | null
-          sender_id: string
-          status: string
-          ticket_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "ticket_transfers"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       create_event: {
         Args: {
           p_doors_at?: string
@@ -895,36 +727,6 @@ export type Database = {
           shared_at: string
         }[]
       }
-      pending_ticket_transfer_offer: {
-        Args: { p_transfer_id: string }
-        Returns: {
-          medium: string
-          occurrence_id: string
-          queue_number: string
-          seat_label: string
-          ticket_id: string
-          transfer_id: string
-        }[]
-      }
-      request_ticket_transfer: {
-        Args: { p_recipient_id: string; p_ticket_id: string }
-        Returns: {
-          created_at: string
-          id: string
-          recipient_id: string
-          responded_at: string | null
-          sender_id: string
-          status: string
-          ticket_id: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "ticket_transfers"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       reschedule_event: {
         Args: {
           p_ends_on: string
@@ -963,10 +765,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      ticket_transfer_recipient_is_eligible: {
-        Args: { p_occurrence_id: string; p_recipient_id: string }
-        Returns: boolean
       }
     }
     Enums: {

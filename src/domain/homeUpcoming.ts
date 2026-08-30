@@ -4,9 +4,9 @@
 // registered occurrences and event-independent personal schedule (own +
 // shared) - into one bounded, nearest-first list, the same "compose what the
 // typed reads already returned, add no new visibility judgment of its own"
-// discipline domain/myCalendar.ts follows for My Calendar. This module never
-// reads legacy ticket_acquisitions - Home's Task Contract explicitly keeps
-// that model out of this projection.
+// discipline domain/myCalendar.ts follows for My Calendar. This module has no
+// ticket-planning slice; Home's Task Contract keeps the current
+// TicketOpportunity deadline surface separate from this projection.
 //
 // Deterministic by construction: every function here takes `nowInstant`/
 // `todayTokyoDate` as explicit parameters rather than reading the clock

@@ -126,8 +126,7 @@ async function resolveParticipationEventsAndOccurrences(
  * (Issue #159) - this page does not reintroduce them.
  *
  * Canonical sources, matching #144's/My Calendar's own typed read boundary
- * exactly (never a raw table query, never the legacy ticket_acquisitions
- * boundary):
+ * exactly (never a raw table query):
  * - Block A: listTicketOpportunitiesWithDetails + getEventsByIds, filtered/
  *   ordered by domain/homeDeadlines.ts's selectHomeDeadlineRows (which
  *   reuses #144's own isActionableTicketOpportunityDeadline - "planned" +
@@ -252,11 +251,9 @@ export default async function Home() {
   } else {
     // Reuses the same Event+Occurrence+Participation join My Calendar
     // already established (src/app/calendar/page.tsx), rather than
-    // re-deriving an equivalent one. Issue #225/#230 removed the legacy
-    // ticket_acquisitions parameter from buildMyCalendarOccurrenceEntries
-    // entirely - Home never read it (Home's Task Contract keeps the legacy
-    // ticket_acquisitions model out of this projection), so this call site
-    // simply drops the argument rather than passing an empty placeholder.
+    // re-deriving an equivalent one. The calendar composition accepts only
+    // the current participation map, so this call site has no acquired-ticket
+    // placeholder or secondary planning slice to pass.
     const eventsWithOccurrences = groupOccurrencesByEvent(
       participationEventsResult.data,
       participationOccurrencesResult.data,

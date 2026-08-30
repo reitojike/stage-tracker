@@ -13,8 +13,8 @@ Completed baseline を参照してください。
 
 - Event 情報は authenticated users 間の共有 catalog です。anonymous user は
   catalog を閲覧・変更できません。
-- per-user の participation / ticket acquisition / expense は event catalog
-  とは分離した personal concept として扱います。
+- per-user の participation / expense、および TicketOpportunity の personal
+  planning state は event catalog とは分離した concept として扱います。
 - Event owner は情報管理者です。owner であることは participant / organizer /
   inviter であることを意味しません。
 
@@ -189,8 +189,8 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
   区別されます（詳細は下記「Cancellation」セクション参照）。
 - **Occurrence 削除**:
   - owner のみが削除可能です。
-  - `occurrence_participations` / `occurrence_invitations` /
-    `ticket_acquisitions` のいずれか 1 件でも存在する場合は拒否されます。
+  - `occurrence_participations` / `occurrence_invitations` のいずれか 1 件
+    でも存在する場合は拒否されます。
     これらテーブルへの cascade は行いません。
   - 最後の Occurrence が削除された場合でも Event が 0-occurrence 状態に
     なることは valid です。
@@ -201,8 +201,8 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
     満たす場合に限り、Event + 全 child が atomic に削除されます。
   - 1 件でも削除不可の child が存在する場合、Event 削除全体が拒否されます
     （部分削除は発生しません）。
-  - user / cross-user downstream data（participation / invitation /
-    ticket-acquisition）への cascade delete は行いません。
+  - user / cross-user downstream data（participation / invitation）への
+    cascade delete は行いません。
 
 ### Cancellation
 
@@ -218,12 +218,12 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
   cancellation を解除しません。Occurrence-level の cancellation は Event
   の cancel/uncancel から独立して維持されます。
 - owner が cancel / uncancel の両方を行えます。
-- 中止によって既存の downstream data（participation / invitation /
-  ticket acquisition）は保持されます。deletion のような cascade は
+- 中止によって既存の downstream data（participation / invitation）は保持
+  されます。deletion のような cascade は
   行いません。
 - effective cancellation 状態にある Event/Occurrence に対しては、新規の
   active action（新規 participation の attending 化、新規 invitation、
-  新規 ticket acquisition 等）を拒否します。
+  新規 invitation 等）を拒否します。
 - 既存 participation の withdraw（辞退）は、中止状態でも引き続き許可
   します。
 - UI では中止状態が「中止」として表示されます。
@@ -240,8 +240,8 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
     `events.canceled_at` を読む共有 SQL 関数
     (`event_occurrence_is_effectively_canceled`) と、
     `occurrence_participations` の INSERT/UPDATE (`considering -> attending`
-    のみ) trigger、`ticket_acquisitions` の INSERT trigger、
-    `invite_to_occurrence` / `invite_to_occurrence_by_email` RPC 内の
+    のみ) trigger、`invite_to_occurrence` /
+    `invite_to_occurrence_by_email` RPC 内の
     明示チェックとして DB level で強制します。拒否は application-defined
     custom SQLSTATE `90002` として表現します。
 
@@ -255,8 +255,9 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
 - participation visibility の default は `private` です。
   - `private` = 本人のみ
   - `public` = authenticated users 全員
-- participation の intention/planning と ticket acquisition は独立した
-  concept とし、ticket の結果から participation status を自動変更しません。
+- participation と TicketOpportunity の personal planning state
+  (`planned`/`applied`) は独立した concept とし、一方から他方の status を
+  自動変更しません。
 - event-level の「興味がある / 行きたいが回未定」という intention は
   participation へ混ぜず、扱う場合は別途評価します（現時点は Deferred）。
 
@@ -355,12 +356,9 @@ decline 後の re-invite 恒久拒否 — は supersede 済みです）。
   dispatch・opacity 要件は上記と同一で、resolution を追加したことを
   理由に緩めません。「no such account」を含む invitee-dependent な分岐は
   すべて同一の結果を返し、inviter からは区別できません。
-- old Ticket transfer eligibility（`ticket_transfer_recipient_is_eligible`）
-  は legacy Ticket transfer model の一部として historical に
-  occurrence_invitations の行の有無を参照しますが、Invitation semantics の
-  決定（pending-only への収束を含む）は legacy Ticket transfer の都合に
-  制約されません。legacy Ticket transfer は current runtime から
-  decommission 済みです（下記「Ticket acquisition / Ticket」節参照）。
+- Invitation semantics（pending-only への収束を含む）は、他の ticket
+  planning state や将来の詳細な application tracking とは独立して決定
+  します。
 
 ## Event-independent personal schedule
 
@@ -423,94 +421,24 @@ decline 後の re-invite 恒久拒否 — は supersede 済みです）。
 - Event / Event Occurrence の deletion/cancellation semantics とは性質が
   異なるため、この決定はそちらの scope へ影響しません。
 
-## Ticket acquisition / Ticket
+## Ticket model removal
 
-このセクションは既存の legacy model の記述です。#157（Ticket planning
-MVP checkpoint）以降、この model は現行 MVP の main ticket journey では
-ありません。#225/#230（PR A）で、legacy Ticket acquisition / inventory /
-assignment / transfer への current runtime（UI / server action /
-navigation reachability）からの依存を切り離しました。My Calendar は
-legacy acquisition read / status projection をもう行いません。以下の
-semantics は今も schema として存在し、DB objects 自体は DROP・
-repurpose されていません（destructive schema cleanup は #225 の後続
-bounded Issue として、Production read-only preflight を経てから別途
-行います）。`/tickets` や Home、および現行 runtime の他の read/write path
-は consume しません。現行 MVP の canonical model は次の「Ticket
-Opportunity（Ticket planning MVP）」セクションです。
+従来の acquired-ticket inventory / assignment / ownership transfer model は、
+Issue #225 の product simplification を受けた Issue #234 で current schema と
+runtime から撤去しました。これは現行の product concept ではありません。
 
-### Concept boundary
-
-- **ticket acquisition** と **ticket** は別 concept です。
-- ticket acquisition は申込・購入 attempt を表し、user-owned かつ
-  occurrence-linked です。
-- 同一 user / occurrence に複数の acquisition attempt を許容します。
-- acquisition lifecycle の MVP canonical status は `pending` / `secured` /
-  `unsuccessful` です。即時購入等は最初から `secured` として作成できます。
-- `cancelled` / `withdrawn` / `refunded` 等は、具体的な need が出るまで
-  MVP status へ先行追加しません。
-- acquisition 単位の personal memo を持てる方向とします。
-
-### Ticket
-
-- ticket は secured な acquisition の結果として表現される、個別の
-  ticket です。1 acquisition から複数 ticket を持てます。secured 時の
-  確保枚数に応じて複数 ticket を持てる data boundary とします。
-- seat number / queue number / ticket medium は ticket 単位の情報です。
-  seat / queue が未判明でも ticket は存在できます。
-- MVP の ticket medium は `paper` / `electronic` 相当です。コンビニ発券 /
-  郵送 / 特定アプリ等の delivery / issuance method は、MVP では別
-  vocabulary として先行固定しません。
-- ticket は未割当でもよく、ticket の利用者・同行者を stage-tracker
-  authenticated user であることを必須の紐付け対象にはしません。
-  stage-tracker を利用していない外部同行者を表現できます。
-- registered user への invitation と ticket assignment は独立した
-  concept です。invite したことは ticket assignment を必須にしません。
-  外部同行者へ ticket を割り当てるために account 作成を要求しません。
-- ticket assignment は「誰が使う予定か」を表す情報であり、ticket の
-  ownership transfer を意味しません。
-- Ticket は secured な acquisition の結果であるという boundary を、作成後も
-  保持します。child Ticket が存在する acquisition を secured 以外の status
-  へ戻すことはできません。
-- Ticket の deletion / correction semantics は未決定です。誤って secured に
-  した、あるいは誤って Ticket を作成した場合の owner 向け訂正手段は、現時点
-  では存在しません。訂正手段の提供には Ticket deletion semantics の決定が
-  必要であり、この決定を待たずに訂正用の escape hatch をここで発明しません。
-
-### Ticket transfer
-
-- current ticket owner が明示的に transfer を開始します。
-- transfer 先は、同じ occurrence へ invitation された registered user を
-  MVP の eligibility とします。invitation を decline した invitee も、この
-  eligibility を維持します（decline は transfer の acceptance を免除しま
-  せん。acceptance 自体が必須であるため、decline した相手へ transfer が
-  強制されることはありません）。
-- recipient の acceptance を必須とします。accept 前は sender が transfer
-  を取り消せます。
-- accept 後は ticket の current owner / edit authority が recipient へ
-  移ります。accept 後、sender が一方的に ticket を取り戻すことはできません。
-- transfer 後も、元の acquisition との provenance（由来）関係は保持
-  されます。acquisition owner は acquisition 自体を引き続き所有し、どの
-  ticket を誰へ transfer したか確認できる data boundary を持ちます。
-- transfer によって participation status を自動変更しません。
-- transfer の宛先が eligible かどうかの判定は、sender 側から見て「対象
-  occurrence へ invitation された registered user かどうか」を 1 bit
-  観測させる side channel になります。これは MVP の accepted trade-off
-  とします。これを隠すために invitation の read boundary を再び緩めたり、
-  fake transfer を作らせたり、invitation の opacity semantics を変更する
-  ことはしません。
-- pending 状態の transfer offer は、recipient が accept するまで、前
-  owner が設定していた assignment 情報（registered user assignee か
-  外部同行者名かを含む）を recipient へ開示しません。
+将来、詳細な申込管理や inventory が必要になった場合は、TicketOpportunity
+を前提に新しい bounded product Task として再設計します。この文書は旧モデルの
+status、assignment、provenance、transfer lifecycle を current behavior として
+再承認しません。
 
 ## Ticket Opportunity（Ticket planning MVP）
 
 Issue #157 で確定した、現行 MVP の canonical ticket journey です。目的は
 「いつ、何の抽選・先行・販売開始があるのかを漏らさず見られる」ことに
 限定され、full Ticket inventory / detailed application tracking では
-ありません。上記「Ticket acquisition / Ticket」（`ticket_acquisitions` /
-`tickets` / transfer）は legacy model としてそのまま存在しますが、この
-セクションの model とは独立しており、read/write path を共有しません
-（Issue #162）。
+ありません。これは現行の Ticket planning における唯一の canonical model
+であり、詳細な申込管理や inventory はこの scope に含めません（Issue #162）。
 
 ### TicketOpportunity — shared
 
@@ -578,12 +506,13 @@ Issue #157 で確定した、現行 MVP の canonical ticket journey です。�
   （considering/attending）は完全に独立です。一方から他方を暗黙で
   作成・変更しません。
 
-### Existing ticket_acquisition / Ticket との関係
+### Scope boundary
 
-- 上記の legacy `ticket_acquisitions` / `tickets` / transfer は、この
-  Task で DROP・rename・repurpose されていません。実 dogfood で detailed
-  application submission や Ticket inventory が必要になった場合は、
-  その時点で TicketOpportunity model を前提に再設計します。
+- TicketOpportunity と UserTicketOpportunityState は、販売機会の発見と
+  personal planning state（`planned`/`applied`）だけを表します。
+- 実際の申込内容、希望順位、枚数、当落、seat、inventory、ownership
+  transfer はこの model に追加しません。必要になった場合は、別の bounded
+  product Task で TicketOpportunity を前提に設計します。
 
 ## Catalog classification / venue boundary
 

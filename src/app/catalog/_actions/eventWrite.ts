@@ -366,7 +366,7 @@ export async function updateOccurrenceAction(
 /**
  * Hard delete an event occurrence (Issue #124). Calls the delete RPC which
  * enforces owner access and checks for downstream participation/invitation/
- * ticket data. On success, revalidates catalog and calendar surfaces and
+ * downstream data. On success, revalidates catalog and calendar surfaces and
  * the current event edit page (keeping owner on page since parent event
  * still exists). On blocked-delete, returns feedback naming the restriction.
  */

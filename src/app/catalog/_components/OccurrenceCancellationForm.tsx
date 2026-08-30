@@ -17,7 +17,7 @@ export interface OccurrenceCancellationFormProps {
 }
 
 const CANCEL_CONFIRM_MESSAGE =
-  'この公演回を中止にします。既存の参加予定・招待・チケット情報は削除されません。よろしいですか？';
+  'この公演回を中止にします。既存の参加予定・招待情報は削除されません。よろしいですか？';
 const UNCANCEL_CONFIRM_MESSAGE = 'この公演回の中止を解除します。よろしいですか？';
 
 /**

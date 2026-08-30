@@ -269,7 +269,7 @@ export function sortTicketOpportunityMilestonesChronologically(
 
 /** Deterministic ordering for a list of opportunities themselves: created_at
  * ascending, id as a stable tie-breaker - matching every other feature-level
- * list in this codebase (e.g. domain/ticketAcquisition.ts). */
+ * list in this codebase (e.g. domain/eventCatalog.ts). */
 export function compareTicketOpportunitiesByCreatedAt(
   a: TicketOpportunity,
   b: TicketOpportunity,
