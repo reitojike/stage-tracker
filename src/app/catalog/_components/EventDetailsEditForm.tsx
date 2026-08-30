@@ -1,7 +1,6 @@
 'use client';
 
 import { useActionState } from 'react';
-import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
@@ -34,7 +33,11 @@ export function EventDetailsEditForm({ eventId, initialValues }: EventDetailsEdi
   });
 
   return (
-    <form action={formAction} className={styles.form} aria-busy={isPending}>
+    <form
+      action={formAction}
+      className={[styles.form, styles.fixedForm].join(' ')}
+      aria-busy={isPending}
+    >
       <input type="hidden" name="eventId" value={eventId} />
 
       {/* Keyed by `attempt` for the same reason WriteNotice keys its message:
@@ -58,11 +61,11 @@ export function EventDetailsEditForm({ eventId, initialValues }: EventDetailsEdi
         <EventFields values={state.values} fieldErrors={state.fieldErrors} disabled={isPending} />
       </div>
 
-      <ActionRow>
+      <div className={styles.fixedSubmit}>
         <Button type="submit" disabled={isPending}>
           {isPending ? '保存中…' : 'イベント情報を保存'}
         </Button>
-      </ActionRow>
+      </div>
     </form>
   );
 }

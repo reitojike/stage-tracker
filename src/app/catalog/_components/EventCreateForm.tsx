@@ -1,9 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
-import { FormSection } from '@/ui/FormSection';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { CatalogParams } from '@/domain/catalogNavigation.ts';
@@ -11,6 +9,7 @@ import { createEventAction } from '../_actions/eventWrite.ts';
 import { EventFields } from './EventFields.tsx';
 import { EventRangeFields } from './EventRangeFields.tsx';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
+import { EventWriteSection } from './EventWriteSection.tsx';
 import styles from './EventWriteForm.module.css';
 
 /**
@@ -39,7 +38,11 @@ export function EventCreateForm({ context }: EventCreateFormProps) {
   );
 
   return (
-    <form action={formAction} className={styles.form} aria-busy={isPending}>
+    <form
+      action={formAction}
+      className={[styles.form, styles.fixedForm].join(' ')}
+      aria-busy={isPending}
+    >
       <input type="hidden" name="month" value={context.yearMonth} />
       {context.selectedDate !== null ? (
         <input type="hidden" name="date" value={context.selectedDate} />
@@ -64,30 +67,44 @@ export function EventCreateForm({ context }: EventCreateFormProps) {
           changed defaultValue, so without this a rejected submission would
           re-render with the previous attempt's values still in the DOM. */}
       <div key={state.attempt} className={styles.fields}>
-        <EventFields values={state.values} fieldErrors={state.fieldErrors} disabled={isPending} />
-        <EventRangeFields
-          values={state.values}
-          fieldErrors={state.fieldErrors}
-          disabled={isPending}
-          endsOnOptional
-        />
+        <EventWriteSection>
+          <EventFields values={state.values} fieldErrors={state.fieldErrors} disabled={isPending} />
+        </EventWriteSection>
+        <EventWriteSection heading="開催期間">
+          <EventRangeFields
+            values={state.values}
+            fieldErrors={state.fieldErrors}
+            disabled={isPending}
+            endsOnOptional
+          />
+          <p className={styles.sectionDescription}>
+            公式に公表されている日付です。千秋楽を空欄のまま登録すると、初日と同じ日として保存されます。
+          </p>
+        </EventWriteSection>
 
-        <FormSection as="fieldset" heading="初回公演回" requirement="optional">
+        <EventWriteSection
+          heading="初回公演回"
+          requirement="optional"
+          action="任意"
+          subtle
+          description="空のまま作成できます。公演回は後から追加できます。"
+        >
           <OccurrenceFields
             values={state.values}
             fieldErrors={state.fieldErrors}
             disabled={isPending}
-            startsAtHelperText="日本時間（Asia/Tokyo）で入力します。未入力のまま作成すると、公演回は後から追加できます。"
             startsAtRequired={false}
+            showFieldHelperText={false}
+            compactHelperText="空欄の開場は未公表、終演は終了時刻未定として扱われます。すべて日本時間（Asia/Tokyo）です。"
           />
-        </FormSection>
+        </EventWriteSection>
       </div>
 
-      <ActionRow>
+      <div className={styles.fixedSubmit}>
         <Button type="submit" disabled={isPending}>
           {isPending ? '作成中…' : 'イベントを作成'}
         </Button>
-      </ActionRow>
+      </div>
     </form>
   );
 }

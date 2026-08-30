@@ -1,6 +1,7 @@
 import { TextInput } from '@/ui/TextInput';
 import { UNKNOWN_END_TIME_LABEL } from '@/domain/catalogFormatting.ts';
 import type { FieldErrors, RawFormValues } from '@/domain/eventCatalogWrite.ts';
+import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceFieldsProps {
   values: RawFormValues;
@@ -9,6 +10,11 @@ export interface OccurrenceFieldsProps {
   /** Distinguishes the create form's initial occurrence from a further
    * occurrence added later, purely in the helper text. */
   startsAtHelperText?: string;
+  /** Condenses the three field-level temporal hints into one group-level
+   * explanation while retaining the empty-value and timezone semantics. */
+  compactHelperText?: string;
+  /** Lets a surrounding group own the one consolidated explanation. */
+  showFieldHelperText?: boolean;
   /** Add/update occurrence forms always require 開演日時 (there is no
    * concept of a blank occurrence once it exists). The create form's
    * initial-occurrence sub-form is the one exception (Issue #87/#88: an
@@ -35,6 +41,8 @@ export function OccurrenceFields({
   fieldErrors,
   disabled,
   startsAtHelperText,
+  compactHelperText,
+  showFieldHelperText = true,
   startsAtRequired = true,
 }: OccurrenceFieldsProps) {
   return (
@@ -46,7 +54,11 @@ export function OccurrenceFields({
         defaultValue={values.doorsAt ?? ''}
         error={fieldErrors.doorsAt}
         disabled={disabled}
-        helperText="未入力の場合は未公表として扱われます。"
+        helperText={
+          compactHelperText || !showFieldHelperText
+            ? undefined
+            : '未入力の場合は未公表として扱われます。'
+        }
       />
       <TextInput
         label="開演日時"
@@ -56,7 +68,11 @@ export function OccurrenceFields({
         defaultValue={values.startsAt ?? ''}
         error={fieldErrors.startsAt}
         disabled={disabled}
-        helperText={startsAtHelperText ?? '日本時間（Asia/Tokyo）で入力します。'}
+        helperText={
+          compactHelperText || !showFieldHelperText
+            ? undefined
+            : (startsAtHelperText ?? '日本時間（Asia/Tokyo）で入力します。')
+        }
       />
       <TextInput
         label="終演日時"
@@ -65,8 +81,13 @@ export function OccurrenceFields({
         defaultValue={values.endsAt ?? ''}
         error={fieldErrors.endsAt}
         disabled={disabled}
-        helperText={`未入力の場合は「${UNKNOWN_END_TIME_LABEL}」として扱われます。`}
+        helperText={
+          compactHelperText || !showFieldHelperText
+            ? undefined
+            : `未入力の場合は「${UNKNOWN_END_TIME_LABEL}」として扱われます。`
+        }
       />
+      {compactHelperText ? <p className={styles.occurrenceHelper}>{compactHelperText}</p> : null}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { TextInput } from '@/ui/TextInput';
 import type { FieldErrors, RawFormValues } from '@/domain/eventCatalogWrite.ts';
+import styles from './EventWriteForm.module.css';
 
 export interface EventRangeFieldsProps {
   values: RawFormValues;
@@ -26,35 +27,25 @@ export function EventRangeFields({
   endsOnOptional = false,
 }: EventRangeFieldsProps) {
   return (
-    <>
+    <div className={styles.datePair}>
       <TextInput
-        label="開催期間（開始日）"
+        label="初日"
         name="startsOn"
         type="date"
         required
         defaultValue={values.startsOn ?? ''}
         error={fieldErrors.startsOn}
         disabled={disabled}
-        helperText={
-          endsOnOptional
-            ? '公式に公表されている初日です。単発公演は終了日を空欄のままにできます。'
-            : '公式に公表されている初日です。単発公演は終了日と同じ日を入力します。'
-        }
       />
       <TextInput
-        label="開催期間（終了日）"
+        label="千秋楽"
         name="endsOn"
         type="date"
         required={!endsOnOptional}
         defaultValue={values.endsOn ?? ''}
         error={fieldErrors.endsOn}
         disabled={disabled}
-        helperText={
-          endsOnOptional
-            ? '公式に公表されている千秋楽です。空欄のまま登録すると、開始日と同じ日として保存されます。'
-            : '公式に公表されている千秋楽です。'
-        }
       />
-    </>
+    </div>
   );
 }
