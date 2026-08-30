@@ -70,25 +70,19 @@ function FilterIcon() {
 const EMPTY_SELECTION = toCatalogFilterSelection(EMPTY_CATALOG_FILTER_STATE);
 
 /**
- * Client-side integration boundary the Issue #145 canonical addendum
- * describes: composes #147's `FilterSheet` (browser-local persistence,
- * draft/apply, stale-option pruning all owned there) with #167's
- * `matchesCatalogFilter`-based filtering (via domain/catalogFilterIntegration.ts)
- * against the server-fetched Event/Occurrence range read, and hands the same
- * filtered set to MonthCalendar/EventLevelFallbackList/SelectedDayList so
- * none of the three can ever disagree about which Events are in view.
+ * Client-side boundary between the server-fetched Event/Occurrence range and
+ * interactive filtering. FilterSheet owns persisted selection, draft/apply
+ * state, and stale-option pruning; this component applies the domain filter
+ * to the fetched set and passes that same filtered collection to
+ * MonthCalendar, EventLevelFallbackList, and SelectedDayList so every surface
+ * agrees on which Events are in view.
  *
- * `selectionReady` stays false until FilterSheet's own mount-restore effect
- * has actually reported the current applied selection (its
- * `onAppliedSelectionChange` fires once on mount either way, restored or
- * not) - the calendar/list body renders nothing but a small
- * LoadingIndicator until then, rather than briefly showing an unfiltered
- * result that a saved filter is about to override (the addendum's "SSRで
- * unfiltered -> 一瞬表示 -> hydration後に突然filtered" failure mode). When
- * `filterData` itself is unavailable there is nothing to restore, so the
- * unfiltered set renders immediately instead - the bounded degradation the
- * Issue body calls for, with a StatePanel making the degradation explicit
- * rather than a silently-empty/silently-unfiltered result.
+ * `selectionReady` stays false until FilterSheet reports the applied selection
+ * restored on mount (including the no-selection case). The calendar/list body
+ * therefore avoids exposing an unfiltered result before a saved selection can
+ * be applied. If filter metadata is unavailable, there is no selection to
+ * restore: the unfiltered range remains visible immediately and the explicit
+ * StatePanel communicates that filtering is unavailable.
  */
 export function CatalogView({
   yearMonth,
@@ -109,11 +103,8 @@ export function CatalogView({
     setSelectionReady(true);
   }, []);
 
-  // Issue #195: the applied-filter summary row's × control and the
-  // filtered-zero StatePanel's own action both fully clear the applied
-  // filter - both go through FilterSheet's own imperative clear() (it owns
-  // applied/draft/persistence) rather than either duplicating that state
-  // mutation locally.
+  // Both clear affordances delegate to FilterSheet's imperative `clear()` so
+  // applied/draft state and browser persistence have one owner.
   const handleClearFilter = useCallback(() => {
     filterSheetRef.current?.clear();
   }, []);
@@ -143,17 +134,13 @@ export function CatalogView({
     [events, filterData, classificationByEventId, appliedSelection, optionUniverse],
   );
 
-  // すべて/hidden-facet leakage guard: a genre other than すべて is itself a
-  // filter (#158), so this is the only condition the dot/label ever needs -
-  // FilterSheet's own contract already narrows appliedSelection to the
-  // currently-visible facet only (see its onAppliedSelectionChange doc
-  // comment), so a remembered-but-not-currently-shown secondary selection
-  // for a different genre can never surface here.
+  // A non-null genre is the active-filter signal. FilterSheet keeps secondary
+  // selections scoped to the currently visible facet, so a remembered option
+  // for another genre cannot leak into this indicator or the domain filter.
   const isFilterActive = filterData.ok && selectionReady && appliedSelection.genre !== null;
-  // Applied state only, never draft (Issue #195 "summary follows applied not
-  // draft state") - `appliedSelection` is what FilterSheet's own
-  // onAppliedSelectionChange reports, which only ever fires on mount-restore
-  // and confirm(), never while the sheet's in-sheet draft is being edited.
+  // The summary follows applied state only, never the in-sheet draft.
+  // `onAppliedSelectionChange` reports the restored or confirmed selection,
+  // not edits that have not been applied yet.
   const filterSummary = useMemo(
     () =>
       filterData.ok
@@ -167,21 +154,15 @@ export function CatalogView({
     [filterData, appliedSelection],
   );
   const canOpenSheet = filterData.ok;
-  // Nothing to restore when filter data itself never loaded - the unfiltered
-  // body is the whole story in that branch, immediately. Likewise, when the
-  // raw range read itself is empty (`isEmptyRange`), filtering an empty set
-  // can never produce a different result under any possible selection - the
-  // "flash of wrong content" the addendum guards against has no content to
-  // be wrong about, so this case also renders immediately rather than
-  // waiting on a restore that cannot change the outcome.
+  // If filter metadata is unavailable, the unfiltered body is the only
+  // available result and can render immediately. A genuinely empty raw range
+  // also cannot change under any selection, so it does not need to wait for a
+  // restore that cannot affect the rendered body.
   const readyToRenderBody = !filterData.ok || selectionReady || isEmptyRange;
-  // Issue #172 root cause C (orchestrator merge-fence follow-up): whether
-  // an applied filter reduced the *whole* current month to zero results -
-  // independent of selectedDate, reusing the same `filteredEvents` this
-  // component already computes (no second filter predicate). The Task
-  // Contract has no "only when no day is selected" exception, so this must
-  // stay true (and the distinct feedback below must keep showing) whether
-  // or not a day is currently selected.
+  // Distinguish a non-empty raw range that becomes empty after an applied
+  // filter from a month that had no source Events. Reuse the same
+  // `filteredEvents` projection and keep this state independent of
+  // `selectedDate`, so filtered-zero feedback is not hidden by day selection.
   const isFilteredZero = !isEmptyRange && isFilterActive && filteredEvents.length === 0;
 
   return (
@@ -214,10 +195,9 @@ export function CatalogView({
         </span>
       </div>
 
-      {/* Issue #195: only when an applied filter is active, and follows
-          `appliedSelection`/`filterSummary` exclusively - never renders (or
-          reserves space) while inactive, and never reflects an in-sheet
-          draft the user hasn't confirmed yet. */}
+      {/* Show the summary only for an applied filter. It follows
+          `appliedSelection`/`filterSummary`, never an unconfirmed draft, and
+          does not reserve space while filtering is inactive. */}
       {isFilterActive && filterSummary !== null ? (
         <div className={styles.summaryRow}>
           <p className={styles.summaryText}>
@@ -269,21 +249,11 @@ export function CatalogView({
             <StatePanel variant="empty" title="この月に登録されているイベントはありません" />
           ) : null}
 
-          {/* Issue #172 root cause C (Claude C2): the raw-range-empty
-              StatePanel above only fires when the *unfiltered* month has no
-              Events at all. An applied filter that reduces a non-empty raw
-              month to zero results is a distinct situation - reuses the
-              same `filteredEvents` this component already computes (no
-              second filter predicate), gated so it never conflates with, or
-              fires alongside, the raw-empty message above. Deliberately NOT
-              gated on selectedDate - the Task Contract requires this
-              feedback whenever the whole filtered month is zero, whether or
-              not a day is currently selected (orchestrator merge-fence
-              follow-up: a selected-day state must not leave
-              SelectedDayList's own generic per-day empty message as the
-              only/competing explanation for what is actually a filter
-              result). Issue #195/#187 canonical copy + clear action, same
-              handleClearFilter the summary row's own × control uses. */}
+          {/* A non-empty raw month that becomes empty after filtering needs
+              distinct feedback and a clear action. Reuse `filteredEvents` and
+              `handleClearFilter` so the message cannot drift from the applied
+              filter or the summary row, and keep it visible regardless of
+              whether a day is selected. */}
           {isFilteredZero ? (
             <StatePanel
               variant="empty"

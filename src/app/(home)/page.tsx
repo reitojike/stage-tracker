@@ -42,22 +42,18 @@ const AUTH_FAILURE_PANEL: Record<
   },
 };
 
-/** A block's own outcome, independent of the other block's (Issue #143's
- * per-block failure isolation) - `'unavailable'` (read failed) and
- * `'empty'` (read succeeded, nothing to show) are kept distinct so a
- * genuine read failure is never silently downgraded into "empty" (Issue
- * #194 Task Contract: "block-level read失敗をsuccessful emptyへ潰さない").
- * `data` holds the already-built populated ReactNode (not raw rows/groups),
- * so both blocks share the exact same outcome->panel mapping below
- * (renderHomeBlockPanel) regardless of what each block's own data shape is. */
+/** Each block owns an independent read outcome. `'unavailable'` (read failed)
+ * and `'empty'` (read succeeded, nothing to show) stay distinct so a failed
+ * read cannot masquerade as an empty result. `data` holds the already-built
+ * populated ReactNode, allowing both blocks to use the same outcome-to-panel
+ * mapping regardless of their different data shapes. */
 type HomeBlockOutcome =
   { status: 'unavailable' } | { status: 'empty' } | { status: 'populated'; data: ReactNode };
 
-/** The single outcome->panel mapping both blocks share (Issue #194): a read
- * failure always gets its own `unavailable` panel; an empty result gets its
- * own `emptyTitle` panel unless `bothEmpty` says the combined guidance panel
- * (rendered once, after both sections) covers it instead; a populated
- * outcome renders its already-built content as-is. */
+/** Maps a block outcome to its panel. An unavailable result always keeps its
+ * own failure panel; an empty result uses its block-specific title unless the
+ * combined empty state is being rendered after both sections; populated data
+ * is rendered as already composed. */
 function renderHomeBlockPanel(
   outcome: HomeBlockOutcome,
   unavailableTitle: string,
@@ -90,14 +86,10 @@ function authOrReadErrorPanel(error: PlanningError) {
   );
 }
 
-/**
- * Block B's own two-hop chain (participation occurrence ids -> their
- * Occurrences -> those Occurrences' Events), isolated into its own function
- * so it can run as one independent promise alongside Block A's unrelated
- * getEventsByIds(opportunityEventIds) call, rather than both being forced
- * through a single shared Promise.all (which would make this chain's start
- * wait on Block A's fetch even though nothing here depends on it).
- */
+/** Resolves the upcoming block's two-hop Event Catalog read (participation
+ * occurrence ids -> their Occurrences -> those Occurrences' Events). The
+ * chain is kept independent from the deadline block's unrelated Event read so
+ * each block can make progress and report its own failure. */
 async function resolveParticipationEventsAndOccurrences(
   client: EventCatalogQueryClient,
   participationOccurrenceIds: readonly string[],
@@ -119,46 +111,26 @@ async function resolveParticipationEventsAndOccurrences(
 }
 
 /**
- * Home (Issue #143): a dashboard of exactly two independent blocks -
- * "申し込み期限" (deadline) and "直近の予定" (upcoming) - replacing the prior
- * generic navigation-hub surface (HomeNav, removed by this Task). Account /
- * sign-out / Passkey stay on My Page, reached from the AppBar avatar
- * (Issue #159) - this page does not reintroduce them.
+ * Home composes exactly two independent planning blocks: "申し込み期限"
+ * (deadline) and "直近の予定" (upcoming). The page owns read and composition
+ * orchestration; the domain projections own each block's filtering, temporal
+ * window, ordering, and display limit rules.
  *
- * Canonical sources, matching #144's/My Calendar's own typed read boundary
- * exactly (never a raw table query):
- * - Block A: listTicketOpportunitiesWithDetails + getEventsByIds, filtered/
- *   ordered by domain/homeDeadlines.ts's selectHomeDeadlineRows (which
- *   reuses #144's own isActionableTicketOpportunityDeadline - "planned" +
- *   future/today "application_close" only - bounded to HOME_WINDOW_DAYS by
- *   Issue #192, no count cap within that window).
- * - Block B: listMyParticipations + listVisiblePersonalSchedule, composed
- *   with getOccurrencesByIds/getEventsByIds, projected by
- *   domain/homeUpcoming.ts's selectHomeUpcomingItems (nearest-first, bounded
- *   to HOME_WINDOW_DAYS and capped at HOME_UPCOMING_LIMIT, with a single
- *   nearest-outside-window fallback item when the window itself is empty -
- *   Issue #192 bounded supersede of this Task's original max-8/unbounded
- *   projection).
+ * All sources arrive through typed infrastructure reads rather than raw table
+ * queries:
+ * - Block A reads TicketOpportunity details and their Event/Occurrence data,
+ *   then delegates deadline selection to `selectHomeDeadlineRows`.
+ * - Block B reads registered participations and visible personal schedules,
+ *   resolves the participation Event/Occurrence join, then delegates the
+ *   mixed upcoming projection to `selectHomeUpcomingItems`.
  *
- * The four independent reads (identity, Opportunities, participations,
- * personal schedule) start together via Promise.all. Past that point, Block
- * A's own getEventsByIds/getOccurrencesByIds(opportunityEventIds/
- * opportunityOccurrenceIds) calls and Block B's own
- * resolveParticipationEventsAndOccurrences (its occurrences-then-their-events
- * two-hop chain) run as separate promises in one more Promise.all, rather
- * than Block B's chain being nested *inside* a shared await that would
- * otherwise make its own second hop wait on Block A's unrelated fetches to
- * finish first. Block A resolves its own Occurrences (not an empty Map) so
- * the Issue #172 cancellation-aggregation rule can see each
- * selected_occurrences target's own canceledAt, matching /tickets'
- * (src/app/tickets/page.tsx) own composition. Each block's own StatePanel
- * then depends only on
- * that block's own reads, so a read failure partway through one block's
- * chain never blocks the other from rendering - unlike /tickets and
- * /calendar (src/app/tickets/page.tsx, src/app/calendar/page.tsx), which
- * both still abort the *entire* page to one full-page error panel on any
- * data-read failure; only a genuine identity/auth failure does that here.
- */
+ * Identity, opportunities, participations, and personal schedule start
+ * together. Their follow-up reads then run as independent block-owned
+ * promises. Block A resolves target Occurrences so its cancellation
+ * aggregation can inspect each selected target's own `canceledAt`. Each
+ * block's panel depends only on that block's reads, so a partial failure in one
+ * chain does not prevent the other block from rendering; identity/auth failure
+ * remains the only page-wide failure. */
 export default async function Home() {
   const today = currentTokyoDate();
   const now = currentInstant();
@@ -185,12 +157,10 @@ export default async function Home() {
   const opportunityEventIds = opportunitiesResult.ok
     ? [...new Set(opportunitiesResult.data.map((detail) => detail.opportunity.eventId))]
     : [];
-  // A selected_occurrences Opportunity's targets must be resolved here too
-  // (not left as an empty Map) - the Issue #172 cancellation-aggregation
-  // rule needs each target Occurrence's own canceledAt to tell "all targets
-  // canceled" from "some/none canceled", and an unresolved (always-empty)
-  // target set would otherwise silently read as "never canceled" for every
-  // selected_occurrences Opportunity Home shows.
+  // Resolve selected_occurrences targets before timeline projection so
+  // cancellation aggregation can inspect each target Occurrence's own
+  // `canceledAt`; an empty lookup would incorrectly make every target appear
+  // active.
   const opportunityOccurrenceIds = opportunitiesResult.ok
     ? [...new Set(opportunitiesResult.data.flatMap((detail) => detail.targetOccurrenceIds))]
     : [];
@@ -249,11 +219,11 @@ export default async function Home() {
   ) {
     upcomingOutcome = { status: 'unavailable' };
   } else {
-    // Reuses the same Event+Occurrence+Participation join My Calendar
-    // already established (src/app/calendar/page.tsx), rather than
-    // re-deriving an equivalent one. The calendar composition accepts only
-    // the current participation map, so this call site has no acquired-ticket
-    // placeholder or secondary planning slice to pass.
+    // Reuse My Calendar's Event+Occurrence+Participation entry shape so both
+    // surfaces interpret registered occurrences through the same domain
+    // boundary. The upcoming block composes only participation and visible
+    // personal-schedule data; TicketOpportunity data belongs to the deadline
+    // block.
     const eventsWithOccurrences = groupOccurrencesByEvent(
       participationEventsResult.data,
       participationOccurrencesResult.data,
@@ -280,12 +250,9 @@ export default async function Home() {
         : { status: 'populated', data: <HomeUpcomingList dateGroups={dateGroups} /> };
   }
 
-  // Issue #194: when both blocks are independently empty (not merely one of
-  // them - a genuine read failure on the other block must still surface as
-  // its own `unavailable` panel, never silently folded into this "nothing to
-  // show" case), rendering two near-identical empty StatePanels back to back
-  // reads as redundant. Both per-block empty panels are suppressed below in
-  // favor of the single combined one rendered once after both sections.
+  // Only two successful empty projections share the combined empty guidance.
+  // An unavailable block remains visible through its own panel and is never
+  // folded into the empty state.
   const bothEmpty = deadlineOutcome.status === 'empty' && upcomingOutcome.status === 'empty';
 
   const deadlineBlock = renderHomeBlockPanel(
