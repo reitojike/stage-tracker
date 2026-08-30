@@ -8,6 +8,7 @@ import {
   myCalendarScheduleTemporalLabel,
   participationStatusLabel,
 } from '@/domain/myCalendarFormatting.ts';
+import { scheduleEntryHref } from '@/domain/myCalendarNavigation.ts';
 import styles from './MySelectedDayList.module.css';
 
 export interface MyCalendarEntryRowProps {
@@ -54,7 +55,10 @@ export function MyCalendarEntryRow({ item, eventDetailContext }: MyCalendarEntry
 
   const { entry, isOwner } = item.scheduleEntry;
   return (
-    <Link href={`/schedule/${entry.id}`} className={styles.itemLink}>
+    <Link
+      href={scheduleEntryHref(entry.id, eventDetailContext.yearMonth)}
+      className={styles.itemLink}
+    >
       <span className={styles.itemBody}>
         <span className={styles.badgeRow}>
           <Badge variant="subtle">{isOwner ? '自分の予定' : '共有されている予定'}</Badge>

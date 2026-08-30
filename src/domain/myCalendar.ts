@@ -201,8 +201,7 @@ export interface MyCalendarScheduleEntry {
    * with them (entry.ownerId !== callerId). Both are visible via the same
    * listVisiblePersonalSchedule read (RLS already merges owner-or-shared),
    * so this is the only signal a presentation layer needs to label
-   * "自分の予定" vs. "共有されている予定" (matching src/app/schedule/page.tsx's
-   * existing convention). */
+   * "自分の予定" vs. "共有されている予定" labels. */
   isOwner: boolean;
 }
 

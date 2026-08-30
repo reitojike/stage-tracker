@@ -62,14 +62,14 @@ async function myPageHtml(cookie: string): Promise<string> {
 
 // --- Issue #193: 予定とイベント section ---
 
-void test('an ordinary authenticated user sees both always-visible rows, linking to /schedule and /catalog/invitations', async () => {
+void test('an ordinary authenticated user sees the invitations row as the only always-visible row', async () => {
   const { cookie } = await signedInSession();
   const html = await myPageHtml(cookie);
 
-  assert.match(html, /個人予定を管理/);
   assert.match(html, /招待一覧/);
-  assert.match(html, /href="\/schedule"/);
   assert.match(html, /href="\/catalog\/invitations"/);
+  assert.doesNotMatch(html, /個人予定を管理/);
+  assert.doesNotMatch(html, /href="\/schedule"/);
 });
 
 void test('an authenticated user who is not a designated catalog creator does not see "イベントを追加"', async () => {
@@ -96,4 +96,17 @@ void test('the Account section (email + sign-out) and Passkey section still rend
   assert.match(html, /サインイン中:/);
   assert.match(html, /サインアウト/);
   assert.match(html, /Passkey/);
+});
+
+void test('an authenticated request to the retired bare schedule route lands on My Calendar', async () => {
+  const { cookie } = await signedInSession();
+  const response = await fetch(`${app.baseUrl}/schedule`, {
+    headers: { cookie },
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 307);
+  const location = response.headers.get('location');
+  assert.ok(location !== null, 'expected a Location header on a redirect');
+  assert.equal(new URL(location, app.baseUrl).pathname, '/calendar');
 });

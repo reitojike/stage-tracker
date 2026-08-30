@@ -2,6 +2,7 @@ import { ScheduleEntryCreateForm } from '../_components/ScheduleEntryCreateForm.
 import { BackLink } from '@/ui/BackLink';
 import { PageHeading } from '@/ui/PageHeading';
 import { resolveScheduleCreatePrefill } from '@/domain/personalScheduleWrite.ts';
+import { scheduleNewBackHref } from '@/domain/myCalendarNavigation.ts';
 
 interface NewSchedulePageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -24,9 +25,10 @@ interface NewSchedulePageProps {
 export default async function NewSchedulePage({ searchParams }: NewSchedulePageProps) {
   const rawParams = await searchParams;
   const initialValues = resolveScheduleCreatePrefill(rawParams);
+  const backHref = scheduleNewBackHref(rawParams.date);
   return (
     <>
-      <BackLink href="/schedule">個人の予定に戻る</BackLink>
+      <BackLink href={backHref}>マイカレンダーに戻る</BackLink>
       <PageHeading>予定を追加</PageHeading>
       <ScheduleEntryCreateForm initialValues={initialValues} />
     </>

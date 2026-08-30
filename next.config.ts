@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   // whenever it detects an AI coding agent in the environment, silently dirtying
   // the working tree. Verified by `npm run agent-rules:check`.
   agentRules: false,
+  redirects() {
+    return Promise.resolve([{ source: '/schedule', destination: '/calendar', permanent: false }]);
+  },
 };
 
 export default nextConfig;

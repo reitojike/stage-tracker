@@ -16,7 +16,7 @@ export const Default: Story = {
       <>
         <LinkButton href="#">+ 追加</LinkButton>
         <LinkButton href="#" variant="secondary">
-          個人予定を管理
+          詳しく見る
         </LinkButton>
       </>
     ),
