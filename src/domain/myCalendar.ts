@@ -136,10 +136,7 @@ function scheduleEntryDateRange(entry: PersonalScheduleEntry): {
   endDate: string;
 } {
   if (entry.temporal.kind === 'all-day') {
-    return {
-      startDate: entry.temporal.startsOn,
-      endDate: entry.temporal.endsOn,
-    };
+    return { startDate: entry.temporal.startsOn, endDate: entry.temporal.endsOn };
   }
   const startDate = tokyoCalendarDateFromInstant(entry.temporal.startsAt);
   const endDate =

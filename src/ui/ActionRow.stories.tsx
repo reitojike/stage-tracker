@@ -15,6 +15,9 @@ export const Default: Story = {
     children: (
       <>
         <LinkButton href="#">+ 追加</LinkButton>
+        <LinkButton href="#" variant="secondary">
+          詳しく見る
+        </LinkButton>
       </>
     ),
   },
