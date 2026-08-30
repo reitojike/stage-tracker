@@ -115,20 +115,18 @@
 }
 
 /*
- * Lowest-emphasis, text-only action (#96: quiet(text) 27px fill). Issue
- * #185: rest now carries --color-surface-subtle rather than no fill at
- * all, so the pressable area is identifiable even in rows where the whole
- * row is otherwise a plain link (e.g. Tickets row-inline actions). Because
- * rest already occupies the step hover previously used, hover moves one
- * step further to what was previously the active fill - the same value
- * active already used, so the two share one selector list below rather
- * than restating identical declarations.
+ * Lowest-emphasis, text-only action (#96: quiet(text) 27px fill). RULES.md
+ * (design_handoff_v3 TURN 28 / Issue #244): rest is transparent/no fill,
+ * text only - Issue #185's static --color-surface-subtle fill is reverted.
+ * The one exception (a whole-row-link's own state-change control, e.g.
+ * Tickets row) keeps a scoped rest fill on the caller's own class instead of
+ * this shared default - see TicketOpportunityStateControls.module.css.
  */
 .quiet {
   min-height: 27px;
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-control-sm);
-  background-color: var(--color-surface-subtle);
+  background-color: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-body-sm);
 }
@@ -161,10 +159,13 @@
  * using (Issue #128 3-tier action hierarchy). Reuses the existing
  * --color-danger token and the same surface-subtle/surface-active
  * hover/active pair .secondary/.small/.icon already share, rather than
- * inventing a new tint.
+ * inventing a new tint. RULES.md (TURN 28 / Issue #244): rest is
+ * transparent - every other variant went transparent at rest under Issue
+ * #185, but danger was left with a white --color-surface fill, the one
+ * white box floating on --color-canvas paper.
  */
 .danger {
-  background-color: var(--color-surface);
+  background-color: transparent;
   color: var(--color-danger);
   border-color: var(--color-danger);
 }

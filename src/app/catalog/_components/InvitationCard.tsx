@@ -267,33 +267,15 @@ export function InvitationCard({
 
       <div className={styles.actions}>
         {isEffectivelyCanceled ? (
-          <Button
-            type="button"
-            variant="quiet"
-            className={styles.quietAction}
-            disabled={isBusy}
-            onClick={handleCloseCanceled}
-          >
+          <Button type="button" variant="quiet" disabled={isBusy} onClick={handleCloseCanceled}>
             閉じる
           </Button>
         ) : (
           <>
-            <Button
-              type="button"
-              variant="quiet"
-              className={styles.quietAction}
-              disabled={isBusy}
-              onClick={handleDecline}
-            >
+            <Button type="button" variant="quiet" disabled={isBusy} onClick={handleDecline}>
               参加しない
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className={styles.acceptButton}
-              disabled={isBusy}
-              onClick={handleAccept}
-            >
+            <Button type="button" variant="secondary" disabled={isBusy} onClick={handleAccept}>
               {isBusy ? '処理中…' : '参加する'}
             </Button>
           </>

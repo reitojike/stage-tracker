@@ -10,3 +10,17 @@
   gap: var(--space-sm);
   flex-wrap: wrap;
 }
+
+/*
+ * RULES.md (TURN 28 / Issue #244) "quiet の例外": the sole exception to
+ * quiet Button's now-transparent rest state - this row's whole body is
+ * itself a Link to the Event detail (TicketOpportunityRow.module.css's
+ * .rowLink), so this state-change control is the only thing readers can
+ * still separately press on the row and needs a visible rest fill to show
+ * that. Scoped to this one control via its own class, not a reversion of
+ * Button.module.css's shared `.quiet` default - the exception exists
+ * because the row is a whole-row link, not because this action is quiet.
+ */
+.stateButton {
+  background-color: var(--color-surface-subtle);
+}
