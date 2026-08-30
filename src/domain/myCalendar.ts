@@ -1,52 +1,23 @@
-// My Calendar composition (Issue #34): pure, DB-free derivation that merges
-// two already-fetched personal planning slices - participation-registered
-// occurrences and event-independent personal schedule (own + shared) - into
-// one calendar-day index a presentation layer can render directly, plus the
-// weekday/Japanese-holiday role from calendarDayRole.ts.
+// My Calendar is a pure, DB-free projection of two already-fetched personal
+// planning slices: participation-registered occurrences and visible,
+// event-independent personal schedules (own + shared). It also supplies the
+// calendar-day role used by the presentation layer.
 //
-// Issue #225/#230: this module's canonical source is Participation + Personal
-// Schedule only. The old acquired-ticket status display (Issue #34's
-// original third slice) was removed from the runtime, and the underlying
-// acquired-ticket model is now decommissioned by Issue #234. The current
-// Ticket MVP (TicketOpportunity + UserTicketOpportunityState
-// `planned`/`applied`, Issue #157/#162) is a separate surface (/tickets,
-// Home) that never fed into My Calendar and is unaffected by this change.
+// The caller (src/app/calendar/page.tsx) is responsible for typed reads and
+// RLS-scoped visibility. This module consumes those results as provided and
+// does not query Supabase or make a second permission decision.
 //
-// This module never queries Supabase and never re-derives visibility: the
-// caller (src/app/calendar/page.tsx) is expected to have already fetched
-// exactly what RLS allows the current caller to see (listMyParticipations,
-// listVisiblePersonalSchedule - both in src/infrastructure/supabase/) and to
-// hand that data in here as-is. This module performs no additional
-// filtering that could substitute for RLS.
+// Participation is occurrence-scoped: a registered occurrence contributes on
+// its own Asia/Tokyo calendar date only. No Event-range coverage or Event-level
+// fallback is inferred for My Calendar. Personal schedules use their own
+// temporal span: multi-day entries become bands, while single-day entries
+// contribute to the per-day dot. The entry's `blocking` value determines the
+// band's fill/outline semantics for both owners and shared recipients.
 //
-// Band/dot scope (Issue #142, superseding #34's original "run-period
-// presentation is out of scope" note; further narrowed by Issue #174 - see
-// below): My Calendar reuses the Event Catalog's own multi-day-band/
-// single-day-dot layout machinery (calendarMonth.ts's own layoutWeekBands -
-// see buildMyCalendarWeekBandLayouts below) for its personal-schedule
-// entries, whose own span can be single- or multi-day.
-//
-// Participation is different (Issue #174, superseding the participation
-// half of #142): a participation-registered occurrence is always an
-// exact-date dot on its own Asia/Tokyo calendar date, never a band, even
-// when its parent Event spans multiple days. #142 originally banded a
-// multi-day Event's whole starts_on..endsOn range once the caller had any
-// participation-registered occurrence in it; dogfood use showed this reads
-// as "I've reserved the entire run" rather than "I'm registered for this
-// one occurrence", so My Calendar's participation presentation no longer
-// derives anything from the Event's range at all - only from the specific
-// occurrence(s) the caller actually registered. The Event Catalog's own
-// `/catalog` Event-range band (calendarMonth.ts) is unrelated and
-// unchanged.
-//
-// Cancellation-awareness (Issue #180): the month-level participation dot
-// and its accessible attending/considering counts exclude occurrences that
-// are effectively canceled (src/domain/eventCancellation.ts's
-// isEffectivelyCanceled, reused rather than re-derived - see
-// activeOccurrenceEntries below). This is bounded to the month-level
-// aggregation only: participation records, selected-day detail (still
-// showing canceled occurrences with the existing "中止" presentation), and
-// personal-schedule marker semantics are all unchanged.
+// Month-level participation markers and counts use the canonical
+// `isEffectivelyCanceled` predicate. Effective-canceled occurrences are
+// excluded from those aggregates, while the selected-day detail continues to
+// receive the input participation entries, including canceled ones.
 
 import {
   addDaysToDate,
@@ -82,14 +53,11 @@ export interface MyCalendarOccurrenceEntry {
 }
 
 /**
- * Every occurrence the caller has participation-registered (Issue #34 MVP
- * surface: "participation登録済みoccurrence表示"), paired with that
- * participation row. `eventsWithOccurrences` should already be scoped to
- * whatever range the caller fetched (src/app/calendar/page.tsx); an
- * occurrence with no entry in `participationsByOccurrenceId` is simply not
- * participation-registered and is excluded here - this list is deliberately
- * narrower than "every occurrence in range" (that is the Event Catalog's
- * own concern, not My Calendar's).
+ * Builds entries for occurrences that have a participation row, pairing each
+ * occurrence with its parent Event and participation. The input is already
+ * bounded by the caller's fetched range; an occurrence without a matching
+ * participation row is excluded because My Calendar represents registered
+ * occurrences, not every occurrence in the Event Catalog range.
  */
 export function buildMyCalendarOccurrenceEntries(
   eventsWithOccurrences: readonly EventWithOccurrences[],
@@ -138,10 +106,7 @@ export function selectMyCalendarOccurrenceEntries(
  * day to remain a safe superset (an occurrence starting between
  * 00:00-08:59 JST on `gridFirstDate` has a UTC-sliced date of
  * `gridFirstDate` minus one day); the upper bound needs no such widening,
- * since a UTC-sliced date can never be *later* than the true Tokyo date. A
- * previous revision of this check compared the UTC-sliced date directly
- * against `gridFirstDate` with no widening, which silently excluded any
- * occurrence starting 00:00-08:59 JST on the grid's first displayed day.
+ * since a UTC-sliced date can never be *later* than the true Tokyo date.
  */
 export function isOccurrenceStartUtcDateInGridSuperset(
   occurrenceStartsAtUtc: string,
@@ -158,7 +123,8 @@ export function isOccurrenceStartUtcDateInGridSuperset(
 /**
  * `entry`'s own Asia/Tokyo calendar date span, unclipped - the same
  * start/end derivation scheduleEntryDatesInRange (below) uses before
- * clipping to a displayed range, factored out so buildMyCalendarBandSegments
+ * clipping to a displayed range, factored out so
+ * buildMyCalendarScheduleBandSegments
  * and isSingleDayScheduleEntry (both below) can classify an entry's
  * single-day/multi-day shape without re-deriving this. A time-bounded entry
  * with no endsAt is single-day here too (its own start date only) - same
@@ -180,13 +146,9 @@ function scheduleEntryDateRange(entry: PersonalScheduleEntry): {
   return { startDate, endDate };
 }
 
-/**
- * True iff `entry`'s own span (scheduleEntryDateRange) is exactly one
- * calendar day - the same single-day/multi-day classification
- * calendarMonth.ts's isSingleDayEvent applies to Events, mirrored here for
- * personal schedule entries (Issue #142: "複数日にまたがるものは帯、単日は
- * dot。イベントと個人予定で同じ規則").
- */
+/** True when the entry's own Asia/Tokyo span is exactly one calendar day.
+ * Single-day entries feed the per-day dot; multi-day entries feed the band
+ * layout. */
 export function isSingleDayScheduleEntry(entry: PersonalScheduleEntry): boolean {
   const { startDate, endDate } = scheduleEntryDateRange(entry);
   return startDate === endDate;
@@ -415,31 +377,20 @@ export function buildMyCalendarMonthAgenda(
 
 // --- Multi-day band segments ---
 //
-// Issue #142 originally unified the Event Catalog's own multi-day/single-day
-// marker rule ("複数日にまたがるものは帯、単日は dot") across My Calendar's
-// two entry kinds - a participation-registered occurrence whose *Event*
-// spans multiple days, and a personal-schedule entry whose own span
-// (scheduleEntryDateRange above) does. Issue #174 supersedes the Event half
-// of that: banding a participation by its parent Event's whole
-// starts_on..endsOn range reads, in real dogfood use, as "I've reserved the
-// entire run" rather than "I'm registered for this one occurrence" - so
-// participation no longer contributes any band, regardless of whether its
-// Event is single- or multi-day (see computeDotState below, which now
-// treats every occurrence entry as a per-day dot signal on its own exact
-// Asia/Tokyo calendar date instead). Only personal-schedule entries still
-// band when their own span is multi-day; that half of Issue #142 is
-// unchanged. MyCalendarBandSegment's `kind: 'event'` arm is kept in the
-// union even though nothing currently constructs a segment with that kind -
-// removing it would also mean narrowing MyMonthCalendar.tsx's own prop type
-// and its `data-band-kind` rendering (kept there, but currently inert: no
-// CSS or test depends on the 'event' value), which is a wider change than
-// this bounded correction needs.
+// Only multi-day personal-schedule entries are constructed as My Calendar
+// bands. Participation entries remain exact-date signals and never derive
+// coverage from their parent Event range. Event Catalog range bands belong to
+// a separate projection.
+//
+// The `kind: 'event'` arm remains accepted because MyMonthCalendar.tsx still
+// receives and renders the shared segment shape. This module does not construct
+// that arm; narrowing the type would expand the change into the presentation
+// boundary.
 
 export interface MyCalendarBandSegment extends BandSegment {
   kind: 'event' | 'schedule';
-  /** Fill (true) vs. outline (false) - Issue #142's shared axis: a
-   * `blocking` schedule entry fills, a `non-blocking` schedule entry
-   * outlines. */
+  /** A blocking schedule fills its band; a non-blocking schedule outlines it.
+   * The value is copied from the entry itself and is not recipient-specific. */
   blocking: boolean;
 }
 
@@ -473,15 +424,10 @@ export function buildMyCalendarScheduleBandSegments(
   return segments;
 }
 
-/**
- * One WeekBandLayout per week in `gridWeeks` (same shape/order as
- * calendarMonth.buildMonthGrid's own MonthGrid.weeks), laying out this
- * caller's personal-schedule bands into the same bounded lane set
- * (MAX_BAND_LANES) the Event Catalog's own bands use, per Issue #142's
- * "1セルの marker は最大3（dot 1個 + 帯 2本）" cap. Participation no longer
- * contributes any band here (Issue #174 - see the module comment above
- * MyCalendarBandSegment) - schedule entries are the only source.
- */
+/** One WeekBandLayout per week in `gridWeeks` (same shape/order as
+ * `calendarMonth.buildMonthGrid`), using the shared `MAX_BAND_LANES` cap.
+ * Personal-schedule entries are the only source of bands; participation is
+ * represented by the per-day dot instead. */
 export function buildMyCalendarWeekBandLayouts(
   gridWeeks: readonly (readonly string[])[],
   scheduleEntries: readonly PersonalScheduleEntry[],
@@ -493,38 +439,20 @@ export function buildMyCalendarWeekBandLayouts(
 // --- Per-day markers for the month view ---
 
 /**
- * The unified dot state for one day: `'filled'` when a confirmed/blocking
- * signal is present (an `attending` participation-registered occurrence on
- * this exact date, or a `blocking` single-day schedule entry), `'outline'`
- * when only a considering/non-blocking signal is present, `'none'`
- * otherwise. Every participation-registered occurrence on this date counts
- * here regardless of whether its parent Event is single- or multi-day
- * (Issue #174 supersedes Issue #142's Event-band rule - see the module
- * comment above MyCalendarBandSegment): a participation marker is always an
- * exact-date dot, never a band. An effectively-canceled occurrence (Issue
- * #180 - see activeOccurrenceEntries below) never contributes a
- * participation signal here, even if it is the only occurrence registered
- * on this date. A multi-day *schedule* entry still never
- * reaches this - it is represented by a band instead (see
- * buildMyCalendarWeekBandLayouts above), so a day's dot and its schedule
- * bands are always about disjoint schedule sources. At most one dot per day
- * regardless of how many qualifying sources it has (Issue #142: "dot は
- * 1セル1個" - unchanged).
+ * The unified dot state for one day: `'filled'` when an active `attending`
+ * occurrence or blocking single-day schedule exists, `'outline'` when only
+ * active `considering` occurrences or non-blocking single-day schedules exist,
+ * and `'none'` otherwise. Participation is evaluated on the occurrence's
+ * exact Asia/Tokyo date and effective-canceled occurrences are excluded.
+ * Multi-day schedules are represented by bands, leaving dot and band sources
+ * disjoint; multiple qualifying sources still produce at most one dot.
  */
 export type MyCalendarDotState = 'filled' | 'outline' | 'none';
 
-/**
- * `dayOccurrences` narrowed to only those whose occurrence is not
- * effectively canceled (Issue #180: Event-level or Occurrence-level
- * cancellation - `src/domain/eventCancellation.ts`'s `isEffectivelyCanceled`,
- * reused rather than re-derived). Both the visible dot (computeDotState) and
- * the accessible attending/considering counts (buildMyCalendarDayMarkers)
- * classify against this same filtered set, so they can never disagree about
- * which occurrences count as active participation. A canceled occurrence's
- * participation record is untouched and still reachable via the
- * selected-day detail (selectMyCalendarOccurrenceEntries, which does not
- * filter by cancellation) - only this month-level aggregation excludes it.
- */
+/** Filters day occurrences to the active participation set using the
+ * canonical Event/Occurrence cancellation predicate. The visible dot and
+ * accessible counts share this result, while selected-day detail continues to
+ * use the unfiltered entries so canceled occurrences remain reachable. */
 function activeOccurrenceEntries(
   dayOccurrences: readonly MyCalendarOccurrenceEntry[],
 ): MyCalendarOccurrenceEntry[] {
@@ -553,29 +481,18 @@ function computeDotState(
 export interface MyCalendarDayMarkers {
   date: string;
   role: CalendarDayRole;
-  /** False when `date` falls outside the Japanese-holiday snapshot's
-   * confirmed coverage range (`isWithinJapaneseHolidayDataCoverage`) - i.e.
-   * `role` for this date could still change to `'holiday'` once the
-   * Cabinet Office publishes that year, so presentation must show holiday
-   * status as unconfirmed rather than silently rendering it as an
-   * ordinary/confirmed-non-holiday day (PO adjudication, Issue #34). */
+  /** False when `date` is outside the Japanese-holiday snapshot's confirmed
+   * coverage range. Its role may later become `'holiday'`, so presentation
+   * must distinguish unconfirmed holiday data from a confirmed ordinary day. */
   holidayDataConfirmed: boolean;
   /** The unified single-day marker for this day - see computeDotState. */
   dot: MyCalendarDotState;
-  /** Occurrences on this day whose participation.status is 'attending' and
-   * whose occurrence is not effectively canceled (Issue #92: month-calendar
-   * scanability requires attending/considering to read as distinct signals,
-   * never collapsed into one generic "participation-registered" count - a
-   * day with both must show both). Kept as an aria-label/emptiness signal
-   * independent of `dot` above, though both now count the same
-   * cancellation-filtered occurrence set (Issue #174: participation is
-   * never band-represented, so there is no single-/multi-day Event split
-   * left for `dot` to narrow past this count; Issue #180: both exclude
-   * effectively-canceled occurrences via the same activeOccurrenceEntries
-   * filter, so a canceled-only day never reads as "参加予定公演N件"). */
+  /** Active occurrences on this day whose participation status is
+   * `attending`. The accessible count remains independent from `dot`, but
+   * both use the same cancellation-filtered exact-date occurrence set. */
   attendingCount: number;
-  /** Occurrences on this day whose participation.status is 'considering'
-   * and whose occurrence is not effectively canceled (Issue #180). */
+  /** Active occurrences on this day whose participation status is
+   * `considering`. */
   consideringCount: number;
   ownScheduleCount: number;
   sharedScheduleCount: number;
