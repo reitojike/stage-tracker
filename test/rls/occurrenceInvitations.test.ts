@@ -24,22 +24,35 @@ import {
 
 // Real local Supabase/Postgres tests for public.occurrence_invitations,
 // public.invite_to_occurrence and public.decline_occurrence_invitation
-// (Issue #30). See test/rls/events.test.ts's header comment for the
-// anon/service_role/authenticated client conventions, and for why a denied
-// UPDATE surfaces as an empty result set rather than an error.
+// (Issue #30, updated for Issue #225/#230's pending-only Invitation model -
+// see supabase/migrations/20260830000000_simplify_invitation_pending_only.sql).
+// See test/rls/events.test.ts's header comment for the anon/service_role/
+// authenticated client conventions, and for why a denied UPDATE surfaces as
+// an empty result set rather than an error.
 //
-// The three-branch invitation semantics in product-rules.md are what most of
-// this file exists to pin down:
+// The three-branch invitation semantics this file pins down:
 //
-//   invitee has no participation -> invitation + `considering`
+//   invitee has no participation -> invitation only, participation untouched
 //   invitee is `considering`     -> invitation, participation untouched
 //   invitee is `attending`       -> no invitation at all, `attending` intact
 //
-// The second thing it pins down is that the *inviter cannot tell which of
-// those three happened*. Which branch runs is decided entirely by the
-// invitee's participation, and participation is private by default, so
-// invite_to_occurrence returns void in every branch and only the invitee can
-// read an invitation back. See the "Opacity" section below.
+// Unlike the original #30 design, branch 1 no longer creates a `considering`
+// participation as a side effect - Issue #225/#230 explicitly removes that
+// auto-consider. "Accepting" an invitation is now just the invitee setting
+// their own participation to `attending` through the normal path (there is
+// no separate accept RPC); doing so - by any path, not only via an
+// invitation - resolves (deletes) every pending invitation for that
+// (occurrence, invitee) pair via the
+// occurrence_participations_resolve_invitations_on_attending trigger.
+// Declining now DELETEs the invitation row instead of stamping declined_at,
+// so a prior decline no longer permanently blocks re-invitation.
+//
+// The second thing this file pins down is that the *inviter cannot tell
+// which of the three invite branches happened*. Which branch runs is
+// decided entirely by the invitee's participation, and participation is
+// private by default, so invite_to_occurrence returns void in every branch
+// and only the invitee can read an invitation back. See the "Opacity"
+// section below.
 //
 // Every assertion about the invitee's participation or invitations reads it
 // back through the invitee's own client, never service_role: those rows are
@@ -97,7 +110,7 @@ async function requireInvitation(occurrence: string) {
 
 // --- Branch 1: invitee has no participation row ---
 
-void test('inviting a user with no participation creates the invitation and a considering participation', async () => {
+void test('inviting a user with no participation creates only the invitation - Issue #225/#230 removes the former auto-considering side effect', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
@@ -107,27 +120,11 @@ void test('inviting a user with no participation creates the invitation and a co
   assert.equal(invitation.invitee_id, invitee.user.id);
   assert.equal(invitation.declined_at, null);
 
-  const participation = await readOwnParticipation(invitee, occurrence);
-  assert.equal(participation?.status, 'considering');
-});
-
-// The invitee's new participation follows the normal default, so the act of
-// being invited does not publish anything about them - not even to the
-// person who invited them.
-void test('the participation created by an invitation is private', async () => {
-  const occurrence = await invitableOccurrence();
-  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
-
-  const participation = await readOwnParticipation(invitee, occurrence);
-  assert.equal(participation?.visibility, 'private');
-
-  const { data, error } = await inviter.client
-    .from('occurrence_participations')
-    .select()
-    .eq('occurrence_id', occurrence)
-    .eq('user_id', invitee.user.id);
-  assert.equal(error, null);
-  assert.deepEqual(data, [], 'inviting someone must not let the inviter read their participation');
+  assert.equal(
+    await readOwnParticipation(invitee, occurrence),
+    null,
+    'inviting a rowless invitee must not create a participation row',
+  );
 });
 
 // --- Branch 2: invitee is already considering ---
@@ -310,6 +307,11 @@ void test('a user cannot invite themselves', async () => {
 
 void test('an inviter cannot promote the invitee to attending', async () => {
   const occurrence = await invitableOccurrence();
+  // Issue #225/#230: invite no longer creates a `considering` participation
+  // on its own, so this test sets it explicitly first - what it pins down is
+  // that the inviter's own UPDATE attempt cannot touch the invitee's row,
+  // regardless of how that row came to exist.
+  await setParticipation(invitee, occurrence, 'considering');
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
   const { data, error } = await inviter.client
@@ -341,70 +343,92 @@ void test('an inviter cannot demote the invitee’s attending back to considerin
   assert.equal(participation?.status, 'attending');
 });
 
-// --- Decline ---
+// --- Decline (Issue #225/#230: pending-only - decline now DELETEs the row
+// rather than stamping declined_at) ---
 //
-// occurrence_invitations has no UPDATE grant and no UPDATE policy, so
-// declined_at is reachable only through public.decline_occurrence_invitation.
-// These tests pin down both halves of that: the decline itself, and the fact
-// that no client can write the column any other way - which is what keeps
-// un-declining out of the schema while product-rules.md is silent on it.
+// occurrence_invitations has no UPDATE/DELETE grant and no UPDATE/DELETE
+// policy, so this row is reachable only through
+// public.decline_occurrence_invitation (or the resolve-on-attending
+// trigger). These tests pin down the decline itself, that it never touches
+// Participation, and that no client can write/remove the row any other way.
 
-void test('the invitee can decline their own invitation', async () => {
+void test('decline/no Participation: resolves the pending invitation and creates no Participation', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
+  assert.equal(await readOwnParticipation(invitee, occurrence), null);
 
   const declined = await declineInvitationOrThrow(invitee, invitation.id);
   assert.equal(declined.id, invitation.id);
-  assert.ok(declined.declined_at);
 
-  assert.ok(
-    (await invitationReceived(invitee, occurrence))?.declined_at,
-    'the decline must be persisted on the invitation',
+  assert.equal(
+    await invitationReceived(invitee, occurrence),
+    null,
+    'a declined invitation must no longer exist as a row',
+  );
+  assert.equal(
+    await readOwnParticipation(invitee, occurrence),
+    null,
+    'decline must not create a Participation',
   );
 });
 
-// Declining is expressed entirely on the invitation. product-rules.md rules
-// out representing it as a `not_attending` participation, and this checks
-// the participation side is genuinely left alone rather than mirrored.
-void test('declining does not write anything to the invitee’s participation', async () => {
+// Declining is expressed entirely by resolving the invitation.
+// product-rules.md rules out representing it as a `not_attending`
+// participation, and an existing self-created `considering` must survive a
+// decline unchanged (Issue #225/#230: "decline/existing considering ->
+// considering維持").
+void test('decline/existing considering: resolves the pending invitation and leaves considering untouched', async () => {
   const occurrence = await invitableOccurrence();
+  const before = await setParticipation(invitee, occurrence, 'considering');
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
-  const before = await readOwnParticipation(invitee, occurrence);
 
   await declineInvitationOrThrow(invitee, invitation.id);
 
+  assert.equal(await invitationReceived(invitee, occurrence), null);
   const after = await readOwnParticipation(invitee, occurrence);
   assert.equal(after?.status, 'considering');
-  assert.equal(after.updated_at, before?.updated_at);
+  assert.equal(after.id, before.id);
+  assert.equal(after.updated_at, before.updated_at, 'decline must not write to the row at all');
 });
 
-void test('the inviter cannot decline on the invitee’s behalf', async () => {
+// decline_occurrence_invitation matches on (id, invitee_id = actor) - an
+// invitation addressed to someone else simply matches no row for this
+// caller, the same benign `data: null, error: null` outcome as declining an
+// already-resolved or nonexistent id (see the idempotence test below and
+// declineInvitation's own header comment): this must not become a probe for
+// whether a given id exists or who it belongs to.
+void test('the inviter cannot decline on the invitee’s behalf: matches no row, changes nothing', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
 
-  const { error } = await declineInvitation(inviter, invitation.id);
-  assert.ok(error, 'expected declining an invitation addressed to someone else to fail');
+  const { data, error } = await declineInvitation(inviter, invitation.id);
+  assert.equal(error, null);
+  assert.equal(data, null);
 
-  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
+  assert.ok(
+    await invitationReceived(invitee, occurrence),
+    'the invitation must still be pending after a decline attempt that matched no row',
+  );
 });
 
-void test('an unrelated user cannot decline someone else’s invitation', async () => {
+void test('an unrelated user cannot decline someone else’s invitation: matches no row, changes nothing', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
 
-  const { error } = await declineInvitation(other, invitation.id);
-  assert.ok(error, 'expected a third party decline to fail');
-  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
+  const { data, error } = await declineInvitation(other, invitation.id);
+  assert.equal(error, null);
+  assert.equal(data, null);
+  assert.ok(await invitationReceived(invitee, occurrence));
 });
 
-// The one product fact product-rules.md asks for is *that* the invitee
-// declined. Nothing has decided what un-declining would mean, so the schema
-// must not offer it: declined_at is not writable through the table API at
-// all, in either direction.
+// The row's own declined_at column still exists (this PR does not drop
+// schema) but nothing ever writes it again - decline resolves the row by
+// deleting it. This pins down that a direct table UPDATE remains unsupported
+// regardless.
 void test('declined_at is not writable through the table API', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
@@ -416,83 +440,89 @@ void test('declined_at is not writable through the table API', async () => {
     .eq('id', invitation.id);
   assert.ok(stampError, 'expected a direct declined_at UPDATE to be unsupported');
   assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
-
-  const declined = await declineInvitationOrThrow(invitee, invitation.id);
-  assert.ok(declined.declined_at);
-
-  const { error: clearError } = await invitee.client
-    .from('occurrence_invitations')
-    .update({ declined_at: null })
-    .eq('id', invitation.id);
-  assert.ok(clearError, 'expected clearing declined_at to be unsupported');
-  assert.ok(
-    (await readInvitation(invitee, invitation.id))?.declined_at,
-    'a decline must not be undoable',
-  );
 });
 
-// Repeating the same act, not a lifecycle change: the second call must not
-// move the timestamp, or "when they declined" would drift on every retry.
-void test('declining twice is idempotent and does not re-stamp declined_at', async () => {
+// Repeating the same act, not a lifecycle change: a second decline call for
+// an already-resolved invitation is a benign no-op (`data: null`), never an
+// error - this is what makes the client's own finalize-on-timer-or-unmount
+// path (src/app/catalog/_components/InvitationCard.tsx) safe to call twice
+// under a race.
+void test('declining twice is idempotent: the second call finds no row and reports no error', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
 
   const first = await declineInvitationOrThrow(invitee, invitation.id);
-  const second = await declineInvitationOrThrow(invitee, invitation.id);
-  assert.equal(second.declined_at, first.declined_at);
+  assert.equal(first.id, invitation.id);
+
+  const { data: second, error } = await declineInvitation(invitee, invitation.id);
+  assert.equal(error, null);
+  assert.equal(second, null, 'declining an already-resolved invitation must report data: null');
 });
 
-// Re-inviting after a decline is a product operation nothing has defined.
-// The RPC refuses it rather than answering with a silent no-op or a fresh
-// `considering` row - either of which would settle the undecided semantics
-// by accident.
-//
-// This refusal is not a hole in the opacity guarantee above: it fires on the
-// inviter's own prior invitation, before the participation branch runs, so
-// it says nothing about the invitee's current status.
-void test('re-inviting a declined invitee is refused and changes nothing', async () => {
+// A prior decline must not permanently block re-invitation (Issue #225/#230
+// addendum, superseding #30's original refusal): since decline deletes the
+// row, a later invite for the same (occurrence, inviter, invitee) finds no
+// existing row and creates a fresh pending one.
+void test('re-inviting a declined invitee creates a new pending invitation (a prior decline is not a permanent block)', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
-  const invitation = await requireInvitation(occurrence);
-  const declined = await declineInvitationOrThrow(invitee, invitation.id);
+  const firstInvitation = await requireInvitation(occurrence);
+  await declineInvitationOrThrow(invitee, firstInvitation.id);
+  assert.equal(await invitationReceived(invitee, occurrence), null);
 
-  const { error } = await inviteToOccurrence(inviter, occurrence, invitee.user.id);
-  assert.ok(error, 'expected re-inviting a declined invitee to be refused');
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
-  const rows = await invitationsReceived(invitee, occurrence);
-  assert.equal(rows.length, 1, 'a refused re-invite must not stack a second invitation');
-  assert.equal(rows[0]?.declined_at, declined.declined_at, 'the decline must be left as it was');
+  const secondInvitation = await requireInvitation(occurrence);
+  assert.notEqual(
+    secondInvitation.id,
+    firstInvitation.id,
+    'the re-invite must be a fresh row, not a resurrected one',
+  );
+  assert.equal(secondInvitation.declined_at, null);
 });
 
-// Same refusal, but with the invitee's participation removed first: the
-// branch that creates a `considering` row must not run for a declined
-// invitation.
-void test('re-inviting a declined invitee does not re-create their participation', async () => {
+// The re-invite still goes through the normal no-participation branch - it
+// must not resurrect a participation just because this invitee/occurrence
+// pair was invited before.
+void test('re-inviting a declined invitee does not create their participation', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
   await declineInvitationOrThrow(invitee, invitation.id);
 
-  await invitee.client
-    .from('occurrence_participations')
-    .delete()
-    .eq('occurrence_id', occurrence)
-    .eq('user_id', invitee.user.id);
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
 
-  const { error } = await inviteToOccurrence(inviter, occurrence, invitee.user.id);
-  assert.ok(error);
   assert.equal(
     await readOwnParticipation(invitee, occurrence),
     null,
-    'a refused re-invite must not resurrect a participation',
+    're-inviting must not create a participation for the invitee',
   );
+});
+
+// Accepting elsewhere (attending) after a decline must not be permanently
+// blocked either - the addendum: "accept -> later self-withdraw does not
+// permanently prevent a future invitation" pairs with this: a decline does
+// not prevent the invitee from later becoming attending through the normal
+// participation UI, independent of any invitation at all.
+void test('after declining, the invitee can still set their own participation to attending directly', async () => {
+  const occurrence = await invitableOccurrence();
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  const invitation = await requireInvitation(occurrence);
+  await declineInvitationOrThrow(invitee, invitation.id);
+
+  await setParticipation(invitee, occurrence, 'attending');
+
+  const participation = await readOwnParticipation(invitee, occurrence);
+  assert.equal(participation?.status, 'attending');
 });
 
 // A decline is scoped to the invitation it was made on, not to the invitee:
 // another attendee's invitation is a separate record and a separate act, so
-// it is not blocked by an earlier decline of someone else's invitation.
-void test('a decline does not block a different inviter from inviting', async () => {
+// it is not blocked by an earlier decline of someone else's invitation. And
+// since decline now deletes rather than marks, only the still-pending
+// invitation (from `other`) remains afterward.
+void test('a decline does not block a different inviter from inviting, and only the still-pending invitation remains', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
@@ -502,36 +532,82 @@ void test('a decline does not block a different inviter from inviting', async ()
   await inviteToOccurrenceOrThrow(other, occurrence, invitee.user.id);
 
   const rows = await invitationsReceived(invitee, occurrence);
-  assert.equal(rows.length, 2);
-  const fromOther = rows.find((row) => row.inviter_id === other.user.id);
-  assert.ok(fromOther, 'the second attendee’s invitation must exist');
-  assert.equal(fromOther.declined_at, null);
+  assert.equal(rows.length, 1, 'the declined invitation must be gone, leaving only the new one');
+  const [remaining] = rows;
+  assert.ok(remaining);
+  assert.equal(remaining.inviter_id, other.user.id);
+  assert.equal(remaining.declined_at, null);
+});
+
+// --- Generic attending convergence (Issue #225/#230) ---
+//
+// Accepting an invitation is not a separate operation from setting one's own
+// participation to `attending` - both go through the same write, and the
+// occurrence_participations_resolve_invitations_on_attending trigger is what
+// resolves pending invitations as a side effect, regardless of which UI path
+// produced the write.
+
+void test('setting participation to attending directly (not through an invitation) resolves a pending invitation for the same occurrence', async () => {
+  const occurrence = await invitableOccurrence();
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await requireInvitation(occurrence);
+
+  await setParticipation(invitee, occurrence, 'attending');
+
+  assert.equal(
+    await invitationReceived(invitee, occurrence),
+    null,
+    'a generic attending write must resolve the pending invitation, indistinguishably from an explicit accept',
+  );
+});
+
+void test('updating an existing considering participation to attending resolves a pending invitation for the same occurrence', async () => {
+  const occurrence = await invitableOccurrence();
+  const existing = await setParticipation(invitee, occurrence, 'considering');
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await requireInvitation(occurrence);
+
+  const { error } = await invitee.client
+    .from('occurrence_participations')
+    .update({ status: 'attending' })
+    .eq('id', existing.id);
+  assert.equal(error, null);
+
+  assert.equal(await invitationReceived(invitee, occurrence), null);
+});
+
+void test('multiple pending inviters: becoming attending resolves every pending invitation for the occurrence at once', async () => {
+  const occurrence = await invitableOccurrence();
+  await setParticipation(other, occurrence, 'attending');
+  await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
+  await inviteToOccurrenceOrThrow(other, occurrence, invitee.user.id);
+  assert.equal((await invitationsReceived(invitee, occurrence)).length, 2);
+
+  await setParticipation(invitee, occurrence, 'attending');
+
+  assert.deepEqual(
+    await invitationsReceived(invitee, occurrence),
+    [],
+    'no pending invitation may survive once the invitee is attending',
+  );
 });
 
 // --- Idempotency ---
 
-void test('re-inviting after the invitee withdrew does not re-create their participation', async () => {
+void test('inviting an invitee with no row twice, with a withdraw between, does not resurrect a participation', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
-
-  await invitee.client
-    .from('occurrence_participations')
-    .delete()
-    .eq('occurrence_id', occurrence)
-    .eq('user_id', invitee.user.id);
   assert.equal(await readOwnParticipation(invitee, occurrence), null);
 
+  // A repeat invite while the invitation is still pending is idempotent -
+  // the same row, no new participation.
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   assert.equal((await requireInvitation(occurrence)).id, invitation.id);
-  assert.equal(
-    await readOwnParticipation(invitee, occurrence),
-    null,
-    'a repeat invite must not resurrect a participation the invitee removed',
-  );
+  assert.equal(await readOwnParticipation(invitee, occurrence), null);
 });
 
-void test('two different attendees can each invite the same user', async () => {
+void test('two different attendees can each invite the same rowless user; neither creates a participation', async () => {
   const occurrence = await invitableOccurrence();
   await setParticipation(other, occurrence, 'attending');
 
@@ -545,13 +621,16 @@ void test('two different attendees can each invite the same user', async () => {
     [inviter.user.id, other.user.id].sort(),
   );
 
-  const participation = await readOwnParticipation(invitee, occurrence);
-  assert.equal(participation?.status, 'considering');
+  assert.equal(
+    await readOwnParticipation(invitee, occurrence),
+    null,
+    'neither invite may create a participation',
+  );
 });
 
 // --- Concurrency ---
 
-void test('concurrent identical invites settle on one invitation and one participation', async () => {
+void test('concurrent identical invites settle on one invitation and create no participation', async () => {
   const occurrence = await invitableOccurrence();
 
   const results = await Promise.all(
@@ -562,15 +641,19 @@ void test('concurrent identical invites settle on one invitation and one partici
   }
 
   assert.equal((await invitationsReceived(invitee, occurrence)).length, 1);
-  const participation = await readOwnParticipation(invitee, occurrence);
-  assert.equal(participation?.status, 'considering');
+  assert.equal(await readOwnParticipation(invitee, occurrence), null);
 });
 
-// The check-then-act inside invite_to_occurrence is the risky part: if it
-// could interleave with the invitee confirming attendance, an invitation
-// would be able to overwrite a confirmed `attending`. Whichever side wins
-// the race, an `attending` write the invitee saw succeed must still stand.
-void test('an invite racing the invitee’s own attending insert never leaves them considering', async () => {
+// The check-then-act inside invite_to_occurrence is the risky part: if the
+// attending short-circuit's read of the invitee's own row could race a
+// concurrent transition to attending, invite_to_occurrence might create a
+// pending invitation the invitee is already, or about to be, attending for.
+// Whichever side wins, the invitee's own attending write - if it reports
+// success - must always end up with no pending invitation left over (either
+// invite_to_occurrence's own for-share-locked check skips creating one, or
+// the resolve-on-attending trigger cleans it up once the attending write
+// commits).
+void test('an invite racing the invitee’s own attending insert never leaves a pending invitation once attending is confirmed', async () => {
   const occurrence = await invitableOccurrence();
 
   const [, selfResult] = await Promise.all([
@@ -583,12 +666,16 @@ void test('an invite racing the invitee’s own attending insert never leaves th
   ]);
 
   const participation = await readOwnParticipation(invitee, occurrence);
-  assert.ok(participation, 'the invitee must end up with exactly one participation');
   if (selfResult.error === null) {
     assert.equal(
-      participation.status,
+      participation?.status,
       'attending',
       'an attending write that reported success must not be undone by a concurrent invite',
+    );
+    assert.equal(
+      await invitationReceived(invitee, occurrence),
+      null,
+      'no pending invitation may survive once attending is confirmed',
     );
   }
 });
@@ -596,7 +683,7 @@ void test('an invite racing the invitee’s own attending insert never leaves th
 // Same race, but from `considering`: here the invitee's UPDATE always
 // succeeds (it is their own row), so the expected end state is unambiguous
 // regardless of which transaction commits first.
-void test('an invite racing the invitee’s own confirmation ends with attending', async () => {
+void test('an invite racing the invitee’s own confirmation ends with attending and no pending invitation', async () => {
   const occurrence = await invitableOccurrence();
   const existing = await setParticipation(invitee, occurrence, 'considering');
 
@@ -613,12 +700,15 @@ void test('an invite racing the invitee’s own confirmation ends with attending
 
   const participation = await readOwnParticipation(invitee, occurrence);
   assert.equal(participation?.status, 'attending');
+  assert.equal(await invitationReceived(invitee, occurrence), null);
 });
 
-// decline_occurrence_invitation is also a check-then-act (read the row,
-// decide whether it is already declined, then stamp it). FOR UPDATE is what
-// keeps two concurrent declines from producing two different timestamps.
-void test('concurrent declines settle on a single declined_at', async () => {
+// decline_occurrence_invitation is a single DELETE ... WHERE ... RETURNING -
+// no separate SELECT/lock step. Postgres's own implicit row lock on that
+// DELETE is what keeps only one of several concurrent declines from actually
+// finding (and deleting) the row; the rest simply match zero rows once the
+// first one commits.
+void test('concurrent declines settle on exactly one deletion; the rest report data: null with no error', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
@@ -629,12 +719,10 @@ void test('concurrent declines settle on a single declined_at', async () => {
   for (const result of results) {
     assert.equal(result.error, null);
   }
-  const stamps = new Set(results.map((result) => result.data?.declined_at));
-  assert.equal(stamps.size, 1, 'every concurrent decline must report the same timestamp');
-  assert.equal(
-    (await readInvitation(invitee, invitation.id))?.declined_at,
-    results[0]?.data?.declined_at,
-  );
+  const resolved = results.filter((result) => result.data !== null);
+  assert.equal(resolved.length, 1, 'exactly one concurrent decline must actually find the row');
+  assert.equal(resolved[0]?.data?.id, invitation.id);
+  assert.equal(await invitationReceived(invitee, occurrence), null);
 });
 
 // --- Negative: anonymous ---
@@ -676,7 +764,10 @@ void test('anonymous cannot execute the decline RPC', async () => {
     p_invitation_id: invitation.id,
   });
   assert.ok(error, 'expected a permission error for anonymous RPC execution');
-  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
+  assert.ok(
+    await invitationReceived(invitee, occurrence),
+    'the invitation must still be pending after a failed anonymous decline attempt',
+  );
 });
 
 // --- Negative: visibility ---

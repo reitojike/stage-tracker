@@ -1,16 +1,27 @@
 // My Calendar composition (Issue #34): pure, DB-free derivation that merges
-// three already-fetched personal planning slices - participation-registered
-// occurrences, event-independent personal schedule (own + shared), and
-// ticket acquisition state - into one calendar-day index a presentation
-// layer can render directly, plus the weekday/Japanese-holiday role from
-// calendarDayRole.ts.
+// two already-fetched personal planning slices - participation-registered
+// occurrences and event-independent personal schedule (own + shared) - into
+// one calendar-day index a presentation layer can render directly, plus the
+// weekday/Japanese-holiday role from calendarDayRole.ts.
+//
+// Issue #225/#230: this module no longer merges legacy Ticket acquisition
+// state. My Calendar's canonical source is Participation + Personal
+// Schedule only - the legacy `pending`/`secured`/`unsuccessful` acquisition
+// display (Issue #34's original third slice) has been removed from current
+// runtime along with the rest of the legacy Ticket acquisition/inventory/
+// transfer model (the underlying `ticket_acquisitions`/`tickets` schema
+// itself is not dropped in this PR - see supabase/migrations/ and #225's
+// deferred PR B). The current Ticket MVP (TicketOpportunity +
+// UserTicketOpportunityState `planned`/`applied`, Issue #157/#162) is a
+// separate, unrelated surface (/tickets, Home) that never fed into My
+// Calendar and is unaffected by this change.
 //
 // This module never queries Supabase and never re-derives visibility: the
 // caller (src/app/calendar/page.tsx) is expected to have already fetched
 // exactly what RLS allows the current caller to see (listMyParticipations,
-// listVisiblePersonalSchedule, listMyAcquisitions - all in
-// src/infrastructure/supabase/) and to hand that data in here as-is. This
-// module performs no additional filtering that could substitute for RLS.
+// listVisiblePersonalSchedule - both in src/infrastructure/supabase/) and to
+// hand that data in here as-is. This module performs no additional
+// filtering that could substitute for RLS.
 //
 // Band/dot scope (Issue #142, superseding #34's original "run-period
 // presentation is out of scope" note; further narrowed by Issue #174 - see
@@ -65,61 +76,28 @@ import {
 import { isEffectivelyCanceled } from './eventCancellation.ts';
 import type { Participation } from './participation.ts';
 import { entryStart, instantSortKey, type PersonalScheduleEntry } from './personalSchedule.ts';
-import type { TicketAcquisition } from './ticketAcquisition.ts';
 
-// --- Occurrence + participation + ticket state ---
-
-/**
- * A ticket acquisition's display state, aggregated across every acquisition
- * attempt the caller has made for one occurrence (product-rules.md allows
- * multiple attempts per occurrence/user). Priority, most-resolved first:
- * any `secured` attempt means the occurrence is covered, regardless of how
- * many other attempts failed; otherwise any `pending` attempt means the
- * outcome is still open; `'unsuccessful'` only when every attempt is
- * unsuccessful; `'none'` when the caller never opened an acquisition at
- * all for this occurrence. `'none'` and `'pending'` are exactly the two
- * states Issue #34's acceptance criteria calls "pending/unconfirmed" - both
- * need a visible, non-color-only marker in the calendar presentation.
- */
-export type TicketDisplayStatus = 'none' | 'pending' | 'secured' | 'unsuccessful';
-
-export function aggregateTicketDisplayStatus(
-  acquisitions: readonly TicketAcquisition[],
-): TicketDisplayStatus {
-  if (acquisitions.length === 0) {
-    return 'none';
-  }
-  if (acquisitions.some((acquisition) => acquisition.status === 'secured')) {
-    return 'secured';
-  }
-  if (acquisitions.some((acquisition) => acquisition.status === 'pending')) {
-    return 'pending';
-  }
-  return 'unsuccessful';
-}
+// --- Occurrence + participation state ---
 
 export interface MyCalendarOccurrenceEntry {
   event: EventCatalogEvent;
   occurrence: EventOccurrence;
   participation: Participation;
-  ticketStatus: TicketDisplayStatus;
 }
 
 /**
  * Every occurrence the caller has participation-registered (Issue #34 MVP
  * surface: "participation登録済みoccurrence表示"), paired with that
- * participation row and the caller's aggregated ticket state for it.
- * `eventsWithOccurrences` should already be scoped to whatever range the
- * caller fetched (src/app/calendar/page.tsx); an occurrence with no entry
- * in `participationsByOccurrenceId` is simply not participation-registered
- * and is excluded here - this list is deliberately narrower than "every
- * occurrence in range" (that is the Event Catalog's own concern, not My
- * Calendar's).
+ * participation row. `eventsWithOccurrences` should already be scoped to
+ * whatever range the caller fetched (src/app/calendar/page.tsx); an
+ * occurrence with no entry in `participationsByOccurrenceId` is simply not
+ * participation-registered and is excluded here - this list is deliberately
+ * narrower than "every occurrence in range" (that is the Event Catalog's
+ * own concern, not My Calendar's).
  */
 export function buildMyCalendarOccurrenceEntries(
   eventsWithOccurrences: readonly EventWithOccurrences[],
   participationsByOccurrenceId: ReadonlyMap<string, Participation>,
-  acquisitionsByOccurrenceId: ReadonlyMap<string, readonly TicketAcquisition[]>,
 ): MyCalendarOccurrenceEntry[] {
   const entries: MyCalendarOccurrenceEntry[] = [];
   for (const { event, occurrences } of eventsWithOccurrences) {
@@ -128,13 +106,7 @@ export function buildMyCalendarOccurrenceEntries(
       if (participation === undefined) {
         continue;
       }
-      const acquisitions = acquisitionsByOccurrenceId.get(occurrence.id) ?? [];
-      entries.push({
-        event,
-        occurrence,
-        participation,
-        ticketStatus: aggregateTicketDisplayStatus(acquisitions),
-      });
+      entries.push({ event, occurrence, participation });
     }
   }
   return entries;

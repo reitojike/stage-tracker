@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { getAuthenticatedUser } from '@/infrastructure/supabase/session.ts';
+import { listMyReceivedInvitations } from '@/infrastructure/supabase/invitation.ts';
 import { PageHeading } from '@/ui/PageHeading';
 import { catalogNewEventHref } from '@/domain/catalogNavigation.ts';
 import { AccountSection } from './_components/AccountSection.tsx';
@@ -31,19 +32,33 @@ import { currentTokyoDate } from './_lib/today.ts';
  */
 export default async function MyPage() {
   const client = await createSupabaseServerClient();
-  const [user, canCreateEvent] = await Promise.all([
+  const [user, canCreateEvent, invitationsResult] = await Promise.all([
     getAuthenticatedUser(),
     resolveCanCreateEvent(client),
+    listMyReceivedInvitations(client),
   ]);
   const newEventHref = catalogNewEventHref({
     yearMonth: currentTokyoDate().slice(0, 7),
     selectedDate: null,
   });
+  // Every row listMyReceivedInvitations returns is inherently pending under
+  // the new pending-only model (Issue #225/#230): a resolved (accepted or
+  // declined) invitation no longer exists as a row at all - see
+  // supabase/migrations/20260830000000_simplify_invitation_pending_only.sql
+  // - so the row count itself is the pending count, no filtering needed. A
+  // read failure degrades to 0 rather than an error state: this badge is a
+  // low-emphasis count, not this page's primary data surface (the 招待一覧
+  // row itself always stays reachable regardless).
+  const pendingInvitationCount = invitationsResult.ok ? invitationsResult.data.length : 0;
 
   return (
     <>
       <PageHeading>マイページ</PageHeading>
-      <ScheduleAndEventSection canCreateEvent={canCreateEvent} newEventHref={newEventHref} />
+      <ScheduleAndEventSection
+        canCreateEvent={canCreateEvent}
+        newEventHref={newEventHref}
+        pendingInvitationCount={pendingInvitationCount}
+      />
       <AccountSection email={user?.email ?? null} />
       {/* Passkey登録済みuserだけが自分のPasskeyを登録できる（Issue #106） -
           未サインインでは表示自体をしない。 */}

@@ -1,0 +1,80 @@
+/*
+ * Native <dialog> reset to a bottom sheet - same pattern as
+ * src/app/catalog/_components/FilterSheet.module.css's own .dialog/.sheet
+ * (Issue #230 addendum: reuse the existing sheet vocabulary). See that
+ * file's own header comment for why inset-block-start must be reset to auto
+ * for inset-block-end to actually anchor this to the bottom edge.
+ */
+.dialog {
+  position: fixed;
+  inset-block-start: auto;
+  inset-block-end: 0;
+  inset-inline: 0;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  border-start-start-radius: var(--radius-sheet);
+  border-start-end-radius: var(--radius-sheet);
+  background-color: var(--color-canvas);
+  color: var(--color-text);
+  max-height: 85vh;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    transform 200ms ease-out,
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+}
+
+.dialog:not([open]) {
+  transform: translateY(100%);
+}
+
+@starting-style {
+  .dialog[open] {
+    transform: translateY(100%);
+  }
+}
+
+.dialog::backdrop {
+  background-color: rgb(23 25 27 / 45%);
+  transition:
+    background-color 200ms ease-out,
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+}
+
+@starting-style {
+  .dialog[open]::backdrop {
+    background-color: rgb(23 25 27 / 0%);
+  }
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.body {
+  overflow-y: auto;
+  padding: var(--space-md);
+}

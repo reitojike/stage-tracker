@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types.ts';
-import { mapInvitationRow, sortInvitations, type Invitation } from '../../domain/invitation.ts';
+import {
+  mapInvitationRow,
+  sortInvitations,
+  type Invitation,
+  type RawInvitationRow,
+} from '../../domain/invitation.ts';
 import {
   classifyRpcError,
   type PlanningResult,
@@ -19,6 +24,37 @@ import { requireAuthenticatedUserId } from './planningAuth.ts';
 export type InvitationQueryClient = SupabaseClient<Database>;
 
 /**
+ * Narrows decline_occurrence_invitation's RPC result via `unknown` rather
+ * than a type assertion (this repo's lint profile forbids `as`/`<T>`
+ * assertions - "narrow unknown instead", the same convention
+ * domain/catalogFilterSheet.ts's isStringArray/isRecordOfStringArrays use).
+ * decline_occurrence_invitation is declared to return
+ * public.occurrence_invitations (a single row), but genuinely returns SQL
+ * NULL when no matching pending row was found (see its migration) -
+ * Postgres's row-returning-function signature carries no nullability
+ * Supabase's type generator can see, so the generated RPC return type
+ * (database.types.ts) is a plain row shape, not `| null`, even though a
+ * real response can be null. This guard restores the real runtime contract.
+ *
+ * A genuine SQL NULL for a `returns public.occurrence_invitations` function
+ * is not serialized by PostgREST as JSON `null` - it comes back as an
+ * object with every column set to `null` (confirmed against local
+ * Supabase). `'id' in value` alone would treat that as a real row (id:
+ * null), so this checks that `id` is actually a non-null string - the one
+ * field that is never null on a genuine row.
+ *
+ * Exported so test/rls/support/participationFixtures.ts's own declineInvitation
+ * fixture - which calls the RPC directly rather than through this module, to
+ * exercise the real client boundary - can reuse this exact narrowing instead
+ * of re-deriving it.
+ */
+export function isRawInvitationRow(value: unknown): value is RawInvitationRow {
+  return (
+    typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'string'
+  );
+}
+
+/**
  * Message-text rules for public.invite_to_occurrence's `raise exception`
  * calls (supabase/migrations/20260822010200_create_invite_to_occurrence_rpc.sql).
  * Deliberately does NOT attempt to classify anything about the invitee's own
@@ -34,11 +70,6 @@ export const INVITE_ERROR_RULES: readonly RpcErrorRule[] = [
   {
     test: (m) => m.includes('only a user attending this occurrence can invite others to it'),
     kind: 'permission-denied',
-  },
-  {
-    test: (m) =>
-      m.includes('this invitation was declined; re-inviting is not a supported operation'),
-    kind: 'validation',
   },
 ];
 
@@ -158,25 +189,24 @@ export async function listMyReceivedInvitations(
 export const DECLINE_ERROR_RULES: readonly RpcErrorRule[] = [
   { test: (m) => m.includes('authentication required'), kind: 'unauthenticated' },
   { test: (m) => m.includes('invitation is required'), kind: 'validation' },
-  // Deliberately the same message (and therefore the same PlanningError
-  // kind) whether the invitation does not exist or belongs to somebody else
-  // - see decline_occurrence_invitation's header comment: an invitation is
-  // readable only by its two parties, and this must not become a probe for
-  // whether a given id exists.
-  { test: (m) => m.includes('invitation not found'), kind: 'not-found' },
 ];
 
 /**
- * Declines an invitation as its invitee. Idempotent: declining an
- * already-declined invitation returns it unchanged rather than erroring or
- * re-stamping declined_at.
+ * Declines an invitation as its invitee (Issue #225/#230: pending-only
+ * Invitation). decline_occurrence_invitation now DELETEs the row rather than
+ * stamping declined_at - "resolved" is uniformly represented as row absence,
+ * matching the pending-only model. Idempotent by returning `data: null`
+ * rather than erroring when no matching row is found (already declined by an
+ * earlier call, already resolved by the invitee accepting elsewhere, or
+ * genuinely never existed) - a caller must treat `data: null` as a benign
+ * no-op, not as a distinct failure to surface.
  *
  * Checks the caller's session first - see inviteToOccurrence above for why.
  */
 export async function declineInvitation(
   client: InvitationQueryClient,
   invitationId: string,
-): Promise<PlanningResult<Invitation>> {
+): Promise<PlanningResult<Invitation | null>> {
   const callerId = await requireAuthenticatedUserId(client);
   if (!callerId.ok) {
     return callerId;
@@ -188,5 +218,6 @@ export async function declineInvitation(
   if (error !== null) {
     return { ok: false, error: classifyRpcError(error, DECLINE_ERROR_RULES) };
   }
-  return { ok: true, data: mapInvitationRow(data) };
+  const rawData: unknown = data;
+  return { ok: true, data: isRawInvitationRow(rawData) ? mapInvitationRow(rawData) : null };
 }

@@ -9,7 +9,7 @@ import { isEffectivelyCanceled } from '@/domain/eventCancellation';
 import type { Invitation } from '@/domain/invitation';
 import { catalogMonthHref } from '@/domain/catalogNavigation';
 import { currentTokyoDate } from '../_lib/today.ts';
-import { InvitationCard } from '../_components/InvitationCard.tsx';
+import { InvitationList, type InvitationListItem } from '../_components/InvitationList.tsx';
 
 const isEmptyInvitations = (data: Invitation[]) => data.length === 0;
 
@@ -36,6 +36,7 @@ export default async function InvitationsPage() {
 
   let contextReadFailed = false;
   const occurrenceById = new Map<string, { startsAt: string; endsAt: string | null }>();
+  const eventIdByOccurrenceId = new Map<string, string>();
   const eventTitleByOccurrenceId = new Map<string, string>();
   const isCanceledByOccurrenceId = new Map<string, boolean>();
 
@@ -49,6 +50,7 @@ export default async function InvitationsPage() {
           startsAt: occurrence.startsAt,
           endsAt: occurrence.endsAt,
         });
+        eventIdByOccurrenceId.set(occurrence.id, occurrence.eventId);
       }
 
       const eventIds = [...new Set(occurrencesResult.data.map((occurrence) => occurrence.eventId))];
@@ -67,6 +69,14 @@ export default async function InvitationsPage() {
       }
     }
   }
+
+  const listItems: InvitationListItem[] = invitations.map((invitation) => ({
+    invitation,
+    occurrence: occurrenceById.get(invitation.occurrenceId) ?? null,
+    eventId: eventIdByOccurrenceId.get(invitation.occurrenceId) ?? null,
+    eventTitle: eventTitleByOccurrenceId.get(invitation.occurrenceId) ?? null,
+    isEffectivelyCanceled: isCanceledByOccurrenceId.get(invitation.occurrenceId) ?? false,
+  }));
 
   return (
     <>
@@ -89,22 +99,7 @@ export default async function InvitationsPage() {
       ) : null}
       {state === 'empty' ? <StatePanel variant="empty" title="招待はありません" /> : null}
 
-      {state === 'populated' ? (
-        <ul>
-          {invitations.map((invitation) => (
-            <li key={invitation.id}>
-              <InvitationCard
-                invitation={invitation}
-                occurrence={occurrenceById.get(invitation.occurrenceId) ?? null}
-                eventTitle={eventTitleByOccurrenceId.get(invitation.occurrenceId) ?? null}
-                isEffectivelyCanceled={
-                  isCanceledByOccurrenceId.get(invitation.occurrenceId) ?? false
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {state === 'populated' ? <InvitationList items={listItems} /> : null}
     </>
   );
 }

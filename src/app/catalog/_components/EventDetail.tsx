@@ -13,7 +13,7 @@ import {
   tokyoDateLabel,
 } from '@/domain/catalogFormatting.ts';
 import { FocusedOccurrenceScroll } from './FocusedOccurrenceScroll.tsx';
-import { ParticipationPanel } from './ParticipationPanel.tsx';
+import { OccurrenceParticipationRow } from './OccurrenceParticipationRow.tsx';
 import styles from './EventDetail.module.css';
 
 export interface EventDetailProps {
@@ -140,9 +140,10 @@ export function EventDetail({
                     {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
                   </p>
                   {participationsByOccurrenceId.has(occurrence.id) ? (
-                    <ParticipationPanel
+                    <OccurrenceParticipationRow
                       eventId={event.id}
                       occurrenceId={occurrence.id}
+                      occurrence={{ startsAt: occurrence.startsAt, endsAt: occurrence.endsAt }}
                       participation={participationsByOccurrenceId.get(occurrence.id) ?? null}
                       isEffectivelyCanceled={isEffectivelyCanceled(event, occurrence)}
                     />

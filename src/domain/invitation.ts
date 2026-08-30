@@ -21,7 +21,17 @@ export interface Invitation {
   occurrenceId: string;
   inviterId: string;
   inviteeId: string;
-  /** null = not declined. */
+  /**
+   * Issue #225/#230: Invitation is now pending-only - declining, accepting,
+   * or converging on `attending` from any other path all resolve (delete)
+   * the row instead of stamping this field (see supabase/migrations/
+   * 20260830000000_simplify_invitation_pending_only.sql). A fetched
+   * Invitation is therefore always effectively pending; this field is
+   * retained only because the underlying `occurrence_invitations.declined_at`
+   * column itself is not dropped in this PR (legacy-schema-drop is deferred
+   * to a later bounded Issue) - no current write path ever sets it again,
+   * and no current read path should branch on it.
+   */
   declinedAt: string | null;
   createdAt: string;
   updatedAt: string;

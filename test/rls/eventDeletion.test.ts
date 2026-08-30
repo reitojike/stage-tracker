@@ -157,11 +157,13 @@ void test('occurrence delete is blocked while a participation references it', as
 void test('occurrence delete is blocked while an invitation references it', async () => {
   const { occurrence } = await createEventWithOccurrence(owner);
   // Inserted directly via the admin path rather than through
-  // invite_to_occurrence: a real invite always creates a `considering`
-  // participation alongside the invitation (product-rules.md
-  // "Invitation"), which would conflate this test with the participation
-  // blocker above. Isolating occurrence_invitations by itself proves the
-  // guard's invitation branch specifically, not just the participation one.
+  // invite_to_occurrence: a real invite can leave the invitee with a
+  // `considering` participation alongside the invitation (Issue #225/#230:
+  // only when the invitee already had one before the invite - see
+  // occurrenceInvitations.test.ts), which would risk conflating this test
+  // with the participation blocker above. Isolating occurrence_invitations
+  // by itself proves the guard's invitation branch specifically, not just
+  // the participation one.
   const admin = createAdminClient();
   const { error: insertError } = await admin.from('occurrence_invitations').insert({
     occurrence_id: occurrence.id,
