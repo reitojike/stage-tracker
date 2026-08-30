@@ -222,8 +222,10 @@ deletionとは別概念であり、Issue #123でsemantics決定済み、Issue #1
 
 - ticket acquisition / ticket / ticket transfer の user-facing UI journey
   （schema/RLS baselineとtyped read/write boundaryは上記のとおり成立済み。
-  My CalendarはticketのMVP statusを表示しますが、acquisition/ticketの
-  新規作成・編集UIはIssue #35で別途扱います）
+  acquisition/ticketの新規作成・編集UIはIssue #35で別途扱います。Issue
+  #225/#230でMy Calendarからlegacy Ticket acquisition状態表示は除去済み
+  で、My Calendarはこのuser-facing UI journeyの一部ではありません -
+  上記「My Calendar」節参照）
 - catalog classification / venue のMVP data boundary
 - Event開催期間（Event range: `starts_on`/`ends_on`、first-class data）、
   0件の公演回を持つeventの許容、公演回の開場日時（doors相当）、および
