@@ -4,17 +4,13 @@
 // one calendar-day index a presentation layer can render directly, plus the
 // weekday/Japanese-holiday role from calendarDayRole.ts.
 //
-// Issue #225/#230: this module no longer merges legacy Ticket acquisition
-// state. My Calendar's canonical source is Participation + Personal
-// Schedule only - the legacy `pending`/`secured`/`unsuccessful` acquisition
-// display (Issue #34's original third slice) has been removed from current
-// runtime along with the rest of the legacy Ticket acquisition/inventory/
-// transfer model (the underlying `ticket_acquisitions`/`tickets` schema
-// itself is not dropped in this PR - see supabase/migrations/ and #225's
-// deferred PR B). The current Ticket MVP (TicketOpportunity +
-// UserTicketOpportunityState `planned`/`applied`, Issue #157/#162) is a
-// separate, unrelated surface (/tickets, Home) that never fed into My
-// Calendar and is unaffected by this change.
+// Issue #225/#230: this module's canonical source is Participation + Personal
+// Schedule only. The old acquired-ticket status display (Issue #34's
+// original third slice) was removed from the runtime, and the underlying
+// acquired-ticket model is now decommissioned by Issue #234. The current
+// Ticket MVP (TicketOpportunity + UserTicketOpportunityState
+// `planned`/`applied`, Issue #157/#162) is a separate surface (/tickets,
+// Home) that never fed into My Calendar and is unaffected by this change.
 //
 // This module never queries Supabase and never re-derives visibility: the
 // caller (src/app/calendar/page.tsx) is expected to have already fetched

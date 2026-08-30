@@ -13,7 +13,7 @@ const source = readFileSync(
   'utf8',
 );
 
-void test('the upcoming list never imports the legacy ticket_acquisitions boundary or renders a ticket-status badge', () => {
+void test('the upcoming list never imports an acquired-ticket boundary or renders a ticket-status badge', () => {
   assert.doesNotMatch(source, /ticketAcquisition|TicketDisplayStatus|ticketDisplayStatusLabel/);
 });
 

@@ -371,7 +371,7 @@ task / 追加のPO checkpointで確定します。
   occurrence marker / 同日複数公演の件数表示 / overlapping runsのstack /
   `+N` collapsing / Event range内でoccurrenceが存在しない日の表示）
 - event / occurrence / participation / invitation / personal schedule /
-  ticket acquisition / ticket のpersistence shape・table naming。これら
+  TicketOpportunity planning のpersistence shape・table naming。これら
   のdomain persistenceの正本は `.ai-dev-foundation/product-rules.md` と
   current implementationであり、本ドキュメントでは固定しません（将来の
   変更もこのdocumentが決めるものではありません）

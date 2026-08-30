@@ -13,7 +13,7 @@ export interface EventCancellationFormProps {
 }
 
 const CANCEL_CONFIRM_MESSAGE =
-  'このイベントを中止にします。既存の参加予定・招待・チケット情報は削除されません。よろしいですか？';
+  'このイベントを中止にします。既存の参加予定・招待情報は削除されません。よろしいですか？';
 const UNCANCEL_CONFIRM_MESSAGE = 'このイベントの中止を解除します。よろしいですか？';
 
 /**

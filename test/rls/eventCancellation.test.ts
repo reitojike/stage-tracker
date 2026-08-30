@@ -16,7 +16,6 @@ import {
   requireActorEmail,
   setParticipation,
 } from './support/participationFixtures.ts';
-import { createAcquisition } from './support/ticketFixtures.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 // Real local Supabase/Postgres RLS/trigger/RPC tests for Issue #125's
@@ -29,10 +28,9 @@ import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 //   owner-only, both directions (cancel and uncancel) reversible.
 // - Effective cancellation = Event canceled OR Occurrence canceled.
 // - Un-canceling the Event never clears an Occurrence's own cancellation.
-// - Cancellation never touches existing participation/invitation/ticket
-//   acquisition rows.
+// - Cancellation never touches existing participation/invitation rows.
 // - New active commitments (new participation, `considering -> attending`,
-//   new invitation, new ticket acquisition) are rejected (SQLSTATE 90002)
+//   new invitation) are rejected (SQLSTATE 90002)
 //   on an effectively-canceled occurrence; withdrawal (participation
 //   DELETE) and unrelated updates stay available.
 
@@ -303,28 +301,6 @@ void test('withdrawing (deleting) a participation is still allowed once effectiv
   assert.equal(data.length, 1);
 });
 
-// --- Effective cancellation guard: new ticket acquisition ---
-
-void test('a new ticket acquisition is rejected once effectively canceled', async () => {
-  const { occurrence } = await createEventWithOccurrence(owner);
-  await owner.client
-    .from('event_occurrences')
-    .update({ canceled_at: new Date().toISOString() })
-    .eq('id', occurrence.id);
-
-  const { error } = await nonOwner.client
-    .from('ticket_acquisitions')
-    .insert({ owner_id: nonOwner.user.id, occurrence_id: occurrence.id });
-  assert.ok(error, 'expected the ticket acquisition insert to be rejected');
-  assert.equal(error.code, '90002');
-});
-
-void test('a new ticket acquisition succeeds on a not-canceled occurrence', async () => {
-  const { occurrence } = await createEventWithOccurrence(owner);
-  const acquisition = await createAcquisition(nonOwner, occurrence.id);
-  assert.equal(acquisition.occurrence_id, occurrence.id);
-});
-
 // --- Effective cancellation guard: new invitation ---
 
 void test('invite_to_occurrence is rejected once effectively canceled', async () => {
@@ -363,9 +339,8 @@ void test('invite_to_occurrence_by_email is rejected once effectively canceled',
 
 // --- Cancellation never touches existing downstream data ---
 
-void test('canceling an occurrence does not remove or change existing participation/invitation/ticket acquisition rows', async () => {
+void test('canceling an occurrence does not remove or change existing participation rows', async () => {
   const { occurrenceId } = await createOccurrenceWithAttendee(owner, nonOwner);
-  const acquisition = await createAcquisition(nonOwner, occurrenceId, { status: 'secured' });
 
   await owner.client
     .from('event_occurrences')
@@ -380,20 +355,11 @@ void test('canceling an occurrence does not remove or change existing participat
     .single();
   assert.equal(participationError, null);
   assert.equal(participation.status, 'attending');
-
-  const { data: acquisitionRow, error: acquisitionError } = await nonOwner.client
-    .from('ticket_acquisitions')
-    .select()
-    .eq('id', acquisition.id)
-    .single();
-  assert.equal(acquisitionError, null);
-  assert.equal(acquisitionRow.status, 'secured');
 });
 
 // --- service_role can reach the effective-cancellation guard (review
-// finding): the guard triggers on occurrence_participations/
-// ticket_acquisitions run SECURITY INVOKER, so a service_role-performed
-// INSERT (admin fixtures, backend tooling) calls
+// finding): the occurrence_participations guard runs SECURITY INVOKER, so a
+// service_role-performed INSERT (admin fixtures, backend tooling) calls
 // event_occurrence_is_effectively_canceled as service_role too. Without an
 // explicit EXECUTE grant to service_role on that function (table-level
 // grants are a separate, still-enforced check from BYPASSRLS - see
@@ -408,15 +374,6 @@ void test('service_role can insert a participation on a not-canceled occurrence 
   const { error } = await admin
     .from('occurrence_participations')
     .insert({ occurrence_id: occurrence.id, user_id: nonOwner.user.id, status: 'considering' });
-  assert.equal(error, null);
-});
-
-void test('service_role can insert a ticket acquisition on a not-canceled occurrence (guard function is reachable)', async () => {
-  const { occurrence } = await createEventWithOccurrence(owner);
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from('ticket_acquisitions')
-    .insert({ owner_id: nonOwner.user.id, occurrence_id: occurrence.id });
   assert.equal(error, null);
 });
 

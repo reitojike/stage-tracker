@@ -214,12 +214,12 @@ const DELETE_BLOCKED: Record<EventDeleteOperation, EventWriteFeedback> = {
   'delete-event': {
     variant: 'error',
     title: 'このイベントは削除できません',
-    description: '関連する参加・招待・チケット情報がある公演回が含まれているため削除できません。',
+    description: '関連する参加・招待がある公演回が含まれているため削除できません。',
   },
   'delete-occurrence': {
     variant: 'error',
     title: 'この公演回は削除できません',
-    description: '関連する参加・招待・チケット情報があるため削除できません。',
+    description: '関連する参加・招待があるため削除できません。',
   },
 };
 

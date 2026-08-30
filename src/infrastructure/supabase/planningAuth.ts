@@ -49,8 +49,8 @@ export function classifyGetUserError(error: unknown): PlanningError {
 /**
  * Resolves the caller's own id from the given client's session (Issue #33).
  *
- * Several tables this boundary writes to (occurrence_participations,
- * personal_schedule_entries, ticket_acquisitions, tickets) grant the
+ * Several tables this boundary writes to (occurrence_participations and
+ * personal_schedule_entries) grant the
  * relevant owner/user id column on INSERT, relying on RLS's WITH CHECK to
  * reject a spoofed value rather than withholding the column entirely (unlike
  * events.owner_id, which the create RPC derives server-side - see

@@ -496,9 +496,9 @@ export function eventRangeToFormValues(range: EventRangeInput): RawFormValues {
  * the startsAt field instead of showing a banner.
  *
  * 'delete-blocked' (Issue #124): hard delete rejected because downstream
- * data (occurrence participation/invitation/ticket acquisition) exists.
+ * data (occurrence participation/invitation) exists.
  * This is distinct from generic 'validation' so a caller can name the
- * specific restriction ("参加・招待・チケット情報があるため削除できません")
+ * specific restriction ("参加・招待があるため削除できません")
  * instead of showing a generic validation banner.
  */
 export type EventCatalogWriteErrorKind =
@@ -532,7 +532,7 @@ const UNIQUE_VIOLATION = '23505';
 
 /** delete-blocked condition (Issue #124): occurrence or event hard delete
  * rejected because downstream data exists (occurrence_participations /
- * occurrence_invitations / ticket_acquisitions). This is application-defined,
+ * occurrence_invitations). This is application-defined,
  * not a standard PostgreSQL FK violation (23503 from range-containment checks
  * stays 'validation'). */
 const DELETE_BLOCKED_CUSTOM_SQLSTATE = '90001';

@@ -14,7 +14,6 @@ import {
 } from './support/eventFixtures.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 import { setParticipation } from './support/participationFixtures.ts';
-import { createAcquisition } from './support/ticketFixtures.ts';
 
 // Real local Supabase/Postgres RLS/RPC tests for Issue #124's Event/
 // Occurrence hard deletion (delete_event_occurrence / delete_event, both
@@ -24,7 +23,7 @@ import { createAcquisition } from './support/ticketFixtures.ts';
 // Product semantics under test (product-rules.md "Deletion"):
 // - owner-only, for both RPCs.
 // - an occurrence cannot be deleted while occurrence_participations /
-//   occurrence_invitations / ticket_acquisitions reference it - no cascade.
+//   occurrence_invitations reference it - no cascade.
 // - an event's delete is atomic across itself and every child occurrence:
 //   it only proceeds if EVERY child is independently safe to delete: one
 //   unsafe child rejects the whole operation, never a partial delete.
@@ -176,18 +175,6 @@ void test('occurrence delete is blocked while an invitation references it', asyn
     p_occurrence_id: occurrence.id,
   });
   assert.ok(error, 'expected the delete to be blocked by an existing invitation');
-  assert.equal(error.code, '90001');
-  assert.equal(await occurrenceExists(occurrence.id), true);
-});
-
-void test('occurrence delete is blocked while a ticket acquisition references it', async () => {
-  const { occurrence } = await createEventWithOccurrence(owner);
-  await createAcquisition(nonOwner, occurrence.id);
-
-  const { error } = await owner.client.rpc('delete_event_occurrence', {
-    p_occurrence_id: occurrence.id,
-  });
-  assert.ok(error, 'expected the delete to be blocked by an existing ticket acquisition');
   assert.equal(error.code, '90001');
   assert.equal(await occurrenceExists(occurrence.id), true);
 });

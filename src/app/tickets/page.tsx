@@ -58,9 +58,9 @@ function readFailurePanel() {
  * Event title/venue and target Occurrence date/time are composed in from the
  * existing Event Catalog typed read boundary (getEventsByIds/
  * getOccurrencesByIds), the same composition style src/app/calendar/page.tsx
- * already established. This page never reads legacy ticket_acquisitions/
- * tickets/ticket_transfers, and adds no Opportunity-creation affordance of
- * its own (product-rules.md "Shared / personal authority boundary").
+ * already established. This page consumes only the TicketOpportunity typed
+ * boundary and adds no Opportunity-creation affordance of its own
+ * (product-rules.md "Shared / personal authority boundary").
  *
  * #144's own buildTicketOpportunityTimelineRows still flattens every
  * Opportunity's every milestone into one chronological row list unchanged

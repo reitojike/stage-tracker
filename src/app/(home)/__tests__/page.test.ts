@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const pageSource = readFileSync(fileURLToPath(new URL('../page.tsx', import.meta.url)), 'utf8');
 
-void test('Home never reads the legacy ticket_acquisitions/tickets/ticket_transfers boundary', () => {
+void test('Home never imports the removed acquired-ticket boundary', () => {
   assert.doesNotMatch(pageSource, /listMyAcquisitions|ticketAcquisition|ticketTransfer/);
 });
 

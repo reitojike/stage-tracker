@@ -1,6 +1,6 @@
 // Shared error/result vocabulary for the MVP personal planning typed
 // read/write boundary (Issue #33): participation, invitation, personal
-// schedule, ticket acquisition, ticket, and ticket transfer all report
+// schedule, and TicketOpportunity features all report
 // outcomes through this same shape, so a UI-facing caller branches on one
 // consistent set of error kinds instead of a different ad-hoc shape per
 // feature. This module is pure domain logic: no Supabase import (see the
@@ -58,10 +58,9 @@ const VALIDATION_CODES = new Set([
 /** Custom SQLSTATE 90002 (Issue #125/#123): raised by
  * check_occurrence_participation_insert_not_canceled /
  * check_occurrence_participation_update_not_canceled /
- * check_ticket_acquisition_insert_not_canceled / invite_to_occurrence(_by_
- * email) (supabase/migrations/20260826000200_create_event_occurrence_
+ * invite_to_occurrence(_by_email) (supabase/migrations/20260826000200_create_event_occurrence_
  * cancellation.sql) when a write would create a new active commitment
- * (participation, `attending`, invitation, ticket acquisition) on an
+ * (participation, `attending`, or invitation) on an
  * effectively-canceled occurrence. Classified as `validation` here - the
  * submitted request is not malformed, but the target's current state makes
  * it invalid right now - and exported (not just matched internally) so a
@@ -96,9 +95,8 @@ export interface RpcErrorRule {
 
 /**
  * Classifies an error raised by one of this Task's own SECURITY DEFINER
- * RPCs (request_ticket_transfer, accept_ticket_transfer,
- * cancel_ticket_transfer, invite_to_occurrence,
- * decline_occurrence_invitation - see supabase/migrations/). Every `raise
+ * RPCs (invite_to_occurrence, decline_occurrence_invitation - see
+ * supabase/migrations/). Every `raise
  * exception` in those functions shares Postgres's default P0001 SQLSTATE
  * (none of them attach `using errcode`), so the SQLSTATE alone cannot tell
  * "not found" apart from "not eligible" apart from "already settled" the
