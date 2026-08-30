@@ -17,6 +17,16 @@ export interface SheetProps {
   footer?: ReactNode;
   /** Whether the default quiet header close action is rendered. */
   showCloseButton?: boolean;
+  /**
+   * Extra class merged onto the header close Button. Optional and additive
+   * - every existing caller keeps Button's default quiet fill. Issue #240
+   * (TURN 25b) uses it to scope InviteSheet's plain-text 閉じる (no
+   * --color-surface-subtle pill at rest, per reference/invite-sheet-390.png)
+   * to that one sheet, rather than changing this shared primitive's default
+   * for every Sheet consumer (ParticipationSheet, FilterSheet - #236's
+   * bounded ownership) with no TURN 25 reference to verify those against.
+   */
+  closeButtonClassName?: string;
 }
 
 /**
@@ -43,6 +53,7 @@ export function Sheet({
   bodyClassName,
   footer,
   showCloseButton = true,
+  closeButtonClassName,
 }: SheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -94,6 +105,7 @@ export function Sheet({
             <Button
               type="button"
               variant="quiet"
+              className={closeButtonClassName}
               onClick={() => {
                 dialogRef.current?.close();
               }}

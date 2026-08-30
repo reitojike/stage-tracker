@@ -6,6 +6,16 @@ export interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   helperText?: string;
   error?: string;
+  /**
+   * Extra class merged onto the `<label>` element only (the plain
+   * `className` prop above targets the `<input>`). Optional and additive -
+   * every existing caller keeps the default label treatment; Issue #240
+   * uses it to scope InviteSheet's 12px/600 label size to that one screen
+   * instead of changing this shared primitive's default for every other
+   * TextInput consumer (schedule/event/occurrence forms, sign-in) with no
+   * reference image to verify those against.
+   */
+  labelClassName?: string;
 }
 
 export function TextInput({
@@ -14,6 +24,7 @@ export function TextInput({
   error,
   id,
   className,
+  labelClassName,
   required,
   'aria-describedby': callerDescribedBy,
   'aria-invalid': callerInvalid,
@@ -28,7 +39,7 @@ export function TextInput({
 
   return (
     <div className={styles.field}>
-      <label className={styles.label} htmlFor={inputId}>
+      <label className={[styles.label, labelClassName].filter(Boolean).join(' ')} htmlFor={inputId}>
         {label}
         <RequirementIndicator required={!!required} />
       </label>

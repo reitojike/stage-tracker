@@ -10,8 +10,49 @@
   gap: var(--space-sm);
 }
 
+/* Issue #240 (TURN 25b): label size/weight scoped to this one screen via
+   TextInput's optional labelClassName - see that prop's own doc comment
+   for why this isn't a change to TextInput's shared default instead. */
+.emailLabel {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+}
+
 /* One right-aligned filled indigo execution button (Issue #230 addendum). */
 .actions {
   display: flex;
   justify-content: flex-end;
+}
+
+/*
+ * Issue #240 (TURN 25b): 2px badge/button-radius vocabulary for this one
+ * emphasis action, reusing --radius-badge (already 2px) rather than
+ * introducing a new radius token. Scoped to this specific button, not a
+ * change to Button.module.css's shared --radius-control (4px) used by
+ * every other button in the app - the `button` element selector here
+ * (specificity 0,1,1) reliably wins over Button.module.css's `.primary`/
+ * `.button` (0,1,0) regardless of CSS module bundling order.
+ */
+button.submitButton {
+  border-radius: var(--radius-badge);
+}
+
+/*
+ * Issue #240 (TURN 25b reference check): the sheet header's 閉じる renders
+ * as plain text at rest in reference/invite-sheet-390.png - no
+ * --color-surface-subtle pill behind it, unlike Button's shared `quiet`
+ * variant default. Passed into Sheet's optional closeButtonClassName (see
+ * that prop's own doc comment) rather than changing Sheet.module.css's
+ * default: ParticipationSheet and FilterSheet (#236's bounded ownership)
+ * share the same header close button and have no TURN 25 reference to
+ * verify a background-removal against. Hover/active feedback kept, same
+ * technique as OccurrenceParticipationRow.module.css's .quietAction.
+ */
+button.quietAction {
+  background-color: transparent;
+}
+
+button.quietAction:hover:not(:disabled),
+button.quietAction:active:not(:disabled) {
+  background-color: var(--color-surface-active);
 }
