@@ -67,6 +67,15 @@ export function Sheet({
       onClose={() => {
         onOpenChange(false);
       }}
+      onKeyDown={(event) => {
+        // Keep Escape dismissal on the shared primitive's close path even in
+        // browsers that dispatch the key event without applying the native
+        // dialog's implicit cancel action.
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          dialogRef.current?.close();
+        }
+      }}
       onClick={(event) => {
         // A click landing on the <dialog> element itself (never a child) is
         // a backdrop click - dismiss the same way Escape or the header's

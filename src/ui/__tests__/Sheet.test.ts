@@ -34,6 +34,13 @@ void test('owns native backdrop dismissal and routes it through the same close e
   assert.match(component, /dialogRef\.current\.close\(\)/);
 });
 
+void test('keeps Escape dismissal on the shared native close path', () => {
+  assert.match(component, /onKeyDown=\{\(event\) => \{/);
+  assert.match(component, /event\.key === 'Escape'/);
+  assert.match(component, /event\.preventDefault\(\)/);
+  assert.match(component, /dialogRef\.current\?\.close\(\)/);
+});
+
 void test('renders the shared header while allowing FilterSheet to keep its footer-only affordance', () => {
   assert.match(component, /<div className=\{styles\.header\}>/);
   assert.match(component, /<p id=\{titleId\} className=\{styles\.title\}>/);
