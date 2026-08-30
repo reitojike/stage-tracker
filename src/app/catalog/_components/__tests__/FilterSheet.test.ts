@@ -9,23 +9,40 @@ import { fileURLToPath } from 'node:url';
 // TriStateCheckbox.test.ts and MonthCalendar.test.ts.
 const componentPath = fileURLToPath(new URL('../FilterSheet.tsx', import.meta.url));
 const cssPath = fileURLToPath(new URL('../FilterSheet.module.css', import.meta.url));
+const sheetCssPath = fileURLToPath(new URL('../../../../ui/Sheet.module.css', import.meta.url));
 const component = readFileSync(componentPath, 'utf8');
 const css = readFileSync(cssPath, 'utf8');
+const sheetCss = readFileSync(sheetCssPath, 'utf8');
 
-void test('renders a native <dialog> - real modal focus trap/Escape-to-dismiss/::backdrop, no hand-rolled overlay', () => {
-  assert.match(component, /<dialog\b/);
-  assert.match(component, /dialog\.showModal\(\)/);
+void test('composes the shared Sheet for dialog lifecycle and the Filter-specific footer slot', () => {
+  assert.match(component, /import \{ Sheet \} from '@\/ui\/Sheet';/);
+  assert.match(component, /<Sheet\b/);
+  assert.match(component, /title="絞り込み"/);
+  assert.match(component, /bodyClassName=\{styles\.body\}/);
+  assert.match(component, /footer=\{/);
+  assert.match(component, /showCloseButton=\{false\}/);
+  assert.doesNotMatch(component, /<dialog\b|showModal\(\)|dialogRef|useId/);
 });
 
-void test('Escape/backdrop dismissal only fires onOpenChange, never touches applied state', () => {
-  const onCloseHandler = component.match(/onClose=\{\(\) => \{([\s\S]*?)\}\}/);
-  assert.ok(onCloseHandler, 'dialog is missing an onClose handler');
-  assert.match(onCloseHandler[1] ?? '', /onOpenChange\(false\)/);
-  assert.doesNotMatch(onCloseHandler[1] ?? '', /setApplied/);
+void test('FilterSheet delegates Escape/backdrop dismissal to Sheet and keeps confirm as its only close request', () => {
+  const sheetProps = component.match(/<Sheet([\s\S]*?)>/);
+  assert.ok(sheetProps, 'FilterSheet is missing its shared Sheet composition');
+  assert.match(sheetProps[1] ?? '', /open=\{open\}/);
+  assert.match(sheetProps[1] ?? '', /onOpenChange=\{onOpenChange\}/);
+  assert.doesNotMatch(component, /onClose=|event\.target ===|\.close\(\)|showModal\(\)/);
+  assert.match(component, /onOpenChange\(false\)/);
 });
 
-void test('a backdrop click (target is the dialog itself, never a child) closes without committing', () => {
-  assert.match(component, /event\.target === dialogRef\.current/);
+void test('Filter-specific body and footer are passed as Sheet slots, keeping footer outside the scrollable body', () => {
+  const sheetProps = component.match(/<Sheet([\s\S]*?)>/);
+  assert.ok(sheetProps, 'FilterSheet is missing its shared Sheet composition');
+  assert.match(sheetProps[1] ?? '', /bodyClassName=\{styles\.body\}/);
+  assert.match(sheetProps[1] ?? '', /footer=\{/);
+  assert.match(component, /<div className=\{styles\.footer\}>/);
+});
+
+void test('FilterSheet no longer carries a duplicate shared dialog/frame CSS surface', () => {
+  assert.doesNotMatch(css, /(?:^|\n)\.(dialog|sheet|title)\s*\{/);
 });
 
 void test('the genre/facet dispatch (secondaryOptionsForFacet vs knownSecondaryValuesByGenre) shares one source: activeSecondaryFacet', () => {
@@ -171,8 +188,8 @@ void test('a corrupt/unavailable localStorage read never throws - falls back to 
 });
 
 void test('the sheet is anchored to the bottom viewport edge with only the top corners rounded', () => {
-  const dialogRule = css.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
-  assert.ok(dialogRule, '.dialog rule is missing from FilterSheet.module.css');
+  const dialogRule = sheetCss.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
+  assert.ok(dialogRule, '.dialog rule is missing from Sheet.module.css');
   assert.match(dialogRule[1] ?? '', /inset-block-end:\s*0\s*;/);
   assert.match(dialogRule[1] ?? '', /border-start-start-radius:\s*var\(--radius-sheet\)\s*;/);
   assert.match(dialogRule[1] ?? '', /border-start-end-radius:\s*var\(--radius-sheet\)\s*;/);
@@ -186,23 +203,23 @@ void test("inset-block-start is explicitly reset to auto, overriding <dialog>'s 
   // unset, that top:0 wins over inset-block-end below in the
   // over-constrained top+height+bottom case, pinning the sheet to the top
   // of the viewport instead of the bottom.
-  const dialogRule = css.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
-  assert.ok(dialogRule, '.dialog rule is missing from FilterSheet.module.css');
+  const dialogRule = sheetCss.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
+  assert.ok(dialogRule, '.dialog rule is missing from Sheet.module.css');
   assert.match(dialogRule[1] ?? '', /inset-block-start:\s*auto\s*;/);
 });
 
 void test('the sheet surface is the paper canvas token, not the white content-surface fill (Issue #195)', () => {
-  const dialogRule = css.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
-  assert.ok(dialogRule, '.dialog rule is missing from FilterSheet.module.css');
+  const dialogRule = sheetCss.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
+  assert.ok(dialogRule, '.dialog rule is missing from Sheet.module.css');
   assert.match(dialogRule[1] ?? '', /background-color:\s*var\(--color-canvas\)\s*;/);
 });
 
 void test('open/close transitions ease-out over ~200ms', () => {
-  assert.match(css, /transform 200ms ease-out/);
+  assert.match(sheetCss, /transform 200ms ease-out/);
 });
 
 void test('the backdrop is a dark scrim behind the sheet', () => {
-  assert.match(css, /\.dialog::backdrop\s*\{/);
+  assert.match(sheetCss, /\.dialog::backdrop\s*\{/);
 });
 
 void test('genre chips wrap (never scroll) and meet the 44px tap target', () => {
