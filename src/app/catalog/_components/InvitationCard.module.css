@@ -1,16 +1,28 @@
+/*
+ * Issue #240 (TURN 25c): the per-item white card - background/12px
+ * radius/padding - is removed. Row block padding + hairline separator now
+ * come from InvitationList.module.css's `.item` (the list owns spacing
+ * between rows; this component only owns its own internal layout).
+ */
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  background-color: var(--color-surface);
-  border-radius: var(--radius-surface);
-  padding: var(--space-md);
 }
 
 .title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   margin: 0;
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-weight-medium);
+}
+
+/* Issue #240: "中止" inline, immediately left of the title text, instead of
+   its own line below the occurrence time. */
+.canceledBadge {
+  flex-shrink: 0;
 }
 
 .occurrenceTime {
@@ -29,6 +41,35 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-sm);
+}
+
+/*
+ * Issue #240 (TURN 25c): 2px badge/button-radius vocabulary for this one
+ * emphasis action, reusing --radius-badge rather than a new token - same
+ * scoped-override technique as InviteSheet.module.css's .submitButton (see
+ * that comment for why this is a per-instance override, not a change to
+ * Button.module.css's shared --radius-control).
+ */
+button.acceptButton {
+  border-radius: var(--radius-badge);
+}
+
+/*
+ * Issue #240 (TURN 25c reference check): 参加しない/閉じる render as plain
+ * text at rest in reference/invitations-390.png - no --color-surface-subtle
+ * pill behind them, unlike Button's shared `quiet` variant default. Same
+ * scoped-override technique and rationale as
+ * OccurrenceParticipationRow.module.css's own .quietAction (see that
+ * comment) - not a Button.module.css change, since Sheet.tsx's own quiet
+ * 「閉じる」is explicitly preserved as-is per Issue #240.
+ */
+button.quietAction {
+  background-color: transparent;
+}
+
+button.quietAction:hover:not(:disabled),
+button.quietAction:active:not(:disabled) {
+  background-color: var(--color-surface-active);
 }
 
 /* Decline-undo row (Issue #230 addendum): replaces the card body in place

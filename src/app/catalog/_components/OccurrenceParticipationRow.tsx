@@ -21,10 +21,12 @@ export interface OccurrenceParticipationRowProps {
 
 // Reuses myCalendarFormatting.ts's participationStatusLabel for the two real
 // statuses (that module's own doc comment names this component as the
-// reason those exact strings are canonical) rather than re-deriving them;
-// only the no-row case ("未定") is specific to this row.
-function statusText(status: Participation['status'] | null): string {
-  return status === null ? '未定' : participationStatusLabel(status);
+// reason those exact strings are canonical) rather than re-deriving them.
+// The no-row case renders no label at all (PO decision, TURN 25 follow-up):
+// every occurrence not labeled 参加する/気になる is implicitly undecided, so
+// a literal "未定" string next to it was redundant rather than informative.
+function statusText(status: Participation['status'] | null): string | null {
+  return status === null ? null : participationStatusLabel(status);
 }
 
 /**
@@ -45,14 +47,16 @@ export function OccurrenceParticipationRow({
   const [sheet, setSheet] = useState<'none' | 'participation' | 'invite'>('none');
 
   const canInvite = participation?.status === 'attending' && !isEffectivelyCanceled;
+  const label = statusText(participation?.status ?? null);
 
   return (
     <div className={styles.row}>
-      <span className={styles.statusText}>{statusText(participation?.status ?? null)}</span>
+      {label !== null ? <span className={styles.statusText}>{label}</span> : <span />}
       <div className={styles.actions}>
         <Button
           type="button"
           variant="quiet"
+          className={styles.quietAction}
           onClick={() => {
             setSheet('participation');
           }}
@@ -63,6 +67,7 @@ export function OccurrenceParticipationRow({
           <Button
             type="button"
             variant="quiet"
+            className={styles.quietAction}
             onClick={() => {
               setSheet('invite');
             }}
