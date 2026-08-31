@@ -38,6 +38,7 @@ void test('keeps Escape dismissal on the shared native close path', () => {
   assert.match(component, /onKeyDown=\{\(event\) => \{/);
   assert.match(component, /event\.key === 'Escape'/);
   assert.match(component, /event\.preventDefault\(\)/);
+  assert.match(component, /event\.stopPropagation\(\)/);
   assert.match(component, /dialogRef\.current\?\.close\(\)/);
 });
 
