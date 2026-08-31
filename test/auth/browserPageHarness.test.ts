@@ -64,7 +64,9 @@ void test('readDevToolsPort rejects with a bounded timeout diagnostic when no po
 // --- readDevToolsPort: early exit ---
 
 void test('readDevToolsPort rejects with an early-exit diagnostic (and any captured stderr) when Chrome exits before reporting a port', async () => {
-  const child = nodeChild("process.stderr.write('fatal: no display found\\n'); process.exitCode = 1;");
+  const child = nodeChild(
+    "process.stderr.write('fatal: no display found\\n'); process.exitCode = 1;",
+  );
   await assert.rejects(
     readDevToolsPort(child, 5_000),
     /Chrome exited before reporting a DevTools port \(code 1, signal null\) - Chrome stderr: fatal: no display found/,
@@ -74,7 +76,10 @@ void test('readDevToolsPort rejects with an early-exit diagnostic (and any captu
 // --- readDevToolsPort: spawn-level error ---
 
 void test('readDevToolsPort rejects with a spawn-error diagnostic when the process never starts', async () => {
-  const missingBinary = path.join(mkdtempSync(path.join(tmpdir(), 'no-chrome-here-')), 'not-a-binary');
+  const missingBinary = path.join(
+    mkdtempSync(path.join(tmpdir(), 'no-chrome-here-')),
+    'not-a-binary',
+  );
   assert.equal(existsSync(missingBinary), false, 'sanity: this path must not exist');
   const child = spawn(missingBinary, [], { stdio: ['ignore', 'ignore', 'pipe'] });
   await assert.rejects(readDevToolsPort(child, 5_000), /Chrome process failed to start/);
@@ -82,7 +87,10 @@ void test('readDevToolsPort rejects with a spawn-error diagnostic when the proce
 
 // --- cleanupFailedLaunch: terminates an already-failed startup ---
 
-function createFakeChild(): TerminableChild & { killedWith: NodeJS.Signals[]; forceExit: () => void } {
+function createFakeChild(): TerminableChild & {
+  killedWith: NodeJS.Signals[];
+  forceExit: () => void;
+} {
   let exitListener: (() => void) | undefined;
   const fake: TerminableChild & { killedWith: NodeJS.Signals[]; forceExit: () => void } = {
     exitCode: null,
@@ -135,10 +143,7 @@ void test('cleanupFailedLaunch rejects with a bounded timeout - never hangs - wh
   const child = createFakeChild();
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
 
-  await assert.rejects(
-    cleanupFailedLaunch(child, userDataDir, 50),
-    /did not exit within 50ms/,
-  );
+  await assert.rejects(cleanupFailedLaunch(child, userDataDir, 50), /did not exit within 50ms/);
 
   assert.equal(
     existsSync(userDataDir),
@@ -158,10 +163,14 @@ void test('a startup failure followed by a cleanup failure keeps the startup err
   try {
     await cleanupFailedLaunch(child, userDataDir, 50);
   } catch (cleanupError) {
-    const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
-    combined = new Error(`${startupError.message}; additionally, cleanup failed: ${cleanupMessage}`, {
-      cause: startupError,
-    });
+    const cleanupMessage =
+      cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+    combined = new Error(
+      `${startupError.message}; additionally, cleanup failed: ${cleanupMessage}`,
+      {
+        cause: startupError,
+      },
+    );
   }
 
   assert.ok(combined instanceof Error);

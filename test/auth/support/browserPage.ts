@@ -378,7 +378,9 @@ export function readDevToolsPort(child: ChildProcess, timeoutMs: number): Promis
 
     const onSpawnError = (spawnError: Error): void => {
       finish(() => {
-        reject(new Error(`Chrome process failed to start: ${spawnError.message}${stderrSuffix(stderr)}`));
+        reject(
+          new Error(`Chrome process failed to start: ${spawnError.message}${stderrSuffix(stderr)}`),
+        );
       });
     };
 
@@ -468,11 +470,13 @@ async function attemptLaunch(chromePath: string): Promise<Browser> {
     // itself, rather than leaving an orphaned Chrome process/temp profile
     // for the caller to discover it never received (Issue #259's root
     // cause: this cleanup previously did not happen at all).
-    const startupMessage = startupError instanceof Error ? startupError.message : String(startupError);
+    const startupMessage =
+      startupError instanceof Error ? startupError.message : String(startupError);
     try {
       await cleanupFailedLaunch(child, userDataDir);
     } catch (cleanupError) {
-      const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+      const cleanupMessage =
+        cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
       // The Chrome startup failure is the primary, actionable diagnostic;
       // a cleanup failure on top of it is additional context, not a
       // replacement (mirrors appServer.ts's startAppServer readiness/stop
@@ -543,7 +547,9 @@ export async function launchBrowser(): Promise<Browser> {
       return await attemptLaunch(chromePath);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      attemptSummaries.push(`attempt ${String(attempt)}/${String(MAX_LAUNCH_ATTEMPTS)}: ${message}`);
+      attemptSummaries.push(
+        `attempt ${String(attempt)}/${String(MAX_LAUNCH_ATTEMPTS)}: ${message}`,
+      );
       if (attempt === MAX_LAUNCH_ATTEMPTS) {
         throw new Error(`Chrome startup failed:\n${attemptSummaries.join('\n')}`, { cause: error });
       }
