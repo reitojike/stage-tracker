@@ -59,6 +59,7 @@ export function PasskeySignInButton() {
         />
       ) : null}
       <Button
+        className={styles.button}
         type="button"
         onClick={() => {
           void handleClick();
@@ -67,6 +68,7 @@ export function PasskeySignInButton() {
       >
         {isPending ? 'サインイン中…' : 'Passkeyでサインイン'}
       </Button>
+      <p className={styles.helper}>登録済みの端末ならこれだけで入れます。</p>
     </div>
   );
 }

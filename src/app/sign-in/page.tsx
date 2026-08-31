@@ -1,10 +1,10 @@
 import { Button } from '@/ui/Button';
-import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { Surface } from '@/ui/Surface';
 import { TextInput } from '@/ui/TextInput';
 import { requestSignInLink } from './actions.ts';
 import { PasskeySignInButton } from './_components/PasskeySignInButton.tsx';
+import styles from './page.module.css';
 
 interface SignInPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -42,9 +42,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const authError = errorKey === undefined ? undefined : AUTH_ERRORS.get(errorKey);
 
   return (
-    <>
-      <PageHeading>stage-tracker サインイン</PageHeading>
-
+    <div className={styles.page}>
       {authError ? (
         <StatePanel variant="error" title={authError.title} description={authError.description} />
       ) : null}
@@ -63,21 +61,28 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           {/* Passkey登録済みuserの日常sign-in path（Issue #106）。discoverable
               credentialなのでメールアドレス入力は不要 - 下のMagic Link formは
               未登録user向けのfallbackとして常に併記する。 */}
-          <PasskeySignInButton />
-          <p>または</p>
-          <form action={requestSignInLink}>
-            <TextInput
-              label="メールアドレス"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              helperText="登録済みのメールアドレス宛にサインインリンクをリクエストします。"
-            />
-            <Button type="submit">サインインリンクをリクエスト</Button>
-          </form>
+          <div className={styles.methods}>
+            <PasskeySignInButton />
+            <div className={styles.separator} aria-label="または">
+              <span aria-hidden="true" />
+              <p>または</p>
+              <span aria-hidden="true" />
+            </div>
+            <form className={styles.magicLinkForm} action={requestSignInLink}>
+              <TextInput
+                label="メールアドレス"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+              />
+              <Button className={styles.magicLinkButton} variant="small" type="submit">
+                サインインリンクをリクエスト
+              </Button>
+            </form>
+          </div>
         </>
       )}
-    </>
+    </div>
   );
 }
