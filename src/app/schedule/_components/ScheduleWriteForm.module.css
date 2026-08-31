@@ -145,7 +145,3 @@
   margin: 0 auto;
   padding: var(--space-compact) var(--space-md);
 }
-
-/* Kept in the DOM (and in the accessibility tree) while it has nothing to
-   say, so a message arriving later lands in a region that already exists -
-   see WriteNotice.tsx / EventWriteForm.module.css's identical comment. */

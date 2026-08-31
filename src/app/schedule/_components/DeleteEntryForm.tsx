@@ -24,10 +24,7 @@ const CONFIRM_MESSAGE =
  * other write this feature offers, this one is irreversible (no soft
  * delete/trash/restore - product-rules.md "Entry deletion semantics") and
  * its blast radius extends beyond the owner - every share recipient loses
- * the entry too, via the DB-level ON DELETE CASCADE on personal_schedule_
- * shares. Calling preventDefault() in onSubmit when the caller cancels
- * stops the native form submission that would otherwise invoke formAction
- * (React server actions ride the same submit event a plain <form> would).
+ * the entry too, via the DB-level ON DELETE CASCADE on personal_schedule_shares.
  */
 export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
   const [open, setOpen] = useState(false);

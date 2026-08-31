@@ -235,9 +235,3 @@
   color: var(--color-danger);
   border-color: var(--color-danger);
 }
-
-/* Kept in the DOM (and in the accessibility tree) while it has nothing to
-   say, so a message arriving later lands in a region that already exists.
-   Taken out of flow rather than hidden with display:none, which would drop
-   it from the accessibility tree and defeat the point - and which as a flex
-   item would otherwise still consume one of .form's gaps. */
