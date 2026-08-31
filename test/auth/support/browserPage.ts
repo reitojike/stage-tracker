@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { waitForExit } from './appServer.ts';
 
 // Minimal real-browser driver over Chrome's DevTools Protocol (CDP), no
 // Playwright/Puppeteer dependency (Issue #145: "system Chrome + DevTools
@@ -286,41 +287,164 @@ export interface Browser {
   close(): Promise<void>;
 }
 
+// Chrome startup readiness allowance (Issue #259). Was a fixed 10s; observed
+// CI evidence (run 33322936064 attempt 2) showed a genuine DevTools-port
+// timeout on a runner that was concurrently running the full local Supabase
+// container stack (db/auth/rest/kong/inbucket/pg-meta) - real CPU/IO
+// contention Chrome does not see on a quieter machine. 20s is a modest,
+// bounded increase (not the 10s->20min anti-pattern the Issue explicitly
+// rules out): a normal successful startup that returns in ~1-2s never waits
+// anywhere near this, only a slow/failed one does.
+const READY_TIMEOUT_MS = 20_000;
+
+// Bounds every cleanup wait below (a failed startup's own child, and a
+// normal close()'s child) so a stuck/unresponsive Chrome process can never
+// hang the caller - the same bounded-wait principle
+// test/auth/support/appServer.ts's waitForExit exists for, reused directly
+// here rather than re-implemented.
+const CLEANUP_TIMEOUT_MS = 5_000;
+
+// One retry of *Chrome process startup/readiness only* (never of an Auth
+// assertion or the whole Database job - see launchBrowser's own doc
+// comment). Evidence so far (see READY_TIMEOUT_MS above) shows a single
+// transient DevTools-readiness timeout, not a repeatable startup failure -
+// a bounded second attempt, with the first attempt's Chrome process fully
+// cleaned up first, costs at most ~1 extra readiness window on the rare
+// transient case and nothing on the normal case.
+const MAX_LAUNCH_ATTEMPTS = 2;
+
+// Caps how much Chrome stderr a startup-failure error carries (Chrome's own
+// startup banner/diagnostics only - never page content, cookies, or
+// credentials, which this process never sees on stderr).
+const MAX_STDERR_CAPTURE_CHARS = 4_000;
+
+function stderrSuffix(stderr: string): string {
+  const trimmed = stderr.trim();
+  return trimmed === '' ? '' : ` - Chrome stderr: ${trimmed}`;
+}
+
 /** Reads Chrome's own `DevTools listening on ws://host:port/...` startup
  * line from stderr - the standard way to learn the actual port when
  * launched with `--remote-debugging-port=0` (letting the OS pick a free
  * one, avoiding the same port-collision risk test/auth/support/appServer.ts's
- * findFreePort exists to avoid for the Next dev server). */
-function readDevToolsPort(child: ChildProcess): Promise<number> {
+ * findFreePort exists to avoid for the Next dev server).
+ *
+ * Distinguishes (Issue #259) *why* startup failed - readiness timeout, an
+ * early exit, or a spawn-level error - and attaches bounded stderr context
+ * to whichever it was, since "Chrome did not report a DevTools port" alone
+ * does not say whether Chrome was merely slow, crashed, or never ran at
+ * all. Does not itself touch the child process - the caller (launchBrowser)
+ * owns cleanup, since only it knows whether this was the final attempt. */
+export function readDevToolsPort(child: ChildProcess, timeoutMs: number): Promise<number> {
   return new Promise((resolve, reject) => {
-    let buffer = '';
-    const timeout = setTimeout(() => {
-      reject(new Error('Chrome did not report a DevTools port within 10s'));
-    }, 10_000);
-    child.stderr?.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString('utf8');
-      const match = /ws:\/\/127\.0\.0\.1:(\d+)\//.exec(buffer);
+    let stderr = '';
+    let settled = false;
+
+    const finish = (run: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      child.stderr?.off('data', onStderrData);
+      child.off('exit', onExit);
+      child.off('error', onSpawnError);
+      run();
+    };
+
+    const onStderrData = (chunk: Buffer): void => {
+      stderr += chunk.toString('utf8');
+      if (stderr.length > MAX_STDERR_CAPTURE_CHARS) {
+        stderr = stderr.slice(-MAX_STDERR_CAPTURE_CHARS);
+      }
+      const match = /ws:\/\/127\.0\.0\.1:(\d+)\//.exec(stderr);
       const port = match?.[1];
       if (port !== undefined) {
-        clearTimeout(timeout);
-        resolve(Number(port));
+        finish(() => {
+          resolve(Number(port));
+        });
       }
-    });
-    child.once('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`Chrome exited early with code ${String(code)} before reporting a port`));
-    });
+    };
+
+    const onExit = (code: number | null, signal: NodeJS.Signals | null): void => {
+      finish(() => {
+        reject(
+          new Error(
+            `Chrome exited before reporting a DevTools port (code ${String(code)}, signal ${String(signal)})${stderrSuffix(stderr)}`,
+          ),
+        );
+      });
+    };
+
+    const onSpawnError = (spawnError: Error): void => {
+      finish(() => {
+        reject(new Error(`Chrome process failed to start: ${spawnError.message}${stderrSuffix(stderr)}`));
+      });
+    };
+
+    const timeout = setTimeout(() => {
+      finish(() => {
+        reject(
+          new Error(
+            `Chrome did not report a DevTools port within ${String(timeoutMs)}ms${stderrSuffix(stderr)}`,
+          ),
+        );
+      });
+    }, timeoutMs);
+
+    child.stderr?.on('data', onStderrData);
+    child.once('exit', onExit);
+    child.once('error', onSpawnError);
   });
 }
 
-/**
- * Launches a headless system Chrome instance. Every `newPage()` call opens
- * its own CDP target/connection (one per test-file `before()`/individual
- * navigation set is the expected usage), all cleaned up together by
- * `close()`.
- */
-export async function launchBrowser(): Promise<Browser> {
-  const chromePath = resolveChromePath();
+/** Minimal shape cleanupFailedLaunch needs from a Chrome child - a custom
+ * interface (not `Pick<ChildProcess, ...>`) for the same reason
+ * test/auth/support/appServer.ts's own `ExitAware`/`KillableChild` are: a
+ * real `ChildProcess`'s overloaded `once`/`kill` are structurally
+ * compatible with this narrower shape, but a hand-written fake process
+ * in a test can implement this shape directly without also having to
+ * satisfy every unrelated `ChildProcess` overload. */
+export interface TerminableChild {
+  exitCode: number | null;
+  signalCode: NodeJS.Signals | null;
+  once: (event: 'exit', listener: () => void) => void;
+  kill: (signal?: NodeJS.Signals) => boolean;
+}
+
+/** Terminates a Chrome child that failed to become ready before a `Browser`
+ * handle existed to return to the caller, and best-effort removes its
+ * temporary profile dir. Exported so the bounded-wait behavior itself can
+ * be proven directly against a fake process, mirroring
+ * test/auth/support/appServer.ts's own waitForExit/stopProcess precedent.
+ * Never throws for a userDataDir removal failure (best-effort, same as
+ * Browser.close() below); *does* propagate a kill/wait failure to the
+ * caller, which folds it into the startup error as additional context
+ * rather than replacing it (Issue #259: the original Chrome startup
+ * failure must remain the primary, actionable error). `timeoutMs` defaults
+ * to CLEANUP_TIMEOUT_MS but is overridable so tests can prove the bounded-
+ * timeout path itself without a real 5s wait. */
+export async function cleanupFailedLaunch(
+  child: TerminableChild,
+  userDataDir: string,
+  timeoutMs: number = CLEANUP_TIMEOUT_MS,
+): Promise<void> {
+  try {
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill('SIGTERM');
+    }
+    await waitForExit(child, timeoutMs);
+  } finally {
+    try {
+      rmSync(userDataDir, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup only - a leftover temp profile dir on this rare
+      // path is not itself a test-correctness issue.
+    }
+  }
+}
+
+async function attemptLaunch(chromePath: string): Promise<Browser> {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-'));
   const child = spawn(
     chromePath,
@@ -334,7 +458,31 @@ export async function launchBrowser(): Promise<Browser> {
     ],
     { stdio: ['ignore', 'ignore', 'pipe'] },
   );
-  const port = await readDevToolsPort(child);
+
+  let port: number;
+  try {
+    port = await readDevToolsPort(child, READY_TIMEOUT_MS);
+  } catch (startupError) {
+    // The spawned child is not returned to the caller on this path (no
+    // Browser handle exists yet) - this function therefore owns cleanup
+    // itself, rather than leaving an orphaned Chrome process/temp profile
+    // for the caller to discover it never received (Issue #259's root
+    // cause: this cleanup previously did not happen at all).
+    const startupMessage = startupError instanceof Error ? startupError.message : String(startupError);
+    try {
+      await cleanupFailedLaunch(child, userDataDir);
+    } catch (cleanupError) {
+      const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+      // The Chrome startup failure is the primary, actionable diagnostic;
+      // a cleanup failure on top of it is additional context, not a
+      // replacement (mirrors appServer.ts's startAppServer readiness/stop
+      // failure combination).
+      throw new Error(`${startupMessage}; additionally, cleanup failed: ${cleanupMessage}`, {
+        cause: startupError,
+      });
+    }
+    throw startupError;
+  }
 
   return {
     async newPage(): Promise<BrowserPage> {
@@ -354,26 +502,15 @@ export async function launchBrowser(): Promise<Browser> {
       return new CdpBrowserPage(connection);
     },
     async close(): Promise<void> {
-      // Waits for the process to actually exit before touching userDataDir -
-      // an immediate rmSync right after kill() races Chrome's own still-open
-      // file handles there (observed hardening precedent: test/auth/support/
-      // appServer.ts's stopProcess/waitForExit exists for the same reason,
-      // for the Next dev server child). Bounded rather than awaited
-      // indefinitely: a stuck Chrome process must not hang test cleanup, and
-      // a leftover temp profile dir on that rare path is not itself a
-      // test-correctness issue.
-      const exited =
-        child.exitCode !== null || child.signalCode !== null
-          ? Promise.resolve()
-          : new Promise<void>((resolve) => {
-              const timeout = setTimeout(resolve, 5000);
-              child.once('exit', () => {
-                clearTimeout(timeout);
-                resolve();
-              });
-            });
-      child.kill('SIGTERM');
-      await exited;
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGTERM');
+      }
+      try {
+        await waitForExit(child, CLEANUP_TIMEOUT_MS);
+      } catch {
+        // Bounded best-effort only, same tolerance as cleanupFailedLaunch
+        // above - a stuck Chrome process must not hang test cleanup.
+      }
       try {
         rmSync(userDataDir, { recursive: true, force: true });
       } catch {
@@ -381,4 +518,37 @@ export async function launchBrowser(): Promise<Browser> {
       }
     },
   };
+}
+
+/**
+ * Launches a headless system Chrome instance. Every `newPage()` call opens
+ * its own CDP target/connection (one per test-file `before()`/individual
+ * navigation set is the expected usage), all cleaned up together by
+ * `close()`.
+ *
+ * Retries Chrome process startup/readiness up to MAX_LAUNCH_ATTEMPTS times
+ * (Issue #259) - and *only* that: a failed attempt's Chrome process/temp
+ * profile is fully cleaned up (attemptLaunch's own catch) before any retry,
+ * and nothing here retries an Auth assertion, a Catalog rendering
+ * assertion, or the surrounding Database job. If every attempt fails, the
+ * final attempt's error (with any earlier attempts summarized alongside it)
+ * is thrown - callers see one clear, bounded failure, never an indefinite
+ * hang.
+ */
+export async function launchBrowser(): Promise<Browser> {
+  const chromePath = resolveChromePath();
+  const attemptSummaries: string[] = [];
+  for (let attempt = 1; attempt <= MAX_LAUNCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await attemptLaunch(chromePath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      attemptSummaries.push(`attempt ${String(attempt)}/${String(MAX_LAUNCH_ATTEMPTS)}: ${message}`);
+      if (attempt === MAX_LAUNCH_ATTEMPTS) {
+        throw new Error(`Chrome startup failed:\n${attemptSummaries.join('\n')}`, { cause: error });
+      }
+    }
+  }
+  /* c8 ignore next */
+  throw new Error('unreachable: launchBrowser attempt loop exited without returning or throwing');
 }
