@@ -57,31 +57,29 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           </p>
         </Surface>
       ) : (
-        <>
+        <div className={styles.methods}>
           {/* Passkey登録済みuserの日常sign-in path（Issue #106）。discoverable
               credentialなのでメールアドレス入力は不要 - 下のMagic Link formは
               未登録user向けのfallbackとして常に併記する。 */}
-          <div className={styles.methods}>
-            <PasskeySignInButton />
-            <div className={styles.separator} aria-label="または">
-              <span aria-hidden="true" />
-              <p>または</p>
-              <span aria-hidden="true" />
-            </div>
-            <form className={styles.magicLinkForm} action={requestSignInLink}>
-              <TextInput
-                label="メールアドレス"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-              />
-              <Button className={styles.magicLinkButton} variant="small" type="submit">
-                サインインリンクをリクエスト
-              </Button>
-            </form>
+          <PasskeySignInButton />
+          <div className={styles.separator} role="separator" aria-label="または">
+            <span aria-hidden="true" />
+            <p>または</p>
+            <span aria-hidden="true" />
           </div>
-        </>
+          <form className={styles.magicLinkForm} action={requestSignInLink}>
+            <TextInput
+              label="メールアドレス"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+            />
+            <Button className={styles.magicLinkButton} variant="small" type="submit">
+              サインインリンクをリクエスト
+            </Button>
+          </form>
+        </div>
       )}
     </div>
   );
