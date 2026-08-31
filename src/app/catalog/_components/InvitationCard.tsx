@@ -275,7 +275,13 @@ export function InvitationCard({
             <Button type="button" variant="quiet" disabled={isBusy} onClick={handleDecline}>
               参加しない
             </Button>
-            <Button type="button" variant="secondary" disabled={isBusy} onClick={handleAccept}>
+            <Button
+              type="button"
+              variant="secondary"
+              className={styles.stablePendingButton}
+              disabled={isBusy}
+              onClick={handleAccept}
+            >
               {isBusy ? '参加中…' : '参加する'}
             </Button>
           </>

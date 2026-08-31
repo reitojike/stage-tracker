@@ -58,6 +58,7 @@ export function InviteSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="招待する">
+      <WriteNotice notice={state.notice} attempt={state.attempt} />
       <p className={styles.occurrenceTime}>
         {tokyoDateLabel(occurrence.startsAt)}{' '}
         {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
@@ -75,8 +76,6 @@ export function InviteSheet({
             description={state.feedback.description}
           />
         ) : null}
-        <WriteNotice notice={state.notice} attempt={state.attempt} />
-
         <TextInput
           key={state.attempt}
           label="招待するユーザーの登録メールアドレス"
@@ -91,7 +90,12 @@ export function InviteSheet({
         />
 
         <div className={styles.actions}>
-          <Button type="submit" variant="primary" disabled={isPending}>
+          <Button
+            type="submit"
+            variant="primary"
+            className={styles.stablePendingButton}
+            disabled={isPending}
+          >
             {isPending ? '送信中…' : '招待する'}
           </Button>
         </div>

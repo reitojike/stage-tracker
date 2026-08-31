@@ -145,3 +145,8 @@
   margin: 0 auto;
   padding: var(--space-compact) var(--space-md);
 }
+
+.stablePendingButton {
+  min-width: 10ch;
+  white-space: nowrap;
+}

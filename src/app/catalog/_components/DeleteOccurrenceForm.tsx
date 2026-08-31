@@ -5,6 +5,7 @@ import { Button } from '@/ui/Button';
 import { Sheet } from '@/ui/Sheet';
 import { INITIAL_EVENT_DELETE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { deleteEventOccurrenceAction } from '../_actions/eventWrite.ts';
+import styles from './EventWriteForm.module.css';
 
 export interface DeleteOccurrenceFormProps {
   eventId: string;
@@ -61,7 +62,13 @@ export function DeleteOccurrenceForm({
         showCloseButton={false}
         footer={
           <div>
-            <Button type="submit" form={formId} variant="danger" disabled={isPending}>
+            <Button
+              type="submit"
+              form={formId}
+              variant="danger"
+              className={styles.stablePendingButton}
+              disabled={isPending}
+            >
               {isPending ? '削除中…' : '削除'}
             </Button>
           </div>

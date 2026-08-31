@@ -120,6 +120,7 @@ export function ParticipationSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="参加の状態">
+      <WriteNotice notice={notice?.text ?? null} attempt={notice?.attempt ?? 0} />
       <p className={styles.occurrenceTime}>
         {tokyoDateLabel(occurrence.startsAt)}{' '}
         {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
@@ -132,8 +133,6 @@ export function ParticipationSheet({
           description={feedback.description}
         />
       ) : null}
-      <WriteNotice notice={notice?.text ?? null} attempt={notice?.attempt ?? 0} />
-
       {choices.length === 0 ? (
         <p className={styles.empty}>この公演は中止されているため、選択できる項目がありません。</p>
       ) : (

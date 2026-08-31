@@ -7,6 +7,7 @@ import {
   cancelEventOccurrenceAction,
   uncancelEventOccurrenceAction,
 } from '../_actions/eventWrite.ts';
+import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceCancellationFormProps {
   eventId: string;
@@ -44,7 +45,12 @@ export function OccurrenceCancellationForm({
       <input type="hidden" name="eventId" value={eventId} />
       <input type="hidden" name="occurrenceId" value={occurrenceId} />
 
-      <Button type="submit" variant="secondary" disabled={isPending}>
+      <Button
+        type="submit"
+        variant="secondary"
+        className={styles.stablePendingButton}
+        disabled={isPending}
+      >
         {isPending
           ? isCanceled
             ? '解除中…'

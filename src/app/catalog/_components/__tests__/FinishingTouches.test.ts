@@ -63,7 +63,7 @@ void test('share-add sheet uses a footer submit associated with its body form', 
 
   assert.match(sheet, /showCloseButton=\{false\}/);
   assert.match(sheet, /footer=\{/);
-  assert.match(sheet, /<Button type="submit" form=\{formId\}/);
+  assert.match(sheet, /<Button[\s\S]*?type="submit"[\s\S]*?form=\{formId\}/);
   assert.match(sheet, /state\.notice/);
   assert.match(sheet, /closedAttemptRef/);
   assert.match(sheet, /setOpen\(false\)/);
@@ -71,6 +71,36 @@ void test('share-add sheet uses a footer submit associated with its body form', 
   assert.doesNotMatch(form, /<Button/);
   assert.doesNotMatch(form, /styles\.actions/);
   assert.match(css, /\.footer\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-border\);/);
+});
+
+void test('sheet write notices are before occurrence/content UI', () => {
+  const invite = read('src/app/catalog/_components/InviteSheet.tsx');
+  const participation = read('src/app/catalog/_components/ParticipationSheet.tsx');
+  const occurrenceTime = (source: string) => source.indexOf('styles.occurrenceTime');
+  const notice = (source: string) => source.indexOf('<WriteNotice');
+
+  assert.ok(notice(invite) < occurrenceTime(invite));
+  assert.ok(notice(participation) < occurrenceTime(participation));
+  const occurrenceUpdate = read('src/app/catalog/_components/OccurrenceUpdateForm.tsx');
+  assert.ok(
+    occurrenceUpdate.indexOf('<WriteNotice') < occurrenceUpdate.indexOf('<OccurrenceFields'),
+  );
+});
+
+void test('write pending controls use scoped stable geometry contracts', () => {
+  const eventCss = read('src/app/catalog/_components/EventWriteForm.module.css');
+  const scheduleCss = read('src/app/schedule/_components/ScheduleWriteForm.module.css');
+  const inviteCss = read('src/app/catalog/_components/InviteSheet.module.css');
+  const shareCss = read('src/app/schedule/_components/ShareAddSheet.module.css');
+  const cardCss = read('src/app/catalog/_components/InvitationCard.module.css');
+  const detailCss = read('src/app/schedule/_components/ScheduleDetail.module.css');
+  for (const css of [eventCss, scheduleCss, inviteCss, shareCss, cardCss, detailCss]) {
+    assert.match(
+      css,
+      /\.stablePendingButton\s*\{[\s\S]*?min-width:\s*10ch;[\s\S]*?white-space:\s*nowrap;/,
+    );
+  }
+  assert.doesNotMatch(read('src/ui/Button.tsx'), /stablePendingButton/);
 });
 
 void test('requested sign-in acknowledgement is page-local and keeps its copy', () => {

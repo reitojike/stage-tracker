@@ -23,3 +23,8 @@
   display: flex;
   justify-content: flex-end;
 }
+
+.stablePendingButton {
+  min-width: 10ch;
+  white-space: nowrap;
+}

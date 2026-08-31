@@ -6,6 +6,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_EVENT_CANCELLATION_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { cancelEventAction, uncancelEventAction } from '../_actions/eventWrite.ts';
 import { WriteNotice } from '@/ui/WriteNotice';
+import styles from './EventWriteForm.module.css';
 
 export interface EventCancellationFormProps {
   eventId: string;
@@ -44,7 +45,12 @@ export function EventCancellationForm({ eventId, isCanceled }: EventCancellation
           description={state.feedback.description}
         />
       ) : null}
-      <Button type="submit" variant="secondary" disabled={isPending}>
+      <Button
+        type="submit"
+        variant="secondary"
+        className={styles.stablePendingButton}
+        disabled={isPending}
+      >
         {isPending
           ? isCanceled
             ? '解除中…'

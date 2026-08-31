@@ -151,3 +151,7 @@
   font-size: var(--font-size-body);
   color: var(--color-text-secondary);
 }
+.stablePendingButton {
+  min-width: 10ch;
+  white-space: nowrap;
+}

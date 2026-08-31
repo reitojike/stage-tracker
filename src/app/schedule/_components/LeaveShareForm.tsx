@@ -5,6 +5,7 @@ import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_SHARE_REMOVE_FORM_STATE } from '@/domain/personalScheduleWriteFeedback.ts';
 import { removeScheduleShareAction } from '../_actions/scheduleWrite.ts';
+import styles from './ScheduleWriteForm.module.css';
 
 export interface LeaveShareFormProps {
   /** The caller's own share row id (personal_schedule_shares_select_owner_
@@ -39,7 +40,12 @@ export function LeaveShareForm({ shareId }: LeaveShareFormProps) {
         />
       ) : null}
 
-      <Button type="submit" variant="quiet" disabled={isPending}>
+      <Button
+        type="submit"
+        variant="quiet"
+        className={styles.stablePendingButton}
+        disabled={isPending}
+      >
         {isPending ? '解除中…' : 'この予定の共有から外れる'}
       </Button>
     </form>

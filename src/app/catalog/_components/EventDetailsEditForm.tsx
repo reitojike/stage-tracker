@@ -58,7 +58,7 @@ export function EventDetailsEditForm({ eventId, initialValues }: EventDetailsEdi
       </div>
 
       <div className={styles.groupSubmit}>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" className={styles.stablePendingButton} disabled={isPending}>
           {isPending ? '保存中…' : 'イベント情報を保存'}
         </Button>
       </div>

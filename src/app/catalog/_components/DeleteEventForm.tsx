@@ -6,6 +6,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { Sheet } from '@/ui/Sheet';
 import { INITIAL_EVENT_DELETE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { deleteEventAction } from '../_actions/eventWrite.ts';
+import styles from './EventWriteForm.module.css';
 
 export interface DeleteEventFormProps {
   eventId: string;
@@ -64,7 +65,13 @@ export function DeleteEventForm({ eventId }: DeleteEventFormProps) {
         showCloseButton={false}
         footer={
           <div>
-            <Button type="submit" form="delete-event-form" variant="danger" disabled={isPending}>
+            <Button
+              type="submit"
+              form="delete-event-form"
+              variant="danger"
+              className={styles.stablePendingButton}
+              disabled={isPending}
+            >
               {isPending ? '削除中…' : '削除'}
             </Button>
           </div>
