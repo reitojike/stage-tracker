@@ -231,15 +231,6 @@
   padding-bottom: 72px;
 }
 
-.notice {
-  margin: 0;
-  padding: var(--space-compact) var(--space-md);
-  border-radius: var(--radius-control-sm);
-  background: var(--color-surface-subtle);
-  color: var(--color-text);
-  font-size: var(--font-size-body-sm);
-}
-
 .dangerHeading {
   color: var(--color-danger);
   border-color: var(--color-danger);
@@ -250,10 +241,3 @@
    Taken out of flow rather than hidden with display:none, which would drop
    it from the accessibility tree and defeat the point - and which as a flex
    item would otherwise still consume one of .form's gaps. */
-.noticeRegion:empty {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}

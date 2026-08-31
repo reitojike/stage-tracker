@@ -13,7 +13,7 @@ import {
 } from './OccurrenceCancellationForm.tsx';
 import { DeleteOccurrenceForm, useDeleteOccurrenceAction } from './DeleteOccurrenceForm.tsx';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceUpdateFormProps {
@@ -94,6 +94,7 @@ export function OccurrenceUpdateForm({
               description={state.feedback.description}
             />
           ) : null}
+          <WriteNotice notice={cancellationState.notice} attempt={cancellationState.attempt} />
           <WriteNotice notice={state.notice} attempt={state.attempt} />
           <div key={state.attempt} className={styles.fields}>
             <OccurrenceFields
@@ -120,12 +121,6 @@ export function OccurrenceUpdateForm({
                   variant={cancellationState.feedback.variant}
                   title={cancellationState.feedback.title}
                   description={cancellationState.feedback.description}
-                />
-              ) : null}
-              {canCancel ? (
-                <WriteNotice
-                  notice={cancellationState.notice}
-                  attempt={cancellationState.attempt}
                 />
               ) : null}
               {canDelete && deleteState.feedback ? (

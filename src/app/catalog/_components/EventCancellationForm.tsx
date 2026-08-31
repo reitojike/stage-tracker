@@ -5,16 +5,12 @@ import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_EVENT_CANCELLATION_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { cancelEventAction, uncancelEventAction } from '../_actions/eventWrite.ts';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 
 export interface EventCancellationFormProps {
   eventId: string;
   isCanceled: boolean;
 }
-
-const CANCEL_CONFIRM_MESSAGE =
-  'このイベントを中止にします。既存の参加予定・招待情報は削除されません。よろしいですか？';
-const UNCANCEL_CONFIRM_MESSAGE = 'このイベントの中止を解除します。よろしいですか？';
 
 /**
  * Owner-only Event-level cancel/uncancel toggle (Issue #125/#123). Never
@@ -36,17 +32,10 @@ export function EventCancellationForm({ eventId, isCanceled }: EventCancellation
   );
 
   return (
-    <form
-      action={formAction}
-      aria-busy={isPending}
-      onSubmit={(event) => {
-        if (!window.confirm(isCanceled ? UNCANCEL_CONFIRM_MESSAGE : CANCEL_CONFIRM_MESSAGE)) {
-          event.preventDefault();
-        }
-      }}
-    >
+    <form action={formAction} aria-busy={isPending}>
       <input type="hidden" name="eventId" value={eventId} />
 
+      <WriteNotice notice={state.notice} attempt={state.attempt} />
       {state.feedback ? (
         <StatePanel
           key={state.attempt}
@@ -55,10 +44,14 @@ export function EventCancellationForm({ eventId, isCanceled }: EventCancellation
           description={state.feedback.description}
         />
       ) : null}
-      <WriteNotice notice={state.notice} attempt={state.attempt} />
-
       <Button type="submit" variant="secondary" disabled={isPending}>
-        {isPending ? '処理中…' : isCanceled ? 'このイベントの中止を解除' : 'このイベントを中止'}
+        {isPending
+          ? isCanceled
+            ? '解除中…'
+            : '中止中…'
+          : isCanceled
+            ? 'このイベントの中止を解除'
+            : 'このイベントを中止'}
       </Button>
     </form>
   );

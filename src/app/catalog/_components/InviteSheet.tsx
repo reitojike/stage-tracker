@@ -8,7 +8,7 @@ import { TextInput } from '@/ui/TextInput';
 import { INITIAL_OPERATION_STATE } from '@/domain/participationFeedback.ts';
 import { occurrenceTimeRangeLabel, tokyoDateLabel } from '@/domain/catalogFormatting.ts';
 import { inviteToOccurrenceAction } from '../_actions/participationWrite.ts';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './InviteSheet.module.css';
 
 export interface InviteSheetProps {

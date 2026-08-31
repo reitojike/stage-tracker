@@ -8,7 +8,7 @@ import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { RawFormValues } from '@/domain/eventCatalogWrite.ts';
 import { updateEventRangeAction } from '../_actions/eventWrite.ts';
 import { EventRangeFields } from './EventRangeFields.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface EventRangeEditFormProps {

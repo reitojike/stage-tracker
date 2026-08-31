@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { Button } from '@/ui/Button';
+import { Sheet } from '@/ui/Sheet';
 import { INITIAL_EVENT_DELETE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { deleteEventOccurrenceAction } from '../_actions/eventWrite.ts';
 
@@ -18,8 +19,8 @@ const CONFIRM_MESSAGE = 'この公演回を削除します。削除すると元�
  * Owner-only hard delete for an event occurrence (Issue #124). Never
  * rendered for a non-owner - the edit page only mounts this inside its
  * isOwner branch - though RLS (delete_event_occurrence RPC's SECURITY
- * DEFINER check) is the actual boundary. Confirms via native confirm()
- * since deletion is irreversible (no soft delete/trash/restore per
+ * DEFINER check) is the actual boundary. Uses a confirmation Sheet since
+ * deletion is irreversible (no soft delete/trash/restore per
  * product-rules.md "Deletion"). The action state is created by the
  * surrounding OccurrenceUpdateForm so any feedback can be placed above the
  * lifecycle button row without changing this form's semantics.
@@ -34,22 +35,33 @@ export function DeleteOccurrenceForm({
   formAction,
   isPending,
 }: DeleteOccurrenceFormProps) {
+  const [open, setOpen] = useState(false);
+  const formId = `delete-occurrence-${occurrenceId}`;
   return (
-    <form
-      action={formAction}
-      aria-busy={isPending}
-      onSubmit={(event) => {
-        if (!window.confirm(CONFIRM_MESSAGE)) {
-          event.preventDefault();
-        }
-      }}
-    >
-      <input type="hidden" name="eventId" value={eventId} />
-      <input type="hidden" name="occurrenceId" value={occurrenceId} />
+    <>
+      <form id={formId} action={formAction} aria-busy={isPending}>
+        <input type="hidden" name="eventId" value={eventId} />
+        <input type="hidden" name="occurrenceId" value={occurrenceId} />
 
-      <Button type="submit" variant="danger" disabled={isPending}>
-        {isPending ? '削除中…' : 'この公演回を削除'}
-      </Button>
-    </form>
+        <Button type="button" variant="danger" disabled={isPending} onClick={() => setOpen(true)}>
+          この公演回を削除
+        </Button>
+      </form>
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        title="この公演回を削除"
+        showCloseButton={false}
+        footer={
+          <div>
+            <Button type="submit" form={formId} variant="danger" disabled={isPending}>
+              {isPending ? '削除中…' : '削除'}
+            </Button>
+          </div>
+        }
+      >
+        {CONFIRM_MESSAGE}
+      </Sheet>
+    </>
   );
 }

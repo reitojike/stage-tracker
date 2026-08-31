@@ -276,7 +276,7 @@ export function InvitationCard({
               参加しない
             </Button>
             <Button type="button" variant="secondary" disabled={isBusy} onClick={handleAccept}>
-              {isBusy ? '処理中…' : '参加する'}
+              {isBusy ? '参加中…' : '参加する'}
             </Button>
           </>
         )}

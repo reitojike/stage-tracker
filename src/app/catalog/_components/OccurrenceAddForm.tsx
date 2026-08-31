@@ -7,7 +7,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { addOccurrenceAction } from '../_actions/eventWrite.ts';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceAddFormProps {

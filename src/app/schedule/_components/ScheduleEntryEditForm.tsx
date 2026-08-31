@@ -7,7 +7,7 @@ import { INITIAL_SCHEDULE_WRITE_FORM_STATE } from '@/domain/personalScheduleWrit
 import type { RawFormValues } from '@/domain/personalScheduleWrite.ts';
 import { updateScheduleEntryAction } from '../_actions/scheduleWrite.ts';
 import { ScheduleFields } from './ScheduleFields.tsx';
-import { ScheduleWriteNotice } from './ScheduleWriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './ScheduleWriteForm.module.css';
 
 export interface ScheduleEntryEditFormProps {
@@ -44,7 +44,7 @@ export function ScheduleEntryEditForm({ entryId, initialValues }: ScheduleEntryE
         />
       ) : null}
 
-      <ScheduleWriteNotice notice={state.notice} attempt={state.attempt} />
+      <WriteNotice notice={state.notice} attempt={state.attempt} />
 
       <div key={state.attempt} className={styles.fields}>
         <ScheduleFields

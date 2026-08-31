@@ -47,8 +47,9 @@ void test('occurrence lifecycle feedback is composed above one horizontal action
     /\.sheetLifecycleActions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?gap:\s*var\(--space-sm\);/,
   );
   assert.match(css, /\.sheetLifecycleActions > form\s*\{[\s\S]*?flex:\s*1 1 0;/);
-  assert.match(cancellation, /window\.confirm/);
-  assert.match(deletion, /window\.confirm/);
+  assert.doesNotMatch(cancellation, /window\.confirm/);
+  assert.doesNotMatch(deletion, /window\.confirm/);
+  assert.match(deletion, /<Sheet/);
   assert.doesNotMatch(cancellation, /<StatePanel/);
   assert.doesNotMatch(deletion, /<StatePanel/);
   assert.match(update, /cancellationState\.notice/);

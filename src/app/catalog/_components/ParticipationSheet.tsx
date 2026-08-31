@@ -8,7 +8,7 @@ import type { Participation, ParticipationStatus } from '@/domain/participation.
 import { occurrenceTimeRangeLabel, tokyoDateLabel } from '@/domain/catalogFormatting.ts';
 import { participationStatusLabel } from '@/domain/myCalendarFormatting.ts';
 import { setParticipationChoiceAction } from '../_actions/participationWrite.ts';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './ParticipationSheet.module.css';
 
 export interface ParticipationSheetProps {

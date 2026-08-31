@@ -48,7 +48,7 @@ export function RemoveRecipientForm({
             disabled={isPending}
             aria-label={`${recipientEmail}の共有を解除`}
           >
-            {isPending ? '処理中…' : '解除'}
+            {isPending ? '解除中…' : '解除'}
           </Button>
         </form>
       </div>

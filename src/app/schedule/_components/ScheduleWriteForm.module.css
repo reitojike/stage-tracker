@@ -146,22 +146,6 @@
   padding: var(--space-compact) var(--space-md);
 }
 
-.notice {
-  margin: 0;
-  padding: var(--space-compact) var(--space-md);
-  border-radius: var(--radius-control-sm);
-  background: var(--color-surface-subtle);
-  color: var(--color-text);
-  font-size: var(--font-size-body-sm);
-}
-
 /* Kept in the DOM (and in the accessibility tree) while it has nothing to
    say, so a message arriving later lands in a region that already exists -
    see WriteNotice.tsx / EventWriteForm.module.css's identical comment. */
-.noticeRegion:empty {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
