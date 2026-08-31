@@ -1,0 +1,42 @@
+.page {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  padding-block-start: var(--space-md);
+}
+
+.methods {
+  display: flex;
+  flex-direction: column;
+}
+
+.separator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-block: var(--space-xl) var(--space-compact);
+  color: var(--color-text-secondary);
+}
+
+.separator span {
+  flex: 1 1 0;
+  height: 1px;
+  background-color: var(--color-border);
+}
+
+.separator p {
+  margin: 0;
+  font-size: var(--font-size-label);
+}
+
+.magicLinkForm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-compact);
+}
+
+.magicLinkButton {
+  align-self: flex-end;
+  flex: 0 0 auto;
+}
