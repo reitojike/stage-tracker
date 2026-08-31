@@ -347,7 +347,7 @@ export function readDevToolsPort(child: ChildProcess, timeoutMs: number): Promis
       settled = true;
       clearTimeout(timeout);
       child.stderr?.off('data', onStderrData);
-      child.off('exit', onExit);
+      child.off('close', onClose);
       child.off('error', onSpawnError);
       run();
     };
@@ -366,7 +366,14 @@ export function readDevToolsPort(child: ChildProcess, timeoutMs: number): Promis
       }
     };
 
-    const onExit = (code: number | null, signal: NodeJS.Signals | null): void => {
+    // 'close' (not 'exit'): Node's own docs note stdio streams may still be
+    // open/undrained when 'exit' fires, so an 'exit' listener here could
+    // race a still-in-flight stderr 'data' chunk - losing exactly the
+    // diagnostic text stderrSuffix exists to capture for a Chrome crash
+    // banner large enough to still be buffered. 'close' fires only once
+    // stdio is fully drained, guaranteeing onStderrData has already seen
+    // everything Chrome wrote.
+    const onClose = (code: number | null, signal: NodeJS.Signals | null): void => {
       finish(() => {
         reject(
           new Error(
@@ -395,7 +402,7 @@ export function readDevToolsPort(child: ChildProcess, timeoutMs: number): Promis
     }, timeoutMs);
 
     child.stderr?.on('data', onStderrData);
-    child.once('exit', onExit);
+    child.once('close', onClose);
     child.once('error', onSpawnError);
   });
 }
@@ -446,6 +453,22 @@ export async function cleanupFailedLaunch(
   }
 }
 
+/** Combines a Chrome startup failure with a subsequent cleanup failure into
+ * one error, keeping the startup failure primary (message prefix, and
+ * `cause`) and the cleanup failure as additional trailing context - mirrors
+ * appServer.ts's startAppServer readiness/stop-failure combination.
+ * Exported (and used by attemptLaunch below) so this combining logic itself
+ * - not a hand-reimplementation of it - is what test coverage exercises. */
+export function combineStartupAndCleanupError(startupError: unknown, cleanupError: unknown): Error {
+  const startupMessage =
+    startupError instanceof Error ? startupError.message : String(startupError);
+  const cleanupMessage =
+    cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+  return new Error(`${startupMessage}; additionally, cleanup failed: ${cleanupMessage}`, {
+    cause: startupError,
+  });
+}
+
 async function attemptLaunch(chromePath: string): Promise<Browser> {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-'));
   const child = spawn(
@@ -470,20 +493,13 @@ async function attemptLaunch(chromePath: string): Promise<Browser> {
     // itself, rather than leaving an orphaned Chrome process/temp profile
     // for the caller to discover it never received (Issue #259's root
     // cause: this cleanup previously did not happen at all).
-    const startupMessage =
-      startupError instanceof Error ? startupError.message : String(startupError);
     try {
       await cleanupFailedLaunch(child, userDataDir);
     } catch (cleanupError) {
-      const cleanupMessage =
-        cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
       // The Chrome startup failure is the primary, actionable diagnostic;
       // a cleanup failure on top of it is additional context, not a
-      // replacement (mirrors appServer.ts's startAppServer readiness/stop
-      // failure combination).
-      throw new Error(`${startupMessage}; additionally, cleanup failed: ${cleanupMessage}`, {
-        cause: startupError,
-      });
+      // replacement.
+      throw combineStartupAndCleanupError(startupError, cleanupError);
     }
     throw startupError;
   }

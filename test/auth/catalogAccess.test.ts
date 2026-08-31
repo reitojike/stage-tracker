@@ -66,12 +66,41 @@ before(async () => {
 after(async () => {
   // Reverse of creation order (page, then browser, then app) - the same
   // dependency order the original unconditional close() sequence used.
-  const tasks = [...initializedCleanups].reverse();
-  tasks.push(
+  // runCleanupTasks runs these serially (not concurrently): browser.close()
+  // terminates Chrome, and a concurrent page.close() could still have its
+  // own in-flight CDP round-trip on that same connection, which has no path
+  // to ever reject once the socket closes underneath it.
+  const resourceTasks = [...initializedCleanups].reverse();
+  // Viewer/fixture cleanup has no such ordering dependency between entries
+  // (each targets an independent user/fixture), so it keeps running
+  // concurrently - the same shape every other test/auth and test/rls file
+  // uses for this kind of cleanup - rather than being forced through
+  // runCleanupTasks's serial ordering along with it.
+  const fixtureTasks = [
     ...createdViewerIds.map((id) => () => deleteUser(id)),
     ...createdFixtureActors.map((actor) => () => deleteTestActor(actor)),
-  );
-  await runCleanupTasks(tasks);
+  ];
+
+  const [resourceError, fixtureResults] = await Promise.all([
+    runCleanupTasks(resourceTasks).then(
+      () => undefined,
+      (error: unknown) => error,
+    ),
+    Promise.allSettled(fixtureTasks.map((task) => task())),
+  ]);
+
+  const failures: unknown[] = resourceError === undefined ? [] : [resourceError];
+  for (const result of fixtureResults) {
+    if (result.status === 'rejected') {
+      failures.push(result.reason);
+    }
+  }
+  if (failures.length > 0) {
+    const messages = failures.map((failure) =>
+      failure instanceof Error ? failure.message : String(failure),
+    );
+    throw new Error(`cleanup failed:\n${messages.join('\n')}`);
+  }
 });
 
 interface RenderedPage {

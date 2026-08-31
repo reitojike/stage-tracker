@@ -6,6 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
   cleanupFailedLaunch,
+  combineStartupAndCleanupError,
   readDevToolsPort,
   type TerminableChild,
 } from './support/browserPage.ts';
@@ -163,14 +164,10 @@ void test('a startup failure followed by a cleanup failure keeps the startup err
   try {
     await cleanupFailedLaunch(child, userDataDir, 50);
   } catch (cleanupError) {
-    const cleanupMessage =
-      cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
-    combined = new Error(
-      `${startupError.message}; additionally, cleanup failed: ${cleanupMessage}`,
-      {
-        cause: startupError,
-      },
-    );
+    // Calls the actual production combining logic (attemptLaunch's own
+    // catch block calls the same function) rather than reimplementing it,
+    // so a regression there is caught here too.
+    combined = combineStartupAndCleanupError(startupError, cleanupError);
   }
 
   assert.ok(combined instanceof Error);
