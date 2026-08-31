@@ -9,6 +9,7 @@ import {
   combineStartupAndCleanupError,
   readDevToolsPort,
   terminateChild,
+  type StderrWatchableChild,
   type TerminableChild,
 } from './support/browserPage.ts';
 import { runCleanupTasks } from './support/cleanupTasks.ts';
@@ -51,26 +52,55 @@ void test('readDevToolsPort resolves with the reported port once Chrome would re
 
 // --- readDevToolsPort: the port line survives bounded-stderr truncation ---
 
+/** A controlled `StderrWatchableChild` fake (see browserPage.ts's own doc
+ * comment on that interface) that emits an entire payload as a single
+ * `data` event - unlike a real child process's pipe, whose OS-level
+ * chunking is not guaranteed to keep arbitrary content in one event. Used
+ * so the truncation-before-match regression test below deterministically
+ * exercises the "all of leadingPadding+devToolsLine+trailingPadding arrive
+ * together, already over MAX_STDERR_CAPTURE_CHARS" case every run, rather
+ * than depending on how a real process happened to be chunked that time. */
+function createFakeStderrChild(): StderrWatchableChild & { emitStderr: (chunk: string) => void } {
+  const dataListeners = new Set<(chunk: Buffer) => void>();
+  const fake: StderrWatchableChild & { emitStderr: (chunk: string) => void } = {
+    stderr: {
+      on: (_event, listener) => {
+        dataListeners.add(listener);
+      },
+      off: (_event, listener) => {
+        dataListeners.delete(listener);
+      },
+    },
+    // 'close'/'error' never fire in this fake - this regression test only
+    // exercises the stderr-data/match path, so a no-op satisfies the
+    // interface without needing to simulate process exit.
+    once: () => undefined,
+    off: () => undefined,
+    emitStderr: (chunk) => {
+      const buffer = Buffer.from(chunk, 'utf8');
+      for (const listener of dataListeners) {
+        listener(buffer);
+      }
+    },
+  };
+  return fake;
+}
+
 void test('readDevToolsPort still resolves when the DevTools line arrives surrounded by enough other stderr output to have been truncated away by a naive "truncate, then match" implementation', async () => {
-  // Padding is sized (and written in one process.stderr.write call, so it
-  // is very likely delivered as a single 'data' chunk) so that a
-  // truncate-before-match implementation's `stderr.slice(-4000)` would
-  // evict the DevTools line entirely before ever attempting to match it:
-  // leadingPadding pushes the line past the start of the retained window,
-  // and trailingPadding (> 4000 chars on its own) pushes the line's end
-  // past the retained window too.
+  // Padding is sized so that a truncate-before-match implementation's
+  // `stderr.slice(-4000)` would evict the DevTools line entirely before
+  // ever attempting to match it: leadingPadding pushes the line past the
+  // start of the retained window, and trailingPadding (> 4000 chars on its
+  // own) pushes the line's end past the retained window too.
   const leadingPadding = 'A'.repeat(3_000);
   const devToolsLine = 'DevTools listening on ws://127.0.0.1:54322/devtools/browser/abc\n';
   const trailingPadding = 'B'.repeat(4_500);
-  const child = nodeChild(
-    `process.stderr.write(${JSON.stringify(leadingPadding + devToolsLine + trailingPadding)}); setInterval(() => {}, 1000);`,
-  );
-  try {
-    const port = await readDevToolsPort(child, 5_000);
-    assert.equal(port, 54322);
-  } finally {
-    child.kill('SIGKILL');
-  }
+  const child = createFakeStderrChild();
+
+  const result = readDevToolsPort(child, 5_000);
+  child.emitStderr(leadingPadding + devToolsLine + trailingPadding);
+
+  assert.equal(await result, 54322);
 });
 
 // --- readDevToolsPort: readiness timeout ---

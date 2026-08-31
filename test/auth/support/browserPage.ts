@@ -335,6 +335,29 @@ function stderrSuffix(stderr: string): string {
   return trimmed === '' ? '' : ` - Chrome stderr: ${trimmed}`;
 }
 
+/** Minimal shape readDevToolsPort needs from a Chrome child - a custom
+ * interface (not `ChildProcess` directly), for the same reason
+ * `TerminableChild` above is: a real `ChildProcess`'s overloaded
+ * `stderr`/`once`/`off` are structurally compatible with this narrower
+ * shape, but a hand-written fake in a test can implement this shape
+ * directly (e.g. to emit a controlled stderr payload as a single `data`
+ * event, rather than depending on how the OS happens to chunk a real
+ * process's pipe) without also having to satisfy every unrelated
+ * `ChildProcess` member. */
+export interface StderrWatchableChild {
+  readonly stderr: {
+    on: (event: 'data', listener: (chunk: Buffer) => void) => void;
+    off: (event: 'data', listener: (chunk: Buffer) => void) => void;
+  } | null;
+  once(
+    event: 'close',
+    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
+  ): void;
+  once(event: 'error', listener: (error: Error) => void): void;
+  off(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): void;
+  off(event: 'error', listener: (error: Error) => void): void;
+}
+
 /** Reads Chrome's own `DevTools listening on ws://host:port/...` startup
  * line from stderr - the standard way to learn the actual port when
  * launched with `--remote-debugging-port=0` (letting the OS pick a free
@@ -347,7 +370,7 @@ function stderrSuffix(stderr: string): string {
  * does not say whether Chrome was merely slow, crashed, or never ran at
  * all. Does not itself touch the child process - the caller (launchBrowser)
  * owns cleanup, since only it knows whether this was the final attempt. */
-export function readDevToolsPort(child: ChildProcess, timeoutMs: number): Promise<number> {
+export function readDevToolsPort(child: StderrWatchableChild, timeoutMs: number): Promise<number> {
   return new Promise((resolve, reject) => {
     let stderr = '';
     let settled = false;
