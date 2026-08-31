@@ -50,7 +50,14 @@ export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
           />
         ) : null}
 
-        <Button type="button" variant="danger" disabled={isPending} onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          variant="danger"
+          disabled={isPending}
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
           削除
         </Button>
       </form>

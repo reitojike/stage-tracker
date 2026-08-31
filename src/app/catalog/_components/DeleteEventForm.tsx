@@ -46,7 +46,14 @@ export function DeleteEventForm({ eventId }: DeleteEventFormProps) {
           />
         ) : null}
 
-        <Button type="button" variant="danger" disabled={isPending} onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          variant="danger"
+          disabled={isPending}
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
           このイベントを削除
         </Button>
       </form>

@@ -43,7 +43,14 @@ export function DeleteOccurrenceForm({
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="occurrenceId" value={occurrenceId} />
 
-        <Button type="button" variant="danger" disabled={isPending} onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          variant="danger"
+          disabled={isPending}
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
           この公演回を削除
         </Button>
       </form>
