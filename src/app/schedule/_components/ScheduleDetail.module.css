@@ -139,7 +139,15 @@
 
 .dangerHeading {
   margin: 0;
+  border-bottom: 2px solid var(--color-danger);
+  padding-bottom: var(--space-card-block);
   color: var(--color-danger);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
+}
+
+.dangerDescription {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
 }

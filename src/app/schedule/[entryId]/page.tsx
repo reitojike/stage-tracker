@@ -203,6 +203,9 @@ export default async function ScheduleEntryPage({ params, searchParams }: Schedu
           {callerResult.ok && isOwner ? (
             <section className={styles.dangerSection}>
               <h2 className={styles.dangerHeading}>この予定を削除</h2>
+              <p className={styles.dangerDescription}>
+                元に戻せません。共有相手からも見えなくなります。
+              </p>
               <DeleteEntryForm entryId={entry.id} />
             </section>
           ) : null}
