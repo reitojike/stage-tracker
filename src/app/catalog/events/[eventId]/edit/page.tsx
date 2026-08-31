@@ -148,18 +148,24 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
             return (
               <div key={occurrence.id} className={styles.occurrenceRow}>
                 <div className={styles.occurrenceSummary}>
-                  <span
-                    className={[
-                      styles.occurrenceDateTime,
-                      effectivelyCanceled ? styles.occurrenceCanceled : undefined,
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                  >
-                    {label}
-                  </span>
+                  <div className={styles.occurrenceDateTimeRow}>
+                    {effectivelyCanceled ? (
+                      <Badge variant="terminal" className={styles.occurrenceCanceledBadge}>
+                        中止
+                      </Badge>
+                    ) : null}
+                    <span
+                      className={[
+                        styles.occurrenceDateTime,
+                        effectivelyCanceled ? styles.occurrenceCanceled : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      {label}
+                    </span>
+                  </div>
                   <span className={styles.occurrenceDetail}>{detail}</span>
-                  {effectivelyCanceled ? <Badge variant="terminal">中止</Badge> : null}
                 </div>
                 <OccurrenceUpdateForm
                   eventId={event.id}

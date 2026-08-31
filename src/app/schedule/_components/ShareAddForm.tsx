@@ -1,16 +1,17 @@
 'use client';
 
-import { useActionState } from 'react';
-import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import { TextInput } from '@/ui/TextInput';
-import { INITIAL_SHARE_ADD_FORM_STATE } from '@/domain/personalScheduleWriteFeedback.ts';
-import { addScheduleShareByEmailAction } from '../_actions/scheduleWrite.ts';
+import type { ScheduleShareAddFormState } from '@/domain/personalScheduleWriteFeedback.ts';
 import { ScheduleWriteNotice } from './ScheduleWriteNotice.tsx';
 import styles from './ShareAddForm.module.css';
 
 export interface ShareAddFormProps {
   entryId: string;
+  formId: string;
+  formAction: (formData: FormData) => void;
+  state: ScheduleShareAddFormState;
+  isPending: boolean;
 }
 
 /**
@@ -21,14 +22,10 @@ export interface ShareAddFormProps {
  * resolves the email to a user id server-side and is the only thing that
  * decides whether it belongs to a registered account.
  */
-export function ShareAddForm({ entryId }: ShareAddFormProps) {
-  const [state, formAction, isPending] = useActionState(
-    addScheduleShareByEmailAction,
-    INITIAL_SHARE_ADD_FORM_STATE,
-  );
-
+export function ShareAddForm({ entryId, formId, formAction, state, isPending }: ShareAddFormProps) {
   return (
     <form
+      id={formId}
       action={formAction}
       className={styles.form}
       aria-label="共有相手を追加"
@@ -58,12 +55,6 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
           disabled={isPending}
           helperText="stage-trackerに登録済みのメールアドレスを、正確に入力してください。"
         />
-      </div>
-
-      <div className={styles.actions}>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? '追加中…' : '共有相手を追加'}
-        </Button>
       </div>
     </form>
   );

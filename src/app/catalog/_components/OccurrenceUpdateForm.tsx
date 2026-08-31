@@ -7,8 +7,11 @@ import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { RawFormValues } from '@/domain/eventCatalogWrite.ts';
 import { updateOccurrenceAction } from '../_actions/eventWrite.ts';
-import { DeleteOccurrenceForm } from './DeleteOccurrenceForm.tsx';
-import { OccurrenceCancellationForm } from './OccurrenceCancellationForm.tsx';
+import {
+  OccurrenceCancellationForm,
+  useOccurrenceCancellationAction,
+} from './OccurrenceCancellationForm.tsx';
+import { DeleteOccurrenceForm, useDeleteOccurrenceAction } from './DeleteOccurrenceForm.tsx';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
 import { WriteNotice } from './WriteNotice.tsx';
 import styles from './EventWriteForm.module.css';
@@ -40,8 +43,14 @@ export function OccurrenceUpdateForm({
     ...INITIAL_WRITE_FORM_STATE,
     values: initialValues,
   });
+  const [cancellationState, cancellationFormAction, isCancellationPending] =
+    useOccurrenceCancellationAction(isCanceled);
+  const [deleteState, deleteFormAction, isDeletePending] = useDeleteOccurrenceAction();
   const formId = `occurrence-update-${occurrenceId}`;
   const closedAttemptRef = useRef<number | null>(null);
+  const hasLifecycleFeedback =
+    (canCancel && (cancellationState.feedback !== null || cancellationState.notice !== null)) ||
+    (canDelete && deleteState.feedback !== null);
 
   useEffect(() => {
     if (state.notice !== null && closedAttemptRef.current !== state.attempt) {
@@ -97,16 +106,56 @@ export function OccurrenceUpdateForm({
         </form>
         {canCancel || canDelete ? (
           <div className={styles.sheetLifecycle}>
-            {canCancel ? (
-              <OccurrenceCancellationForm
-                eventId={eventId}
-                occurrenceId={occurrenceId}
-                isCanceled={isCanceled}
-              />
-            ) : null}
-            {canDelete ? (
-              <DeleteOccurrenceForm eventId={eventId} occurrenceId={occurrenceId} />
-            ) : null}
+            <div
+              className={[
+                styles.sheetLifecycleFeedback,
+                !hasLifecycleFeedback ? styles.sheetLifecycleFeedbackEmpty : undefined,
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              {canCancel && cancellationState.feedback ? (
+                <StatePanel
+                  key={cancellationState.attempt}
+                  variant={cancellationState.feedback.variant}
+                  title={cancellationState.feedback.title}
+                  description={cancellationState.feedback.description}
+                />
+              ) : null}
+              {canCancel ? (
+                <WriteNotice
+                  notice={cancellationState.notice}
+                  attempt={cancellationState.attempt}
+                />
+              ) : null}
+              {canDelete && deleteState.feedback ? (
+                <StatePanel
+                  key={deleteState.attempt}
+                  variant={deleteState.feedback.variant}
+                  title={deleteState.feedback.title}
+                  description={deleteState.feedback.description}
+                />
+              ) : null}
+            </div>
+            <div className={styles.sheetLifecycleActions}>
+              {canCancel ? (
+                <OccurrenceCancellationForm
+                  eventId={eventId}
+                  occurrenceId={occurrenceId}
+                  isCanceled={isCanceled}
+                  formAction={cancellationFormAction}
+                  isPending={isCancellationPending}
+                />
+              ) : null}
+              {canDelete ? (
+                <DeleteOccurrenceForm
+                  eventId={eventId}
+                  occurrenceId={occurrenceId}
+                  formAction={deleteFormAction}
+                  isPending={isDeletePending}
+                />
+              ) : null}
+            </div>
           </div>
         ) : null}
       </Sheet>
