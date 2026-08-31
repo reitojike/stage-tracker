@@ -304,6 +304,18 @@ const READY_TIMEOUT_MS = 20_000;
 // here rather than re-implemented.
 const CLEANUP_TIMEOUT_MS = 5_000;
 
+// Escalation bound for the SIGKILL wait, used only once SIGTERM has already
+// failed to terminate the process within CLEANUP_TIMEOUT_MS. Deliberately
+// short: SIGKILL cannot be caught, blocked, or ignored by the OS, so a
+// process that still hasn't exited within this window indicates something
+// fundamentally wrong (e.g. an unkillable zombie/D-state process) rather
+// than needing more time. Without this escalation, a Chrome process that
+// merely ignores SIGTERM would stay alive as an orphan even after
+// cleanupFailedLaunch/Browser.close() themselves return - reintroducing,
+// via a different path, the exact "live child process keeps node --test
+// alive" failure mode Issue #259 exists to close.
+const KILL_TIMEOUT_MS = 2_000;
+
 // One retry of *Chrome process startup/readiness only* (never of an Auth
 // assertion or the whole Database job - see launchBrowser's own doc
 // comment). Evidence so far (see READY_TIMEOUT_MS above) shows a single
@@ -421,28 +433,57 @@ export interface TerminableChild {
   kill: (signal?: NodeJS.Signals) => boolean;
 }
 
-/** Terminates a Chrome child that failed to become ready before a `Browser`
- * handle existed to return to the caller, and best-effort removes its
- * temporary profile dir. Exported so the bounded-wait behavior itself can
- * be proven directly against a fake process, mirroring
- * test/auth/support/appServer.ts's own waitForExit/stopProcess precedent.
+/** Terminates `child`, escalating to `SIGKILL` if it does not exit within
+ * `termTimeoutMs` of `SIGTERM`. `SIGTERM` alone is not sufficient: a Chrome
+ * process that ignores/does not respond to it would otherwise stay alive as
+ * an orphan even after the caller (cleanupFailedLaunch/Browser.close()
+ * below) has itself already returned - reintroducing, via a different path,
+ * the exact "a live child process keeps `node --test` alive" failure mode
+ * Issue #259 exists to close. Still fully bounded: rejects (rather than
+ * hanging) if the process survives `SIGKILL` too, within `killTimeoutMs`.
+ * Exported so this escalation itself - not just the fact that *a* wait is
+ * bounded - can be proven directly against a fake process, mirroring
+ * test/auth/support/appServer.ts's own waitForExit/stopProcess precedent. */
+export async function terminateChild(
+  child: TerminableChild,
+  termTimeoutMs: number,
+  killTimeoutMs: number = KILL_TIMEOUT_MS,
+): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+  child.kill('SIGTERM');
+  try {
+    await waitForExit(child, termTimeoutMs);
+    return;
+  } catch {
+    // SIGTERM did not terminate the process within termTimeoutMs - the
+    // guard above plus this rejection together mean exitCode/signalCode
+    // are still both null here, so SIGKILL is always still needed.
+  }
+  child.kill('SIGKILL');
+  await waitForExit(child, killTimeoutMs);
+}
+
+/** Terminates (via terminateChild's SIGTERM->SIGKILL escalation) a Chrome
+ * child that failed to become ready before a `Browser` handle existed to
+ * return to the caller, and best-effort removes its temporary profile dir.
  * Never throws for a userDataDir removal failure (best-effort, same as
- * Browser.close() below); *does* propagate a kill/wait failure to the
+ * Browser.close() below); *does* propagate a termination failure to the
  * caller, which folds it into the startup error as additional context
  * rather than replacing it (Issue #259: the original Chrome startup
- * failure must remain the primary, actionable error). `timeoutMs` defaults
- * to CLEANUP_TIMEOUT_MS but is overridable so tests can prove the bounded-
- * timeout path itself without a real 5s wait. */
+ * failure must remain the primary, actionable error). `termTimeoutMs`
+ * defaults to CLEANUP_TIMEOUT_MS but is overridable so tests can prove the
+ * bounded-timeout/escalation path itself without a real multi-second
+ * wait. */
 export async function cleanupFailedLaunch(
   child: TerminableChild,
   userDataDir: string,
-  timeoutMs: number = CLEANUP_TIMEOUT_MS,
+  termTimeoutMs: number = CLEANUP_TIMEOUT_MS,
+  killTimeoutMs: number = KILL_TIMEOUT_MS,
 ): Promise<void> {
   try {
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGTERM');
-    }
-    await waitForExit(child, timeoutMs);
+    await terminateChild(child, termTimeoutMs, killTimeoutMs);
   } finally {
     try {
       rmSync(userDataDir, { recursive: true, force: true });
@@ -522,14 +563,12 @@ async function attemptLaunch(chromePath: string): Promise<Browser> {
       return new CdpBrowserPage(connection);
     },
     async close(): Promise<void> {
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill('SIGTERM');
-      }
       try {
-        await waitForExit(child, CLEANUP_TIMEOUT_MS);
+        await terminateChild(child, CLEANUP_TIMEOUT_MS);
       } catch {
         // Bounded best-effort only, same tolerance as cleanupFailedLaunch
-        // above - a stuck Chrome process must not hang test cleanup.
+        // above - a stuck Chrome process must not hang test cleanup, even
+        // if it survives both SIGTERM and the SIGKILL escalation.
       }
       try {
         rmSync(userDataDir, { recursive: true, force: true });

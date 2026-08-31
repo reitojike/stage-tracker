@@ -8,6 +8,7 @@ import {
   cleanupFailedLaunch,
   combineStartupAndCleanupError,
   readDevToolsPort,
+  terminateChild,
   type TerminableChild,
 } from './support/browserPage.ts';
 import { runCleanupTasks } from './support/cleanupTasks.ts';
@@ -86,14 +87,19 @@ void test('readDevToolsPort rejects with a spawn-error diagnostic when the proce
   await assert.rejects(readDevToolsPort(child, 5_000), /Chrome process failed to start/);
 });
 
-// --- cleanupFailedLaunch: terminates an already-failed startup ---
+// --- terminateChild / cleanupFailedLaunch: SIGTERM->SIGKILL escalation ---
 
-function createFakeChild(): TerminableChild & {
-  killedWith: NodeJS.Signals[];
-  forceExit: () => void;
-} {
+/** A fake process that only actually exits in response to a signal in
+ * `respondsTo` (default: both) - lets tests drive every branch of
+ * terminateChild's SIGTERM->SIGKILL escalation (a process that obeys
+ * SIGTERM, one that ignores SIGTERM but obeys SIGKILL like a real OS would,
+ * and one that survives both - the case an unbounded wait would previously
+ * leave orphaned indefinitely). */
+function createFakeChild(
+  respondsTo: ReadonlySet<NodeJS.Signals> = new Set(['SIGTERM', 'SIGKILL']),
+): TerminableChild & { killedWith: NodeJS.Signals[] } {
   let exitListener: (() => void) | undefined;
-  const fake: TerminableChild & { killedWith: NodeJS.Signals[]; forceExit: () => void } = {
+  const fake: TerminableChild & { killedWith: NodeJS.Signals[] } = {
     exitCode: null,
     signalCode: null,
     killedWith: [],
@@ -102,26 +108,66 @@ function createFakeChild(): TerminableChild & {
     },
     kill: (signal = 'SIGTERM') => {
       fake.killedWith.push(signal);
+      if (respondsTo.has(signal)) {
+        fake.exitCode = 0;
+        fake.signalCode = signal;
+        exitListener?.();
+      }
       return true;
-    },
-    forceExit: () => {
-      fake.exitCode = 0;
-      exitListener?.();
     },
   };
   return fake;
 }
+
+void test('terminateChild resolves after SIGTERM alone when the child responds to it, without ever escalating to SIGKILL', async () => {
+  const child = createFakeChild();
+
+  await terminateChild(child, 5_000);
+
+  assert.deepEqual(child.killedWith, ['SIGTERM'], 'SIGKILL must not be sent once SIGTERM worked');
+});
+
+void test('terminateChild does nothing when the child has already exited', async () => {
+  const child = createFakeChild();
+  child.exitCode = 0;
+
+  await terminateChild(child, 5_000);
+
+  assert.deepEqual(child.killedWith, [], 'an already-exited child must not be killed at all');
+});
+
+void test('terminateChild escalates to SIGKILL when the child ignores SIGTERM, and still resolves', async () => {
+  const child = createFakeChild(new Set(['SIGKILL']));
+
+  await terminateChild(child, 50, 5_000);
+
+  assert.deepEqual(
+    child.killedWith,
+    ['SIGTERM', 'SIGKILL'],
+    'SIGTERM must be attempted first, then SIGKILL once SIGTERM did not terminate the process',
+  );
+});
+
+void test('terminateChild rejects with a bounded timeout - never hangs - when the child survives SIGKILL too', async () => {
+  const child = createFakeChild(new Set());
+
+  await assert.rejects(terminateChild(child, 50, 50), /did not exit within 50ms/);
+
+  assert.deepEqual(
+    child.killedWith,
+    ['SIGTERM', 'SIGKILL'],
+    'both signals must still have been attempted even though neither terminated the process',
+  );
+});
+
+// --- cleanupFailedLaunch: wires terminateChild's escalation into cleanup ---
 
 void test('cleanupFailedLaunch sends SIGTERM and removes the temp profile dir once the child exits', async () => {
   const child = createFakeChild();
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
   writeFileSync(path.join(userDataDir, 'marker'), 'x');
 
-  const cleanup = cleanupFailedLaunch(child, userDataDir, 5_000);
-  // Simulate the child actually terminating in response to the SIGTERM
-  // cleanupFailedLaunch just sent.
-  child.forceExit();
-  await cleanup;
+  await cleanupFailedLaunch(child, userDataDir, 5_000);
 
   assert.deepEqual(child.killedWith, ['SIGTERM']);
   assert.equal(existsSync(userDataDir), false, 'the temporary user-data dir must be removed');
@@ -138,31 +184,40 @@ void test('cleanupFailedLaunch does not send a second kill when the child has al
   assert.equal(existsSync(userDataDir), false);
 });
 
-// --- cleanupFailedLaunch: bounded even when the child never exits ---
-
-void test('cleanupFailedLaunch rejects with a bounded timeout - never hangs - when the child does not exit, but still removes the temp profile dir', async () => {
-  const child = createFakeChild();
+void test('cleanupFailedLaunch escalates to SIGKILL when SIGTERM does not terminate the child, and still removes the temp profile dir', async () => {
+  const child = createFakeChild(new Set(['SIGKILL']));
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
 
-  await assert.rejects(cleanupFailedLaunch(child, userDataDir, 50), /did not exit within 50ms/);
+  await cleanupFailedLaunch(child, userDataDir, 50, 5_000);
 
+  assert.deepEqual(child.killedWith, ['SIGTERM', 'SIGKILL']);
+  assert.equal(existsSync(userDataDir), false, 'the temporary user-data dir must be removed');
+});
+
+void test('cleanupFailedLaunch rejects with a bounded timeout - never hangs - when the child survives both SIGTERM and SIGKILL, but still removes the temp profile dir', async () => {
+  const child = createFakeChild(new Set());
+  const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
+
+  await assert.rejects(cleanupFailedLaunch(child, userDataDir, 50, 50), /did not exit within 50ms/);
+
+  assert.deepEqual(child.killedWith, ['SIGTERM', 'SIGKILL']);
   assert.equal(
     existsSync(userDataDir),
     false,
-    'temp profile dir removal must still be attempted even when the process wait times out',
+    'temp profile dir removal must still be attempted even when the process survives both signals',
   );
 });
 
 // --- Primary startup error preserved when cleanup also fails ---
 
 void test('a startup failure followed by a cleanup failure keeps the startup error primary and adds cleanup context', async () => {
-  const child = createFakeChild();
+  const child = createFakeChild(new Set());
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
   const startupError = new Error('Chrome did not report a DevTools port within 20000ms');
 
   let combined: unknown;
   try {
-    await cleanupFailedLaunch(child, userDataDir, 50);
+    await cleanupFailedLaunch(child, userDataDir, 50, 50);
   } catch (cleanupError) {
     // Calls the actual production combining logic (attemptLaunch's own
     // catch block calls the same function) rather than reimplementing it,
