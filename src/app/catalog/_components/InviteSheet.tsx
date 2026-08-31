@@ -8,7 +8,7 @@ import { TextInput } from '@/ui/TextInput';
 import { INITIAL_OPERATION_STATE } from '@/domain/participationFeedback.ts';
 import { occurrenceTimeRangeLabel, tokyoDateLabel } from '@/domain/catalogFormatting.ts';
 import { inviteToOccurrenceAction } from '../_actions/participationWrite.ts';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './InviteSheet.module.css';
 
 export interface InviteSheetProps {
@@ -58,6 +58,7 @@ export function InviteSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="招待する">
+      <WriteNotice notice={state.notice} attempt={state.attempt} />
       <p className={styles.occurrenceTime}>
         {tokyoDateLabel(occurrence.startsAt)}{' '}
         {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
@@ -75,8 +76,6 @@ export function InviteSheet({
             description={state.feedback.description}
           />
         ) : null}
-        <WriteNotice notice={state.notice} attempt={state.attempt} />
-
         <TextInput
           key={state.attempt}
           label="招待するユーザーの登録メールアドレス"
@@ -91,8 +90,18 @@ export function InviteSheet({
         />
 
         <div className={styles.actions}>
-          <Button type="submit" variant="primary" disabled={isPending}>
-            {isPending ? '送信中…' : '招待する'}
+          <Button
+            type="submit"
+            variant="primary"
+            className={styles.stablePendingButton}
+            disabled={isPending}
+          >
+            <span className={styles.stablePendingLabel}>
+              <span aria-hidden="true" className={styles.stablePendingSizing}>
+                招待する
+              </span>
+              <span>{isPending ? '送信中…' : '招待する'}</span>
+            </span>
           </Button>
         </div>
       </form>

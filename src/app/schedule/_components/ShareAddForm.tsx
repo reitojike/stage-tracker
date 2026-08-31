@@ -3,7 +3,7 @@
 import { StatePanel } from '@/ui/StatePanel';
 import { TextInput } from '@/ui/TextInput';
 import type { ScheduleShareAddFormState } from '@/domain/personalScheduleWriteFeedback.ts';
-import { ScheduleWriteNotice } from './ScheduleWriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './ShareAddForm.module.css';
 
 export interface ShareAddFormProps {
@@ -42,7 +42,7 @@ export function ShareAddForm({ entryId, formId, formAction, state, isPending }: 
         />
       ) : null}
 
-      <ScheduleWriteNotice notice={state.notice} attempt={state.attempt} />
+      <WriteNotice notice={state.notice} attempt={state.attempt} />
 
       <div key={state.attempt} className={styles.fields}>
         <TextInput

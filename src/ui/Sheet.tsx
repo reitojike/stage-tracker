@@ -84,6 +84,7 @@ export function Sheet({
         // dialog's implicit cancel action.
         if (event.key === 'Escape') {
           event.preventDefault();
+          event.stopPropagation();
           dialogRef.current?.close();
         }
       }}

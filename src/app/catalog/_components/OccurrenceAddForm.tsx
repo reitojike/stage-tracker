@@ -7,7 +7,7 @@ import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import { addOccurrenceAction } from '../_actions/eventWrite.ts';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceAddFormProps {
@@ -49,8 +49,18 @@ export function OccurrenceAddForm({ eventId }: OccurrenceAddFormProps) {
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button type="submit" form="occurrence-add" disabled={isPending}>
-              {isPending ? '追加中…' : '公演回を追加'}
+            <Button
+              type="submit"
+              form="occurrence-add"
+              className={styles.stablePendingButton}
+              disabled={isPending}
+            >
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  公演回を追加
+                </span>
+                <span>{isPending ? '追加中…' : '公演回を追加'}</span>
+              </span>
             </Button>
           </div>
         }

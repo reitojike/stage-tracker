@@ -7,7 +7,7 @@ import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { RawFormValues } from '@/domain/eventCatalogWrite.ts';
 import { updateEventDetailsAction } from '../_actions/eventWrite.ts';
 import { EventFields } from './EventFields.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface EventDetailsEditFormProps {
@@ -58,8 +58,13 @@ export function EventDetailsEditForm({ eventId, initialValues }: EventDetailsEdi
       </div>
 
       <div className={styles.groupSubmit}>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? '保存中…' : 'イベント情報を保存'}
+        <Button type="submit" className={styles.stablePendingButton} disabled={isPending}>
+          <span className={styles.stablePendingLabel}>
+            <span aria-hidden="true" className={styles.stablePendingSizing}>
+              イベント情報を保存
+            </span>
+            <span>{isPending ? '保存中…' : 'イベント情報を保存'}</span>
+          </span>
         </Button>
       </div>
     </form>

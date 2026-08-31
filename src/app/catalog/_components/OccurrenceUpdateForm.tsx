@@ -13,7 +13,7 @@ import {
 } from './OccurrenceCancellationForm.tsx';
 import { DeleteOccurrenceForm, useDeleteOccurrenceAction } from './DeleteOccurrenceForm.tsx';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceUpdateFormProps {
@@ -77,8 +77,18 @@ export function OccurrenceUpdateForm({
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button type="submit" form={formId} disabled={isPending}>
-              {isPending ? '保存中…' : 'この公演回を保存'}
+            <Button
+              type="submit"
+              form={formId}
+              className={styles.stablePendingButton}
+              disabled={isPending}
+            >
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  この公演回を保存
+                </span>
+                <span>{isPending ? '保存中…' : 'この公演回を保存'}</span>
+              </span>
             </Button>
           </div>
         }
@@ -94,6 +104,7 @@ export function OccurrenceUpdateForm({
               description={state.feedback.description}
             />
           ) : null}
+          <WriteNotice notice={cancellationState.notice} attempt={cancellationState.attempt} />
           <WriteNotice notice={state.notice} attempt={state.attempt} />
           <div key={state.attempt} className={styles.fields}>
             <OccurrenceFields
@@ -120,12 +131,6 @@ export function OccurrenceUpdateForm({
                   variant={cancellationState.feedback.variant}
                   title={cancellationState.feedback.title}
                   description={cancellationState.feedback.description}
-                />
-              ) : null}
-              {canCancel ? (
-                <WriteNotice
-                  notice={cancellationState.notice}
-                  attempt={cancellationState.attempt}
                 />
               ) : null}
               {canDelete && deleteState.feedback ? (

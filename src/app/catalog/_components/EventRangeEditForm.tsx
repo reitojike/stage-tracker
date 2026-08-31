@@ -8,7 +8,7 @@ import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { RawFormValues } from '@/domain/eventCatalogWrite.ts';
 import { updateEventRangeAction } from '../_actions/eventWrite.ts';
 import { EventRangeFields } from './EventRangeFields.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface EventRangeEditFormProps {
@@ -58,8 +58,18 @@ export function EventRangeEditForm({ eventId, initialValues }: EventRangeEditFor
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button type="submit" form="event-range-edit" disabled={isPending}>
-              {isPending ? '保存中…' : '開催期間を保存'}
+            <Button
+              type="submit"
+              form="event-range-edit"
+              className={styles.stablePendingButton}
+              disabled={isPending}
+            >
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  開催期間を保存
+                </span>
+                <span>{isPending ? '保存中…' : '開催期間を保存'}</span>
+              </span>
             </Button>
           </div>
         }

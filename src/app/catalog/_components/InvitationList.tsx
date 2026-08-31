@@ -5,7 +5,7 @@ import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import type { Invitation } from '@/domain/invitation.ts';
 import { InvitationCard } from './InvitationCard.tsx';
-import { WriteNotice } from './WriteNotice.tsx';
+import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './InvitationList.module.css';
 
 export interface InvitationListItem {

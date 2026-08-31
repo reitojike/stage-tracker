@@ -43,6 +43,24 @@
   gap: var(--space-sm);
 }
 
+.stablePendingButton {
+  white-space: nowrap;
+}
+
+.stablePendingLabel {
+  display: grid;
+}
+
+.stablePendingLabel > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.stablePendingSizing {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* Decline-undo row (Issue #230 addendum): replaces the card body in place
    for up to 8 seconds after "参加しない", or until the invitee undoes it -
    see InvitationCard.tsx's DECLINE_UNDO_WINDOW_MS. Deliberately not a

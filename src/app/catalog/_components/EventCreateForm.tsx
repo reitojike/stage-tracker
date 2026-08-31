@@ -101,8 +101,13 @@ export function EventCreateForm({ context }: EventCreateFormProps) {
       </div>
 
       <div className={styles.fixedSubmit}>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? '作成中…' : 'イベントを作成'}
+        <Button type="submit" className={styles.stablePendingButton} disabled={isPending}>
+          <span className={styles.stablePendingLabel}>
+            <span aria-hidden="true" className={styles.stablePendingSizing}>
+              イベントを作成
+            </span>
+            <span>{isPending ? '作成中…' : 'イベントを作成'}</span>
+          </span>
         </Button>
       </div>
     </form>
