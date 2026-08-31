@@ -10,6 +10,11 @@
   gap: var(--space-md);
 }
 
+.groupSubmit {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .writeSection {
   display: flex;
   flex-direction: column;
@@ -115,10 +120,40 @@
 
 .sheetLifecycle {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
+  flex-direction: column;
+  gap: var(--space-md);
   padding-top: var(--space-md);
   border-top: 1px solid var(--color-border);
+}
+
+.sheetLifecycleFeedback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sheetLifecycleFeedbackEmpty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.sheetLifecycleActions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.sheetLifecycleActions > form {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sheetLifecycleActions > form > button {
+  width: 100%;
+  white-space: nowrap;
+  font-size: var(--font-size-body-sm);
 }
 
 .occurrenceList {
@@ -143,7 +178,19 @@
   min-width: 0;
 }
 
+.occurrenceDateTimeRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.occurrenceCanceledBadge {
+  flex-shrink: 0;
+}
+
 .occurrenceDateTime {
+  min-width: 0;
   color: var(--color-primary);
   font-size: var(--font-size-body-sm);
 }

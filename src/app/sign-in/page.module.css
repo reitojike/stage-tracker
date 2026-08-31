@@ -5,6 +5,12 @@
   padding-block-start: var(--space-md);
 }
 
+.requestAcknowledgement {
+  padding: var(--space-card-block);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-subtle);
+}
+
 .methods {
   display: flex;
   flex-direction: column;

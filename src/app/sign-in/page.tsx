@@ -1,6 +1,5 @@
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
-import { Surface } from '@/ui/Surface';
 import { TextInput } from '@/ui/TextInput';
 import { requestSignInLink } from './actions.ts';
 import { PasskeySignInButton } from './_components/PasskeySignInButton.tsx';
@@ -48,14 +47,14 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       ) : null}
 
       {requested ? (
-        <Surface variant="subtle">
+        <div className={styles.requestAcknowledgement}>
           {/* Acknowledges the request only. It must not claim an email was
               sent, nor imply anything about whether the address has an
               account - see requestSignInLink. */}
           <p>
             リクエストを受け付けました。登録済みのメールアドレスで、メール送信が利用可能な場合はサインインリンクが届きます。届かない場合は時間をおいて再試行するか、管理者に連絡してください。
           </p>
-        </Surface>
+        </div>
       ) : (
         <div className={styles.methods}>
           {/* Passkey登録済みuserの日常sign-in path（Issue #106）。discoverable
