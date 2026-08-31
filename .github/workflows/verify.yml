@@ -28,10 +28,21 @@ name: Verify
 # CI-specific initialization path (Issue #209): it skips `supabase db
 # reset` (redundant on this always-fresh runner - see the step's own
 # comment below) and excludes Supabase services no Database/RLS/Auth check
-# uses (Studio, Realtime, Storage/imgproxy, Edge Runtime, postgres-meta,
+# uses (Studio, Realtime, Storage/imgproxy, Edge Runtime,
 # Analytics/Logflare/Vector, Supavisor - Mailpit and PostgREST/GoTrue/Kong
 # stay, since test/auth's magic-link flow and every RLS/Auth request need
 # them) to reduce cold-start image pulls and container registry exposure.
+# `postgres-meta` also stays included (Issue #253): the generated-types
+# drift check's `supabase gen types --local` needs postgres-meta, and when
+# it is excluded from `supabase start`, that command pulls the image itself
+# on a fresh runner with no retry - a single Public ECR
+# `toomanyrequests: Rate exceeded` there fails the whole job even though no
+# actual types/schema drift occurred. `supabase start` already retries
+# transient registry pulls for every other image it fetches (observed
+# recovering from the same error in CI logs), so keeping postgres-meta in
+# the startup set gets it that same retry coverage and leaves it cached
+# locally by the time type generation runs, instead of a bare uncached pull
+# at that later, unretried point.
 
 on:
   push:
@@ -170,7 +181,7 @@ jobs:
           echo "::group::docker ps -a"
           docker ps -a || true
           echo "::endgroup::"
-          for container in supabase_db_stage-tracker supabase_auth_stage-tracker supabase_rest_stage-tracker supabase_kong_stage-tracker supabase_inbucket_stage-tracker; do
+          for container in supabase_db_stage-tracker supabase_auth_stage-tracker supabase_rest_stage-tracker supabase_kong_stage-tracker supabase_inbucket_stage-tracker supabase_pg_meta_stage-tracker; do
             echo "::group::docker logs $container (tail 300)"
             docker logs "$container" --tail 300 2>&1 || true
             echo "::endgroup::"
