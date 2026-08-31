@@ -282,7 +282,12 @@ export function InvitationCard({
               disabled={isBusy}
               onClick={handleAccept}
             >
-              {isBusy ? '参加中…' : '参加する'}
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  参加する
+                </span>
+                <span>{isBusy ? '参加中…' : '参加する'}</span>
+              </span>
             </Button>
           </>
         )}

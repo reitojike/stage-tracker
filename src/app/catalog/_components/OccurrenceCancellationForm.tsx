@@ -51,13 +51,20 @@ export function OccurrenceCancellationForm({
         className={styles.stablePendingButton}
         disabled={isPending}
       >
-        {isPending
-          ? isCanceled
-            ? '解除中…'
-            : '中止中…'
-          : isCanceled
-            ? 'この公演回の中止を解除'
-            : 'この公演回を中止'}
+        <span className={styles.stablePendingLabel}>
+          <span aria-hidden="true" className={styles.stablePendingSizing}>
+            この公演回の中止を解除
+          </span>
+          <span>
+            {isPending
+              ? isCanceled
+                ? '解除中…'
+                : '中止中…'
+              : isCanceled
+                ? 'この公演回の中止を解除'
+                : 'この公演回を中止'}
+          </span>
+        </span>
       </Button>
     </form>
   );

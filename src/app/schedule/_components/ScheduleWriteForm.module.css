@@ -147,6 +147,19 @@
 }
 
 .stablePendingButton {
-  min-width: 10ch;
   white-space: nowrap;
+}
+
+.stablePendingLabel {
+  display: grid;
+}
+
+.stablePendingLabel > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.stablePendingSizing {
+  visibility: hidden;
+  pointer-events: none;
 }

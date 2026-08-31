@@ -72,7 +72,12 @@ export function DeleteEventForm({ eventId }: DeleteEventFormProps) {
               className={styles.stablePendingButton}
               disabled={isPending}
             >
-              {isPending ? '削除中…' : '削除'}
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  削除中…
+                </span>
+                <span>{isPending ? '削除中…' : '削除'}</span>
+              </span>
             </Button>
           </div>
         }

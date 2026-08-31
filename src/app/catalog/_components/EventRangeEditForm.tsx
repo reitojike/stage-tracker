@@ -64,7 +64,12 @@ export function EventRangeEditForm({ eventId, initialValues }: EventRangeEditFor
               className={styles.stablePendingButton}
               disabled={isPending}
             >
-              {isPending ? '保存中…' : '開催期間を保存'}
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  開催期間を保存
+                </span>
+                <span>{isPending ? '保存中…' : '開催期間を保存'}</span>
+              </span>
             </Button>
           </div>
         }

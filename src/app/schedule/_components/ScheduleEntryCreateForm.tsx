@@ -58,7 +58,12 @@ export function ScheduleEntryCreateForm({ initialValues }: ScheduleEntryCreateFo
       <div className={styles.submitBand}>
         <div className={styles.submitInner}>
           <Button type="submit" className={styles.stablePendingButton} disabled={isPending}>
-            {isPending ? '作成中…' : '予定を作成'}
+            <span className={styles.stablePendingLabel}>
+              <span aria-hidden="true" className={styles.stablePendingSizing}>
+                予定を作成
+              </span>
+              <span>{isPending ? '作成中…' : '予定を作成'}</span>
+            </span>
           </Button>
         </div>
       </div>

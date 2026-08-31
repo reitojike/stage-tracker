@@ -95,10 +95,22 @@ void test('write pending controls use scoped stable geometry contracts', () => {
   const cardCss = read('src/app/catalog/_components/InvitationCard.module.css');
   const detailCss = read('src/app/schedule/_components/ScheduleDetail.module.css');
   for (const css of [eventCss, scheduleCss, inviteCss, shareCss, cardCss, detailCss]) {
-    assert.match(
-      css,
-      /\.stablePendingButton\s*\{[\s\S]*?min-width:\s*10ch;[\s\S]*?white-space:\s*nowrap;/,
-    );
+    assert.match(css, /\.stablePendingButton\s*\{[\s\S]*?white-space:\s*nowrap;/);
+    assert.match(css, /\.stablePendingLabel\s*\{[\s\S]*?display:\s*grid;/);
+    assert.match(css, /\.stablePendingLabel\s*>\s*span\s*\{[\s\S]*?grid-area:\s*1\s*\/\s*1;/);
+    assert.match(css, /\.stablePendingSizing\s*\{[\s\S]*?visibility:\s*hidden;/);
+    assert.doesNotMatch(css, /min-width:\s*10ch/);
+  }
+  for (const relativePath of [
+    'src/app/catalog/_components/EventDetailsEditForm.tsx',
+    'src/app/catalog/_components/EventCancellationForm.tsx',
+    'src/app/catalog/_components/OccurrenceCancellationForm.tsx',
+    'src/app/schedule/_components/DeleteEntryForm.tsx',
+    'src/app/schedule/_components/LeaveShareForm.tsx',
+  ]) {
+    const source = read(relativePath);
+    assert.match(source, /styles\.stablePendingLabel/);
+    assert.match(source, /aria-hidden="true"\s+className=\{styles\.stablePendingSizing\}/);
   }
   assert.doesNotMatch(read('src/ui/Button.tsx'), /stablePendingButton/);
 });

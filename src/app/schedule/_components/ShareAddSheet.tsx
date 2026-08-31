@@ -57,7 +57,12 @@ export function ShareAddSheet({ entryId }: ShareAddSheetProps) {
               className={styles.stablePendingButton}
               disabled={isPending}
             >
-              {isPending ? '追加中…' : '共有相手を追加'}
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  共有相手を追加
+                </span>
+                <span>{isPending ? '追加中…' : '共有相手を追加'}</span>
+              </span>
             </Button>
           </div>
         }

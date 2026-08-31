@@ -57,7 +57,12 @@ export function ScheduleEntryEditForm({ entryId, initialValues }: ScheduleEntryE
       <div className={styles.submitBand}>
         <div className={styles.submitInner}>
           <Button type="submit" className={styles.stablePendingButton} disabled={isPending}>
-            {isPending ? '保存中…' : '予定を保存'}
+            <span className={styles.stablePendingLabel}>
+              <span aria-hidden="true" className={styles.stablePendingSizing}>
+                予定を保存
+              </span>
+              <span>{isPending ? '保存中…' : '予定を保存'}</span>
+            </span>
           </Button>
         </div>
       </div>

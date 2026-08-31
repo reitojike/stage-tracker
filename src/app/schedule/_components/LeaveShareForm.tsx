@@ -46,7 +46,12 @@ export function LeaveShareForm({ shareId }: LeaveShareFormProps) {
         className={styles.stablePendingButton}
         disabled={isPending}
       >
-        {isPending ? '解除中…' : 'この予定の共有から外れる'}
+        <span className={styles.stablePendingLabel}>
+          <span aria-hidden="true" className={styles.stablePendingSizing}>
+            この予定の共有から外れる
+          </span>
+          <span>{isPending ? '解除中…' : 'この予定の共有から外れる'}</span>
+        </span>
       </Button>
     </form>
   );

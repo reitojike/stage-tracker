@@ -6,6 +6,7 @@ import { Sheet } from '@/ui/Sheet';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_SCHEDULE_ENTRY_DELETE_FORM_STATE } from '@/domain/personalScheduleWriteFeedback.ts';
 import { deleteScheduleEntryAction } from '../_actions/scheduleWrite.ts';
+import styles from './ScheduleWriteForm.module.css';
 
 export interface DeleteEntryFormProps {
   entryId: string;
@@ -69,9 +70,15 @@ export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
               type="submit"
               form="delete-schedule-entry-form"
               variant="danger"
+              className={styles.stablePendingButton}
               disabled={isPending}
             >
-              {isPending ? '削除中…' : '削除'}
+              <span className={styles.stablePendingLabel}>
+                <span aria-hidden="true" className={styles.stablePendingSizing}>
+                  削除中…
+                </span>
+                <span>{isPending ? '削除中…' : '削除'}</span>
+              </span>
             </Button>
           </div>
         }

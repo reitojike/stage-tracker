@@ -96,7 +96,12 @@ export function InviteSheet({
             className={styles.stablePendingButton}
             disabled={isPending}
           >
-            {isPending ? '送信中…' : '招待する'}
+            <span className={styles.stablePendingLabel}>
+              <span aria-hidden="true" className={styles.stablePendingSizing}>
+                招待する
+              </span>
+              <span>{isPending ? '送信中…' : '招待する'}</span>
+            </span>
           </Button>
         </div>
       </form>

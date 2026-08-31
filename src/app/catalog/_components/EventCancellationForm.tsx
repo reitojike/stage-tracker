@@ -51,13 +51,20 @@ export function EventCancellationForm({ eventId, isCanceled }: EventCancellation
         className={styles.stablePendingButton}
         disabled={isPending}
       >
-        {isPending
-          ? isCanceled
-            ? '解除中…'
-            : '中止中…'
-          : isCanceled
-            ? 'このイベントの中止を解除'
-            : 'このイベントを中止'}
+        <span className={styles.stablePendingLabel}>
+          <span aria-hidden="true" className={styles.stablePendingSizing}>
+            このイベントの中止を解除
+          </span>
+          <span>
+            {isPending
+              ? isCanceled
+                ? '解除中…'
+                : '中止中…'
+              : isCanceled
+                ? 'このイベントの中止を解除'
+                : 'このイベントを中止'}
+          </span>
+        </span>
       </Button>
     </form>
   );
