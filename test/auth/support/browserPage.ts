@@ -366,15 +366,21 @@ export function readDevToolsPort(child: ChildProcess, timeoutMs: number): Promis
 
     const onStderrData = (chunk: Buffer): void => {
       stderr += chunk.toString('utf8');
-      if (stderr.length > MAX_STDERR_CAPTURE_CHARS) {
-        stderr = stderr.slice(-MAX_STDERR_CAPTURE_CHARS);
-      }
+      // Match *before* truncating: matching against an already-truncated
+      // buffer could discard the "DevTools listening on ws://..." line
+      // itself if enough other stderr output (e.g. GPU/sandbox warnings)
+      // preceded it within a single accumulation window, spuriously timing
+      // out a startup that Chrome actually completed successfully.
       const match = /ws:\/\/127\.0\.0\.1:(\d+)\//.exec(stderr);
       const port = match?.[1];
       if (port !== undefined) {
         finish(() => {
           resolve(Number(port));
         });
+        return;
+      }
+      if (stderr.length > MAX_STDERR_CAPTURE_CHARS) {
+        stderr = stderr.slice(-MAX_STDERR_CAPTURE_CHARS);
       }
     };
 
@@ -462,7 +468,18 @@ export async function terminateChild(
     // are still both null here, so SIGKILL is always still needed.
   }
   child.kill('SIGKILL');
-  await waitForExit(child, killTimeoutMs);
+  try {
+    await waitForExit(child, killTimeoutMs);
+  } catch {
+    // waitForExit's own rejection message ("...holding the port and
+    // .next/dev/lock") is written for its original Next-dev-server caller
+    // (test/auth/support/appServer.ts) and would be actively misleading
+    // here, pointing a reader at a Next.js port/lock problem instead of an
+    // orphaned Chrome process - so a Chrome-specific message is thrown
+    // instead, even though the bounded-wait mechanics themselves are still
+    // reused from waitForExit.
+    throw new Error(`Chrome process did not exit within ${String(killTimeoutMs)}ms of SIGKILL`);
+  }
 }
 
 /** Terminates (via terminateChild's SIGTERM->SIGKILL escalation) a Chrome
@@ -512,18 +529,33 @@ export function combineStartupAndCleanupError(startupError: unknown, cleanupErro
 
 async function attemptLaunch(chromePath: string): Promise<Browser> {
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-'));
-  const child = spawn(
-    chromePath,
-    [
-      '--headless=new',
-      '--disable-gpu',
-      '--no-sandbox',
-      '--remote-debugging-port=0',
-      `--user-data-dir=${userDataDir}`,
-      'about:blank',
-    ],
-    { stdio: ['ignore', 'ignore', 'pipe'] },
-  );
+  let child: ChildProcess;
+  try {
+    child = spawn(
+      chromePath,
+      [
+        '--headless=new',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--remote-debugging-port=0',
+        `--user-data-dir=${userDataDir}`,
+        'about:blank',
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    );
+  } catch (spawnError) {
+    // A synchronous spawn() throw (rather than the child's own 'error'
+    // event, which readDevToolsPort already handles) leaves no process to
+    // terminate, but userDataDir was already created above and would
+    // otherwise leak permanently - no later attempt/close() ever revisits
+    // this specific directory.
+    try {
+      rmSync(userDataDir, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup only.
+    }
+    throw spawnError;
+  }
 
   let port: number;
   try {

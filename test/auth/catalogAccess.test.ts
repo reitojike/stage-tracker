@@ -8,7 +8,7 @@ import {
 import { createTestActor, deleteTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { deleteUser } from './support/authActors.ts';
-import { runCleanupTasks } from './support/cleanupTasks.ts';
+import { collectCleanupFailures } from './support/cleanupTasks.ts';
 import { signInThroughApp } from './support/signInThroughApp.ts';
 import { launchBrowser, type Browser, type BrowserPage } from './support/browserPage.ts';
 
@@ -81,15 +81,15 @@ after(async () => {
     ...createdFixtureActors.map((actor) => () => deleteTestActor(actor)),
   ];
 
-  const [resourceError, fixtureResults] = await Promise.all([
-    runCleanupTasks(resourceTasks).then(
-      () => undefined,
-      (error: unknown) => error,
-    ),
+  // Both groups return/collect raw failure reasons (not an already-
+  // formatted aggregate error) so they can be merged into a single
+  // "cleanup failed:" message below without nesting one inside the other.
+  const [resourceFailures, fixtureResults] = await Promise.all([
+    collectCleanupFailures(resourceTasks),
     Promise.allSettled(fixtureTasks.map((task) => task())),
   ]);
 
-  const failures: unknown[] = resourceError === undefined ? [] : [resourceError];
+  const failures: unknown[] = [...resourceFailures];
   for (const result of fixtureResults) {
     if (result.status === 'rejected') {
       failures.push(result.reason);

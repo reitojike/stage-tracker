@@ -49,6 +49,30 @@ void test('readDevToolsPort resolves with the reported port once Chrome would re
   }
 });
 
+// --- readDevToolsPort: the port line survives bounded-stderr truncation ---
+
+void test('readDevToolsPort still resolves when the DevTools line arrives surrounded by enough other stderr output to have been truncated away by a naive "truncate, then match" implementation', async () => {
+  // Padding is sized (and written in one process.stderr.write call, so it
+  // is very likely delivered as a single 'data' chunk) so that a
+  // truncate-before-match implementation's `stderr.slice(-4000)` would
+  // evict the DevTools line entirely before ever attempting to match it:
+  // leadingPadding pushes the line past the start of the retained window,
+  // and trailingPadding (> 4000 chars on its own) pushes the line's end
+  // past the retained window too.
+  const leadingPadding = 'A'.repeat(3_000);
+  const devToolsLine = 'DevTools listening on ws://127.0.0.1:54322/devtools/browser/abc\n';
+  const trailingPadding = 'B'.repeat(4_500);
+  const child = nodeChild(
+    `process.stderr.write(${JSON.stringify(leadingPadding + devToolsLine + trailingPadding)}); setInterval(() => {}, 1000);`,
+  );
+  try {
+    const port = await readDevToolsPort(child, 5_000);
+    assert.equal(port, 54322);
+  } finally {
+    child.kill('SIGKILL');
+  }
+});
+
 // --- readDevToolsPort: readiness timeout ---
 
 void test('readDevToolsPort rejects with a bounded timeout diagnostic when no port is ever reported', async () => {
@@ -148,10 +172,13 @@ void test('terminateChild escalates to SIGKILL when the child ignores SIGTERM, a
   );
 });
 
-void test('terminateChild rejects with a bounded timeout - never hangs - when the child survives SIGKILL too', async () => {
+void test('terminateChild rejects with a bounded, Chrome-specific timeout diagnostic - never hangs, and never leaks Next-dev-server-specific wording - when the child survives SIGKILL too', async () => {
   const child = createFakeChild(new Set());
 
-  await assert.rejects(terminateChild(child, 50, 50), /did not exit within 50ms/);
+  await assert.rejects(
+    terminateChild(child, 50, 50),
+    /Chrome process did not exit within 50ms of SIGKILL/,
+  );
 
   assert.deepEqual(
     child.killedWith,
@@ -198,7 +225,10 @@ void test('cleanupFailedLaunch rejects with a bounded timeout - never hangs - wh
   const child = createFakeChild(new Set());
   const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
 
-  await assert.rejects(cleanupFailedLaunch(child, userDataDir, 50, 50), /did not exit within 50ms/);
+  await assert.rejects(
+    cleanupFailedLaunch(child, userDataDir, 50, 50),
+    /Chrome process did not exit within 50ms of SIGKILL/,
+  );
 
   assert.deepEqual(child.killedWith, ['SIGTERM', 'SIGKILL']);
   assert.equal(
@@ -227,7 +257,10 @@ void test('a startup failure followed by a cleanup failure keeps the startup err
 
   assert.ok(combined instanceof Error);
   assert.match(combined.message, /^Chrome did not report a DevTools port within 20000ms/);
-  assert.match(combined.message, /additionally, cleanup failed:.*did not exit within 50ms/);
+  assert.match(
+    combined.message,
+    /additionally, cleanup failed:.*Chrome process did not exit within 50ms of SIGKILL/,
+  );
   assert.equal(combined.cause, startupError, 'the original startup error must remain reachable');
 });
 
