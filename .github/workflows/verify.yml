@@ -172,14 +172,27 @@ jobs:
       # above. Local Supabase only ever runs with its published local demo
       # keys/JWT secret (never real credentials), so these logs carry
       # nothing sensitive.
+      #
+      # Issue #259: also runs on `cancelled()` (e.g. a job hitting the
+      # 20-minute timeout), not just `failure()` - a plain `if: failure()`
+      # skips this step entirely for a cancelled job, which is exactly the
+      # case (an Auth browser test hanging instead of failing promptly)
+      # this diagnostics step is most useful for. The bounded process
+      # listing below shows whether a `node`/`chrome` process is still
+      # alive at that point - the leaked-process symptom Issue #259's
+      # lifecycle fix targets - without broadening into general CI
+      # observability.
       - name: Verify / Database diagnostics
-        if: failure()
+        if: failure() || cancelled()
         run: |
           echo "::group::supabase status"
           npx supabase status || true
           echo "::endgroup::"
           echo "::group::docker ps -a"
           docker ps -a || true
+          echo "::endgroup::"
+          echo "::group::node/chrome process list"
+          ps -eo pid,ppid,stat,etime,cmd | grep -iE '[n]ode|[c]hrome' | head -50 || true
           echo "::endgroup::"
           for container in supabase_db_stage-tracker supabase_auth_stage-tracker supabase_rest_stage-tracker supabase_kong_stage-tracker supabase_inbucket_stage-tracker supabase_pg_meta_stage-tracker; do
             echo "::group::docker logs $container (tail 300)"

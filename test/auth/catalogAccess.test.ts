@@ -8,6 +8,7 @@ import {
 import { createTestActor, deleteTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { deleteUser } from './support/authActors.ts';
+import { collectCleanupFailures } from './support/cleanupTasks.ts';
 import { signInThroughApp } from './support/signInThroughApp.ts';
 import { launchBrowser, type Browser, type BrowserPage } from './support/browserPage.ts';
 
@@ -43,24 +44,60 @@ let page: BrowserPage;
 const createdViewerIds: string[] = [];
 const createdFixtureActors: TestActor[] = [];
 
+// Populated incrementally, right after each resource is actually created -
+// not derived from app/browser/page's own (always-non-optional) types -
+// so after() below only ever attempts to close what before() actually
+// initialized (Issue #259). If before() throws partway (e.g. launchBrowser()
+// rejects after startAppServer() already succeeded), app/browser/page keep
+// whatever partial values they had, but this list only contains app's
+// cleanup - browser/page were never pushed, so after() cannot reach a
+// secondary `undefined.close()` TypeError for them.
+const initializedCleanups: Array<() => Promise<void>> = [];
+
 before(async () => {
   app = await startAppServer();
+  initializedCleanups.push(() => app.stop());
   browser = await launchBrowser();
+  initializedCleanups.push(() => browser.close());
   page = await browser.newPage();
+  initializedCleanups.push(() => page.close());
 });
 
 after(async () => {
-  await page.close();
-  await browser.close();
-  await app.stop();
-  const results = await Promise.allSettled([
-    ...createdViewerIds.map((id) => deleteUser(id)),
-    ...createdFixtureActors.map((actor) => deleteTestActor(actor)),
+  // Reverse of creation order (page, then browser, then app) - the same
+  // dependency order the original unconditional close() sequence used.
+  // runCleanupTasks runs these serially (not concurrently): browser.close()
+  // terminates Chrome, and a concurrent page.close() could still have its
+  // own in-flight CDP round-trip on that same connection, which has no path
+  // to ever reject once the socket closes underneath it.
+  const resourceTasks = [...initializedCleanups].reverse();
+  // Viewer/fixture cleanup has no such ordering dependency between entries
+  // (each targets an independent user/fixture), so it keeps running
+  // concurrently - the same shape every other test/auth and test/rls file
+  // uses for this kind of cleanup - rather than being forced through
+  // runCleanupTasks's serial ordering along with it.
+  const fixtureTasks = [
+    ...createdViewerIds.map((id) => () => deleteUser(id)),
+    ...createdFixtureActors.map((actor) => () => deleteTestActor(actor)),
+  ];
+
+  // Both groups return/collect raw failure reasons (not an already-
+  // formatted aggregate error) so they can be merged into a single
+  // "cleanup failed:" message below without nesting one inside the other.
+  const [resourceFailures, fixtureResults] = await Promise.all([
+    collectCleanupFailures(resourceTasks),
+    Promise.allSettled(fixtureTasks.map((task) => task())),
   ]);
-  const failures = results.filter((result) => result.status === 'rejected');
+
+  const failures: unknown[] = [...resourceFailures];
+  for (const result of fixtureResults) {
+    if (result.status === 'rejected') {
+      failures.push(result.reason);
+    }
+  }
   if (failures.length > 0) {
     const messages = failures.map((failure) =>
-      failure.reason instanceof Error ? failure.reason.message : String(failure.reason),
+      failure instanceof Error ? failure.message : String(failure),
     );
     throw new Error(`cleanup failed:\n${messages.join('\n')}`);
   }
