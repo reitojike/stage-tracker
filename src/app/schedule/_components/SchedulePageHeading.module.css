@@ -1,0 +1,9 @@
+.heading {
+  margin: 0;
+  padding-bottom: var(--space-card-block);
+  border-bottom: 2px solid var(--color-text);
+  color: var(--color-text);
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-heading);
+}

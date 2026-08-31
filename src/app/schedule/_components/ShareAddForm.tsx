@@ -7,7 +7,7 @@ import { TextInput } from '@/ui/TextInput';
 import { INITIAL_SHARE_ADD_FORM_STATE } from '@/domain/personalScheduleWriteFeedback.ts';
 import { addScheduleShareByEmailAction } from '../_actions/scheduleWrite.ts';
 import { ScheduleWriteNotice } from './ScheduleWriteNotice.tsx';
-import styles from './ScheduleWriteForm.module.css';
+import styles from './ShareAddForm.module.css';
 
 export interface ShareAddFormProps {
   entryId: string;

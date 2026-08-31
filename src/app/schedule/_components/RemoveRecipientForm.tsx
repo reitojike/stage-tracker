@@ -44,7 +44,7 @@ export function RemoveRecipientForm({
           <input type="hidden" name="entryId" value={entryId} />
           <Button
             type="submit"
-            variant="small"
+            variant="quiet"
             disabled={isPending}
             aria-label={`${recipientEmail}の共有を解除`}
           >

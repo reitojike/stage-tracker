@@ -1,5 +1,4 @@
 import { BackLink } from '@/ui/BackLink';
-import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
@@ -10,6 +9,7 @@ import { personalScheduleEntryToFormValues } from '@/domain/personalScheduleWrit
 import { scheduleEntryDetailHref } from '@/domain/myCalendarNavigation.ts';
 import type { PersonalScheduleEntry } from '@/domain/personalSchedule.ts';
 import { ScheduleEntryEditForm } from '../../_components/ScheduleEntryEditForm.tsx';
+import { SchedulePageHeading } from '../../_components/SchedulePageHeading.tsx';
 
 interface EditScheduleEntryPageProps {
   params: Promise<{ entryId: string }>;
@@ -106,7 +106,7 @@ export default async function EditScheduleEntryPage({
   return (
     <>
       <BackLink href={detailHref}>予定に戻る</BackLink>
-      <PageHeading>予定を編集</PageHeading>
+      <SchedulePageHeading>予定を編集</SchedulePageHeading>
       <ScheduleEntryEditForm
         entryId={entry.id}
         initialValues={personalScheduleEntryToFormValues({

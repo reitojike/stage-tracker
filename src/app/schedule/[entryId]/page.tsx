@@ -1,10 +1,7 @@
-import { ActionRow } from '@/ui/ActionRow';
 import { BackLink } from '@/ui/BackLink';
 import { Badge } from '@/ui/Badge';
 import { LinkButton } from '@/ui/LinkButton';
-import { PageHeading } from '@/ui/PageHeading';
 import { StatePanel } from '@/ui/StatePanel';
-import { Surface } from '@/ui/Surface';
 import { createSupabaseServerClient } from '@/infrastructure/supabase/serverClient.ts';
 import { requireAuthenticatedUserId } from '@/infrastructure/supabase/planningAuth.ts';
 import {
@@ -23,7 +20,7 @@ import {
 import { DeleteEntryForm } from '../_components/DeleteEntryForm.tsx';
 import { LeaveShareForm } from '../_components/LeaveShareForm.tsx';
 import { RemoveRecipientForm } from '../_components/RemoveRecipientForm.tsx';
-import { ShareAddForm } from '../_components/ShareAddForm.tsx';
+import { ShareAddSheet } from '../_components/ShareAddSheet.tsx';
 import styles from '../_components/ScheduleDetail.module.css';
 
 interface ScheduleEntryPageProps {
@@ -121,12 +118,21 @@ export default async function ScheduleEntryPage({ params, searchParams }: Schedu
 
       {entry !== null ? (
         <>
-          <Surface className={styles.scheduleSurface}>
+          <section className={styles.scheduleSection}>
             {callerResult.ok ? (
-              <Badge variant="subtle">{isOwner ? '自分の予定' : '共有されている予定'}</Badge>
+              <div className={styles.badges}>
+                <Badge variant="subtle">{isOwner ? '自分の予定' : '共有されている予定'}</Badge>
+                {!entry.blocking ? <Badge variant="outline">予定を確保しない</Badge> : null}
+              </div>
             ) : null}
-            {!entry.blocking ? <Badge variant="outline">予定を確保しない</Badge> : null}
-            <PageHeading>{entry.title}</PageHeading>
+            <div className={styles.titleRow}>
+              <h1 className={styles.title}>{entry.title}</h1>
+              {callerResult.ok && isOwner ? (
+                <LinkButton href={editHref} variant="quiet">
+                  編集
+                </LinkButton>
+              ) : null}
+            </div>
 
             <dl className={styles.details}>
               <div className={styles.detailField}>
@@ -145,12 +151,10 @@ export default async function ScheduleEntryPage({ params, searchParams }: Schedu
               <>
                 {isOwner ? (
                   <>
-                    <ActionRow>
-                      <LinkButton href={editHref} variant="secondary">
-                        編集する
-                      </LinkButton>
-                    </ActionRow>
-                    <DeleteEntryForm entryId={entry.id} />
+                    <section className={styles.dangerSection}>
+                      <h2 className={styles.dangerHeading}>この予定を削除</h2>
+                      <DeleteEntryForm entryId={entry.id} />
+                    </section>
                   </>
                 ) : null}
                 {!isOwner && ownShareReadFailed ? (
@@ -169,44 +173,39 @@ export default async function ScheduleEntryPage({ params, searchParams }: Schedu
                 description="通信状況を確認し、もう一度お試しください。"
               />
             )}
-          </Surface>
+          </section>
 
           {callerResult.ok && isOwner ? (
-            <>
-              <Surface className={styles.shareSurface}>
-                <section className={styles.section}>
-                  <h2 className={styles.sectionHeading}>共有</h2>
+            <section className={styles.shareSection}>
+              <div className={styles.sectionHeadingRow}>
+                <h2 className={styles.sectionHeading}>共有</h2>
+                <ShareAddSheet entryId={entry.id} />
+              </div>
 
-                  {recipientsState === 'error' ? (
-                    <StatePanel
-                      variant="error"
-                      title="共有中の共有相手を読み込めませんでした"
-                      description="通信状況を確認し、もう一度お試しください。"
-                    />
-                  ) : null}
-                  {recipientsState === 'empty' ? (
-                    <StatePanel variant="empty" title="まだ誰とも共有していません" />
-                  ) : null}
-                  {recipientsResult?.ok && recipientsResult.data.length > 0 ? (
-                    <ul className={styles.recipientList}>
-                      {recipientsResult.data.map((recipient) => (
-                        <li key={recipient.shareId}>
-                          <RemoveRecipientForm
-                            entryId={entry.id}
-                            shareId={recipient.shareId}
-                            recipientEmail={recipient.recipientEmail}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </section>
-              </Surface>
-
-              <Surface className={styles.shareAddSurface}>
-                <ShareAddForm entryId={entry.id} />
-              </Surface>
-            </>
+              {recipientsState === 'error' ? (
+                <StatePanel
+                  variant="error"
+                  title="共有中の共有相手を読み込めませんでした"
+                  description="通信状況を確認し、もう一度お試しください。"
+                />
+              ) : null}
+              {recipientsState === 'empty' ? (
+                <StatePanel variant="empty" title="まだ誰とも共有していません" />
+              ) : null}
+              {recipientsResult?.ok && recipientsResult.data.length > 0 ? (
+                <ul className={styles.recipientList}>
+                  {recipientsResult.data.map((recipient) => (
+                    <li key={recipient.shareId}>
+                      <RemoveRecipientForm
+                        entryId={entry.id}
+                        shareId={recipient.shareId}
+                        recipientEmail={recipient.recipientEmail}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
           ) : null}
         </>
       ) : null}
