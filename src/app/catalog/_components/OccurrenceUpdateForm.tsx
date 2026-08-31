@@ -1,13 +1,14 @@
 'use client';
 
-import { useActionState } from 'react';
-import { ActionRow } from '@/ui/ActionRow';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { Button } from '@/ui/Button';
-import { FormSection } from '@/ui/FormSection';
+import { Sheet } from '@/ui/Sheet';
 import { StatePanel } from '@/ui/StatePanel';
 import { INITIAL_WRITE_FORM_STATE } from '@/domain/eventWriteFeedback.ts';
 import type { RawFormValues } from '@/domain/eventCatalogWrite.ts';
 import { updateOccurrenceAction } from '../_actions/eventWrite.ts';
+import { DeleteOccurrenceForm } from './DeleteOccurrenceForm.tsx';
+import { OccurrenceCancellationForm } from './OccurrenceCancellationForm.tsx';
 import { OccurrenceFields } from './OccurrenceFields.tsx';
 import { WriteNotice } from './WriteNotice.tsx';
 import styles from './EventWriteForm.module.css';
@@ -15,62 +16,100 @@ import styles from './EventWriteForm.module.css';
 export interface OccurrenceUpdateFormProps {
   eventId: string;
   occurrenceId: string;
-  /** Legend text identifying which occurrence this form edits. */
   label: string;
   initialValues: RawFormValues;
+  canCancel: boolean;
+  canDelete: boolean;
+  isCanceled: boolean;
 }
 
-/**
- * Updates one existing 公演回's times (Issue #29). Only the times are
- * editable: moving an occurrence to a different event is not a supported
- * operation, and deletion/cancellation is out of scope for this slice, so
- * neither affordance appears here.
- */
+/** A compact list-row trigger plus the one-occurrence Sheet. The write and
+ * lifecycle forms remain separate, preserving their distinct server actions
+ * and confirmation semantics without nesting forms. */
 export function OccurrenceUpdateForm({
   eventId,
   occurrenceId,
   label,
   initialValues,
+  canCancel,
+  canDelete,
+  isCanceled,
 }: OccurrenceUpdateFormProps) {
+  const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(updateOccurrenceAction, {
     ...INITIAL_WRITE_FORM_STATE,
     values: initialValues,
   });
+  const formId = `occurrence-update-${occurrenceId}`;
+  const closedAttemptRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (state.notice !== null && closedAttemptRef.current !== state.attempt) {
+      closedAttemptRef.current = state.attempt;
+      setOpen(false);
+    }
+  }, [state.attempt, state.notice]);
 
   return (
-    <form action={formAction} className={styles.form} aria-busy={isPending}>
-      <input type="hidden" name="eventId" value={eventId} />
-      <input type="hidden" name="occurrenceId" value={occurrenceId} />
-
-      {/* Keyed by `attempt` for the same reason WriteNotice keys its message:
-          resolveWriteFeedback returns module-level constants, so a second
-          identical failure would re-render StatePanel with referentially
-          identical props and commit no DOM mutation, leaving the retry
-          silent. StatePanel's own role="alert" is announced on insertion,
-          so replacing the node is what makes the retry audible. */}
-      {state.feedback ? (
-        <StatePanel
-          key={state.attempt}
-          variant={state.feedback.variant}
-          title={state.feedback.title}
-          description={state.feedback.description}
-        />
-      ) : null}
-
-      <WriteNotice notice={state.notice} attempt={state.attempt} />
-
-      <FormSection key={state.attempt} as="fieldset" heading={label}>
-        <OccurrenceFields
-          values={state.values}
-          fieldErrors={state.fieldErrors}
-          disabled={isPending}
-        />
-        <ActionRow>
-          <Button type="submit" variant="secondary" disabled={isPending}>
-            {isPending ? '保存中…' : 'この公演回を保存'}
-          </Button>
-        </ActionRow>
-      </FormSection>
-    </form>
+    <>
+      <Button
+        type="button"
+        variant="quiet"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        変更
+      </Button>
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        title={label}
+        showCloseButton={false}
+        footer={
+          <div className={styles.sheetFooter}>
+            <Button type="submit" form={formId} disabled={isPending}>
+              {isPending ? '保存中…' : 'この公演回を保存'}
+            </Button>
+          </div>
+        }
+      >
+        <form id={formId} action={formAction} className={styles.sheetForm} aria-busy={isPending}>
+          <input type="hidden" name="eventId" value={eventId} />
+          <input type="hidden" name="occurrenceId" value={occurrenceId} />
+          {state.feedback ? (
+            <StatePanel
+              key={state.attempt}
+              variant={state.feedback.variant}
+              title={state.feedback.title}
+              description={state.feedback.description}
+            />
+          ) : null}
+          <WriteNotice notice={state.notice} attempt={state.attempt} />
+          <div key={state.attempt} className={styles.fields}>
+            <OccurrenceFields
+              values={state.values}
+              fieldErrors={state.fieldErrors}
+              disabled={isPending}
+              compactHelperText="空欄の開場は未公表、終演は終了時刻未定として扱われます。すべて日本時間（Asia/Tokyo）です。"
+            />
+          </div>
+        </form>
+        {canCancel || canDelete ? (
+          <div className={styles.sheetLifecycle}>
+            {canCancel ? (
+              <OccurrenceCancellationForm
+                eventId={eventId}
+                occurrenceId={occurrenceId}
+                isCanceled={isCanceled}
+              />
+            ) : null}
+            {canDelete ? (
+              <DeleteOccurrenceForm eventId={eventId} occurrenceId={occurrenceId} />
+            ) : null}
+          </div>
+        ) : null}
+      </Sheet>
+    </>
   );
 }

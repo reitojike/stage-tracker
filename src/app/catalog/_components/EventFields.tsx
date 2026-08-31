@@ -31,7 +31,6 @@ export function EventFields({ values, fieldErrors, disabled }: EventFieldsProps)
         defaultValue={values.title ?? ''}
         error={fieldErrors.title}
         disabled={disabled}
-        helperText="カタログ上に表示される公演・イベント名です。"
       />
       <TextInput
         label="会場"
