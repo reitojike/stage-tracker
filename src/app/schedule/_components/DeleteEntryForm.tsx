@@ -56,7 +56,7 @@ export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
       ) : null}
 
       <Button type="submit" variant="danger" disabled={isPending}>
-        {isPending ? '削除中…' : 'この予定を削除'}
+        {isPending ? '削除中…' : '削除'}
       </Button>
     </form>
   );
