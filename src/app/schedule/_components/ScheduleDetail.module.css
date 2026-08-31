@@ -1,14 +1,43 @@
-/*
- * Detail surfaces reuse the V2 container vocabulary through Surface.tsx:
- * borderless white, 12px radius, and 16px padding. Feature-local rules only
- * own the hierarchy inside those surfaces.
- */
-.scheduleSurface,
-.shareSurface,
-.shareAddSurface {
+.scheduleSection,
+.shareSection {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+.scheduleSection,
+.shareSection,
+.dangerSection {
+  border-top: 2px solid var(--color-border);
+  padding-top: var(--space-card-block);
+}
+
+.badges,
+.titleRow,
+.sectionHeadingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.titleRow {
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: var(--space-card-block);
+}
+
+.badges {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.title {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-heading);
+  overflow-wrap: anywhere;
 }
 
 .details {
@@ -45,13 +74,8 @@
  * has to state that spacing itself - the same pattern
  * EventWriteForm.module.css already uses for its sections.
  */
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
 .sectionHeading {
+  margin: 0;
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-title);
@@ -105,4 +129,18 @@
 
 .removeForm {
   flex-shrink: 0;
+}
+
+.dangerSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.dangerHeading {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
 }

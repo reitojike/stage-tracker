@@ -47,52 +47,66 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
       </div>
 
       <div>
-        {/* Checkbox before the same-named hidden fallback, in that DOM
-            order - see personalScheduleWrite.ts's parseBlocking for why
-            this specific order is what lets an explicit uncheck survive a
-            rejected-submission re-render. */}
-        <label className={styles.radioOption}>
+        {/* The native checkbox remains the form control, but is visually
+            hidden so the 18px box and 44px row follow the shared schedule
+            vocabulary without changing parseBlocking's field ordering. */}
+        <label className={styles.checkboxRow}>
           <input
             type="checkbox"
             name="blocking"
             value="true"
             defaultChecked={values.blocking !== 'false'}
             disabled={disabled}
+            className={styles.controlInput}
           />
-          この予定がある間は新しい予定を入れないようにする（blocking）
+          <span className={styles.checkboxBox} aria-hidden="true">
+            <svg viewBox="0 0 12 12" focusable="false">
+              <path
+                d="M2 6.2 L5 9.2 L10 3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+          <span>この予定がある間は新しい予定を入れない</span>
         </label>
         <input type="hidden" name="blocking" value="false" />
       </div>
 
       <FormSection as="fieldset" heading="期間の種類" requirement="required">
-        <div className={styles.radioRow}>
-          <label className={styles.radioOption}>
+        <div className={styles.segmentedControl}>
+          <label className={styles.segment}>
             <input
               type="radio"
               name="temporalMode"
               value="time-bounded"
               required
-              defaultChecked={temporalMode === 'time-bounded'}
+              checked={temporalMode === 'time-bounded'}
               disabled={disabled}
+              className={styles.controlInput}
               onChange={() => {
                 setTemporalMode('time-bounded');
               }}
             />
-            時刻を指定
+            <span>時刻を指定</span>
           </label>
-          <label className={styles.radioOption}>
+          <label className={styles.segment}>
             <input
               type="radio"
               name="temporalMode"
               value="all-day"
               required
-              defaultChecked={temporalMode === 'all-day'}
+              checked={temporalMode === 'all-day'}
               disabled={disabled}
+              className={styles.controlInput}
               onChange={() => {
                 setTemporalMode('all-day');
               }}
             />
-            終日（複数日も可）
+            <span>終日</span>
           </label>
         </div>
 
@@ -101,7 +115,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             via `hidden` rather than an unmount, so remounting on toggle
             never drops what was already typed into the group being
             switched away from. */}
-        <div hidden={temporalMode !== 'time-bounded'} className={styles.fields}>
+        <div hidden={temporalMode !== 'time-bounded'} className={styles.pairedFields}>
           <TextInput
             label="開始日時"
             name="startsAt"
@@ -110,7 +124,6 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             defaultValue={values.startsAt ?? ''}
             error={fieldErrors.startsAt}
             disabled={disabled}
-            helperText="日本時間（Asia/Tokyo）で入力します。"
           />
           <TextInput
             label="終了日時"
@@ -122,8 +135,11 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             helperText="未定の場合は空欄のままにできます。"
           />
         </div>
+        <p hidden={temporalMode !== 'time-bounded'} className={styles.timezoneNote}>
+          日本時間（Asia/Tokyo）
+        </p>
 
-        <div hidden={temporalMode !== 'all-day'} className={styles.fields}>
+        <div hidden={temporalMode !== 'all-day'} className={styles.pairedFields}>
           <TextInput
             label="開始日"
             name="startsOn"
@@ -132,7 +148,6 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             defaultValue={values.startsOn ?? ''}
             error={fieldErrors.startsOn}
             disabled={disabled}
-            helperText="日本時間（Asia/Tokyo）の日付です。"
           />
           <TextInput
             label="終了日"
@@ -144,6 +159,9 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             helperText="単日の場合は空欄のままにできます。"
           />
         </div>
+        <p hidden={temporalMode !== 'all-day'} className={styles.timezoneNote}>
+          日本時間（Asia/Tokyo）
+        </p>
       </FormSection>
 
       <TextArea

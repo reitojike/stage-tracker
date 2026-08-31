@@ -1,7 +1,6 @@
 'use client';
 
 import { useActionState } from 'react';
-import { ActionRow } from '@/ui/ActionRow';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
 import type { RawFormValues } from '@/domain/personalScheduleWrite.ts';
@@ -56,11 +55,13 @@ export function ScheduleEntryCreateForm({ initialValues }: ScheduleEntryCreateFo
         />
       </div>
 
-      <ActionRow>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? '作成中…' : '予定を作成'}
-        </Button>
-      </ActionRow>
+      <div className={styles.submitBand}>
+        <div className={styles.submitInner}>
+          <Button type="submit" disabled={isPending}>
+            {isPending ? '作成中…' : '予定を作成'}
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }

@@ -39,7 +39,7 @@ export function LeaveShareForm({ shareId }: LeaveShareFormProps) {
         />
       ) : null}
 
-      <Button type="submit" variant="secondary" disabled={isPending}>
+      <Button type="submit" variant="quiet" disabled={isPending}>
         {isPending ? '処理中…' : 'この予定の共有から外れる'}
       </Button>
     </form>
