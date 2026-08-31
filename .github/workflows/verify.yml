@@ -192,7 +192,7 @@ jobs:
           docker ps -a || true
           echo "::endgroup::"
           echo "::group::node/chrome process list"
-          ps -eo pid,ppid,stat,etime,cmd | grep -iE 'node|chrome' | grep -v grep | head -50 || true
+          ps -eo pid,ppid,stat,etime,cmd | grep -iE '[n]ode|[c]hrome' | head -50 || true
           echo "::endgroup::"
           for container in supabase_db_stage-tracker supabase_auth_stage-tracker supabase_rest_stage-tracker supabase_kong_stage-tracker supabase_inbucket_stage-tracker supabase_pg_meta_stage-tracker; do
             echo "::group::docker logs $container (tail 300)"
