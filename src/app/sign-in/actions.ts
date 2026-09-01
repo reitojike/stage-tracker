@@ -5,6 +5,7 @@ import {
   requestMagicLink,
   type MagicLinkDiagnostics,
 } from '@/infrastructure/supabase/magicLink.ts';
+import { readPreviewOrigin } from '@/infrastructure/supabase/previewOrigin.ts';
 import { createSupabaseCookielessServerClient } from '@/infrastructure/supabase/serverClient.ts';
 
 /**
@@ -38,7 +39,9 @@ export async function requestSignInLink(formData: FormData): Promise<void> {
   // for a known address and clears it for an unknown one, which is an
   // enumeration oracle in the Set-Cookie header.
   const supabase = await createSupabaseCookielessServerClient();
-  await requestMagicLink(supabase, email, diagnostics);
+  await requestMagicLink(supabase, email, diagnostics, {
+    emailRedirectTo: readPreviewOrigin(),
+  });
 
   // Unconditional. There is no branch here to reintroduce, and
   // requestMagicLink returns nothing to branch on: account existence,
