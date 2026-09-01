@@ -162,13 +162,16 @@ diff` だけを見る）。そのため、実際に Production へ migration が
   `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定します。
   どちらも public runtime value であり、Preview に service-role key は設定
   しません。
-- **Automatically expose System Environment Variables** を有効にし、Preview
-  runtime から `VERCEL_ENV` と `VERCEL_URL` を利用可能にします。Vercel は
-  `VERCEL_ENV=preview` と scheme なしの deployment host を `VERCEL_URL` に
-  提供します。
-- [docs/architecture/authentication.md](authentication.md) の実装は、両方の
-  trusted system values が揃った Preview の場合だけ
-  `https://${VERCEL_URL}` を Magic Link の `emailRedirectTo` にします。
+- Next.js Framework Preset が提供する Framework Environment Variables
+  `NEXT_PUBLIC_VERCEL_ENV`、`NEXT_PUBLIC_VERCEL_BRANCH_URL`、
+  `NEXT_PUBLIC_VERCEL_URL`を使用します。Previewでは branch URLを優先し、無い
+  場合だけ generated deployment URLへfallbackします。legacy raw
+  `VERCEL_ENV` / `VERCEL_URL` のためにSystem Environment Variables exposureを
+  手動で要求しません。
+- [docs/architecture/authentication.md](authentication.md) の実装は、
+  `NEXT_PUBLIC_VERCEL_ENV === "preview"` と trusted host が揃った場合だけ
+  `https://<trusted-host>` を Magic Link の `emailRedirectTo` にします。
+  `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` はPreview redirectへ使いません。
   Production / local では explicit target を渡さず、Supabase Site URL fallback
   を維持します。request `Host` / `X-Forwarded-Host` や user input は authority
   になりません。
@@ -181,6 +184,8 @@ diff` だけを見る）。そのため、実際に Production へ migration が
   write は real remote dogfood data に反映され得ます。remote Dashboard 設定と
   メール受信を含む materialization は operator-owned で、agent が未確認の設定を
   configured と報告してはいけません。
+- このFramework Environment Variables契約は、PR #269のPreview smokeでraw
+  `VERCEL_ENV` / `VERCEL_URL`前提がProduction fallbackを起こしたため採用しました。
 
 ## Local / CI / Remote 環境との差分
 

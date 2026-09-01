@@ -1,39 +1,54 @@
 /**
- * Resolves the current Vercel Preview deployment origin from trusted system
+ * Resolves the current Vercel Preview origin from Next.js framework
  * environment metadata. This intentionally accepts a host only: a path,
  * query, fragment, or scheme would turn this small resolver into an
  * arbitrary URL construction boundary.
  */
 export function resolvePreviewOrigin(
   vercelEnv: string | undefined,
-  vercelUrl: string | undefined,
+  branchUrl: string | undefined,
+  deploymentUrl: string | undefined,
 ): string | undefined {
-  if (vercelEnv !== 'preview' || typeof vercelUrl !== 'string') {
+  if (vercelEnv !== 'preview') {
     return undefined;
   }
 
-  const host = vercelUrl.trim();
-  // VERCEL_URL is supplied without a scheme and represents a deployment host.
-  // Keep the validation bounded to host syntax; do not turn this into a URL
-  // routing or allowlist framework.
-  if (
-    host.length === 0 ||
-    host.length > 253 ||
-    !/^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(
-      host,
-    )
-  ) {
+  // Prefer the stable Git branch URL for operator journeys. If it is not
+  // available, use the generated deployment URL. Both values are supplied by
+  // Vercel's Next.js framework contract and arrive without a scheme.
+  const host = [branchUrl, deploymentUrl].find((candidate) => {
+    if (typeof candidate !== 'string') {
+      return false;
+    }
+
+    const value = candidate.trim();
+    return (
+      value.length > 0 &&
+      value.length <= 253 &&
+      /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(
+        value,
+      )
+    );
+  });
+
+  if (typeof host !== 'string') {
     return undefined;
   }
 
-  return `https://${host}`;
+  return `https://${host.trim()}`;
 }
 
 /**
- * Reads only Vercel's system environment values. Production and local
- * environments intentionally return no explicit redirect target so Supabase
- * keeps using its configured Site URL fallback.
+ * Reads only Vercel's Next.js framework environment values. The project
+ * production URL is deliberately not read: it must never become a Preview
+ * redirect target. Production and local environments intentionally return no
+ * explicit redirect target so Supabase keeps using its configured Site URL
+ * fallback.
  */
 export function readPreviewOrigin(): string | undefined {
-  return resolvePreviewOrigin(process.env.VERCEL_ENV, process.env.VERCEL_URL);
+  return resolvePreviewOrigin(
+    process.env.NEXT_PUBLIC_VERCEL_ENV,
+    process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL,
+    process.env.NEXT_PUBLIC_VERCEL_URL,
+  );
 }

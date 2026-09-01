@@ -72,11 +72,14 @@ session が operator 自身の credential なしに実行できるものでは�
    を設定した後に行う必要があり、設定前に走った deploy は設定後に再 deploy
    する必要があります。
 6. Vercel project の Preview environment variables にも同じ public Supabase
-   URL / anon key を設定します。Project Settings → Environment Variables の
-   **Automatically expose System Environment Variables** を有効にし、Preview
-   runtime で `VERCEL_ENV=preview` と `VERCEL_URL` が利用できる状態にします。
-   これらは Vercel が提供する system values であり、手入力の redirect authority
-   や request `Host` の代替として設定しません。
+   URL / anon key を設定します。Next.js Framework Presetにより、Vercelの
+   Framework Environment Variables `NEXT_PUBLIC_VERCEL_ENV`、
+   `NEXT_PUBLIC_VERCEL_BRANCH_URL`、`NEXT_PUBLIC_VERCEL_URL`がPreviewへ自動付与
+   される契約を使用します。branch URLを優先し、無い場合はgenerated deployment
+   URLへfallbackします。legacy raw `VERCEL_ENV` / `VERCEL_URL` のために
+   **Automatically expose System Environment Variables** を有効化する手順は
+   このauth journeyの前提ではありません。これらはVercelが提供するvaluesであり、
+   手入力のredirect authorityやrequest `Host`の代替として設定しません。
 
 ## Schema migration to the hosted project
 
@@ -145,6 +148,10 @@ sessions が同じ remote schema を無秩序に mutate しない」）。
   します。`.RedirectTo` がある場合は Preview target、無い場合は `.SiteURL`
   fallback になる conditional template を materialize してください。Supabase の
   default template は、この app の route handler を bypass してしまいます。
+
+  なお、PR #269のPreview smokeでraw `VERCEL_ENV` / `VERCEL_URL`前提が実際に
+  Production fallbackを生んだため、現在のNext.js Framework Environment
+  Variables契約へrunbookをreconcileしています。
 
 Supabase CLI には `supabase config push` という、`supabase/config.toml` の
 `[auth]` section（および template 参照）を linked hosted project へ適用

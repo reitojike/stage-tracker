@@ -74,11 +74,14 @@ sequenceDiagram
   canonical のまま維持**します。Production で redirect target を明示しない
   current request は、引き続き Site URL fallback を使います。Local も
   `supabase/config.toml` の local Site URL fallback を使います。
-- Vercel Preview でだけ、Server Action が Vercel system environment の
-  `VERCEL_ENV === "preview"` と `VERCEL_URL`（scheme なしの deployment host）を
-  読み、`https://${VERCEL_URL}` を `emailRedirectTo` として Supabase Auth へ
-  渡します。request の `Host` / `X-Forwarded-Host`、form input、query parameter
-  は redirect authority に使いません。
+- Vercel Preview でだけ、Server Action が Next.js の Vercel Framework
+  Environment Variables の `NEXT_PUBLIC_VERCEL_ENV === "preview"` と、まず
+  `NEXT_PUBLIC_VERCEL_BRANCH_URL`（scheme なしの Git branch host）、無ければ
+  `NEXT_PUBLIC_VERCEL_URL`（scheme なしの generated deployment host）を読み、
+  `https://<trusted-host>` を `emailRedirectTo` として Supabase Auth へ渡します。
+  `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` は Preview でも Production を指す
+  ため使用しません。request の `Host` / `X-Forwarded-Host`、form input、query
+  parameter は redirect authority に使いません。
 - hosted Supabase Auth の Redirect URLs には、current account slug に bounded な
   `https://*-reitojike.vercel.app/**` を Preview 用として追加します。これは
   Supabase 側の operator-owned 設定であり、`https://**` のような broad allowlist
@@ -93,6 +96,12 @@ sequenceDiagram
   検証では private test/dogfood data を最小限に扱い、shared/production data の
   destructive mutation は行いません。Preview runtime に必要なのは public な
   Supabase URL / anon key だけで、service-role key は不要です。
+
+Next.js の Framework Environment Variables は Vercel の Framework Preset に
+基づいて Preview deployment へ自動付与されます。Preview scope の public
+Supabase URL / anon key 以外に、legacy raw `VERCEL_ENV` / `VERCEL_URL` のための
+System Environment Variables exposure switchを要求しません。この契約への変更は、
+PR #269 のPreview smokeでraw env前提がProduction fallbackを生んだためです。
 
 この節の Dashboard / Vercel 設定の materialization と実機メール検証は
 operator-owned です。設定完了を agent が推測で扱わず、operator-confirmed または
