@@ -3,10 +3,10 @@
 import { useActionState } from 'react';
 import { Button } from '@/ui/Button';
 import { StatePanel } from '@/ui/StatePanel';
+import { WriteNotice } from '@/ui/WriteNotice';
 import { INITIAL_TICKET_OPPORTUNITY_OPERATION_STATE } from '@/domain/ticketOpportunityFeedback.ts';
 import type { UserTicketOpportunityStatus } from '@/domain/ticketOpportunity.ts';
 import { updateTicketOpportunityStateAction } from '../_actions/ticketOpportunityWrite.ts';
-import { TicketOpportunityWriteNotice } from './TicketOpportunityWriteNotice.tsx';
 import styles from './TicketOpportunityStateControls.module.css';
 
 export interface TicketOpportunityStateControlsProps {
@@ -46,7 +46,7 @@ export function TicketOpportunityStateControls({
           description={state.feedback.description}
         />
       ) : null}
-      <TicketOpportunityWriteNotice notice={state.notice} attempt={state.attempt} />
+      <WriteNotice notice={state.notice} attempt={state.attempt} />
 
       <div className={styles.actions}>
         {myState === null ? (

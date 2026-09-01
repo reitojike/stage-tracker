@@ -56,6 +56,39 @@ void test('occurrence lifecycle feedback is composed above one horizontal action
   assert.match(update, /deleteState\.feedback/);
 });
 
+void test('delete confirmation sheets reuse the save-sheet footer vocabulary', () => {
+  const deleteForms = [
+    read('src/app/catalog/_components/DeleteEventForm.tsx'),
+    read('src/app/catalog/_components/DeleteOccurrenceForm.tsx'),
+    read('src/app/schedule/_components/DeleteEntryForm.tsx'),
+  ];
+  const eventCss = read('src/app/catalog/_components/EventWriteForm.module.css');
+  const scheduleCss = read('src/app/schedule/_components/ScheduleWriteForm.module.css');
+
+  for (const source of deleteForms) {
+    assert.match(source, /footer=\{\s*<div className=\{styles\.sheetFooter\}>/);
+    assert.match(source, /showCloseButton=\{false\}/);
+    assert.match(source, /variant="danger"/);
+  }
+  for (const css of [eventCss, scheduleCss]) {
+    assert.match(
+      css,
+      /\.sheetFooter\s*\{[\s\S]*?display:\s*flex;[\s\S]*?justify-content:\s*flex-end;[\s\S]*?padding:\s*var\(--space-md\);[\s\S]*?border-top:\s*1px solid var\(--color-border\);/,
+    );
+  }
+});
+
+void test('ticket opportunity controls use the shared write notice without a local duplicate', () => {
+  const controls = read('src/app/tickets/_components/TicketOpportunityStateControls.tsx');
+  const localNoticeName = ['TicketOpportunity', 'WriteNotice'].join('');
+  const localNoticeBase = `src/app/tickets/_components/${localNoticeName}`;
+  assert.match(controls, /import \{ WriteNotice \} from '@\/ui\/WriteNotice';/);
+  assert.match(controls, /<WriteNotice notice=\{state\.notice\} attempt=\{state\.attempt\} \/>/);
+  assert.doesNotMatch(controls, new RegExp(localNoticeName));
+  assert.throws(() => read(`${localNoticeBase}.tsx`));
+  assert.throws(() => read(`${localNoticeBase}.module.css`));
+});
+
 void test('share-add sheet uses a footer submit associated with its body form', () => {
   const sheet = read('src/app/schedule/_components/ShareAddSheet.tsx');
   const form = read('src/app/schedule/_components/ShareAddForm.tsx');

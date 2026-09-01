@@ -65,7 +65,7 @@ export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
         title="削除"
         showCloseButton={false}
         footer={
-          <div>
+          <div className={styles.sheetFooter}>
             <Button
               type="submit"
               form="delete-schedule-entry-form"

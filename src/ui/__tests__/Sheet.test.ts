@@ -59,6 +59,11 @@ void test('renders the optional footer outside the scrollable body', () => {
   assert.match(component, /footer\?: ReactNode/);
 });
 
+void test('does not retain the removed dead close-button class API', () => {
+  const removedPropName = ['closeButton', 'ClassName'].join('');
+  assert.doesNotMatch(component, new RegExp(removedPropName));
+});
+
 void test('shared frame preserves bottom anchoring, modal surface, and bounded height', () => {
   const dialogRule = css.match(/(?:^|\n)\.dialog\s*\{([^}]*)\}/);
   assert.ok(dialogRule, '.dialog rule is missing from Sheet.module.css');
