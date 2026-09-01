@@ -118,6 +118,9 @@
   gap: var(--space-sm);
 }
 
+/* This equal-specificity local override follows the shared TextInput styles
+   imported by ScheduleFields, keeping the compact padding scoped to these
+   temporal controls. */
 .temporalInput {
   padding-inline: var(--space-sm);
 }
