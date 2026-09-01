@@ -8,7 +8,7 @@ import {
 
 interface RecordedCall {
   email: string;
-  options?: { shouldCreateUser?: boolean };
+  options?: { shouldCreateUser?: boolean; emailRedirectTo?: string };
 }
 
 function recordingClient(error: unknown = null): {
@@ -55,6 +55,20 @@ void test('requestMagicLink never asks Supabase to create an account', async () 
   assert.ok(call);
   assert.equal(call.email, 'someone@example.test');
   assert.equal(call.options?.shouldCreateUser, false);
+  assert.equal('emailRedirectTo' in (call.options ?? {}), false);
+});
+
+void test('requestMagicLink includes the supported redirect option when supplied', async () => {
+  const { client, calls } = recordingClient();
+
+  await requestMagicLink(client, 'someone@example.test', undefined, {
+    emailRedirectTo: 'https://stage-tracker-git-preview-reitojike.vercel.app/',
+  });
+
+  assert.deepEqual(calls[0]?.options, {
+    shouldCreateUser: false,
+    emailRedirectTo: 'https://stage-tracker-git-preview-reitojike.vercel.app/',
+  });
 });
 
 // The core anti-enumeration property. Every classification attempt became

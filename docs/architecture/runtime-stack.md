@@ -140,13 +140,13 @@ diff` だけを見る）。そのため、実際に Production へ migration が
 
 | 変数                                                                          | 所有者 / 設定場所                                   | 用途                                                                                                                    |
 | ----------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production Environment Variables             | ブラウザ/サーバー双方で読まれる公開値（[src/infrastructure/supabase/env.ts](../../src/infrastructure/supabase/env.ts)） |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production Environment Variables             | 同上。anon key であり service role key ではない                                                                         |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables   | ブラウザ/サーバー双方で読まれる公開値（[src/infrastructure/supabase/env.ts](../../src/infrastructure/supabase/env.ts)） |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables   | 同上。anon key であり service role key ではない                                                                         |
 | Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                              |
 | `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）   | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない   |
 
 - `NEXT_PUBLIC_*` プレフィックスの 2 変数だけが、実際にデプロイされたアプリへ
-  渡る唯一の Environment Variables です
+  Supabase client 値として渡る変数です
   （[src/infrastructure/supabase/env.ts](../../src/infrastructure/supabase/env.ts)）。
   どちらも public であることを前提に設計されています。
 - Supabase の **service role key は Vercel には一切設定されません**。
@@ -155,6 +155,46 @@ diff` だけを見る）。そのため、実際に Production へ migration が
   与えられます。
 - Resend の API キー / SMTP 資格情報は Supabase Dashboard の Auth → SMTP
   設定にのみ存在し、このリポジトリにもVercelにも存在しません。
+
+## Vercel Preview Auth runtime contract（Issue #268）
+
+- Vercel Project Settings の Preview scope には
+  `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定します。
+  どちらも public runtime value であり、Preview に service-role key は設定
+  しません。
+- Next.js Framework Preset が提供する Framework Environment Variables
+  `NEXT_PUBLIC_VERCEL_ENV`、`NEXT_PUBLIC_VERCEL_BRANCH_URL`、
+  `NEXT_PUBLIC_VERCEL_URL`を使用します。Previewでは branch URLを優先し、無い
+  場合だけ generated deployment URLへfallbackします。legacy raw
+  `VERCEL_ENV` / `VERCEL_URL` のためにSystem Environment Variables exposureを
+  手動で要求しません。
+- [docs/architecture/authentication.md](authentication.md) の実装は、
+  `NEXT_PUBLIC_VERCEL_ENV === "preview"` と trusted host が揃った場合だけ
+  `https://<trusted-host>/` を Magic Link の `emailRedirectTo` にします。trailing
+  slashはSupabaseのVercel wildcard `https://*-reitojike.vercel.app/**` とcallback
+  pathの連結に合わせたcanonical形式です。GoTrueがredirect未指定時にSite URLを
+  `.RedirectTo`へfallbackするため、templateは `.RedirectTo` が `.SiteURL` と異なる
+  明示targetのときだけ使い、そこへ直接 `auth/confirm`を連結します。double slashを
+  作りません。
+  `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` はPreview redirectへ使いません。
+  Production / local では explicit target を渡さず、Supabase Site URL fallback
+  を維持します。request `Host` / `X-Forwarded-Host` や user input は authority
+  になりません。
+- hosted Supabase Auth の Site URL は `https://stage-tracker.com` のままです。
+  Redirect URLs には current Vercel account slug に bounded な
+  `https://*-reitojike.vercel.app/**` を追加し、hosted Magic Link template は
+  `.RedirectTo` 条件分岐と `.SiteURL` fallback を repository template と同期
+  します。Previewごとのexact Redirect URLはsteady stateでは不要です。
+- Preview と Production が同じ hosted Supabase を共有する場合、Preview の
+  write は real remote dogfood data に反映され得ます。remote Dashboard 設定と
+  メール受信を含む materialization は operator-owned で、agent が未確認の設定を
+  configured と報告してはいけません。
+- このFramework Environment Variables契約は、PR #269のPreview smokeでraw
+  `VERCEL_ENV` / `VERCEL_URL`前提がProduction fallbackを起こしたため採用しました。
+- 同じsmokeではbare Preview originがwildcard-onlyで受理されず、`Site URL`へfallback
+  しました。bare Preview exact URLを一時追加した後はPreview authが成功したため、
+  このPRではtrailing slash付きoriginへreconcileし、exact URLを削除した状態で
+  wildcard-only smokeを再実施します。
 
 ## Local / CI / Remote 環境との差分
 
