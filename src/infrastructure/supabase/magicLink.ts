@@ -8,9 +8,14 @@ export interface MagicLinkAuthClient {
   auth: {
     signInWithOtp(credentials: {
       email: string;
-      options?: { shouldCreateUser?: boolean };
+      options?: { shouldCreateUser?: boolean; emailRedirectTo?: string };
     }): Promise<{ error: unknown }>;
   };
+}
+
+export interface MagicLinkRequestOptions {
+  /** Explicit redirect target for a trusted Preview deployment only. */
+  emailRedirectTo?: string;
 }
 
 /**
@@ -49,6 +54,7 @@ export async function requestMagicLink(
   client: MagicLinkAuthClient,
   email: string,
   diagnostics?: MagicLinkDiagnostics,
+  requestOptions?: MagicLinkRequestOptions,
 ): Promise<void> {
   // signInWithOtp only *returns* `{ error }` for AuthError; anything else
   // it rethrows (GoTrueClient: `if (isAuthError(error)) return ...; throw
@@ -57,9 +63,16 @@ export async function requestMagicLink(
   // a different envelope, which is exactly what must not happen. Swallow
   // it into the same diagnostics channel as every other failure.
   try {
+    const options = {
+      shouldCreateUser: false,
+      ...(requestOptions?.emailRedirectTo === undefined
+        ? {}
+        : { emailRedirectTo: requestOptions.emailRedirectTo }),
+    };
+
     const { error } = await client.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: false },
+      options,
     });
 
     if (error !== null && error !== undefined) {

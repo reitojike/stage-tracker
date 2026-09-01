@@ -68,6 +68,36 @@ sequenceDiagram
   有無・メール送信の成否・SMTP/Resend 側の障害、いずれの場合も同一の
   status・Location・body・Cookie で応答します。
 
+### Vercel Preview の Magic Link origin
+
+- Production の Supabase Auth **Site URL は `https://stage-tracker.com` を
+  canonical のまま維持**します。Production で redirect target を明示しない
+  current request は、引き続き Site URL fallback を使います。Local も
+  `supabase/config.toml` の local Site URL fallback を使います。
+- Vercel Preview でだけ、Server Action が Vercel system environment の
+  `VERCEL_ENV === "preview"` と `VERCEL_URL`（scheme なしの deployment host）を
+  読み、`https://${VERCEL_URL}` を `emailRedirectTo` として Supabase Auth へ
+  渡します。request の `Host` / `X-Forwarded-Host`、form input、query parameter
+  は redirect authority に使いません。
+- hosted Supabase Auth の Redirect URLs には、current account slug に bounded な
+  `https://*-reitojike.vercel.app/**` を Preview 用として追加します。これは
+  Supabase 側の operator-owned 設定であり、`https://**` のような broad allowlist
+  にはしません。
+- `supabase/templates/magic_link.html` は `.RedirectTo` がある場合だけ Preview
+  origin を使い、無い場合は `.SiteURL` へ fallback します。hosted Supabase の
+  Magic Link template もこの repository の canonical template と同じ semantic
+  に materialize してください。template変更だけでは hosted project は更新
+  されません。
+- Preview は現時点で Production と同じ hosted Supabase を使う想定です。そのため
+  Preview の authenticated write は real remote dogfood dataへ反映され得ます。
+  検証では private test/dogfood data を最小限に扱い、shared/production data の
+  destructive mutation は行いません。Preview runtime に必要なのは public な
+  Supabase URL / anon key だけで、service-role key は不要です。
+
+この節の Dashboard / Vercel 設定の materialization と実機メール検証は
+operator-owned です。設定完了を agent が推測で扱わず、operator-confirmed または
+未確認として記録します。
+
 ## メール配送経路（Resend 経由の Custom SMTP）
 
 - Supabase Auth の Custom SMTP 設定（Dashboard → Authentication → SMTP
