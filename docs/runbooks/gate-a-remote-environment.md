@@ -150,8 +150,10 @@ sessions が同じ remote schema を無秩序に mutate しない」）。
 - **Email Templates → Magic Link**: `supabase/templates/magic_link.html`
   （この repository の source of truth）の内容を貼り付け、hosted project
   のリンクも local development と同様に `/auth/confirm` を経由するように
-  します。`.RedirectTo` がある場合は Preview target、無い場合は `.SiteURL`
-  fallback になる conditional template を materialize してください。Supabase の
+  します。`.RedirectTo` が空または `.SiteURL` と同値の場合は `.SiteURL` fallback、
+  それ以外の明示targetの場合はPreview targetになるconditional templateをmaterialize
+  してください。GoTrueはredirect未指定時に`.RedirectTo`へSite URLをfallbackするため、
+  この同値判定を含めます。Supabaseの
   default template は、この app の route handler を bypass してしまいます。
 
   なお、PR #269のPreview smokeでraw `VERCEL_ENV` / `VERCEL_URL`前提が実際に

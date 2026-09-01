@@ -172,8 +172,10 @@ diff` だけを見る）。そのため、実際に Production へ migration が
   `NEXT_PUBLIC_VERCEL_ENV === "preview"` と trusted host が揃った場合だけ
   `https://<trusted-host>/` を Magic Link の `emailRedirectTo` にします。trailing
   slashはSupabaseのVercel wildcard `https://*-reitojike.vercel.app/**` とcallback
-  pathの連結に合わせたcanonical形式です。templateはRedirectToへ直接
-  `auth/confirm`を連結し、double slashを作りません。
+  pathの連結に合わせたcanonical形式です。GoTrueがredirect未指定時にSite URLを
+  `.RedirectTo`へfallbackするため、templateは `.RedirectTo` が `.SiteURL` と異なる
+  明示targetのときだけ使い、そこへ直接 `auth/confirm`を連結します。double slashを
+  作りません。
   `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` はPreview redirectへ使いません。
   Production / local では explicit target を渡さず、Supabase Site URL fallback
   を維持します。request `Host` / `X-Forwarded-Host` や user input は authority

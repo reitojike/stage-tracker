@@ -3,7 +3,7 @@
 <p>以下のリンクをクリックするとサインインできます。このリンクの有効期限は限られています。</p>
 
 <p>
-  {{ if .RedirectTo }}
+  {{ if and .RedirectTo (ne .RedirectTo .SiteURL) }}
   <a href="{{ .RedirectTo }}auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/"
     >サインインする</a
   >

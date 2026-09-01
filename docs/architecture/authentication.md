@@ -90,11 +90,13 @@ sequenceDiagram
   `https://*-reitojike.vercel.app/**` を Preview 用として追加します。これは
   Supabase 側の operator-owned 設定であり、`https://**` のような broad allowlist
   にはしません。Previewごとのexact Redirect URLはsteady stateでは不要です。
-- `supabase/templates/magic_link.html` は `.RedirectTo` がある場合だけ Preview
-  origin を使い、無い場合は `.SiteURL` へ fallback します。hosted Supabase の
-  Magic Link template もこの repository の canonical template と同じ semantic
-  に materialize してください。template変更だけでは hosted project は更新
-  されません。
+- `supabase/templates/magic_link.html` は `.RedirectTo` が空、または `.SiteURL` と
+  同値なら `.SiteURL` fallbackを使い、それ以外の明示Preview targetだけを使います。
+  GoTrueはredirect指定なしのrequestでも `.RedirectTo` にSite URLをfallback値として
+  渡すため、この同値判定が必要です。Preview targetはtrailing slash付きなので、
+  templateはそこへ `auth/confirm` を直接連結します。hosted Supabase の Magic Link
+  templateもこのrepositoryのcanonical templateと同じsemanticにmaterializeして
+  ください。template変更だけではhosted projectは更新されません。
 - Preview は現時点で Production と同じ hosted Supabase を使う想定です。そのため
   Preview の authenticated write は real remote dogfood dataへ反映され得ます。
   検証では private test/dogfood data を最小限に扱い、shared/production data の
