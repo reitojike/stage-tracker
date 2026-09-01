@@ -61,7 +61,7 @@ export function DeleteOccurrenceForm({
         title="この公演回を削除"
         showCloseButton={false}
         footer={
-          <div>
+          <div className={styles.sheetFooter}>
             <Button
               type="submit"
               form={formId}

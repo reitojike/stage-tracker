@@ -64,7 +64,7 @@ export function DeleteEventForm({ eventId }: DeleteEventFormProps) {
         title="このイベントを削除"
         showCloseButton={false}
         footer={
-          <div>
+          <div className={styles.sheetFooter}>
             <Button
               type="submit"
               form="delete-event-form"
