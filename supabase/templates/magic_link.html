@@ -4,7 +4,7 @@
 
 <p>
   {{ if .RedirectTo }}
-  <a href="{{ .RedirectTo }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/"
+  <a href="{{ .RedirectTo }}auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/"
     >サインインする</a
   >
   {{ else }}

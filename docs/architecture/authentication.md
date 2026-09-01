@@ -78,14 +78,18 @@ sequenceDiagram
   Environment Variables の `NEXT_PUBLIC_VERCEL_ENV === "preview"` と、まず
   `NEXT_PUBLIC_VERCEL_BRANCH_URL`（scheme なしの Git branch host）、無ければ
   `NEXT_PUBLIC_VERCEL_URL`（scheme なしの generated deployment host）を読み、
-  `https://<trusted-host>` を `emailRedirectTo` として Supabase Auth へ渡します。
+  `https://<trusted-host>/`（trailing slash付き）を `emailRedirectTo` として
+  Supabase Auth へ渡します。このcanonicalizationはSupabaseが案内するVercel
+  wildcard `https://*-reitojike.vercel.app/**` とcallback pathを連結した
+  redirect URLの互換性を保つためです。templateはこの値へ `auth/confirm` を
+  直接連結するため、`//auth/confirm` は生成しません。
   `NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` は Preview でも Production を指す
   ため使用しません。request の `Host` / `X-Forwarded-Host`、form input、query
   parameter は redirect authority に使いません。
 - hosted Supabase Auth の Redirect URLs には、current account slug に bounded な
   `https://*-reitojike.vercel.app/**` を Preview 用として追加します。これは
   Supabase 側の operator-owned 設定であり、`https://**` のような broad allowlist
-  にはしません。
+  にはしません。Previewごとのexact Redirect URLはsteady stateでは不要です。
 - `supabase/templates/magic_link.html` は `.RedirectTo` がある場合だけ Preview
   origin を使い、無い場合は `.SiteURL` へ fallback します。hosted Supabase の
   Magic Link template もこの repository の canonical template と同じ semantic
@@ -102,6 +106,12 @@ Next.js の Framework Environment Variables は Vercel の Framework Preset に
 Supabase URL / anon key 以外に、legacy raw `VERCEL_ENV` / `VERCEL_URL` のための
 System Environment Variables exposure switchを要求しません。この契約への変更は、
 PR #269 のPreview smokeでraw env前提がProduction fallbackを生んだためです。
+
+PR #269 の追加remote evidenceとして、bare Preview originと上記wildcardだけの
+組み合わせではSupabaseが `Site URL`（Production）へfallbackしました。operatorが
+一時的にbare Preview exact URLを追加するとPreview redirect/authが成功しました。
+この失敗・一時的成功の証跡は保持し、trailing slash修正後はexact URLを削除した
+wildcard-only状態で再検証します。
 
 この節の Dashboard / Vercel 設定の materialization と実機メール検証は
 operator-owned です。設定完了を agent が推測で扱わず、operator-confirmed または

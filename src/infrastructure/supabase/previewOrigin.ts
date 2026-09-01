@@ -35,7 +35,10 @@ export function resolvePreviewOrigin(
     return undefined;
   }
 
-  return `https://${host.trim()}`;
+  // Keep the origin slash because Supabase's documented Vercel wildcard
+  // (`https://*-<account-slug>.vercel.app/**`) matches the callback path
+  // appended to this redirect target.
+  return `https://${host.trim()}/`;
 }
 
 /**

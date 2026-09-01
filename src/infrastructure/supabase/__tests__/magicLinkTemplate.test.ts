@@ -9,7 +9,8 @@ const template = readFileSync(
 
 void test('Magic Link template keeps RedirectTo and SiteURL fallback semantics', () => {
   assert.match(template, /{{ if \.RedirectTo }}/);
-  assert.match(template, /{{ \.RedirectTo }}\/auth\/confirm\?token_hash={{ \.TokenHash }}/);
+  assert.match(template, /{{ \.RedirectTo }}auth\/confirm\?token_hash={{ \.TokenHash }}/);
+  assert.doesNotMatch(template, /{{ \.RedirectTo }}\/auth\/confirm/);
   assert.match(template, /{{ else }}/);
   assert.match(template, /{{ \.SiteURL }}\/auth\/confirm\?token_hash={{ \.TokenHash }}/);
   assert.match(template, /{{ end }}/);

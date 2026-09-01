@@ -51,14 +51,14 @@ void test('Preview origin prefers the trusted Vercel branch host', () => {
       'stage-tracker-git-feature-reitojike.vercel.app',
       'stage-tracker-abc123-reitojike.vercel.app',
     ),
-    'https://stage-tracker-git-feature-reitojike.vercel.app',
+    'https://stage-tracker-git-feature-reitojike.vercel.app/',
   );
 });
 
 void test('Preview origin falls back to the generated deployment host', () => {
   assert.equal(
     resolvePreviewOrigin('preview', undefined, 'stage-tracker-abc123-reitojike.vercel.app'),
-    'https://stage-tracker-abc123-reitojike.vercel.app',
+    'https://stage-tracker-abc123-reitojike.vercel.app/',
   );
 });
 
@@ -90,7 +90,7 @@ void test('the resolver accepts only a host and falls back past malformed branch
   );
   assert.equal(
     resolvePreviewOrigin('preview', 'trusted.example/path', 'trusted.example'),
-    'https://trusted.example',
+    'https://trusted.example/',
   );
 });
 
@@ -107,7 +107,7 @@ void test('readPreviewOrigin reads the Next.js framework environment contract', 
   process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL = 'stage-tracker.com';
 
   try {
-    assert.equal(readPreviewOrigin(), 'https://stage-tracker-git-feature-reitojike.vercel.app');
+    assert.equal(readPreviewOrigin(), 'https://stage-tracker-git-feature-reitojike.vercel.app/');
   } finally {
     restorePreviewEnvironment(previous);
   }

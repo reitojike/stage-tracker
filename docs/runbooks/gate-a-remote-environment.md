@@ -80,6 +80,11 @@ session が operator 自身の credential なしに実行できるものでは�
    **Automatically expose System Environment Variables** を有効化する手順は
    このauth journeyの前提ではありません。これらはVercelが提供するvaluesであり、
    手入力のredirect authorityやrequest `Host`の代替として設定しません。
+   resolverが作るPreview originは `https://<trusted-host>/` のtrailing slash付き
+   canonical形式です。SupabaseのVercel wildcard
+   `https://*-reitojike.vercel.app/**` がcallback pathを含むredirect URLを受理
+   できる形に合わせています。Previewごとのexact Redirect URLはsteady stateでは
+   不要です。
 
 ## Schema migration to the hosted project
 
@@ -152,6 +157,12 @@ sessions が同じ remote schema を無秩序に mutate しない」）。
   なお、PR #269のPreview smokeでraw `VERCEL_ENV` / `VERCEL_URL`前提が実際に
   Production fallbackを生んだため、現在のNext.js Framework Environment
   Variables契約へrunbookをreconcileしています。
+
+  追加のoperator evidenceでは、bare Preview origin + wildcard-onlyでProduction
+  のSite URL fallbackが発生し、bare Preview exact URLを一時追加した後にPreview
+  redirect/authが成功しました。この一時設定はsteady stateの要件ではありません。
+  operatorはtrailing slash修正後にexact URLを削除し、上記wildcardだけを残して
+  PreviewとProductionの最終smokeを行います。
 
 Supabase CLI には `supabase config push` という、`supabase/config.toml` の
 `[auth]` section（および template 参照）を linked hosted project へ適用

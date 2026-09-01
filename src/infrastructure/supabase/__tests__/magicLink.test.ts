@@ -62,12 +62,12 @@ void test('requestMagicLink includes the supported redirect option when supplied
   const { client, calls } = recordingClient();
 
   await requestMagicLink(client, 'someone@example.test', undefined, {
-    emailRedirectTo: 'https://stage-tracker-git-preview-reitojike.vercel.app',
+    emailRedirectTo: 'https://stage-tracker-git-preview-reitojike.vercel.app/',
   });
 
   assert.deepEqual(calls[0]?.options, {
     shouldCreateUser: false,
-    emailRedirectTo: 'https://stage-tracker-git-preview-reitojike.vercel.app',
+    emailRedirectTo: 'https://stage-tracker-git-preview-reitojike.vercel.app/',
   });
 });
 
