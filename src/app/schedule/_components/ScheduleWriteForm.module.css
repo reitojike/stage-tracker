@@ -118,6 +118,10 @@
   gap: var(--space-sm);
 }
 
+.temporalInput {
+  padding-inline: var(--space-sm);
+}
+
 .pairedFields[hidden] {
   display: none;
 }
