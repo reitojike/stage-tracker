@@ -2,6 +2,48 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readPreviewOrigin, resolvePreviewOrigin } from '../previewOrigin.ts';
 
+type PreviewEnvironment = {
+  rawEnv?: string;
+  rawUrl?: string;
+  env?: string;
+  branchUrl?: string;
+  deploymentUrl?: string;
+  productionUrl?: string;
+};
+
+function restorePreviewEnvironment(previous: PreviewEnvironment): void {
+  if (previous.rawEnv === undefined) {
+    delete process.env.VERCEL_ENV;
+  } else {
+    process.env.VERCEL_ENV = previous.rawEnv;
+  }
+  if (previous.rawUrl === undefined) {
+    delete process.env.VERCEL_URL;
+  } else {
+    process.env.VERCEL_URL = previous.rawUrl;
+  }
+  if (previous.env === undefined) {
+    delete process.env.NEXT_PUBLIC_VERCEL_ENV;
+  } else {
+    process.env.NEXT_PUBLIC_VERCEL_ENV = previous.env;
+  }
+  if (previous.branchUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL;
+  } else {
+    process.env.NEXT_PUBLIC_VERCEL_BRANCH_URL = previous.branchUrl;
+  }
+  if (previous.deploymentUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_VERCEL_URL;
+  } else {
+    process.env.NEXT_PUBLIC_VERCEL_URL = previous.deploymentUrl;
+  }
+  if (previous.productionUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL;
+  } else {
+    process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL = previous.productionUrl;
+  }
+}
+
 void test('Preview origin prefers the trusted Vercel branch host', () => {
   assert.equal(
     resolvePreviewOrigin(
@@ -67,26 +109,7 @@ void test('readPreviewOrigin reads the Next.js framework environment contract', 
   try {
     assert.equal(readPreviewOrigin(), 'https://stage-tracker-git-feature-reitojike.vercel.app');
   } finally {
-    const names = [
-      'NEXT_PUBLIC_VERCEL_ENV',
-      'NEXT_PUBLIC_VERCEL_BRANCH_URL',
-      'NEXT_PUBLIC_VERCEL_URL',
-      'NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL',
-    ] as const;
-    const values = [
-      previous.env,
-      previous.branchUrl,
-      previous.deploymentUrl,
-      previous.productionUrl,
-    ];
-    names.forEach((name, index) => {
-      const value = values[index];
-      if (value === undefined) {
-        delete process.env[name];
-      } else {
-        process.env[name] = value;
-      }
-    });
+    restorePreviewEnvironment(previous);
   }
 });
 
@@ -105,26 +128,7 @@ void test('the project production URL is never used as a Preview origin', () => 
   try {
     assert.equal(readPreviewOrigin(), undefined);
   } finally {
-    const names = [
-      'NEXT_PUBLIC_VERCEL_ENV',
-      'NEXT_PUBLIC_VERCEL_BRANCH_URL',
-      'NEXT_PUBLIC_VERCEL_URL',
-      'NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL',
-    ] as const;
-    const values = [
-      previous.env,
-      previous.branchUrl,
-      previous.deploymentUrl,
-      previous.productionUrl,
-    ];
-    names.forEach((name, index) => {
-      const value = values[index];
-      if (value === undefined) {
-        delete process.env[name];
-      } else {
-        process.env[name] = value;
-      }
-    });
+    restorePreviewEnvironment(previous);
   }
 });
 
@@ -145,27 +149,6 @@ void test('legacy raw Vercel variables do not become redirect authority', () => 
   try {
     assert.equal(readPreviewOrigin(), undefined);
   } finally {
-    const values = [
-      previous.rawEnv,
-      previous.rawUrl,
-      previous.env,
-      previous.branchUrl,
-      previous.deploymentUrl,
-    ];
-    const names = [
-      'VERCEL_ENV',
-      'VERCEL_URL',
-      'NEXT_PUBLIC_VERCEL_ENV',
-      'NEXT_PUBLIC_VERCEL_BRANCH_URL',
-      'NEXT_PUBLIC_VERCEL_URL',
-    ] as const;
-    names.forEach((name, index) => {
-      const value = values[index];
-      if (value === undefined) {
-        delete process.env[name];
-      } else {
-        process.env[name] = value;
-      }
-    });
+    restorePreviewEnvironment(previous);
   }
 });
