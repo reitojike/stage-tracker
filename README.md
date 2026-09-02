@@ -87,7 +87,14 @@ local / agent向けのone-command full deterministic verificationです。内部
   `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`残存privilegeを
   検知するclient-role table privilege guardrail (`client-role-privileges:check`)
   を実行します。remote Supabase projectやremote credentialsは不要です。
-  Docker が起動していない場合、このステップで失敗します。起動は
+  Docker が起動していない場合、このステップで失敗します。`test:auth` の
+  browser test は `playwright-core`（devDependency）で **system Google
+  Chrome** を headless 起動します（Issue #277）。browser binary の
+  download（`npx playwright install`）は行わないため、local では Google
+  Chrome のインストール、または `CHROME_PATH` で明示した Chrome/Chromium
+  binary が必要です（GitHub Actions の ubuntu-latest には preinstalled）。
+  Chrome が見つからない場合のエラーには探索した path と上記の解決方法が
+  含まれます。起動は
   `verify:database:start`（Database/RLS/Auth checksが使わないStudio/
   Realtime/Storage等のservice - `supabase:start --exclude`の対象 - を
   除いたもの）、checkは`verify:database:checks`として分けており、
