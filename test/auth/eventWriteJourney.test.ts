@@ -244,6 +244,21 @@ void test('the owner cancels an occurrence and then uncancels it, without deleti
     'opening the second occurrence sheet',
   );
   await sheet.getByRole('button', { name: 'この公演回を中止' }).click();
+  // Wait for the toggle to flip before navigating away.
+  //
+  // Unlike the add-occurrence step above, these lifecycle forms neither
+  // close their sheet nor redirect on success - they only render feedback
+  // inside the still-open sheet (OccurrenceUpdateForm.tsx) - so `click()`
+  // returns as soon as the click is dispatched, with the Server Action's
+  // request still in flight. A full-page navigation on the very next line
+  // would abort that request (it is an ordinary, non-`keepalive` fetch),
+  // losing the write intermittently. The button's own label is the
+  // completion signal that avoids it: it only reads 中止を解除 once
+  // revalidatePath has re-rendered this row with `isCanceled` true, so it
+  // can never be reached without the write having landed.
+  await sheet
+    .getByRole('button', { name: 'この公演回の中止を解除' })
+    .waitFor({ state: 'visible', timeout: 30_000 });
 
   await creator.goto(editPath());
   assert.equal(
@@ -264,6 +279,10 @@ void test('the owner cancels an occurrence and then uncancels it, without deleti
     'reopening the second occurrence sheet',
   );
   await uncancelSheet.getByRole('button', { name: 'この公演回の中止を解除' }).click();
+  // Same completion signal as the cancel above, in the other direction.
+  await uncancelSheet
+    .getByRole('button', { name: 'この公演回を中止' })
+    .waitFor({ state: 'visible', timeout: 30_000 });
 
   await creator.goto(editPath());
   assert.equal(await canceledBadges().count(), 0, 'expected the cancellation to be lifted');
@@ -285,6 +304,13 @@ void test('the owner deletes the occurrence and then the Event, and the Event st
   const confirmSheet = creator.page.getByRole('dialog', { name: 'この公演回を削除' });
   await confirmSheet.waitFor({ state: 'visible', timeout: 15_000 });
   await confirmSheet.getByRole('button', { name: '削除', exact: true }).click();
+  // This action does not redirect either (only deleteEventAction does), so
+  // wait before navigating - see the cancel step's comment for why. Here
+  // the signal is the sheet disappearing: the deleted occurrence's whole
+  // row unmounts once revalidatePath's re-render arrives, taking its
+  // sheets with it. A *failed* delete leaves the sheet open with feedback
+  // instead, so this cannot pass on a write that did not land.
+  await waitUntilGone(confirmSheet, 30_000);
 
   await creator.goto(editPath());
   assert.equal(await occurrenceCount(creator), 1, 'expected the deleted occurrence to be gone');
