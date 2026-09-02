@@ -120,6 +120,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             label="開始日時"
             name="startsAt"
             type="datetime-local"
+            className={styles.temporalInput}
             required={temporalMode === 'time-bounded'}
             defaultValue={values.startsAt ?? ''}
             error={fieldErrors.startsAt}
@@ -129,6 +130,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             label="終了日時"
             name="endsAt"
             type="datetime-local"
+            className={styles.temporalInput}
             defaultValue={values.endsAt ?? ''}
             error={fieldErrors.endsAt}
             disabled={disabled}
@@ -144,6 +146,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             label="開始日"
             name="startsOn"
             type="date"
+            className={styles.temporalInput}
             required={temporalMode === 'all-day'}
             defaultValue={values.startsOn ?? ''}
             error={fieldErrors.startsOn}
@@ -153,6 +156,7 @@ export function ScheduleFields({ values, fieldErrors, disabled }: ScheduleFields
             label="終了日"
             name="endsOn"
             type="date"
+            className={styles.temporalInput}
             defaultValue={values.endsOn ?? ''}
             error={fieldErrors.endsOn}
             disabled={disabled}
