@@ -60,7 +60,7 @@
       },
       "fallback_order": ["codex"],
       "observed_at": "2026-09-02",
-      "notes": "stage-tracker の current main に `.github/workflows/claude-review.yml` と claude[bot] の GitHub-native mention route があることは Selection 前に確認済み。completion marker、target_argument による `Reviewed commit:` binding、actors の実測は Issue #288 の formal run で確認する。GitHub Actions 経由のこの route は review submission を作らず、単一の conversation comment を in-place 編集して `**Claude finished ...**` で完成するため、構造的 evidence が無く completion_marker に依存する。comment 自体は reviewed SHA を持たないため、trigger.target_argument で結果へ `Reviewed commit:` 行を要求し binding に使う。その行が無ければ state は unknown になる。実測と宣言が食い違った場合は待たず、この record の marker と observed_at を更新する。mention trigger workflow は review 対象 repository が個別に用意する必要があり、Foundation は配布しない。workflow が無い repository ではこの trigger は unavailable。"
+      "notes": "stage-tracker の current main に `.github/workflows/claude-review.yml` と claude[bot] の GitHub-native mention route があることは Selection 前に確認済み。completion marker（`**Claude finished` / `Reviewed commit:`）、target_argument による binding、actors は Issue #288 および #270（PR #290）の実 run で実測済み。GitHub Actions 経由のこの route は review submission を作らず、単一の conversation comment を in-place 編集して `**Claude finished ...**` で完成するため、構造的 evidence が無く completion_marker に依存する。comment 自体は reviewed SHA を持たないため、trigger.target_argument で結果へ `Reviewed commit:` 行を要求し binding に使う。その行が無ければ state は unknown になる。実測と宣言が食い違った場合は待たず、この record の marker と observed_at を更新する。mention trigger workflow は review 対象 repository が個別に用意する必要があり、Foundation は配布しない。workflow が無い repository ではこの trigger は unavailable。"
     },
     {
       "id": "coderabbitai",
@@ -73,7 +73,10 @@
         "value": "@coderabbitai review"
       },
       "completion_marker": {
-        "any_of": ["Actionable comments posted:"]
+        "any_of": [
+          "Actionable comments posted:",
+          "No actionable comments were generated in the recent review."
+        ]
       },
       "non_participation_marker": null,
       "rate_limit_marker": {
@@ -82,8 +85,8 @@
       "failure_marker": null,
       "in_flight_marker": null,
       "fallback_order": [],
-      "observed_at": "2026-09-02",
-      "notes": "結果は review submission（state=COMMENTED、本文冒頭が `Actionable comments posted: N`）として投稿される。trigger への `Action performed` 返信と walkthrough comment も投稿されるが、いずれも完了根拠にしない。advisory member のため completion を待たず、未参加・rate limit でも blocker にしない。ただし到着した finding の triage / Resolution obligation は class に関係なく残る。無料枠は 1 件/時のため rate limit は fallback ではなく advisory 継続の根拠として扱い、復帰を待たない。`success` の commit status が automatic review 無効化による review スキップを表すことがあり、green な status が review 完了ではなく review 未実施を意味する。status の state だけを completion へ変換しない。"
+      "observed_at": "2026-09-03",
+      "notes": "結果 surface は finding の有無で異なることが #270 / PR #290（finding 0 件 run）で確認されている。actionable finding がある run では review submission（state=COMMENTED、本文冒頭が `Actionable comments posted: N`）として投稿されるが、actionable finding が 0 件の run では review submission を作らず、単一の conversation comment（本文冒頭 `No actionable comments were generated in the recent review.`）としてのみ結果が観測された。review submission だけを唯一の結果 surface と仮定しない。finding 有り run でも同じ surface/marker になるとは限らないため、この併存は今後も再検証する対象として扱う。結果 comment は複数 section から成るため、冒頭 1 行だけで finding/warning 無しと判断しない。冒頭が `No actionable comments...` でも、同一 comment 内の Pre-merge checks section に advisory な warning（例: Docstring Coverage）が含まれることがあり、これは class に関係なく triage 対象として扱う（PR #290 #issuecomment-5511697863）。結果 comment 本文には `Reviewing files that changed from the base of the PR and between {base_sha} and {head_sha}` という形で reviewed base→head range が明示されることがあり、target binding の補助に使える（PR #290 #issuecomment-5511416364）。trigger への `Action performed` 返信と walkthrough comment も投稿されるが、いずれも完了根拠にしない。advisory member のため completion を待たず、未参加・rate limit でも blocker にしない。ただし到着した finding の triage / Resolution obligation は class に関係なく残る。無料枠は 1 件/時のため rate limit は fallback ではなく advisory 継続の根拠として扱い、復帰を待たない。`success` の commit status が automatic review 無効化による review スキップを表すことがあり、green な status が review 完了ではなく review 未実施を意味する。status の state だけを completion へ変換しない。"
     }
   ]
 }
