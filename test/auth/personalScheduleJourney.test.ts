@@ -36,6 +36,11 @@ const ENDS_AT_LOCAL = `${FIXTURE_DATE}T15:30`;
 let app: AppServer;
 let owner: JourneyActor;
 let recipient: JourneyActor;
+/** A third signed-in user this journey never shares anything with. Present
+ * so the share assertions prove *selectivity*, not merely delivery: an
+ * entry that reached every account would satisfy "the recipient can see
+ * it" just as well as a correctly targeted one. */
+let bystander: JourneyActor;
 /** Unique per run, so this file's assertions can never match an entry left
  * behind by anything else in the shared local DB. */
 let entryTitle: string;
@@ -56,6 +61,10 @@ before(async () => {
     createdUserIds.push(id);
   });
   initializedCleanups.push(() => recipient.close());
+  bystander = await createJourneyActor(app, { emailPrefix: 'schedule-journey-bystander' }, (id) => {
+    createdUserIds.push(id);
+  });
+  initializedCleanups.push(() => bystander.close());
 });
 
 after(async () => {
@@ -177,6 +186,25 @@ void test('sharing by exact email puts the entry on the recipient’s calendar a
   await openEntryDetail(recipient);
   await assert.doesNotReject(
     recipient.page.getByText('共有されている予定').waitFor({ state: 'visible', timeout: 10_000 }),
+  );
+
+  // ...and *only* that recipient. Delivery alone would be satisfied just as
+  // well by a share that reached every account, so the uninvolved third
+  // user is what makes this an assertion about the exact-email targeting
+  // boundary (#55) rather than about sharing in general.
+  assert.equal(
+    await canSeeEntryOnCalendar(bystander),
+    false,
+    'expected an uninvolved user not to receive the entry',
+  );
+  await openEntryDetail(bystander);
+  // Not visible reads as "not found", deliberately indistinguishable from
+  // "does not exist" - RLS makes the two the same, so the screen must not
+  // imply an entry is there but withheld (see getVisiblePersonalScheduleEntry).
+  await assert.doesNotReject(
+    bystander.page
+      .getByText('指定された予定が見つかりません')
+      .waitFor({ state: 'visible', timeout: 10_000 }),
   );
 });
 
