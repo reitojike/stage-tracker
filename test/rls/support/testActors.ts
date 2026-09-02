@@ -136,7 +136,20 @@ function idBatches(ids: readonly string[]): string[][] {
   return batches;
 }
 
-export async function deleteTestActor(actor: TestActor): Promise<void> {
+/**
+ * Deletes every fixture row a user could own or have created, then the
+ * auth user itself. Extracted from deleteTestActor (which is now a thin
+ * wrapper over it) so a user that has no `TestActor` client at all can get
+ * the identical teardown - specifically the Issue #278 browser write
+ * journeys, whose users sign in through the app's magic-link flow rather
+ * than the password path createTestActor uses, but which write exactly the
+ * same participation / invitation / personal-schedule / ticket-planning
+ * rows this teardown has always been responsible for.
+ *
+ * Admin-path setup/teardown, not an RLS assertion: it does not decide
+ * product deletion/cancellation semantics for any of these tables.
+ */
+export async function deleteUserAndOwnedFixtures(userId: string): Promise<void> {
   const admin = createAdminClient();
 
   // personal_schedule_entries.owner_id and personal_schedule_shares.
@@ -149,20 +162,20 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   const { error: deleteSharesAsRecipientError } = await admin
     .from('personal_schedule_shares')
     .delete()
-    .eq('shared_with_user_id', actor.user.id);
+    .eq('shared_with_user_id', userId);
   if (deleteSharesAsRecipientError) {
     throw new Error(
-      `failed to delete fixture schedule shares received by test user ${actor.user.id}: ${deleteSharesAsRecipientError.message}`,
+      `failed to delete fixture schedule shares received by test user ${userId}: ${deleteSharesAsRecipientError.message}`,
     );
   }
 
   const { data: ownedScheduleEntries, error: selectScheduleEntriesError } = await admin
     .from('personal_schedule_entries')
     .select('id')
-    .eq('owner_id', actor.user.id);
+    .eq('owner_id', userId);
   if (selectScheduleEntriesError) {
     throw new Error(
-      `failed to list fixture schedule entries for test user ${actor.user.id}: ${selectScheduleEntriesError.message}`,
+      `failed to list fixture schedule entries for test user ${userId}: ${selectScheduleEntriesError.message}`,
     );
   }
 
@@ -174,7 +187,7 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
       .in('schedule_entry_id', batch);
     if (deleteSharesOnOwnedEntriesError) {
       throw new Error(
-        `failed to delete fixture schedule shares on entries owned by test user ${actor.user.id}: ${deleteSharesOnOwnedEntriesError.message}`,
+        `failed to delete fixture schedule shares on entries owned by test user ${userId}: ${deleteSharesOnOwnedEntriesError.message}`,
       );
     }
   }
@@ -182,10 +195,10 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   const { error: deleteScheduleEntriesError } = await admin
     .from('personal_schedule_entries')
     .delete()
-    .eq('owner_id', actor.user.id);
+    .eq('owner_id', userId);
   if (deleteScheduleEntriesError) {
     throw new Error(
-      `failed to delete fixture schedule entries for test user ${actor.user.id}: ${deleteScheduleEntriesError.message}`,
+      `failed to delete fixture schedule entries for test user ${userId}: ${deleteScheduleEntriesError.message}`,
     );
   }
 
@@ -211,10 +224,10 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   const { data: ownedEvents, error: selectEventsError } = await admin
     .from('events')
     .select('id')
-    .eq('owner_id', actor.user.id);
+    .eq('owner_id', userId);
   if (selectEventsError) {
     throw new Error(
-      `failed to list fixture events for test user ${actor.user.id}: ${selectEventsError.message}`,
+      `failed to list fixture events for test user ${userId}: ${selectEventsError.message}`,
     );
   }
   const ownedEventIds = ownedEvents.map((event) => event.id);
@@ -227,7 +240,7 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
       .in('event_id', batch);
     if (selectOccurrencesError) {
       throw new Error(
-        `failed to list fixture occurrences for test user ${actor.user.id}: ${selectOccurrencesError.message}`,
+        `failed to list fixture occurrences for test user ${userId}: ${selectOccurrencesError.message}`,
       );
     }
     ownedOccurrenceIds.push(...occurrences.map((occurrence) => occurrence.id));
@@ -236,22 +249,36 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   const failIfError = (label: string, error: PostgrestError | null): void => {
     if (error) {
       throw new Error(
-        `failed to delete fixture ${label} for test user ${actor.user.id}: ${error.message}`,
+        `failed to delete fixture ${label} for test user ${userId}: ${error.message}`,
       );
     }
   };
 
   failIfError(
     'invitations sent',
-    (await admin.from('occurrence_invitations').delete().eq('inviter_id', actor.user.id)).error,
+    (await admin.from('occurrence_invitations').delete().eq('inviter_id', userId)).error,
   );
   failIfError(
     'invitations received',
-    (await admin.from('occurrence_invitations').delete().eq('invitee_id', actor.user.id)).error,
+    (await admin.from('occurrence_invitations').delete().eq('invitee_id', userId)).error,
   );
   failIfError(
     'participations',
-    (await admin.from('occurrence_participations').delete().eq('user_id', actor.user.id)).error,
+    (await admin.from('occurrence_participations').delete().eq('user_id', userId)).error,
+  );
+  // user_ticket_opportunity_states.user_id references auth.users(id) with
+  // no ON DELETE action either, so a caller's own personal ticket-planning
+  // state has to be removed by user id here. Its opportunity_id FK *is*
+  // ON DELETE CASCADE (via ticket_opportunities -> events), which is why
+  // deleting the *event owner* first has so far been enough for the RLS
+  // suite - but that only holds while teardown order happens to put the
+  // catalog owner first. Deleting by user id makes each user's own
+  // teardown self-sufficient, which is what the Issue #278 journeys (whose
+  // planning-state holder and event owner are torn down independently)
+  // need.
+  failIfError(
+    'ticket planning states',
+    (await admin.from('user_ticket_opportunity_states').delete().eq('user_id', userId)).error,
   );
 
   for (const batch of idBatches(ownedOccurrenceIds)) {
@@ -272,7 +299,7 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
     );
   }
 
-  failIfError('events', (await admin.from('events').delete().eq('owner_id', actor.user.id)).error);
+  failIfError('events', (await admin.from('events').delete().eq('owner_id', userId)).error);
 
   // Deleting the user itself is retried, unlike every step above. Auth user
   // deletion is a multi-table write inside the auth schema (identities,
@@ -291,7 +318,7 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   // misdiagnosis this retry is supposed to avoid causing.
   const attemptErrors: string[] = [];
   for (let attempt = 0; attempt < DELETE_USER_ATTEMPTS; attempt += 1) {
-    const { error } = await admin.auth.admin.deleteUser(actor.user.id);
+    const { error } = await admin.auth.admin.deleteUser(userId);
     if (!error) {
       return;
     }
@@ -306,8 +333,15 @@ export async function deleteTestActor(actor: TestActor): Promise<void> {
   }
 
   throw new Error(
-    `failed to delete test user ${actor.user.id} after ${String(DELETE_USER_ATTEMPTS)} attempts: ${attemptErrors.join('; ')}`,
+    `failed to delete test user ${userId} after ${String(DELETE_USER_ATTEMPTS)} attempts: ${attemptErrors.join('; ')}`,
   );
+}
+
+/** Tears one password-path fixture actor down completely. Identical to
+ * deleteUserAndOwnedFixtures - the actor's signed-in client plays no part
+ * in teardown, which is entirely admin-path. */
+export async function deleteTestActor(actor: TestActor): Promise<void> {
+  await deleteUserAndOwnedFixtures(actor.user.id);
 }
 
 /** Tears actors down one at a time so one actor cannot delete a shared parent
