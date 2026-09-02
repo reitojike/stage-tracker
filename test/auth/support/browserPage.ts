@@ -1,191 +1,74 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { waitForExit } from './appServer.ts';
+import { existsSync } from 'node:fs';
+import {
+  chromium,
+  errors as playwrightErrors,
+  type Browser as PlaywrightBrowser,
+  type BrowserContext,
+  type LaunchOptions,
+  type Page,
+} from 'playwright-core';
 
-// Minimal real-browser driver over Chrome's DevTools Protocol (CDP), no
-// Playwright/Puppeteer dependency (Issue #145: "system Chrome + DevTools
-// Protocol等、利用可能な既存手段で十分です").
+// Minimal real-browser driver for test/auth, on top of `playwright-core`
+// driving the *system* Google Chrome (Issue #277). Only the thin
+// `Browser`/`BrowserPage` wrappers below are this repo's own code; browser
+// process lifecycle (spawn, readiness, graceful close, force kill, temp
+// profile cleanup) is playwright-core's - see launchBrowser's doc comment
+// for how the Issue #259 lifecycle contract maps onto it.
 //
-// Why this exists: Issue #145 makes /catalog's calendar/list body a
-// client-gated render (src/app/catalog/_components/CatalogView.tsx's
+// Why a real browser at all: Issue #145 makes /catalog's calendar/list body
+// a client-gated render (src/app/catalog/_components/CatalogView.tsx's
 // `readyToRenderBody`/`selectionReady`) - deliberately, per the Issue's
 // canonical addendum, to avoid ever showing an unfiltered result that a
 // restored browser-local filter selection is about to override. A plain
 // `fetch()` never executes client JS, so it can only ever observe that
 // component's *pending* state (see CatalogView.tsx's `data-catalog-ready`
 // marker) for a non-empty catalog - it can no longer see the resolved
-// calendar/list markup the way test/auth/catalogAccess.test.ts's
-// pre-#145 assertions expected. This module lets those assertions run
-// against a real, hydrated page instead, preserving this file's own stated
-// purpose ("real end-to-end acceptance evidence... a real signed-in
-// session... actually reaches the authenticated Catalog UI") rather than
-// weakening it to a same-origin HTML fetch that can no longer prove that.
+// calendar/list markup the way test/auth/catalogAccess.test.ts's pre-#145
+// assertions expected. This module lets those assertions run against a
+// real, hydrated page instead, preserving that file's own stated purpose
+// ("real end-to-end acceptance evidence... a real signed-in session...
+// actually reaches the authenticated Catalog UI").
+//
+// Deliberately *not* Playwright Test (`@playwright/test`), and deliberately
+// no `npx playwright install` browser download: the runner stays node:test
+// (package.json's `test:auth`), and the Chrome binary stays the one already
+// present on the machine (local install / ubuntu-latest's preinstalled
+// google-chrome), the same resolution targets the pre-#277 driver used.
 
-const CHROME_PATH_CANDIDATES: readonly string[] = [
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  '/usr/bin/google-chrome',
-  '/usr/bin/google-chrome-stable',
-  '/usr/bin/chromium-browser',
-  '/usr/bin/chromium',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-];
+/** Chrome startup readiness allowance (Issue #259). Passed as playwright-
+ * core's launch `timeout` (its own default in 1.62.1 is 3 minutes:
+ * `browserType.launch` falls back to `DEFAULT_PLAYWRIGHT_LAUNCH_TIMEOUT =
+ * 3 * 60 * 1000` in the bundled client, not the 30s general action
+ * default): observed CI
+ * evidence (run 33322936064 attempt 2) showed a genuine Chrome readiness
+ * timeout on a runner concurrently running the full local Supabase container
+ * stack - real CPU/IO contention a normal ~1-2s startup never waits anywhere
+ * near. Bounded (not the 10s->20min anti-pattern that Issue rules out). */
+const LAUNCH_TIMEOUT_MS = 20_000;
 
-function resolveChromePath(): string {
-  const fromEnv = process.env.CHROME_PATH;
-  if (fromEnv !== undefined && existsSync(fromEnv)) {
-    return fromEnv;
-  }
-  const found = CHROME_PATH_CANDIDATES.find((candidate) => existsSync(candidate));
-  if (found === undefined) {
-    throw new Error(
-      'no system Chrome/Chromium executable found - set CHROME_PATH to an explicit binary path',
-    );
-  }
-  return found;
-}
+/** One retry of *Chrome process startup/readiness only* (Issue #259) - never
+ * of an Auth assertion or the surrounding Database job. playwright-core
+ * fully terminates a failed attempt's process and removes its temp profile
+ * before `launch()` rejects (see launchBrowser's doc comment), so a second
+ * attempt never races a leftover first one. */
+const MAX_LAUNCH_ATTEMPTS = 2;
 
-interface CdpResponseMessage {
-  id: number;
-  result?: unknown;
-  error?: { message: string };
-}
-
-interface CdpEventMessage {
-  method: string;
-  params: unknown;
-}
-
-function isCdpResponse(value: unknown): value is CdpResponseMessage {
-  return (
-    typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'number'
-  );
-}
-
-function isCdpEvent(value: unknown): value is CdpEventMessage {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'method' in value &&
-    typeof value.method === 'string'
-  );
-}
-
-/** Narrows a CDP `Runtime.evaluate` response (`send()`'s return is `unknown`)
- * down to its `result.value` field without an `as` assertion - this repo's
- * lint profile forbids type assertions ("narrow unknown instead"), the same
- * convention domain/catalogFilterSheet.ts's parseCatalogFilterState follows
- * for its own untrusted JSON.parse result. */
-function evaluateResultValue(raw: unknown): unknown {
-  if (typeof raw !== 'object' || raw === null || !('result' in raw)) {
-    return undefined;
-  }
-  const result = raw.result;
-  if (typeof result !== 'object' || result === null || !('value' in result)) {
-    return undefined;
-  }
-  return result.value;
-}
-
-/** Thin JSON-RPC-style CDP connection: `send` resolves/rejects by matching
- * response `id`, `on` dispatches unsolicited protocol events. */
-class CdpConnection {
-  private readonly ws: WebSocket;
-  private nextId = 1;
-  private readonly pending = new Map<
-    number,
-    { resolve: (value: unknown) => void; reject: (error: Error) => void }
-  >();
-  private readonly listeners = new Map<string, Set<(params: unknown) => void>>();
-  private readonly ready: Promise<void>;
-
-  constructor(webSocketDebuggerUrl: string) {
-    this.ws = new WebSocket(webSocketDebuggerUrl);
-    this.ready = new Promise((resolve, reject) => {
-      this.ws.addEventListener(
-        'open',
-        () => {
-          resolve();
-        },
-        { once: true },
-      );
-      this.ws.addEventListener(
-        'error',
-        () => {
-          reject(new Error(`failed to connect to ${webSocketDebuggerUrl}`));
-        },
-        { once: true },
-      );
-    });
-    this.ws.addEventListener('message', (event) => {
-      const parsed: unknown = JSON.parse(String(event.data));
-      if (isCdpResponse(parsed)) {
-        const pending = this.pending.get(parsed.id);
-        if (pending === undefined) {
-          return;
-        }
-        this.pending.delete(parsed.id);
-        if (parsed.error !== undefined) {
-          pending.reject(new Error(parsed.error.message));
-        } else {
-          pending.resolve(parsed.result);
-        }
-        return;
-      }
-      if (isCdpEvent(parsed)) {
-        const listeners = this.listeners.get(parsed.method);
-        if (listeners !== undefined) {
-          for (const listener of listeners) {
-            listener(parsed.params);
-          }
-        }
-      }
-    });
-  }
-
-  async send(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
-    await this.ready;
-    const id = this.nextId;
-    this.nextId += 1;
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
-    });
-  }
-
-  on(method: string, listener: (params: unknown) => void): void {
-    let set = this.listeners.get(method);
-    if (set === undefined) {
-      set = new Set();
-      this.listeners.set(method, set);
-    }
-    set.add(listener);
-  }
-
-  close(): void {
-    this.ws.close();
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
+/** Default `waitForSelector` allowance - unchanged from the pre-#277 driver. */
+const DEFAULT_SELECTOR_TIMEOUT_MS = 5_000;
 
 export interface BrowserPage {
   /** Navigates to `url`, first seeding `cookieHeader` (the same
    * "name=value; name2=value2" shape signInThroughApp's `session.cookie`
    * already produces) as real browser cookies for that origin - equivalent
    * to a signed-in user's own tab, not a synthetic header on a single
-   * fetch. Resolves once the browser's own `Page.loadEventFired` fires;
-   * callers that need to wait for *client-side* work past that (e.g.
-   * CatalogView's hydration) call waitForSelector separately. */
+   * fetch. Resolves once the page's own `load` event has fired; callers
+   * that need to wait for *client-side* work past that (e.g. CatalogView's
+   * hydration) call waitForSelector separately. */
   navigate(url: string, cookieHeader?: string): Promise<void>;
-  /** Polls (every 50ms, up to `timeoutMs`) until `document.querySelector(selector)`
-   * is non-null in the live page. */
+  /** Resolves once `document.querySelector(selector)` is non-null in the
+   * live page (attached - the element need not be visible), or rejects with
+   * a `selector not found within <timeoutMs>ms: <selector>` error once
+   * `timeoutMs` (default 5000) elapses - never hangs. */
   waitForSelector(selector: string, timeoutMs?: number): Promise<void>;
   /** The live DOM's current `document.documentElement.outerHTML` - reused by
    * the same badgeCountOf/ariaLabelOf-style regex assertions the pre-#145
@@ -206,456 +89,276 @@ export interface BrowserPage {
    * page's hydration payload. */
   visibleText(): Promise<string>;
   close(): Promise<void>;
-}
-
-class CdpBrowserPage implements BrowserPage {
-  private readonly connection: CdpConnection;
-
-  constructor(connection: CdpConnection) {
-    this.connection = connection;
-  }
-
-  async navigate(url: string, cookieHeader?: string): Promise<void> {
-    if (cookieHeader !== undefined && cookieHeader !== '') {
-      const cookies = cookieHeader
-        .split(';')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0)
-        .map((pair) => {
-          const eq = pair.indexOf('=');
-          return { name: pair.slice(0, eq), value: pair.slice(eq + 1), url };
-        });
-      await this.connection.send('Network.setCookies', { cookies });
-    }
-
-    const loadEventFired = new Promise<void>((resolve) => {
-      this.connection.on('Page.loadEventFired', () => {
-        resolve();
-      });
-    });
-    await this.connection.send('Page.navigate', { url });
-    await loadEventFired;
-  }
-
-  async waitForSelector(selector: string, timeoutMs = 5000): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    for (;;) {
-      const found = await this.evaluateBoolean(
-        `document.querySelector(${JSON.stringify(selector)}) !== null`,
-      );
-      if (found) {
-        return;
-      }
-      if (Date.now() > deadline) {
-        throw new Error(`selector not found within ${String(timeoutMs)}ms: ${selector}`);
-      }
-      await sleep(50);
-    }
-  }
-
-  private async evaluateBoolean(expression: string): Promise<boolean> {
-    const raw = await this.connection.send('Runtime.evaluate', { expression, returnByValue: true });
-    return evaluateResultValue(raw) === true;
-  }
-
-  async content(): Promise<string> {
-    const raw = await this.connection.send('Runtime.evaluate', {
-      expression: 'document.documentElement.outerHTML',
-      returnByValue: true,
-    });
-    const value = evaluateResultValue(raw);
-    return typeof value === 'string' ? value : '';
-  }
-
-  async visibleText(): Promise<string> {
-    const raw = await this.connection.send('Runtime.evaluate', {
-      expression: 'document.body.innerText',
-      returnByValue: true,
-    });
-    const value = evaluateResultValue(raw);
-    return typeof value === 'string' ? value : '';
-  }
-
-  async close(): Promise<void> {
-    await this.connection.send('Page.close');
-    this.connection.close();
-  }
+  /** The underlying Playwright `Page` for the same tab, for journeys that
+   * need more than the methods above (form fill, click, `waitForURL`, ...)
+   * without growing this wrapper (Issue #277, for #278's write journeys).
+   * Everything done through it shares this page's cookies/session. */
+  readonly raw: Page;
 }
 
 export interface Browser {
+  /** Opens a new tab in the one shared browser context every page of this
+   * `Browser` lives in - cookies seeded via one page's `navigate()` are
+   * visible to every other page, the same as the pre-#277 driver's single
+   * Chrome profile (and a real user's single browser window). */
   newPage(): Promise<BrowserPage>;
+  /** Closes every page/context and terminates the Chrome process, waiting
+   * (boundedly - see launchBrowser) for it to actually exit. Safe to call
+   * more than once. */
   close(): Promise<void>;
 }
 
-// Chrome startup readiness allowance (Issue #259). Was a fixed 10s; observed
-// CI evidence (run 33322936064 attempt 2) showed a genuine DevTools-port
-// timeout on a runner that was concurrently running the full local Supabase
-// container stack (db/auth/rest/kong/inbucket/pg-meta) - real CPU/IO
-// contention Chrome does not see on a quieter machine. 20s is a modest,
-// bounded increase (not the 10s->20min anti-pattern the Issue explicitly
-// rules out): a normal successful startup that returns in ~1-2s never waits
-// anywhere near this, only a slow/failed one does.
-const READY_TIMEOUT_MS = 20_000;
-
-// Bounds every cleanup wait below (a failed startup's own child, and a
-// normal close()'s child) so a stuck/unresponsive Chrome process can never
-// hang the caller - the same bounded-wait principle
-// test/auth/support/appServer.ts's waitForExit exists for, reused directly
-// here rather than re-implemented.
-const CLEANUP_TIMEOUT_MS = 5_000;
-
-// Escalation bound for the SIGKILL wait, used only once SIGTERM has already
-// failed to terminate the process within CLEANUP_TIMEOUT_MS. Deliberately
-// short: SIGKILL cannot be caught, blocked, or ignored by the OS, so a
-// process that still hasn't exited within this window indicates something
-// fundamentally wrong (e.g. an unkillable zombie/D-state process) rather
-// than needing more time. Without this escalation, a Chrome process that
-// merely ignores SIGTERM would stay alive as an orphan even after
-// cleanupFailedLaunch/Browser.close() themselves return - reintroducing,
-// via a different path, the exact "live child process keeps node --test
-// alive" failure mode Issue #259 exists to close.
-const KILL_TIMEOUT_MS = 2_000;
-
-// One retry of *Chrome process startup/readiness only* (never of an Auth
-// assertion or the whole Database job - see launchBrowser's own doc
-// comment). Evidence so far (see READY_TIMEOUT_MS above) shows a single
-// transient DevTools-readiness timeout, not a repeatable startup failure -
-// a bounded second attempt, with the first attempt's Chrome process fully
-// cleaned up first, costs at most ~1 extra readiness window on the rare
-// transient case and nothing on the normal case.
-const MAX_LAUNCH_ATTEMPTS = 2;
-
-// Caps how much Chrome stderr a startup-failure error carries (Chrome's own
-// startup banner/diagnostics only - never page content, cookies, or
-// credentials, which this process never sees on stderr).
-const MAX_STDERR_CAPTURE_CHARS = 4_000;
-
-function stderrSuffix(stderr: string): string {
-  const trimmed = stderr.trim();
-  return trimmed === '' ? '' : ` - Chrome stderr: ${trimmed}`;
+/** The subset of playwright-core's `BrowserContext.addCookies()` input
+ * `navigate()` uses: `url` lets Playwright derive domain/path/secure from
+ * the navigation target itself, the same way the pre-#277 driver's CDP
+ * `Network.setCookies` call did. */
+export interface InjectedCookie {
+  name: string;
+  value: string;
+  url: string;
 }
 
-/** Minimal shape readDevToolsPort needs from a Chrome child - a custom
- * interface (not `ChildProcess` directly), for the same reason
- * `TerminableChild` above is: a real `ChildProcess`'s overloaded
- * `stderr`/`once`/`off` are structurally compatible with this narrower
- * shape, but a hand-written fake in a test can implement this shape
- * directly (e.g. to emit a controlled stderr payload as a single `data`
- * event, rather than depending on how the OS happens to chunk a real
- * process's pipe) without also having to satisfy every unrelated
- * `ChildProcess` member. */
-export interface StderrWatchableChild {
-  readonly stderr: {
-    on: (event: 'data', listener: (chunk: Buffer) => void) => void;
-    off: (event: 'data', listener: (chunk: Buffer) => void) => void;
-  } | null;
-  once(
-    event: 'close',
-    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
-  ): void;
-  once(event: 'error', listener: (error: Error) => void): void;
-  off(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): void;
-  off(event: 'error', listener: (error: Error) => void): void;
-}
-
-/** Reads Chrome's own `DevTools listening on ws://host:port/...` startup
- * line from stderr - the standard way to learn the actual port when
- * launched with `--remote-debugging-port=0` (letting the OS pick a free
- * one, avoiding the same port-collision risk test/auth/support/appServer.ts's
- * findFreePort exists to avoid for the Next dev server).
- *
- * Distinguishes (Issue #259) *why* startup failed - readiness timeout, an
- * early exit, or a spawn-level error - and attaches bounded stderr context
- * to whichever it was, since "Chrome did not report a DevTools port" alone
- * does not say whether Chrome was merely slow, crashed, or never ran at
- * all. Does not itself touch the child process - the caller (launchBrowser)
- * owns cleanup, since only it knows whether this was the final attempt. */
-export function readDevToolsPort(child: StderrWatchableChild, timeoutMs: number): Promise<number> {
-  return new Promise((resolve, reject) => {
-    let stderr = '';
-    let settled = false;
-
-    const finish = (run: () => void): void => {
-      if (settled) {
-        return;
+/** Splits a `Cookie:`-header-shaped string ("a=1; b=2") into the cookies
+ * `navigate()` seeds for `url`. Only the first `=` separates name from
+ * value, so a value that itself contains `=` (base64 padding in Supabase's
+ * session cookie, e.g.) survives intact; empty segments (a trailing `;`)
+ * are skipped. An undefined/empty header yields no cookies. Exported so this
+ * parsing is proven directly (test/auth/browserPageHarness.test.ts) rather
+ * than only via a full signed-in Catalog render. */
+export function cookiesFromHeader(cookieHeader: string | undefined, url: string): InjectedCookie[] {
+  if (cookieHeader === undefined) {
+    return [];
+  }
+  return cookieHeader
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map((pair) => {
+      const separator = pair.indexOf('=');
+      if (separator === -1) {
+        return { name: pair, value: '', url };
       }
-      settled = true;
-      clearTimeout(timeout);
-      child.stderr?.off('data', onStderrData);
-      child.off('close', onClose);
-      child.off('error', onSpawnError);
-      run();
-    };
+      return { name: pair.slice(0, separator), value: pair.slice(separator + 1), url };
+    });
+}
 
-    const onStderrData = (chunk: Buffer): void => {
-      stderr += chunk.toString('utf8');
-      // Match *before* truncating: matching against an already-truncated
-      // buffer could discard the "DevTools listening on ws://..." line
-      // itself if enough other stderr output (e.g. GPU/sandbox warnings)
-      // preceded it within a single accumulation window, spuriously timing
-      // out a startup that Chrome actually completed successfully.
-      const match = /ws:\/\/127\.0\.0\.1:(\d+)\//.exec(stderr);
-      const port = match?.[1];
-      if (port !== undefined) {
-        finish(() => {
-          resolve(Number(port));
+class PlaywrightBrowserPage implements BrowserPage {
+  readonly raw: Page;
+
+  constructor(page: Page) {
+    this.raw = page;
+  }
+
+  async navigate(url: string, cookieHeader?: string): Promise<void> {
+    const cookies = cookiesFromHeader(cookieHeader, url);
+    if (cookies.length > 0) {
+      await this.raw.context().addCookies(cookies);
+    }
+    await this.raw.goto(url, { waitUntil: 'load' });
+  }
+
+  async waitForSelector(selector: string, timeoutMs = DEFAULT_SELECTOR_TIMEOUT_MS): Promise<void> {
+    try {
+      // 'attached' (not Playwright's default 'visible'): the pre-#277
+      // contract was `document.querySelector(selector) !== null`, which a
+      // hidden-but-present element satisfies.
+      await this.raw.waitForSelector(selector, { state: 'attached', timeout: timeoutMs });
+    } catch (error) {
+      if (error instanceof playwrightErrors.TimeoutError) {
+        throw new Error(`selector not found within ${String(timeoutMs)}ms: ${selector}`, {
+          cause: error,
         });
-        return;
       }
-      if (stderr.length > MAX_STDERR_CAPTURE_CHARS) {
-        stderr = stderr.slice(-MAX_STDERR_CAPTURE_CHARS);
-      }
-    };
-
-    // 'close' (not 'exit'): Node's own docs note stdio streams may still be
-    // open/undrained when 'exit' fires, so an 'exit' listener here could
-    // race a still-in-flight stderr 'data' chunk - losing exactly the
-    // diagnostic text stderrSuffix exists to capture for a Chrome crash
-    // banner large enough to still be buffered. 'close' fires only once
-    // stdio is fully drained, guaranteeing onStderrData has already seen
-    // everything Chrome wrote.
-    const onClose = (code: number | null, signal: NodeJS.Signals | null): void => {
-      finish(() => {
-        reject(
-          new Error(
-            `Chrome exited before reporting a DevTools port (code ${String(code)}, signal ${String(signal)})${stderrSuffix(stderr)}`,
-          ),
-        );
-      });
-    };
-
-    const onSpawnError = (spawnError: Error): void => {
-      finish(() => {
-        reject(
-          new Error(`Chrome process failed to start: ${spawnError.message}${stderrSuffix(stderr)}`),
-        );
-      });
-    };
-
-    const timeout = setTimeout(() => {
-      finish(() => {
-        reject(
-          new Error(
-            `Chrome did not report a DevTools port within ${String(timeoutMs)}ms${stderrSuffix(stderr)}`,
-          ),
-        );
-      });
-    }, timeoutMs);
-
-    child.stderr?.on('data', onStderrData);
-    child.once('close', onClose);
-    child.once('error', onSpawnError);
-  });
-}
-
-/** Minimal shape cleanupFailedLaunch needs from a Chrome child - a custom
- * interface (not `Pick<ChildProcess, ...>`) for the same reason
- * test/auth/support/appServer.ts's own `ExitAware`/`KillableChild` are: a
- * real `ChildProcess`'s overloaded `once`/`kill` are structurally
- * compatible with this narrower shape, but a hand-written fake process
- * in a test can implement this shape directly without also having to
- * satisfy every unrelated `ChildProcess` overload. */
-export interface TerminableChild {
-  exitCode: number | null;
-  signalCode: NodeJS.Signals | null;
-  once: (event: 'exit', listener: () => void) => void;
-  kill: (signal?: NodeJS.Signals) => boolean;
-}
-
-/** Terminates `child`, escalating to `SIGKILL` if it does not exit within
- * `termTimeoutMs` of `SIGTERM`. `SIGTERM` alone is not sufficient: a Chrome
- * process that ignores/does not respond to it would otherwise stay alive as
- * an orphan even after the caller (cleanupFailedLaunch/Browser.close()
- * below) has itself already returned - reintroducing, via a different path,
- * the exact "a live child process keeps `node --test` alive" failure mode
- * Issue #259 exists to close. Still fully bounded: rejects (rather than
- * hanging) if the process survives `SIGKILL` too, within `killTimeoutMs`.
- * Exported so this escalation itself - not just the fact that *a* wait is
- * bounded - can be proven directly against a fake process, mirroring
- * test/auth/support/appServer.ts's own waitForExit/stopProcess precedent. */
-export async function terminateChild(
-  child: TerminableChild,
-  termTimeoutMs: number,
-  killTimeoutMs: number = KILL_TIMEOUT_MS,
-): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-  child.kill('SIGTERM');
-  try {
-    await waitForExit(child, termTimeoutMs);
-    return;
-  } catch {
-    // SIGTERM did not terminate the process within termTimeoutMs - the
-    // guard above plus this rejection together mean exitCode/signalCode
-    // are still both null here, so SIGKILL is always still needed.
-  }
-  child.kill('SIGKILL');
-  try {
-    await waitForExit(child, killTimeoutMs);
-  } catch {
-    // waitForExit's own rejection message ("...holding the port and
-    // .next/dev/lock") is written for its original Next-dev-server caller
-    // (test/auth/support/appServer.ts) and would be actively misleading
-    // here, pointing a reader at a Next.js port/lock problem instead of an
-    // orphaned Chrome process - so a Chrome-specific message is thrown
-    // instead, even though the bounded-wait mechanics themselves are still
-    // reused from waitForExit.
-    throw new Error(`Chrome process did not exit within ${String(killTimeoutMs)}ms of SIGKILL`);
-  }
-}
-
-/** Terminates (via terminateChild's SIGTERM->SIGKILL escalation) a Chrome
- * child that failed to become ready before a `Browser` handle existed to
- * return to the caller, and best-effort removes its temporary profile dir.
- * Never throws for a userDataDir removal failure (best-effort, same as
- * Browser.close() below); *does* propagate a termination failure to the
- * caller, which folds it into the startup error as additional context
- * rather than replacing it (Issue #259: the original Chrome startup
- * failure must remain the primary, actionable error). `termTimeoutMs`
- * defaults to CLEANUP_TIMEOUT_MS but is overridable so tests can prove the
- * bounded-timeout/escalation path itself without a real multi-second
- * wait. */
-export async function cleanupFailedLaunch(
-  child: TerminableChild,
-  userDataDir: string,
-  termTimeoutMs: number = CLEANUP_TIMEOUT_MS,
-  killTimeoutMs: number = KILL_TIMEOUT_MS,
-): Promise<void> {
-  try {
-    await terminateChild(child, termTimeoutMs, killTimeoutMs);
-  } finally {
-    try {
-      rmSync(userDataDir, { recursive: true, force: true });
-    } catch {
-      // Best-effort cleanup only - a leftover temp profile dir on this rare
-      // path is not itself a test-correctness issue.
+      throw error;
     }
   }
+
+  content(): Promise<string> {
+    return this.raw.evaluate(() => document.documentElement.outerHTML);
+  }
+
+  visibleText(): Promise<string> {
+    return this.raw.evaluate(() => document.body.innerText);
+  }
+
+  close(): Promise<void> {
+    return this.raw.close();
+  }
 }
 
-/** Combines a Chrome startup failure with a subsequent cleanup failure into
- * one error, keeping the startup failure primary (message prefix, and
- * `cause`) and the cleanup failure as additional trailing context - mirrors
- * appServer.ts's startAppServer readiness/stop-failure combination.
- * Exported (and used by attemptLaunch below) so this combining logic itself
- * - not a hand-reimplementation of it - is what test coverage exercises. */
-export function combineStartupAndCleanupError(startupError: unknown, cleanupError: unknown): Error {
-  const startupMessage =
-    startupError instanceof Error ? startupError.message : String(startupError);
-  const cleanupMessage =
-    cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
-  return new Error(`${startupMessage}; additionally, cleanup failed: ${cleanupMessage}`, {
-    cause: startupError,
-  });
+class PlaywrightDrivenBrowser implements Browser {
+  private readonly browser: PlaywrightBrowser;
+  private readonly context: BrowserContext;
+
+  constructor(browser: PlaywrightBrowser, context: BrowserContext) {
+    this.browser = browser;
+    this.context = context;
+  }
+
+  async newPage(): Promise<BrowserPage> {
+    return new PlaywrightBrowserPage(await this.context.newPage());
+  }
+
+  async close(): Promise<void> {
+    // Closing the Browser closes every context/page it owns and then
+    // terminates the process (graceful `Browser.close`, force-killed if
+    // that does not complete - see launchBrowser). Resolves immediately if
+    // the browser is already closed.
+    await this.browser.close();
+  }
 }
 
-async function attemptLaunch(chromePath: string): Promise<Browser> {
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-'));
-  let child: ChildProcess;
-  try {
-    child = spawn(
-      chromePath,
-      [
-        '--headless=new',
-        '--disable-gpu',
-        '--no-sandbox',
-        '--remote-debugging-port=0',
-        `--user-data-dir=${userDataDir}`,
-        'about:blank',
-      ],
-      { stdio: ['ignore', 'ignore', 'pipe'] },
+export interface LaunchBrowserOptions {
+  /** Explicit Chrome/Chromium binary to launch instead of resolving one
+   * (overrides `CHROME_PATH` too). Primarily for the driver's own
+   * fault-path tests, which point it at a binary that is not Chrome. */
+  executablePath?: string;
+  /** Per-attempt readiness allowance; defaults to LAUNCH_TIMEOUT_MS. */
+  launchTimeoutMs?: number;
+}
+
+/** Where a "Chrome not found" failure should point the reader: the same
+ * targets the pre-#277 driver's own candidate list covered, expressed as
+ * *how* each is resolved now. */
+function chromeResolutionHint(): string {
+  return [
+    'Chrome resolution: set CHROME_PATH to an explicit Chrome/Chromium binary path, or install Google Chrome where',
+    "playwright-core's channel 'chrome' looks for it (Linux: /opt/google/chrome/chrome - the ubuntu-latest CI runner's",
+    'preinstalled google-chrome; Windows: <Program Files|Program Files (x86)|LocalAppData>\\Google\\Chrome\\Application\\chrome.exe;',
+    "macOS: /Applications/Google Chrome.app). This test suite deliberately never downloads a browser ('npx playwright install' is not used).",
+  ].join(' ');
+}
+
+/** "No Chrome to launch" - a deterministic resolution failure, distinct
+ * from a Chrome process that started but failed to become ready, which is
+ * the only kind of failure launchBrowser's bounded retry is for. */
+class ChromeNotFoundError extends Error {}
+
+type LaunchTarget = Pick<LaunchOptions, 'channel' | 'executablePath'>;
+
+/** Resolves the launch target: an explicit override, else `CHROME_PATH`,
+ * else playwright-core's own `channel: 'chrome'` system-Chrome lookup. A
+ * `CHROME_PATH` that points at a missing file is an error (naming the
+ * path), not a silent fallback to a different Chrome than the one
+ * configured. */
+function resolveLaunchTarget(options: LaunchBrowserOptions): LaunchTarget {
+  const executablePath = options.executablePath ?? process.env.CHROME_PATH;
+  // An empty string is "not configured", same as unset: a CI/shell that
+  // exports CHROME_PATH= (or `CHROME_PATH=${SOME_UNSET_VAR}`) has not
+  // named a binary to insist on, so channel resolution applies. Only a
+  // *named* path that does not exist is treated as an error below.
+  if (executablePath === undefined || executablePath === '') {
+    return { channel: 'chrome' };
+  }
+  if (!existsSync(executablePath)) {
+    const source = options.executablePath === undefined ? 'CHROME_PATH' : 'executablePath';
+    throw new ChromeNotFoundError(
+      `no Chrome executable at ${executablePath} (${source}). ${chromeResolutionHint()}`,
     );
-  } catch (spawnError) {
-    // A synchronous spawn() throw (rather than the child's own 'error'
-    // event, which readDevToolsPort already handles) leaves no process to
-    // terminate, but userDataDir was already created above and would
-    // otherwise leak permanently - no later attempt/close() ever revisits
-    // this specific directory.
-    try {
-      rmSync(userDataDir, { recursive: true, force: true });
-    } catch {
-      // Best-effort cleanup only.
-    }
-    throw spawnError;
   }
+  return { executablePath };
+}
 
-  let port: number;
+/** playwright-core's own "not found" message for `channel: 'chrome'` names
+ * the first path it looked at, then recommends `npx playwright install
+ * chrome` - the browser download this suite deliberately does not use - so
+ * that second line is replaced with this repo's own resolution hint. */
+function isChannelNotFoundMessage(error: unknown): error is Error {
+  return (
+    error instanceof Error &&
+    error.message.startsWith("Chromium distribution 'chrome' is not found")
+  );
+}
+
+async function attemptLaunch(target: LaunchTarget, timeoutMs: number): Promise<Browser> {
+  let browser: PlaywrightBrowser;
   try {
-    port = await readDevToolsPort(child, READY_TIMEOUT_MS);
-  } catch (startupError) {
-    // The spawned child is not returned to the caller on this path (no
-    // Browser handle exists yet) - this function therefore owns cleanup
-    // itself, rather than leaving an orphaned Chrome process/temp profile
-    // for the caller to discover it never received (Issue #259's root
-    // cause: this cleanup previously did not happen at all).
-    try {
-      await cleanupFailedLaunch(child, userDataDir);
-    } catch (cleanupError) {
-      // The Chrome startup failure is the primary, actionable diagnostic;
-      // a cleanup failure on top of it is additional context, not a
-      // replacement.
-      throw combineStartupAndCleanupError(startupError, cleanupError);
+    browser = await chromium.launch({ ...target, headless: true, timeout: timeoutMs });
+  } catch (error) {
+    if (isChannelNotFoundMessage(error)) {
+      const [firstLine] = error.message.split('\n');
+      throw new ChromeNotFoundError(`${firstLine ?? error.message}. ${chromeResolutionHint()}`, {
+        cause: error,
+      });
     }
-    throw startupError;
+    throw error;
   }
-
-  return {
-    async newPage(): Promise<BrowserPage> {
-      const response = await fetch(`http://127.0.0.1:${String(port)}/json/new`, { method: 'PUT' });
-      const target: unknown = await response.json();
-      if (
-        typeof target !== 'object' ||
-        target === null ||
-        !('webSocketDebuggerUrl' in target) ||
-        typeof target.webSocketDebuggerUrl !== 'string'
-      ) {
-        throw new Error('unexpected PUT /json/new response shape from Chrome DevTools');
-      }
-      const connection = new CdpConnection(target.webSocketDebuggerUrl);
-      await connection.send('Page.enable');
-      await connection.send('Network.enable');
-      return new CdpBrowserPage(connection);
-    },
-    async close(): Promise<void> {
-      try {
-        await terminateChild(child, CLEANUP_TIMEOUT_MS);
-      } catch {
-        // Bounded best-effort only, same tolerance as cleanupFailedLaunch
-        // above - a stuck Chrome process must not hang test cleanup, even
-        // if it survives both SIGTERM and the SIGKILL escalation.
-      }
-      try {
-        rmSync(userDataDir, { recursive: true, force: true });
-      } catch {
-        // Best-effort cleanup only - see above.
-      }
-    },
-  };
+  try {
+    const context = await browser.newContext();
+    return new PlaywrightDrivenBrowser(browser, context);
+  } catch (error) {
+    // The Browser handle is not returned on this path, so nothing else
+    // could ever close it - terminate the process here. The newContext()
+    // failure stays the primary error; a close() failure on top of it is
+    // appended as context (the same shape appServer.ts's startAppServer
+    // uses for a readiness failure followed by a stop failure), never
+    // allowed to replace it.
+    try {
+      await browser.close();
+    } catch (closeError) {
+      const message = error instanceof Error ? error.message : String(error);
+      const closeMessage = closeError instanceof Error ? closeError.message : String(closeError);
+      throw new Error(`${message}; additionally, cleanup failed: ${closeMessage}`, {
+        cause: error,
+      });
+    }
+    throw error;
+  }
 }
 
 /**
- * Launches a headless system Chrome instance. Every `newPage()` call opens
- * its own CDP target/connection (one per test-file `before()`/individual
- * navigation set is the expected usage), all cleaned up together by
- * `close()`.
+ * Launches a headless system Google Chrome via playwright-core. Every
+ * `newPage()` call opens a tab in one shared context (one per test-file
+ * `before()`/individual navigation set is the expected usage), all cleaned
+ * up together by `close()`.
+ *
+ * Lifecycle contract (Issue #259), now provided by playwright-core's
+ * process launcher rather than this file's own code - references are to
+ * playwright-core 1.62.1's bundled `packages/utils/processLauncher.ts` and
+ * `packages/playwright-core/src/server/browserType.ts`:
+ *
+ * - **Launch failure leaks no process.** `browserType._launchProcess`
+ *   races readiness against the child's own exit and the launch `timeout`;
+ *   on either failure it runs `closeOrKill` before rethrowing (graceful
+ *   `Browser.close`, then a force kill if that does not complete), and the
+ *   spawned process's `close` event removes the temp profile/artifacts
+ *   directories. The force kill is `taskkill /pid <pid> /T /F` on Windows
+ *   and `process.kill(-pid, 'SIGKILL')` on POSIX (the child is spawned
+ *   `detached`, i.e. as its own process group leader), so Chrome's helper
+ *   subprocesses go with it - stronger than the pre-#277 driver's
+ *   single-pid SIGTERM->SIGKILL.
+ * - **Every termination wait is bounded.** `browser.close()` is that same
+ *   `closeOrKill`, with a 30s cap (`DEFAULT_PLAYWRIGHT_TIMEOUT`) on the
+ *   graceful path before the force kill - a stuck Chrome cannot hang
+ *   teardown, and `close()` on an already-closed browser resolves.
+ * - **No orphan on abnormal exit either.** `launchProcess` registers a
+ *   `process.on('exit')` handler that force-kills every still-running
+ *   browser it launched, plus SIGINT/SIGTERM/SIGHUP handlers that close
+ *   them gracefully, so even a `node --test` process that dies without
+ *   reaching `after()` does not leave Chrome alive to keep a CI job open.
+ * - **Partial-init safety** is unchanged and lives in the callers:
+ *   catalogAccess.test.ts only registers a cleanup for a resource once it
+ *   actually exists (test/auth/support/cleanupTasks.ts).
  *
  * Retries Chrome process startup/readiness up to MAX_LAUNCH_ATTEMPTS times
- * (Issue #259) - and *only* that: a failed attempt's Chrome process/temp
- * profile is fully cleaned up (attemptLaunch's own catch) before any retry,
- * and nothing here retries an Auth assertion, a Catalog rendering
- * assertion, or the surrounding Database job. If every attempt fails, the
- * final attempt's error (with any earlier attempts summarized alongside it)
- * is thrown - callers see one clear, bounded failure, never an indefinite
- * hang.
+ * - and *only* that: nothing here retries an Auth assertion, a Catalog
+ * rendering assertion, or the surrounding Database job. A "Chrome not
+ * found" resolution failure is deterministic and is not retried. If every
+ * attempt fails, the final attempt's error (with any earlier attempts
+ * summarized alongside it, and reachable via `cause`) is thrown - callers
+ * see one clear, bounded failure, never an indefinite hang.
  */
-export async function launchBrowser(): Promise<Browser> {
-  const chromePath = resolveChromePath();
+export async function launchBrowser(options: LaunchBrowserOptions = {}): Promise<Browser> {
+  const target = resolveLaunchTarget(options);
+  const timeoutMs = options.launchTimeoutMs ?? LAUNCH_TIMEOUT_MS;
   const attemptSummaries: string[] = [];
   for (let attempt = 1; attempt <= MAX_LAUNCH_ATTEMPTS; attempt += 1) {
     try {
-      return await attemptLaunch(chromePath);
+      return await attemptLaunch(target, timeoutMs);
     } catch (error) {
+      if (error instanceof ChromeNotFoundError) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       attemptSummaries.push(
         `attempt ${String(attempt)}/${String(MAX_LAUNCH_ATTEMPTS)}: ${message}`,

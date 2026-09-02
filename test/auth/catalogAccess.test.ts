@@ -66,10 +66,10 @@ before(async () => {
 after(async () => {
   // Reverse of creation order (page, then browser, then app) - the same
   // dependency order the original unconditional close() sequence used.
-  // runCleanupTasks runs these serially (not concurrently): browser.close()
-  // terminates Chrome, and a concurrent page.close() could still have its
-  // own in-flight CDP round-trip on that same connection, which has no path
-  // to ever reject once the socket closes underneath it.
+  // collectCleanupFailures runs these serially (not concurrently):
+  // browser.close() tears the browser down, and a concurrent page.close()
+  // still in flight against it would fail spuriously instead of closing
+  // cleanly (see cleanupTasks.ts).
   const resourceTasks = [...initializedCleanups].reverse();
   // Viewer/fixture cleanup has no such ordering dependency between entries
   // (each targets an independent user/fixture), so it keeps running

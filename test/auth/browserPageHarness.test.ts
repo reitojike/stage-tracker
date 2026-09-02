@@ -1,297 +1,264 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { after, before, test } from 'node:test';
 import {
-  cleanupFailedLaunch,
-  combineStartupAndCleanupError,
-  readDevToolsPort,
-  terminateChild,
-  type StderrWatchableChild,
-  type TerminableChild,
+  cookiesFromHeader,
+  launchBrowser,
+  type Browser,
+  type BrowserPage,
 } from './support/browserPage.ts';
 import { runCleanupTasks } from './support/cleanupTasks.ts';
 
-// Deterministic, no-real-Chrome-required regression coverage for the
-// Chrome/CDP startup-failure lifecycle hardening (Issue #259): a readiness
-// timeout or early exit previously left the spawned Chrome child
-// un-terminated (launchBrowser() had not returned a Browser handle to
-// close it), and catalogAccess.test.ts's after() unconditionally assumed
-// browser/page had been initialized - together turning one flaky Chrome
-// startup into an orphaned process plus a secondary `undefined.close()`
-// TypeError that kept `node --test` alive until the Database job's 20-
-// minute timeout.
+// Regression coverage for the test harness itself (test/auth/support/
+// browserPage.ts, the playwright-core driver over the system Chrome - Issue
+// #277), not a product behavior:
 //
-// readDevToolsPort is proven here against real (but trivial, Chrome-free)
-// `node -e` child processes rather than a hand-written fake - it is
-// deterministic and fast (short timeouts), and exercises the actual
-// node:child_process event contract (`exit`, `error`, stderr data) rather
-// than an approximation of it. cleanupFailedLaunch/runCleanupTasks are
-// proven against fakes, mirroring test/auth/appServerHarness.test.ts's own
-// approach for the analogous Next-dev-server hardening.
+// - the `BrowserPage` method contract every other test/auth file relies on
+//   (cookie seeding on navigate, attached-not-visible waitForSelector with a
+//   bounded timeout, content() vs visibleText()), proven against a real
+//   headless Chrome and a tiny local http server rather than against the
+//   app - so a driver regression is attributed to the driver, not to a
+//   Catalog/Auth test that merely happened to trip over it first;
+// - the launch-failure lifecycle (Issue #259: a failed startup must reject
+//   promptly with a bounded, informative error and never hang or leak),
+//   proven Chrome-free by pointing the driver at a missing binary and at a
+//   binary that is not Chrome;
+// - runCleanupTasks (test/auth/support/cleanupTasks.ts), the partial-
+//   initialization teardown aggregation catalogAccess.test.ts's after()
+//   uses, proven against fakes.
+//
+// Chrome-side termination guarantees (force kill of the whole process
+// group on close/failure/exit, bounded graceful close) are playwright-
+// core's own - see launchBrowser's doc comment for the exact references -
+// and are not re-proven here beyond the fact that this file's own runs
+// complete: a leaked Chrome with open stdio pipes would keep `node --test`
+// alive, which is exactly the Issue #259 symptom.
 
-function nodeChild(script: string) {
-  return spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'ignore', 'pipe'] });
+// --- cookiesFromHeader: the navigate() cookie seeding contract ---
+
+void test('cookiesFromHeader splits a "name=value; name2=value2" header into per-cookie entries bound to the navigation url', () => {
+  assert.deepEqual(cookiesFromHeader('a=1; b=2', 'http://127.0.0.1:1/x'), [
+    { name: 'a', value: '1', url: 'http://127.0.0.1:1/x' },
+    { name: 'b', value: '2', url: 'http://127.0.0.1:1/x' },
+  ]);
+});
+
+void test('cookiesFromHeader keeps "=" inside a value (base64 padding in a session cookie) and skips empty segments', () => {
+  assert.deepEqual(cookiesFromHeader('sb-token=abc==; ; flag', 'http://127.0.0.1:1/'), [
+    { name: 'sb-token', value: 'abc==', url: 'http://127.0.0.1:1/' },
+    { name: 'flag', value: '', url: 'http://127.0.0.1:1/' },
+  ]);
+});
+
+void test('cookiesFromHeader yields no cookies for an undefined or empty header', () => {
+  assert.deepEqual(cookiesFromHeader(undefined, 'http://127.0.0.1:1/'), []);
+  assert.deepEqual(cookiesFromHeader('', 'http://127.0.0.1:1/'), []);
+});
+
+// --- launchBrowser: failure lifecycle, no real Chrome required ---
+
+function missingBinaryPath(): string {
+  return path.join(mkdtempSync(path.join(tmpdir(), 'no-chrome-here-')), 'not-a-chrome');
 }
 
-// --- readDevToolsPort: normal success ---
+void test('launchBrowser rejects, without retrying, with the missing path and the Chrome resolution hint when executablePath does not exist', async () => {
+  const missing = missingBinaryPath();
+  await assert.rejects(launchBrowser({ executablePath: missing }), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.ok(error.message.includes(missing), 'the searched path must be named');
+    assert.match(error.message, /\(executablePath\)/);
+    assert.match(error.message, /CHROME_PATH/);
+    assert.match(error.message, /\/opt\/google\/chrome\/chrome/);
+    assert.doesNotMatch(error.message, /attempt \d\/\d/, 'a resolution failure is not retried');
+    return true;
+  });
+});
 
-void test('readDevToolsPort resolves with the reported port once Chrome would report one', async () => {
-  const child = nodeChild(
-    "process.stderr.write('DevTools listening on ws://127.0.0.1:54321/devtools/browser/abc\\n'); setInterval(() => {}, 1000);",
-  );
+void test('launchBrowser treats a CHROME_PATH that points at a missing file as an error naming that path, not as a silent fallback', async () => {
+  const missing = missingBinaryPath();
+  const previous = process.env.CHROME_PATH;
+  process.env.CHROME_PATH = missing;
   try {
-    const port = await readDevToolsPort(child, 5_000);
-    assert.equal(port, 54321);
+    await assert.rejects(launchBrowser(), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.ok(error.message.includes(missing));
+      assert.match(error.message, /\(CHROME_PATH\)/);
+      return true;
+    });
   } finally {
-    child.kill('SIGKILL');
+    if (previous === undefined) {
+      delete process.env.CHROME_PATH;
+    } else {
+      process.env.CHROME_PATH = previous;
+    }
   }
 });
 
-// --- readDevToolsPort: the port line survives bounded-stderr truncation ---
-
-/** A controlled `StderrWatchableChild` fake (see browserPage.ts's own doc
- * comment on that interface) that emits an entire payload as a single
- * `data` event - unlike a real child process's pipe, whose OS-level
- * chunking is not guaranteed to keep arbitrary content in one event. Used
- * so the truncation-before-match regression test below deterministically
- * exercises the "all of leadingPadding+devToolsLine+trailingPadding arrive
- * together, already over MAX_STDERR_CAPTURE_CHARS" case every run, rather
- * than depending on how a real process happened to be chunked that time. */
-function createFakeStderrChild(): StderrWatchableChild & { emitStderr: (chunk: string) => void } {
-  const dataListeners = new Set<(chunk: Buffer) => void>();
-  const fake: StderrWatchableChild & { emitStderr: (chunk: string) => void } = {
-    stderr: {
-      on: (_event, listener) => {
-        dataListeners.add(listener);
-      },
-      off: (_event, listener) => {
-        dataListeners.delete(listener);
-      },
-    },
-    // 'close'/'error' never fire in this fake - this regression test only
-    // exercises the stderr-data/match path, so a no-op satisfies the
-    // interface without needing to simulate process exit.
-    once: () => undefined,
-    off: () => undefined,
-    emitStderr: (chunk) => {
-      const buffer = Buffer.from(chunk, 'utf8');
-      for (const listener of dataListeners) {
-        listener(buffer);
-      }
-    },
-  };
-  return fake;
-}
-
-void test('readDevToolsPort still resolves when the DevTools line arrives surrounded by enough other stderr output to have been truncated away by a naive "truncate, then match" implementation', async () => {
-  // Padding is sized so that a truncate-before-match implementation's
-  // `stderr.slice(-4000)` would evict the DevTools line entirely before
-  // ever attempting to match it: leadingPadding pushes the line past the
-  // start of the retained window, and trailingPadding (> 4000 chars on its
-  // own) pushes the line's end past the retained window too.
-  const leadingPadding = 'A'.repeat(3_000);
-  const devToolsLine = 'DevTools listening on ws://127.0.0.1:54322/devtools/browser/abc\n';
-  const trailingPadding = 'B'.repeat(4_500);
-  const child = createFakeStderrChild();
-
-  const result = readDevToolsPort(child, 5_000);
-  child.emitStderr(leadingPadding + devToolsLine + trailingPadding);
-
-  assert.equal(await result, 54322);
-});
-
-// --- readDevToolsPort: readiness timeout ---
-
-void test('readDevToolsPort rejects with a bounded timeout diagnostic when no port is ever reported', async () => {
-  const child = nodeChild('setInterval(() => {}, 1000);');
-  try {
-    await assert.rejects(
-      readDevToolsPort(child, 100),
-      /Chrome did not report a DevTools port within 100ms/,
-    );
-  } finally {
-    child.kill('SIGKILL');
-  }
-});
-
-// --- readDevToolsPort: early exit ---
-
-void test('readDevToolsPort rejects with an early-exit diagnostic (and any captured stderr) when Chrome exits before reporting a port', async () => {
-  const child = nodeChild(
-    "process.stderr.write('fatal: no display found\\n'); process.exitCode = 1;",
-  );
+void test('launchBrowser rejects promptly with a bounded per-attempt summary (final error reachable via cause) when the executable starts but is not Chrome', async () => {
+  // node itself, launched with Chrome's flags, exits immediately ("bad
+  // option") - a stand-in for a Chrome that crashes at startup. Each
+  // attempt is bounded by launchTimeoutMs even if it did not exit.
+  const launchTimeoutMs = 5_000;
+  const startedAt = Date.now();
   await assert.rejects(
-    readDevToolsPort(child, 5_000),
-    /Chrome exited before reporting a DevTools port \(code 1, signal null\) - Chrome stderr: fatal: no display found/,
-  );
-});
-
-// --- readDevToolsPort: spawn-level error ---
-
-void test('readDevToolsPort rejects with a spawn-error diagnostic when the process never starts', async () => {
-  const missingBinary = path.join(
-    mkdtempSync(path.join(tmpdir(), 'no-chrome-here-')),
-    'not-a-binary',
-  );
-  assert.equal(existsSync(missingBinary), false, 'sanity: this path must not exist');
-  const child = spawn(missingBinary, [], { stdio: ['ignore', 'ignore', 'pipe'] });
-  await assert.rejects(readDevToolsPort(child, 5_000), /Chrome process failed to start/);
-});
-
-// --- terminateChild / cleanupFailedLaunch: SIGTERM->SIGKILL escalation ---
-
-/** A fake process that only actually exits in response to a signal in
- * `respondsTo` (default: both) - lets tests drive every branch of
- * terminateChild's SIGTERM->SIGKILL escalation (a process that obeys
- * SIGTERM, one that ignores SIGTERM but obeys SIGKILL like a real OS would,
- * and one that survives both - the case an unbounded wait would previously
- * leave orphaned indefinitely). */
-function createFakeChild(
-  respondsTo: ReadonlySet<NodeJS.Signals> = new Set(['SIGTERM', 'SIGKILL']),
-): TerminableChild & { killedWith: NodeJS.Signals[] } {
-  let exitListener: (() => void) | undefined;
-  const fake: TerminableChild & { killedWith: NodeJS.Signals[] } = {
-    exitCode: null,
-    signalCode: null,
-    killedWith: [],
-    once: (_event, listener) => {
-      exitListener = listener;
-    },
-    kill: (signal = 'SIGTERM') => {
-      fake.killedWith.push(signal);
-      if (respondsTo.has(signal)) {
-        fake.exitCode = 0;
-        fake.signalCode = signal;
-        exitListener?.();
-      }
+    launchBrowser({ executablePath: process.execPath, launchTimeoutMs }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      // Each attempt's own message is multi-line (playwright-core appends
+      // the browser's startup log), so only the summary's shape is pinned.
+      assert.match(error.message, /^Chrome startup failed:\nattempt 1\/2: [\s\S]+\nattempt 2\/2: /);
+      assert.ok(error.cause instanceof Error, 'the final attempt error must remain reachable');
       return true;
     },
-  };
-  return fake;
-}
-
-void test('terminateChild resolves after SIGTERM alone when the child responds to it, without ever escalating to SIGKILL', async () => {
-  const child = createFakeChild();
-
-  await terminateChild(child, 5_000);
-
-  assert.deepEqual(child.killedWith, ['SIGTERM'], 'SIGKILL must not be sent once SIGTERM worked');
-});
-
-void test('terminateChild does nothing when the child has already exited', async () => {
-  const child = createFakeChild();
-  child.exitCode = 0;
-
-  await terminateChild(child, 5_000);
-
-  assert.deepEqual(child.killedWith, [], 'an already-exited child must not be killed at all');
-});
-
-void test('terminateChild escalates to SIGKILL when the child ignores SIGTERM, and still resolves', async () => {
-  const child = createFakeChild(new Set(['SIGKILL']));
-
-  await terminateChild(child, 50, 5_000);
-
-  assert.deepEqual(
-    child.killedWith,
-    ['SIGTERM', 'SIGKILL'],
-    'SIGTERM must be attempted first, then SIGKILL once SIGTERM did not terminate the process',
+  );
+  const elapsedMs = Date.now() - startedAt;
+  assert.ok(
+    elapsedMs < launchTimeoutMs * 2 + 5_000,
+    `both attempts must finish within their bound (took ${String(elapsedMs)}ms)`,
   );
 });
 
-void test('terminateChild rejects with a bounded, Chrome-specific timeout diagnostic - never hangs, and never leaks Next-dev-server-specific wording - when the child survives SIGKILL too', async () => {
-  const child = createFakeChild(new Set());
+// --- BrowserPage contract against a real headless Chrome ---
 
-  await assert.rejects(
-    terminateChild(child, 50, 50),
-    /Chrome process did not exit within 50ms of SIGKILL/,
+const PAYLOAD_ONLY_TITLE = 'PAYLOAD_ONLY_TITLE_7f3a';
+const HIDDEN_ONLY_TEXT = 'HIDDEN_ONLY_TEXT_7f3a';
+const VISIBLE_ONLY_TEXT = 'VISIBLE_ONLY_TEXT_7f3a';
+
+/** A page shaped like the real Catalog render this driver exists for: a
+ * hydration-style JSON payload in a `<script>` (present in the DOM, never
+ * displayed), a hidden element, visible text, and an element that only
+ * gets attached after the load event (like a client-gated render). */
+const HARNESS_PAGE_HTML = `<!doctype html>
+<html><head><title>harness</title></head><body>
+<script type="application/json" id="payload">{"title":"${PAYLOAD_ONLY_TITLE}"}</script>
+<p hidden>${HIDDEN_ONLY_TEXT}</p>
+<p>${VISIBLE_ONLY_TEXT}</p>
+<script>
+  setTimeout(() => {
+    const late = document.createElement('div');
+    late.id = 'late';
+    late.hidden = true;
+    document.body.append(late);
+  }, 100);
+</script>
+</body></html>`;
+
+let server: Server;
+let baseUrl: string;
+let browser: Browser;
+let page: BrowserPage;
+// Same incremental pattern as catalogAccess.test.ts's before()/after()
+// (Issue #259): only a resource that actually initialized gets a cleanup.
+const initializedCleanups: Array<() => Promise<void>> = [];
+
+before(async () => {
+  server = createServer((request, response) => {
+    if (request.url === '/echo-cookie') {
+      const cookie = request.headers.cookie ?? '';
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(`<!doctype html><html><body><p id="cookie">${cookie}</p></body></html>`);
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    response.end(HARNESS_PAGE_HTML);
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert.ok(address !== null && typeof address === 'object', 'sanity: listening on a tcp port');
+  baseUrl = `http://127.0.0.1:${String(address.port)}`;
+  initializedCleanups.push(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error === undefined) {
+            resolve();
+          } else {
+            reject(error);
+          }
+        });
+      }),
   );
+  browser = await launchBrowser();
+  initializedCleanups.push(() => browser.close());
+  page = await browser.newPage();
+  initializedCleanups.push(() => page.close());
+});
 
-  assert.deepEqual(
-    child.killedWith,
-    ['SIGTERM', 'SIGKILL'],
-    'both signals must still have been attempted even though neither terminated the process',
+after(async () => {
+  await runCleanupTasks([...initializedCleanups].reverse());
+});
+
+void test('raw exposes the Playwright Page for the same tab navigate() drives', async () => {
+  await page.navigate(`${baseUrl}/page`);
+  assert.equal(page.raw.url(), `${baseUrl}/page`);
+  assert.equal(await page.raw.title(), 'harness');
+});
+
+void test('navigate() resolves only once the page has finished loading', async () => {
+  await page.navigate(`${baseUrl}/page`);
+  assert.equal(await page.raw.evaluate(() => document.readyState), 'complete');
+});
+
+void test('navigate() seeds cookieHeader as real browser cookies the origin receives on that request', async () => {
+  await page.navigate(`${baseUrl}/echo-cookie`, 'harness-a=1; harness-b=abc==');
+  const received = await page.visibleText();
+  assert.ok(received.includes('harness-a=1'), `expected harness-a in: ${received}`);
+  assert.ok(
+    received.includes('harness-b=abc=='),
+    `expected harness-b (with "=" padding) in: ${received}`,
   );
 });
 
-// --- cleanupFailedLaunch: wires terminateChild's escalation into cleanup ---
-
-void test('cleanupFailedLaunch sends SIGTERM and removes the temp profile dir once the child exits', async () => {
-  const child = createFakeChild();
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
-  writeFileSync(path.join(userDataDir, 'marker'), 'x');
-
-  await cleanupFailedLaunch(child, userDataDir, 5_000);
-
-  assert.deepEqual(child.killedWith, ['SIGTERM']);
-  assert.equal(existsSync(userDataDir), false, 'the temporary user-data dir must be removed');
+void test('a later navigate() with a new value for the same cookie name replaces the earlier one (the per-viewer sequence catalogAccess relies on)', async () => {
+  await page.navigate(`${baseUrl}/echo-cookie`, 'harness-session=first');
+  assert.ok((await page.visibleText()).includes('harness-session=first'));
+  await page.navigate(`${baseUrl}/echo-cookie`, 'harness-session=second');
+  const received = await page.visibleText();
+  assert.ok(received.includes('harness-session=second'), `expected second in: ${received}`);
+  assert.ok(!received.includes('harness-session=first'), `first must be replaced in: ${received}`);
 });
 
-void test('cleanupFailedLaunch does not send a second kill when the child has already exited', async () => {
-  const child = createFakeChild();
-  child.exitCode = 0;
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
-
-  await cleanupFailedLaunch(child, userDataDir, 5_000);
-
-  assert.deepEqual(child.killedWith, [], 'an already-exited child must not be killed again');
-  assert.equal(existsSync(userDataDir), false);
+void test('waitForSelector() resolves for an element attached after load even when it is hidden (querySelector semantics, not visibility)', async () => {
+  await page.navigate(`${baseUrl}/page`);
+  await page.waitForSelector('#late', 3_000);
+  assert.equal(await page.raw.evaluate(() => document.getElementById('late')?.hidden), true);
 });
 
-void test('cleanupFailedLaunch escalates to SIGKILL when SIGTERM does not terminate the child, and still removes the temp profile dir', async () => {
-  const child = createFakeChild(new Set(['SIGKILL']));
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
-
-  await cleanupFailedLaunch(child, userDataDir, 50, 5_000);
-
-  assert.deepEqual(child.killedWith, ['SIGTERM', 'SIGKILL']);
-  assert.equal(existsSync(userDataDir), false, 'the temporary user-data dir must be removed');
+void test('waitForSelector() rejects with the bounded "selector not found within" diagnostic instead of hanging', async () => {
+  await page.navigate(`${baseUrl}/page`);
+  const startedAt = Date.now();
+  await assert.rejects(page.waitForSelector('#never-attached', 200), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.equal(error.message, 'selector not found within 200ms: #never-attached');
+    return true;
+  });
+  assert.ok(Date.now() - startedAt < 5_000, 'must give up at the caller-supplied bound');
 });
 
-void test('cleanupFailedLaunch rejects with a bounded timeout - never hangs - when the child survives both SIGTERM and SIGKILL, but still removes the temp profile dir', async () => {
-  const child = createFakeChild(new Set());
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
-
-  await assert.rejects(
-    cleanupFailedLaunch(child, userDataDir, 50, 50),
-    /Chrome process did not exit within 50ms of SIGKILL/,
-  );
-
-  assert.deepEqual(child.killedWith, ['SIGTERM', 'SIGKILL']);
-  assert.equal(
-    existsSync(userDataDir),
-    false,
-    'temp profile dir removal must still be attempted even when the process survives both signals',
-  );
-});
-
-// --- Primary startup error preserved when cleanup also fails ---
-
-void test('a startup failure followed by a cleanup failure keeps the startup error primary and adds cleanup context', async () => {
-  const child = createFakeChild(new Set());
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'stage-tracker-cdp-test-'));
-  const startupError = new Error('Chrome did not report a DevTools port within 20000ms');
-
-  let combined: unknown;
-  try {
-    await cleanupFailedLaunch(child, userDataDir, 50, 50);
-  } catch (cleanupError) {
-    // Calls the actual production combining logic (attemptLaunch's own
-    // catch block calls the same function) rather than reimplementing it,
-    // so a regression there is caught here too.
-    combined = combineStartupAndCleanupError(startupError, cleanupError);
+void test('content() includes hydration-payload and hidden text that visibleText() excludes', async () => {
+  await page.navigate(`${baseUrl}/page`);
+  const [html, visibleText] = await Promise.all([page.content(), page.visibleText()]);
+  for (const text of [PAYLOAD_ONLY_TITLE, HIDDEN_ONLY_TEXT, VISIBLE_ONLY_TEXT]) {
+    assert.ok(html.includes(text), `content() must include ${text}`);
   }
+  assert.ok(visibleText.includes(VISIBLE_ONLY_TEXT));
+  assert.ok(!visibleText.includes(PAYLOAD_ONLY_TITLE), 'script payload is not visible text');
+  assert.ok(!visibleText.includes(HIDDEN_ONLY_TEXT), 'a hidden element is not visible text');
+});
 
-  assert.ok(combined instanceof Error);
-  assert.match(combined.message, /^Chrome did not report a DevTools port within 20000ms/);
-  assert.match(
-    combined.message,
-    /additionally, cleanup failed:.*Chrome process did not exit within 50ms of SIGKILL/,
-  );
-  assert.equal(combined.cause, startupError, 'the original startup error must remain reachable');
+void test('page.close() then browser.close() is safe, and a second browser.close() does not throw', async () => {
+  const extraBrowser = await launchBrowser();
+  const extraPage = await extraBrowser.newPage();
+  await extraPage.navigate(`${baseUrl}/page`);
+  await extraPage.close();
+  assert.equal(extraPage.raw.isClosed(), true);
+  await extraBrowser.close();
+  await assert.doesNotReject(extraBrowser.close());
 });
 
 // --- runCleanupTasks: partial initialization / aggregation ---

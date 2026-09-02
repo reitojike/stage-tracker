@@ -267,9 +267,10 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
   別途設定が必要で、remote Supabase project の provisioning と同様この
   repository の merge gate には含めません。
 - WebAuthn ceremony 自体（実機の Face ID / Touch ID / Windows Hello 等）は
-  browser 専用の API であり、このリポジトリの `test:auth`（Node の
-  `--test` ランナーで実 HTTP リクエストを送る方式、browser 自動化ツール
-  なし）では自動化できません。session/認可境界・Magic Link fallback・
-  public signup 非復活は
+  platform authenticator を要する browser 専用の API であり、このリポジトリ
+  の `test:auth`（Node の `--test` ランナーで実 HTTP リクエストを送り、
+  必要な test だけ `playwright-core` 経由の headless system Chrome を使う
+  方式 - `test/auth/support/browserPage.ts`）では自動化していません。
+  session/認可境界・Magic Link fallback・public signup 非復活は
   [test/auth/passkey.test.ts](../../test/auth/passkey.test.ts) で自動検証
   し、実際の WebAuthn ceremony は manual smoke 対象です。

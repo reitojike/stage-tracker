@@ -60,6 +60,7 @@
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.0.0",
     "pg": "^8.13.0",
+    "playwright-core": "1.62.1",
     "prettier": "^3.0.0",
     "supabase": "^2.115.0",
     "typescript": "^5",
