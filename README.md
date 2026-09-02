@@ -10,14 +10,14 @@ catalog の最初の product slice (Issue #3 / PR B) です。
 
 ## Canonical docs
 
-| Document                                                                       | 内容                                                                                          |
-| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope                         |
-| [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）                            |
-| [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本                       |
-| [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | agentが実装時に守るcurrent-approved product/domain constraintsの正本                          |
-| [`docs/design/README.md`](./docs/design/README.md)                             | design handoff artifact（Wave 1 / v2 / v3 / refactor）の snapshot と TURN → Issue / PR 対応表 |
-| [`AGENTS.md`](./AGENTS.md)                                                     | 開発ルール（Foundation policy + technology profile + product rules から生成）                 |
+| Document                                                                       | 内容                                                                                              |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope                             |
+| [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）                                |
+| [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本                           |
+| [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | agentが実装時に守るcurrent-approved product/domain constraintsの正本                              |
+| [`docs/design/README.md`](./docs/design/README.md)                             | design handoff（Wave 1 / v2 / v3 / refactor）の決定索引: 所在・TURN・決定要約 → Issue / PR 対応表 |
+| [`AGENTS.md`](./AGENTS.md)                                                     | 開発ルール（Foundation policy + technology profile + product rules から生成）                     |
 
 `AGENTS.md` / `.ai-dev-foundation/quality/` は
 [reitojike/ai-dev-foundation](https://github.com/reitojike/ai-dev-foundation)
