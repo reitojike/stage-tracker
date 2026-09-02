@@ -128,6 +128,13 @@
   padding-inline-end: var(--space-2xs);
 }
 
+/* Android Chrome's native datetime value needs one more character of usable
+   width in the two-column schedule layout. Keep date controls at the shared
+   body size and scope this compact typography to datetime-local only. */
+.temporalInput[type='datetime-local'] {
+  font-size: var(--font-size-body-sm);
+}
+
 .pairedFields[hidden] {
   display: none;
 }

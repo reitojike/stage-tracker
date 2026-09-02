@@ -45,11 +45,17 @@ void test('schedule controls keep the bounded local temporal and blocking vocabu
     css,
     /\.temporalInput\s*\{[\s\S]*padding-inline-start:\s*var\(--space-sm\);[\s\S]*padding-inline-end:\s*var\(--space-2xs\);/,
   );
+  const datetimeRule = css.match(/\.temporalInput\[type=['"]datetime-local['"]\]\s*\{([^}]*)\}/);
+  assert.ok(datetimeRule, 'datetime-local typography rule is missing');
+  assert.match(datetimeRule[1] ?? '', /font-size:\s*var\(--font-size-body-sm\);/);
+  assert.doesNotMatch(css, /\.temporalInput\s*\{[^}]*font-size:/);
+  assert.doesNotMatch(css, /\.temporalInput\[type=['"]date['"]\]/);
   assert.doesNotMatch(css, /@media/);
   assert.equal((fields.match(/className=\{styles\.temporalInput\}/g) ?? []).length, 4);
   assert.equal((fields.match(/type="datetime-local"/g) ?? []).length, 2);
   assert.equal((fields.match(/type="date"/g) ?? []).length, 2);
   assert.match(sharedInputCss, /\.input\s*\{[\s\S]*width:\s*100%;[\s\S]*min-width:\s*0;/);
+  assert.match(sharedInputCss, /font-size:\s*var\(--font-size-body\);/);
   assert.match(sharedInputCss, /padding:\s*var\(--space-sm\) var\(--space-md\);/);
   assert.match(css, /\.submitBand\s*\{[\s\S]*position:\s*fixed;/);
 });
