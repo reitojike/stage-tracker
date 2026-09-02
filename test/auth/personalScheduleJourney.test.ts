@@ -73,7 +73,9 @@ after(async () => {
  * both the accessible presentation and a stable assertion hook. */
 async function dayCellLabel(actor: JourneyActor): Promise<string> {
   await actor.goto(`/calendar?month=${FIXTURE_MONTH}`);
-  const label = await actor.page.locator(`[data-date="${FIXTURE_DATE}"]`).getAttribute('aria-label');
+  const label = await actor.page
+    .locator(`[data-date="${FIXTURE_DATE}"]`)
+    .getAttribute('aria-label');
   assert.ok(label !== null, `expected a My Calendar day cell for ${FIXTURE_DATE}`);
   return label;
 }
@@ -139,7 +141,9 @@ void test('sharing by exact email puts the entry on the recipient’s calendar a
   await assertNoHorizontalOverflow(owner.page, 'the schedule entry detail screen');
   // Nothing is shared yet, and that is stated rather than left blank.
   await assert.doesNotReject(
-    owner.page.getByText('まだ誰とも共有していません').waitFor({ state: 'visible', timeout: 10_000 }),
+    owner.page
+      .getByText('まだ誰とも共有していません')
+      .waitFor({ state: 'visible', timeout: 10_000 }),
   );
 
   const sheet = owner.page.getByRole('dialog', { name: '共有相手を追加' });
@@ -166,7 +170,10 @@ void test('sharing by exact email puts the entry on the recipient’s calendar a
   // propagates with the same meaning (product-rules.md: per-recipient
   // blocking overrides do not exist).
   assert.match(await dayCellLabel(recipient), /共有された予定1件/);
-  assert.ok(await canSeeEntryOnCalendar(recipient), 'expected the entry on the recipient’s day list');
+  assert.ok(
+    await canSeeEntryOnCalendar(recipient),
+    'expected the entry on the recipient’s day list',
+  );
   await openEntryDetail(recipient);
   await assert.doesNotReject(
     recipient.page.getByText('共有されている予定').waitFor({ state: 'visible', timeout: 10_000 }),

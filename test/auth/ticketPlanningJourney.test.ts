@@ -154,7 +154,11 @@ async function waitForStateBadge(
       return;
     }
     if (Date.now() > deadline) {
-      assert.equal(actual, expected, `the Opportunity row's state badge never became ${expected ?? 'absent'}`);
+      assert.equal(
+        actual,
+        expected,
+        `the Opportunity row's state badge never became ${expected ?? 'absent'}`,
+      );
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -307,7 +311,10 @@ void test('another signed-in user sees the same Opportunity with no trace of the
   await bystander.goto('/tickets');
   for (const label of ['+ 追加', '＋ 追加', '追加']) {
     assert.equal(
-      await bystander.page.locator('main').getByRole('button', { name: label, exact: true }).count(),
+      await bystander.page
+        .locator('main')
+        .getByRole('button', { name: label, exact: true })
+        .count(),
       0,
       `expected no Opportunity-creation affordance labeled ${label} on /tickets`,
     );

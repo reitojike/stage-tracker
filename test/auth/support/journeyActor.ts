@@ -83,7 +83,7 @@ export interface JourneyActor {
    * a navigation is a race against streaming.
    */
   goto(path: string): Promise<void>;
-  close(): Promise<void>
+  close(): Promise<void>;
 }
 
 /** How long waitForRenderedContent allows a route's content to arrive. */

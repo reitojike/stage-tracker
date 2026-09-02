@@ -118,10 +118,7 @@ async function hasPendingInvitation(actor: JourneyActor): Promise<boolean> {
  * honest way to express "it resolves shortly", and a decline that never
  * reaches the server still fails here on the deadline.
  */
-async function waitForNoPendingInvitation(
-  actor: JourneyActor,
-  timeoutMs = 20_000,
-): Promise<void> {
+async function waitForNoPendingInvitation(actor: JourneyActor, timeoutMs = 20_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     if (!(await hasPendingInvitation(actor))) {
@@ -143,7 +140,8 @@ void test('an attending user invites by exact email, and the invitee gets a pend
   // affordance must not be reachable yet.
   await setParticipation(inviter, occurrenceId, '気になる');
   assert.equal(
-    await occurrenceRow(inviter, occurrenceId).getByRole('button', { name: '招待', exact: true })
+    await occurrenceRow(inviter, occurrenceId)
+      .getByRole('button', { name: '招待', exact: true })
       .count(),
     0,
     'expected no invite affordance while only 気になる',
@@ -168,7 +166,10 @@ void test('an attending user invites by exact email, and the invitee gets a pend
     inviteSheet,
     'opening the invite sheet for the overflow check',
   );
-  await assertNoHorizontalOverflow(inviter.page, 'the Event detail page with the invite sheet open');
+  await assertNoHorizontalOverflow(
+    inviter.page,
+    'the Event detail page with the invite sheet open',
+  );
   // Escape is one of Sheet's three dismissal paths (src/ui/Sheet.tsx) and
   // commits nothing, leaving the real invite below to be the first one.
   await inviter.page.keyboard.press('Escape');

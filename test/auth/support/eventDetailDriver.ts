@@ -36,11 +36,7 @@ export function occurrenceRow(actor: JourneyActor, occurrenceId: string): Locato
  * `<dialog>` that was never `showModal()`-ed is `display: none` and so is
  * absent from the accessibility tree.
  */
-export function occurrenceSheet(
-  actor: JourneyActor,
-  occurrenceId: string,
-  title: string,
-): Locator {
+export function occurrenceSheet(actor: JourneyActor, occurrenceId: string, title: string): Locator {
   return occurrenceRow(actor, occurrenceId).getByRole('dialog', { name: title });
 }
 

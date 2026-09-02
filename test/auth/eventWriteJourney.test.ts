@@ -60,9 +60,13 @@ before(async () => {
   // the operational script uses.
   await grantCatalogCreator(creator.userId);
 
-  ordinary = await createJourneyActor(app, { emailPrefix: 'event-write-journey-ordinary' }, (id) => {
-    createdUserIds.push(id);
-  });
+  ordinary = await createJourneyActor(
+    app,
+    { emailPrefix: 'event-write-journey-ordinary' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => ordinary.close());
 });
 
@@ -138,7 +142,9 @@ void test('an ordinary authenticated user gets neither the create affordance nor
   // The row is hidden outright rather than shown disabled - and the rest of
   // the section still renders, so this is a real absence, not a failed page.
   await assert.doesNotReject(
-    ordinary.page.getByRole('link', { name: '招待一覧' }).waitFor({ state: 'visible', timeout: 10_000 }),
+    ordinary.page
+      .getByRole('link', { name: '招待一覧' })
+      .waitFor({ state: 'visible', timeout: 10_000 }),
     'expected the rest of the 予定とイベント section to still render',
   );
 
@@ -240,7 +246,11 @@ void test('the owner cancels an occurrence and then uncancels it, without deleti
   await sheet.getByRole('button', { name: 'この公演回を中止' }).click();
 
   await creator.goto(editPath());
-  assert.equal(await canceledBadges().count(), 1, 'expected exactly the canceled occurrence to be marked');
+  assert.equal(
+    await canceledBadges().count(),
+    1,
+    'expected exactly the canceled occurrence to be marked',
+  );
   // Cancellation is not deletion: the occurrence itself stays (product-rules.md
   // "Cancellation" - downstream data is retained, unlike a delete).
   assert.equal(await occurrenceCount(creator), 2);
