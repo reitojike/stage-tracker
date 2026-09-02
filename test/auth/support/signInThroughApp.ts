@@ -7,11 +7,22 @@ export interface SignedInSession {
   cookie: string;
   response: Response;
   userId: string;
+  /** The provisioned account's registered email address. Exposed for the
+   * write journeys (Issue #278), where one actor targets another through
+   * #55's exact-registered-email boundary (invitation, schedule share) and
+   * therefore needs the counterpart's actual address - never a raw user
+   * id, which that boundary deliberately does not accept. */
+  email: string;
 }
 
 export interface SignInThroughAppOptions {
   /** Forwarded to /auth/confirm as the post-sign-in redirect target. */
   next?: string;
+  /**
+   * Prefix for the generated account email (default `app-session`), so a
+   * user left behind by a failed run names the test that created it.
+   */
+  emailPrefix?: string;
   /**
    * Called the instant the Supabase auth user is provisioned - before the
    * OTP send / mailpit poll / confirm fetch that follow, any of which can
@@ -35,7 +46,7 @@ export async function signInThroughApp(
   app: AppServer,
   options: SignInThroughAppOptions = {},
 ): Promise<SignedInSession> {
-  const { user, email } = await provisionUser('app-session');
+  const { user, email } = await provisionUser(options.emailPrefix ?? 'app-session');
   options.onUserProvisioned?.(user.id);
 
   const { error } = await createAnonymousClient().auth.signInWithOtp({
@@ -59,5 +70,5 @@ export async function signInThroughApp(
     .filter((entry): entry is string => entry !== undefined)
     .join('; ');
 
-  return { cookie, response, userId: user.id };
+  return { cookie, response, userId: user.id, email };
 }
