@@ -14,15 +14,13 @@
  * Serial, not `Promise.allSettled(tasks.map(...))`: callers pass
  * dependency-ordered tasks (catalogAccess.test.ts pushes page, then
  * browser, then app), and running them concurrently would race - e.g.
- * `browser.close()` terminating Chrome while `page.close()`'s own CDP
- * `Page.close` round-trip is still in flight on the same WebSocket, which
- * that connection has no path to ever reject, defeating the very
- * bounded-cleanup guarantee this Issue exists to establish. Awaiting each
- * task before starting the next preserves that ordering, at the cost of
- * cleanup no longer running in parallel - acceptable since `browser.close()`/
- * `cleanupFailedLaunch`/`stopProcess` are all themselves bounded. (`page.close()`'s
- * own CDP round-trip is a known, tracked exception - not yet bounded -
- * deliberately out of this Issue's scope.)
+ * `browser.close()` tearing down the browser while `page.close()` is
+ * still in flight against it, turning an orderly teardown into a spurious
+ * "target closed" failure. Awaiting each task before starting the next
+ * preserves that ordering, at the cost of cleanup no longer running in
+ * parallel - acceptable since `browser.close()` (playwright-core's bounded
+ * graceful-close-then-kill, see test/auth/support/browserPage.ts) and
+ * `stopProcess` are themselves bounded.
  *
  * Callers achieve partial-initialization safety by only pushing a thunk for
  * a resource they actually initialized (see catalogAccess.test.ts's
