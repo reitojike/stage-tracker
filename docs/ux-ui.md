@@ -275,14 +275,18 @@ domain semanticsの正本は引き続き
   実際にrelatedなinputのgroupingがある場合（choice group等）にのみ使い、
   `<fieldset>`/`<legend>`のaccessibility semanticsを保ちながら、prototype的な
   border/padding boxは持たせません。
-- **action area** — actionを横に並べる行は、右揃え（`justify-content:
-flex-end`）と `--space-sm` のgapを共通のかたちとします。current
-  implementationではこの行を各screenの `*.module.css` が個別に持ちます
-  （Sheetのfooter、InvitationCardのaction行等）。`src/ui/ActionRow.tsx` は
-  同じ役割のshared primitiveとして存在しますが、**現在app runtimeからの
-  consumerは0** で、Storybookのstoryだけが参照しています。この重複の解消は
+- **action area** — 確定・送信のactionを横に並べる行は、右揃え
+  （`justify-content: flex-end`）と `--space-sm` のgapを共通のかたちと
+  します。current implementationではこの行を各screenの `*.module.css` が
+  個別に持ちます（Sheetのfooter、InvitationCardのaction行等）。
+- `src/ui/ActionRow.tsx` は上記とは別のかたちです。右揃えせず（start
+  始まり）、折り返したときにtap targetが上下で重ならないよう row-gap を
+  column-gap より広く取ります。page headingに続くlink actionを並べるための
+  ものでしたが、**現在app runtimeからのconsumerは0** で、Storybookのstory
+  だけが参照しています。上の確定・送信行の代替ではないため、置き換えを
+  前提にしません。この扱いは
   [Issue #283](https://github.com/reitojike/stage-tracker/issues/283) の
-  scopeであり、本ファイルはどちらを使うべきかをここでは固定しません。
+  scopeであり、本ファイルでは固定しません。
 - 1つの画面に独立した書き込み単位が複数並ぶ場合（Event編集画面）、
   それぞれが自分のfeedbackを持ち、1つの失敗が他を巻き込みません。
 
