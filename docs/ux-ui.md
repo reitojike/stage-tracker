@@ -19,6 +19,12 @@ UX/UI ruleのcanonical source** です。個別screenの状態・権限・文言
   を固定しません。
 - component catalog（Storybook）はこのruleの **rendered examples / states
   catalog** であり、rule自体の正本にはしません。
+- **token の値の正本は `src/ui/tokens.css` です。本ファイルは token 名と
+  その role を書き、値を再掲しません。** 色・typography・radius・spacing の
+  ように semantic token を持つものは、hex や px ではなく token 名で参照
+  します。値を変えたい場合に直す場所を1箇所に保つためです。token を持たない
+  値（tap target の 44px 等）は、数値そのものではなくその決定の理由が
+  分かる形で書きます。
 - **repository外のdesign handoff artifact（`design_handoff_stage_tracker/`
   / `design_handoff_v2/` / `design_handoff_v3/` / `design_refactor/` の
   `README.md`・`RULES.md`・`.dc.html` canvas・参照PNG）は、materialize済み
@@ -49,10 +55,12 @@ stage-trackerは **smartphone-first** です。desktopはsecondary information /
 density / wider list / supplemental controlsに追加spaceを使ってよいですが、
 mobile experienceをdesktop版の縮小版にはしません。
 
-現行のcontent columnは、単一カラムを `max-width: 640px` で中央寄せし、
-`padding: 16px` / section間 `gap: 20px` を `AppShell` 側が持ちます
-（各pageは自前のtop-level marginを持ちません）。shellの高さは `100dvh`
-です。
+content columnは単一カラムで、広い画面では横に伸ばしきらず、上限幅で
+中央寄せします（実値は `AppShell.module.css`。まだtoken化していません）。
+column paddingは `--space-md`、section間のgapは `--space-section` を
+`AppShell` 側が持ち、各pageは自前のtop-level marginを持ちません。shellの
+高さは `100dvh` とし、mobile browserのtoolbarを含む `vh` は使いません
+（sticky navが可視領域の下へ押し出されるため）。
 
 ## Product personality
 
@@ -87,13 +95,15 @@ personal participationを同一semanticとして混在させません。
 Shared catalogとpersonal scheduleの間をmobileで自然に移動できるIA
 （情報設計）とします。current PrimaryNavは画面に表示するlabelとして
 **ホーム / イベント / チケット / カレンダー** の4項目です（Issue #140、#188）。
-現在地は「labelをsemiboldにする＋上辺に2pxの藍のバー」という
-色以外の手がかりで示し、`aria-current="page"` を併記します。My Pageと
-お知らせはnavの同列に置かず、AppBarから開きます。
+現在地は「labelを `--font-weight-semibold` にする＋上辺に `--color-accent`
+のバーを出す」という色以外の手がかりで示し、`aria-current="page"` を
+併記します。My Pageとお知らせはnavの同列に置かず、AppBarから開きます。
 
-AppBarは48pxのsticky topで、`40px / 1fr / 40px` の3カラムgridです
-（左＝お知らせベル、中央＝ロゴタイプ、右＝My Pageのアバター）。背景は
-canvas色で、下辺のみ1px罫です。
+AppBarはsticky topで、左＝お知らせベル、中央＝ロゴタイプ、右＝My Pageの
+アバターの3カラムです。左右は固定幅、中央が残りを取ります（実寸は
+`AppBar.module.css`。まだtoken化していません）。背景は `--color-canvas`
+で、面を分けるのではなく下辺の細罫（`--color-border`）だけで本文と
+区切ります。
 
 `/sign-in` はPrimaryNavとAppBarのactionを出さない唯一の画面です
 （遷移先がすべて認証の内側にあるため）。
@@ -122,29 +132,36 @@ font stackは次のとおりです。
   Meiryo, system-ui, sans-serif;
 ```
 
-font sizeは **11 / 12 / 14 / 16 / 20px** の5段、weightは **400 / 500 /
-600** の3段だけを使います。typography roleは次のladderで分離します。値は
-`src/ui/tokens.css` とcurrent component CSSに対応します。
+font sizeは5段、weightは3段だけを使い、この外側に段を増やしません。
+typography roleは次のladderで分離します。値は `src/ui/tokens.css` が持ちます。
 
-- **heading** — 20px / 600 / 1.3（PageHeading等のpage-level heading）
-- **title** — 16px / 600 / 1.35（list / card title、section heading、
-  Sheetのheading）
-- **body** — 16px / 400 / 1.5
-- **body-sm** — 14px（副文、compact control、書き込み通知）
-- **label** — 12px / 600（短い項目名）
-- **caption** — 11px（weekday、補助情報、PrimaryNavのbottom-nav label、
-  Badge。現在地のnav labelは600、非現在地は400）
+| role    | size token            | 主なweight / line-height                           | 用途                                                   |
+| ------- | --------------------- | -------------------------------------------------- | ------------------------------------------------------ |
+| heading | `--font-size-heading` | `--font-weight-semibold` / `--line-height-heading` | PageHeading等のpage-level heading                      |
+| title   | `--font-size-title`   | `--font-weight-semibold` / `--line-height-title`   | list / card title、section heading、Sheetのheading     |
+| body    | `--font-size-body`    | `--font-weight-regular` / `--line-height-base`     | 本文                                                   |
+| body-sm | `--font-size-body-sm` | `--font-weight-regular`                            | 副文、compact control、書き込み通知                    |
+| label   | `--font-size-label`   | `--font-weight-semibold`                           | 短い項目名                                             |
+| caption | `--font-size-caption` | 用途による                                         | weekday、補助情報、PrimaryNavのbottom-nav label、Badge |
+
+- `--font-size-title` と `--font-size-body` は同じ段を指し、weightと
+  line-heightだけで区別します。titleを本文より大きくすることでは階層を
+  作りません。
+- PrimaryNavのbottom-nav labelは、現在地を `--font-weight-semibold`、
+  非現在地を `--font-weight-regular` にします。
+- compact control（Button等）の詰まった行間には `--line-height-tight` を
+  使い、本文の `--line-height-base` と分けます。
 
 見出しが、その直下でhierarchy上 subordinateな本文より小さくなる構成は作りません。
-例えばPersonal Schedule detailの「共有」は16px / 600のsection headingとして、
-直下の本文より小さくならない階層を保ちます。
+例えばPersonal Schedule detailの「共有」は `--font-size-title` の section
+heading として、直下の本文より小さくならない階層を保ちます。
 
 ## 面と区切り
 
 - **カード面を使いません。** 面で囲うのではなく、罫と縦の間隔で区切ります。
   白面のcard（`--color-surface` + `--radius-surface`）はcurrent app
   runtimeでは使っていません。
-- canvasは `--color-canvas`（`#eef0f1`）です。`--color-surface`（白）は
+- 画面の地は `--color-canvas` です。`--color-surface` は
   input・checkbox・PrimaryNavといったcontrol / chrome側の塗りとして残り、
   contentのcard面としては使いません。
 - 区切りは次の3種です。
@@ -158,30 +175,37 @@ font sizeは **11 / 12 / 14 / 16 / 20px** の5段、weightは **400 / 500 /
   破壊的操作のsection headingだけは `--color-danger` の2px 太罫を使います
   （「破壊的操作の置き場所」参照）。
 
-- 縦の間隔は 2 / 4 / 8 / 12 / 14 / 16 / 20 / 24 / 32 / 48px のscaleです。
-  行の `padding-block` は、一覧の行が12px、card相当の行が14px
-  （`--space-card-block`）です。
+- 縦の間隔はspacing tokenのscale（`--space-2xs` / `--space-xs` /
+  `--space-sm` / `--space-compact` / `--space-card-block` / `--space-md` /
+  `--space-section` / `--space-lg` / `--space-xl`）から選び、任意の数値を
+  直接書きません。
+- 行の `padding-block` は、一覧の行が `--space-compact`、card相当の行が
+  `--space-card-block` です。この2つを分けているのは、card相当の行のほうが
+  1行に載る情報が多く、同じ間隔だと詰まって見えるためです。
 
 ## 角丸
 
-**箱の角丸は、roleではなく箱の大きさで2値に分けます。**
+**箱の角丸は、roleではなく箱の大きさで2段に分けます。** 使う token は次の
+2系統だけです。
 
-| 値  | 箱の大きさ                 | 該当                                                                   |
-| --- | -------------------------- | ---------------------------------------------------------------------- |
-| 2px | 18〜20px程度の小さな箱と印 | Badge、calendarのEvent range band、checkboxの箱（18px）                |
-| 4px | 27〜44px程度の箱           | Button全variant、genre chip、input / textarea、Sheetの上端、取り消し行 |
+| 段           | token                                                                   | 対象の箱       | 該当                                                                   |
+| ------------ | ----------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------- |
+| 小さい箱     | `--radius-badge`（calendar bandは `--radius-band`。同じ段）             | 印や小さな箱   | Badge、calendarのEvent range band、checkboxの箱                        |
+| 中くらいの箱 | `--radius-control` / `--radius-control-sm` / `--radius-sheet`（同じ段） | control 大の箱 | Button全variant、genre chip、input / textarea、Sheetの上端、取り消し行 |
 
 同じradiusでも箱が大きいほど丸みの印象は弱くなるため、「触れるもの」と
-いったroleで分けるより、この2値のほうが揃って見えます。checkboxのtap範囲は
-箱ではなく44pxの行全体なので、44px ruleとも矛盾しません。
+いったroleで分けるより、大きさで分けたほうが揃って見えます。checkboxが
+小さい段なのはその箱が小さいからであり、tap範囲は箱ではなく行全体が持つので
+tap target ruleとも矛盾しません。
 
-**丸い印はこの2値の対象外です。** 完全なpill（`--radius-pill`）は、円形・
+**丸い印はこの2段の対象外です。** 完全なpill（`--radius-pill`）は、円形・
 帯状であることそのものが形の意味になるものにだけ使います。現行の該当は
-未読ドット / marker dot（7px）、アバター（30px）、calendarの日付の丸
-（22px）、件数chip、spinner、PrimaryNavの現在地バーです。
+未読ドット / marker dot、アバター、calendarの日付の丸、件数chip、spinner、
+PrimaryNavの現在地バーです。
 
-汎用surfaceのdefault形状としてpillを使いません。3つ目の箱用radius値を
-増やしません。
+汎用surfaceのdefault形状としてpillを使いません。この2段とpillの外に3つ目の
+箱用radius roleを増やしません。`--radius-surface` は白面cardの残存token
+であり、新しい用途へ広げません（「面と区切り」参照）。
 
 ## Control vocabulary
 
@@ -192,14 +216,20 @@ controlでは、**visible fill heightとtap targetを同一視しません**。c
 `Button` と `LinkButton` は同じ `ButtonVariant` を使います。静止時（rest）の
 見た目までvariantの規約に含めます。
 
-| variant   | visible fill |    tap target | 静止時の見た目                                 |
-| --------- | -----------: | ------------: | ---------------------------------------------- |
-| primary   |         35px |      44px以上 | 藍の塗り。**1画面（1シート）に1つだけ**        |
-| secondary |         35px |      44px以上 | 透明＋`--color-control-border` の枠            |
-| small     |         31px |      44px以上 | 透明＋枠。compactなinline action               |
-| quiet     |         27px |      44px以上 | **塗りなし・枠なし。文字だけ**                 |
-| icon      |    40px×40px | 44px×44px以上 | 透明・枠なし。藍のグリフ                       |
-| danger    |         35px |      44px以上 | **透明**＋赤の枠と文字。irreversibleな操作のみ |
+| variant   | visible fill   | 静止時の見た目                                                |
+| --------- | -------------- | ------------------------------------------------------------- |
+| primary   | 標準           | `--color-accent` の塗り。**1画面（1シート）に1つだけ**        |
+| secondary | 標準           | 透明＋`--color-control-border` の枠                           |
+| small     | 標準より一段小 | 透明＋枠。compactなinline action                              |
+| quiet     | 最小           | **塗りなし・枠なし。文字だけ**                                |
+| icon      | 正方形         | 透明・枠なし。`--color-accent` のグリフ                       |
+| danger    | 標準           | **透明**＋`--color-danger` の枠と文字。irreversibleな操作のみ |
+
+visible fillのruleは絶対値ではなく **強調の順序** です
+（primary / secondary / danger ＞ small ＞ quiet）。実際の高さは
+`Button.module.css` が持ち、まだtoken化していません。tap targetは全variant
+44px以上で、これはWCAG 2.2 SC 2.5.8（Target Size）が定める寸法なので、
+実装の都合ではなくこの数値自体がruleです。
 
 - `danger` はhard delete等のirreversibleな操作専用です。cancel / uncancel
   のようなreversibleなlifecycle操作は `secondary` のままとし、危険度で
@@ -216,7 +246,7 @@ controlでは、**visible fill heightとtap targetを同一視しません**。c
   （[Issue #270](https://github.com/reitojike/stage-tracker/issues/270) /
   [#271](https://github.com/reitojike/stage-tracker/issues/271) が共通化
   対象）。
-- `input` / `textarea` の `min-height` 44pxは、入力対象として維持します。
+- `input` / `textarea` も、入力対象として同じ44pxのtap targetを満たします。
 
 ## Form field vocabulary
 
@@ -250,9 +280,14 @@ domain semanticsの正本は引き続き
 `src/ui/Sheet.tsx`（native `<dialog>`ベースのbottom sheet）を使います。
 新しいoverlay vocabularyを別に作りません。
 
-- 覆いは `rgb(23 25 27 / 45%)`、面は `--color-canvas`、上端の角丸のみ4px、
-  `max-width: 480px` / `max-height: 85vh`。
-- headingは16px / 600で、下に1px 細罫。
+- 覆いは暗い半透明で、その下の画面が見えたまま操作対象でなくなることを示します。
+- 面は `--color-canvas`（画面の地と同じ）。上端の角だけ `--radius-sheet` で
+  丸め、下端は画面の縁に接します。
+- Sheetは幅と高さを制限します。幅は広い画面で横に伸びきらないよう上限を持ち、
+  高さは常に背後の画面が上に残る高さで頭打ちにします（`Sheet.module.css`
+  が実値を持ちます。まだtoken化していません）。
+- headingは `--font-size-title` / `--font-weight-semibold` で、下に
+  `--color-border` の細罫。
 - **footerを持つSheetは、headerに「閉じる」を出しません。footerを持たない
   Sheetは出します。** footerがないSheetでは、「閉じる」が画面に見えている
   唯一の離脱手段だからです。
@@ -268,9 +303,11 @@ domain semanticsの正本は引き続き
   通知は、その書き込みを起こしたまとまり（form全体、またはSheet 1枚）の
   **先頭** に置きます。ボタンの隣には置きません（横並びのボタン行に入れる
   と行が崩れるため）。
-- 通知の見た目は、淡い面（`--color-surface-subtle`）・角丸4px・14pxです。
-  live regionは常時mountし、message側を試行回数（`attempt`）でkeyします
-  （同じ文言の2回目も読み上げさせるため）。
+- 通知の見た目は、淡い面（`--color-surface-subtle`）・`--radius-control-sm`・
+  `--font-size-body-sm` です。本文より一段小さくすることで、読むべき本体では
+  なく直前の操作の控えであることを示します。live regionは常時mountし、
+  message側を試行回数（`attempt`）でkeyします（同じ文言の2回目も読み上げ
+  させるため）。
 - **失敗** — `StatePanel` で伝えます。同じ失敗が続いたときも試行ごとに
   panelを作り直し（`key={attempt}`）、再度読み上げられるようにします。
 - 送信中はform全体を `aria-busy` にして入力を無効化し、送信ボタンのlabel
@@ -290,16 +327,17 @@ domain semanticsの正本は引き続き
 必ず操作を1つ置いて区別します。
 
 - **通知** ＝「終わったこと」の控え。淡い面のtextのみで、操作を持ちません。
-- **取り消し行** ＝「まだ操作できる」。淡い面・角丸4px・`min-height: 44px`
-  の行に、右揃えで下線付きのtext操作を1つ置きます。current該当は招待一覧の
-  8秒の「取り消す」だけです。
+- **取り消し行** ＝「まだ操作できる」。淡い面
+  （`--color-surface-subtle`）・`--radius-control-sm` の行を、tap target
+  （44px）を満たす高さで置き、右揃えで下線付きのtext操作を1つ置きます。
+  current該当は招待一覧の8秒の「取り消す」だけです。
 
 取り消し行はclient-localな表示の差し替えであり、新しいpersisted stateを
 作りません。
 
 ## 破壊的操作の置き場所
 
-- 原則：本文の最下部に、赤の見出し＋2px 太罫（`--color-danger`）で隔離します。
+- 原則：本文の最下部に、`--color-danger` の見出しと太罫で隔離します。
   current該当はEvent編集画面の「中止と削除」sectionと、Personal Schedule
   詳細の削除sectionです。
 - 例外：**Sheetが1件だけを扱っている場合、その1件の中止・削除はSheetの中に
@@ -351,23 +389,23 @@ Neutral base + single restrained cool accentのlow-noise UIとします。
 
 **色の役割は3つに固定します。**
 
-| 役割                        | token              | 値        |
-| --------------------------- | ------------------ | --------- |
-| 藍 — 操作できる場所と現在地 | `--color-accent`   | `#2f4a7a` |
-| 赤 — まだ間に合う期限と休日 | `--color-danger`   | `#a13b2e` |
-| 墨 — もう行動できないもの   | `--color-terminal` | `#2b3033` |
+| token              | 役割                        | 何に使うか                                      |
+| ------------------ | --------------------------- | ----------------------------------------------- |
+| `--color-accent`   | 藍 — 操作できる場所と現在地 | Buttonのprimary、link、現在地、focus ring、土曜 |
+| `--color-danger`   | 赤 — まだ間に合う期限と休日 | deadline Badge、破壊的操作、日曜・祝日          |
+| `--color-terminal` | 墨 — もう行動できないもの   | terminal Badge（中止、受付終了）                |
 
 これに、面と文字のneutral roleが付きます。
 
-| 用途                   | token                                       | 値                                |
-| ---------------------- | ------------------------------------------- | --------------------------------- |
-| 紙                     | `--color-canvas`                            | `#eef0f1`                         |
-| 細罫                   | `--color-border`                            | `#d7dcde`                         |
-| 淡い面                 | `--color-surface-subtle`                    | `#dfe4e7`                         |
-| 藍の淡い面（完了・帯） | `--color-band-fill` / `--color-band-text`   | `#dbe2ee` / `#24365c`             |
-| 赤・墨の上の文字       | `--color-danger-on` / `--color-terminal-on` | `#f7f5f1` / `#eef0f1`             |
-| 本文 / 副文 / 第3      | `--color-text` / `-secondary` / `-tertiary` | `#1f2426` / `#5c6467` / `#454b4e` |
-| controlの罫            | `--color-control-border`                    | `#7f878b`                         |
+| token                                       | 役割                   | 何に使うか                                         |
+| ------------------------------------------- | ---------------------- | -------------------------------------------------- |
+| `--color-canvas`                            | 紙                     | 画面の地、Sheetの面                                |
+| `--color-border`                            | 細罫                   | 行の区切り、AppBarの下辺、StatePanelの上下         |
+| `--color-surface-subtle`                    | 淡い面                 | 書き込み通知、取り消し行、subtle Badge、hover      |
+| `--color-band-fill` / `--color-band-text`   | 藍の淡い面（完了・帯） | done Badge、calendarの複数日band                   |
+| `--color-danger-on` / `--color-terminal-on` | 赤・墨の上の文字       | deadline / terminal Badgeのlabel                   |
+| `--color-text` / `-secondary` / `-tertiary` | 本文 / 副文 / 第3      | 本文、補助テキスト、Badgeのlabel                   |
+| `--color-control-border`                    | controlの罫            | secondary / small Buttonの枠、input / checkboxの枠 |
 
 - **赤は期限・休日・破壊的操作だけです。読み込み失敗には使いません。**
   `StatePanel` は上下の細罫と文言だけで `empty` / `error` / `unavailable`
@@ -377,13 +415,17 @@ Neutral base + single restrained cool accentのlow-noise UIとします。
   いますが、`src/` 内に参照はありません。新しい参照を足しません。statusを
   色だけで表現しないというruleは維持し、iconやtext labelを併用します。
 - exact accent hueは引き続きintentionally unresolvedであり、本ファイルで
-  永久的なfinal hueとして固定しません。現行値はGate Aのcurrent vocabulary
-  として実際に使用しています（未使用のplaceholderではありません）。
+  永久的なfinal hueとして固定しません。`--color-accent` のcurrent値はGate Aの
+  current vocabularyとして実際に使用しています（未使用のplaceholderでは
+  ありません）。hueを変える場合に直すのは `src/ui/tokens.css` のこのtokenだけ
+  です。
 
 ### Badge
 
-`src/ui/Badge` は色roleではなく **5つの固定した意味** で表現します。共通
-サイズは `padding: 3px 8px`、角丸2px、11px / 600 / 1.4です。
+`src/ui/Badge` は色roleではなく **5つの固定した意味** で表現します。variant
+によらず共通のサイズ・角丸（`--radius-badge`）・書体
+（`--font-size-caption` / `--font-weight-semibold`）を持ち、variantが変えるのは
+塗りと文字色だけです。
 
 | variant    | 意味                     | 例                               |
 | ---------- | ------------------------ | -------------------------------- |
@@ -430,8 +472,8 @@ Visual / interaction semanticsがdomain-independentで実際に再利用され�
 **新しいcontrolはscreen-localのCSS Moduleで始めてよい**（PO確定、
 2026-08-31）。2つ目の使い手が出た時点で `src/ui/` へ引き上げます。先に
 共有化すると、使い手1つのためにAPIを決めることになるためです。current
-該当は18pxのcheckboxと44pxの2択segment（`ScheduleWriteForm.module.css`）
-です。引き上げるときも値は変えません。
+該当はcheckboxと2択segment（`ScheduleWriteForm.module.css`）です。
+引き上げるときも見た目は変えません。
 
 未来のfeature componentを大量に先行実装しません。
 
@@ -501,11 +543,10 @@ screenのcalendar marker semantics（date dot / run period band等）とは
   （`src/ui/DayRoleText.tsx`）。
 - 前後月の日付は`text-secondary`で表示します。色だけを唯一の意味表現にせず、
   accessible name等のsemantic cueを併用します。
-- Event rangeのcalendar bandのradiusは、badgeと共通の2pxステップ
-  （`--radius-band` = `--radius-scale-badge`）を使い、controlのradiusとは
-  混同しません。
-- month navigationはicon control vocabularyを使います（visible 40px × 40px、
-  tap 44px × 44px以上）。
+- Event rangeのcalendar bandのradiusは `--radius-band` で、Badgeと同じ段を
+  指します。controlのradiusとは混同しません。
+- month navigationはicon control vocabularyを使います（「Control
+  vocabulary」の `icon` variant）。
 - `holiday-unconfirmed`はmonth-level noticeだけで表現します。per-cellの`?`や
   `祝日未確認` cueは復活させません。
 
