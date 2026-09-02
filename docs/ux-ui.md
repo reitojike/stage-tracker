@@ -135,14 +135,14 @@ font stackは次のとおりです。
 font sizeは5段、weightは3段だけを使い、この外側に段を増やしません。
 typography roleは次のladderで分離します。値は `src/ui/tokens.css` が持ちます。
 
-| role    | size token            | 主なweight / line-height                           | 用途                                                   |
-| ------- | --------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| heading | `--font-size-heading` | `--font-weight-semibold` / `--line-height-heading` | PageHeading等のpage-level heading                      |
-| title   | `--font-size-title`   | `--font-weight-semibold` / `--line-height-title`   | list / card title、section heading、Sheetのheading     |
-| body    | `--font-size-body`    | `--font-weight-regular` / `--line-height-base`     | 本文                                                   |
-| body-sm | `--font-size-body-sm` | `--font-weight-regular`                            | 副文、compact control、書き込み通知                    |
-| label   | `--font-size-label`   | `--font-weight-semibold`                           | 短い項目名                                             |
-| caption | `--font-size-caption` | 用途による                                         | weekday、補助情報、PrimaryNavのbottom-nav label、Badge |
+| role    | size token            | 主なweight / line-height                           | 用途                                               |
+| ------- | --------------------- | -------------------------------------------------- | -------------------------------------------------- |
+| heading | `--font-size-heading` | `--font-weight-semibold` / `--line-height-heading` | PageHeading等のpage-level heading                  |
+| title   | `--font-size-title`   | `--font-weight-semibold` / `--line-height-title`   | list / card title、section heading、Sheetのheading |
+| body    | `--font-size-body`    | `--font-weight-regular` / `--line-height-base`     | 本文                                               |
+| body-sm | `--font-size-body-sm` | `--font-weight-regular`                            | 副文、compact control、書き込み通知                |
+| label   | `--font-size-label`   | `--font-weight-semibold`                           | 短い項目名                                         |
+| caption | `--font-size-caption` | 用途による                                         | weekday、補助情報、PrimaryNavのbottom-nav label    |
 
 - `--font-size-title` と `--font-size-body` は同じ段を指し、weightと
   line-heightだけで区別します。titleを本文より大きくすることでは階層を
@@ -151,6 +151,11 @@ typography roleは次のladderで分離します。値は `src/ui/tokens.css` �
   非現在地を `--font-weight-regular` にします。
 - compact control（Button等）の詰まった行間には `--line-height-tight` を
   使い、本文の `--line-height-base` と分けます。
+- **Badgeはこのladderのconsumerではありません。** Issue #138がBadge自身の
+  spec としてfont sizeとline heightを固定したため、`Badge.module.css` は
+  この2つをtokenではなく自前の値として持ちます（結果としてcaption段と
+  同じ大きさになりますが、caption tokenを変えてもBadgeは追随しません）。
+  この非依存はtokens.css側にも記録されています。
 
 見出しが、その直下でhierarchy上 subordinateな本文より小さくなる構成は作りません。
 例えばPersonal Schedule detailの「共有」は `--font-size-title` の section
@@ -423,9 +428,10 @@ Neutral base + single restrained cool accentのlow-noise UIとします。
 ### Badge
 
 `src/ui/Badge` は色roleではなく **5つの固定した意味** で表現します。variant
-によらず共通のサイズ・角丸（`--radius-badge`）・書体
-（`--font-size-caption` / `--font-weight-semibold`）を持ち、variantが変えるのは
-塗りと文字色だけです。
+によらず共通のサイズ・角丸（`--radius-badge`）・weight
+（`--font-weight-semibold`）を持ち、variantが変えるのは塗りと文字色だけです。
+font sizeとline heightだけはtokenを参照せず `Badge.module.css` が固定します
+（「Typography」参照）。
 
 | variant    | 意味                     | 例                               |
 | ---------- | ------------------------ | -------------------------------- |
