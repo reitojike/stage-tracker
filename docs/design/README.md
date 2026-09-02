@@ -118,8 +118,10 @@ Issue / PR 番号は 2026-09-02 時点で `gh issue list` / `gh pr list --json c
 | `11-filter-sheet.md`         | #147         | #169 | filter semantics の product checkpoint は #158                                                             |
 | `12-mypage-notifications.md` | #148         | —    | My Page 部分は **#159 / PR #161**。Notifications 部分は **#231**（open）へ移管し #148 は not planned close |
 
-Wave 1 の follow-up（草案なし）: #150 / PR #151（Button hover contrast）、
-#172 / PR #173（integrated review の accepted findings）。
+Wave 1 の follow-up（草案なし）:
+
+- Issue #150 / PR #151（Button hover contrast）
+- Issue #172 / PR #173（integrated review の accepted findings）
 
 ### Design Wave 2（`design_handoff_v2`、TURN 12 / TURN 25）
 
@@ -170,10 +172,12 @@ Wave 1 の follow-up（草案なし）: #150 / PR #151（Button hover contrast�
 | `20-sign-in.md`                            | #248                                  | #251                 | TURN 23h。v3-05 へ移管                                                                                                                  |
 | `TURN25-fixes.md` + `reference/*.png`      | #240                                  | #242                 | TURN 24b / 25a〜25c                                                                                                                     |
 
-Wave 2 の follow-up（草案なし、Issue 本文が「Wave 2」を参照）: #206 / PR #208、
-#215 / PR #218、#216 / PR #219、#217 / PR #220、#226 / PR #228、#227 / PR #229。
-FilterSheet の dialog lifecycle を共通 `Sheet` へ収束した #236 / PR #238 は、
-v3 README の「絞り込みシートは実装側の判断を採用（TURN 27b）」の根拠です。
+Wave 2 の follow-up（草案なし、Issue 本文が「Wave 2」を参照）:
+
+- Issue #206 / PR #208、Issue #215 / PR #218、Issue #216 / PR #219、
+  Issue #217 / PR #220、Issue #226 / PR #228、Issue #227 / PR #229
+- Issue #236 / PR #238（FilterSheet の dialog lifecycle を共通 `Sheet` へ収束）は、
+  v3 README の「絞り込みシートは実装側の判断を採用（TURN 27b）」の根拠です
 
 ### Design handoff v3（`design_handoff_v3`、TURN 23 / 27 / 28 / 31）
 
