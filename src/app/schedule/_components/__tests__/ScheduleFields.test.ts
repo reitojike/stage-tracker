@@ -40,7 +40,12 @@ void test('schedule controls keep the bounded local temporal and blocking vocabu
     css,
     /\.pairedFields\s*\{[\s\S]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/,
   );
-  assert.match(css, /\.temporalInput\s*\{[\s\S]*padding-inline:\s*var\(--space-sm\);/);
+  assert.match(css, /\.pairedFields\s*\{[\s\S]*gap:\s*var\(--space-xs\);/);
+  assert.match(
+    css,
+    /\.temporalInput\s*\{[\s\S]*padding-inline-start:\s*var\(--space-sm\);[\s\S]*padding-inline-end:\s*var\(--space-2xs\);/,
+  );
+  assert.doesNotMatch(css, /@media/);
   assert.equal((fields.match(/className=\{styles\.temporalInput\}/g) ?? []).length, 4);
   assert.equal((fields.match(/type="datetime-local"/g) ?? []).length, 2);
   assert.equal((fields.match(/type="date"/g) ?? []).length, 2);

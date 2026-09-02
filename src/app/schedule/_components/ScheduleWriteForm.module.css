@@ -115,14 +115,15 @@
 .pairedFields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-sm);
+  gap: var(--space-xs);
 }
 
 /* This equal-specificity local override follows the shared TextInput styles
-   imported by ScheduleFields, keeping the compact padding scoped to these
-   temporal controls. */
+   imported by ScheduleFields. The smaller end padding keeps more app-owned
+   inline space available for Android's native picker-reserved area. */
 .temporalInput {
-  padding-inline: var(--space-sm);
+  padding-inline-start: var(--space-sm);
+  padding-inline-end: var(--space-2xs);
 }
 
 .pairedFields[hidden] {
