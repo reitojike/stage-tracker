@@ -70,7 +70,6 @@ export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
               type="submit"
               form="delete-schedule-entry-form"
               variant="danger"
-              className={styles.stablePendingButton}
               disabled={isPending}
             >
               <span className={styles.stablePendingLabel}>

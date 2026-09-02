@@ -65,13 +65,7 @@ export function DeleteEventForm({ eventId }: DeleteEventFormProps) {
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button
-              type="submit"
-              form="delete-event-form"
-              variant="danger"
-              className={styles.stablePendingButton}
-              disabled={isPending}
-            >
+            <Button type="submit" form="delete-event-form" variant="danger" disabled={isPending}>
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
                   削除中…

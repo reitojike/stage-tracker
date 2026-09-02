@@ -90,12 +90,7 @@ export function InviteSheet({
         />
 
         <div className={styles.actions}>
-          <Button
-            type="submit"
-            variant="primary"
-            className={styles.stablePendingButton}
-            disabled={isPending}
-          >
+          <Button type="submit" variant="primary" disabled={isPending}>
             <span className={styles.stablePendingLabel}>
               <span aria-hidden="true" className={styles.stablePendingSizing}>
                 招待する

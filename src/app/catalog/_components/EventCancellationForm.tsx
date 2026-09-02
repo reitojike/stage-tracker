@@ -45,12 +45,7 @@ export function EventCancellationForm({ eventId, isCanceled }: EventCancellation
           description={state.feedback.description}
         />
       ) : null}
-      <Button
-        type="submit"
-        variant="secondary"
-        className={styles.stablePendingButton}
-        disabled={isPending}
-      >
+      <Button type="submit" variant="secondary" disabled={isPending}>
         <span className={styles.stablePendingLabel}>
           <span aria-hidden="true" className={styles.stablePendingSizing}>
             このイベントの中止を解除

@@ -51,12 +51,7 @@ export function ShareAddSheet({ entryId }: ShareAddSheetProps) {
         bodyClassName={styles.body}
         footer={
           <div className={styles.footer}>
-            <Button
-              type="submit"
-              form={formId}
-              className={styles.stablePendingButton}
-              disabled={isPending}
-            >
+            <Button type="submit" form={formId} disabled={isPending}>
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
                   共有相手を追加

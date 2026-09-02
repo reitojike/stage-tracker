@@ -15,17 +15,12 @@
   justify-content: flex-end;
 }
 
-.stablePendingButton {
-  white-space: nowrap;
-}
-
 .stablePendingLabel {
   display: grid;
 }
 
 .stablePendingLabel > span {
   grid-area: 1 / 1;
-  white-space: nowrap;
 }
 
 .stablePendingSizing {
@@ -170,7 +165,6 @@
 
 .sheetLifecycleActions > form > button {
   width: 100%;
-  white-space: nowrap;
   font-size: var(--font-size-body-sm);
 }
 
@@ -241,7 +235,6 @@
 
 .dangerActions > form > button {
   width: 100%;
-  white-space: nowrap;
   font-size: var(--font-size-body-sm);
 }
 

@@ -17,6 +17,16 @@
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-tight);
+  /*
+   * Issue #270: a Button label is one operation name, so it stays on one
+   * line. Owned here rather than restated per consumer - the Passkey row's
+   * "削除" beside a long device name is the case that showed a missed
+   * consumer-local declaration only fails at narrow widths. Inherited, so a
+   * child label span (e.g. the stable-pending grid overlay) is covered too.
+   * Truncation/ellipsis presentation stays with the callers that own it
+   * (Badge, calendar bands); this only prevents wrapping.
+   */
+  white-space: nowrap;
   border: 1px solid transparent;
   cursor: pointer;
   /* Visible fill height only - primary/secondary's V2 refined value (#96

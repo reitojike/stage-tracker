@@ -62,13 +62,7 @@ export function DeleteOccurrenceForm({
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button
-              type="submit"
-              form={formId}
-              variant="danger"
-              className={styles.stablePendingButton}
-              disabled={isPending}
-            >
+            <Button type="submit" form={formId} variant="danger" disabled={isPending}>
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
                   削除中…
