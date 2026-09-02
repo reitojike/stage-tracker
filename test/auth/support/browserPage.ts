@@ -36,7 +36,10 @@ import {
 // google-chrome), the same resolution targets the pre-#277 driver used.
 
 /** Chrome startup readiness allowance (Issue #259). Passed as playwright-
- * core's launch `timeout` (its own default is 3 minutes): observed CI
+ * core's launch `timeout` (its own default in 1.62.1 is 3 minutes:
+ * `browserType.launch` falls back to `DEFAULT_PLAYWRIGHT_LAUNCH_TIMEOUT =
+ * 3 * 60 * 1000` in the bundled client, not the 30s general action
+ * default): observed CI
  * evidence (run 33322936064 attempt 2) showed a genuine Chrome readiness
  * timeout on a runner concurrently running the full local Supabase container
  * stack - real CPU/IO contention a normal ~1-2s startup never waits anywhere
@@ -240,6 +243,10 @@ type LaunchTarget = Pick<LaunchOptions, 'channel' | 'executablePath'>;
  * configured. */
 function resolveLaunchTarget(options: LaunchBrowserOptions): LaunchTarget {
   const executablePath = options.executablePath ?? process.env.CHROME_PATH;
+  // An empty string is "not configured", same as unset: a CI/shell that
+  // exports CHROME_PATH= (or `CHROME_PATH=${SOME_UNSET_VAR}`) has not
+  // named a binary to insist on, so channel resolution applies. Only a
+  // *named* path that does not exist is treated as an error below.
   if (executablePath === undefined || executablePath === '') {
     return { channel: 'chrome' };
   }
@@ -281,8 +288,20 @@ async function attemptLaunch(target: LaunchTarget, timeoutMs: number): Promise<B
     return new PlaywrightDrivenBrowser(browser, context);
   } catch (error) {
     // The Browser handle is not returned on this path, so nothing else
-    // could ever close it - terminate the process here.
-    await browser.close();
+    // could ever close it - terminate the process here. The newContext()
+    // failure stays the primary error; a close() failure on top of it is
+    // appended as context (the same shape appServer.ts's startAppServer
+    // uses for a readiness failure followed by a stop failure), never
+    // allowed to replace it.
+    try {
+      await browser.close();
+    } catch (closeError) {
+      const message = error instanceof Error ? error.message : String(error);
+      const closeMessage = closeError instanceof Error ? closeError.message : String(closeError);
+      throw new Error(`${message}; additionally, cleanup failed: ${closeMessage}`, {
+        cause: error,
+      });
+    }
     throw error;
   }
 }
