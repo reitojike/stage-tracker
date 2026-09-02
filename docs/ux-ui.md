@@ -275,7 +275,14 @@ domain semanticsの正本は引き続き
   実際にrelatedなinputのgroupingがある場合（choice group等）にのみ使い、
   `<fieldset>`/`<legend>`のaccessibility semanticsを保ちながら、prototype的な
   border/padding boxは持たせません。
-- **action area** — actionの並びは`src/ui/ActionRow.tsx`を使います。
+- **action area** — actionを横に並べる行は、右揃え（`justify-content:
+flex-end`）と `--space-sm` のgapを共通のかたちとします。current
+  implementationではこの行を各screenの `*.module.css` が個別に持ちます
+  （Sheetのfooter、InvitationCardのaction行等）。`src/ui/ActionRow.tsx` は
+  同じ役割のshared primitiveとして存在しますが、**現在app runtimeからの
+  consumerは0** で、Storybookのstoryだけが参照しています。この重複の解消は
+  [Issue #283](https://github.com/reitojike/stage-tracker/issues/283) の
+  scopeであり、本ファイルはどちらを使うべきかをここでは固定しません。
 - 1つの画面に独立した書き込み単位が複数並ぶ場合（Event編集画面）、
   それぞれが自分のfeedbackを持ち、1つの失敗が他を巻き込みません。
 
@@ -469,11 +476,16 @@ Visual / interaction semanticsがdomain-independentで実際に再利用され�
 
 - **shared**（`src/ui/`） — Button / LinkButton / TextInput / TextArea /
   Badge / StatePanel / Sheet / WriteNotice / LoadingIndicator /
-  CalendarSkeleton / AppShell / AppBar / PrimaryNav / ActionRow /
-  FormSection / PageHeading / BackLink / TriStateCheckbox 等。
+  CalendarSkeleton / AppShell / AppBar / PrimaryNav / FormSection /
+  PageHeading / BackLink / TriStateCheckbox 等。
 - **screen-local**（`src/app/**/_components/`） — EventDetail / calendar
   marker / ParticipationSheet / FilterSheet / InvitationCard /
   TicketOpportunityRow 等、domain semanticsを持つもの。
+
+`src/ui/` にあることは「現に共有されている」ことを意味しません。current
+runtimeからのconsumerが0のもの（`Surface` / `ActionRow`）があり、その扱いは
+[Issue #283](https://github.com/reitojike/stage-tracker/issues/283) の
+scopeです。本ファイルはそれらを、現に使うべきvocabularyとしては提示しません。
 
 **新しいcontrolはscreen-localのCSS Moduleで始めてよい**（PO確定、
 2026-08-31）。2つ目の使い手が出た時点で `src/ui/` へ引き上げます。先に
