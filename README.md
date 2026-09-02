@@ -15,6 +15,7 @@ catalog の最初の product slice (Issue #3 / PR B) です。
 | [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope         |
 | [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）            |
 | [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本       |
+| [`docs/screens.md`](./docs/screens.md)                                         | 画面ごとの状態・権限分岐と実文言のdecisionの正本                              |
 | [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | agentが実装時に守るcurrent-approved product/domain constraintsの正本          |
 | [`AGENTS.md`](./AGENTS.md)                                                     | 開発ルール（Foundation policy + technology profile + product rules から生成） |
 
