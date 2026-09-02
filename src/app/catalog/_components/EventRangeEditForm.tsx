@@ -58,12 +58,7 @@ export function EventRangeEditForm({ eventId, initialValues }: EventRangeEditFor
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button
-              type="submit"
-              form="event-range-edit"
-              className={styles.stablePendingButton}
-              disabled={isPending}
-            >
+            <Button type="submit" form="event-range-edit" disabled={isPending}>
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
                   開催期間を保存

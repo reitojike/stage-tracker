@@ -24,17 +24,12 @@
   justify-content: flex-end;
 }
 
-.stablePendingButton {
-  white-space: nowrap;
-}
-
 .stablePendingLabel {
   display: grid;
 }
 
 .stablePendingLabel > span {
   grid-area: 1 / 1;
-  white-space: nowrap;
 }
 
 .stablePendingSizing {

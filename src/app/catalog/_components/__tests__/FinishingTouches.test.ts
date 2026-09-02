@@ -128,7 +128,12 @@ void test('write pending controls use scoped stable geometry contracts', () => {
   const cardCss = read('src/app/catalog/_components/InvitationCard.module.css');
   const detailCss = read('src/app/schedule/_components/ScheduleDetail.module.css');
   for (const css of [eventCss, scheduleCss, inviteCss, shareCss, cardCss, detailCss]) {
-    assert.match(css, /\.stablePendingButton\s*\{[\s\S]*?white-space:\s*nowrap;/);
+    // Issue #270: label non-wrapping is now the shared Button's own contract
+    // (src/ui/Button.module.css) and inherits into these label spans, so the
+    // per-consumer `.stablePendingButton { white-space: nowrap }` is gone -
+    // see Button.test.ts. What stays scoped here is the grid overlay that
+    // stabilises the button's width across the pending swap.
+    assert.doesNotMatch(css, /\.stablePendingButton\b/);
     assert.match(css, /\.stablePendingLabel\s*\{[\s\S]*?display:\s*grid;/);
     assert.match(css, /\.stablePendingLabel\s*>\s*span\s*\{[\s\S]*?grid-area:\s*1\s*\/\s*1;/);
     assert.match(css, /\.stablePendingSizing\s*\{[\s\S]*?visibility:\s*hidden;/);
@@ -144,8 +149,10 @@ void test('write pending controls use scoped stable geometry contracts', () => {
     const source = read(relativePath);
     assert.match(source, /styles\.stablePendingLabel/);
     assert.match(source, /aria-hidden="true"\s+className=\{styles\.stablePendingSizing\}/);
+    assert.doesNotMatch(source, /stablePendingButton/);
   }
   assert.doesNotMatch(read('src/ui/Button.tsx'), /stablePendingButton/);
+  assert.match(read('src/ui/Button.module.css'), /white-space:\s*nowrap;/);
 });
 
 void test('requested sign-in acknowledgement is page-local and keeps its copy', () => {

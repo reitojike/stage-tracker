@@ -151,17 +151,12 @@
   font-size: var(--font-size-body);
   color: var(--color-text-secondary);
 }
-.stablePendingButton {
-  white-space: nowrap;
-}
-
 .stablePendingLabel {
   display: grid;
 }
 
 .stablePendingLabel > span {
   grid-area: 1 / 1;
-  white-space: nowrap;
 }
 
 .stablePendingSizing {

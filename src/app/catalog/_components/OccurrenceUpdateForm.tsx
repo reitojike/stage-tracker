@@ -77,12 +77,7 @@ export function OccurrenceUpdateForm({
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button
-              type="submit"
-              form={formId}
-              className={styles.stablePendingButton}
-              disabled={isPending}
-            >
+            <Button type="submit" form={formId} disabled={isPending}>
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
                   この公演回を保存

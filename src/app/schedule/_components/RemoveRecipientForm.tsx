@@ -45,7 +45,6 @@ export function RemoveRecipientForm({
           <Button
             type="submit"
             variant="quiet"
-            className={styles.stablePendingButton}
             disabled={isPending}
             aria-label={`${recipientEmail}の共有を解除`}
           >

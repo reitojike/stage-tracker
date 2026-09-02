@@ -40,12 +40,7 @@ export function LeaveShareForm({ shareId }: LeaveShareFormProps) {
         />
       ) : null}
 
-      <Button
-        type="submit"
-        variant="quiet"
-        className={styles.stablePendingButton}
-        disabled={isPending}
-      >
+      <Button type="submit" variant="quiet" disabled={isPending}>
         <span className={styles.stablePendingLabel}>
           <span aria-hidden="true" className={styles.stablePendingSizing}>
             この予定の共有から外れる
