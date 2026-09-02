@@ -4,11 +4,16 @@ import { createEventWithOccurrence, eventFixtureTitle } from '../rls/support/eve
 import { createTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import {
+  occurrenceRow,
+  occurrenceSheet,
+  readParticipationStatus,
+  setParticipation,
+} from './support/eventDetailDriver.ts';
+import {
   assertNoHorizontalOverflow,
   clickWhenInteractive,
   createJourneyActor,
   runJourneyTeardown,
-  waitUntilGone,
   type JourneyActor,
 } from './support/journeyActor.ts';
 
@@ -114,93 +119,6 @@ after(async () => {
   });
 });
 
-/** One occurrence's `<li>` on the Event detail page. Scoping every locator
- * to it matters: EventDetail renders a ParticipationSheet (and its choice
- * buttons) per occurrence, so an unscoped `参加する` would be ambiguous
- * between the active and the canceled occurrence. */
-function occurrenceRow(actor: JourneyActor, occurrenceId: string) {
-  return actor.page.locator(`#occurrence-${occurrenceId}`);
-}
-
-/** How long chooseParticipation keeps retrying before giving up. */
-const CHOOSE_TIMEOUT_MS = 30_000;
-
-/**
- * Opens one occurrence's 参加の状態 sheet, picks `choice`, and returns once
- * the occurrence row itself actually shows that status.
- *
- * Synchronizing on the row's own label rather than on "the sheet closed"
- * is what makes this both correct and non-flaky. ParticipationSheet
- * reports success only by closing (Issue #230 addendum: a row click saves
- * immediately, with no confirm button and no lasting visible
- * confirmation) - but a sheet dismissed by a stray click on its backdrop
- * closes in exactly the same way, having written nothing (see
- * src/ui/Sheet.tsx's onClick). "Closed" therefore cannot distinguish a
- * successful save from a lost one. The row's label can: it is re-rendered
- * from the server after setParticipationChoiceAction's revalidatePath, so
- * it appears only when the write really landed.
- *
- * Retrying the whole open-and-choose is safe because it is idempotent:
- * choosing a status that is already selected short-circuits in
- * ParticipationSheet's own handleChoose (it just closes the sheet), so a
- * redundant pass writes nothing. A genuinely broken write still fails
- * here, on the deadline, with the status it never reached.
- */
-async function chooseParticipation(
-  actor: JourneyActor,
-  occurrenceId: string,
-  choice: string,
-): Promise<void> {
-  const row = occurrenceRow(actor, occurrenceId);
-  const sheetTitle = row.getByText('参加の状態', { exact: true });
-  // Only meaningful once the sheet is closed: while it is open, its own
-  // choice row carries this same text (and is visible).
-  const rowStatus = row.getByText(choice, { exact: true }).filter({ visible: true }).first();
-  const deadline = Date.now() + CHOOSE_TIMEOUT_MS;
-
-  for (;;) {
-    await clickWhenInteractive(
-      row.getByRole('button', { name: '変更' }),
-      sheetTitle,
-      `opening the participation sheet for occurrence ${occurrenceId}`,
-    );
-    await row.getByRole('button', { name: choice, exact: true }).click();
-    await waitUntilGone(sheetTitle);
-    try {
-      await rowStatus.waitFor({ state: 'visible', timeout: 5_000 });
-      return;
-    } catch (error) {
-      if (Date.now() > deadline) {
-        throw new Error(
-          `occurrence ${occurrenceId} never showed "${choice}" after choosing it ` +
-            `within ${String(CHOOSE_TIMEOUT_MS)}ms`,
-          { cause: error },
-        );
-      }
-    }
-  }
-}
-
-/** The status label OccurrenceParticipationRow renders for the caller's own
- * participation, or null when it renders none (no participation row at all
- * - Issue #36/#230: absence of a row is "not participating", and the
- * component deliberately shows no literal "未定" for it).
- *
- * Visible matches only: the same two strings are also the closed
- * ParticipationSheet's own choice labels, which stay in the DOM (a
- * `<dialog>` that was never `showModal()`-ed is `display: none`, not
- * absent - see src/ui/Sheet.tsx). Counting those too would report "参加する"
- * for an occurrence with no participation at all. */
-async function renderedStatus(actor: JourneyActor, occurrenceId: string): Promise<string | null> {
-  const row = occurrenceRow(actor, occurrenceId);
-  for (const label of ['参加する', '気になる']) {
-    if ((await row.getByText(label, { exact: true }).filter({ visible: true }).count()) > 0) {
-      return label;
-    }
-  }
-  return null;
-}
-
 void test('a viewer moves an occurrence from undecided to 気になる to 参加する, and My Calendar follows', async () => {
   await viewer.goto(`/catalog/events/${eventId}?month=${FIXTURE_MONTH}`);
 
@@ -210,12 +128,12 @@ void test('a viewer moves an occurrence from undecided to 気になる to 参加
   await assertNoHorizontalOverflow(viewer.page, 'the Event detail page');
 
   assert.equal(
-    await renderedStatus(viewer, activeOccurrenceId),
+    await readParticipationStatus(viewer, activeOccurrenceId),
     null,
     'expected no participation label before the journey registers one',
   );
 
-  await chooseParticipation(viewer, activeOccurrenceId, '気になる');
+  await setParticipation(viewer, activeOccurrenceId, '気になる');
   // A reload is genuinely required, not a shortcut: setParticipationChoiceAction
   // revalidates the route server-side, but ParticipationSheet is an
   // imperative call site with no router.refresh() of its own, so the
@@ -223,11 +141,11 @@ void test('a viewer moves an occurrence from undecided to 気になる to 参加
   // fetched again. Reloading is what proves the write actually persisted
   // rather than only updating local component state.
   await viewer.goto(`/catalog/events/${eventId}?month=${FIXTURE_MONTH}`);
-  assert.equal(await renderedStatus(viewer, activeOccurrenceId), '気になる');
+  assert.equal(await readParticipationStatus(viewer, activeOccurrenceId), '気になる');
 
-  await chooseParticipation(viewer, activeOccurrenceId, '参加する');
+  await setParticipation(viewer, activeOccurrenceId, '参加する');
   await viewer.goto(`/catalog/events/${eventId}?month=${FIXTURE_MONTH}`);
-  assert.equal(await renderedStatus(viewer, activeOccurrenceId), '参加する');
+  assert.equal(await readParticipationStatus(viewer, activeOccurrenceId), '参加する');
 
   // My Calendar reads the same participation through an entirely separate
   // page/read path (listMyParticipations -> buildMyCalendarDayMarkers), so
@@ -261,20 +179,20 @@ void test('an effectively canceled occurrence offers no way to start attending',
     'expected the canceled occurrence to be labeled 中止',
   );
 
-  const sheetTitle = row.getByText('参加の状態', { exact: true });
+  const sheet = occurrenceSheet(viewer, canceledOccurrenceId, '参加の状態');
   await clickWhenInteractive(
-    row.getByRole('button', { name: '変更' }),
-    sheetTitle,
+    row.getByRole('button', { name: '変更', exact: true }),
+    sheet,
     'opening the participation sheet for the canceled occurrence',
   );
 
   assert.equal(
-    await row.getByRole('button', { name: '参加する', exact: true }).count(),
+    await sheet.getByRole('button', { name: '参加する', exact: true }).count(),
     0,
     'expected no 参加する choice on an effectively canceled occurrence',
   );
   assert.equal(
-    await row.getByRole('button', { name: '気になる', exact: true }).count(),
+    await sheet.getByRole('button', { name: '気になる', exact: true }).count(),
     0,
     'expected no 気になる choice on an effectively canceled occurrence',
   );
@@ -282,12 +200,12 @@ void test('an effectively canceled occurrence offers no way to start attending',
   // to withdraw either - the sheet must say so rather than presenting an
   // empty list of choices with no explanation.
   await assert.doesNotReject(
-    row
+    sheet
       .getByText('この公演は中止されているため、選択できる項目がありません。')
       .waitFor({ state: 'visible', timeout: 10_000 }),
   );
 
   // ...and nothing was written as a side effect of looking.
   await viewer.goto(`/catalog/events/${eventId}?month=${FIXTURE_MONTH}`);
-  assert.equal(await renderedStatus(viewer, canceledOccurrenceId), null);
+  assert.equal(await readParticipationStatus(viewer, canceledOccurrenceId), null);
 });
