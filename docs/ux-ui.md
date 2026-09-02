@@ -72,7 +72,7 @@ Catalog / Followed catalog / Personal scheduleの間をmobileで自然に移動
 できるIA（情報設計）とします。Design refresh（Issue #140）により、
 current PrimaryNavは画面に表示するlabelとして
 **ホーム / イベント / チケット / カレンダー** の4項目をmaterializeして
-います。これは design_handoff_stage_tracker/README.md「共通: bottom nav」
+います。これは `docs/design/handoff-v1/README.md`「共通: bottom nav」
 で確定したlabel setですが、Searchの独立tab化、Settings配置、future
 feature navまでをfreezeするものではありません（「本ドキュメントで固定
 しないもの」参照）。
