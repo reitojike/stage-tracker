@@ -115,6 +115,8 @@
 .pairedFields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* The prior Android check still clipped about one minute character; give
+     each column a little more usable width while retaining separation. */
   gap: var(--space-xs);
 }
 
