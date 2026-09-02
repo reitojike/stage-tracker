@@ -9,14 +9,16 @@
  */
 .headingRow {
   composes: heading from '../../mypage/_components/sectionHeading.module.css';
-  display: flex;
+  composes: row from '../../../ui/row.module.css';
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
+}
+
+.main {
+  composes: main from '../../../ui/row.module.css';
 }
 
 .pendingCount {
-  flex-shrink: 0;
+  composes: aside from '../../../ui/row.module.css';
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-weight-regular);
   color: var(--color-text-secondary);

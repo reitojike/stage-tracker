@@ -27,12 +27,14 @@
 }
 
 .item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
 }
 
 .itemLabel {
+  composes: main from '../../../ui/row.module.css';
   overflow-wrap: anywhere;
+}
+
+.aside {
+  composes: aside from '../../../ui/row.module.css';
 }

@@ -29,9 +29,7 @@
 }
 
 .itemLink {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
   padding: var(--space-card-block) 0;
   text-decoration: none;
   color: inherit;
@@ -49,15 +47,14 @@
 }
 
 .itemBody {
+  composes: main from '../../../ui/row.module.css';
   display: flex;
-  flex: 1;
   flex-direction: column;
   gap: var(--space-xs);
-  min-width: 0;
 }
 
 .chevron {
-  flex-shrink: 0;
+  composes: aside from '../../../ui/row.module.css';
   color: var(--color-icon-affordance);
 }
 

@@ -3,6 +3,7 @@ import styles from './PageHeading.module.css';
 
 export interface PageHeadingProps {
   children: ReactNode;
+  className?: string;
 }
 
 /**
@@ -13,6 +14,6 @@ export interface PageHeadingProps {
  * as unfinished. Heading hierarchy stays restrained per docs/ux-ui.md
  * "Typography": one step above body text, not a display size.
  */
-export function PageHeading({ children }: PageHeadingProps) {
-  return <h1 className={styles.heading}>{children}</h1>;
+export function PageHeading({ children, className }: PageHeadingProps) {
+  return <h1 className={[styles.heading, className].filter(Boolean).join(' ')}>{children}</h1>;
 }

@@ -168,6 +168,7 @@ export default async function EditEventPage({ params, searchParams }: EditEventP
                   <span className={styles.occurrenceDetail}>{detail}</span>
                 </div>
                 <OccurrenceUpdateForm
+                  className={styles.occurrenceAction}
                   eventId={event.id}
                   occurrenceId={occurrence.id}
                   label={label}

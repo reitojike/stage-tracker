@@ -40,7 +40,7 @@ export function EventWriteSection({
             .filter(Boolean)
             .join(' ')}
         >
-          <h2>
+          <h2 className={styles.sectionHeadingTitle}>
             {heading}
             {requirement !== undefined ? (
               <RequirementIndicator required={requirement === 'required'} />

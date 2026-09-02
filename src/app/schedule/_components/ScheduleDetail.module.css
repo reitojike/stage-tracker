@@ -12,27 +12,27 @@
   padding-top: var(--space-card-block);
 }
 
-.badges,
-.titleRow,
-.sectionHeadingRow {
+.badges {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--space-sm);
+  flex-wrap: wrap;
 }
 
 .titleRow {
+  composes: row from '../../../ui/row.module.css';
+  align-items: center;
   border-bottom: 2px solid var(--color-text);
   padding-bottom: var(--space-card-block);
 }
 
-.badges {
-  justify-content: flex-start;
-  flex-wrap: wrap;
+.sectionHeadingRow {
+  composes: row from '../../../ui/row.module.css';
 }
 
 .title {
-  min-width: 0;
+  composes: main from '../../../ui/row.module.css';
   margin: 0;
   font-size: var(--font-size-heading);
   font-weight: var(--font-weight-semibold);
@@ -75,6 +75,7 @@
  * EventWriteForm.module.css already uses for its sections.
  */
 .sectionHeading {
+  composes: main from '../../../ui/row.module.css';
   margin: 0;
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
@@ -97,19 +98,16 @@
 }
 
 .recipientRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  composes: row from '../../../ui/row.module.css';
   gap: var(--space-md);
   min-width: 0;
 }
 
 .recipientIdentity {
+  composes: main from '../../../ui/row.module.css';
   display: flex;
-  flex: 1;
   align-items: baseline;
   gap: var(--space-sm);
-  min-width: 0;
   flex-wrap: wrap;
 }
 
@@ -128,7 +126,15 @@
 }
 
 .removeForm {
-  flex-shrink: 0;
+  composes: aside from '../../../ui/row.module.css';
+}
+
+.titleAction {
+  composes: aside from '../../../ui/row.module.css';
+}
+
+.sectionAction {
+  composes: aside from '../../../ui/row.module.css';
 }
 
 .dangerSection {

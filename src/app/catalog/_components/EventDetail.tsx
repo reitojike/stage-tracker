@@ -66,7 +66,7 @@ export function EventDetail({
     <article className={styles.detail}>
       <FocusedOccurrenceScroll occurrenceId={focusedOccurrenceId} />
       <div className={styles.titleRow}>
-        <PageHeading>{event.title}</PageHeading>
+        <PageHeading className={styles.main}>{event.title}</PageHeading>
         {editHref !== null ? (
           <Link href={editHref} className={styles.editLink}>
             編集
@@ -112,7 +112,7 @@ export function EventDetail({
 
       <div>
         <h2 className={styles.occurrenceHeading}>
-          <span>公演回</span>
+          <span className={styles.main}>公演回</span>
           <span className={styles.occurrenceCount}>{occurrences.length}件</span>
         </h2>
         <ul className={styles.occurrenceList}>

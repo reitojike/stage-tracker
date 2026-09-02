@@ -244,13 +244,21 @@ visible fillのruleは絶対値ではなく **強調の順序** です
   変更controlのみです。理由は「行全体がlinkなので、押せる場所がどこかを
   示す必要がある」ことであり、quietだからではありません。この例外は
   呼び出し側のclassにscopeし、`Button` の共有defaultを戻しません。
+- **可変text/content + trailing action/metadataのrow** — 同じmain/aside
+  patternを持つ `space-between` rowは、CSS-onlyの
+  `src/ui/row.module.css`をcomposeします。`row` は横方向・中央揃え・
+  `space-between`・`--space-sm` gap、可変側の`main`は
+  `flex: 1 1 auto; min-width: 0`、trailing側の`aside`は
+  `flex: 0 0 auto`を持ちます。既存surfaceのbaseline/flex-start/gap等の
+  visual exceptionはscreen-localで維持します。これはすべての
+  `justify-content: space-between` rowにshared primitiveを強制する
+  global ruleではなく、可変text/content + trailing action/metadataの
+  main/aside patternだけが対象です。
 - **Buttonのlabelは折り返しません。** 縮む文字と縮まないButtonが同居する
-  `space-between` の行では、文字側に `min-width: 0`、Button側に
-  `flex-shrink: 0` と `white-space: nowrap` を置きます。現状この宣言は
-  各screenの `*.module.css` に個別に書かれています
-  （[Issue #270](https://github.com/reitojike/stage-tracker/issues/270) /
-  [#271](https://github.com/reitojike/stage-tracker/issues/271) が共通化
-  対象）。
+  `space-between` の行では、上記rowの`main` / `aside`でflex sizingを
+  共通化し、labelの`white-space: nowrap`はshared `Button` defaultで
+  保証します（[Issue #270](https://github.com/reitojike/stage-tracker/issues/270) /
+  [#271](https://github.com/reitojike/stage-tracker/issues/271)）。
 - `input` / `textarea` も、入力対象として同じ44pxのtap targetを満たします。
 
 ## Form field vocabulary

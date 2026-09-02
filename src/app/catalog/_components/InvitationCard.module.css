@@ -62,10 +62,7 @@
    confirm() dialog and not a new persisted state: this is a purely visual,
    client-local substitution while the actual decline call is delayed. */
 .undoRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
   min-height: 44px;
   padding-inline: var(--space-md);
   border-radius: var(--radius-control-sm);
@@ -74,8 +71,13 @@
   font-size: var(--font-size-body-sm);
 }
 
+.undoText {
+  composes: main from '../../../ui/row.module.css';
+}
+
 .undoButton {
   composes: expand44 from '../../../ui/tapTarget.module.css';
+  composes: aside from '../../../ui/row.module.css';
   border: none;
   background: none;
   padding: 0;

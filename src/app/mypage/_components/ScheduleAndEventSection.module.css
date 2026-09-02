@@ -36,8 +36,7 @@
    titles, and the design handoff's 12f mock renders them at regular
    weight. */
 .label {
-  flex: 1;
-  min-width: 0;
+  composes: main from '../../../ui/row.module.css';
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-regular);
   color: var(--color-text);
@@ -51,6 +50,7 @@
    immediately before the chevron, hidden entirely (not just its number)
    when the count is zero - the 招待一覧 row itself is always shown. */
 .countBadge {
+  composes: aside from '../../../ui/row.module.css';
   display: inline-flex;
   align-items: center;
   justify-content: center;

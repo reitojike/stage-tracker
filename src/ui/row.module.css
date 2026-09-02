@@ -1,0 +1,21 @@
+/*
+ * Shared contract for a horizontal row with variable text/content and a
+ * trailing action or metadata slot. This is intentionally narrower than a
+ * rule for every `space-between` layout: calendar controls and other
+ * independent flex layouts keep their own contracts.
+ */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.aside {
+  flex: 0 0 auto;
+}

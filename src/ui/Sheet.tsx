@@ -95,6 +95,7 @@ export function Sheet({
             <Button
               type="button"
               variant="quiet"
+              className={styles.close}
               onClick={() => {
                 dialogRef.current?.close();
               }}

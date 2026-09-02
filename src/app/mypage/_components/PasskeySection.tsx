@@ -23,7 +23,11 @@ function PasskeyListView({ passkeys }: { passkeys: PasskeyListItem[] }) {
         return (
           <li key={passkey.id} className={styles.item}>
             <span className={styles.itemLabel}>{label}</span>
-            <DeletePasskeyForm passkeyId={passkey.id} passkeyLabel={label} />
+            <DeletePasskeyForm
+              passkeyId={passkey.id}
+              passkeyLabel={label}
+              className={styles.aside}
+            />
           </li>
         );
       })}

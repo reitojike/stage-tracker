@@ -6,10 +6,12 @@
  * vertically centered inside that extra height.
  */
 .headingRow {
-  display: flex;
+  composes: row from '../../../ui/row.module.css';
   align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-sm);
+}
+
+.main {
+  composes: main from '../../../ui/row.module.css';
 }
 
 /*
@@ -19,9 +21,9 @@
  * `.bellIcon` wrapper around its unread dot.
  */
 .filterButtonWrap {
+  composes: aside from '../../../ui/row.module.css';
   position: relative;
   display: inline-flex;
-  flex-shrink: 0;
 }
 
 /*
@@ -66,15 +68,13 @@
  * empty row.
  */
 .summaryRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
   min-height: 44px;
   border-block: 1px solid var(--color-border);
 }
 
 .summaryText {
+  composes: main from '../../../ui/row.module.css';
   margin: 0;
   font-size: var(--font-size-body-sm);
   color: var(--color-text);
@@ -94,7 +94,7 @@
  */
 .summaryClear {
   composes: expand44 from '../../../ui/tapTarget.module.css';
-  flex-shrink: 0;
+  composes: aside from '../../../ui/row.module.css';
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -26,10 +26,7 @@
    target directly (not via Button's expand44 composition - these are plain
    full-width rows, not the button vocabulary). */
 .choice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
   width: 100%;
   min-height: 44px;
   padding: var(--space-sm) var(--space-xs);
@@ -57,10 +54,11 @@
 }
 
 .choiceLabel {
-  flex: 1;
+  composes: main from '../../../ui/row.module.css';
 }
 
 .selectedTag {
+  composes: aside from '../../../ui/row.module.css';
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
 }
