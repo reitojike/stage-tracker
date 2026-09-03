@@ -58,12 +58,16 @@ export function EventDetailsEditForm({ eventId, initialValues }: EventDetailsEdi
       </div>
 
       <div className={styles.groupSubmit}>
-        <Button type="submit" disabled={isPending}>
+        <Button
+          type="submit"
+          disabled={isPending}
+          aria-label={isPending ? 'イベント情報を保存中…' : 'イベント情報を保存'}
+        >
           <span className={styles.stablePendingLabel}>
             <span aria-hidden="true" className={styles.stablePendingSizing}>
-              イベント情報を保存
+              保存中…
             </span>
-            <span>{isPending ? '保存中…' : 'イベント情報を保存'}</span>
+            <span>{isPending ? '保存中…' : '保存'}</span>
           </span>
         </Button>
       </div>

@@ -48,11 +48,12 @@ export function DeleteOccurrenceForm({
           type="button"
           variant="danger"
           disabled={isPending}
+          aria-label="この公演回を削除"
           onClick={() => {
             setOpen(true);
           }}
         >
-          この公演回を削除
+          削除する
         </Button>
       </form>
       <Sheet

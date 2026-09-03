@@ -12,9 +12,40 @@ void test('event edit keeps its save action inside the event-information group',
 
   assert.doesNotMatch(editForm, /styles\.fixedForm|styles\.fixedSubmit/);
   assert.match(editForm, /className=\{styles\.groupSubmit\}/);
-  assert.match(editForm, /イベント情報を保存/);
+  assert.match(
+    editForm,
+    /aria-label=\{isPending \? 'イベント情報を保存中…' : 'イベント情報を保存'\}/,
+  );
+  assert.match(editForm, /<span>\{isPending \? '保存中…' : '保存'\}<\/span>/);
   assert.match(createForm, /styles\.fixedForm/);
   assert.match(createForm, /styles\.fixedSubmit/);
+});
+
+void test('contextual write labels stay short while accessible names retain their target', () => {
+  const eventCancellation = read('src/app/catalog/_components/EventCancellationForm.tsx');
+  const occurrenceCancellation = read('src/app/catalog/_components/OccurrenceCancellationForm.tsx');
+  const deleteEvent = read('src/app/catalog/_components/DeleteEventForm.tsx');
+  const deleteOccurrence = read('src/app/catalog/_components/DeleteOccurrenceForm.tsx');
+  const occurrenceUpdate = read('src/app/catalog/_components/OccurrenceUpdateForm.tsx');
+  const eventRange = read('src/app/catalog/_components/EventRangeEditForm.tsx');
+  const occurrenceAdd = read('src/app/catalog/_components/OccurrenceAddForm.tsx');
+  const shareAdd = read('src/app/schedule/_components/ShareAddSheet.tsx');
+
+  assert.match(eventCancellation, /'中止する'/);
+  assert.match(eventCancellation, /'中止を解除'/);
+  assert.match(eventCancellation, /中止を解除\s*<\/span>/);
+  assert.match(eventCancellation, /'このイベントを中止'/);
+  assert.match(occurrenceCancellation, /'中止する'/);
+  assert.match(occurrenceCancellation, /'中止を解除'/);
+  assert.match(occurrenceCancellation, /'この公演回を中止'/);
+  assert.match(deleteEvent, /削除する/);
+  assert.match(deleteEvent, /aria-label="このイベントを削除"/);
+  assert.match(deleteOccurrence, /削除する/);
+  assert.match(deleteOccurrence, /aria-label="この公演回を削除"/);
+  assert.match(occurrenceUpdate, /<span>\{isPending \? '保存中…' : '保存'\}<\/span>/);
+  assert.match(eventRange, /<span>\{isPending \? '保存中…' : '保存'\}<\/span>/);
+  assert.match(occurrenceAdd, /<span>\{isPending \? '追加中…' : '追加'\}<\/span>/);
+  assert.match(shareAdd, /<span>\{isPending \? '追加中…' : '追加'\}<\/span>/);
 });
 
 void test('event edit puts a canceled badge beside a wrapping datetime', () => {

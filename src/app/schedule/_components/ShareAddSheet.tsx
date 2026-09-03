@@ -53,12 +53,17 @@ export function ShareAddSheet({ entryId, className }: ShareAddSheetProps) {
         bodyClassName={styles.body}
         footer={
           <div className={styles.footer}>
-            <Button type="submit" form={formId} disabled={isPending}>
+            <Button
+              type="submit"
+              form={formId}
+              disabled={isPending}
+              aria-label={isPending ? '共有相手を追加中…' : '共有相手を追加'}
+            >
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
-                  共有相手を追加
+                  追加中…
                 </span>
-                <span>{isPending ? '追加中…' : '共有相手を追加'}</span>
+                <span>{isPending ? '追加中…' : '追加'}</span>
               </span>
             </Button>
           </div>

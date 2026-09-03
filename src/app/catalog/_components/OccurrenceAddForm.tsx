@@ -49,12 +49,17 @@ export function OccurrenceAddForm({ eventId }: OccurrenceAddFormProps) {
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button type="submit" form="occurrence-add" disabled={isPending}>
+            <Button
+              type="submit"
+              form="occurrence-add"
+              disabled={isPending}
+              aria-label={isPending ? '公演回を追加中…' : '公演回を追加'}
+            >
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
-                  公演回を追加
+                  追加中…
                 </span>
-                <span>{isPending ? '追加中…' : '公演回を追加'}</span>
+                <span>{isPending ? '追加中…' : '追加'}</span>
               </span>
             </Button>
           </div>

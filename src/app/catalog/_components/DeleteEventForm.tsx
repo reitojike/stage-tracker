@@ -51,11 +51,12 @@ export function DeleteEventForm({ eventId }: DeleteEventFormProps) {
           type="button"
           variant="danger"
           disabled={isPending}
+          aria-label="このイベントを削除"
           onClick={() => {
             setOpen(true);
           }}
         >
-          このイベントを削除
+          削除する
         </Button>
       </form>
       <Sheet

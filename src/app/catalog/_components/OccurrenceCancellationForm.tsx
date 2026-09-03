@@ -45,10 +45,23 @@ export function OccurrenceCancellationForm({
       <input type="hidden" name="eventId" value={eventId} />
       <input type="hidden" name="occurrenceId" value={occurrenceId} />
 
-      <Button type="submit" variant="secondary" disabled={isPending}>
+      <Button
+        type="submit"
+        variant="secondary"
+        disabled={isPending}
+        aria-label={
+          isPending
+            ? isCanceled
+              ? 'この公演回の中止を解除中…'
+              : 'この公演回を中止中…'
+            : isCanceled
+              ? 'この公演回の中止を解除'
+              : 'この公演回を中止'
+        }
+      >
         <span className={styles.stablePendingLabel}>
           <span aria-hidden="true" className={styles.stablePendingSizing}>
-            この公演回の中止を解除
+            中止を解除
           </span>
           <span>
             {isPending
@@ -56,8 +69,8 @@ export function OccurrenceCancellationForm({
                 ? '解除中…'
                 : '中止中…'
               : isCanceled
-                ? 'この公演回の中止を解除'
-                : 'この公演回を中止'}
+                ? '中止を解除'
+                : '中止する'}
           </span>
         </span>
       </Button>

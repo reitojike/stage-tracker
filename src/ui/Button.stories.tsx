@@ -34,5 +34,5 @@ export const Icon: Story = {
 };
 
 export const Danger: Story = {
-  args: { variant: 'danger', children: 'このイベントを削除' },
+  args: { variant: 'danger', children: '削除する', 'aria-label': 'このイベントを削除' },
 };
