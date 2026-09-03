@@ -147,15 +147,14 @@
 /* Marks the exact occurrence a selected-day row was chosen for (Issue
    #107), scrolled/focused into view by FocusedOccurrenceScroll - the ring
    plus badge give sighted users the same "this one" identification that
-   aria-current + programmatic focus give assistive technology. Issue #240:
-   the negative-margin "expand into the surrounding Surface padding" trick
-   is dropped along with that Surface wrapper - inset padding alone keeps
-   the ring inside the row's own bounds instead of bleeding into the page's
-   content-column padding now that there is no Surface padding to absorb
-   it. */
+   aria-current + programmatic focus give assistive technology. Inset
+   padding keeps the ring inside the row's own bounds instead of bleeding
+   into the page's content-column padding. Radius uses the same
+   --radius-control-sm row step as other "行" shapes (docs/ux-ui.md 角丸,
+   Issue #283) rather than the removed --radius-surface. */
 .occurrenceFocused {
   box-shadow: inset 0 0 0 1.5px var(--color-accent);
-  border-radius: var(--radius-surface);
+  border-radius: var(--radius-control-sm);
   padding: var(--space-sm);
 }
 

@@ -76,19 +76,14 @@
    * --radius-control/--radius-control-sm onto --radius-scale-sheet (4px)
    * instead, so these two are no longer referenced by the semantic layer.
    * Left defined rather than removed - this Task's scope is the semantic
-   * radius vocabulary, not primitive-scale cleanup.
-   * `--radius-scale-container` (12px) is a V2 refined "surface polish"
-   * (#96 -> #102) off-grid exception - the frozen white-container corner
-   * radius (distinct from the smaller `md` control radius it replaces on
-   * containers). Design Wave 2 (Issue #190) removed the former
-   * `--radius-scale-band` (5px) primitive - the calendar Event-range band
-   * now points `--radius-band` (below) directly at the shared 2px badge
-   * step instead of a dedicated step.
+   * radius vocabulary, not primitive-scale cleanup. Design Wave 2 (Issue
+   * #190) removed the former `--radius-scale-band` (5px) primitive - the
+   * calendar Event-range band now points `--radius-band` (below) directly
+   * at the shared 2px badge step instead of a dedicated step.
    */
   --radius-scale-xs: 8px;
   --radius-scale-sm: 6px;
   --radius-scale-md: 10px;
-  --radius-scale-container: 12px;
   --radius-scale-lg: 16px;
   --radius-scale-full: 999px;
   /* Design refresh (Issue #137, 藍と墨): badge/sheet corner radii for the
@@ -258,13 +253,6 @@
      --radius-control above (Issue #185); the two are no longer distinct
      steps. */
   --radius-control-sm: var(--radius-scale-sheet);
-  /* Borderless white container radius (#96 -> #102: Surface / EventDetail /
-     InvitationCard). Design Wave 2
-     (Issue #190) removed the calendar card's and CalendarSkeleton's own use
-     of this token along with their white background - the remaining
-     consumers above are unrelated broad white cards this Task's scope does
-     not cover (see Issue #190 report). */
-  --radius-surface: var(--radius-scale-container);
   /* Calendar Event-range band's radius (#96 -> #102). Design Wave 2 (Issue
      #190) converged this onto the shared 2px badge step below rather than
      keeping its own dedicated primitive, so the band reads as one radius
