@@ -38,6 +38,7 @@ export function InviteSheet({
     inviteToOccurrenceAction,
     INITIAL_OPERATION_STATE,
   );
+  const formId = `invite-${occurrenceId}`;
 
   // A successful submission (notice set, no feedback) closes the sheet -
   // the addendum shows one execution button per sheet, not a persistent
@@ -57,14 +58,37 @@ export function InviteSheet({
   }, [state.attempt, state.notice, onOpenChange]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="招待する">
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="招待する"
+      showCloseButton={false}
+      footer={
+        <div className={styles.footer}>
+          <Button
+            type="submit"
+            form={formId}
+            variant="primary"
+            disabled={isPending}
+            aria-label={isPending ? '招待を送信中…' : '招待する'}
+          >
+            <span className={styles.stablePendingLabel}>
+              <span aria-hidden="true" className={styles.stablePendingSizing}>
+                招待する
+              </span>
+              <span>{isPending ? '送信中…' : '招待する'}</span>
+            </span>
+          </Button>
+        </div>
+      }
+    >
       <WriteNotice notice={state.notice} attempt={state.attempt} />
       <p className={styles.occurrenceTime}>
         {tokyoDateLabel(occurrence.startsAt)}{' '}
         {occurrenceTimeRangeLabel(occurrence.startsAt, occurrence.endsAt)}
       </p>
 
-      <form action={formAction} className={styles.form} aria-busy={isPending}>
+      <form id={formId} action={formAction} className={styles.form} aria-busy={isPending}>
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="occurrenceId" value={occurrenceId} />
 
@@ -88,17 +112,6 @@ export function InviteSheet({
           error={state.fieldError ?? undefined}
           helperText="Stage Trackerに登録済みのメールアドレスを入力してください。"
         />
-
-        <div className={styles.actions}>
-          <Button type="submit" variant="primary" disabled={isPending}>
-            <span className={styles.stablePendingLabel}>
-              <span aria-hidden="true" className={styles.stablePendingSizing}>
-                招待する
-              </span>
-              <span>{isPending ? '送信中…' : '招待する'}</span>
-            </span>
-          </Button>
-        </div>
       </form>
     </Sheet>
   );

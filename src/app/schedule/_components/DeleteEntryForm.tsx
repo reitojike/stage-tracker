@@ -62,7 +62,7 @@ export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
       <Sheet
         open={open}
         onOpenChange={setOpen}
-        title="削除"
+        title="この予定を削除"
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
