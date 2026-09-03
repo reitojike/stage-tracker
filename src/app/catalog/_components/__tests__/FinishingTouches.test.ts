@@ -30,14 +30,17 @@ void test('contextual write labels stay short while accessible names retain thei
   const eventRange = read('src/app/catalog/_components/EventRangeEditForm.tsx');
   const occurrenceAdd = read('src/app/catalog/_components/OccurrenceAddForm.tsx');
   const shareAdd = read('src/app/schedule/_components/ShareAddSheet.tsx');
+  const signIn = read('src/app/sign-in/page.tsx');
 
   assert.match(eventCancellation, /'中止する'/);
   assert.match(eventCancellation, /'中止を解除'/);
   assert.match(eventCancellation, /中止を解除\s*<\/span>/);
   assert.match(eventCancellation, /'このイベントを中止'/);
+  assert.match(eventCancellation, /'このイベントの中止を解除'/);
   assert.match(occurrenceCancellation, /'中止する'/);
   assert.match(occurrenceCancellation, /'中止を解除'/);
   assert.match(occurrenceCancellation, /'この公演回を中止'/);
+  assert.match(occurrenceCancellation, /'この公演回の中止を解除'/);
   assert.match(deleteEvent, /削除する/);
   assert.match(deleteEvent, /aria-label="このイベントを削除"/);
   assert.match(deleteOccurrence, /削除する/);
@@ -46,6 +49,7 @@ void test('contextual write labels stay short while accessible names retain thei
   assert.match(eventRange, /<span>\{isPending \? '保存中…' : '保存'\}<\/span>/);
   assert.match(occurrenceAdd, /<span>\{isPending \? '追加中…' : '追加'\}<\/span>/);
   assert.match(shareAdd, /<span>\{isPending \? '追加中…' : '追加'\}<\/span>/);
+  assert.match(signIn, /<Button[\s\S]*>\s*リンクをリクエスト\s*<\/Button>/);
 });
 
 void test('event edit puts a canceled badge beside a wrapping datetime', () => {
