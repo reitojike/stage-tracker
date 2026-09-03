@@ -1,6 +1,0 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from './database.types.ts';
-
-export function createSupabaseClient(url: string, key: string): SupabaseClient<Database> {
-  return createClient<Database>(url, key);
-}

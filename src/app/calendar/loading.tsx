@@ -8,11 +8,10 @@ import { PageHeading } from '@/ui/PageHeading';
  * the layout while pending, only to have it reflow back in - shifting the
  * calendar down - once the real page commits.
  *
- * Issue #196: page.tsx no longer renders an ActionRow here (the "個人予定を
- * 管理" action moved to My Page - #193), so this skeleton no longer
- * restates one either - keeping it would show a control that vanishes the
- * moment the real page commits, the same layout-shift this file exists to
- * avoid.
+ * page.tsx renders no action row here (the "個人予定を管理" action lives on
+ * My Page instead - #193), so this skeleton has nothing else to restate -
+ * showing one here would be a control that vanishes the moment the real
+ * page commits, the same layout-shift this file exists to avoid.
  */
 export default function MyCalendarLoading() {
   return (

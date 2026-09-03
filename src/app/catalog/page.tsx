@@ -40,11 +40,10 @@ const isEmptyCatalog = (data: EventWithOccurrences[]) => data.length === 0;
  * browser-local persistence, so this server component cannot pre-filter its
  * own read).
  *
- * Issue #195: the "+ 追加" / "招待一覧" ActionRow this screen used to render
- * between the heading and the body is removed - Issue #193's My Page
- * "予定とイベント" section is now the reachable destination for both (creator
- * gating and the invitation route themselves are untouched, only this
- * screen's own duplicate entry point is gone).
+ * This screen renders no "+ 追加" / "招待一覧" action row of its own - My
+ * Page's "予定とイベント" section (Issue #193) is the reachable destination
+ * for both (creator gating and the invitation route themselves are
+ * untouched, only this screen's own duplicate entry point is gone).
  */
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const rawParams = await searchParams;
