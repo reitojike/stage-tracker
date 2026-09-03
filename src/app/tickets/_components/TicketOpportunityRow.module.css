@@ -1,8 +1,6 @@
 .row {
+  composes: row from '../../../ui/row.module.css';
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
   padding: var(--space-sm) 0;
 }
 
@@ -44,7 +42,7 @@
 }
 
 .dateColumn {
-  flex-shrink: 0;
+  composes: aside from '../../../ui/row.module.css';
   /* Issue #189: widened from 6.5em so the full-width weekday parentheses
      ("8月30日（日）") never clip - the design handoff's own 7.1em basis. */
   width: 7.1em;
@@ -91,8 +89,7 @@
    Only .actions below needs its own stacking position, to outrank
    .rowLink specifically. */
 .body {
-  flex: 1;
-  min-width: 0;
+  composes: main from '../../../ui/row.module.css';
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
@@ -150,7 +147,7 @@
 }
 
 .chevron {
-  flex-shrink: 0;
+  composes: aside from '../../../ui/row.module.css';
   align-self: center;
   font-size: var(--font-size-title);
   color: var(--color-icon-affordance);

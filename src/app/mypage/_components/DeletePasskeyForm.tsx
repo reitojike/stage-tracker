@@ -8,6 +8,7 @@ import { deletePasskeyAction } from '../_actions/passkeyActions.ts';
 
 export interface DeletePasskeyFormProps {
   passkeyId: string;
+  className?: string;
   /** The same text PasskeySection renders next to this form
    * (passkeyDisplayLabel's output). Passed through so the delete button's
    * accessible name identifies which passkey it acts on - the visible
@@ -25,14 +26,14 @@ export interface DeletePasskeyFormProps {
  * DeleteEventForm (src/app/catalog/_components/DeleteEventForm.tsx) minus
  * the confirm() prompt - unlike deleting an event, revoking one credential
  * among possibly several is low-stakes and reversible by registering again. */
-export function DeletePasskeyForm({ passkeyId, passkeyLabel }: DeletePasskeyFormProps) {
+export function DeletePasskeyForm({ passkeyId, passkeyLabel, className }: DeletePasskeyFormProps) {
   const [state, formAction, isPending] = useActionState(
     deletePasskeyAction,
     INITIAL_PASSKEY_DELETE_FORM_STATE,
   );
 
   return (
-    <form action={formAction} aria-busy={isPending}>
+    <form action={formAction} className={className} aria-busy={isPending}>
       <input type="hidden" name="passkeyId" value={passkeyId} />
 
       {state.feedback ? (

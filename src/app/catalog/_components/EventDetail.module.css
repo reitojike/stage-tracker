@@ -14,10 +14,12 @@
  */
 .titleRow {
   composes: heading from '../../mypage/_components/sectionHeading.module.css';
-  display: flex;
+  composes: row from '../../../ui/row.module.css';
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
+}
+
+.main {
+  composes: main from '../../../ui/row.module.css';
 }
 
 /*
@@ -29,9 +31,9 @@
  */
 .editLink {
   composes: expand44 from '../../../ui/tapTarget.module.css';
+  composes: aside from '../../../ui/row.module.css';
   display: inline-flex;
   align-items: center;
-  flex-shrink: 0;
   padding-inline: var(--space-sm);
   margin-inline-end: calc(var(--space-sm) * -1);
   border-radius: var(--radius-control-sm);
@@ -82,14 +84,12 @@
  */
 .occurrenceHeading {
   composes: heading from '../../mypage/_components/sectionHeading.module.css';
-  display: flex;
+  composes: row from '../../../ui/row.module.css';
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
 }
 
 .occurrenceCount {
-  flex-shrink: 0;
+  composes: aside from '../../../ui/row.module.css';
   font-size: var(--font-size-body-sm);
   font-weight: var(--font-weight-regular);
   color: var(--color-text-secondary);

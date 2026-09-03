@@ -1,11 +1,9 @@
 .row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
 }
 
 .statusText {
+  composes: main from '../../../ui/row.module.css';
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
 }
@@ -13,6 +11,7 @@
 /* At most two quiet actions per row (Issue #230 addendum: 変更, and 招待
    only while attending on a non-canceled occurrence). */
 .actions {
+  composes: aside from '../../../ui/row.module.css';
   display: flex;
   gap: var(--space-xs);
 }

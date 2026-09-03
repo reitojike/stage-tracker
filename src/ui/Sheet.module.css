@@ -58,18 +58,20 @@
 }
 
 .header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from './row.module.css';
   padding: var(--space-md);
   border-bottom: 1px solid var(--color-border);
 }
 
 .title {
+  composes: main from './row.module.css';
   margin: 0;
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-semibold);
+}
+
+.close {
+  composes: aside from './row.module.css';
 }
 
 .body {

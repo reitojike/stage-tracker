@@ -73,13 +73,15 @@
 }
 
 .deadline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  composes: row from '../../../ui/row.module.css';
   gap: var(--space-2xs);
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
   margin: 0;
+}
+
+.deadlineText {
+  composes: main from '../../../ui/row.module.css';
 }
 
 /* Issue #194 Task Contract: 15px - only shown when the source milestone

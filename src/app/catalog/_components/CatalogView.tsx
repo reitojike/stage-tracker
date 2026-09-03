@@ -174,7 +174,7 @@ export function CatalogView({
           read by application code itself. */}
       <span aria-hidden="true" hidden data-catalog-ready={readyToRenderBody ? 'true' : 'false'} />
       <div className={styles.headingRow}>
-        <PageHeading>イベント</PageHeading>
+        <PageHeading className={styles.main}>イベント</PageHeading>
         <span className={styles.filterButtonWrap}>
           <Button
             variant="icon"

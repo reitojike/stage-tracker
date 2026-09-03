@@ -128,7 +128,7 @@ export default async function ScheduleEntryPage({ params, searchParams }: Schedu
             <div className={styles.titleRow}>
               <h1 className={styles.title}>{entry.title}</h1>
               {callerResult.ok && isOwner ? (
-                <LinkButton href={editHref} variant="quiet">
+                <LinkButton href={editHref} variant="quiet" className={styles.titleAction}>
                   編集
                 </LinkButton>
               ) : null}
@@ -171,7 +171,7 @@ export default async function ScheduleEntryPage({ params, searchParams }: Schedu
             <section className={styles.shareSection}>
               <div className={styles.sectionHeadingRow}>
                 <h2 className={styles.sectionHeading}>共有</h2>
-                <ShareAddSheet entryId={entry.id} />
+                <ShareAddSheet entryId={entry.id} className={styles.sectionAction} />
               </div>
 
               {recipientsState === 'error' ? (

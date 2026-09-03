@@ -35,10 +35,7 @@
 }
 
 .sectionHeading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
 }
 
 .writeSection:not(.subtleSection) .sectionHeading {
@@ -50,7 +47,8 @@
   border-top: 2px solid var(--color-text);
 }
 
-.sectionHeading h2 {
+.sectionHeadingTitle {
+  composes: main from '../../../ui/row.module.css';
   margin: 0;
   font-size: var(--font-size-heading);
   font-weight: var(--font-weight-semibold);
@@ -58,7 +56,7 @@
 }
 
 .sectionAction {
-  flex: 0 0 auto;
+  composes: aside from '../../../ui/row.module.css';
 }
 
 .sectionDescription {
@@ -79,7 +77,7 @@
   background-color: var(--color-surface-subtle);
 }
 
-.subtleSection .sectionHeading h2 {
+.subtleSection .sectionHeadingTitle {
   font-size: var(--font-size-title);
 }
 
@@ -173,21 +171,21 @@
 }
 
 .occurrenceRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  composes: row from '../../../ui/row.module.css';
   padding-block: var(--space-compact);
   border-bottom: 1px solid var(--color-border);
 }
 
 .occurrenceSummary {
+  composes: main from '../../../ui/row.module.css';
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-xs);
-  min-width: 0;
+}
+
+.occurrenceAction {
+  composes: aside from '../../../ui/row.module.css';
 }
 
 .occurrenceDateTimeRow {

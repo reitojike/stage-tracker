@@ -17,6 +17,7 @@ import { WriteNotice } from '@/ui/WriteNotice';
 import styles from './EventWriteForm.module.css';
 
 export interface OccurrenceUpdateFormProps {
+  className?: string;
   eventId: string;
   occurrenceId: string;
   label: string;
@@ -30,6 +31,7 @@ export interface OccurrenceUpdateFormProps {
  * lifecycle forms remain separate, preserving their distinct server actions
  * and confirmation semantics without nesting forms. */
 export function OccurrenceUpdateForm({
+  className,
   eventId,
   occurrenceId,
   label,
@@ -64,6 +66,7 @@ export function OccurrenceUpdateForm({
       <Button
         type="button"
         variant="quiet"
+        className={className}
         onClick={() => {
           setOpen(true);
         }}

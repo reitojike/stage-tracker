@@ -92,7 +92,7 @@ export function HomeDeadlineList({ rows, todayTokyoDate }: HomeDeadlineListProps
               <p className={styles.eventTitle}>{row.eventTitle}</p>
               <p className={styles.opportunityName}>{row.opportunityDisplayName}</p>
               <p className={styles.deadline}>
-                <span>
+                <span className={styles.deadlineText}>
                   {display.dateLabel}
                   {display.timeLabel !== null ? ` ${display.timeLabel}` : ''}
                 </span>

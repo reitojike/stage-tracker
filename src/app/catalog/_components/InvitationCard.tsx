@@ -229,7 +229,7 @@ export function InvitationCard({
     return (
       <div className={styles.card}>
         <div className={styles.undoRow}>
-          <span>参加しないにしました</span>
+          <span className={styles.undoText}>参加しないにしました</span>
           <button type="button" className={styles.undoButton} onClick={handleUndoDecline}>
             取り消す
           </button>

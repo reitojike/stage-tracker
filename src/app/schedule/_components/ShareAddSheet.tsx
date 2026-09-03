@@ -10,13 +10,14 @@ import styles from './ShareAddSheet.module.css';
 
 export interface ShareAddSheetProps {
   entryId: string;
+  className?: string;
 }
 
 /**
  * Keeps share state visible on the detail page while moving only the exact
  * email input workflow into the shared bottom-sheet vocabulary.
  */
-export function ShareAddSheet({ entryId }: ShareAddSheetProps) {
+export function ShareAddSheet({ entryId, className }: ShareAddSheetProps) {
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(
     addScheduleShareByEmailAction,
@@ -37,6 +38,7 @@ export function ShareAddSheet({ entryId }: ShareAddSheetProps) {
       <Button
         type="button"
         variant="quiet"
+        className={className}
         onClick={() => {
           setOpen(true);
         }}

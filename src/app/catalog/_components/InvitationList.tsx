@@ -91,7 +91,7 @@ export function InvitationList({ items }: InvitationListProps) {
   return (
     <>
       <div className={styles.headingRow}>
-        <PageHeading>招待一覧</PageHeading>
+        <PageHeading className={styles.main}>招待一覧</PageHeading>
         <span className={styles.pendingCount}>未回答 {pendingCount}件</span>
       </div>
 
