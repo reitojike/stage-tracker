@@ -305,9 +305,10 @@ domain semanticsの正本は引き続き
   が実値を持ちます。まだtoken化していません）。
 - headingは `--font-size-title` / `--font-weight-semibold` で、下に
   `--color-border` の細罫。
-- **footerを持つSheetは、headerに「閉じる」を出しません。footerを持たない
-  Sheetは出します。** footerがないSheetでは、「閉じる」が画面に見えている
-  唯一の離脱手段だからです。
+- **submit-basedなSheetは、submit actionをscroll可能なbodyの外側にあるfooterへ
+  置き、headerに「閉じる」を出しません。** `footer`を持たないimmediate-choice
+  のSheetは、選択せずに離脱できるよう「閉じる」を出します。footerがないSheet
+  では、「閉じる」が画面に見えている唯一の離脱手段だからです。
 - 覆いのtapとEscapeはどちらでも効きます。confirmation Sheetでは、この2つが
   「取り消し」に当たります。
 - 藍の塗り（`primary`）はSheet内の実行ボタン1つだけです。
@@ -362,7 +363,7 @@ domain semanticsの正本は引き続き
   の危険があるため）。event全体の中止・削除は編集画面の最下部のままです。
 - 確認は **元に戻せるかどうか** で2つに分けます。
   - **削除（元に戻せない3件：event / 公演回 / personal schedule entry）** —
-    自作の確認Sheet。`Sheet` を使い、titleはその操作名、bodyは確認文、
+    自作の確認Sheet。`Sheet` を使い、titleは対象を含む操作名、bodyは確認文、
     footerに `danger` の実行ボタンを置き、headerに「閉じる」は出しません。
     覆いのtapとEscapeが取り消しに当たります。
   - **中止・解除（元に戻せる2件）** — 確認を出しません。押した時点で実行し、

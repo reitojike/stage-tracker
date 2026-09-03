@@ -18,10 +18,12 @@
   font-weight: var(--font-weight-semibold);
 }
 
-/* One right-aligned filled indigo execution button (Issue #230 addendum). */
-.actions {
+/* Keep the execution action reachable outside the scrollable Sheet body. */
+.footer {
   display: flex;
   justify-content: flex-end;
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border);
 }
 
 .stablePendingLabel {

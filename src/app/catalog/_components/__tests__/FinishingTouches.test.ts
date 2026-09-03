@@ -105,6 +105,9 @@ void test('delete confirmation sheets reuse the save-sheet footer vocabulary', (
     assert.match(source, /showCloseButton=\{false\}/);
     assert.match(source, /variant="danger"/);
   }
+  assert.match(deleteForms[0] ?? '', /title="このイベントを削除"/);
+  assert.match(deleteForms[1] ?? '', /title="この公演回を削除"/);
+  assert.match(deleteForms[2] ?? '', /title="この予定を削除"/);
   for (const css of [eventCss, scheduleCss]) {
     assert.match(
       css,
@@ -124,10 +127,12 @@ void test('ticket opportunity controls use the shared write notice without a loc
   assert.throws(() => read(`${localNoticeBase}.module.css`));
 });
 
-void test('share-add sheet uses a footer submit associated with its body form', () => {
+void test('submit-based email sheets use a footer submit associated with their body form', () => {
   const sheet = read('src/app/schedule/_components/ShareAddSheet.tsx');
   const form = read('src/app/schedule/_components/ShareAddForm.tsx');
   const css = read('src/app/schedule/_components/ShareAddSheet.module.css');
+  const invite = read('src/app/catalog/_components/InviteSheet.tsx');
+  const inviteCss = read('src/app/catalog/_components/InviteSheet.module.css');
 
   assert.match(sheet, /showCloseButton=\{false\}/);
   assert.match(sheet, /footer=\{/);
@@ -139,6 +144,13 @@ void test('share-add sheet uses a footer submit associated with its body form', 
   assert.doesNotMatch(form, /<Button/);
   assert.doesNotMatch(form, /styles\.actions/);
   assert.match(css, /\.footer\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-border\);/);
+
+  assert.match(invite, /showCloseButton=\{false\}/);
+  assert.match(invite, /footer=\{/);
+  assert.match(invite, /<Button[\s\S]*?type="submit"[\s\S]*?form=\{formId\}/);
+  assert.match(invite, /id=\{formId\}/);
+  assert.doesNotMatch(invite, /styles\.actions/);
+  assert.match(inviteCss, /\.footer\s*\{[\s\S]*?border-top:\s*1px solid var\(--color-border\);/);
 });
 
 void test('sheet write notices are before occurrence/content UI', () => {

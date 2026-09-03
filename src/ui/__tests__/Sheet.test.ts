@@ -80,12 +80,15 @@ void test('shared body remains the scroll region needed to keep a slotted footer
   assert.match(bodyRule[1] ?? '', /overflow-y:\s*auto\s*;/);
 });
 
-void test('ParticipationSheet and InviteSheet retain the default shared close behavior', () => {
+void test('immediate-choice ParticipationSheet keeps close while submit-based InviteSheet uses the footer contract', () => {
   assert.match(participation, /import \{ Sheet \} from '@\/ui\/Sheet';/);
   assert.match(participation, /<Sheet\b[\s\S]*title="参加の状態"/);
   assert.doesNotMatch(participation, /showCloseButton/);
 
   assert.match(invite, /import \{ Sheet \} from '@\/ui\/Sheet';/);
   assert.match(invite, /<Sheet\b[\s\S]*title="招待する"/);
-  assert.doesNotMatch(invite, /showCloseButton/);
+  assert.match(invite, /showCloseButton=\{false\}/);
+  assert.match(invite, /footer=\{/);
+  assert.match(invite, /type="submit"[\s\S]*form=\{formId\}/);
+  assert.match(invite, /id=\{formId\}/);
 });
