@@ -80,12 +80,17 @@ export function OccurrenceUpdateForm({
         showCloseButton={false}
         footer={
           <div className={styles.sheetFooter}>
-            <Button type="submit" form={formId} disabled={isPending}>
+            <Button
+              type="submit"
+              form={formId}
+              disabled={isPending}
+              aria-label={isPending ? 'この公演回を保存中…' : 'この公演回を保存'}
+            >
               <span className={styles.stablePendingLabel}>
                 <span aria-hidden="true" className={styles.stablePendingSizing}>
-                  この公演回を保存
+                  保存中…
                 </span>
-                <span>{isPending ? '保存中…' : 'この公演回を保存'}</span>
+                <span>{isPending ? '保存中…' : '保存'}</span>
               </span>
             </Button>
           </div>

@@ -75,7 +75,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               autoComplete="email"
             />
             <Button className={styles.magicLinkButton} variant="small" type="submit">
-              サインインリンクをリクエスト
+              リンクをリクエスト
             </Button>
           </form>
         </div>
