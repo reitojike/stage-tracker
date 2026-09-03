@@ -288,14 +288,6 @@ domain semanticsの正本は引き続き
   （`justify-content: flex-end`）と `--space-sm` のgapを共通のかたちと
   します。current implementationではこの行を各screenの `*.module.css` が
   個別に持ちます（Sheetのfooter、InvitationCardのaction行等）。
-- `src/ui/ActionRow.tsx` は上記とは別のかたちです。右揃えせず（start
-  始まり）、折り返したときにtap targetが上下で重ならないよう row-gap を
-  column-gap より広く取ります。page headingに続くlink actionを並べるための
-  ものでしたが、**現在app runtimeからのconsumerは0** で、Storybookのstory
-  だけが参照しています。上の確定・送信行の代替ではないため、置き換えを
-  前提にしません。この扱いは
-  [Issue #283](https://github.com/reitojike/stage-tracker/issues/283) の
-  scopeであり、本ファイルでは固定しません。
 - 1つの画面に独立した書き込み単位が複数並ぶ場合（Event編集画面）、
   それぞれが自分のfeedbackを持ち、1つの失敗が他を巻き込みません。
 
@@ -392,8 +384,7 @@ domain semanticsの正本は引き続き
 
 - 各routeの `loading.tsx` は、本物のpageと同じ `PageHeading` を先に置きます
   （pendingの間だけtitleが消えて、commit時に押し戻される layout shiftを
-  避けるため）。逆に、本物のpageが持たない要素（ActionRow等）を
-  fallbackで足しません。
+  避けるため）。逆に、本物のpageが持たない要素を fallbackで足しません。
 - 遷移中もAppBarとPrimaryNavは画面に残ります。navやアバターのtap中は
   iconをspinnerに差し替え、行の高さを増やしません。
 - calendarのmonth navigationのpending中は、tapしたcontrol自身だけが
@@ -496,9 +487,9 @@ Visual / interaction semanticsがdomain-independentで実際に再利用され�
   TicketOpportunityRow 等、domain semanticsを持つもの。
 
 `src/ui/` にあることは「現に共有されている」ことを意味しません。current
-runtimeからのconsumerが0のもの（`Surface` / `ActionRow`）があり、その扱いは
-[Issue #283](https://github.com/reitojike/stage-tracker/issues/283) の
-scopeです。本ファイルはそれらを、現に使うべきvocabularyとしては提示しません。
+runtimeからのconsumerが0のものは、見つかり次第削除します（Issue #283で
+`Surface` / `ActionRow` を削除済み）。本ファイルはそうした未使用component
+を、現に使うべきvocabularyとしては提示しません。
 
 **新しいcontrolはscreen-localのCSS Moduleで始めてよい**（PO確定、
 2026-08-31）。2つ目の使い手が出た時点で `src/ui/` へ引き上げます。先に
