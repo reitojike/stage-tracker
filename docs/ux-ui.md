@@ -164,8 +164,7 @@ heading として、直下の本文より小さくならない階層を保ちま
 ## 面と区切り
 
 - **カード面を使いません。** 面で囲うのではなく、罫と縦の間隔で区切ります。
-  白面のcard（`--color-surface` + `--radius-surface`）はcurrent app
-  runtimeでは使っていません。
+  白面の塗りcardはcurrent app runtimeでは使っていません。
 - 画面の地は `--color-canvas` です。`--color-surface` は
   input・checkbox・PrimaryNavといったcontrol / chrome側の塗りとして残り、
   contentのcard面としては使いません。
@@ -209,8 +208,10 @@ tap target ruleとも矛盾しません。
 PrimaryNavの現在地バーです。
 
 汎用surfaceのdefault形状としてpillを使いません。この2段とpillの外に3つ目の
-箱用radius roleを増やしません。`--radius-surface` は白面cardの残存token
-であり、新しい用途へ広げません（「面と区切り」参照）。
+箱用radius roleを増やしません（Issue #283: 白面cardの残存tokenだった
+`--radius-surface` / `--radius-scale-container` は、唯一の consumer だった
+selected-occurrence focus ringを`--radius-control-sm`へ寄せた上で削除
+済みです）。
 
 ## Control vocabulary
 
