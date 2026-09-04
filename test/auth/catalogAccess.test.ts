@@ -64,45 +64,56 @@ import { launchBrowser, type Browser, type BrowserPage } from './support/browser
  */
 const RESERVED_MONTHS = ['2096-05', '2097-07', '2097-08', '2098-01', '2098-04'] as const;
 
-/** Any `YYYY-MM`, `YYYY-MM-DD`, or full ISO instant a fixture date could be
- * written as. Spelling the month as an alternation rather than `\d\d` is what
- * keeps prose like "2096-2098" in this file's own comments from reading as
- * the month `2096-20`. */
-const DATE_LITERAL = /\b(2\d{3})-(0[1-9]|1[0-2])(?:-(\d{2})(T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?)?\b/gu;
+/** A `YYYY-MM`, optionally carrying a `-DD`. Anything after the day (a time,
+ * a `Z`, a numeric UTC offset) is deliberately left unmatched rather than
+ * described - see monthsUsedIn. Spelling the month as an alternation rather
+ * than `\d\d` is what keeps prose like "2096-2098" in this file's own
+ * comments from reading as a month. */
+const DATE_LITERAL = /\b(2\d{3})-(0[1-9]|1[0-2])(?:-(\d{2}))?/gu;
 
-const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function monthOf(utcMs: number): string {
+  const at = new Date(utcMs);
+  return `${String(at.getUTCFullYear()).padStart(4, '0')}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`;
+}
 
 /**
- * The Asia/Tokyo calendar months `source` could place an Event in.
+ * Every month `source` could put an Event in - deliberately over-stated.
  *
- * An instant is converted before being compared, never taken at its written
- * month: `createEventWithOccurrence` derives an Event's range from the
- * *Tokyo* calendar date of `startsAt`, so a sibling using
- * `'2097-12-31T15:00:00.000Z'` reads as a December-2097 literal but creates
- * an Event on 2098-01-01 - inside a reserved month. Comparing the written
- * month alone would wave that through (Codex review on bb4623e). Asia/Tokyo is a fixed +09:00
- * with no DST, so this is plain arithmetic, the same way
- * test/rls/support/eventFixtures.ts derives its own default range.
+ * A dated literal contributes the months of the day before, the day itself,
+ * and the day after. That is the whole timezone story: `createEventWithOccurrence`
+ * derives an Event's range from the *Asia/Tokyo* calendar date of `startsAt`,
+ * and no UTC offset can move a calendar date by more than a day, so those
+ * three months always contain wherever the Event actually lands. A literal
+ * with no day contributes only its own month.
  *
- * Deliberately over-approximates: a date-ish literal that is an `endsAt` or
- * `doorsAt` rather than a range boundary still contributes its month. That
- * direction is the safe one - it can only ever demand that another file pick
- * a different month, never let a real collision through.
+ * Nothing after the day is parsed - not the time, not a trailing `Z`, not a
+ * numeric offset, not whether seconds are present. Earlier revisions of this
+ * guard did interpret the instant, and each format it failed to anticipate
+ * was a way for a real collision to pass unnoticed (two consecutive Codex
+ * findings, on bb4623e and 509648c). Over-stating removes the format question
+ * entirely: there is no expression this can fail to understand, because it
+ * understands none of them.
+ *
+ * The trade is deliberate and one-directional. This over-detects - an `endsAt`
+ * literal, or a date that merely sits next to a reserved month, still counts -
+ * and over-detection can only ever ask another test file to pick a different
+ * month. It cannot let a real reserved-month collision through, which is the
+ * failure this guard exists to prevent.
  */
-function tokyoMonthsUsedIn(source: string): Set<string> {
+function monthsUsedIn(source: string): Set<string> {
   const months = new Set<string>();
   for (const match of source.matchAll(DATE_LITERAL)) {
-    const [literal, year, month, day, time] = match;
-    if (day === undefined || time === undefined) {
-      // Already a calendar month/date (e.g. `?month=2098-01`, or the
-      // starts_on/ends_on strings create_event takes verbatim).
+    const [, year, month, day] = match;
+    if (day === undefined) {
       months.add(`${String(year)}-${String(month)}`);
       continue;
     }
-    const tokyo = new Date(Date.parse(literal) + TOKYO_OFFSET_MS);
-    months.add(
-      `${String(tokyo.getUTCFullYear()).padStart(4, '0')}-${String(tokyo.getUTCMonth() + 1).padStart(2, '0')}`,
-    );
+    const midnight = Date.UTC(Number(year), Number(month) - 1, Number(day));
+    for (const shift of [-DAY_MS, 0, DAY_MS]) {
+      months.add(monthOf(midnight + shift));
+    }
   }
   return months;
 }
@@ -132,20 +143,20 @@ function tokyoMonthsUsedIn(source: string): Set<string> {
  * collides. It is not a fixture allocator - it hands out nothing, and every
  * other file still picks its own dates freely (Issue #301 Out of Scope).
  *
- * The residual limit is stated rather than papered over: this sees literal
- * dates, so a file computing one arithmetically could evade it.
- * That is not reachable from the dates test/auth actually uses - the only
- * computed fixture dates in the suite are `Date.now()`-relative
- * (ticketPlanningJourney.test.ts), which cannot land 70 years out - and
- * closing it would mean the general fixture infrastructure this Issue rules
- * out.
+ * The residual limit is stated rather than papered over: this reads literal
+ * dates, so a file that builds one arithmetically could still evade it.
+ * The current suite cannot reach that: its only computed fixture dates are
+ * `Date.now()`-relative and at most 40 days out (ticketPlanningJourney.test.ts's
+ * OCCURRENCE_DAYS_AHEAD / DEADLINE_DAYS_AHEAD), while every reserved month is
+ * roughly seventy years away. Closing it properly would mean the static-analysis
+ * or fixture-registry infrastructure this Issue rules out.
  */
 function assertReservedMonthsAreExclusive(): void {
   const ownPath = fileURLToPath(import.meta.url);
   const dir = path.dirname(ownPath);
   const reserved = new Set<string>(RESERVED_MONTHS);
 
-  const undeclared = [...tokyoMonthsUsedIn(readFileSync(ownPath, 'utf8'))].filter(
+  const undeclared = [...monthsUsedIn(readFileSync(ownPath, 'utf8'))].filter(
     (month) => !reserved.has(month),
   );
   assert.ok(
@@ -166,7 +177,7 @@ function assertReservedMonthsAreExclusive(): void {
     if (fullPath === ownPath) {
       continue;
     }
-    for (const month of tokyoMonthsUsedIn(readFileSync(fullPath, 'utf8'))) {
+    for (const month of monthsUsedIn(readFileSync(fullPath, 'utf8'))) {
       if (reserved.has(month)) {
         collisions.push(`${relative} uses ${month}`);
       }
