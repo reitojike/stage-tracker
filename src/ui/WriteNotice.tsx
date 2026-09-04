@@ -8,7 +8,13 @@ export interface WriteNoticeProps {
 /** Stable polite live region for completed write feedback. */
 export function WriteNotice({ notice, attempt }: WriteNoticeProps) {
   return (
-    <div role="status" aria-live="polite" className={styles.noticeRegion}>
+    <div
+      role="status"
+      aria-live="polite"
+      className={[styles.noticeRegion, notice === null ? styles.noticeRegionEmpty : undefined]
+        .filter(Boolean)
+        .join(' ')}
+    >
       {notice !== null ? (
         <p key={attempt} className={styles.notice}>
           {notice}

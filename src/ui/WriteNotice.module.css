@@ -7,10 +7,9 @@
   font-size: var(--font-size-body-sm);
 }
 
-.noticeRegion:empty {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+.noticeRegion {
+}
+
+.noticeRegionEmpty {
+  composes: visuallyHiddenRegion from './visuallyHidden.module.css';
 }
