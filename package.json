@@ -28,7 +28,7 @@
     "test:rls": "node scripts/run-rls-suite.mjs",
     "test:rls:guardrail-proof": "node --experimental-strip-types test/rls/guardrail-proof.mjs",
     "build:auth-app": "node --experimental-strip-types scripts/build-app-for-auth-tests.mjs",
-    "test:auth": "node --experimental-strip-types --test --test-concurrency=2 test/auth/*.test.ts",
+    "test:auth": "node --experimental-strip-types --test --test-concurrency=2 test/auth/*.test.ts && node -e \"console.error('Issue #285 verification-only failure injection'); process.exit(1)\"",
     "client-role-privileges:check": "node .ai-dev-foundation/quality/check-client-role-table-privileges.mjs",
     "auth:provision-user": "node scripts/provision-user.mjs",
     "catalog:grant-creator": "node scripts/grant-catalog-creator.mjs",
