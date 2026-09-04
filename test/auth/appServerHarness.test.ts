@@ -6,6 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
   assertDependenciesInstalled,
+  assertProductionBuildPresent,
   isHealthyReadyResponse,
   stopProcess,
   waitForExit,
@@ -95,15 +96,15 @@ function withPlatform<T>(platform: NodeJS.Platform, fn: () => T): T {
 }
 
 void test('stopProcess still sends the POSIX process-group kill when the immediate child has already exited', async (t) => {
-  // This is the direct regression proof for the bug a reviewer caught in
-  // this same change: spawnNextDev's shim can exit while the next-server
-  // grandchild it forked (same process group) is still alive holding the
-  // port and .next/dev/lock. A stopProcess() that only kills when the
-  // immediate child looks alive would silently leave that grandchild
-  // running - worse than the original 24min hang, because it isn't even
-  // visible as a failure. Forcing 'linux' here (rather than skipping on
-  // non-POSIX hosts) keeps this meaningful on both Windows dev machines and
-  // Linux CI.
+  // A stopProcess() that only kills when the immediate child looks alive
+  // would silently leave a still-running descendant behind - worse than the
+  // original 24min hang, because it isn't even visible as a failure. Under
+  // `next dev` that descendant was concrete (the next-server grandchild
+  // Turbopack forked, outliving the shim while holding the port and
+  // .next/dev/lock); `next start` forks nothing today, and this stays as the
+  // proof that the guarantee does not depend on that remaining true.
+  // Forcing 'linux' here (rather than skipping on non-POSIX hosts) keeps
+  // this meaningful on both Windows dev machines and Linux CI.
   const killMock = t.mock.method(process, 'kill', () => true);
   const alreadyExitedChild = {
     pid: 4242,
@@ -139,4 +140,40 @@ void test('assertDependenciesInstalled does not throw once dependencies are pres
   writeFileSync(path.join(nextDir, 'package.json'), '{}');
 
   assertDependenciesInstalled(worktree);
+});
+
+// The same fail-fast shape as the two above, for the precondition Issue #286
+// introduced: `next start` serves a previously built `.next`, so a checkout
+// that has never been built cannot run test:auth at all. Proven here as pure
+// logic rather than by spawning a real server against an unbuilt tree.
+
+void test('assertProductionBuildPresent throws a clear diagnostic when there is no build', () => {
+  const unbuilt = mkdtempSync(path.join(tmpdir(), 'app-server-harness-no-build-'));
+  assert.throws(
+    () => {
+      assertProductionBuildPresent(unbuilt);
+    },
+    /build:auth-app/,
+    'a checkout with no production build should name the command that produces one',
+  );
+});
+
+void test('assertProductionBuildPresent rejects a .next directory left without a BUILD_ID', () => {
+  // `next dev` and a failed/partial `next build` both leave a `.next`
+  // behind, so existence of the directory alone must not be read as "a
+  // production build is present" - only a completed build writes BUILD_ID.
+  const partiallyBuilt = mkdtempSync(path.join(tmpdir(), 'app-server-harness-partial-build-'));
+  mkdirSync(path.join(partiallyBuilt, '.next'), { recursive: true });
+
+  assert.throws(() => {
+    assertProductionBuildPresent(partiallyBuilt);
+  }, /BUILD_ID/);
+});
+
+void test('assertProductionBuildPresent does not throw once a build is present', () => {
+  const built = mkdtempSync(path.join(tmpdir(), 'app-server-harness-built-'));
+  mkdirSync(path.join(built, '.next'), { recursive: true });
+  writeFileSync(path.join(built, '.next', 'BUILD_ID'), 'test-build-id');
+
+  assertProductionBuildPresent(built);
 });

@@ -4,15 +4,19 @@ import { startAppServer } from './support/appServer.ts';
 
 // Regression coverage for the test harness itself (test/auth/support/appServer.ts),
 // not a product/Issue #20 behavior: a prior version only sent SIGTERM to the
-// immediate `npx next dev` process on POSIX. `next dev` (via Turbopack) forks
+// immediate `npx next dev` process on POSIX. `next dev` (via Turbopack) forked
 // a separate next-server worker as a grandchild, which survived that signal
 // and kept holding the project's on-disk dev lock (`.next/dev/lock`) - so
 // the *next* test file's own startAppServer() would collide with the
 // leftover server ("Another next dev server is already running") instead of
-// starting a fresh one. This is exactly the sequence every real test:auth
-// run depends on (one file's app server stops, the next file's starts), so
-// it is proven directly here rather than only indirectly via other files
-// happening to run in the right order.
+// starting a fresh one.
+//
+// Issue #286 moved the harness to `next start`, which forks no worker and
+// takes no such lock, so a leftover process would now show up as a held port
+// rather than a held lock. The sequence being proven is unchanged and is the
+// one every real test:auth run depends on (one file's app server stops, the
+// next file's starts), so it stays proven directly here rather than only
+// indirectly via other files happening to run in the right order.
 
 void test('a second app server starts successfully in the same project directory after the first one is stopped', async () => {
   const first = await startAppServer();
@@ -21,10 +25,11 @@ void test('a second app server starts successfully in the same project directory
 
   await first.stop();
 
-  // If a leftover process from `first` still held the project's dev lock,
-  // this would either throw ("Another next dev server is already
-  // running") or hang until the 120s readiness deadline - either way,
-  // this test itself would fail/time out rather than silently pass.
+  // If a leftover process from `first` were still running, this would hang
+  // until the 120s readiness deadline (or, before Issue #286's move to
+  // `next start`, throw "Another next dev server is already running") -
+  // either way, this test itself would fail/time out rather than silently
+  // pass.
   const second = await startAppServer();
   try {
     const secondResponse = await fetch(`${second.baseUrl}/sign-in`, { redirect: 'manual' });

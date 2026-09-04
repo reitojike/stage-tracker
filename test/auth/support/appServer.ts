@@ -85,12 +85,16 @@ export function stopProcess(child: KillableChild): Promise<void> {
   const exited = waitForExit(child, STOP_TIMEOUT_MS);
 
   if (process.platform === 'win32') {
-    // child is the npx/next shim; killing only it would orphan the server
-    // process still holding the port. taskkill /T walks the whole process
-    // tree - but it does so by looking up descendants of *this* still-alive
-    // pid, so there is nothing to attempt once the immediate child has
-    // already exited (unlike the POSIX group kill below, which stays valid
-    // after the leader exits).
+    // taskkill /T walks the whole process tree - but it does so by looking
+    // up descendants of *this* still-alive pid, so there is nothing to
+    // attempt once the immediate child has already exited (unlike the POSIX
+    // group kill below, which stays valid after the leader exits).
+    //
+    // `next start` serves in-process and the child is Next's own CLI rather
+    // than a shim (see spawnNextStart), so /T has no descendant to reach
+    // today; it is kept because the guarantee this owes its caller is that
+    // the port is free before the next file's server starts, which should
+    // not silently depend on Next never forking a helper.
     if (!alreadyExited) {
       if (typeof child.pid === 'number') {
         // This is fire-and-forget - its own exit isn't awaited, only the
@@ -111,19 +115,19 @@ export function stopProcess(child: KillableChild): Promise<void> {
       }
     }
   } else if (typeof child.pid === 'number') {
-    // POSIX: spawnNextDev spawns with detached: true, making this child the
-    // leader of its own process group (group id == its pid). `next dev`
-    // (via Turbopack) forks a next-server worker as a grandchild, which
-    // survives a SIGTERM sent only to the shim and keeps holding the port
-    // and the project's on-disk dev lock - the very next test file's
-    // startAppServer() then collides with that leftover server instead of
-    // starting a fresh one. Killing the whole group (negative pid) reaches
-    // it too.
+    // POSIX: spawnNextStart spawns with detached: true, making this child
+    // the leader of its own process group (group id == its pid), so killing
+    // the whole group (negative pid) reaches any descendant as well as the
+    // child itself. Under `next dev` that mattered concretely - Turbopack
+    // forked a next-server worker that survived a SIGTERM sent only to the
+    // shim and kept holding the port and `.next/dev/lock`. `next start`
+    // forks nothing, so the group holds one process today; the group kill is
+    // kept for the same reason as the Windows /T above.
     //
     // This is attempted even when `child` itself has already exited: the
     // group id stays valid as a kill target for as long as any member of it
-    // is still alive - including an already-orphaned next-server whose
-    // immediate parent (this child) exited first.
+    // is still alive - including an already-orphaned server whose immediate
+    // parent (this child) exited first.
     try {
       process.kill(-child.pid, 'SIGTERM');
     } catch {
@@ -137,69 +141,48 @@ export function stopProcess(child: KillableChild): Promise<void> {
   return exited;
 }
 
-// When `next dev` detects an AI coding agent it rewrites AGENTS.md /
-// CLAUDE.md to inject its own managed rules block
-// (next/dist/server/lib/generate-agent-files.js). Those files are
-// Foundation-generated adapters here, so an agent-run test suite would
-// otherwise mutate them and fail `npm run foundation:check`. Clearing the
-// detection variables for the child keeps this test hermetic no matter who
-// runs it, rather than relying on CI happening not to set them.
-// Source of the list: next/dist/compiled/@vercel/detect-agent.
-const AGENT_DETECTION_ENV_KEYS = new Set([
-  'AI_AGENT',
-  'ANTIGRAVITY_AGENT',
-  'AUGMENT_AGENT',
-  'CLAUDECODE',
-  'CLAUDE_CODE',
-  'CLAUDE_CODE_IS_COWORK',
-  'CODEX_CI',
-  'CODEX_SANDBOX',
-  'CODEX_THREAD_ID',
-  'COPILOT_ALLOW_ALL',
-  'COPILOT_GITHUB_TOKEN',
-  'COPILOT_MODEL',
-  'CURSOR_AGENT',
-  'CURSOR_EXTENSION_HOST_ROLE',
-  'CURSOR_TRACE_ID',
-  'GEMINI_CLI',
-  'OPENCODE_CLIENT',
-  'REPL_ID',
-]);
+/** Path to Next's own CLI entrypoint, resolved from this worktree's
+ * node_modules. Spawned with `process.execPath` rather than through the
+ * `next`/`npx` shim so the spawned child *is* the server process: no shell
+ * on Windows, and no wrapper process whose own pid says nothing about
+ * whether the server is still listening. */
+const NEXT_BIN = path.join('node_modules', 'next', 'dist', 'bin', 'next');
 
-function nonAgentEnv(): NodeJS.ProcessEnv {
-  const filtered = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !AGENT_DETECTION_ENV_KEYS.has(key)),
-  );
-  // NODE_ENV is declared as required on ProcessEnv, so carry it through
-  // explicitly rather than relying on the index signature.
-  return { ...filtered, NODE_ENV: process.env.NODE_ENV };
-}
-
-interface SpawnedNextDev {
+interface SpawnedNextStart {
   child: ChildProcess;
   /** Resolves once the child exits, whenever that happens - readiness
    * polling in startAppServer races this against becoming ready. */
   exited: Promise<{ code: number | null; stderr: string }>;
 }
 
-function spawnNextDev(port: number, status: LocalSupabaseStatus): SpawnedNextDev {
-  const child = spawn('npx', ['next', 'dev', '--port', String(port), '--hostname', '127.0.0.1'], {
-    env: {
-      ...nonAgentEnv(),
-      NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: status.anonKey,
-      NEXT_TELEMETRY_DISABLED: '1',
+function spawnNextStart(port: number, status: LocalSupabaseStatus): SpawnedNextStart {
+  const child = spawn(
+    process.execPath,
+    [NEXT_BIN, 'start', '--port', String(port), '--hostname', '127.0.0.1'],
+    {
+      // Next.js reads NEXT_PUBLIC_* on the *server* side from the running
+      // process's environment (unlike the client bundle, where they are
+      // substituted at build time - see
+      // scripts/build-app-for-auth-tests.mjs), so passing them here is what
+      // points the server at this machine's local Supabase stack.
+      env: {
+        ...process.env,
+        NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: status.anonKey,
+        NEXT_TELEMETRY_DISABLED: '1',
+      },
+      stdio: ['ignore', 'ignore', 'pipe'],
+      // On POSIX, makes this child the leader of its own process group, so
+      // stopProcess's negative-pid kill has a group of its own to target
+      // rather than this test runner's. `next start` serves in-process
+      // (observed: one node process, no worker fork), so today that group
+      // holds only the child itself - it is kept because what stopProcess
+      // has to guarantee is that the port is released before the next
+      // file's server starts, and that guarantee should not quietly depend
+      // on Next never forking a helper.
+      detached: process.platform !== 'win32',
     },
-    // Windows can only launch node_modules/.bin shims through a shell;
-    // the args here are static literals plus a locally chosen port.
-    shell: process.platform === 'win32',
-    stdio: ['ignore', 'ignore', 'pipe'],
-    // On POSIX, makes this child the leader of its own process group, so
-    // stopProcess can later kill the whole tree (including the
-    // next-server worker Turbopack forks as a grandchild) via a negative
-    // pid instead of only the immediate npx/next shim.
-    detached: process.platform !== 'win32',
-  });
+  );
 
   // Captured only for a clearer error message if the process exits early -
   // an opaque "exited with code 1" was previously the only signal
@@ -221,7 +204,7 @@ function spawnNextDev(port: number, status: LocalSupabaseStatus): SpawnedNextDev
 /**
  * Cheap, synchronous check for the one dependency-installation failure mode
  * actually observed (#30): a worktree without its own `npm ci` has no
- * node_modules, so Next/Turbopack answers every route with a 500 instead of
+ * node_modules, so Next answers every route with a 500 instead of
  * failing to start - which used to be misread as "ready" (see
  * isHealthyReadyResponse below) and only surfaced much later as a hung
  * sign-in flow. Failing here is near-instant instead of waiting through the
@@ -233,6 +216,41 @@ export function assertDependenciesInstalled(cwd: string): void {
     throw new Error(
       `${marker} not found - this worktree needs its own "npm ci" before running test:auth ` +
         '(node_modules is not shared automatically across worktrees)',
+    );
+  }
+}
+
+/**
+ * The production-build counterpart to assertDependenciesInstalled: since
+ * Issue #286 these tests run the app with `next start`, which serves a
+ * previously built `.next` rather than compiling on demand the way
+ * `next dev` did. Without a build, `next start` exits with its own
+ * "Could not find a production build" message - readable on its own, but it
+ * surfaces once per test file and only after the spawn, so this states the
+ * repo-specific remedy up front instead.
+ *
+ * BUILD_ID is the marker rather than `.next` itself: `next dev` and a
+ * failed/partial build both leave a `.next` directory behind, and only a
+ * completed `next build` writes BUILD_ID.
+ *
+ * Presence is all this checks - not which env the build baked in. Every
+ * supported entry point (`npm run verify`, `npm run verify:database`, and
+ * their CI counterpart) runs build:auth-app immediately before test:auth, so
+ * the artifact is always the one that build produced. Running a bare
+ * `npm run build` afterwards and then test:auth directly would leave the
+ * *client* bundle pointing at no Supabase URL (see
+ * scripts/build-app-for-auth-tests.mjs for why the two builds differ); that
+ * surfaces as a loud "Missing required environment variable" from the
+ * browser client, not as a silently passing suite, so it is left to the
+ * error rather than re-derived here.
+ */
+export function assertProductionBuildPresent(cwd: string): void {
+  const marker = path.join(cwd, '.next', 'BUILD_ID');
+  if (!existsSync(marker)) {
+    throw new Error(
+      `${marker} not found - test:auth runs the app from a production build, so ` +
+        '"npm run build:auth-app" must produce one first (npm run verify and ' +
+        'npm run verify:database already do this for you)',
     );
   }
 }
@@ -250,25 +268,26 @@ export function isHealthyReadyResponse(status: number): boolean {
 
 /**
  * Boots the real Next.js app so route protection can be verified over
- * HTTP. `next dev` is used rather than `next start` so this test does not
- * depend on a build artifact having been produced first.
+ * HTTP. Since Issue #286 this is `next start` against a production build,
+ * not `next dev`: `next dev` compiled each route on its first request, so
+ * every one of the test files that boots a server paid both a dev-server
+ * startup and a fresh per-route compile.
  *
- * `next dev` refuses to run a second instance against the same project
- * directory even on a different port ("Another next dev server is already
- * running") - it is a per-directory on-disk lock, not a per-port one.
- * Every test file that calls this must therefore not run concurrently with
- * another that also does; see package.json's `test:auth` script, which
- * runs with `--test-concurrency=1` for exactly this reason. stopProcess
- * above is what makes that safe across files: it kills the *entire*
- * process tree it started (see its own comment), so no leftover
- * next-server can still be holding that lock by the time the next file's
- * startAppServer runs.
+ * That also removed the reason this had to be serialized: `next dev` held a
+ * per-directory on-disk lock (`.next/dev/lock`) and refused to run a second
+ * instance against the same project directory even on a different port.
+ * `next start` has no such lock - it only needs its own port, which
+ * findFreePort supplies. package.json's `test:auth` nevertheless still runs
+ * with `--test-concurrency=1`; raising it is deliberately a separate change
+ * (Issue #286 Out of Scope), because these files' isolation from each other
+ * was never established independently of that lock.
  */
 export async function startAppServer(): Promise<AppServer> {
   assertDependenciesInstalled(process.cwd());
+  assertProductionBuildPresent(process.cwd());
   const status = readLocalSupabaseStatus();
   const port = await findFreePort();
-  const { child, exited } = spawnNextDev(port, status);
+  const { child, exited } = spawnNextStart(port, status);
   const baseUrl = `http://127.0.0.1:${String(port)}`;
   const deadline = Date.now() + 120_000;
   let lastUnhealthyStatus: number | undefined;
@@ -276,7 +295,7 @@ export async function startAppServer(): Promise<AppServer> {
   for (;;) {
     if (child.exitCode !== null) {
       const { code, stderr } = await exited;
-      throw new Error(`next dev exited early with code ${String(code)}:\n${stderr}`);
+      throw new Error(`next start exited early with code ${String(code)}:\n${stderr}`);
     }
     try {
       const response = await fetch(`${baseUrl}/sign-in`, { redirect: 'manual' });
@@ -292,7 +311,7 @@ export async function startAppServer(): Promise<AppServer> {
         lastUnhealthyStatus === undefined
           ? ''
           : ` (last response status: ${String(lastUnhealthyStatus)})`;
-      const readinessMessage = `next dev did not become ready at ${baseUrl} within 120s${statusDetail}`;
+      const readinessMessage = `next start did not become ready at ${baseUrl} within 120s${statusDetail}`;
       // stopProcess can itself now reject (its own bounded timeout, rather
       // than hanging forever) - without this catch, that rejection would
       // replace the more actionable readinessMessage above with a bare
