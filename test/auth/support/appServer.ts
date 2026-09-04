@@ -277,10 +277,11 @@ export function isHealthyReadyResponse(status: number): boolean {
  * per-directory on-disk lock (`.next/dev/lock`) and refused to run a second
  * instance against the same project directory even on a different port.
  * `next start` has no such lock - it only needs its own port, which
- * findFreePort supplies. package.json's `test:auth` nevertheless still runs
- * with `--test-concurrency=1`; raising it is deliberately a separate change
- * (Issue #286 Out of Scope), because these files' isolation from each other
- * was never established independently of that lock.
+ * findFreePort supplies. Issue #301 then established these files' isolation
+ * from each other independently of that lock and raised package.json's
+ * `test:auth` to `--test-concurrency=4`, so several of these servers now
+ * really do run at the same time, each on its own findFreePort port and all
+ * against the one shared local Supabase stack.
  */
 export async function startAppServer(): Promise<AppServer> {
   assertDependenciesInstalled(process.cwd());

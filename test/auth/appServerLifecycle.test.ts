@@ -17,6 +17,12 @@ import { startAppServer } from './support/appServer.ts';
 // one every real test:auth run depends on (one file's app server stops, the
 // next file's starts), so it stays proven directly here rather than only
 // indirectly via other files happening to run in the right order.
+//
+// Issue #301 raised `test:auth` to `--test-concurrency=4`, so that sequence
+// is no longer the only one a real run performs - several files' servers are
+// now also alive at once. This file still proves only the stop-then-start
+// case, which is the one a leaked process breaks; simultaneous servers are
+// covered by findFreePort giving each its own port (see appServer.ts).
 
 void test('a second app server starts successfully in the same project directory after the first one is stopped', async () => {
   const first = await startAppServer();

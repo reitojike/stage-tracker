@@ -5,7 +5,12 @@ import {
   createEventWithoutOccurrence,
   eventFixtureTitle,
 } from '../rls/support/eventFixtures.ts';
-import { createTestActor, deleteTestActor, type TestActor } from '../rls/support/testActors.ts';
+import {
+  createAdminClient,
+  createTestActor,
+  deleteTestActor,
+  type TestActor,
+} from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { deleteUser } from './support/authActors.ts';
 import { collectCleanupFailures } from './support/cleanupTasks.ts';
@@ -24,6 +29,12 @@ import { launchBrowser, type Browser, type BrowserPage } from './support/browser
 // Fixture dates are chosen in far-future months (2096-2098) not used by any
 // other test file's fixtures, so this file's badge/empty assertions cannot
 // be polluted by unrelated fixtures already present in the shared local DB.
+// Since Issue #301 that separation is no longer a convention that merely
+// happens to hold: test:auth now runs its files concurrently, so a second
+// file creating an Event in one of these months would overlap this file's
+// own run instead of being torn down before it starts. RESERVED_MONTHS and
+// assertReservedMonthIsExclusivelyOurs below turn that precondition into a
+// checked one - see their comments.
 //
 // Issue #145: /catalog's calendar/list body is now a client-gated render
 // (CatalogView.tsx's `readyToRenderBody`) whenever the range read is
@@ -207,6 +218,88 @@ function ariaLabelOf(html: string, date: string): string {
   return label;
 }
 
+/**
+ * The calendar months this file makes *exact* shared-catalog claims about:
+ * badge counts (`badgeCountOf` above), the "no events this month" empty
+ * state, and the absence of an Event-level fallback section. Those claims
+ * are about the whole shared catalog, not about this file's own rows, so
+ * every one of them silently depends on no other test file putting an Event
+ * range over the same month.
+ *
+ * Until Issue #301 that dependency was free: `--test-concurrency=1` ran the
+ * files one at a time and each file's after() removed its fixtures before
+ * the next file started, so two files could even share a month. Raising the
+ * concurrency is what makes it load-bearing, so it is checked here rather
+ * than left as a comment for the next person who adds a test file.
+ *
+ * A month must be listed here before assertReservedMonthIsExclusivelyOurs
+ * will accept it, so adding a month to this file also means declaring it.
+ */
+const RESERVED_MONTHS = new Set(['2096-05', '2097-07', '2097-08', '2098-01', '2098-04']);
+
+/** Inclusive first/last Asia/Tokyo calendar date of `month` ("YYYY-MM").
+ * `Date.UTC(year, month, 0)` is the last day of the 1-based `month`; these
+ * are plain calendar dates (the same form events.starts_on/ends_on store),
+ * never instants, so no offset applies. */
+function monthBounds(month: string): { first: string; last: string } {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/u.exec(month);
+  assert.ok(match, `month must be YYYY-MM, got ${month}`);
+  const [, year, monthOfYear] = match;
+  assert.ok(year !== undefined && monthOfYear !== undefined);
+  const lastDay = new Date(Date.UTC(Number(year), Number(monthOfYear), 0)).getUTCDate();
+  return { first: `${month}-01`, last: `${month}-${String(lastDay).padStart(2, '0')}` };
+}
+
+/**
+ * Fails with a message that names the offending rows if the shared catalog
+ * holds any Event this test did not create whose Event range overlaps
+ * `month` - i.e. exactly the pollution that would otherwise reappear as an
+ * unexplained "expected 1, got 2" badge count or a missing empty state.
+ *
+ * Querying `events` by range covers occurrence-driven counts too: an
+ * occurrence's Asia/Tokyo date is DB-constrained to lie inside its event's
+ * range (20260825000200_add_event_range_containment_triggers.sql), so an
+ * Event whose range misses this month cannot contribute an occurrence to it
+ * either. The read goes through the service-role client because a foreign
+ * fixture's Event is shared-catalog data this file's deliberately
+ * unprivileged viewer has no reason to be able to enumerate.
+ *
+ * Call this once the test's own fixtures exist and immediately before the
+ * render whose counts depend on them. A foreign row created in the window
+ * between this check and that render still escapes it, but a test file that
+ * uses this month at all holds its fixtures across its whole run, not only
+ * inside that window.
+ */
+async function assertReservedMonthIsExclusivelyOurs(
+  month: string,
+  ownEventIds: readonly string[],
+): Promise<void> {
+  assert.ok(
+    RESERVED_MONTHS.has(month),
+    `${month} makes exact shared-catalog assertions but is not listed in RESERVED_MONTHS`,
+  );
+  const { first, last } = monthBounds(month);
+  const { data, error } = await createAdminClient()
+    .from('events')
+    .select('id, title, starts_on, ends_on')
+    .lte('starts_on', last)
+    .gte('ends_on', first);
+  if (error !== null) {
+    throw new Error(`failed to check ${month} for foreign fixture events: ${error.message}`);
+  }
+  const own = new Set(ownEventIds);
+  const foreign = data.filter((event) => !own.has(event.id));
+  assert.ok(
+    foreign.length === 0,
+    `${month} is reserved by test/auth/catalogAccess.test.ts, but the shared catalog also ` +
+      `holds ${String(foreign.length)} Event(s) this test did not create: ` +
+      `${foreign.map((event) => `${event.title} [${event.starts_on}..${event.ends_on}]`).join(', ')}. ` +
+      `test:auth runs its files concurrently (package.json --test-concurrency), so those ` +
+      `fixtures overlap this file's run and change the exact counts asserted below. Give the ` +
+      `other file a month of its own - do not relax the expected count (Issue #301).`,
+  );
+}
+
 // --- Reachability ---
 
 void test('an authenticated user reaches the Catalog route and sees the month calendar', async () => {
@@ -237,6 +330,7 @@ void test('an anonymous user cannot reach an event detail route', async () => {
 // --- Empty vs populated vs not-found ---
 
 void test('a month with no occurrences shows the empty state, not fabricated data', async () => {
+  await assertReservedMonthIsExclusivelyOurs('2098-01', []);
   const cookie = await signedInCookie();
   const response = await fetch(`${app.baseUrl}/catalog?month=2098-01`, {
     headers: { cookie },
@@ -268,6 +362,7 @@ void test('same-day multiple occurrences are shown losslessly, and a null end ti
     startsAt: '2096-05-15T05:00:00.000Z', // 14:00 JST, no end (matinee)
   });
   await insertOccurrence(owner, event.id, '2096-05-15T09:00:00.000Z', '2096-05-15T11:00:00.000Z'); // 18:00-20:00 JST (evening)
+  await assertReservedMonthIsExclusivelyOurs('2096-05', [event.id]);
 
   const cookie = await signedInCookie();
   const { html, visibleText } = await renderedPage(
@@ -316,6 +411,7 @@ void test('a multi-day event bands by its Event range and never counts; a single
     endsOn: '2097-07-21',
   });
   await insertOccurrence(owner, secondRun.id, '2097-07-21T02:00:00.000Z');
+  await assertReservedMonthIsExclusivelyOurs('2097-07', [kabuki.id, live.id, secondRun.id]);
 
   const cookie = await signedInCookie();
   const { html: monthHtml } = await renderedPage(`${app.baseUrl}/catalog?month=2097-07`, cookie);
@@ -387,6 +483,7 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
   const { event } = await createEventWithoutOccurrence(owner, '2097-08-15', '2097-08-15', {
     title: eventFixtureTitle(),
   });
+  await assertReservedMonthIsExclusivelyOurs('2097-08', [event.id]);
 
   const cookie = await signedInCookie();
   const { html: monthHtml, visibleText: monthText } = await renderedPage(
@@ -437,6 +534,7 @@ void test('a 0-occurrence event whose Event range covers the month is visible on
   const { event } = await createEventWithoutOccurrence(owner, '2098-04-05', '2098-04-25', {
     title: eventFixtureTitle(),
   });
+  await assertReservedMonthIsExclusivelyOurs('2098-04', [event.id]);
 
   const cookie = await signedInCookie();
   const { html, visibleText } = await renderedPage(`${app.baseUrl}/catalog?month=2098-04`, cookie);
