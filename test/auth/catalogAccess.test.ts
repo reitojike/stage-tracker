@@ -1,16 +1,14 @@
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { after, before, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   createEventWithOccurrence,
   createEventWithoutOccurrence,
   eventFixtureTitle,
 } from '../rls/support/eventFixtures.ts';
-import {
-  createAdminClient,
-  createTestActor,
-  deleteTestActor,
-  type TestActor,
-} from '../rls/support/testActors.ts';
+import { createTestActor, deleteTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { deleteUser } from './support/authActors.ts';
 import { collectCleanupFailures } from './support/cleanupTasks.ts';
@@ -33,8 +31,8 @@ import { launchBrowser, type Browser, type BrowserPage } from './support/browser
 // happens to hold: test:auth now runs its files concurrently, so a second
 // file creating an Event in one of these months would overlap this file's
 // own run instead of being torn down before it starts. RESERVED_MONTHS and
-// assertReservedMonthIsExclusivelyOurs below turn that precondition into a
-// checked one - see their comments.
+// assertReservedMonthsAreExclusive below turn that precondition into a
+// deterministically checked one - see their comments.
 //
 // Issue #145: /catalog's calendar/list body is now a client-gated render
 // (CatalogView.tsx's `readyToRenderBody`) whenever the range read is
@@ -48,6 +46,108 @@ import { launchBrowser, type Browser, type BrowserPage } from './support/browser
 // tests whose assertions are about synchronously-rendered content (auth
 // redirects, the heading, a genuinely empty range) keep using plain fetch,
 // since #145 does not gate those.
+
+/**
+ * The calendar months this file makes *exact* shared-catalog claims about:
+ * badge counts (`badgeCountOf` above), the "no events this month" empty
+ * state, and the absence of an Event-level fallback section. Those claims
+ * are about the whole shared catalog, not about this file's own rows, so
+ * every one of them depends on no other test file putting an Event range
+ * over the same month.
+ *
+ * Until Issue #301 that dependency was free: `--test-concurrency=1` ran the
+ * files one at a time and each file's after() removed its fixtures before
+ * the next file started, so two files could even share a month. Raising the
+ * concurrency is what makes it load-bearing, so it is checked by
+ * assertReservedMonthsAreExclusive below rather than left as a comment for
+ * the next person who adds a test file.
+ */
+const RESERVED_MONTHS = ['2096-05', '2097-07', '2097-08', '2098-01', '2098-04'] as const;
+
+/** Any `YYYY-MM` a fixture date could be written as. Spelling the month as
+ * an alternation rather than `\d\d` is what keeps prose like "2096-2098" in
+ * this file's own comments from reading as the month `2096-20`. */
+const MONTH_LITERAL = /\b(2\d{3})-(0[1-9]|1[0-2])\b/gu;
+
+function monthsUsedIn(source: string): Set<string> {
+  return new Set(Array.from(source.matchAll(MONTH_LITERAL), (match) => match[0]));
+}
+
+/**
+ * Proves, from the test sources themselves, that no other file under
+ * test/auth can put an Event into one of RESERVED_MONTHS.
+ *
+ * Deliberately a *source-level* check rather than a "does the catalog
+ * currently hold a foreign Event in this month" query. Under
+ * `--test-concurrency` > 1 the files really do run at the same time, so any
+ * check of live catalog state is a TOCTOU: a foreign row created after the
+ * query and before the render it guards would slip straight through and
+ * reappear as the unexplained "expected 1, got 2" badge count this is meant
+ * to prevent. Reading the sources has no such window - they cannot change
+ * mid-run - so the guarantee is deterministic rather than probabilistic,
+ * which is what Issue #301's acceptance criterion asks for.
+ *
+ * Two directions, both needed:
+ *
+ * 1. every month this file writes is declared in RESERVED_MONTHS, so adding
+ *    a fixture month here cannot silently skip the reservation; and
+ * 2. no other test/auth source mentions a reserved month, so a new test
+ *    file cannot silently start sharing one.
+ *
+ * Bounded on purpose: it reserves this one file's months and names who
+ * collides. It is not a fixture allocator - it hands out nothing, and every
+ * other file still picks its own dates freely (Issue #301 Out of Scope).
+ *
+ * The residual limit is stated rather than papered over: this sees literal
+ * `YYYY-MM` text, so a file computing a date arithmetically could evade it.
+ * That is not reachable from the dates test/auth actually uses - the only
+ * computed fixture dates in the suite are `Date.now()`-relative
+ * (ticketPlanningJourney.test.ts), which cannot land 70 years out - and
+ * closing it would mean the general fixture infrastructure this Issue rules
+ * out.
+ */
+function assertReservedMonthsAreExclusive(): void {
+  const ownPath = fileURLToPath(import.meta.url);
+  const dir = path.dirname(ownPath);
+  const reserved = new Set<string>(RESERVED_MONTHS);
+
+  const undeclared = [...monthsUsedIn(readFileSync(ownPath, 'utf8'))].filter(
+    (month) => !reserved.has(month),
+  );
+  assert.ok(
+    undeclared.length === 0,
+    `${path.basename(ownPath)} uses ${undeclared.join(', ')} but does not declare ` +
+      `${undeclared.length === 1 ? 'it' : 'them'} in RESERVED_MONTHS. Every month this file ` +
+      `asserts exact shared-catalog counts for has to be reserved, so that the check below ` +
+      `can keep other test files out of it (Issue #301).`,
+  );
+
+  const collisions: string[] = [];
+  for (const entry of readdirSync(dir, { recursive: true })) {
+    const relative = String(entry);
+    if (!relative.endsWith('.ts')) {
+      continue;
+    }
+    const fullPath = path.join(dir, relative);
+    if (fullPath === ownPath) {
+      continue;
+    }
+    for (const month of monthsUsedIn(readFileSync(fullPath, 'utf8'))) {
+      if (reserved.has(month)) {
+        collisions.push(`${relative} uses ${month}`);
+      }
+    }
+  }
+  assert.ok(
+    collisions.length === 0,
+    `${path.basename(ownPath)} asserts exact shared-catalog counts for ` +
+      `${RESERVED_MONTHS.join(', ')}, and test:auth runs its files concurrently ` +
+      `(package.json --test-concurrency), so another file's Events in one of those months ` +
+      `would overlap this file's run and change those counts: ${collisions.join('; ')}. ` +
+      `Give that file a month of its own - do not relax the expected count, and do not add ` +
+      `the month here (Issue #301).`,
+  );
+}
 
 let app: AppServer;
 let browser: Browser;
@@ -66,6 +166,9 @@ const createdFixtureActors: TestActor[] = [];
 const initializedCleanups: Array<() => Promise<void>> = [];
 
 before(async () => {
+  // Ahead of the app server and Chrome, so a month collision fails as itself
+  // rather than after ~30s of startup.
+  assertReservedMonthsAreExclusive();
   app = await startAppServer();
   initializedCleanups.push(() => app.stop());
   browser = await launchBrowser();
@@ -218,88 +321,6 @@ function ariaLabelOf(html: string, date: string): string {
   return label;
 }
 
-/**
- * The calendar months this file makes *exact* shared-catalog claims about:
- * badge counts (`badgeCountOf` above), the "no events this month" empty
- * state, and the absence of an Event-level fallback section. Those claims
- * are about the whole shared catalog, not about this file's own rows, so
- * every one of them silently depends on no other test file putting an Event
- * range over the same month.
- *
- * Until Issue #301 that dependency was free: `--test-concurrency=1` ran the
- * files one at a time and each file's after() removed its fixtures before
- * the next file started, so two files could even share a month. Raising the
- * concurrency is what makes it load-bearing, so it is checked here rather
- * than left as a comment for the next person who adds a test file.
- *
- * A month must be listed here before assertReservedMonthIsExclusivelyOurs
- * will accept it, so adding a month to this file also means declaring it.
- */
-const RESERVED_MONTHS = new Set(['2096-05', '2097-07', '2097-08', '2098-01', '2098-04']);
-
-/** Inclusive first/last Asia/Tokyo calendar date of `month` ("YYYY-MM").
- * `Date.UTC(year, month, 0)` is the last day of the 1-based `month`; these
- * are plain calendar dates (the same form events.starts_on/ends_on store),
- * never instants, so no offset applies. */
-function monthBounds(month: string): { first: string; last: string } {
-  const match = /^(\d{4})-(0[1-9]|1[0-2])$/u.exec(month);
-  assert.ok(match, `month must be YYYY-MM, got ${month}`);
-  const [, year, monthOfYear] = match;
-  assert.ok(year !== undefined && monthOfYear !== undefined);
-  const lastDay = new Date(Date.UTC(Number(year), Number(monthOfYear), 0)).getUTCDate();
-  return { first: `${month}-01`, last: `${month}-${String(lastDay).padStart(2, '0')}` };
-}
-
-/**
- * Fails with a message that names the offending rows if the shared catalog
- * holds any Event this test did not create whose Event range overlaps
- * `month` - i.e. exactly the pollution that would otherwise reappear as an
- * unexplained "expected 1, got 2" badge count or a missing empty state.
- *
- * Querying `events` by range covers occurrence-driven counts too: an
- * occurrence's Asia/Tokyo date is DB-constrained to lie inside its event's
- * range (20260825000200_add_event_range_containment_triggers.sql), so an
- * Event whose range misses this month cannot contribute an occurrence to it
- * either. The read goes through the service-role client because a foreign
- * fixture's Event is shared-catalog data this file's deliberately
- * unprivileged viewer has no reason to be able to enumerate.
- *
- * Call this once the test's own fixtures exist and immediately before the
- * render whose counts depend on them. A foreign row created in the window
- * between this check and that render still escapes it, but a test file that
- * uses this month at all holds its fixtures across its whole run, not only
- * inside that window.
- */
-async function assertReservedMonthIsExclusivelyOurs(
-  month: string,
-  ownEventIds: readonly string[],
-): Promise<void> {
-  assert.ok(
-    RESERVED_MONTHS.has(month),
-    `${month} makes exact shared-catalog assertions but is not listed in RESERVED_MONTHS`,
-  );
-  const { first, last } = monthBounds(month);
-  const { data, error } = await createAdminClient()
-    .from('events')
-    .select('id, title, starts_on, ends_on')
-    .lte('starts_on', last)
-    .gte('ends_on', first);
-  if (error !== null) {
-    throw new Error(`failed to check ${month} for foreign fixture events: ${error.message}`);
-  }
-  const own = new Set(ownEventIds);
-  const foreign = data.filter((event) => !own.has(event.id));
-  assert.ok(
-    foreign.length === 0,
-    `${month} is reserved by test/auth/catalogAccess.test.ts, but the shared catalog also ` +
-      `holds ${String(foreign.length)} Event(s) this test did not create: ` +
-      `${foreign.map((event) => `${event.title} [${event.starts_on}..${event.ends_on}]`).join(', ')}. ` +
-      `test:auth runs its files concurrently (package.json --test-concurrency), so those ` +
-      `fixtures overlap this file's run and change the exact counts asserted below. Give the ` +
-      `other file a month of its own - do not relax the expected count (Issue #301).`,
-  );
-}
-
 // --- Reachability ---
 
 void test('an authenticated user reaches the Catalog route and sees the month calendar', async () => {
@@ -330,7 +351,6 @@ void test('an anonymous user cannot reach an event detail route', async () => {
 // --- Empty vs populated vs not-found ---
 
 void test('a month with no occurrences shows the empty state, not fabricated data', async () => {
-  await assertReservedMonthIsExclusivelyOurs('2098-01', []);
   const cookie = await signedInCookie();
   const response = await fetch(`${app.baseUrl}/catalog?month=2098-01`, {
     headers: { cookie },
@@ -362,7 +382,6 @@ void test('same-day multiple occurrences are shown losslessly, and a null end ti
     startsAt: '2096-05-15T05:00:00.000Z', // 14:00 JST, no end (matinee)
   });
   await insertOccurrence(owner, event.id, '2096-05-15T09:00:00.000Z', '2096-05-15T11:00:00.000Z'); // 18:00-20:00 JST (evening)
-  await assertReservedMonthIsExclusivelyOurs('2096-05', [event.id]);
 
   const cookie = await signedInCookie();
   const { html, visibleText } = await renderedPage(
@@ -411,7 +430,6 @@ void test('a multi-day event bands by its Event range and never counts; a single
     endsOn: '2097-07-21',
   });
   await insertOccurrence(owner, secondRun.id, '2097-07-21T02:00:00.000Z');
-  await assertReservedMonthIsExclusivelyOurs('2097-07', [kabuki.id, live.id, secondRun.id]);
 
   const cookie = await signedInCookie();
   const { html: monthHtml } = await renderedPage(`${app.baseUrl}/catalog?month=2097-07`, cookie);
@@ -483,7 +501,6 @@ void test('a 0-occurrence single-day event never bands, counts once on its own d
   const { event } = await createEventWithoutOccurrence(owner, '2097-08-15', '2097-08-15', {
     title: eventFixtureTitle(),
   });
-  await assertReservedMonthIsExclusivelyOurs('2097-08', [event.id]);
 
   const cookie = await signedInCookie();
   const { html: monthHtml, visibleText: monthText } = await renderedPage(
@@ -534,7 +551,6 @@ void test('a 0-occurrence event whose Event range covers the month is visible on
   const { event } = await createEventWithoutOccurrence(owner, '2098-04-05', '2098-04-25', {
     title: eventFixtureTitle(),
   });
-  await assertReservedMonthIsExclusivelyOurs('2098-04', [event.id]);
 
   const cookie = await signedInCookie();
   const { html, visibleText } = await renderedPage(`${app.baseUrl}/catalog?month=2098-04`, cookie);
