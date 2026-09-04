@@ -1,22 +1,13 @@
 .list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
+  composes: list from '../../../ui/selectedDayList.module.css';
 }
 
 .heading {
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-title);
-  margin: 0;
+  composes: heading from '../../../ui/selectedDayList.module.css';
 }
 
 .items {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
+  composes: items from '../../../ui/selectedDayList.module.css';
 }
 
 /*
@@ -30,52 +21,29 @@
 }
 
 .itemLink {
-  composes: row from '../../../ui/row.module.css';
-  padding-block: var(--space-card-block);
-  text-decoration: none;
-  color: inherit;
-  touch-action: manipulation;
-}
-
-.itemLink:hover {
-  background-color: var(--color-surface-subtle);
-}
-
-.itemLink:active {
-  background-color: var(--color-surface-active);
+  composes: itemLink from '../../../ui/selectedDayList.module.css';
 }
 
 .itemBody {
-  composes: main from '../../../ui/row.module.css';
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
+  composes: itemBody from '../../../ui/selectedDayList.module.css';
 }
 
 .chevron {
-  composes: aside from '../../../ui/row.module.css';
-  color: var(--color-icon-affordance);
+  composes: chevron from '../../../ui/selectedDayList.module.css';
 }
 
 .time {
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-secondary);
+  composes: time from '../../../ui/selectedDayList.module.css';
 }
 
 .title {
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-title);
-  color: var(--color-text);
+  composes: title from '../../../ui/selectedDayList.module.css';
 }
 
 .venue {
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-secondary);
+  composes: venue from '../../../ui/selectedDayList.module.css';
 }
 
 .badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
+  composes: badges from '../../../ui/selectedDayList.module.css';
 }
