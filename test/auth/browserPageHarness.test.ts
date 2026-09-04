@@ -22,6 +22,12 @@ import { runCleanupTasks } from './support/cleanupTasks.ts';
 //   headless Chrome and a tiny local http server rather than against the
 //   app - so a driver regression is attributed to the driver, not to a
 //   Catalog/Auth test that merely happened to trip over it first;
+// - the `newIsolatedContext()` boundary the journey files' two-user actors
+//   are separated by (Issue #287): same cookie name, same origin, two
+//   contexts, no bleed - and a per-context teardown that disposes exactly
+//   that context. Proven here, on the driver, rather than only indirectly
+//   through a journey that would report a broken boundary as a product
+//   failure;
 // - the launch-failure lifecycle (Issue #259: a failed startup must reject
 //   promptly with a bounded, informative error and never hang or leak),
 //   proven Chrome-free by pointing the driver at a missing binary and at a
@@ -251,13 +257,135 @@ void test('content() includes hydration-payload and hidden text that visibleText
   assert.ok(!visibleText.includes(HIDDEN_ONLY_TEXT), 'a hidden element is not visible text');
 });
 
-void test('page.close() then browser.close() is safe, and a second browser.close() does not throw', async () => {
+// --- newIsolatedContext: the per-actor session boundary (Issue #287) ---
+
+void test('two isolated contexts of one Chrome hold the same cookie name at the same origin independently', async () => {
+  // The exact shape the journey actors are in: one Supabase session cookie
+  // name, one origin, two signed-in users. A shared jar would let the
+  // second seeding overwrite the first, and every later navigation would
+  // silently be the wrong user.
+  const first = await browser.newIsolatedContext();
+  const second = await browser.newIsolatedContext();
+  try {
+    const firstPage = await first.newPage();
+    const secondPage = await second.newPage();
+
+    await firstPage.navigate(`${baseUrl}/echo-cookie`, 'sb-session=first-user');
+    await secondPage.navigate(`${baseUrl}/echo-cookie`, 'sb-session=second-user');
+    // Re-read the first context *after* the second seeded that same name:
+    // this is what a journey's next `goto()` does, and what would quietly
+    // carry the other user's session if the jars were shared.
+    await firstPage.navigate(`${baseUrl}/echo-cookie`);
+
+    const firstReceived = await firstPage.visibleText();
+    const secondReceived = await secondPage.visibleText();
+    assert.ok(
+      firstReceived.includes('sb-session=first-user'),
+      `the first context must keep its own session: ${firstReceived}`,
+    );
+    assert.ok(
+      !firstReceived.includes('second-user'),
+      `the second context's session must never reach the first: ${firstReceived}`,
+    );
+    assert.ok(
+      secondReceived.includes('sb-session=second-user'),
+      `the second context must keep its own session: ${secondReceived}`,
+    );
+    assert.ok(
+      !secondReceived.includes('first-user'),
+      `the first context's session must never reach the second: ${secondReceived}`,
+    );
+  } finally {
+    await first.close();
+    await second.close();
+  }
+});
+
+void test('an isolated context shares neither cookies nor localStorage with the browser-wide newPage() context', async () => {
+  const isolated = await browser.newIsolatedContext();
+  try {
+    const isolatedPage = await isolated.newPage();
+    await page.navigate(`${baseUrl}/echo-cookie`, 'sb-shared=shared-context');
+    await page.raw.evaluate(() => {
+      localStorage.setItem('sb-storage', 'shared-context');
+    });
+
+    await isolatedPage.navigate(`${baseUrl}/echo-cookie`);
+    const received = await isolatedPage.visibleText();
+    assert.ok(
+      !received.includes('sb-shared'),
+      `the shared context's cookie must not reach an isolated one: ${received}`,
+    );
+    assert.equal(
+      await isolatedPage.raw.evaluate(() => localStorage.getItem('sb-storage')),
+      null,
+      'storage is per-context too, not only cookies',
+    );
+  } finally {
+    await isolated.close();
+  }
+});
+
+void test('closing one isolated context discards that context alone - its pages close and its cookies go, while the other context and the Chrome process stay usable', async () => {
+  const closed = await browser.newIsolatedContext();
+  const survivor = await browser.newIsolatedContext();
+  try {
+    const closedPage = await closed.newPage();
+    const survivorPage = await survivor.newPage();
+    await closedPage.navigate(`${baseUrl}/echo-cookie`, 'sb-session=closing-user');
+    await survivorPage.navigate(`${baseUrl}/echo-cookie`, 'sb-session=surviving-user');
+
+    await closed.close();
+    assert.equal(closedPage.raw.isClosed(), true, 'the context close must take its pages with it');
+    await assert.doesNotReject(closed.close(), 'a second close of the same context must be safe');
+
+    // The other actor keeps working, on the same Chrome, with its own jar.
+    await survivorPage.navigate(`${baseUrl}/echo-cookie`);
+    const survivorReceived = await survivorPage.visibleText();
+    assert.ok(
+      survivorReceived.includes('sb-session=surviving-user'),
+      `the surviving context must be unaffected: ${survivorReceived}`,
+    );
+    // A fresh context proves the closed one's cookies are really gone,
+    // rather than merely unreachable through a closed page.
+    const replacement = await browser.newIsolatedContext();
+    try {
+      const replacementPage = await replacement.newPage();
+      await replacementPage.navigate(`${baseUrl}/echo-cookie`);
+      const replacementReceived = await replacementPage.visibleText();
+      assert.ok(
+        !replacementReceived.includes('closing-user'),
+        `a closed context's session must not survive it: ${replacementReceived}`,
+      );
+    } finally {
+      await replacement.close();
+    }
+  } finally {
+    await survivor.close();
+  }
+});
+
+void test('page.close() then browser.close() is safe, browser.close() disposes an isolated context too, and closing either again does not throw', async () => {
   const extraBrowser = await launchBrowser();
   const extraPage = await extraBrowser.newPage();
   await extraPage.navigate(`${baseUrl}/page`);
   await extraPage.close();
   assert.equal(extraPage.raw.isClosed(), true);
+  // The file-level safety net a journey file keeps behind its per-actor
+  // closes: a context whose own close() never ran (a before() that threw
+  // partway, a journey that failed mid-test) still goes away with the
+  // process, and a teardown that closes it afterwards must not turn that
+  // into a second failure.
+  const leftOpen = await extraBrowser.newIsolatedContext();
+  const leftOpenPage = await leftOpen.newPage();
+  await leftOpenPage.navigate(`${baseUrl}/page`);
   await extraBrowser.close();
+  assert.equal(
+    leftOpenPage.raw.isClosed(),
+    true,
+    'closing the browser must take its isolated contexts with it',
+  );
+  await assert.doesNotReject(leftOpen.close(), 'closing a context after its browser must be safe');
   await assert.doesNotReject(extraBrowser.close());
 });
 

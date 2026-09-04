@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { grantCatalogCreator } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
+import { launchBrowser, type Browser } from './support/browserPage.ts';
 import {
   assertNoHorizontalOverflow,
   clickWhenInteractive,
@@ -33,6 +34,10 @@ const FIRST_OCCURRENCE_LOCAL = '2094-06-10T18:00';
 const SECOND_OCCURRENCE_LOCAL = '2094-06-11T13:00';
 
 let app: AppServer;
+/** The one Chrome this file's actors share. Each actor gets its own
+ * BrowserContext out of it, which is what keeps their sessions apart
+ * (Issue #287) - see createJourneyActor. */
+let browser: Browser;
 /** Granted catalog_creators membership - the same membership-based
  * allowlist scripts/grant-catalog-creator.mjs writes operationally, never a
  * hard-coded UUID (product-rules.md "先行実装しないもの"). */
@@ -50,9 +55,19 @@ before(async () => {
   initializedCleanups.push(() => app.stop());
   eventTitle = `event write journey ${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
 
-  creator = await createJourneyActor(app, { emailPrefix: 'event-write-journey-creator' }, (id) => {
-    createdUserIds.push(id);
-  });
+  browser = await launchBrowser();
+  // Registered before the first actor exists, so the process-level safety
+  // net is in place even if an actor's own creation fails partway through
+  // (Issue #259).
+  initializedCleanups.push(() => browser.close());
+  creator = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'event-write-journey-creator' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => creator.close());
   // Granted after sign-in rather than before: membership is read per
   // request (resolveCanCreateEvent / isDesignatedCatalogCreator), so the
@@ -61,6 +76,7 @@ before(async () => {
   await grantCatalogCreator(creator.userId);
 
   ordinary = await createJourneyActor(
+    browser,
     app,
     { emailPrefix: 'event-write-journey-ordinary' },
     (id) => {

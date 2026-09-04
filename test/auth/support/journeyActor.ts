@@ -6,7 +6,7 @@ import {
   type TestActor,
 } from '../../rls/support/testActors.ts';
 import type { AppServer } from './appServer.ts';
-import { launchBrowser, type Browser } from './browserPage.ts';
+import type { Browser, IsolatedContext } from './browserPage.ts';
 import { collectCleanupFailures } from './cleanupTasks.ts';
 import { signInThroughApp } from './signInThroughApp.ts';
 
@@ -26,20 +26,25 @@ import { signInThroughApp } from './signInThroughApp.ts';
 export const MOBILE_VIEWPORT = { width: 390, height: 844 } as const;
 
 /**
- * One signed-in user, driving its *own* Chrome process.
+ * One signed-in user, driving its *own* `BrowserContext` inside the Chrome
+ * the caller passes in.
  *
- * One browser per actor, rather than several pages/tabs of one browser:
- * `launchBrowser()`'s pages all share a single BrowserContext (see its own
- * doc comment - "cookies seeded via one page's navigate() are visible to
- * every other page"), and a Supabase session cookie is one name at one
- * origin. Two actors in that shared jar would therefore overwrite each
- * other, and every subsequent in-page navigation or Server Action fetch -
- * which sends whatever the jar currently holds, not what the last
- * `goto()` intended - would silently act as the wrong user. The two-user
- * journeys here (invitation, personal schedule sharing) alternate between
- * actors precisely in that way, so the isolation has to be real rather
- * than re-seeded per navigation. A separate Chrome per actor is also what
- * the product situation actually is: two people on two devices.
+ * A context per actor, rather than a tab per actor: `launchBrowser()`'s
+ * `newPage()` opens tabs in one shared context (see its own doc comment -
+ * "cookies seeded via one page's navigate() are visible to every other
+ * page"), and a Supabase session cookie is one name at one origin. Two
+ * actors in that shared jar would therefore overwrite each other, and
+ * every subsequent in-page navigation or Server Action fetch - which sends
+ * whatever the jar currently holds, not what the last `goto()` intended -
+ * would silently act as the wrong user. The two-user journeys here
+ * (invitation, personal schedule sharing) alternate between actors
+ * precisely in that way, so the isolation has to be real rather than
+ * re-seeded per navigation.
+ *
+ * A `BrowserContext` is exactly that isolation - its own cookie jar and
+ * storage - so one Chrome process per *journey file* is enough, rather
+ * than one per actor (Issue #287). Two contexts are still what the product
+ * situation is: two people, each with their own browser session.
  */
 export interface JourneyActor {
   readonly userId: string;
@@ -83,6 +88,15 @@ export interface JourneyActor {
    * a navigation is a race against streaming.
    */
   goto(path: string): Promise<void>;
+  /**
+   * Closes this actor's own `BrowserContext`, discarding its tab, cookies
+   * and storage - so a closed actor's session cannot leak into anything
+   * that runs afterwards.
+   *
+   * Deliberately *not* the Chrome process: that is shared with this
+   * journey file's other actors and is owned by the file's own
+   * `launchBrowser()`/`browser.close()` pair (Issue #287).
+   */
   close(): Promise<void>;
 }
 
@@ -144,19 +158,26 @@ export interface CreateJourneyActorOptions {
  * back a real browser tab already carrying that session at
  * MOBILE_VIEWPORT.
  *
+ * `browser` is the journey file's own Chrome, shared by every actor it
+ * creates; this takes a fresh `IsolatedContext` out of it and never closes
+ * the browser itself. The caller launches it once and registers
+ * `browser.close()` as a cleanup *before* creating any actor, so that
+ * process-level safety net is in place even if this call throws.
+ *
  * `onUserProvisioned` fires the instant the auth user exists, before the
  * OTP/mailpit/confirm steps that can still fail - register cleanup from
  * there, not from the resolved actor, so a partial failure still leaves
  * the user tracked (the same contract signInThroughApp itself documents).
  */
 export async function createJourneyActor(
+  browser: Browser,
   app: AppServer,
   options: CreateJourneyActorOptions,
   onUserProvisioned: (userId: string) => void,
 ): Promise<JourneyActor> {
-  const browser: Browser = await launchBrowser();
+  const context: IsolatedContext = await browser.newIsolatedContext();
   try {
-    const browserPage = await browser.newPage();
+    const browserPage = await context.newPage();
     await browserPage.raw.setViewportSize(MOBILE_VIEWPORT);
 
     const session = await signInThroughApp(app, {
@@ -178,15 +199,18 @@ export async function createJourneyActor(
         await browserPage.navigate(`${app.baseUrl}${path}`);
         await waitForRenderedContent(browserPage.raw);
       },
-      close: () => browser.close(),
+      close: () => context.close(),
     };
   } catch (error) {
-    // The Browser handle never reaches the caller on this path, so nothing
-    // else could close it. Same shape browserPage.ts's own attemptLaunch
+    // The context handle never reaches the caller on this path, so nothing
+    // else could close it - and leaving it open would keep a signed-in
+    // cookie jar alive in a Chrome the rest of the file goes on using.
+    // Only the context: the browser is the caller's, and its own cleanup
+    // is already registered. Same shape browserPage.ts's own attemptLaunch
     // uses: the primary failure stays primary, a cleanup failure is
     // appended as context rather than replacing it.
     try {
-      await browser.close();
+      await context.close();
     } catch (closeError) {
       const message = error instanceof Error ? error.message : String(error);
       const closeMessage = closeError instanceof Error ? closeError.message : String(closeError);

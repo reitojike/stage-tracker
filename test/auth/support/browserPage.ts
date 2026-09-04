@@ -96,13 +96,45 @@ export interface BrowserPage {
   readonly raw: Page;
 }
 
+/**
+ * One `BrowserContext` of a `Browser`, with a cookie jar and storage of its
+ * own (Issue #287).
+ *
+ * This is the unit two signed-in users have to be separated by. A Supabase
+ * session cookie is one name at one origin, so two users sharing a jar
+ * overwrite each other - and every later in-page navigation and Server
+ * Action fetch sends whatever the jar currently holds, silently acting as
+ * the wrong user. `newPage()`'s shared context cannot express that; a
+ * context per user can, inside a single Chrome process.
+ */
+export interface IsolatedContext {
+  /** Opens a tab in *this* context. Pages opened here see this context's
+   * cookies and storage and nothing else - not the `Browser`'s shared
+   * context, and not another `IsolatedContext`. */
+  newPage(): Promise<BrowserPage>;
+  /** Closes this context and every page opened in it, discarding its
+   * cookies and storage with it. The Chrome process, the `Browser`'s
+   * shared context, and every other `IsolatedContext` stay usable - this
+   * is deliberately *not* `Browser.close()`. Safe to call more than once,
+   * including after the owning `Browser` has already been closed. */
+  close(): Promise<void>;
+}
+
 export interface Browser {
   /** Opens a new tab in the one shared browser context every page of this
    * `Browser` lives in - cookies seeded via one page's `navigate()` are
    * visible to every other page, the same as the pre-#277 driver's single
-   * Chrome profile (and a real user's single browser window). */
+   * Chrome profile (and a real user's single browser window). Use
+   * `newIsolatedContext()` instead wherever two pages must *not* see each
+   * other's session. */
   newPage(): Promise<BrowserPage>;
-  /** Closes every page/context and terminates the Chrome process, waiting
+  /** Creates a fresh, empty `BrowserContext` in this same Chrome process -
+   * the isolation `newPage()` deliberately does not give (Issue #287).
+   * Its lifetime is the caller's: closing it disposes that context alone,
+   * while `close()` below remains the whole process's safety net. */
+  newIsolatedContext(): Promise<IsolatedContext>;
+  /** Closes every page/context - the shared one and every
+   * `IsolatedContext` - and terminates the Chrome process, waiting
    * (boundedly - see launchBrowser) for it to actually exit. Safe to call
    * more than once. */
   close(): Promise<void>;
@@ -186,6 +218,27 @@ class PlaywrightBrowserPage implements BrowserPage {
   }
 }
 
+class PlaywrightIsolatedContext implements IsolatedContext {
+  private readonly context: BrowserContext;
+
+  constructor(context: BrowserContext) {
+    this.context = context;
+  }
+
+  async newPage(): Promise<BrowserPage> {
+    return new PlaywrightBrowserPage(await this.context.newPage());
+  }
+
+  async close(): Promise<void> {
+    // Closes this context's pages and drops its cookie jar / storage with
+    // it, leaving the browser process running. Resolves (rather than
+    // throwing) if the context is already closed - directly, or because
+    // the owning Browser was closed first - so a teardown that runs both
+    // is safe in either order.
+    await this.context.close();
+  }
+}
+
 class PlaywrightDrivenBrowser implements Browser {
   private readonly browser: PlaywrightBrowser;
   private readonly context: BrowserContext;
@@ -197,6 +250,10 @@ class PlaywrightDrivenBrowser implements Browser {
 
   async newPage(): Promise<BrowserPage> {
     return new PlaywrightBrowserPage(await this.context.newPage());
+  }
+
+  async newIsolatedContext(): Promise<IsolatedContext> {
+    return new PlaywrightIsolatedContext(await this.browser.newContext());
   }
 
   async close(): Promise<void> {
@@ -309,8 +366,11 @@ async function attemptLaunch(target: LaunchTarget, timeoutMs: number): Promise<B
 /**
  * Launches a headless system Google Chrome via playwright-core. Every
  * `newPage()` call opens a tab in one shared context (one per test-file
- * `before()`/individual navigation set is the expected usage), all cleaned
- * up together by `close()`.
+ * `before()`/individual navigation set is the expected usage), and
+ * `newIsolatedContext()` adds a context with a cookie jar of its own for
+ * callers that need pages *not* to share a session (Issue #287) - all
+ * cleaned up together by `close()`, whether or not the caller closed its
+ * own contexts first.
  *
  * Lifecycle contract (Issue #259), now provided by playwright-core's
  * process launcher rather than this file's own code - references are to

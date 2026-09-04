@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { startAppServer, type AppServer } from './support/appServer.ts';
+import { launchBrowser, type Browser } from './support/browserPage.ts';
 import {
   assertNoHorizontalOverflow,
   clickWhenInteractive,
@@ -34,6 +35,10 @@ const STARTS_AT_LOCAL = `${FIXTURE_DATE}T13:00`;
 const ENDS_AT_LOCAL = `${FIXTURE_DATE}T15:30`;
 
 let app: AppServer;
+/** The one Chrome this file's actors share. Each actor gets its own
+ * BrowserContext out of it, which is what keeps their sessions apart
+ * (Issue #287) - see createJourneyActor. */
+let browser: Browser;
 let owner: JourneyActor;
 let recipient: JourneyActor;
 /** A third signed-in user this journey never shares anything with. Present
@@ -53,17 +58,37 @@ before(async () => {
   app = await startAppServer();
   initializedCleanups.push(() => app.stop());
   entryTitle = `schedule journey ${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
-  owner = await createJourneyActor(app, { emailPrefix: 'schedule-journey-owner' }, (id) => {
-    createdUserIds.push(id);
-  });
+  browser = await launchBrowser();
+  // Registered before the first actor exists, so the process-level safety
+  // net is in place even if an actor's own creation fails partway through
+  // (Issue #259).
+  initializedCleanups.push(() => browser.close());
+  owner = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'schedule-journey-owner' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => owner.close());
-  recipient = await createJourneyActor(app, { emailPrefix: 'schedule-journey-recipient' }, (id) => {
-    createdUserIds.push(id);
-  });
+  recipient = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'schedule-journey-recipient' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => recipient.close());
-  bystander = await createJourneyActor(app, { emailPrefix: 'schedule-journey-bystander' }, (id) => {
-    createdUserIds.push(id);
-  });
+  bystander = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'schedule-journey-bystander' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => bystander.close());
 });
 
