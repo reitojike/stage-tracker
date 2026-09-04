@@ -17,7 +17,8 @@ void test('shared notice keeps a stable polite status region and attempt-keyed m
   assert.match(component, /aria-live="polite"/);
   assert.match(component, /notice !== null/);
   assert.match(component, /<p key=\{attempt\}/);
-  assert.match(css, /\.noticeRegion:empty/);
+  assert.match(component, /notice === null \? styles\.noticeRegionEmpty/);
+  assert.match(css, /\.noticeRegionEmpty\s*\{[\s\S]*?composes:\s*visuallyHiddenRegion/);
   assert.match(css, /var\(--color-surface-subtle\)/);
   assert.match(css, /var\(--radius-control-sm\)/);
   assert.match(css, /var\(--font-size-body-sm\)/);

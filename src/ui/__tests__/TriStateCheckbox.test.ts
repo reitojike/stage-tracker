@@ -77,5 +77,8 @@ void test('the real input is visually hidden (not display:none) so it stays focu
   const inputRule = css.match(/(?:^|\n)\.input\s*\{([^}]*)\}/);
   assert.ok(inputRule, '.input rule is missing from TriStateCheckbox.module.css');
   assert.doesNotMatch(inputRule[1] ?? '', /display:\s*none/);
-  assert.match(inputRule[1] ?? '', /clip:\s*rect\(0,\s*0,\s*0,\s*0\)\s*;/);
+  assert.match(
+    inputRule[1] ?? '',
+    /composes:\s*visuallyHidden\s+from\s+'\.\/visuallyHidden\.module\.css';/,
+  );
 });
