@@ -81,12 +81,19 @@ function monthOf(utcMs: number): string {
 /**
  * Every month `source` could put an Event in - deliberately over-stated.
  *
- * A dated literal contributes the months of the day before, the day itself,
- * and the day after. That is the whole timezone story: `createEventWithOccurrence`
- * derives an Event's range from the *Asia/Tokyo* calendar date of `startsAt`,
- * and no UTC offset can move a calendar date by more than a day, so those
- * three months always contain wherever the Event actually lands. A literal
- * with no day contributes only its own month.
+ * A dated literal contributes the months of every day within two days of it,
+ * in both directions. `createEventWithOccurrence` derives an Event's range
+ * from the *Asia/Tokyo* calendar date of `startsAt`, which is not always the
+ * date as written: the fixture timestamps this suite hands it are ISO strings
+ * that both `Date.parse` and PostgreSQL `timestamptz` accept, and those admit
+ * a numeric UTC offset. Measuring the accepted offset range against Tokyo's
+ * own +09:00 bounds how far that can move the date - an offset near the
+ * positive end pulls the Tokyo date one day back, and one near the negative
+ * end, on a late enough time of day, pushes it two days forward. Two days per
+ * side therefore contains wherever the Event actually falls. It is stated
+ * symmetrically because that is the cheaper claim to hold: the real skew is
+ * not symmetric, and two days covers the wider side outright. A literal with
+ * no day contributes only its own month.
  *
  * Nothing after the day is parsed - not the time, not a trailing `Z`, not a
  * numeric offset, not whether seconds are present. Earlier revisions of this
@@ -97,10 +104,17 @@ function monthOf(utcMs: number): string {
  * understands none of them.
  *
  * The trade is deliberate and one-directional. This over-detects - an `endsAt`
- * literal, or a date that merely sits next to a reserved month, still counts -
+ * literal, or a date that merely sits near a reserved month, still counts -
  * and over-detection can only ever ask another test file to pick a different
  * month. It cannot let a real reserved-month collision through, which is the
- * failure this guard exists to prevent.
+ * failure this guard exists to prevent. The window was one day per side until
+ * a Codex finding on ff51b66 exhibited a large negative offset reaching two
+ * days on, so it is the bound, not the approach, that widened.
+ *
+ * One consequence for whoever edits this file: it reads its own source, prose
+ * included, so a dated example written into a comment here counts as a month
+ * this file uses. Describe such a case rather than spelling the date out, or
+ * the reservation check below will (correctly) ask for its month too.
  */
 function monthsUsedIn(source: string): Set<string> {
   const months = new Set<string>();
@@ -111,7 +125,7 @@ function monthsUsedIn(source: string): Set<string> {
       continue;
     }
     const midnight = Date.UTC(Number(year), Number(month) - 1, Number(day));
-    for (const shift of [-DAY_MS, 0, DAY_MS]) {
+    for (const shift of [-2 * DAY_MS, -DAY_MS, 0, DAY_MS, 2 * DAY_MS]) {
       months.add(monthOf(midnight + shift));
     }
   }
