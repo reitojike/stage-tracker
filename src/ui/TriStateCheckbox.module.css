@@ -21,22 +21,8 @@
   opacity: 0.6;
 }
 
-/*
- * Visually hidden but still in the layout/DOM and focusable - the classic
- * sr-only pattern (not display:none, which would also drop it from the tab
- * order). The visible box below is its next sibling so :focus-visible can be
- * forwarded onto it.
- */
 .input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  composes: visuallyHidden from './visuallyHidden.module.css';
 }
 
 .input:focus-visible {
