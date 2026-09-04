@@ -5,8 +5,8 @@
  * Kept out of `src/app/manifest.ts` on purpose: that file is an App Router
  * metadata route, so anything exported beside its default `manifest()` is
  * constrained by Next.js' own route-export rules. This module is a plain
- * module the manifest route, the tests, and the icon generator can all
- * import.
+ * module that the manifest builder, the root metadata, and the tests can
+ * all import.
  */
 
 /**

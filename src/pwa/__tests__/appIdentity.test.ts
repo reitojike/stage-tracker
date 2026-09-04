@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildPwaManifest } from '../manifest.ts';
+import { decodePng, markDiameterFraction, minimumAlpha, type DecodedPng } from './decodePng.ts';
 import {
   PWA_APP_ID,
   PWA_BACKGROUND_COLOR,
@@ -113,45 +114,65 @@ void test('the matcher exclusion list holds nothing beyond the Next internals an
 
 // --- Icons exist, at the sizes the manifest advertises ---
 
-function readPngHeader(path: string): { width: number; height: number } {
-  const file = readFileSync(fileURLToPath(new URL(`public${path}`, repositoryRoot)));
-  assert.equal(
-    file.subarray(0, 8).toString('hex'),
-    '89504e470d0a1a0a',
-    `${path} is not a PNG file`,
-  );
-  return { width: file.readUInt32BE(16), height: file.readUInt32BE(20) };
+function decodeIcon(path: string): DecodedPng {
+  return decodePng(readFileSync(fileURLToPath(new URL(`public${path}`, repositoryRoot))));
 }
 
 void test('every declared icon exists under public/ at exactly the advertised size', () => {
   // A manifest icon whose real pixel size differs from its `sizes` entry
   // is rejected by installability checks, and the file is a binary a
-  // reviewer cannot eyeball.
+  // reviewer cannot eyeball. Decoding also proves the file is a PNG this
+  // repo can actually read, not just one with a PNG signature.
   for (const asset of PWA_ICON_ASSETS) {
-    const { width, height } = readPngHeader(asset.path);
+    const { width, height } = decodeIcon(asset.path);
     assert.equal(width, asset.size, `${asset.path} width`);
     assert.equal(height, asset.size, `${asset.path} height`);
   }
 });
 
-void test('the maskable icon is its own artwork, not a copy of the same-sized any icon', () => {
-  // The two are the same pixel size, so a copy-paste during export would
-  // look right in a file listing and only show up as a clipped mark on a
-  // real Android launcher: `any` art is full-bleed, maskable art has to
-  // keep its content inside the 80% safe-zone circle.
-  const bytesOf = (path: string) =>
-    readFileSync(fileURLToPath(new URL(`public${path}`, repositoryRoot)));
+void test('the maskable icon keeps its mark inside the adaptive-icon safe zone', () => {
+  // The one property that actually matters for a maskable icon: an
+  // Android launcher picks its own mask, so anything outside the centred
+  // 80%-diameter circle can be clipped. Shipping the full-bleed `any`
+  // artwork here is the realistic mistake, and it is invisible until a
+  // real launcher crops the mark.
+  for (const asset of PWA_ICON_ASSETS.filter((item) => item.purpose === 'maskable')) {
+    const diameter = markDiameterFraction(decodeIcon(asset.path));
+    assert.ok(
+      diameter <= 0.8,
+      `${asset.path} draws out to ${(diameter * 100).toFixed(1)}% of its width; the maskable safe zone is 80%`,
+    );
+  }
+});
 
+void test('the maskable icon is its own artwork, not the same image as the any icon', () => {
+  // Compared as decoded pixels rather than file bytes on purpose:
+  // exporting the same artwork twice yields different files (different
+  // compression, different ancillary chunks), so a byte comparison would
+  // pass while shipping identical images.
   for (const maskable of PWA_ICON_ASSETS.filter((asset) => asset.purpose === 'maskable')) {
     for (const plain of PWA_ICON_ASSETS.filter(
       (asset) => asset.purpose === 'any' && asset.size === maskable.size,
     )) {
       assert.equal(
-        bytesOf(maskable.path).equals(bytesOf(plain.path)),
+        decodeIcon(maskable.path).pixels.equals(decodeIcon(plain.path).pixels),
         false,
-        `${maskable.path} is byte-identical to ${plain.path}`,
+        `${maskable.path} decodes to the same image as ${plain.path}`,
       );
     }
+  }
+});
+
+void test('every icon is fully opaque, so iOS has no transparency to composite onto black', () => {
+  // A Home Screen icon with transparent pixels is composited onto black by
+  // iOS, which turns a light mark into a dark smear. Cheap to get wrong on
+  // export, invisible in a file listing.
+  for (const asset of PWA_ICON_ASSETS) {
+    assert.equal(
+      minimumAlpha(decodeIcon(asset.path)),
+      255,
+      `${asset.path} contains transparent or translucent pixels`,
+    );
   }
 });
 
