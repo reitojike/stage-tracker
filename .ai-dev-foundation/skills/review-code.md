@@ -27,12 +27,13 @@ review でも同じ意味で適用します。
 
 迷ったらこの順に進めます。各 step の詳細・分岐・例外は `## 手順` にあります。
 
-1. repository が定義する deterministic verify（`npm test` 等）を実行する。
-2. review 対象の commit SHA を freeze する。
+1. repository が定義する deterministic verify（`npm test` 等）を実行し、**どの SHA に
+   対して実行したかを記録する**。
+2. review 対象の commit SHA と target artifact set を freeze する。
 3. reviewer capability record（`.ai-dev-foundation/reviewers.json`）を読む。無ければ
    Selection へ進まず停止して escalate する。
-4. record の `required_selection` に従って required slot を埋め、expected review set を
-   確定して Selection を記録する。
+4. record の `required_selection` に従って required slot を埋め、expected review set と
+   required review skill を確定して Selection を記録する。
 5. record の `trigger.kind` に従って reviewer を起動する（分岐の詳細は手順 4）。
 6. 状態は会話内の記憶ではなく、fresh 取得で確認する。
 
@@ -40,23 +41,27 @@ review でも同じ意味で適用します。
    node tooling/review-evidence.mjs --repo <owner/repo> --pr <number> --json
    ```
 
-7. 取得した surface を record の marker と突き合わせて次を決める。marker として採用できる
-   のは、record の `actors` に帰属し、かつ current run の anchor 以後に現れた evidence だけ
-   です（帰属と anchor の確定は手順 5）。
-   - record の completion marker を、freeze した target への resolvable な参照とともに
-     観測できた — finding を triage する（手順 6 以降）
-   - rate-limit marker — 復帰を待たない。record の `fallback_order` の次の reviewer へ進み、
-     Selection amendment を記録する
-   - 非参加 marker / failure marker、または何も観測できない — `0 findings` へ変換せず、
-     Failure / retry（`policy/core.md`）に従う。沈黙を completion へ変換しない
-   - advisory member — completion を待たず blocker にしない。ただし到着済みの finding は
-     class に関係なく triage / Resolution の対象
+7. fresh snapshot を state evaluator へ渡して target completion state を読み、
+   **triage の対象にした result の `canonical_id` と `body_digest` を記録する**。
+   `completed@target` は current target に binding があり、coverage が complete な場合
+   だけです。`not-bound` は別 target の完了です。`unknown` と `in-flight` は terminal
+   failure ではなく、沈黙、preamble、acknowledgement、fetch incomplete、marker 不明を
+   positive/negative に変換しません。finding の意味付け、Resolution、fallback の policy
+   は `policy/core.md` に従います。
 8. accepted finding を batch で fix し、target が動いたら targeted closure を回す。
-9. merge-ready fence を評価してから merge-ready を宣言する。merge の実行は authority に従う。
+9. merge-ready fence を実行し、`pass` の場合だけ merge-ready を宣言する。merge の実行は
+   authority に従う。
+
+   ```text
+   node tooling/merge-ready-fence.mjs --repo <owner/repo> --pr <number> \
+     --target-sha <sha> --base-sha <sha> --artifacts-file <path> \
+     --verify-sha <sha> --required <reviewer-id> --declared-skill review-code \
+     --acknowledged-file <path>
+   ```
 
 ## reviewer capability record
 
-利用可能な reviewer、その trigger、結果が出る surface、completion / 非参加 / rate-limit /
+利用可能な reviewer、その trigger、completion / 非参加 / rate-limit /
 failure の marker、fallback order は、consumer-owned な reviewer capability record
 （`.ai-dev-foundation/reviewers.json`）が持ちます。本 skill は provider 名も marker も
 持ちません。
@@ -94,31 +99,27 @@ required/expected review の消化根拠にしてはいけません。この区�
 
 ## 手順
 
-1. **Deterministic verify** — AI review を要求する前に、その時点の candidate SHA
-   と、その verify が対象とした artifact / package / repository scope を
-   必要な精度で記録した上で、repository が定義する verify（`npm test` / `npm
-run check:fixture` / consumer `verify` / `git diff --check` 等、Task に
-   応じたもの）を実行します。repository 全体を対象とする verify であれば
-   repo-wide として記録すれば十分です。
-2. **Freeze candidate SHA** — review 対象の commit SHA を確定します。
-   commit range を review target として使う場合は、対象となる range も
-   同時に freeze し、以降 SHA について述べる target mutation semantics を
-   range にも同じ意味で適用します。
-   手順 1 で記録した verify 対象の SHA と、ここで freeze する SHA が一致する
-   ことを確認します。一致しない場合は、freeze した SHA に対して手順 1 の
-   deterministic verify を再実行し、成功してから先へ進みます。
-   discovery の completion / validity が確定する前にこの SHA が変わった場合、
-   その旧 review target / run を現在 target の evidence として扱いません。
-   新しい SHA に対して手順 1 の deterministic verify を再実行し、成功したら
-   re-freeze して必要な discovery をやり直します。
-   valid な discovery の後、手順 7 の batch fix によって SHA が変わった場合は、
-   re-freeze はしますが手順を最初からやり直さず、
-   手順 8〜13（deterministic verify -> targeted closure -> merge）に進みます。
-   手順 7 の batch fix 以外の理由で candidate SHA が変わった場合（並行作業や
-   scope 追加、fix と無関係な commit 等）は、valid な discovery の後であっても
-   その旧 review target / run を現在 target の evidence として扱いません。
-   新しい SHA に対して手順 1 の deterministic verify を再実行し、成功したら
-   re-freeze して必要な discovery をやり直します。
+1. **Deterministic verify** — AI review を要求する前に、その時点の candidate SHA と、
+   その verify が対象とした artifact / package / repository scope を必要な精度で記録した上で、
+   repository が定義する verify（`npm test` / `npm run check:fixture` / consumer
+   `verify` / `git diff --check` 等、Task に応じたもの）を実行します。repository 全体を
+   対象とする verify であれば repo-wide として記録すれば十分です。
+   記録した SHA と freeze した target の一致は手順 13 の fence が機械判定するため、
+   手順の各所で手作業の SHA 照合を繰り返しません。scope が selected artifact set を
+   カバーしているかは fence の対象外で、手順 3 で確認します。target が動いたら verify を
+   やり直し、記録した SHA と scope を更新します。
+2. **Freeze candidate SHA** — review 対象の commit SHA を確定します。commit range を
+   review target として使う場合は対象 range も、target artifact set も同時に freeze し、
+   以降 SHA について述べる target mutation semantics を range と artifact set にも同じ
+   意味で適用します。
+   target が動いたときにどう扱うかは、その動いた理由で決まります。
+   - discovery の completion / validity が確定する前に動いた場合、または **手順 7 の
+     batch fix 以外**の理由で動いた場合（並行作業、scope 追加、fix と無関係な commit
+     等）は、旧 review target / run を現在 target の evidence として扱いません。新しい
+     SHA に対して手順 1 の verify をやり直し、re-freeze して必要な discovery をやり直
+     します。
+   - valid な discovery の後、**手順 7 の batch fix によって**動いた場合は、re-freeze は
+     しますが手順を最初からやり直さず、手順 8〜13 へ進みます。
 3. **Selection** — 最初に reviewer capability record を読みます。record が存在しない、
    または parse / 最小妥当性 check を通らない場合は、Selection へ進まず停止して
    escalate します。record の `required_selection` に従って required slot を埋め、
@@ -127,9 +128,6 @@ run check:fixture` / consumer `verify` / `git diff --check` 等、Task に
    capability、required review 数、target artifact set、expected target
    SHA / applicable な commit range を決めます。commit range を使う場合は、
    対象範囲が曖昧にならない形で確定します。
-   target artifact set を確定した時点から、その artifact set も review
-   target の一部として扱い、手順 2 の target mutation semantics を
-   artifact set にも同じ意味で適用します。
    target artifact set を確定したら、直近の successful deterministic
    verify evidence が、確定した SHA / range と target artifact set の
    両方をカバーしているかを確認します。selected artifact set をその
@@ -137,6 +135,8 @@ run check:fixture` / consumer `verify` / `git diff --check` 等、Task に
    target に対して手順 1 の deterministic verify を再実行し、成功して
    から手順 4（Execution）へ進みます。
    Executable artifact では原則として独立 reviewer を使います。
+   **Mixed classification の場合は、required な review skill をすべて宣言します。**
+   宣言した skill と changed artifact set の整合は手順 13 の fence が照合します。
    あわせて expected review set を確定します。自分が trigger した reviewer だけを
    set に入れて終わりにしません。membership の境界（何が member になり、presence
    だけでは何が member にならないか）と class ごとの扱いは Selection Contract
@@ -162,114 +162,77 @@ run check:fixture` / consumer `verify` / `git diff --check` 等、Task に
      なら fallback order に従います。
      record に宣言されていない reviewer は formal acquisition になりません。
      trigger 方法、実際に渡した target と artifact set、required context を記録します。
-5. **Acquisition & Validity** — reviewer の run ごとに Acquisition & Validity
-   Contract（`policy/core.md`）に従って record schema を埋めます。
-   completion と validity は独立した判定とし、completed な run についてのみ
-   validity を判定します（target SHA / artifact set 等が一致しない completed run
-   は invalid として表現できます）。
-   `none` / `unknown` / `failure` は completion / validity と混同せず、Contract
-   の定義に従って記録します。
-   run record の `status` / `validity` とは別に、各 reviewer の target completion
-   state を Acquisition & Validity Contract に従って判定します。判定に使う positive
-   completion evidence の target-bound 要件、binding へ使う field / surface の安定性
-   要件、binding が成立しない場合の扱い、および `not-bound` な reviewer の evidence 軸 /
-   finding 軸の分離は、いずれも `policy/core.md` が定めます。
-   この skill で行う実務は次です。completion 判定は record の completion marker を、
-   comment ID を指定した fresh 取得で確認します。in-place 編集される surface では、
-   新着 comment ではなく既存 comment の本文変化を見ます。
-   marker evidence として扱ってよいのは、record の `actors` に帰属する item だけです。
-   comment / review 型の surface で actor を確認できない item は、positive completion
-   evidence に使いません。
-   marker は、current run を識別する anchor 以後の evidence にのみ適用します。
-   `comment_command` では、実際に投稿した trigger comment を run anchor とします。
-   `automatic` / `operator_configured` では、Selection / Execution で記録した run
-   開始時点、またはその run に帰属すると確認できる participation evidence を anchor と
-   します。current run への帰属を確定できない marker は、その run の completion /
-   rate-limit / failure / 非参加 のいずれの判定にも使いません。
-   どの surface item を positive completion evidence とし、どの field / surface を安定と
-   判断して binding の根拠にしたかを記録します。安定性を必要な精度で確認できないまま
-   binding が成立したものとして扱わないでください。
+5. **Acquisition & state** — reviewer の run ごとに `tooling/review-evidence.mjs` を
+   fresh に実行し、必要なら `--state --target-sha <sha> --run-after <timestamp>`
+   （または `--run-anchor-id <id>`）で state evaluator を実行します。
+   state output の `state`、`coverage_complete`、`evidence`、`reason_codes` を記録します。
+   **あわせて、triage の対象にする result の `canonical_id` と
+   `evidence[].revision.body_digest` を記録します。** review result は in-place で編集
+   され得るため、この revision は手順 13 の fence が current revision と照合します
+   （`policy/core.md` の Acquisition & Validity Contract）。
+   target-bound completion、run state、coverage、および binding の規範的な扱いは、いずれも
+   `policy/core.md` が定めます。`completed@target` は current target に target-bound
+   evidence があり、coverage が complete な場合だけです。draft / pending ownership、
+   actor attribution 不明、binding 不明、または fetch incomplete は positive completion に
+   使いません。`not-bound` は別 target の完了です。`rate-limited` / `failed` / `declined` は
+   explicit signal と complete coverage が必要です。`in-flight` と `unknown` は
+   terminal failure ではありません。preamble、acknowledgement、silence、空の snapshot
+   を 0 findings や failure に変換しません。
+6. **Required review gate & aggregate / triage** — state と run record を
+   `policy/core.md` の Acquisition & Validity Contract に照合します。state は finding
+   の有無を表しません。required run が揃った後の finding の集約と Resolution は同
+   Contract に従います。ancestor target の finding も target 移動だけでは discharge
+   しません。Selection Contract で required とした review 数ぶんの `validity: valid` な
+   run が揃うまで triage へ進みません。揃わない run（invalid / unknown / failure）の
+   扱いは Failure / retry（`policy/core.md`）に従います。finding の集約対象は valid な
+   run に限りません。`validity` は evidence 軸の判定であり、finding を捨ててよい根拠
+   ではありません。重大 finding を dismiss する際の確認要否は Resolution Contract に
+   従います。
    rate-limit marker を観測したら復帰を待ちません。record の `fallback_order` で次の
-   reviewer へ進み、Selection amendment を記録します。待つのは in-flight な run の
-   終端だけです。
-   advisory member の completion は待たず、blocker にしません。ただし merge-ready 判定
-   までに review surface へ到着した finding は、class に関係なく triage / Resolution の
-   対象です。
-6. **Required review gate & aggregate / triage** — Selection Contract で
-   required とした review 数ぶんの `validity: valid` な run が揃うまで triage
-   へ進みません。
-   揃わない run（invalid / unknown / failure）の扱いは Failure / retry
-   （`policy/core.md`）に従います。
-   required 数の valid run が揃ったら finding を集約し、
-   Resolution Contract（`policy/core.md`）のカテゴリ（fix / false-positive /
-   needs-verification / technical-dispute / intent-question）へ仕分けます。
-   human escalation と technical dispute の扱い、重大 finding を dismiss する
-   際の確認要否は Resolution Contract に従います。
-   finding の集約対象は valid な run に限りません。ancestor target に対する run の
-   ように `validity: valid` でない run であっても、そこで既に発見された finding は
-   Resolution Contract の対象です。`validity` は evidence 軸の判定であり、finding を
-   捨ててよい根拠ではありません。review target が移動したことだけを理由に、既存の
-   finding を discharge しません。
+   reviewer へ進み、Selection amendment を記録します。待つのは in-flight な run の終端
+   だけです。advisory member の completion は待たず、blocker にしません。ただし
+   merge-ready 判定までに review surface へ到着した finding は、class に関係なく
+   triage / Resolution の対象です。
 7. **Batch fix + root-cause** — Resolution Contract に従い、accepted finding が
-   あれば root-cause ごとにまとめて fix します。
-   accepted finding が無ければ candidate SHA は変更されません。
-   fix による変更を超えて target が動いた場合（例えば commit range の
-   一方の endpoint や target artifact set が accepted fix と無関係に
-   変わった場合）、その独立した変更分は手順 2 の non-fix target mutation
-   semantics に従い、targeted closure だけでは扱いません。
+   あれば root-cause ごとにまとめて fix します。fix 後は candidate SHA を re-freeze
+   し、必要な deterministic verify と targeted closure を行います。state evaluator
+   は fallback を実行せず、fallback policy は `policy/core.md` に委ねます。
 8. **Deterministic verify** — 手順 7 の batch fix によって candidate SHA が
-   変更された場合のみ、fix 後に手順 1 の verify を再実行します。
+   変更された場合のみ、fix 後に手順 1 の verify を再実行し、記録した verify SHA を
+   更新します。
 9. **Second full discovery（条件付き）** — Review stopping rules
    （`policy/core.md`）に従って 2nd full discovery が必要と判断された
-   場合のみ、targeted closure の前に行います。
-   1. 現在の post-fix SHA を second discovery target として re-freeze
-      し、直近の successful deterministic verify target との
-      consistency を確認します。一致しない場合は、その verify evidence
-      を使わず、確定した second discovery target に対して
-      deterministic verify を行い、成功したら re-freeze して
-      Selection / Execution へ進みます。
-   2. Selection Contract をこの second discovery stage へ適用し、確定
-      した target artifact set まで直近の successful deterministic
-      verify evidence がカバーしているかを確認します。カバーしていると
-      確認できない場合は、確定した second discovery target に対して
-      deterministic verify を再実行し、成功してから Execution へ
-      進みます。
-   3. Execution Contract に従って full discovery（独立 reviewer）を
-      起動します。
-   4. Acquisition & Validity Contract をこの discovery run に適用します。
-   5. Selection で required とした review 数ぶんの valid run が揃うまで
-      triage へ進みません。揃わない run の扱いは Failure / retry
-      （`policy/core.md`）に従います。
-   6. finding を Resolution Contract で triage します。手順 6 と同じく、
-      集約対象は valid な run に限りません。`validity: valid` でない run で
-      既に発見された finding も Resolution Contract の対象です。
-   7. accepted finding があれば、手順 7 と同じ batch fix semantics で
-      まとめて fix します。
-   8. その fix によって target が変わった場合、手順 8 と同じ
-      deterministic verify を行います。
-
-   second discovery の実行中、または completion / validity 確定前後に
-   accepted fix 以外の理由で target が変わった場合は、手順 2 と同じ
-   target-specific evidence の扱いに従います。
-   この second discovery の accepted finding の fix について、さらに
-   追加の discovery round が必要と判断される場合、3rd full discovery は
-   起動せず merge もせず、Review stopping rules（`policy/core.md`）に
-   従って upstream task/design の不安定さを疑い、必要に応じて escalate
-   します。
-
+   場合のみ、targeted closure の前に行います。現在の post-fix SHA を second discovery
+   target として re-freeze し、Selection Contract をこの second discovery stage へ適用し、
+   確定した target artifact set まで直近の successful deterministic verify evidence が
+   カバーしているかを確認します。カバーしていると確認できない場合は、確定した
+   second discovery target に対して deterministic verify を再実行し、成功してから
+   Execution へ進みます。その上で Execution Contract に従って full discovery
+   （独立 reviewer）を起動します。
+   Acquisition & Validity Contract をこの discovery run に適用します。Selection で required
+   とした review 数ぶんの valid run が揃うまで triage へ進みません。揃わない run の
+   扱いは Failure / retry（`policy/core.md`）に従います。finding は Resolution Contract で
+   triage し、手順 6 と同じく集約対象は valid な run に限りません。accepted finding が
+   あれば、手順 7 と同じ batch fix semantics でまとめて fix し、その fix によって
+   target が変わった場合、手順 8 と同じ deterministic verify を行います。
+   fix による変更を超えて target が動いた場合（例えば commit range の一方の endpoint や
+   target artifact set が accepted fix と無関係に変わった場合）、その独立した変更分は
+   手順 2 の non-fix target mutation semantics に従い、targeted closure だけでは扱いません。
+   second discovery の実行中、または completion / validity 確定前後に accepted fix 以外の
+   理由で target が変わった場合も同じ扱いです。
+   この second discovery の accepted finding の fix について、さらに追加の discovery
+   round が必要と判断される場合、3rd full discovery は起動せず merge もせず、Review
+   stopping rules（`policy/core.md`）に従って upstream task/design の不安定さを疑い、
+   必要に応じて escalate します。
 10. **Targeted closure** — この review flow で accepted finding の fix
     によって target が変更された場合のみ（手順 9 の second full
     discovery を挟んだ場合を含む）行います。最終的な post-fix SHA を
-    closure target として re-freeze し、直近の successful deterministic
-    verify target との consistency を確認します。一致しない場合は、その
-    verify evidence を使わず、確定した closure target に対して
-    deterministic verify を行い、成功したら re-freeze します。
-    Selection Contract に従ってこの closure target を expected target
-    として確定し、確定した closure artifact set まで直近の successful
-    deterministic verify evidence がカバーしているかを確認します。
-    カバーしていると確認できない場合は、確定した closure target に対
-    して deterministic verify を再実行し、成功してから Execution
-    Contract に従って closure run を起動します。
+    closure target として re-freeze し、Selection Contract に従ってこの closure target
+    を expected target として確定し、確定した closure artifact set まで直近の
+    successful deterministic verify evidence がカバーしているかを確認します。
+    カバーしていると確認できない場合は、確定した closure target に対して
+    deterministic verify を再実行し、成功してから Execution Contract に従って
+    closure run を起動します。
     Review stopping rules（`policy/core.md`）に従い、fix した箇所に対応
     する範囲のみ再確認します。
 11. **Closure Acquisition & Validity** — この review flow で accepted
@@ -310,29 +273,31 @@ run check:fixture` / consumer `verify` / `git diff --check` 等、Task に
     のみ行います。authority が明示されていない、または別 authority の
     承認が必要な場合は merge を実行せず、merge-ready の状態を報告して
     停止し、authority escalation / handoff します。
-    この review flow で accepted finding の fix による
-    target 変更が一度も発生していなければ、required review 数の valid
-    discovery と Resolution（手順 6）が完了した時点で merge-ready と
-    判定します。
-    target 変更が発生していれば（手順 9 を挟んだ場合を含む）、手順 6 の
-    discovery Resolution（手順 9 を使った場合はその Resolution も含む）
-    と、Closure Acquisition & Validity・Closure Resolution が完了した
-    時点で merge-ready と判定します。discovery Resolution と closure の
-    完了順序は
-    問いません。
+    この review flow で accepted finding の fix による target 変更が一度も発生して
+    いなければ、required review 数の valid discovery と Resolution（手順 6）が完了した
+    時点で semantic な条件が揃います。target 変更が発生していれば（手順 9 を挟んだ
+    場合を含む）、手順 6 の discovery Resolution（手順 9 を使った場合はその Resolution も
+    含む）と、Closure Acquisition & Validity・Closure Resolution の完了が必要です。
+    discovery Resolution と closure の完了順序は問いません。
 
-    そのうえで、merge-ready を宣言する直前の最後の action として、
-    `policy/core.md` の Merge-ready completion fence を評価します。
-    merge-ready の成立条件、review obligation の定義、および
-    review-relevant な state 変化による fence の無効化は `policy/core.md`
-    が定めます。
-    この skill で行う実務は次です。宣言の直前に expected review set を
-    fresh acquisition で閉じ直し、各 member の target completion state を
-    fresh に判定し、finding を安定 evidence 由来の reviewed target へ
-    帰属させ、triage されていない finding が review surface 上に残って
-    いないことを確認します。会話内で既に見た snapshot をこの判定の根拠に
-    しません。provider が thread の resolution 状態を持つ場合は、その
-    surface も未 triage finding の確認に使えます。
+    そのうえで、宣言の直前の最後の action として merge-ready fence を実行します。
+
+    ```text
+    node tooling/merge-ready-fence.mjs --repo <owner/repo> --pr <number> \
+      --target-sha <frozen target> --base-sha <frozen base> \
+      --artifacts-file <frozen artifact set> --verify-sha <手順 1/8 の verify SHA> \
+      --required <reviewer-id> --declared-skill review-code \
+      --acknowledged-file <手順 5 で記録した canonical_id=body_digest>
+    ```
+
+    fence は machine-checkable な precondition だけを評価します。`pass`（exit 0）の
+    場合にのみ merge-ready を宣言できます。`fail`（exit 1）と `unknown`（exit 2）は
+    どちらも merge-ready ではありません。`unknown` を `pass` として扱わないでください。
+    fence output はそのまま durable evidence として記録します。
+    fence が pass しても、それは merge-ready の成立そのものではありません。expected /
+    optional member を含む review obligation の充足と Resolution の完了は semantic な
+    判断であり、`policy/core.md` の Merge-ready completion fence が定めます。
+    review-relevant な state 変化があった場合の fence 無効化も同節が定めます。
 
 ## 停止条件
 
@@ -346,7 +311,6 @@ Executable artifact の review flow を、`policy/core.md` の Review stopping r
 ```text
 deterministic verify
   -> freeze candidate SHA
-  -> verify target と freeze target の consistency 確認
   -> discovery（独立 reviewer）
   -> completion / acquisition / validity 確認
   -> aggregate / triage
@@ -384,30 +348,13 @@ deterministic verify
             -> 追加の full discovery が不要な場合:
                  targeted closure を再実行する
        -> required discovery stage(s) の Resolution 完了
+       -> merge-ready fence
        -> merge
   -> accepted fix が無く review target が変更されていない場合:
        required review 数の valid discovery と Resolution の完了
+       -> merge-ready fence
        -> merge
 ```
-
-accepted finding の batch fix によって review target が変更された場合のみ
-targeted closure を行い、その review run も Acquisition & Validity Contract
-に従って completion / acquisition / validity を確認します。targeted closure
-の finding も Resolution Contract の対象とし、Resolution が完了するまで
-merge しません。
-targeted closure の Resolution に加えて、この review flow で実行した
-discovery stage（2nd full discovery を含む）すべての Resolution が
-完了していることも merge の条件です。完了順序は問いません。
-targeted closure の finding に accepted fix がある場合も、fix 後の
-deterministic verify を経て Review stopping rules を再評価します。2nd
-full discovery が未使用でなお必要なら 2nd discovery route へ進み、完了後
-に targeted closure を再実行します。2nd full discovery を使用済みでなお
-full discovery が必要なら、3rd full discovery は起動せず、merge もせず、
-upstream task/design の不安定さを疑い、必要に応じて escalate します。
-追加の full discovery が不要なら、targeted closure を再実行します。
-accepted fix が無く review target が変更されていない場合は、
-required review 数の valid discovery と Resolution の完了をもって、
-新たな closure run を要求せずに merge できます。
 
 ## Adapter boundary（manual pilot）
 
@@ -415,41 +362,21 @@ provider 固有 adapter がまだ無い間は、`trigger()` / `pollCompletion()`
 `collectOutputs()` / `normalizeFindings()` を人手で埋めます。
 
 - `trigger()`: record の `trigger` に従って起動し、どう起動したかを記録します。
-- `pollCompletion()`: completion をどう確認したか（record のどの marker を、どの
-  surface item で観測したか）を記録します。CI/status のみでの判断はしません。判定に
-  使う comment / review submission は、判定するその時点で ID を指定して fresh に
-  再取得した state / body を使います。会話内で既に見た comment の内容や、以前取得した
-  snapshot をそのまま completion 判定の根拠にせず、pending 継続の理由にもしません。
-- `collectOutputs()`: GitHub 上の durable review surface の mechanical
-  acquisition は、ai-dev-foundation checkout を利用できる場合、
-  `tooling/review-evidence.mjs --json`（Issue #62、使い方・現在の
-  coverage は同 tool の README 参照）に置き換えます。fetch が failed /
-  partial な場合、または snapshot が review target に必要な evidence を
-  カバーしない場合は、Review Adapter boundary（`policy/core.md`）に
-  従い不足分を fresh acquisition します。empty や success への変換は
-  しません。Completion / Validity / Resolution / triage の semantic
-  judgment は helper ではなく本 Contract に従い agent が行います。
-  helper を利用できない場合は、この provider で確認できる surface を
-  確認し、内容の有無にかかわらず「どの surface を確認したか」を
-  記録します。この surface から `policy/core.md` の
-  Acquisition & Validity Contract が定義する Completion と Validity の
-  要求事項を後続 session が独立に判定できれば、その surface 自体を同
-  Contract の record の recoverable な representation として result
-  locator に使えます（別途 record を post し直す必要はありません）。
-  それらの要求事項のいずれかを surface から判定できない場合は、
-  reviewer mechanism 自身がそのような外部から確認可能な surface へ結果を
-  残さない場合（例: 実装 session 内で動く subagent review）と同様に扱い、
-  `collectOutputs()` に相当する手段として、`policy/core.md` の record
-  schema の各 field に加え、上記の Completion / Validity 要求事項を独立に
-  判定できる情報（`validity` 等の判定結果の要約だけでなく、その根拠と
-  なる情報）を PR/Issue 上の comment 等へ明示的に persist し、それを
-  result locator とします。
-- `normalizeFindings()`: 集めた出力を record schema と triage category へ変換し、
-  finding ごとに出典 surface と locator を残します。
+- `pollCompletion()`: `tooling/review-evidence.mjs --state` を fresh target と
+  run anchor 付きで実行し、reduced state output と canonical object の sources /
+  current revision を記録します。`completed@target` だけを target-bound completion
+  として扱い、`unknown` / `in-flight` を terminal failure にしません。
+- `collectOutputs()`: 同じ helper の `--json` output を durable evidence として保存
+  します。reviewer mechanism 自身が外部から確認可能な surface へ結果を残さない場合
+  （例: 実装 session 内で動く subagent review）は、`policy/core.md` の Acquisition &
+  Validity Contract が定める durable evidence の要求を、その手段で満たします。何を
+  persist すれば足りるかは同 Contract が定めます。
+- `normalizeFindings()`: finding の意味付けと Resolution はこの skill の機械判定へ
+  複製せず、`policy/core.md` の Resolution Contract に従います。
 
 record が、結果を durable な GitHub surface へ残す trigger 経路を宣言している場合は、
 その経路を preferred route として使います。宣言された経路が unavailable / unsuitable で、
 in-session / subagent review を formal acquisition として使う場合は、上記
-`collectOutputs()` の persist 手順を完了することがその条件です。persist を完了するまで
+`collectOutputs()` の persist を完了することがその条件です。persist を完了するまで
 その run は formal acquisition になりません。この fallback は durable evidence
 requirement を免除しません。
