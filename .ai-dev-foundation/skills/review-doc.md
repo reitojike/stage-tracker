@@ -75,6 +75,16 @@ record」節および「Adapter boundary」節に従います。この skill で
    target と artifact set、required context を記録した上で、独立
    reviewer による意味的な discovery を 1 回行います。round 数の扱いは
    Artifact classification / Review stopping rules（`policy/core.md`）に従います。
+   起動した時点で、その run を後から一意に特定できる run anchor として、起動直前の
+   ISO-8601 timestamp を記録します。`--run-anchor-id` はこの時点では値を持ちません
+   （state evaluator は reviewer の result 自身の `sources[].surface_id` と照合するため、
+   その result が届く前の trigger comment の ID 等を渡しても一致しません）。この
+   timestamp anchor は手順 4 の Acquisition & Validity 確認と手順 9 の merge-ready
+   fence の両方で `--run-after` として同じ値を再利用します。session の記憶や再計算
+   ではなく、この時点で記録した値をそのまま運びます。手順 7 の closure を実行する場合、
+   その closure run の trigger 時点でも新しい run anchor（timestamp）を記録し（この
+   手順 3 の anchor をそのまま使い回しません）、closure verification と手順 9 の fence
+   ではその closure run の anchor を使います。
 4. **Acquisition & Validity 確認** — Acquisition & Validity Contract
    （`policy/core.md`）に従い、target SHA / range、target artifact set、
    completion、acquisition、validity を確認します。
@@ -99,7 +109,8 @@ record」節および「Adapter boundary」節に従います。この skill で
    GitHub 上の durable review surface の取得は、Foundation リポジトリの
    `skills/review-code.md`（consumer には
    `.ai-dev-foundation/skills/review-code.md` として配布）の Adapter
-   boundary（`collectOutputs()`）に従います。
+   boundary（`collectOutputs()`）に従います。その際、手順 3 で記録した run
+   anchor を `--run-after` として渡します。
 5. **Triage** — 出た finding を Resolution Contract のカテゴリ（fix /
    false-positive / needs-verification / technical-dispute / intent-question）へ
    仕分けます。
@@ -113,20 +124,30 @@ record」節および「Adapter boundary」節に従います。この skill で
    確定した closure artifact set を、直近の mechanical-check evidence が
    カバーしていることを確認します。確認できない場合は、確定した closure target に
    対して mechanical check を再実行してから、Execution Contract（`policy/core.md`）を
-   closure review run に適用します。
+   closure review run に適用します。この closure run を起動した時点で、手順 3 と
+   同様にこの run 専用の run anchor を新たに記録します。
    その上で、triage した finding に対応しているかの closure verification
    のみを行い、full な再 discovery はしません。
    closure verification 自体の completion / acquisition / validity も、
    この closure target を expected target として Acquisition & Validity
-   Contract に従って確認します。
+   Contract に従って確認します。上記の run anchor を使います。手順 4 と同様に、
+   triage の対象にする result の `canonical_id` と
+   `evidence[].revision.body_digest` を記録します。
    closure 用 Selection Contract で required とした review 数ぶんの valid
    な closure run が揃うまで Closure Resolution へ進みません。不足する
    run の扱いは Failure / retry（`policy/core.md`）に従います。
    accepted finding の fix が無く target SHA / range も target artifact
    set も変更されていない場合（例えば 0 findings の場合や、finding を
    false-positive 等として Resolution した場合）は、required review 数の
-   valid semantic discovery と Resolution が完了した時点で review
-   procedure を完了とし、新たな closure run を要求しません。
+   valid semantic discovery と Resolution が完了した時点で closure の
+   obligation が解除され、新たな closure run を要求しません。
+   解除されるのは closure の obligation だけであり、この時点で review
+   procedure が完了したことにはなりません。review completion と merge-ready
+   の関係は `policy/core.md` の Merge readiness and merge authority が定めて
+   おり、review completion の宣言は merge-ready の宣言にあたります。したがって
+   この branch でも、手順 9 の merge-ready fence を通る前に review completion /
+   merge-ready を宣言しません。fence の要否は accepted fix の有無ではなく、
+   その宣言を行うかどうかで決まります。
 8. **Closure Resolution** — closure verification（手順 7）の finding を
    Resolution Contract（`policy/core.md`）に従って triage します。
    unresolved の finding がある間は review procedure を完了としません。
@@ -143,13 +164,18 @@ record」節および「Adapter boundary」節に従います。この skill で
    手順は不要です。
 9. **Merge-ready fence** — この review 対象を含む変更について merge-ready を
    宣言する場合は、宣言の直前の最後の action として merge-ready fence を実行します。
+   run anchor は、この review flow で最後に起動した run の trigger 時点（closure を
+   経由していなければ手順 3、経由していれば手順 7）で記録した timestamp を再利用
+   します。acknowledged revision は、対応する Acquisition & Validity 確認（closure
+   を経由していなければ手順 4、経由していれば手順 7）で記録したものを再利用します。
 
    ```text
    node tooling/merge-ready-fence.mjs --repo <owner/repo> --pr <number> \
      --target-sha <frozen target> --base-sha <frozen base> \
      --artifacts-file <frozen artifact set> --verify-sha <手順 1 の check SHA> \
      --required <reviewer-id> --declared-skill review-doc \
-     --acknowledged-file <手順 4 で記録した canonical_id=body_digest>
+     --acknowledged-file <手順 4（または closure 時は手順 7）で記録した canonical_id=body_digest> \
+     --run-after <手順 3（または closure 時は手順 7）で記録した run anchor>
    ```
 
    Mixed classification の target では、`--declared-skill` に該当する skill を
@@ -186,5 +212,6 @@ mechanical check
        -> 完了
   -> accepted fix が無く review target が変更されていない場合:
        required review 数の valid semantic discovery と Resolution の完了
+       -> merge-ready fence（merge-ready を宣言する場合）
        -> 完了
 ```
