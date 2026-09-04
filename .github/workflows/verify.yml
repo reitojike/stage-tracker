@@ -9,32 +9,33 @@ name: Verify
 # adapters and Foundation-managed quality profile against the canonical
 # source, not just against files already committed here. `Verify / Database`
 # starts a local Supabase stack (via the `supabase` npm devDependency, using
-# ubuntu-latest's preinstalled Docker) to run the generated-types drift
-# check and the DB/RLS/auth tests against a real local Postgres - no remote
-# Supabase project or credentials are required.
+# ubuntu-latest's preinstalled Docker) to run the generated-types drift check
+# and the DB/RLS/client-role checks before the Auth build/browser checks
+# against a real local Postgres - no remote Supabase project or credentials
+# are required.
 #
 # The full `npm run verify` one-command sequence (code + build + database)
 # remains the local/agent deterministic verification contract; these three
 # jobs each run one slice of it so failures are attributable per
-# responsibility instead of only via the aggregate command's exit code.
+# responsibility instead of only via the aggregate command's exit code. The
+# Database job further separates its DB and Auth groups into named steps while
+# keeping one runner, one Supabase stack, and one dependency install.
 #
 # `Verify / Migration Ordering Fence` (Issue #131) is a fourth, pull_request-
 # only job: it also needs no remote Supabase credentials, but is not part of
 # the `verify` sequence above (it inspects PR metadata, not local/CI state).
 #
-# `Verify / Database` runs `npm run verify:database:ci`, not the `verify:
-# database` in the sequence above - identical DB/RLS/Auth/generated-types/
-# client-role coverage (see verify:database:checks in package.json - which
-# since Issue #286 also builds the app `test:auth` boots, because that suite
-# now runs it with `next start` against a production build instead of
-# compiling each route on demand under `next dev`) plus a
-# CI-specific initialization path (Issue #209): it skips `supabase db
-# reset` (redundant on this always-fresh runner - see the step's own
-# comment below) and excludes Supabase services no Database/RLS/Auth check
+# `Verify / Database` uses the same grouped checks as the `verify:database`
+# local contract, but with a CI-specific initialization path (Issue #209): it
+# skips `supabase db reset` (redundant on this always-fresh runner - see the
+# step's own comment below) and excludes Supabase services no Database/RLS/Auth check
 # uses (Studio, Realtime, Storage/imgproxy, Edge Runtime,
 # Analytics/Logflare/Vector, Supavisor - Mailpit and PostgREST/GoTrue/Kong
 # stay, since test/auth's magic-link flow and every RLS/Auth request need
-# them) to reduce cold-start image pulls and container registry exposure.
+# them) to reduce cold-start image pulls and container registry exposure. The
+# DB group runs before the Auth group, and both are called directly from the
+# corresponding named steps below so the local aggregate and CI check sets
+# remain structurally aligned.
 # `postgres-meta` also stays included (Issue #253): the generated-types
 # drift check's `supabase gen types --local` needs postgres-meta, and when
 # it is excluded from `supabase start`, that command pulls the image itself
@@ -160,12 +161,19 @@ jobs:
       # `supabase start` alone can silently resume from a prior backup
       # instead of re-applying migrations, which is why `npm run
       # verify:database` (the local/agent contract) still runs `supabase db
-      # reset` explicitly. `verify:database:ci` skips that redundant reset
-      # here; both scripts otherwise run the identical
-      # verify:database:checks (types drift, RLS, Auth, client-role
-      # privileges), so CI keeps the same coverage.
-      - name: Verify / Database
-        run: npm run verify:database:ci
+      # reset` explicitly. CI skips that redundant reset here. The named
+      # check steps below are the exact grouped commands composed by
+      # verify:database:checks, so CI keeps the same coverage while recording
+      # DB guardrails before any Auth browser work.
+      - name: Start local Supabase
+        run: npm run verify:database:start
+
+      - name: Verify / DB checks
+        run: npm run verify:database:db-checks
+
+      - name: Verify / Auth checks
+        timeout-minutes: 5
+        run: npm run verify:database:auth-checks
 
       # Distinguishes deadlock/concurrency failures (SQLSTATE 40P01, already
       # visible in the step above's own test output) from container

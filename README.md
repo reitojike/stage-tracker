@@ -71,8 +71,10 @@ npm run verify
 local / agent向けのone-command full deterministic verificationです。内部では
 責務ごとに分けた3つのcomposition scriptを順に実行します。GitHub Actions
 (`.github/workflows/verify.yml`) 上でもこの3責務を `Verify / Code` /
-`Verify / Build` / `Verify / Database` という独立jobへ分割しており、PR Checks
-上でどの責務が failed したか個別に確認できます。
+`Verify / Build` / `Verify / Database` という独立jobへ分割しており、
+`Verify / Database` 内も `Start local Supabase` / `Verify / DB checks` /
+`Verify / Auth checks` のnamed stepへ分けているため、PR Checks上でDB層と
+Auth層のどちらが failed したかを個別に確認できます。
 
 - `npm run verify:code` — `format:check` / `lint` / `typecheck` /
   `test:unit` / `foundation:check` (generated adapter と Foundation-managed
@@ -82,12 +84,15 @@ local / agent向けのone-command full deterministic verificationです。内部
 - `npm run verify:build` — `build` / `build-storybook`（component catalogの
   static build。Storybookのruntime Node要件がrepoのNode baselineと非互換化
   する事態をCIで検知するためblocking checkに含めています）。
-- `npm run verify:database` — local Supabaseを起動・resetした上で、generated
-  database typesのexact drift check (`supabase:types:check`) とDB/RLS test
-  (`test:rls`)・auth test (`test:auth`)、および`anon` / `authenticated` /
-  `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`残存privilegeを
-  検知するclient-role table privilege guardrail (`client-role-privileges:check`)
-  を実行します。remote Supabase projectやremote credentialsは不要です。
+- `npm run verify:database` — local Supabaseを起動・resetした上で、
+  `verify:database:checks` を実行します。これは先に DB層の
+  `supabase:types:check` / `test:rls` / `client-role-privileges:check` を
+  `verify:database:db-checks` として、続けて `build:auth-app` /
+  `test:auth` を `verify:database:auth-checks` として実行する構成です。
+  generated database typesのexact drift、DB/RLS test、および`anon` /
+  `authenticated` / `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`
+  残存privilegeを検知するclient-role table privilege guardrailを含みます。
+  remote Supabase projectやremote credentialsは不要です。
   Docker が起動していない場合、このステップで失敗します。`test:auth` の
   browser test は `playwright-core`（devDependency）で **system Google
   Chrome** を headless 起動します（Issue #277）。browser binary の
@@ -98,11 +103,13 @@ local / agent向けのone-command full deterministic verificationです。内部
   含まれます。起動は
   `verify:database:start`（Database/RLS/Auth checksが使わないStudio/
   Realtime/Storage等のservice - `supabase:start --exclude`の対象 - を
-  除いたもの）、checkは`verify:database:checks`として分けており、
-  GitHub Actions (`Verify / Database` job) は同じ`verify:database:start`
-  の後にresetを省く`verify:database:ci`を使います（Issue #209 -
-  GitHub-hosted runnerは常にfreshなため、既存local Supabaseがdirtyな
-  状態を引きずるlocal/agent実行と異なりresetが不要と実証済み）。
+  除いたもの）です。checkは`verify:database:checks`が
+  `verify:database:db-checks`と`verify:database:auth-checks`を合成しており、
+  GitHub Actions (`Verify / Database` job) は同じ`verify:database:start`の
+  後にresetを省き、同じ2つのgrouped scriptをnamed stepで実行します
+  （Issue #209 - GitHub-hosted runnerは常にfreshなため、既存local
+  Supabaseがdirtyな状態を引きずるlocal/agent実行と異なりresetが不要と
+  実証済み）。
 
 `verify:profile` は、Foundation v0.4.0のcanonical extension point命名
 （`.ai-dev-foundation/quality/README.md` が定める `verify:profile:code` /
@@ -113,10 +120,9 @@ local / agent向けのone-command full deterministic verificationです。内部
 させない最小integrationにする」方針により、この既存script自体の
 rename/分割は行っていません）。`agent-rules:check` /
 `supabase:migrations:check` に続けて `verify:database`（DB起動・reset・
-`supabase:types:check`・`test:rls`・`test:auth`・
-`client-role-privileges:check`）を呼ぶ構成にしており、DB runtimeを
-要する部分は`verify:database`を単一のsourceとして参照します（同じ手順を
-2箇所へ独立にハードコードしないため）。stage-trackerのcurrent full
+`verify:database:checks`）を呼ぶ構成にしており、DB runtimeを要する部分は
+`verify:database`を単一のsourceとして参照します（同じ手順を2箇所へ独立に
+ハードコードしないため）。stage-trackerのcurrent full
 verificationは`verify:profile`を経由せず、`npm run verify`から
 `verify:code`/`verify:build`/`verify:database`を直接呼びます。
 `agent-rules:check` / `supabase:migrations:check`はDB runtime不要なので
