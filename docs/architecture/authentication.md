@@ -262,7 +262,10 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
   Passkey 側の失敗・credential 喪失時も Magic Link へ fallback でき、
   account lockout は発生しません。
 - Local dev の RP 設定は `supabase/config.toml` の `[auth.passkey]` /
-  `[auth.webauthn]`（`rp_id = "127.0.0.1"`、既存 `site_url` と一致）です。
+  `[auth.webauthn]`（`rp_id = "localhost"`、既存 `site_url` と一致）です。
+  Chromium の WebAuthn 実装は IP literal な RP ID（`127.0.0.1`）を
+  `SecurityError` で拒否するため、`http://127.0.0.1:3000` ではなく
+  `localhost` を canonical local origin としています（Issue #294）。
   本番 RP ID / Origins は Supabase Dashboard 側の operational step として
   別途設定が必要で、remote Supabase project の provisioning と同様この
   repository の merge gate には含めません。

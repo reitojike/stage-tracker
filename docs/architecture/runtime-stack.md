@@ -201,7 +201,7 @@ diff` だけを見る）。そのため、実際に Production へ migration が
 | 項目                | Local dev                                         | CI（`verify.yml`）                             | Production (Remote)                                         |
 | ------------------- | ------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------- |
 | Supabase            | ローカル Docker スタック（`supabase start`）      | ローカル Docker スタック（同上、CI 内で起動）  | 新規作成した hosted Supabase project                        |
-| `site_url`          | `http://127.0.0.1:3000`（`supabase/config.toml`） | 同左                                           | `https://stage-tracker.com`（Dashboard で個別設定）         |
+| `site_url`          | `http://localhost:3000`（`supabase/config.toml`） | 同左                                           | `https://stage-tracker.com`（Dashboard で個別設定）         |
 | SMTP                | `[local_smtp]`（実送信せず Web UI で確認のみ）    | 同左                                           | Resend（Supabase Dashboard の Auth SMTP 設定）              |
 | Auth 設定の適用方法 | `supabase/config.toml` を直接読む                 | 同左                                           | **`supabase config push` は使わない**。Dashboard へ手動反映 |
 | migration 適用      | `supabase db reset` / CLI が自動適用              | CI 内で自動適用                                | `supabase db push` をオペレーターが手動実行                 |
@@ -210,7 +210,7 @@ diff` だけを見る）。そのため、実際に Production へ migration が
 ### なぜ `supabase config push` を remote へ使わないか
 
 `supabase/config.toml` はローカル開発スタック向けに書かれています
-（`site_url = "http://127.0.0.1:3000"`、`[studio]` / `[local_smtp]` / `[db]`
+（`site_url = "http://localhost:3000"`、`[studio]` / `[local_smtp]` / `[db]`
 のポート設定などローカル専用のセクションを含む）。これをそのまま
 `config push` で remote project へ適用すると、意図しない Site URL や
 ローカル専用設定を Production へ書き込んでしまうリスクがあります。
