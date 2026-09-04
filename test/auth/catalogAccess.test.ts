@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { after, before, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   createEventWithOccurrence,
   createEventWithoutOccurrence,
@@ -24,6 +27,12 @@ import { launchBrowser, type Browser, type BrowserPage } from './support/browser
 // Fixture dates are chosen in far-future months (2096-2098) not used by any
 // other test file's fixtures, so this file's badge/empty assertions cannot
 // be polluted by unrelated fixtures already present in the shared local DB.
+// Since Issue #301 that separation is no longer a convention that merely
+// happens to hold: test:auth now runs its files concurrently, so a second
+// file creating an Event in one of these months would overlap this file's
+// own run instead of being torn down before it starts. RESERVED_MONTHS and
+// assertReservedMonthsAreExclusive below turn that precondition into a
+// deterministically checked one - see their comments.
 //
 // Issue #145: /catalog's calendar/list body is now a client-gated render
 // (CatalogView.tsx's `readyToRenderBody`) whenever the range read is
@@ -37,6 +46,209 @@ import { launchBrowser, type Browser, type BrowserPage } from './support/browser
 // tests whose assertions are about synchronously-rendered content (auth
 // redirects, the heading, a genuinely empty range) keep using plain fetch,
 // since #145 does not gate those.
+
+/**
+ * The calendar months this file makes *exact* shared-catalog claims about:
+ * badge counts (`badgeCountOf` above), the "no events this month" empty
+ * state, and the absence of an Event-level fallback section. Those claims
+ * are about the whole shared catalog, not about this file's own rows, so
+ * every one of them depends on no other test file putting an Event range
+ * over the same month.
+ *
+ * Until Issue #301 that dependency was free: `--test-concurrency=1` ran the
+ * files one at a time and each file's after() removed its fixtures before
+ * the next file started, so two files could even share a month. Raising the
+ * concurrency is what makes it load-bearing, so it is checked by
+ * assertReservedMonthsAreExclusive below rather than left as a comment for
+ * the next person who adds a test file.
+ */
+const RESERVED_MONTHS = ['2096-05', '2097-07', '2097-08', '2098-01', '2098-04'] as const;
+
+/** A `YYYY-MM`, optionally carrying a `-DD`. Anything after the day (a time,
+ * a `Z`, a numeric UTC offset) is deliberately left unmatched rather than
+ * described - see monthsUsedIn. Spelling the month as an alternation rather
+ * than `\d\d` is what keeps prose like "2096-2098" in this file's own
+ * comments from reading as a month. */
+const DATE_LITERAL = /\b(2\d{3})-(0[1-9]|1[0-2])(?:-(\d{2}))?/gu;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function monthOf(utcMs: number): string {
+  const at = new Date(utcMs);
+  return `${String(at.getUTCFullYear()).padStart(4, '0')}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Every month `source` could put an Event in - deliberately over-stated.
+ *
+ * A dated literal contributes the months of every day within two days of it,
+ * in both directions. `createEventWithOccurrence` derives an Event's range
+ * from the *Asia/Tokyo* calendar date of `startsAt`, which is not always the
+ * date as written: the fixture timestamps this suite hands it are ISO strings
+ * that both `Date.parse` and PostgreSQL `timestamptz` accept, and those admit
+ * a numeric UTC offset. Measuring the accepted offset range against Tokyo's
+ * own +09:00 bounds how far that can move the date - an offset near the
+ * positive end pulls the Tokyo date one day back, and one near the negative
+ * end, on a late enough time of day, pushes it two days forward. Two days per
+ * side therefore contains wherever the Event actually falls. It is stated
+ * symmetrically because that is the cheaper claim to hold: the real skew is
+ * not symmetric, and two days covers the wider side outright. A literal with
+ * no day contributes only its own month.
+ *
+ * Nothing after the day is parsed - not the time, not a trailing `Z`, not a
+ * numeric offset, not whether seconds are present. Earlier revisions of this
+ * guard did interpret the instant, and each format it failed to anticipate
+ * was a way for a real collision to pass unnoticed (two consecutive Codex
+ * findings, on bb4623e and 509648c). Over-stating removes the format question
+ * entirely: there is no expression this can fail to understand, because it
+ * understands none of them.
+ *
+ * The trade is deliberate and one-directional. This over-detects - an `endsAt`
+ * literal, or a date that merely sits near a reserved month, still counts -
+ * and over-detection can only ever ask another test file to pick a different
+ * month. It cannot let a real reserved-month collision through, which is the
+ * failure this guard exists to prevent. The window was one day per side until
+ * a Codex finding on ff51b66 exhibited a large negative offset reaching two
+ * days on, so it is the bound, not the approach, that widened.
+ *
+ * One consequence for whoever edits this file: it reads its own source, prose
+ * included, so a dated example written into a comment here counts as a month
+ * this file uses. Describe such a case rather than spelling the date out, or
+ * the reservation check below will (correctly) ask for its month too.
+ */
+function monthsUsedIn(source: string): Set<string> {
+  const months = new Set<string>();
+  for (const match of source.matchAll(DATE_LITERAL)) {
+    const [, year, month, day] = match;
+    if (day === undefined) {
+      months.add(`${String(year)}-${String(month)}`);
+      continue;
+    }
+    const midnight = Date.UTC(Number(year), Number(month) - 1, Number(day));
+    for (const shift of [-2 * DAY_MS, -DAY_MS, 0, DAY_MS, 2 * DAY_MS]) {
+      months.add(monthOf(midnight + shift));
+    }
+  }
+  return months;
+}
+
+/**
+ * Every month from the earliest of `source`'s candidate months to the latest,
+ * gaps included.
+ *
+ * An Event range is stored as written and read back by overlap
+ * (eventCatalogRead.ts's listEventCatalogInRange: `starts_on <= monthEnd` and
+ * `ends_on >= monthStart`), so an Event whose range is given explicitly can
+ * cover months that no literal in the file mentions - a range opening in one
+ * month and closing two months later sits in the month between, and
+ * monthsUsedIn alone would only ever see the two ends. Filling the gap is the
+ * over-approximation that covers it without pairing literals up: nothing here
+ * decides which literal was a `startsOn` and which an `endsOn`, or which
+ * helper call they belonged to. That would be the source-parsing this guard
+ * deliberately does not do.
+ *
+ * Only the sibling direction uses this. The two directions answer different
+ * questions and are asymmetric on purpose: a sibling is being asked "could
+ * anything you create land in a reserved month", where covering an unused gap
+ * costs nothing, while this file is being asked "have you declared the months
+ * you assert exact counts for", where spanning would sweep in two years of
+ * months it makes no claim about.
+ */
+function monthSpanUsedIn(source: string): Set<string> {
+  const months = [...monthsUsedIn(source)].sort();
+  const [first] = months;
+  const last = months[months.length - 1];
+  if (first === undefined || last === undefined) {
+    return new Set();
+  }
+  const span = new Set<string>();
+  const endsAt = Date.UTC(Number(last.slice(0, 4)), Number(last.slice(5, 7)) - 1, 1);
+  let cursor = Date.UTC(Number(first.slice(0, 4)), Number(first.slice(5, 7)) - 1, 1);
+  while (cursor <= endsAt) {
+    span.add(monthOf(cursor));
+    const at = new Date(cursor);
+    cursor = Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1);
+  }
+  return span;
+}
+
+/**
+ * Proves, from the test sources themselves, that no other file under
+ * test/auth can put an Event into one of RESERVED_MONTHS.
+ *
+ * Deliberately a *source-level* check rather than a "does the catalog
+ * currently hold a foreign Event in this month" query. Under
+ * `--test-concurrency` > 1 the files really do run at the same time, so any
+ * check of live catalog state is a TOCTOU: a foreign row created after the
+ * query and before the render it guards would slip straight through and
+ * reappear as the unexplained "expected 1, got 2" badge count this is meant
+ * to prevent. Reading the sources has no such window - they cannot change
+ * mid-run - so the guarantee is deterministic rather than probabilistic,
+ * which is what Issue #301's acceptance criterion asks for.
+ *
+ * Two directions, both needed:
+ *
+ * 1. every month this file writes is declared in RESERVED_MONTHS, so adding
+ *    a fixture month here cannot silently skip the reservation; and
+ * 2. no other test/auth source spans a reserved month - spans, not mentions,
+ *    because an explicit Event range covers the months between its ends too
+ *    (see monthSpanUsedIn) - so a new test file cannot silently start
+ *    sharing one.
+ *
+ * Bounded on purpose: it reserves this one file's months and names who
+ * collides. It is not a fixture allocator - it hands out nothing, and every
+ * other file still picks its own dates freely (Issue #301 Out of Scope).
+ *
+ * The residual limit is stated rather than papered over: this reads literal
+ * dates, so a file that builds one arithmetically could still evade it.
+ * The current suite cannot reach that: its only computed fixture dates are
+ * `Date.now()`-relative and at most 40 days out (ticketPlanningJourney.test.ts's
+ * OCCURRENCE_DAYS_AHEAD / DEADLINE_DAYS_AHEAD), while every reserved month is
+ * roughly seventy years away. Closing it properly would mean the static-analysis
+ * or fixture-registry infrastructure this Issue rules out.
+ */
+function assertReservedMonthsAreExclusive(): void {
+  const ownPath = fileURLToPath(import.meta.url);
+  const dir = path.dirname(ownPath);
+  const reserved = new Set<string>(RESERVED_MONTHS);
+
+  const undeclared = [...monthsUsedIn(readFileSync(ownPath, 'utf8'))].filter(
+    (month) => !reserved.has(month),
+  );
+  assert.ok(
+    undeclared.length === 0,
+    `${path.basename(ownPath)} uses ${undeclared.join(', ')} but does not declare ` +
+      `${undeclared.length === 1 ? 'it' : 'them'} in RESERVED_MONTHS. Every month this file ` +
+      `asserts exact shared-catalog counts for has to be reserved, so that the check below ` +
+      `can keep other test files out of it (Issue #301).`,
+  );
+
+  const collisions: string[] = [];
+  for (const entry of readdirSync(dir, { recursive: true })) {
+    const relative = String(entry);
+    if (!relative.endsWith('.ts')) {
+      continue;
+    }
+    const fullPath = path.join(dir, relative);
+    if (fullPath === ownPath) {
+      continue;
+    }
+    for (const month of monthSpanUsedIn(readFileSync(fullPath, 'utf8'))) {
+      if (reserved.has(month)) {
+        collisions.push(`${relative} uses ${month}`);
+      }
+    }
+  }
+  assert.ok(
+    collisions.length === 0,
+    `${path.basename(ownPath)} asserts exact shared-catalog counts for ` +
+      `${RESERVED_MONTHS.join(', ')}, and test:auth runs its files concurrently ` +
+      `(package.json --test-concurrency), so another file's Events in one of those months ` +
+      `would overlap this file's run and change those counts: ${collisions.join('; ')}. ` +
+      `Give that file a month of its own - do not relax the expected count, and do not add ` +
+      `the month here (Issue #301).`,
+  );
+}
 
 let app: AppServer;
 let browser: Browser;
@@ -55,6 +267,9 @@ const createdFixtureActors: TestActor[] = [];
 const initializedCleanups: Array<() => Promise<void>> = [];
 
 before(async () => {
+  // Ahead of the app server and Chrome, so a month collision fails as itself
+  // rather than after ~30s of startup.
+  assertReservedMonthsAreExclusive();
   app = await startAppServer();
   initializedCleanups.push(() => app.stop());
   browser = await launchBrowser();
