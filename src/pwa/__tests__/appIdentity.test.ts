@@ -173,6 +173,20 @@ void test('the maskable icon is its own artwork, not the same image as the any i
   }
 });
 
+void test('a PNG carrying colour-key transparency is rejected, not read as opaque', () => {
+  // A 1x1 truecolour PNG whose tRNS chunk names its only pixel's colour as
+  // transparent. Without the guard in decodePng, this decodes as
+  // `channels === 3` and reports itself fully opaque - so a genuinely
+  // transparent icon would pass the opacity check below and still be
+  // composited onto black by iOS.
+  const rgbWithTrns = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAABnRSTlMA/wD/AP83WBt9AAAADElEQVR42mP4//8/AAX+Av4zEpUUAAAAAElFTkSuQmCC',
+    'base64',
+  );
+
+  assert.throws(() => decodePng(rgbWithTrns), /tRNS/);
+});
+
 void test('every icon is fully opaque, so iOS has no transparency to composite onto black', () => {
   // A Home Screen icon with transparent pixels is composited onto black by
   // iOS, which turns a light mark into a dark smear. Cheap to get wrong on

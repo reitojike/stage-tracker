@@ -101,6 +101,15 @@ export function decodePng(file: Buffer): DecodedPng {
         height: data.readUInt32BE(4),
         channels: colorType === 6 ? 4 : 3,
       };
+    } else if (type === 'tRNS') {
+      // Colour-key transparency: for a truecolour image tRNS names one
+      // colour that is fully transparent, without adding an alpha channel.
+      // Ignoring it would make an image with transparent pixels decode as
+      // `channels === 3` and report itself fully opaque, which is exactly
+      // what the opacity check exists to catch. Rejecting rather than
+      // honouring it keeps this decoder small and errs the safe way; the
+      // committed icons are colour type 6, where tRNS is not permitted.
+      throw new Error('PNG colour-key transparency (tRNS) is not supported');
     } else if (type === 'IDAT') {
       idat.push(Buffer.from(data));
     } else if (type === 'IEND') {
