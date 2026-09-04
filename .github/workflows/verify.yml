@@ -24,7 +24,10 @@ name: Verify
 #
 # `Verify / Database` runs `npm run verify:database:ci`, not the `verify:
 # database` in the sequence above - identical DB/RLS/Auth/generated-types/
-# client-role coverage (see verify:database:checks in package.json) plus a
+# client-role coverage (see verify:database:checks in package.json - which
+# since Issue #286 also builds the app `test:auth` boots, because that suite
+# now runs it with `next start` against a production build instead of
+# compiling each route on demand under `next dev`) plus a
 # CI-specific initialization path (Issue #209): it skips `supabase db
 # reset` (redundant on this always-fresh runner - see the step's own
 # comment below) and excludes Supabase services no Database/RLS/Auth check
