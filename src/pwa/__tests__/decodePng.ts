@@ -128,6 +128,28 @@ export function pixelAt(image: DecodedPng, x: number, y: number): Rgba {
   };
 }
 
+/**
+ * The image as 4 bytes per pixel, always.
+ *
+ * Comparing two decoded images by their raw buffers would call the same
+ * artwork "different" when one was exported as RGB (colour type 2) and the
+ * other as fully opaque RGBA (colour type 6): 3 versus 4 bytes per pixel.
+ * Both are formats this decoder accepts, so any comparison between images
+ * has to normalise first.
+ */
+export function toRgbaBytes(image: DecodedPng): Buffer {
+  if (image.channels === 4) return image.pixels;
+
+  const rgba = Buffer.alloc(image.width * image.height * 4);
+  for (let source = 0, target = 0; source < image.pixels.length; source += 3, target += 4) {
+    rgba[target] = image.pixels.readUInt8(source);
+    rgba[target + 1] = image.pixels.readUInt8(source + 1);
+    rgba[target + 2] = image.pixels.readUInt8(source + 2);
+    rgba[target + 3] = 255;
+  }
+  return rgba;
+}
+
 /** The lowest alpha anywhere in the image; 255 means fully opaque. */
 export function minimumAlpha(image: DecodedPng): number {
   if (image.channels !== 4) return 255;

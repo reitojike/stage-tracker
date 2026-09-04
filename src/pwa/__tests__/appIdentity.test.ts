@@ -3,7 +3,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildPwaManifest } from '../manifest.ts';
-import { decodePng, markDiameterFraction, minimumAlpha, type DecodedPng } from './decodePng.ts';
+import {
+  decodePng,
+  markDiameterFraction,
+  minimumAlpha,
+  toRgbaBytes,
+  type DecodedPng,
+} from './decodePng.ts';
 import {
   PWA_APP_ID,
   PWA_BACKGROUND_COLOR,
@@ -150,12 +156,16 @@ void test('the maskable icon is its own artwork, not the same image as the any i
   // exporting the same artwork twice yields different files (different
   // compression, different ancillary chunks), so a byte comparison would
   // pass while shipping identical images.
+  //
+  // Normalised to RGBA first for the same class of reason: exporting one
+  // as RGB and the other as fully opaque RGBA gives 3 versus 4 bytes per
+  // pixel, which would also compare as "different" while looking the same.
   for (const maskable of PWA_ICON_ASSETS.filter((asset) => asset.purpose === 'maskable')) {
     for (const plain of PWA_ICON_ASSETS.filter(
       (asset) => asset.purpose === 'any' && asset.size === maskable.size,
     )) {
       assert.equal(
-        decodeIcon(maskable.path).pixels.equals(decodeIcon(plain.path).pixels),
+        toRgbaBytes(decodeIcon(maskable.path)).equals(toRgbaBytes(decodeIcon(plain.path))),
         false,
         `${maskable.path} decodes to the same image as ${plain.path}`,
       );
