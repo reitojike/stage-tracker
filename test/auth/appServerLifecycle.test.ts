@@ -18,7 +18,7 @@ import { startAppServer } from './support/appServer.ts';
 // next file's starts), so it stays proven directly here rather than only
 // indirectly via other files happening to run in the right order.
 //
-// Issue #301 raised `test:auth` to `--test-concurrency=4`, so that sequence
+// Issue #301 raised `test:auth` to `--test-concurrency=2`, so that sequence
 // is no longer the only one a real run performs - several files' servers are
 // now also alive at once. This file still proves only the stop-then-start
 // case, which is the one a leaked process breaks; simultaneous servers are

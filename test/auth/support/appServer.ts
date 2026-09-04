@@ -279,7 +279,7 @@ export function isHealthyReadyResponse(status: number): boolean {
  * `next start` has no such lock - it only needs its own port, which
  * findFreePort supplies. Issue #301 then established these files' isolation
  * from each other independently of that lock and raised package.json's
- * `test:auth` to `--test-concurrency=4`, so several of these servers now
+ * `test:auth` to `--test-concurrency=2`, so several of these servers now
  * really do run at the same time, each on its own findFreePort port and all
  * against the one shared local Supabase stack.
  */
