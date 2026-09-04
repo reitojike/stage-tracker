@@ -15,9 +15,13 @@ export const metadata: Metadata = {
     apple: appleTouchIcon === undefined ? [] : [{ url: appleTouchIcon.path }],
   },
   appleWebApp: {
-    // Emits `apple-mobile-web-app-capable`, which is what actually makes
-    // an iOS Home Screen launch open standalone instead of in a Safari
-    // tab.
+    // Next.js 16 renders this as the standardised
+    // `mobile-web-app-capable`, not the legacy
+    // `apple-mobile-web-app-capable` (verified in the build output). The
+    // legacy tag is not added alongside it: Safari has honoured the
+    // manifest's own `display: standalone` since iOS 11.4, so the
+    // manifest - not this meta - is what makes an iOS Home Screen launch
+    // open standalone.
     capable: true,
     title: PWA_NAME,
     // Not `black-translucent`: that mode extends the page under the status

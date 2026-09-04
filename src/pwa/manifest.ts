@@ -1,8 +1,8 @@
 import type { MetadataRoute } from 'next';
-import { PWA_ICON_ASSETS } from './appIdentity.ts';
 import {
   PWA_APP_ID,
   PWA_BACKGROUND_COLOR,
+  PWA_ICON_ASSETS,
   PWA_NAME,
   PWA_SCOPE,
   PWA_SHORT_NAME,
