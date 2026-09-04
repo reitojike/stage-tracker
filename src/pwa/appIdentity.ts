@@ -67,10 +67,16 @@ export interface PwaIconAsset {
 }
 
 /**
- * Every PWA image asset, in one place. The generator that draws them
- * (scripts/generate-pwa-icons.mjs), the manifest route, the root
+ * Every PWA image asset, in one place. The manifest route, the root
  * metadata, and the proxy allowlist test all read this list, so a new or
  * resized icon cannot be added to one of them alone.
+ *
+ * The files under `public/pwa/` are supplied artwork, not generated: the
+ * `any` art is full-bleed, and the maskable art is a separate rendering
+ * whose content sits inside the 80% safe-zone circle. Both are opaque, so
+ * iOS has no transparency to composite onto black. Replacing one means
+ * exporting a new file at exactly the `size` declared here - the test in
+ * this directory reads each PNG's header and fails on a mismatch.
  */
 export const PWA_ICON_ASSETS: readonly PwaIconAsset[] = [
   { path: '/pwa/icon-192.png', size: 192, role: 'manifest', purpose: 'any' },

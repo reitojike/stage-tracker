@@ -134,6 +134,27 @@ void test('every declared icon exists under public/ at exactly the advertised si
   }
 });
 
+void test('the maskable icon is its own artwork, not a copy of the same-sized any icon', () => {
+  // The two are the same pixel size, so a copy-paste during export would
+  // look right in a file listing and only show up as a clipped mark on a
+  // real Android launcher: `any` art is full-bleed, maskable art has to
+  // keep its content inside the 80% safe-zone circle.
+  const bytesOf = (path: string) =>
+    readFileSync(fileURLToPath(new URL(`public${path}`, repositoryRoot)));
+
+  for (const maskable of PWA_ICON_ASSETS.filter((asset) => asset.purpose === 'maskable')) {
+    for (const plain of PWA_ICON_ASSETS.filter(
+      (asset) => asset.purpose === 'any' && asset.size === maskable.size,
+    )) {
+      assert.equal(
+        bytesOf(maskable.path).equals(bytesOf(plain.path)),
+        false,
+        `${maskable.path} is byte-identical to ${plain.path}`,
+      );
+    }
+  }
+});
+
 void test('the icon set covers what an install needs: 192, 512 and a maskable variant', () => {
   const manifestIcons = PWA_ICON_ASSETS.filter((asset) => asset.role === 'manifest');
   const anySizes = manifestIcons

@@ -34,7 +34,6 @@
     "catalog:grant-creator": "node scripts/grant-catalog-creator.mjs",
     "catalog:import": "node scripts/import-catalog-events.mjs",
     "tickets:import": "node scripts/import-ticket-opportunities.mjs",
-    "pwa:icons": "node --experimental-strip-types scripts/generate-pwa-icons.mjs",
     "holidays:update": "node scripts/update-japanese-holidays.mjs",
     "verify:code": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run foundation:check && npm run agent-rules:check && npm run supabase:migrations:check",
     "verify:build": "npm run build && npm run build-storybook",
