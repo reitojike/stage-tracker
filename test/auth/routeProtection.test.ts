@@ -157,12 +157,17 @@ void test('the manifest and its icons are actually served to an unauthenticated 
 
 void test('the PWA exception does not make anything else under /pwa/ public', async () => {
   // The allowlist is exact-path. A prefix rule would turn the whole
-  // directory into a public namespace, so these near-misses have to stay
-  // on the authenticated side of the boundary.
+  // directory into a public namespace, so these near-misses have to end up
+  // at sign-in instead of being served.
+  //
+  // Redirects are followed rather than asserted as a single 307 because
+  // Next.js normalises a trailing slash with its own 308 before the proxy
+  // runs at all, so `/pwa/` reaches the boundary as `/pwa`. What the
+  // boundary has to guarantee is where an anonymous request ends up, not
+  // how many hops it takes to get there.
   for (const path of ['/pwa', '/pwa/', '/pwa/secret.png', '/pwa/icon-192.png/sub']) {
-    const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'manual' });
-    assert.equal(response.status, 307, `${path} should be guarded`);
-    assert.equal(new URL(locationOf(response), app.baseUrl).pathname, '/sign-in', path);
+    const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'follow' });
+    assert.equal(new URL(response.url).pathname, '/sign-in', `${path} must not be public`);
   }
 });
 
