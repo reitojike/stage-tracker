@@ -133,6 +133,46 @@ function monthsUsedIn(source: string): Set<string> {
 }
 
 /**
+ * Every month from the earliest of `source`'s candidate months to the latest,
+ * gaps included.
+ *
+ * An Event range is stored as written and read back by overlap
+ * (eventCatalogRead.ts's listEventCatalogInRange: `starts_on <= monthEnd` and
+ * `ends_on >= monthStart`), so an Event whose range is given explicitly can
+ * cover months that no literal in the file mentions - a range opening in one
+ * month and closing two months later sits in the month between, and
+ * monthsUsedIn alone would only ever see the two ends. Filling the gap is the
+ * over-approximation that covers it without pairing literals up: nothing here
+ * decides which literal was a `startsOn` and which an `endsOn`, or which
+ * helper call they belonged to. That would be the source-parsing this guard
+ * deliberately does not do.
+ *
+ * Only the sibling direction uses this. The two directions answer different
+ * questions and are asymmetric on purpose: a sibling is being asked "could
+ * anything you create land in a reserved month", where covering an unused gap
+ * costs nothing, while this file is being asked "have you declared the months
+ * you assert exact counts for", where spanning would sweep in two years of
+ * months it makes no claim about.
+ */
+function monthSpanUsedIn(source: string): Set<string> {
+  const months = [...monthsUsedIn(source)].sort();
+  const [first] = months;
+  const last = months[months.length - 1];
+  if (first === undefined || last === undefined) {
+    return new Set();
+  }
+  const span = new Set<string>();
+  const endsAt = Date.UTC(Number(last.slice(0, 4)), Number(last.slice(5, 7)) - 1, 1);
+  let cursor = Date.UTC(Number(first.slice(0, 4)), Number(first.slice(5, 7)) - 1, 1);
+  while (cursor <= endsAt) {
+    span.add(monthOf(cursor));
+    const at = new Date(cursor);
+    cursor = Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1);
+  }
+  return span;
+}
+
+/**
  * Proves, from the test sources themselves, that no other file under
  * test/auth can put an Event into one of RESERVED_MONTHS.
  *
@@ -150,8 +190,10 @@ function monthsUsedIn(source: string): Set<string> {
  *
  * 1. every month this file writes is declared in RESERVED_MONTHS, so adding
  *    a fixture month here cannot silently skip the reservation; and
- * 2. no other test/auth source mentions a reserved month, so a new test
- *    file cannot silently start sharing one.
+ * 2. no other test/auth source spans a reserved month - spans, not mentions,
+ *    because an explicit Event range covers the months between its ends too
+ *    (see monthSpanUsedIn) - so a new test file cannot silently start
+ *    sharing one.
  *
  * Bounded on purpose: it reserves this one file's months and names who
  * collides. It is not a fixture allocator - it hands out nothing, and every
@@ -191,7 +233,7 @@ function assertReservedMonthsAreExclusive(): void {
     if (fullPath === ownPath) {
       continue;
     }
-    for (const month of monthsUsedIn(readFileSync(fullPath, 'utf8'))) {
+    for (const month of monthSpanUsedIn(readFileSync(fullPath, 'utf8'))) {
       if (reserved.has(month)) {
         collisions.push(`${relative} uses ${month}`);
       }

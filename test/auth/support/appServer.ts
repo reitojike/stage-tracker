@@ -280,8 +280,16 @@ export function isHealthyReadyResponse(status: number): boolean {
  * findFreePort supplies. Issue #301 then established these files' isolation
  * from each other independently of that lock and raised package.json's
  * `test:auth` to `--test-concurrency=2`, so several of these servers now
- * really do run at the same time, each on its own findFreePort port and all
- * against the one shared local Supabase stack.
+ * really do run at the same time, all against the one shared local Supabase
+ * stack.
+ *
+ * findFreePort picks a port that was free at the moment it looked: it binds
+ * port 0, reads what the OS assigned, and closes that listener before
+ * `next start` is spawned on it. It does not hold a reservation across that
+ * gap, so it is not a guarantee that two concurrent servers get different
+ * ports - just that each starts from a port nothing was using. No
+ * `EADDRINUSE` has been observed from it (Issue #301 measured c=2 and c=4
+ * across local and CI runs); Issue #303 tracks whether the gap needs closing.
  */
 export async function startAppServer(): Promise<AppServer> {
   assertDependenciesInstalled(process.cwd());
