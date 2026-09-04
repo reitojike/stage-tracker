@@ -4,6 +4,7 @@ import { createEventWithOccurrence, eventFixtureTitle } from '../rls/support/eve
 import { importOpportunity } from '../rls/support/ticketOpportunityFixtures.ts';
 import { createTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
+import { launchBrowser, type Browser } from './support/browserPage.ts';
 import {
   assertNoHorizontalOverflow,
   createJourneyActor,
@@ -35,6 +36,10 @@ const OCCURRENCE_DAYS_AHEAD = 40;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 let app: AppServer;
+/** The one Chrome this file's actors share. Each actor gets its own
+ * BrowserContext out of it, which is what keeps their sessions apart
+ * (Issue #287) - see createJourneyActor. */
+let browser: Browser;
 /** The user whose personal planning state this journey drives. */
 let planner: JourneyActor;
 /** A second signed-in user, for the negative case: personal planning state
@@ -92,13 +97,28 @@ before(async () => {
   app = await startAppServer();
   initializedCleanups.push(() => app.stop());
   await seedOpportunity();
-  planner = await createJourneyActor(app, { emailPrefix: 'ticket-journey-planner' }, (id) => {
-    createdUserIds.push(id);
-  });
+  browser = await launchBrowser();
+  // Registered before the first actor exists, so the process-level safety
+  // net is in place even if an actor's own creation fails partway through
+  // (Issue #259).
+  initializedCleanups.push(() => browser.close());
+  planner = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'ticket-journey-planner' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => planner.close());
-  bystander = await createJourneyActor(app, { emailPrefix: 'ticket-journey-bystander' }, (id) => {
-    createdUserIds.push(id);
-  });
+  bystander = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'ticket-journey-bystander' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => bystander.close());
 });
 

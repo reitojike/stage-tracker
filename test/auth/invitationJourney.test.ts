@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test';
 import { createEventWithOccurrence, eventFixtureTitle } from '../rls/support/eventFixtures.ts';
 import { createTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
+import { launchBrowser, type Browser } from './support/browserPage.ts';
 import {
   inviteFromOccurrence,
   occurrenceRow,
@@ -31,14 +32,18 @@ import {
 // the one property of this feature a user cannot verify for themselves,
 // and the one whose failure mode is silent.
 //
-// Two users means two browsers - see createJourneyActor's own header for
-// why they cannot share one. Fixture dates live in 2092, a year no other
-// test file's fixtures use.
+// Two users means two BrowserContexts in one Chrome - see
+// createJourneyActor's own header for why they cannot share one jar.
+// Fixture dates live in 2092, a year no other test file's fixtures use.
 
 const FIXTURE_MONTH = '2092-04';
 const OCCURRENCE_STARTS_AT = '2092-04-08T10:00:00.000Z'; // 2092-04-08 19:00 JST
 
 let app: AppServer;
+/** The one Chrome this file's actors share. Each actor gets its own
+ * BrowserContext out of it, which is what keeps their sessions apart
+ * (Issue #287) - see createJourneyActor. */
+let browser: Browser;
 /** The inviter. Eligibility to invite comes from being `attending` on the
  * occurrence itself - never from event ownership, and never from
  * `considering` (product-rules.md "Invitation"). This actor deliberately
@@ -73,13 +78,28 @@ before(async () => {
   app = await startAppServer();
   initializedCleanups.push(() => app.stop());
   await seedEvent();
-  inviter = await createJourneyActor(app, { emailPrefix: 'invitation-journey-inviter' }, (id) => {
-    createdUserIds.push(id);
-  });
+  browser = await launchBrowser();
+  // Registered before the first actor exists, so the process-level safety
+  // net is in place even if an actor's own creation fails partway through
+  // (Issue #259).
+  initializedCleanups.push(() => browser.close());
+  inviter = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'invitation-journey-inviter' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => inviter.close());
-  invitee = await createJourneyActor(app, { emailPrefix: 'invitation-journey-invitee' }, (id) => {
-    createdUserIds.push(id);
-  });
+  invitee = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'invitation-journey-invitee' },
+    (id) => {
+      createdUserIds.push(id);
+    },
+  );
   initializedCleanups.push(() => invitee.close());
 });
 

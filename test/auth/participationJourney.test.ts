@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test';
 import { createEventWithOccurrence, eventFixtureTitle } from '../rls/support/eventFixtures.ts';
 import { createTestActor, type TestActor } from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
+import { launchBrowser, type Browser } from './support/browserPage.ts';
 import {
   occurrenceRow,
   occurrenceSheet,
@@ -42,6 +43,10 @@ const ACTIVE_STARTS_AT = '2091-03-05T10:00:00.000Z';
 const CANCELED_STARTS_AT = '2091-03-06T10:00:00.000Z';
 
 let app: AppServer;
+/** The one Chrome this file's actors share. Each actor gets its own
+ * BrowserContext out of it, which is what keeps their sessions apart
+ * (Issue #287) - see createJourneyActor. */
+let browser: Browser;
 let viewer: JourneyActor;
 let owner: TestActor;
 let eventId: string;
@@ -105,9 +110,19 @@ before(async () => {
   app = await startAppServer();
   initializedCleanups.push(() => app.stop());
   await seedEvent();
-  viewer = await createJourneyActor(app, { emailPrefix: 'participation-journey' }, (userId) => {
-    createdUserIds.push(userId);
-  });
+  browser = await launchBrowser();
+  // Registered before the first actor exists, so the process-level safety
+  // net is in place even if an actor's own creation fails partway through
+  // (Issue #259).
+  initializedCleanups.push(() => browser.close());
+  viewer = await createJourneyActor(
+    browser,
+    app,
+    { emailPrefix: 'participation-journey' },
+    (userId) => {
+      createdUserIds.push(userId);
+    },
+  );
   initializedCleanups.push(() => viewer.close());
 });
 
