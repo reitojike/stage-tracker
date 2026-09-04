@@ -366,27 +366,40 @@ void test('closing one isolated context discards that context alone - its pages 
 });
 
 void test('page.close() then browser.close() is safe, browser.close() disposes an isolated context too, and closing either again does not throw', async () => {
+  // This browser is deliberately *not* one of before()'s
+  // initializedCleanups - the test needs to close it itself, mid-test, to
+  // observe what that does. That also means nothing else would ever close
+  // it, so a throw anywhere below would leak a whole Chrome process into
+  // the rest of this file's run. Hence try/finally, with a close() that is
+  // safe to reach twice - the very property the assertions below pin down.
   const extraBrowser = await launchBrowser();
-  const extraPage = await extraBrowser.newPage();
-  await extraPage.navigate(`${baseUrl}/page`);
-  await extraPage.close();
-  assert.equal(extraPage.raw.isClosed(), true);
-  // The file-level safety net a journey file keeps behind its per-actor
-  // closes: a context whose own close() never ran (a before() that threw
-  // partway, a journey that failed mid-test) still goes away with the
-  // process, and a teardown that closes it afterwards must not turn that
-  // into a second failure.
-  const leftOpen = await extraBrowser.newIsolatedContext();
-  const leftOpenPage = await leftOpen.newPage();
-  await leftOpenPage.navigate(`${baseUrl}/page`);
-  await extraBrowser.close();
-  assert.equal(
-    leftOpenPage.raw.isClosed(),
-    true,
-    'closing the browser must take its isolated contexts with it',
-  );
-  await assert.doesNotReject(leftOpen.close(), 'closing a context after its browser must be safe');
-  await assert.doesNotReject(extraBrowser.close());
+  try {
+    const extraPage = await extraBrowser.newPage();
+    await extraPage.navigate(`${baseUrl}/page`);
+    await extraPage.close();
+    assert.equal(extraPage.raw.isClosed(), true);
+    // The file-level safety net a journey file keeps behind its per-actor
+    // closes: a context whose own close() never ran (a before() that threw
+    // partway, a journey that failed mid-test) still goes away with the
+    // process, and a teardown that closes it afterwards must not turn that
+    // into a second failure.
+    const leftOpen = await extraBrowser.newIsolatedContext();
+    const leftOpenPage = await leftOpen.newPage();
+    await leftOpenPage.navigate(`${baseUrl}/page`);
+    await extraBrowser.close();
+    assert.equal(
+      leftOpenPage.raw.isClosed(),
+      true,
+      'closing the browser must take its isolated contexts with it',
+    );
+    await assert.doesNotReject(
+      leftOpen.close(),
+      'closing a context after its browser must be safe',
+    );
+    await assert.doesNotReject(extraBrowser.close());
+  } finally {
+    await extraBrowser.close();
+  }
 });
 
 // --- runCleanupTasks: partial initialization / aggregation ---
