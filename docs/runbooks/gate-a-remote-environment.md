@@ -170,7 +170,7 @@ Supabase CLI には `supabase config push` という、`supabase/config.toml` �
 `[auth]` section（および template 参照）を linked hosted project へ適用
 できるコマンドがあります。この runbook はそれを使いません。この
 repository の `config.toml` は local dev stack 向けに書かれており
-（`site_url = "http://127.0.0.1:3000"`、`[studio]` / `[local_smtp]` /
+（`site_url = "http://localhost:3000"`、`[studio]` / `[local_smtp]` /
 `[db]` の port 設定など local 専用の section を含む）、Gate A の hosted
 project 向けではないため、blind な `config push` は誤った Site URL や他の
 local 専用設定を Gate A project へ push してしまいます。上記の Dashboard

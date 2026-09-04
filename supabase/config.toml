@@ -156,11 +156,11 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = ["http://localhost:3000"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -194,16 +194,19 @@ enabled = true
 
 # Configure WebAuthn relying party settings (required when passkey is enabled).
 # rp_id/rp_origins match this project's existing site_url/additional_redirect_urls
-# above (127.0.0.1, not "localhost" - WebAuthn RP ID must match the host the app
-# actually runs on locally, or credential.create()/get() reject with an origin
-# mismatch). Production RP settings are configured separately in the Supabase
+# above ("localhost", not an IP literal - Chromium's WebAuthn implementation
+# rejects RP IDs that are IP addresses (SecurityError: invalid domain) even
+# though "http://127.0.0.1" is itself a secure-context origin; "localhost" is
+# the special-cased hostname WebAuthn accepts for local development, so the
+# app's canonical local origin uses it instead of the IP literal - see Issue
+# #294). Production RP settings are configured separately in the Supabase
 # Dashboard/Management API against the deployed domain - see Issue #106 Phase 1
 # checkpoint; that step is an operational task outside this repo, the same way
 # remote Supabase project provisioning is (see product-rules.md "Supabase").
 [auth.webauthn]
 rp_display_name = "stage-tracker"
-rp_id = "127.0.0.1"
-rp_origins = ["http://127.0.0.1:3000"]
+rp_id = "localhost"
+rp_origins = ["http://localhost:3000"]
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
