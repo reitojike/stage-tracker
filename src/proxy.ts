@@ -76,6 +76,26 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 // authenticated boundary entirely. Unknown application paths must
 // default-deny regardless of how they end. If a public asset is ever
 // needed, add it here as an explicit exception.
+//
+// The PWA entries (Issue #304) are that kind of explicit exception. An
+// install prompt is evaluated before the user signs in, so the manifest
+// and its icons have to be fetchable anonymously; excluding them here
+// rather than adding them to PUBLIC_PATHS also keeps a static icon
+// request from doing a Supabase session lookup it has no use for.
+//
+// Each is anchored with `$`, so the exception is exact-path: it covers
+// `/pwa/icon-192.png` but not `/pwa/`, `/pwa/anything-else.png`, or
+// `/pwa/icon-192.png/sub`, all of which stay default-denied. `public/pwa/`
+// is reserved for these assets, so no application route is ever served
+// from one of these paths.
+//
+// Next.js only accepts a statically analyzable matcher, so this list
+// cannot be built from PWA_PUBLIC_ASSET_PATHS (src/pwa/appIdentity.ts).
+// src/pwa/__tests__/appIdentity.test.ts fails if the two disagree, and
+// test/auth/routeProtection.test.ts proves the resulting boundary over
+// real HTTP.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon\\.ico$).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon\\.ico$|manifest\\.webmanifest$|pwa/icon-192\\.png$|pwa/icon-512\\.png$|pwa/maskable-icon-512\\.png$|pwa/apple-touch-icon\\.png$).*)',
+  ],
 };
