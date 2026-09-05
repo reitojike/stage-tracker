@@ -18,10 +18,14 @@ const sharedCssPath = fileURLToPath(
 // file with one big anchored regex - same technique as Row.test.ts's own
 // composition guard (Issue #271/#315) - so a harmless reformat or an added
 // comment inside the rule (e.g. `.today {\n  /* ... */\n  composes: ...`)
-// can never make this test fail on formatting alone.
+// can never make this test fail on formatting alone. Comments are stripped
+// first (not just from the extracted body) so a *commented-out* `composes:`
+// line (e.g. `/* composes: today from '...'; */` left behind after the real
+// declaration was removed) can never satisfy the composition assert below.
 function cssRule(css: string, selector: string): string {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = css.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^{}]*)\\}`));
+  const match = withoutComments.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^{}]*)\\}`));
   assert.ok(match, `${selector} rule is missing`);
   return match[1] ?? '';
 }
