@@ -14,6 +14,18 @@ const sharedCssPath = fileURLToPath(
   new URL('../../../../ui/monthCalendarGrid.module.css', import.meta.url),
 );
 
+// Extracts one rule's body ({...} contents) rather than matching the whole
+// file with one big anchored regex - same technique as Row.test.ts's own
+// composition guard (Issue #271/#315) - so a harmless reformat or an added
+// comment inside the rule (e.g. `.today {\n  /* ... */\n  composes: ...`)
+// can never make this test fail on formatting alone.
+function cssRule(css: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = css.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^{}]*)\\}`));
+  assert.ok(match, `${selector} rule is missing`);
+  return match[1] ?? '';
+}
+
 void test('.day:hover is scoped with :not(.daySelected) so selected fill always wins', () => {
   // Comments (including this file's own explanation, which quotes
   // `.day:hover` in prose) are stripped first so they can't be mistaken for
@@ -58,12 +70,11 @@ void test('Issue #314: MyMonthCalendar composes the shared month-calendar-grid c
     'coverageNotice',
   ];
   for (const className of sharedClasses) {
+    const rule = cssRule(css, `.${className}`);
     assert.match(
-      css,
+      rule,
       new RegExp(
-        '\\.' +
-          className +
-          '\\s*\\{\\s*composes:\\s*' +
+        'composes:\\s*' +
           className +
           '\\s+from\\s+[\'"][^\'"]*monthCalendarGrid\\.module\\.css[\'"];',
       ),

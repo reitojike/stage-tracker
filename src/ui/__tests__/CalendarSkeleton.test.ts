@@ -9,16 +9,29 @@ import { fileURLToPath } from 'node:url';
 // src/ui/monthCalendarGrid.module.css instead of restating them.
 const cssPath = fileURLToPath(new URL('../CalendarSkeleton.module.css', import.meta.url));
 
+// Extracts one rule's body ({...} contents) rather than matching the whole
+// file with one big anchored regex - same technique as Row.test.ts's own
+// composition guard (Issue #271/#315) - so a harmless reformat or an added
+// comment inside the rule can never make this test fail on formatting alone.
+function cssRule(css: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = css.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^{}]*)\\}`));
+  assert.ok(match, `${selector} rule is missing`);
+  return match[1] ?? '';
+}
+
 void test('Issue #314: CalendarSkeleton composes the shared weekday-header classes', () => {
   const css = readFileSync(cssPath, 'utf8');
-  assert.match(
-    css,
-    /\.weekdayRow\s*\{\s*composes:\s*weekdayRow\s+from\s+['"][^'"]*monthCalendarGrid\.module\.css['"];/,
-  );
-  const weekdayRule = css.match(/\.weekday\s*\{([\s\S]*?)\}/);
-  assert.ok(weekdayRule, '.weekday rule missing');
-  assert.match(
-    weekdayRule[1] ?? '',
-    /composes:\s*weekday\s+from\s+['"][^'"]*monthCalendarGrid\.module\.css['"];/,
-  );
+  for (const className of ['weekdayRow', 'weekday']) {
+    const rule = cssRule(css, `.${className}`);
+    assert.match(
+      rule,
+      new RegExp(
+        'composes:\\s*' +
+          className +
+          '\\s+from\\s+[\'"][^\'"]*monthCalendarGrid\\.module\\.css[\'"];',
+      ),
+      `.${className} must compose from monthCalendarGrid.module.css`,
+    );
+  }
 });
