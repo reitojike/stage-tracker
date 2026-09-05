@@ -22,7 +22,6 @@
 
 .titleRow {
   composes: row from '../../../ui/row.module.css';
-  align-items: center;
   border-bottom: 2px solid var(--color-text);
   padding-bottom: var(--space-card-block);
 }
