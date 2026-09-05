@@ -6,13 +6,15 @@ import { fileURLToPath } from 'node:url';
 /*
  * Issue #308. Six modules carried the same three-rule overlay that keeps a
  * submit button from resizing when its label swaps to the pending wording,
- * across 17 call sites. These tests keep the single authority
- * (src/ui/pendingLabel.module.css) from splitting back into six copies, and
- * keep the call sites rendering the pair the contract needs.
+ * across 17 call sites.
  *
- * Bounded on purpose: this asserts the pending-label contract and its
- * consumers, not CSS duplication in general. The repository-wide scan is
- * Issue #312's own scope.
+ * What is left here is the shared module's own contract and the call sites
+ * that have to render the pair it needs. The six-consumer list this file
+ * used to carry - each entry asserting the composition and the absence of a
+ * local copy - is gone: sharedCssRules.ts (Issue #312) catches a rule that
+ * restates what it composes, and catches a fresh copy of the sizing rule in
+ * any module, which is what a consumer dropping the composition would leave
+ * behind.
  */
 
 const read = (relativePath: string) =>
@@ -22,15 +24,6 @@ const read = (relativePath: string) =>
 const readCss = (relativePath: string) => read(relativePath).replace(/\/\*[\s\S]*?\*\//g, '');
 
 const sharedCss = readCss('../pendingLabel.module.css');
-
-const CONSUMERS = [
-  '../../app/catalog/_components/EventWriteForm.module.css',
-  '../../app/catalog/_components/InvitationCard.module.css',
-  '../../app/catalog/_components/InviteSheet.module.css',
-  '../../app/schedule/_components/ScheduleDetail.module.css',
-  '../../app/schedule/_components/ScheduleWriteForm.module.css',
-  '../../app/schedule/_components/ShareAddSheet.module.css',
-] as const;
 
 /** The 17 call sites listed in Issue #308. */
 const CALL_SITES = [
@@ -61,11 +54,6 @@ const ruleBody = (css: string, selector: string): string => {
   return match[1] ?? '';
 };
 
-const composition = (css: string, selector: string, exported: string) =>
-  new RegExp(
-    String.raw`(?:^|\n)\.${selector}\s*\{\s*composes:\s*${exported}\s+from\s+['"][^'"]*pendingLabel\.module\.css['"];`,
-  ).test(css);
-
 void test('the shared module owns the overlay that holds the button width', () => {
   // The wrapper is a one-cell grid and both labels sit in that cell, so the
   // cell is as wide as the widest of them whichever one is visible.
@@ -80,54 +68,28 @@ void test('the shared module owns the overlay that holds the button width', () =
   assert.doesNotMatch(sizing, /display:\s*none/);
 });
 
-void test('all six consumers compose the shared overlay instead of restating it', () => {
-  for (const relativePath of CONSUMERS) {
-    const css = readCss(relativePath);
-
-    assert.ok(composition(css, 'stablePendingLabel', 'label'), relativePath);
-    assert.ok(composition(css, 'stablePendingSizing', 'sizing'), relativePath);
-
-    // No local copy of the rule can drift back in beside the composition.
-    assert.doesNotMatch(css, /\.stablePendingLabel\s*>\s*span\b/, relativePath);
-    assert.doesNotMatch(ruleBody(css, '.stablePendingLabel'), /display:|grid-area:/, relativePath);
-    assert.doesNotMatch(
-      ruleBody(css, '.stablePendingSizing'),
-      /visibility:|pointer-events:/,
-      relativePath,
-    );
-  }
-});
-
-void test('the class names stay on the consumers, so the call sites are unchanged', () => {
-  for (const relativePath of CALL_SITES) {
-    const source = read(relativePath);
-    assert.match(source, /className=\{styles\.stablePendingLabel\}/, relativePath);
-    assert.match(
-      source,
-      /aria-hidden="true"\s+className=\{styles\.stablePendingSizing\}/,
-      relativePath,
-    );
-    // The shared names are an implementation detail of the CSS modules.
-    assert.doesNotMatch(source, /pendingLabel\.module\.css/, relativePath);
-  }
-});
-
-void test('every pending swap is sized by a copy at least as long as its labels', () => {
+void test('every pending swap renders the pair, sized by a copy at least as long as its labels', () => {
   // The overlay only holds the width if the aria-hidden copy carries the
   // longest wording the visible span can take - "保存" -> "保存中…" must be
-  // sized by "保存中…", not by "保存". Character count is the proxy: the two
-  // labels render in the same font on the same button.
+  // sized by "保存中…", not by "保存". Character count is a proxy: the two
+  // labels render in the same font on the same button. Issue #341 replaces
+  // that proxy with the button's actual rendered width; until it does, this
+  // is the only check that the pattern is used correctly at each call site.
   let checked = 0;
 
   for (const relativePath of CALL_SITES) {
     const source = read(relativePath);
+    // The shared class names stay on the consumers' own CSS modules, so the
+    // call sites are unchanged by the sharing.
+    assert.doesNotMatch(source, /pendingLabel\.module\.css/, relativePath);
+
     const wrappers = source.split(/className=\{styles\.stablePendingLabel\}/).slice(1);
     assert.ok(wrappers.length > 0, `${relativePath} has no pending label wrapper`);
 
     for (const wrapper of wrappers) {
       const region = wrapper.split('</Button>')[0] ?? wrapper;
       const sizing = region.match(
-        /className=\{styles\.stablePendingSizing\}>\s*([^<]*?)\s*<\/span>/,
+        /aria-hidden="true"\s+className=\{styles\.stablePendingSizing\}>\s*([^<]*?)\s*<\/span>/,
       );
       assert.ok(sizing, `${relativePath} has a wrapper without an aria-hidden sizing copy`);
 

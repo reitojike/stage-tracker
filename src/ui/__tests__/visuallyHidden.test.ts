@@ -3,20 +3,20 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+/*
+ * The shared visually-hidden contracts (Issue #317).
+ *
+ * The six-consumer census this file used to carry (exactly 6 compositions,
+ * 4 of one contract and 2 of the other) had to be edited whenever a consumer
+ * was added, and its "no `clip: rect(0, 0, 0, 0)` anywhere" half is now
+ * repository-wide: sharedCssRules.ts (Issue #312) fails any module that
+ * clips an element to zero area outside this authority, including a
+ * brand-new one.
+ */
+
 const sharedCss = readFileSync(
   fileURLToPath(new URL('../visuallyHidden.module.css', import.meta.url)),
   'utf8',
-);
-
-const consumerCss = [
-  '../TriStateCheckbox.module.css',
-  '../../app/schedule/_components/ScheduleWriteForm.module.css',
-  '../../app/catalog/_components/FilterSheet.module.css',
-  '../../app/tickets/_components/TicketOpportunityRow.module.css',
-  '../WriteNotice.module.css',
-  '../../app/catalog/_components/EventWriteForm.module.css',
-].map((relativePath) =>
-  readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8'),
 );
 
 void test('keeps the full visually-hidden contract centralized and focusable', () => {
@@ -38,23 +38,4 @@ void test('keeps a separate minimal contract for empty live-region shells', () =
   assert.match(minimalRule[1] ?? '', /position:\s*absolute;/);
   assert.match(minimalRule[1] ?? '', /clip-path:\s*inset\(50%\);/);
   assert.doesNotMatch(minimalRule[1] ?? '', /white-space|border:|padding:|margin:/);
-});
-
-void test('all six existing consumers compose one of the two shared contracts', () => {
-  const compositions = consumerCss.flatMap(
-    (css) =>
-      css.match(
-        /composes:\s*visuallyHidden(?:Region)?\s+from\s+['"][^'"]+visuallyHidden\.module\.css['"];?/g,
-      ) ?? [],
-  );
-  assert.equal(compositions.length, 6);
-  assert.equal(
-    compositions.filter((composition) => composition.includes('visuallyHiddenRegion')).length,
-    2,
-  );
-  assert.equal(
-    compositions.filter((composition) => /^composes:\s*visuallyHidden\s/.test(composition)).length,
-    4,
-  );
-  assert.doesNotMatch(consumerCss.join('\n'), /clip:\s*rect\(0,\s*0,\s*0,\s*0\)/);
 });

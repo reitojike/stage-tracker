@@ -11,9 +11,13 @@ import { fileURLToPath } from 'node:url';
  * single authority (src/ui/fixedSubmitBar.module.css) from silently
  * splitting back into two.
  *
- * Bounded on purpose: this asserts the fixed-submit contract and its two
- * consumers, not CSS duplication in general. The repository-wide scan is
- * Issue #312's own scope.
+ * The two-consumer CSS list this file used to carry (each composing band /
+ * inner / escape, and each asserted not to restate them) is gone: Issue
+ * #312's sharedCssRules.ts fails any rule that restates what it composes,
+ * and any module outside this authority that fixes a bar over the safe area
+ * or names PrimaryNav's row height again. What stays is the shared module's
+ * own values, the pin to PrimaryNav's actual row height, and the markup
+ * pairing the contract needs - none of which a CSS scan can see.
  */
 
 const read = (relativePath: string) =>
@@ -24,8 +28,6 @@ const readCss = (relativePath: string) => read(relativePath).replace(/\/\*[\s\S]
 
 const sharedCss = readCss('../fixedSubmitBar.module.css');
 const primaryNavCss = readCss('../PrimaryNav.module.css');
-const eventCss = readCss('../../app/catalog/_components/EventWriteForm.module.css');
-const scheduleCss = readCss('../../app/schedule/_components/ScheduleWriteForm.module.css');
 
 const eventCreateForm = read('../../app/catalog/_components/EventCreateForm.tsx');
 const scheduleCreateForm = read('../../app/schedule/_components/ScheduleEntryCreateForm.tsx');
@@ -37,11 +39,6 @@ const ruleBody = (css: string, selector: string): string => {
   assert.ok(match, `.${selector} rule is missing`);
   return match[1] ?? '';
 };
-
-const composition = (css: string, selector: string, exported: string) =>
-  new RegExp(
-    `(?:^|\\n)\\.${selector}\\s*\\{\\s*composes:\\s*${exported}\\s+from\\s+['"][^'"]*fixedSubmitBar\\.module\\.css['"];`,
-  ).test(css);
 
 void test('the shared band owns the fixed positioning and the safe-area-aware nav offset', () => {
   const band = ruleBody(sharedCss, 'band');
@@ -87,28 +84,6 @@ void test('the shared inner column and escape spacing are single-valued', () => 
   // The safe-area term cancels between the band's offset and PrimaryNav's own
   // padding, so the escape must not add a second one.
   assert.doesNotMatch(escape, /env\(safe-area-inset-bottom/);
-});
-
-void test('both write forms compose the shared bar instead of restating it', () => {
-  assert.ok(composition(eventCss, 'fixedSubmit', 'band'));
-  assert.ok(composition(eventCss, 'fixedSubmitInner', 'inner'));
-  assert.ok(composition(eventCss, 'fixedForm', 'escape'));
-
-  assert.ok(composition(scheduleCss, 'submitBand', 'band'));
-  assert.ok(composition(scheduleCss, 'submitInner', 'inner'));
-  assert.ok(composition(scheduleCss, 'form', 'escape'));
-
-  for (const css of [eventCss, scheduleCss]) {
-    assert.doesNotMatch(css, /position:\s*fixed/);
-    assert.doesNotMatch(css, /env\(safe-area-inset-bottom/);
-    assert.doesNotMatch(css, /640px/);
-  }
-
-  // The two escape classes carry no local padding-bottom of their own, so
-  // neither 72px nor 128px can come back as a second authority.
-  assert.doesNotMatch(ruleBody(eventCss, 'fixedForm'), /padding-bottom/);
-  assert.doesNotMatch(ruleBody(scheduleCss, 'form'), /padding-bottom/);
-  assert.doesNotMatch(scheduleCss, /128px/);
 });
 
 void test('every fixed submit bar renders the band/inner pair the contract expects', () => {
