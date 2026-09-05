@@ -297,4 +297,9 @@
   /* accessibility: visible focus (docs/ux-ui.md「Accessibility baseline」) */
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
+
+  /* Common states (docs/ux-ui.md「Common states」): disabled control
+     opacity. Single semantic role for all disabled controls (Issue #324) -
+     value ownership lives here, not at each site. */
+  --opacity-disabled: 0.6;
 }

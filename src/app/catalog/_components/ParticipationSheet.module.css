@@ -43,7 +43,7 @@
 
 .choice:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
 }
 
 /* Current selection: 2px indigo left rule + weight 600 (Issue #230
