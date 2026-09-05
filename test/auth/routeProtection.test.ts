@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import {
+  PWA_APP_ID,
+  PWA_ICON_ASSETS,
+  PWA_MANIFEST_PATH,
+  PWA_SCOPE,
+  PWA_START_URL,
+} from '../../src/pwa/appIdentity.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { createAnonymousClient, deleteUser, provisionUser } from './support/authActors.ts';
 import { waitForMagicLinkToken } from './support/mailpit.ts';
@@ -112,6 +119,55 @@ void test('Next internal asset paths remain excluded from the boundary', async (
   for (const path of ['/_next/static/chunks/does-not-exist.js', '/favicon.ico']) {
     const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'manual' });
     assert.notEqual(response.status, 307, `${path} should not be redirected by the proxy`);
+  }
+});
+
+// --- PWA install surface (Issue #304) ---
+
+void test('the manifest and its icons are actually served to an unauthenticated request', async () => {
+  // An install prompt is evaluated before sign-in, so these have to come
+  // back as the real resource. Asserting "not 307" alone would also pass
+  // on a 404, which would fail an install just as surely - so each is
+  // checked for a 200 and the content type it has to have.
+  const manifestResponse = await fetch(`${app.baseUrl}${PWA_MANIFEST_PATH}`, {
+    redirect: 'manual',
+  });
+  assert.equal(manifestResponse.status, 200, PWA_MANIFEST_PATH);
+  assert.match(manifestResponse.headers.get('content-type') ?? '', /application\/manifest\+json/);
+
+  const served: unknown = await manifestResponse.json();
+  if (typeof served !== 'object' || served === null) {
+    throw new Error('expected the served manifest to be a JSON object');
+  }
+  const fields = new Map(Object.keys(served).map((key) => [key, Reflect.get(served, key)]));
+  // The served document, not just the builder's return value: a manifest
+  // that loses its identity somewhere in the route layer would still let
+  // every unit test pass.
+  assert.equal(fields.get('id'), PWA_APP_ID);
+  assert.equal(fields.get('start_url'), PWA_START_URL);
+  assert.equal(fields.get('scope'), PWA_SCOPE);
+  assert.equal(fields.get('display'), 'standalone');
+
+  for (const asset of PWA_ICON_ASSETS) {
+    const response = await fetch(`${app.baseUrl}${asset.path}`, { redirect: 'manual' });
+    assert.equal(response.status, 200, `${asset.path} should be served`);
+    assert.equal(response.headers.get('content-type'), 'image/png', asset.path);
+  }
+});
+
+void test('the PWA exception does not make anything else under /pwa/ public', async () => {
+  // The allowlist is exact-path. A prefix rule would turn the whole
+  // directory into a public namespace, so these near-misses have to end up
+  // at sign-in instead of being served.
+  //
+  // Redirects are followed rather than asserted as a single 307 because
+  // Next.js normalises a trailing slash with its own 308 before the proxy
+  // runs at all, so `/pwa/` reaches the boundary as `/pwa`. What the
+  // boundary has to guarantee is where an anonymous request ends up, not
+  // how many hops it takes to get there.
+  for (const path of ['/pwa', '/pwa/', '/pwa/secret.png', '/pwa/icon-192.png/sub']) {
+    const response = await fetch(`${app.baseUrl}${path}`, { redirect: 'follow' });
+    assert.equal(new URL(response.url).pathname, '/sign-in', `${path} must not be public`);
   }
 });
 

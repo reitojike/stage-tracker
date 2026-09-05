@@ -48,9 +48,7 @@ const migratedRows = [
   ['src/app/catalog/_components/CatalogView.module.css', '.summaryRow'],
   ['src/app/catalog/_components/EventWriteForm.module.css', '.sectionHeading'],
   ['src/app/catalog/_components/EventWriteForm.module.css', '.occurrenceRow'],
-  ['src/app/calendar/_components/MySelectedDayList.module.css', '.itemLink'],
-  ['src/app/catalog/_components/SelectedDayList.module.css', '.itemLink'],
-  ['src/app/catalog/_components/EventLevelFallbackList.module.css', '.itemLink'],
+  ['src/ui/selectedDayList.module.css', '.itemLink'],
   ['src/app/catalog/_components/InvitationCard.module.css', '.undoRow'],
   ['src/ui/Sheet.module.css', '.header'],
   ['src/app/catalog/_components/ParticipationSheet.module.css', '.choice'],
@@ -71,9 +69,7 @@ const migratedMains = [
   ['src/app/catalog/_components/CatalogView.module.css', '.summaryText'],
   ['src/app/catalog/_components/EventWriteForm.module.css', '.sectionHeadingTitle'],
   ['src/app/catalog/_components/EventWriteForm.module.css', '.occurrenceSummary'],
-  ['src/app/calendar/_components/MySelectedDayList.module.css', '.itemBody'],
-  ['src/app/catalog/_components/SelectedDayList.module.css', '.itemBody'],
-  ['src/app/catalog/_components/EventLevelFallbackList.module.css', '.itemBody'],
+  ['src/ui/selectedDayList.module.css', '.itemBody'],
   ['src/app/mypage/_components/ScheduleAndEventSection.module.css', '.label'],
   ['src/app/catalog/_components/InvitationCard.module.css', '.undoText'],
   ['src/ui/Sheet.module.css', '.title'],
@@ -95,9 +91,7 @@ const migratedAsides = [
   ['src/app/catalog/_components/CatalogView.module.css', '.summaryClear'],
   ['src/app/catalog/_components/EventWriteForm.module.css', '.sectionAction'],
   ['src/app/catalog/_components/EventWriteForm.module.css', '.occurrenceAction'],
-  ['src/app/calendar/_components/MySelectedDayList.module.css', '.chevron'],
-  ['src/app/catalog/_components/SelectedDayList.module.css', '.chevron'],
-  ['src/app/catalog/_components/EventLevelFallbackList.module.css', '.chevron'],
+  ['src/ui/selectedDayList.module.css', '.chevron'],
   ['src/app/mypage/_components/ScheduleAndEventSection.module.css', '.countBadge'],
   ['src/app/catalog/_components/InvitationCard.module.css', '.undoButton'],
   ['src/ui/Sheet.module.css', '.close'],
@@ -127,4 +121,61 @@ void test('Issue #271: migrated rows compose roles without restating shared sizi
     assert.match(rule, composition('aside'), `${relativePath} ${selector}`);
     assert.doesNotMatch(rule, /\bflex(?:-shrink)?\s*:/, `${relativePath} ${selector}`);
   }
+});
+
+const selectedDayWrappers = [
+  'src/app/calendar/_components/MySelectedDayList.module.css',
+  'src/app/catalog/_components/SelectedDayList.module.css',
+  'src/app/catalog/_components/EventLevelFallbackList.module.css',
+] as const;
+
+const selectedDaySharedClasses = [
+  'list',
+  'heading',
+  'items',
+  'itemLink',
+  'itemBody',
+  'chevron',
+  'time',
+  'title',
+  'venue',
+] as const;
+
+const selectedDayComposition = (className: string) =>
+  new RegExp(
+    'composes:\\s*' + className + '\\s+from\\s+["\'][^"\']*selectedDayList\\.module\\.css["\']',
+  );
+
+void test('Issue #315: selected-day implementations compose one shared presentation module', () => {
+  for (const relativePath of selectedDayWrappers) {
+    const css = read(relativePath);
+    const classes = relativePath.includes('EventLevelFallbackList')
+      ? selectedDaySharedClasses.filter((className) => className !== 'time')
+      : selectedDaySharedClasses;
+    for (const className of classes) {
+      const rule = cssRule(css, '.' + className, relativePath);
+      assert.match(rule, selectedDayComposition(className), `${relativePath} .${className}`);
+      assert.doesNotMatch(
+        rule,
+        /(?:^|;)\s*(?:display|font-size|font-weight|line-height|padding|text-decoration|color|gap|margin|touch-action):/,
+        `${relativePath} .${className} must not restate shared declarations`,
+      );
+    }
+  }
+
+  for (const relativePath of selectedDayWrappers.slice(1)) {
+    const css = read(relativePath);
+    const rule = cssRule(css, '.badges', relativePath);
+    assert.match(rule, selectedDayComposition('badges'), `${relativePath} .badges`);
+    assert.doesNotMatch(rule, /(?:^|;)\s*(?:display|flex-wrap|gap):/);
+  }
+
+  const myCalendarCss = read('src/app/calendar/_components/MySelectedDayList.module.css');
+  const badgeRow = cssRule(
+    myCalendarCss,
+    '.badgeRow',
+    'src/app/calendar/_components/MySelectedDayList.module.css',
+  );
+  assert.match(badgeRow, selectedDayComposition('badges'));
+  assert.match(badgeRow, /margin-top:\s*var\(--space-2xs\);/);
 });

@@ -186,8 +186,25 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
    経由します。Next.js 16.3 以降で `middleware.ts` に代わって使われる規約
    （`proxy()` エクスポート + `config.matcher`）で書かれた、この
    プロダクトにおける Middleware 相当の実体です。
-   - `matcher` は `_next/static` / `_next/image` / `favicon.ico` 以外の
-     ほぼ全パスを対象にします。
+   - `matcher` は `_next/static` / `_next/image` / `favicon.ico` と、
+     PWA の public resource（Issue #304）以外のほぼ全パスを対象にします。
+     PWA 側の除外対象は `/manifest.webmanifest` と
+     `/pwa/` 配下の application icon 4 件で、いずれも
+     [src/pwa/appIdentity.ts](../../src/pwa/appIdentity.ts) の
+     `PWA_PUBLIC_ASSET_PATHS` が正本です。install prompt は sign-in より
+     前に評価されるため、これらは未認証でも取得できる必要があります。
+   - この PWA 除外は **exact-path** です。`$` で終端を固定しているため
+     `/pwa/icon-192.png` だけが対象で、`/pwa/`・`/pwa/other.png`・
+     `/pwa/icon-192.png/sub` はいずれも既存どおり default-deny のままです。
+     `public/pwa/` はこれらの asset 専用とし、application route を
+     この path から提供しません。file-extension による一括除外は引き続き
+     採用していません（`/events/some-future-page.png` のような
+     application path まで境界を抜けてしまうため）。
+     `config.matcher` は Next.js が静的解析する必要があるため
+     `PWA_PUBLIC_ASSET_PATHS` を import できず、literal として二重に
+     書かれています。両者の一致は
+     `src/pwa/__tests__/appIdentity.test.ts` が、実 HTTP 上の挙動は
+     `test/auth/routeProtection.test.ts` が検証します。
    - 毎リクエストで `supabase.auth.getUser()` を呼び、`@supabase/ssr` の
      `setAll()` コールバック経由でリフレッシュ後のセッション Cookie を
      Response（および redirect 発生時はその redirect レスポンス）へ
@@ -197,6 +214,11 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
      ない限り `/sign-in` へ redirect し、認証済みユーザーが `/sign-in` へ
      来た場合は `/` へ redirect します。新しく追加された route は、明示的に
      `PUBLIC_PATHS` へ追加しない限りデフォルトで認証必須になる設計です。
+     Issue #304 の PWA resource は `PUBLIC_PATHS` ではなく上記の `matcher`
+     除外として公開しています。session を読む必要が無い静的 asset のため、
+     icon 1 件ごとに `supabase.auth.getUser()` を走らせないためです。
+     PWA resource の追加は、この `matcher` 除外の範囲に閉じており、
+     application route 側の default-deny を緩めていません。
 3. Server Component / Route Handler / Server Action は、都度
    `createSupabaseServerClient()` を呼び、`proxy.ts` によって既にリフレッシュ
    済みの Cookie からセッションを読み取ります。
