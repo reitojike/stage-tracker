@@ -20,9 +20,10 @@
 }
 
 /* Issue #240: "中止" inline, immediately left of the title text, instead of
-   its own line below the occurrence time. */
+   its own line below the occurrence time. The non-shrinking behavior comes
+   from row.module.css's inline-badge contract. */
 .canceledBadge {
-  flex-shrink: 0;
+  composes: inlineBadge from '../../../ui/row.module.css';
 }
 
 .occurrenceTime {

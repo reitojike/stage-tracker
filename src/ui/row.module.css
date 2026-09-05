@@ -19,3 +19,12 @@
 .aside {
   flex: 0 0 auto;
 }
+
+/*
+ * Shared contract for a Badge that sits inline with row text. This belongs
+ * to the row layout boundary rather than Badge.module.css: a standalone
+ * Badge does not need a flex-child sizing contract.
+ */
+.inlineBadge {
+  flex-shrink: 0;
+}
