@@ -27,12 +27,17 @@
         "target_pattern": "Reviewed commit:[^0-9a-fA-F]*([0-9a-fA-F]{7,40})"
       },
       "non_participation_marker": null,
-      "rate_limit_marker": null,
+      "rate_limit_marker": {
+        "any_of": [
+          "You have reached your Codex usage limits.",
+          "You have reached your Codex usage limits for code reviews."
+        ]
+      },
       "failure_marker": null,
       "in_flight_marker": null,
       "fallback_order": ["claude"],
-      "observed_at": "2026-09-02",
-      "notes": "finding がある run では GitHub review submission（state=COMMENTED）と inline comment を投稿し、submission の commit_id が reviewed target を表す。finding が無い run では submission を作らず conversation comment のみを残すため、その場合は completion_marker が唯一の完了根拠になる。どちらの本文にも `**Reviewed commit:** <短縮 SHA>` を含む。本結果の前に環境案内 comment を複数投稿することがあるため、最初の comment の到着を completion と誤認しない。PR-open automatic review の有効・無効は repository code では完結しない operator/account 側の設定であり、その変更を repository code から完了したものとして扱わない。"
+      "observed_at": "2026-09-05",
+      "notes": "finding がある run では GitHub review submission（state=COMMENTED）と inline comment を投稿し、submission の commit_id が reviewed target を表す。finding が無い run では submission を作らず conversation comment のみを残すため、その場合は completion_marker が唯一の完了根拠になる。どちらの本文にも `**Reviewed commit:** <短縮 SHA>` を含む。本結果の前に環境案内 comment を複数投稿することがあるため、最初の comment の到着を completion と誤認しない。PR-open automatic review の有効・無効は repository code では完結しない operator/account 側の設定であり、その変更を repository code から完了したものとして扱わない。quota 上限に達している場合、review 結果の代わりに `You have reached your Codex usage limits.`（cloud task 側）と `You have reached your Codex usage limits for code reviews.`（code review 側）の通知 comment を投稿する。2 文は前者が後者の prefix にならないため、両方を rate_limit_marker.any_of へ実観測どおり列挙する（PR #327 #issuecomment-5548663119 / #issuecomment-5548663539、PR #325 #issuecomment-5548636047）。これは non-success state であり、completion や 0 findings へ変換せず、Failure / retry と fallback_order に従って扱う。"
     },
     {
       "id": "claude",
