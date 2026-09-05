@@ -98,22 +98,18 @@
   font-size: var(--font-size-caption);
 }
 
+/* Fixed submit bar - see src/ui/fixedSubmitBar.module.css for the shared
+   geometry these three compose (Issue #316). */
 .fixedSubmit {
-  position: fixed;
-  z-index: 1;
-  inset-inline: 0;
-  bottom: 60px;
-  display: flex;
-  justify-content: flex-end;
-  width: min(100%, 640px);
-  margin-inline: auto;
-  padding: var(--space-compact) var(--space-md);
-  border-top: 1px solid var(--color-border);
-  background-color: var(--color-canvas);
+  composes: band from '../../../ui/fixedSubmitBar.module.css';
+}
+
+.fixedSubmitInner {
+  composes: inner from '../../../ui/fixedSubmitBar.module.css';
 }
 
 .fixedForm {
-  padding-bottom: 72px;
+  composes: escape from '../../../ui/fixedSubmitBar.module.css';
 }
 
 .sheetForm {
@@ -232,6 +228,9 @@
   font-size: var(--font-size-body-sm);
 }
 
+/* Trailing space below the event edit screen's last section. Not the fixed
+   submit bar's escape spacing: that screen keeps its save action inside the
+   event-information group and renders no fixed bar at all. */
 .dangerSection {
   padding-bottom: 72px;
 }

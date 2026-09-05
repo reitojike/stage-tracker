@@ -57,5 +57,12 @@ void test('schedule controls keep the bounded local temporal and blocking vocabu
   assert.match(sharedInputCss, /\.input\s*\{[\s\S]*width:\s*100%;[\s\S]*min-width:\s*0;/);
   assert.match(sharedInputCss, /font-size:\s*var\(--font-size-body\);/);
   assert.match(sharedInputCss, /padding:\s*var\(--space-sm\) var\(--space-md\);/);
-  assert.match(css, /\.submitBand\s*\{[\s\S]*position:\s*fixed;/);
+  // The band's own geometry moved to src/ui/fixedSubmitBar.module.css
+  // (Issue #316); what stays true here is that this form still delegates to
+  // it rather than restating a fixed bar of its own. The contract itself is
+  // asserted in src/ui/__tests__/fixedSubmitBar.test.ts.
+  assert.match(
+    css,
+    /\.submitBand\s*\{\s*composes:\s*band\s+from\s+['"][^'"]*fixedSubmitBar\.module\.css['"];\s*\}/,
+  );
 });
