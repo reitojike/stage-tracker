@@ -500,6 +500,39 @@ runtimeからのconsumerが0のものは、見つかり次第削除します（I
 
 未来のfeature componentを大量に先行実装しません。
 
+### 反復する宣言をいつ共通化するか
+
+**同じ宣言の組が複数箇所に現れること自体は、共通化の理由になりません**
+（Issue #319で確定）。同じCSS宣言が並ぶのは、共有されたcontractがあるから
+ではなく、同じprimitiveをたまたま使っているからであることが多いためです。
+件数もfeature追加のたびに動くため、判断基準にしません。
+
+共通化するのは、次のどちらかが成立するときだけです。
+
+1. **値がtoken化されていない** — 生の値が複数箇所に散っており、変えたい
+   ときに直す場所が1箇所でない。
+2. **複数consumerが同一のnamed roleを共有している** — 「時刻ラベル」
+   「会場ラベル」のように、名前の付く役割が一致している。
+
+したがって共有境界は、**named role**（`src/ui/selectedDayList.module.css`
+の `.time` / `.venue` のように役割で名前が付くもの）か、**semantic token**
+（`src/ui/tokens.css` が値の正本を持つもの）のどちらかに置きます。宣言の組
+そのものをutility classへ切り出すことはしません。2つのtokenが既に言って
+いること以下しか言わない名前を増やすと、かえって意味が隠れます。
+
+**`composes` は単一class selectorの規則にしか書けません**が、これは
+`composes` 宣言をどこへ置けるかの制約であって、共有できる範囲の制約では
+ありません。共有module側でそのclassに紐づけた擬似クラス・擬似要素・結合子
+の規則は、そのclassをcomposeしたconsumerにも適用されます。
+`src/ui/tapTarget.module.css` の `.expand44::before` を Button と BackLink
+がcomposition経由で共有しているのが実例です。**`:disabled` / `:has()` /
+`+` を含むというだけで、classによる共有を候補から外さないでください。**
+
+ただし `:has()` のように、共有module側から書けない内側のclass名に依存する
+規則は、consumerごとに名前が違えば共有できません。また、反復しているのが
+roleではなく値だけの場合は、composeする先のroleがそもそもありません。
+その2つの場合はtokenが値の置き場所です。
+
 ## Common states
 
 loading / empty / error / disabled / unavailableのglobal visual pattern
@@ -589,6 +622,59 @@ usability、readability、product design qualityを優先して検討し、そ�
 qualityを阻害する場合は、exceptionを足すだけでなくglobal rule自体を見直せます。
 一方、screenごとの無秩序な別designは避けます。componentのroleに本質的な差が
 ある場合は、component-specific treatmentを許容します。
+
+### 共通化しないと決めた反復
+
+次はいずれも複数箇所に同じ宣言が並びますが、**共通化しないことを決定済み**
+です（Issue #319）。走査のたびに候補として再提出しないための記録であり、
+判断の根拠は「Shared / feature-local component boundary」の「反復する宣言を
+いつ共通化するか」に従います。
+
+- **縦積みのflex**（`display: flex; flex-direction: column;` ＋
+  `gap: var(--space-*)`） — 縦に積むというCSSのprimitiveであってnamed role
+  ではなく、gap値は既にtokenです。`md` か `sm` かはその文脈固有のdensity
+  判断なので、局所に書いてある方が意図を読めます。
+- **副文の指定**（`color: var(--color-text-secondary);` ＋
+  `font-size: var(--font-size-body-sm)`） — 「Typography」のladder
+  （body-sm＝副文）とsemantic color tokenをそのまま適用した姿です。両方
+  tokenなのでdriftする値がありません。caption / helper text / 行内メタ情報
+  が混在しており、1つのroleでもありません。
+- **list reset**（`list-style: none; margin: 0; padding: 0`） —
+  **site-localに維持します。** `globals.css` のresetへ寄せることは検討の上
+  で採用しませんでした（PO確定、Issue #319）。局所宣言に実害もdrift riskも
+  なく、global defaultを増やすよりも、マーカーを消すという判断が各listの
+  siteに見えている方を優先します。
+- **focus ringの転送** — globalsの重複ではありません。次節を参照します。
+
+### visually hidden inputからvisible proxyへのfocus ring転送
+
+`globals.css` の `:focus-visible` は、focusを受けた要素自身にringを描き
+ます。checkbox / chip / segmentのように、実際にfocusを受ける `<input>` を
+`visuallyHidden` でclipし、見える要素を別に置くcontrolでは、このglobal ring
+は当たっていても見えません。
+
+そのため、見える代理要素（`+` の兄弟、または `:has()` で参照する祖先）へ
+`--focus-ring-width` / `--color-focus-ring` / `--focus-ring-offset` で
+**ringを転送します**。globalsの重複記述ではなく、globalsだけでは表現でき
+ない構造への対応です。selectorの形（`+` の兄弟 / `:has()` の自身 /
+`:has()` の子孫）はDOM形状によって変わるため、1つには寄せられません。
+
+clipされたinput自身のringは、`visuallyHidden` の `clip-path: inset(50%)`
+が既に切り落としています。そのうえで `TriStateCheckbox.module.css` と
+`FilterSheet.module.css` はinput側にも `outline: none` を明示しており、
+`ScheduleWriteForm.module.css` は明示していません。**この差は現時点では
+見た目に影響しません。** input側の `outline: none` は、clipping techniqueが
+変わった場合に備えた防御的な指定です。
+
+- `outline: none` が無いことを不具合として扱わないでください。
+- 逆に、`outline: none` を「globalsの打ち消しだから不要」として機械的に
+  削除しないでください。`visuallyHidden` のclipping technique（現在は
+  `clip-path`）を変える場合は、input自身のringが見えないことを再確認して
+  から判断します。
+
+値は3つともtokenなので、global ringのtoken値を変えた場合は追随します。
+同期が要るのは、global ringの**構造**を変えた場合（outlineをbox-shadowへ
+変える等）だけです。
 
 ## Accessibility baseline
 
