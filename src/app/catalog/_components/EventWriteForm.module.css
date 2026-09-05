@@ -16,16 +16,11 @@
 }
 
 .stablePendingLabel {
-  display: grid;
-}
-
-.stablePendingLabel > span {
-  grid-area: 1 / 1;
+  composes: label from '../../../ui/pendingLabel.module.css';
 }
 
 .stablePendingSizing {
-  visibility: hidden;
-  pointer-events: none;
+  composes: sizing from '../../../ui/pendingLabel.module.css';
 }
 
 .writeSection {

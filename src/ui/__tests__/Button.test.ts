@@ -50,10 +50,22 @@ void test('Issue #270: consumers no longer restate the Button label nowrap polic
     const consumer = read(relativePath);
     assert.doesNotMatch(consumer, /\.stablePendingButton\b/, relativePath);
 
-    const labelSpan = consumer.match(/\.stablePendingLabel\s*>\s*span\s*\{([^}]*)\}/);
-    assert.ok(labelSpan, `${relativePath} lost its .stablePendingLabel > span rule`);
-    assert.doesNotMatch(labelSpan[1] ?? '', /white-space/, relativePath);
+    // Issue #308: the label span rule moved to src/ui/pendingLabel.module.css,
+    // so what these six must not do is state a `white-space` of their own on
+    // the pending label they compose.
+    const labelRule = consumer.match(/\.stablePendingLabel\s*\{([^}]*)\}/);
+    assert.ok(labelRule, `${relativePath} lost its .stablePendingLabel rule`);
+    assert.doesNotMatch(labelRule[1] ?? '', /white-space/, relativePath);
+    assert.doesNotMatch(consumer, /\.stablePendingLabel\s*>\s*span\b/, relativePath);
   }
+
+  // The shared rule the six now compose is where the span geometry lives, and
+  // it must not restate the nowrap policy either.
+  const sharedLabelSpan = read('src/ui/pendingLabel.module.css').match(
+    /\.label\s*>\s*span\s*\{([^}]*)\}/,
+  );
+  assert.ok(sharedLabelSpan, 'src/ui/pendingLabel.module.css lost its .label > span rule');
+  assert.doesNotMatch(sharedLabelSpan[1] ?? '', /white-space/);
 
   // The two-column lifecycle/danger action rows kept their width/font-size
   // sizing, which is a different purpose from label wrapping.

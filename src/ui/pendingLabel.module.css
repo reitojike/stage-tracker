@@ -1,0 +1,43 @@
+/*
+ * The one width-stable pending label (Issue #308). A submit button swaps its
+ * label while the write is in flight ("保存" -> "保存中…"), and a plain text
+ * swap would resize the button under the user's finger. The fix is to stack
+ * both labels in a single grid cell and hide the sizing copy: the cell keeps
+ * the width of the longest label, so nothing moves when the visible one
+ * changes.
+ *
+ * Six modules carried this same rule (EventWriteForm, InvitationCard,
+ * InviteSheet, ScheduleDetail, ScheduleWriteForm, ShareAddSheet) across 17
+ * call sites. It is one named role - "the pending label" - shared by all of
+ * them, which is what docs/ux-ui.md requires of a shared boundary, so it has
+ * one authority here rather than six copies to keep in step.
+ *
+ * Usage: `.label` on the wrapper <span>, `.sizing` on the aria-hidden copy
+ * that carries the longest label. The two are one contract - a `.label`
+ * without a `.sizing` child has nothing holding its width, and a `.sizing`
+ * outside a `.label` is simply invisible text. Consumers compose these onto
+ * their own class names, so the TSX call sites are unchanged.
+ *
+ * `> span` is a child combinator rather than a class of its own because the
+ * call sites do not name the two stacked spans individually. It still
+ * reaches consumers through `composes` (docs/ux-ui.md "composes は単一class
+ * selectorの規則にしか書けません"), the same way tapTarget's
+ * `.expand44::before` does.
+ */
+.label {
+  display: grid;
+}
+
+.label > span {
+  grid-area: 1 / 1;
+}
+
+/*
+ * visibility rather than display: none, so the copy keeps occupying its grid
+ * cell and can still set the width. pointer-events: none keeps it from
+ * swallowing taps aimed at the visible label stacked on top of it.
+ */
+.sizing {
+  visibility: hidden;
+  pointer-events: none;
+}

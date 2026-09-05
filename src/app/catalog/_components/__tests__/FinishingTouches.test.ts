@@ -208,7 +208,7 @@ void test('sheet write notices are before occurrence/content UI', () => {
   );
 });
 
-void test('write pending controls use scoped stable geometry contracts', () => {
+void test('write pending controls compose the shared stable-width label', () => {
   const eventCss = read('src/app/catalog/_components/EventWriteForm.module.css');
   const scheduleCss = read('src/app/schedule/_components/ScheduleWriteForm.module.css');
   const inviteCss = read('src/app/catalog/_components/InviteSheet.module.css');
@@ -219,12 +219,30 @@ void test('write pending controls use scoped stable geometry contracts', () => {
     // Issue #270: label non-wrapping is now the shared Button's own contract
     // (src/ui/Button.module.css) and inherits into these label spans, so the
     // per-consumer `.stablePendingButton { white-space: nowrap }` is gone -
-    // see Button.test.ts. What stays scoped here is the grid overlay that
-    // stabilises the button's width across the pending swap.
+    // see Button.test.ts.
     assert.doesNotMatch(css, /\.stablePendingButton\b/);
-    assert.match(css, /\.stablePendingLabel\s*\{[\s\S]*?display:\s*grid;/);
-    assert.match(css, /\.stablePendingLabel\s*>\s*span\s*\{[\s\S]*?grid-area:\s*1\s*\/\s*1;/);
-    assert.match(css, /\.stablePendingSizing\s*\{[\s\S]*?visibility:\s*hidden;/);
+    // Issue #308: the grid overlay that stabilises the button's width across
+    // the pending swap now has one authority (src/ui/pendingLabel.module.css,
+    // asserted in pendingLabel.test.ts). These six keep the class names - the
+    // TSX call sites are unchanged - but no longer restate the rule.
+    assert.match(
+      css,
+      /\.stablePendingLabel\s*\{\s*composes:\s*label\s+from\s+'[^']*pendingLabel\.module\.css';/,
+    );
+    assert.match(
+      css,
+      /\.stablePendingSizing\s*\{\s*composes:\s*sizing\s+from\s+'[^']*pendingLabel\.module\.css';/,
+    );
+    assert.doesNotMatch(css, /\.stablePendingLabel\s*>\s*span\b/);
+    // Both rules carry the composition and nothing else, so a local copy of
+    // the geometry cannot drift back in beside it. Asserted on the rule
+    // bodies rather than the whole file: EventWriteForm and
+    // ScheduleWriteForm use `display: grid` elsewhere for unrelated layout.
+    const labelBody = css.match(/\.stablePendingLabel\s*\{([^}]*)\}/)?.[1] ?? '';
+    const sizingBody = css.match(/\.stablePendingSizing\s*\{([^}]*)\}/)?.[1] ?? '';
+    for (const body of [labelBody, sizingBody]) {
+      assert.doesNotMatch(body, /display:|grid-area:|visibility:|pointer-events:/);
+    }
     assert.doesNotMatch(css, /min-width:\s*10ch/);
   }
   for (const relativePath of [

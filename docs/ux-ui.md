@@ -330,7 +330,10 @@ domain semanticsの正本は引き続き
   panelを作り直し（`key={attempt}`）、再度読み上げられるようにします。
 - 送信中はform全体を `aria-busy` にして入力を無効化し、送信ボタンのlabel
   だけを差し替えます。ボタン幅は最長のlabelで固定してあるため、押しても
-  行の高さや幅が動きません。
+  行の高さや幅が動きません。この幅固定はCSS-onlyの
+  `src/ui/pendingLabel.module.css`をcomposeし、`label` が両labelを1つの
+  grid cellへ重ね、`sizing` が最長label側のcopyを不可視のまま幅の基準
+  として残します（[Issue #308](https://github.com/reitojike/stage-tracker/issues/308)）。
 - **処理中の語は、その操作の動詞をそのまま「〜中…」にします。** 送信ボタンの
   labelから機械的に作ります（「予定を保存」→「保存中…」、「追加」→
   「追加中…」、「招待する」→「送信中…」）。「処理中…」のような汎用語は、
