@@ -656,7 +656,12 @@ Storybookを採用します。
 - dark mode UI（token構成としては対応可能にするが、UI自体は未実装）
 - production hosting（Gate A dogfood限定のVercel Hobby採用を除き
   broader/general production hosting platformは引き続きuncommitted）、
-  PWA scope、MCP scope、broader rollout（現時点の実runtimeはGate Aの
+  PWAのoffline capabilityとWeb Push notificationのproduct scope
+  （installabilityとstandalone起動はIssue #304で確定・実装済みで、
+  canonicalな記述は`.ai-dev-foundation/product-rules.md`の
+  「App delivery surface」。standalone固有のUI対応 — 例えば
+  safe-area insetを使うfull-bleed表示 — は本ドキュメントで未確定）、
+  MCP scope、broader rollout（現時点の実runtimeはGate Aの
   本人 + 妻の bounded 2-user dogfood）
 
 auth providerはEmail magic link + Supabase Auth cookie-based session

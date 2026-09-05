@@ -142,7 +142,11 @@ uncommitted）です。current committed scopeには含みません。
   hosting platformの恒久決定は引き続きuncommitted。詳細は
   [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
   および Issue #61）
-- PWA scope（installability / offline capability）
+- PWAのoffline capability（offline read / offline write / cache戦略）と
+  Web Push notificationのproduct scope。installabilityとstandalone起動は
+  Issue #304で確定済みで、canonicalな記述は
+  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)の
+  「App delivery surface」です
 - 家族・友人への本格展開時期（現時点の実runtimeはGate Aの本人 + 妻の
   bounded 2-user dogfoodであり、broader rolloutは確約していません）
 
@@ -152,8 +156,8 @@ Email magic link + Supabase Auth cookie-based session（Issue #11）に加え、
 追加した構成として決定済みです（Issue #106）。Passkeyは Magic Linkを
 置換するものではなく、既存 provisioned accountへ追加するoptional
 credentialです。現時点でdeferredなのはproduction hosting providerと
-PWA scopeのみで、sign-in providerをこれらと同一のdeferred項目として
-扱いません。
+PWAのoffline / Web Push scopeのみで、sign-in providerをこれらと同一の
+deferred項目として扱いません。
 
 ## Canonical constraints
 
