@@ -559,6 +559,12 @@ presentation primitiveのみを提供します。
 - 1つのpageが複数の独立した読み取りを持つ場合、blockごとに結果を持ち、
   片方が失敗してももう片方は表示します。page全体の失敗にするのは身元確認の
   失敗だけです。
+- **disabled controlの見た目**は `--opacity-disabled`（`src/ui/tokens.css`
+  semantic layer）が値の正本を持つ、単一のsemantic roleです（Issue
+  #324）。`cursor: not-allowed` と併記し、Button / TextInput /
+  TriStateCheckbox / ParticipationSheet / ScheduleWriteFormの各disabled
+  siteがこのtokenを参照します。値はここに書かず、`tokens.css` を参照して
+  ください。
 
 ### 補助的な件数表示の例外
 
