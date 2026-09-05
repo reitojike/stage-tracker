@@ -55,6 +55,8 @@ export interface CssDeclaration {
 export interface CssRule {
   readonly selector: string;
   readonly declarations: readonly CssDeclaration[];
+  /** Enclosing at-rule preludes, outermost first (`@media (...)`). */
+  readonly atContext: readonly string[];
 }
 
 export interface CssModuleFile {
@@ -213,6 +215,7 @@ export const parseCssRules = (css: string): CssRule[] => {
         rules.push({
           selector: prelude.replace(/\s+/g, ' ').trim(),
           declarations: parseDeclarations(body),
+          atContext: preludes.filter((outer) => outer.startsWith('@')),
         });
       }
       continue;
@@ -222,6 +225,37 @@ export const parseCssRules = (css: string): CssRule[] => {
   }
 
   return rules;
+};
+
+/**
+ * One entry per selector within an at-rule context, carrying every
+ * declaration written for it.
+ *
+ * CSS lets the same selector appear more than once, so a rule's meaning is
+ * the union of its blocks, not whichever block happens to be read first: a
+ * consumer that composes a shared role in one block and restates part of it
+ * in a later block has still restated it, and a signature whose two halves
+ * sit in separate blocks is still that signature. Contexts stay separate -
+ * a `@media` block is a conditional override, not more of the same rule.
+ */
+export const mergeRulesBySelector = (rules: readonly CssRule[]): CssRule[] => {
+  const merged = new Map<string, { rule: CssRule; declarations: CssDeclaration[] }>();
+
+  for (const rule of rules) {
+    const key = `${rule.atContext.join('|')}||${rule.selector}`;
+    const existing = merged.get(key);
+    if (existing === undefined) {
+      merged.set(key, { rule, declarations: [...rule.declarations] });
+      continue;
+    }
+    existing.declarations.push(...rule.declarations);
+  }
+
+  return [...merged.values()].map(({ rule, declarations }) => ({
+    selector: rule.selector,
+    atContext: rule.atContext,
+    declarations,
+  }));
 };
 
 const CLASS_PATTERN = /\.(-?[_a-zA-Z][\w-]*)/g;
@@ -609,7 +643,7 @@ const authorityShape = (css: string): AuthorityShape => {
   const names = new Set<string>();
   const owned = new Map<string, Map<string, string>>();
 
-  for (const rule of parseCssRules(css)) {
+  for (const rule of mergeRulesBySelector(parseCssRules(css))) {
     for (const name of selectorClasses(rule.selector)) {
       names.add(name);
     }
@@ -647,7 +681,7 @@ export const detectSharedRuleViolations = (
   }
 
   for (const file of files) {
-    const rules = parseCssRules(file.css);
+    const rules = mergeRulesBySelector(parseCssRules(file.css));
 
     // --- B. authority signatures ---
     for (const signature of SIGNATURE_RULES) {

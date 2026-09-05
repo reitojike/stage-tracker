@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { authorityExports, composesRole, definedClasses } from './sharedCssRules.ts';
+import { authorityExports, composesRole, definedClasses, parseCssRules } from './sharedCssRules.ts';
 
 /*
  * The shared month-calendar grid (Issue #314) is asserted here once, rather
@@ -27,23 +27,51 @@ const read = (relativePath: string) => ({
 const AUTHORITY = 'src/ui/monthCalendarGrid.module.css';
 const shared = read(AUTHORITY);
 
-void test('Issue #77: .day:hover is scoped with :not(.daySelected) so the selected ring always wins', () => {
+/** Class names a single selector branch references. */
+const branchClasses = (branch: string): string[] =>
+  [...branch.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((match) => match[1] ?? '');
+
+void test('Issue #77: every hovered/pressed .day branch excludes .daySelected', () => {
   // `.day:hover` (a class + a pseudo-class) is more specific than the
   // single-class `.daySelected`, so an unscoped hover rule wins the cascade
   // over the selected cell's own presentation whenever both match - which
   // touch browsers make sticky after a tap, until a different cell is
-  // tapped. Comments are stripped first: this module's own prose quotes
-  // `.day:hover`.
-  const css = shared.css.replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(
-    css,
-    /\.day(?::hover:not\(\.daySelected\)|:not\(\.daySelected\):hover)\s*\{/,
-    '.day:hover must be scoped with :not(.daySelected) (either token order)',
-  );
-  // Catches the bug re-appearing via a selector LIST too (e.g.
-  // `.day:hover,\n.day:focus-visible {`), not just a bare `.day:hover {`.
-  const unscopedHover = /\.day:hover(?!:not\(\.daySelected\))\b/.exec(css);
-  assert.equal(unscopedHover, null, `found an unscoped selector: ${String(unscopedHover?.[0])}`);
+  // tapped.
+  //
+  // Checked branch by branch rather than by one anchored pattern (PR #342
+  // review): a single valid rule elsewhere in the file must not be able to
+  // satisfy this while a reordered one (`.day:not(.other):hover`) slips
+  // past, and `:active` carries the same cascade conflict as `:hover`.
+  const branches = parseCssRules(shared.css)
+    .flatMap((rule) => rule.selector.split(','))
+    .map((branch) => branch.trim())
+    .filter((branch) => branch !== '');
+
+  const scoped: string[] = [];
+  for (const branch of branches) {
+    if (!/:hover|:active/.test(branch)) {
+      continue;
+    }
+    const classes = branchClasses(branch);
+    if (!classes.includes('day')) {
+      // `.daySelected:hover` is the selected cell's own rule, not a generic
+      // one competing with it.
+      continue;
+    }
+    assert.ok(
+      classes.includes('daySelected'),
+      `${branch} styles a hovered/pressed day without excluding .daySelected`,
+    );
+    assert.match(
+      branch,
+      /:not\(\s*\.daySelected\s*\)/,
+      `${branch} must exclude .daySelected with :not(.daySelected)`,
+    );
+    scoped.push(branch);
+  }
+
+  // The guard is only meaningful while the rules it guards exist.
+  assert.ok(scoped.length >= 2, `expected hover and press rules, found ${JSON.stringify(scoped)}`);
 });
 
 /*

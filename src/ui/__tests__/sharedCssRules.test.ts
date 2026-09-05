@@ -207,6 +207,24 @@ const knownBad: readonly (readonly [string, string, string])[] = [
     'selectedDayList',
     ".heading {\n  composes: heading from '../../../ui/selectedDayList.module.css';\n  font-size: var(--font-size-title);\n}\n",
   ],
+  // A selector may be written more than once, so a rule's meaning is the
+  // union of its blocks - splitting a restatement or a signature across two
+  // blocks must not slip past either detection path (PR #342 review).
+  [
+    'a composed role restated in a later rule block',
+    'row',
+    ".text {\n  composes: main from '../../../ui/row.module.css';\n}\n\n.text {\n  min-width: 0;\n}\n",
+  ],
+  [
+    'a pending-label signature split across rule blocks',
+    'pending-label-sizing-copy',
+    '.sizing {\n  visibility: hidden;\n}\n\n.sizing {\n  pointer-events: none;\n}\n',
+  ],
+  [
+    'a fixed submit bar signature split across rule blocks',
+    'fixed-submit-bar-safe-area',
+    '.band {\n  position: fixed;\n}\n\n.band {\n  bottom: calc(60px + env(safe-area-inset-bottom, 0px));\n}\n',
+  ],
 ];
 
 void test('the detector catches each known-bad case', () => {
@@ -293,6 +311,12 @@ const knownGood: readonly (readonly [string, string])[] = [
   [
     'a keyframe step that happens to look like a shared signature',
     '@keyframes fade {\n  from {\n    visibility: hidden;\n    pointer-events: none;\n  }\n}\n',
+  ],
+  [
+    // Blocks are merged per at-rule context, so a conditional override is
+    // not read as more of the base rule.
+    'halves of a signature separated by a media query',
+    '.band {\n  position: fixed;\n}\n\n@media (min-width: 600px) {\n  .other {\n    bottom: env(safe-area-inset-bottom, 0px);\n  }\n}\n',
   ],
 ];
 
