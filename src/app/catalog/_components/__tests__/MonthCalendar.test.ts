@@ -17,13 +17,24 @@ const component = readFileSync(componentPath, 'utf8');
 // with a near-white fill and near-white text until a different cell is
 // tapped (Issue #77). This test guards the :not(.daySelected) scoping that
 // removes the conflict regardless of hover stickiness.
+//
+// Issue #314 moved this rule (and the rest of the week-grid/date-cell/
+// weekday-header/month-nav/holiday-notice presentation) into
+// src/ui/monthCalendarGrid.module.css, shared with My Calendar's
+// MyMonthCalendar.module.css - this file now only composes those classes,
+// so the guard below reads the shared module instead of this file. The
+// week-overflow-specific CSS assertions further down still read this
+// file's own cssPath, since that presentation stays Event-Catalog-local.
 const cssPath = fileURLToPath(new URL('../MonthCalendar.module.css', import.meta.url));
+const sharedCssPath = fileURLToPath(
+  new URL('../../../../ui/monthCalendarGrid.module.css', import.meta.url),
+);
 
 void test('.day:hover is scoped with :not(.daySelected) so selected fill always wins', () => {
   // Comments (including this file's own explanation, which quotes
   // `.day:hover` in prose) are stripped first so they can't be mistaken for
   // actual selector rules by the checks below.
-  const css = readFileSync(cssPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = readFileSync(sharedCssPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(
     css,
     /\.day(?::hover:not\(\.daySelected\)|:not\(\.daySelected\):hover)\s*\{/,
@@ -33,6 +44,48 @@ void test('.day:hover is scoped with :not(.daySelected) so selected fill always 
   // `.day:hover,\n.day:focus-visible {`), not just a bare `.day:hover {`.
   const unscopedHover = /\.day:hover(?!:not\(\.daySelected\))\b/.exec(css);
   assert.equal(unscopedHover, null, `found an unscoped selector: ${String(unscopedHover?.[0])}`);
+});
+
+// Issue #314: the week-grid/date-cell/weekday-header/month-nav/
+// holiday-notice classes are composed from the shared module, not
+// restated locally - guards against the duplication this Issue removed
+// silently creeping back.
+void test('Issue #314: MonthCalendar composes the shared month-calendar-grid classes', () => {
+  const css = readFileSync(cssPath, 'utf8');
+  const sharedClasses = [
+    'calendar',
+    'header',
+    'monthLabel',
+    'monthNavButton',
+    'navChevron',
+    'grid',
+    'weekdayRow',
+    'weekday',
+    'week',
+    'day',
+    'dayOutside',
+    'daySelected',
+    'dayNumberRow',
+    'dayNumber',
+    'today',
+    'roleSaturday',
+    'roleSunday',
+    'roleHoliday',
+    'coverageNotice',
+  ];
+  for (const className of sharedClasses) {
+    assert.match(
+      css,
+      new RegExp(
+        '\\.' +
+          className +
+          '\\s*\\{\\s*composes:\\s*' +
+          className +
+          '\\s+from\\s+[\'"][^\'"]*monthCalendarGrid\\.module\\.css[\'"];',
+      ),
+      `.${className} must compose from monthCalendarGrid.module.css`,
+    );
+  }
 });
 
 // Issue #176: a week overflow summary reusing calendarMonth.ts's existing

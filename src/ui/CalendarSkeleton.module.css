@@ -1,9 +1,13 @@
 /* Mirrors MonthCalendar.module.css's / MyMonthCalendar.module.css's own
    .calendar surface tokens (Issue #103, P2; card surface removed by Design
-   Wave 2 Issue #190) - kept as its own small duplication rather than a
-   cross-module import, the same convention those two feature-local
-   stylesheets already use for one another (monthLabel/weekday/week/day
-   tokens are restated, not shared). */
+   Wave 2 Issue #190) - kept as its own small duplication (this skeleton's
+   header/week/day placeholder differ enough from a real grid - no month
+   nav, no date cells, a pulsing block instead - that composing them adds
+   indirection without removing real duplication). The weekday header
+   below is the one piece Issue #314 calls out explicitly as sharable
+   (it was previously a third, byte-identical copy) - see .weekdayRow/
+   .weekday, which compose src/ui/monthCalendarGrid.module.css instead of
+   restating it. */
 .skeleton {
   display: flex;
   flex-direction: column;
@@ -31,17 +35,14 @@
 }
 
 .weekdayRow {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-2xs);
+  composes: weekdayRow from './monthCalendarGrid.module.css';
 }
 
 .weekday {
-  text-align: center;
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
-  padding-block: var(--space-xs);
+  composes: weekday from './monthCalendarGrid.module.css';
+  /* Skeleton-only dimming - the real weekday header (MonthCalendar.tsx /
+     MyMonthCalendar.tsx) has no equivalent, since it renders actual
+     Saturday/Sunday role colors instead of a placeholder. */
   opacity: 0.5;
 }
 
