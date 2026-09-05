@@ -644,18 +644,24 @@ qualityを阻害する場合は、exceptionを足すだけでなくglobal rule�
 `visuallyHidden` でclipし、見える要素を別に置くcontrolでは、このglobal ring
 は当たっていても見えません。
 
-この場合は次の対で、**見える代理要素へringを転送します**。globalsの重複記述
-ではなく、globalsだけでは表現できない構造への対応です。
+そのため、見える代理要素（`+` の兄弟、または `:has()` で参照する祖先）へ
+`--focus-ring-width` / `--color-focus-ring` / `--focus-ring-offset` で
+**ringを転送します**。globalsの重複記述ではなく、globalsだけでは表現でき
+ない構造への対応です。selectorの形（`+` の兄弟 / `:has()` の自身 /
+`:has()` の子孫）はDOM形状によって変わるため、1つには寄せられません。
 
-- clipされたinput側を `outline: none` にする。
-- 見える代理要素側（`+` の兄弟、または `:has()` で参照する祖先）へ
-  `--focus-ring-width` / `--color-focus-ring` / `--focus-ring-offset` で
-  ringを描く。
+clipされたinput自身のringは、`visuallyHidden` の `clip-path: inset(50%)`
+が既に切り落としています。そのうえで `TriStateCheckbox.module.css` と
+`FilterSheet.module.css` はinput側にも `outline: none` を明示しており、
+`ScheduleWriteForm.module.css` は明示していません。**この差は現時点では
+見た目に影響しません。** input側の `outline: none` は、clipping techniqueが
+変わった場合に備えた防御的な指定です。
 
-**対になっている `outline: none` を「不要な打ち消し」として削除しないで
-ください。** 削除するとringが二重化するか、代理要素側のringが意味を失い
-ます。selectorの形（`+` の兄弟 / `:has()` の自身 / `:has()` の子孫）はDOM
-形状によって変わるため、1つには寄せられません。
+- `outline: none` が無いことを不具合として扱わないでください。
+- 逆に、`outline: none` を「globalsの打ち消しだから不要」として機械的に
+  削除しないでください。`visuallyHidden` のclipping technique（現在は
+  `clip-path`）を変える場合は、input自身のringが見えないことを再確認して
+  から判断します。
 
 値は3つともtokenなので、global ringのtoken値を変えた場合は追随します。
 同期が要るのは、global ringの**構造**を変えた場合（outlineをbox-shadowへ
