@@ -536,6 +536,25 @@ runtimeからのconsumerが0のものは、見つかり次第削除します（I
 roleではなく値だけの場合は、composeする先のroleがそもそもありません。
 その2つの場合はtokenが値の置き場所です。
 
+### 決定済み共有規約の再宣言を検出する
+
+- **決定済みのshared ruleを再宣言することは、detectorが防ぎます**（Issue
+  #312、`src/ui/__tests__/sharedCssRules.ts`）。`src/app/**` /
+  `src/ui/**` の `*.module.css` を自動列挙するので、consumerを一覧へ
+  登録する必要はありません。
+- **detectorの対象はnamed roleだけです。** 宣言の組がたまたま一致した
+  というだけではCIを失敗させません。上記「反復する宣言をいつ共通化する
+  か」で共通化しないと決めたもの（縦積みのflex、副文の指定、list reset、
+  focus ringの転送）や、単独の `justify-content: space-between` /
+  `flex` / `min-width` / `flex-shrink` は違反ではありません。正当な別
+  用途がhitした場合は、exceptionを足す前にdetectorの対象が広すぎない
+  かを先に見直します。
+- **shared ruleを変えるときは、検証責務も共有側へ移します。** 置き換え
+  られたconsumer側のsource/CSS assertionは残さず削除します。同じ保証を
+  共有元・detector・各consumerで二重に持ちません。consumerが実際に共有
+  classやcomponentを使っている必要がある場合のwiringだけを、共有元の
+  testに1箇所だけ残します。
+
 ## Common states
 
 loading / empty / error / disabled / unavailableのglobal visual pattern

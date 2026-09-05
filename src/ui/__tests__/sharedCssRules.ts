@@ -509,7 +509,8 @@ export const SIGNATURE_RULES: readonly SignatureRule[] = [
         return null;
       }
       return (
-        rule.declarations.find((entry) => entry.value.includes('env(safe-area-inset-bottom')) ?? null
+        rule.declarations.find((entry) => entry.value.includes('env(safe-area-inset-bottom')) ??
+        null
       );
     },
     violationExample: {
@@ -735,11 +736,7 @@ export const detectSharedRuleViolations = (
 export const authorityExports = (css: string): ReadonlySet<string> => authorityShape(css).names;
 
 /** Whether `.name` in `css` composes `name` from `authority`. */
-export const composesRole = (
-  file: CssModuleFile,
-  name: string,
-  authority: string,
-): boolean =>
+export const composesRole = (file: CssModuleFile, name: string, authority: string): boolean =>
   parseCssRules(file.css).some(
     (rule) =>
       singleClassName(rule.selector) === name &&

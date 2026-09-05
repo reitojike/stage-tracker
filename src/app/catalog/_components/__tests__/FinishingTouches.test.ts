@@ -53,9 +53,15 @@ void test('contextual write labels stay short while accessible names retain thei
 });
 
 void test('event edit puts a canceled badge beside a wrapping datetime', () => {
+  // Issue #311's own three-file list (each badge composing inlineBadge and
+  // restating no flex-shrink of its own) is gone: sharedCssRules.ts (Issue
+  // #312) catches a rule that restates what it composes, and Row.test.ts
+  // owns the shared `.inlineBadge` declaration itself. What stays here is
+  // this screen's intentional alignment either side of the badge.
   const page = read('src/app/catalog/events/[eventId]/edit/page.tsx');
   const css = read('src/app/catalog/_components/EventWriteForm.module.css');
-  const rowCss = read('src/ui/row.module.css');
+  const eventDetail = read('src/app/catalog/_components/EventDetail.module.css');
+  const invitation = read('src/app/catalog/_components/InvitationCard.module.css');
 
   assert.match(page, /styles\.occurrenceDateTimeRow/);
   assert.match(page, /styles\.occurrenceCanceledBadge/);
@@ -63,45 +69,6 @@ void test('event edit puts a canceled badge beside a wrapping datetime', () => {
     css,
     /\.occurrenceDateTimeRow\s*\{[\s\S]*?align-items:\s*flex-start;[\s\S]*?gap:\s*6px;/,
   );
-  assert.match(
-    css,
-    /\.occurrenceCanceledBadge\s*\{\s*composes:\s*inlineBadge\s+from\s+['"][^'"]*row\.module\.css['"];\s*\}/,
-  );
-  assert.match(rowCss, /\.inlineBadge\s*\{\s*flex-shrink:\s*0;\s*\}/);
-  assert.doesNotMatch(css, /\.occurrenceCanceledBadge\s*\{[\s\S]*?flex-shrink\s*:/);
-});
-
-void test('Issue #311: every inline canceled badge composes the row contract without moving intentional alignment', () => {
-  const eventDetail = read('src/app/catalog/_components/EventDetail.module.css');
-  const eventWrite = read('src/app/catalog/_components/EventWriteForm.module.css');
-  const invitation = read('src/app/catalog/_components/InvitationCard.module.css');
-  const rowCss = read('src/ui/row.module.css');
-
-  assert.equal((rowCss.match(/flex-shrink:\s*0\s*;/g) ?? []).length, 1);
-
-  for (const [css, selector] of [
-    [eventDetail, '.occurrenceCanceledBadge'],
-    [eventWrite, '.occurrenceCanceledBadge'],
-    [invitation, '.canceledBadge'],
-  ] as const) {
-    const escaped = selector.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-    const match = css.match(new RegExp(`${escaped}\\s*\\{([^{}]*)\\}`));
-    assert.ok(match, `${selector} rule is missing`);
-    assert.match(
-      match[1] ?? '',
-      /composes:\s*inlineBadge\s+from\s+['"][^'"]*row\.module\.css['"];/,
-    );
-    assert.doesNotMatch(match[1] ?? '', /flex-shrink\s*:/);
-  }
-
-  assert.equal(
-    [eventDetail, eventWrite, invitation].reduce(
-      (count, css) => count + (css.match(/flex-shrink:\s*0\s*;/g) ?? []).length,
-      0,
-    ),
-    0,
-  );
-
   assert.match(eventDetail, /\.occurrenceTime\s*\{[\s\S]*?align-items:\s*flex-start;/);
   assert.match(invitation, /\.title\s*\{[\s\S]*?align-items:\s*center;/);
 });
@@ -123,6 +90,23 @@ void test('occurrence lifecycle feedback is composed above one horizontal action
     /\.sheetLifecycleActions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?gap:\s*var\(--space-sm\);/,
   );
   assert.match(css, /\.sheetLifecycleActions > form\s*\{[\s\S]*?flex:\s*1 1 0;/);
+
+  // The two-column lifecycle/danger action rows fill their column and take
+  // the smaller label size. Moved here from Button.test.ts (Issue #312):
+  // this is Event-edit's own row sizing, not part of the shared Button
+  // contract that file guards. The equal-width action row itself is
+  // Issue #310's scope.
+  for (const selector of [
+    '.sheetLifecycleActions > form > button',
+    '.dangerActions > form > button',
+  ]) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rule = css.match(new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^}]*)\\}`));
+    assert.ok(rule, `${selector} rule is missing`);
+    assert.match(rule[1] ?? '', /width:\s*100%;/);
+    assert.match(rule[1] ?? '', /font-size:\s*var\(--font-size-body-sm\);/);
+  }
+
   assert.doesNotMatch(cancellation, /window\.confirm/);
   assert.doesNotMatch(deletion, /window\.confirm/);
   assert.match(deletion, /<Sheet/);
@@ -206,59 +190,6 @@ void test('sheet write notices are before occurrence/content UI', () => {
   assert.ok(
     occurrenceUpdate.indexOf('<WriteNotice') < occurrenceUpdate.indexOf('<OccurrenceFields'),
   );
-});
-
-void test('write pending controls compose the shared stable-width label', () => {
-  const eventCss = read('src/app/catalog/_components/EventWriteForm.module.css');
-  const scheduleCss = read('src/app/schedule/_components/ScheduleWriteForm.module.css');
-  const inviteCss = read('src/app/catalog/_components/InviteSheet.module.css');
-  const shareCss = read('src/app/schedule/_components/ShareAddSheet.module.css');
-  const cardCss = read('src/app/catalog/_components/InvitationCard.module.css');
-  const detailCss = read('src/app/schedule/_components/ScheduleDetail.module.css');
-  for (const css of [eventCss, scheduleCss, inviteCss, shareCss, cardCss, detailCss]) {
-    // Issue #270: label non-wrapping is now the shared Button's own contract
-    // (src/ui/Button.module.css) and inherits into these label spans, so the
-    // per-consumer `.stablePendingButton { white-space: nowrap }` is gone -
-    // see Button.test.ts.
-    assert.doesNotMatch(css, /\.stablePendingButton\b/);
-    // Issue #308: the grid overlay that stabilises the button's width across
-    // the pending swap now has one authority (src/ui/pendingLabel.module.css,
-    // asserted in pendingLabel.test.ts). These six keep the class names - the
-    // TSX call sites are unchanged - but no longer restate the rule.
-    assert.match(
-      css,
-      /\.stablePendingLabel\s*\{\s*composes:\s*label\s+from\s+'[^']*pendingLabel\.module\.css';/,
-    );
-    assert.match(
-      css,
-      /\.stablePendingSizing\s*\{\s*composes:\s*sizing\s+from\s+'[^']*pendingLabel\.module\.css';/,
-    );
-    assert.doesNotMatch(css, /\.stablePendingLabel\s*>\s*span\b/);
-    // Both rules carry the composition and nothing else, so a local copy of
-    // the geometry cannot drift back in beside it. Asserted on the rule
-    // bodies rather than the whole file: EventWriteForm and
-    // ScheduleWriteForm use `display: grid` elsewhere for unrelated layout.
-    const labelBody = css.match(/\.stablePendingLabel\s*\{([^}]*)\}/)?.[1] ?? '';
-    const sizingBody = css.match(/\.stablePendingSizing\s*\{([^}]*)\}/)?.[1] ?? '';
-    for (const body of [labelBody, sizingBody]) {
-      assert.doesNotMatch(body, /display:|grid-area:|visibility:|pointer-events:/);
-    }
-    assert.doesNotMatch(css, /min-width:\s*10ch/);
-  }
-  for (const relativePath of [
-    'src/app/catalog/_components/EventDetailsEditForm.tsx',
-    'src/app/catalog/_components/EventCancellationForm.tsx',
-    'src/app/catalog/_components/OccurrenceCancellationForm.tsx',
-    'src/app/schedule/_components/DeleteEntryForm.tsx',
-    'src/app/schedule/_components/LeaveShareForm.tsx',
-  ]) {
-    const source = read(relativePath);
-    assert.match(source, /styles\.stablePendingLabel/);
-    assert.match(source, /aria-hidden="true"\s+className=\{styles\.stablePendingSizing\}/);
-    assert.doesNotMatch(source, /stablePendingButton/);
-  }
-  assert.doesNotMatch(read('src/ui/Button.tsx'), /stablePendingButton/);
-  assert.match(read('src/ui/Button.module.css'), /white-space:\s*nowrap;/);
 });
 
 void test('requested sign-in acknowledgement is page-local and keeps its copy', () => {

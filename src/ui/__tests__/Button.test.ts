@@ -33,54 +33,19 @@ void test('Issue #270: LinkButton inherits the same contract from Button.module.
   assert.match(linkButton, /styles\.button/);
 });
 
-void test('Issue #270: consumers no longer restate the Button label nowrap policy', () => {
-  // These six owned a `.stablePendingButton { white-space: nowrap }` whose
-  // only purpose was this now-shared policy; the class itself is gone.
-  // ScheduleWriteForm.module.css deliberately keeps an unrelated sr-only
-  // `white-space: nowrap` on .controlInput, so this asserts on the specific
-  // rules rather than on each file as a whole.
-  for (const relativePath of [
-    'src/app/catalog/_components/EventWriteForm.module.css',
-    'src/app/schedule/_components/ScheduleWriteForm.module.css',
-    'src/app/schedule/_components/ScheduleDetail.module.css',
-    'src/app/catalog/_components/InvitationCard.module.css',
-    'src/app/catalog/_components/InviteSheet.module.css',
-    'src/app/schedule/_components/ShareAddSheet.module.css',
-  ]) {
-    const consumer = read(relativePath);
-    assert.doesNotMatch(consumer, /\.stablePendingButton\b/, relativePath);
-
-    // Issue #308: the label span rule moved to src/ui/pendingLabel.module.css,
-    // so what these six must not do is state a `white-space` of their own on
-    // the pending label they compose.
-    const labelRule = consumer.match(/\.stablePendingLabel\s*\{([^}]*)\}/);
-    assert.ok(labelRule, `${relativePath} lost its .stablePendingLabel rule`);
-    assert.doesNotMatch(labelRule[1] ?? '', /white-space/, relativePath);
-    assert.doesNotMatch(consumer, /\.stablePendingLabel\s*>\s*span\b/, relativePath);
-  }
-
-  // The shared rule the six now compose is where the span geometry lives, and
-  // it must not restate the nowrap policy either.
+void test('Issue #270: the shared label span carries no nowrap policy of its own', () => {
+  // The nowrap policy is the Button's, inherited by the label span stacked
+  // inside it (src/ui/pendingLabel.module.css). Issue #312 removed the
+  // six-consumer list that asserted the same absence file by file: those
+  // consumers' own `.stablePendingButton { white-space: nowrap }` was
+  // deleted by #270 and the class no longer exists anywhere, while a local
+  // copy of the overlay itself is now caught repository-wide by
+  // sharedCssRules.ts.
   const sharedLabelSpan = read('src/ui/pendingLabel.module.css').match(
     /\.label\s*>\s*span\s*\{([^}]*)\}/,
   );
   assert.ok(sharedLabelSpan, 'src/ui/pendingLabel.module.css lost its .label > span rule');
   assert.doesNotMatch(sharedLabelSpan[1] ?? '', /white-space/);
-
-  // The two-column lifecycle/danger action rows kept their width/font-size
-  // sizing, which is a different purpose from label wrapping.
-  const eventCss = read('src/app/catalog/_components/EventWriteForm.module.css');
-  for (const selector of [
-    '.sheetLifecycleActions > form > button',
-    '.dangerActions > form > button',
-  ]) {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const rule = eventCss.match(new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^}]*)\\}`));
-    assert.ok(rule, `${selector} rule is missing`);
-    assert.match(rule[1] ?? '', /width:\s*100%;/);
-    assert.match(rule[1] ?? '', /font-size:\s*var\(--font-size-body-sm\);/);
-    assert.doesNotMatch(rule[1] ?? '', /white-space/);
-  }
 });
 
 void test('Issue #270 regression guard: tap target, fill heights and icon sizing are untouched', () => {

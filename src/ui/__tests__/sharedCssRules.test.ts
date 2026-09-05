@@ -101,7 +101,7 @@ void test('every detected rule names an authority, a reason, and both examples',
   }
 });
 
-void test("every catalogued rule fails on its own violation example, naming file, selector, rule and authority", () => {
+void test('every catalogued rule fails on its own violation example, naming file, selector, rule and authority', () => {
   for (const entry of [...AUTHORITY_MODULES, ...SIGNATURE_RULES]) {
     const violations = violationsFor(entry.violationExample).filter(
       (violation) => violation.ruleId === entry.id,
@@ -330,5 +330,8 @@ void test('comments, strings and selector lists are not mistaken for declaration
     rules.map((rule) => rule.selector),
     ['.a, .b', '.c'],
   );
-  assert.deepEqual(rules[0]?.declarations.map((entry) => entry.property), ['content', 'color']);
+  assert.deepEqual(
+    rules[0]?.declarations.map((entry) => entry.property),
+    ['content', 'color'],
+  );
 });
