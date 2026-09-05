@@ -1,0 +1,84 @@
+/*
+ * The one fixed submit bar (Issue #316). The Event create form
+ * (src/app/catalog/_components/EventWriteForm.module.css) and the Personal
+ * Schedule create/edit forms
+ * (src/app/schedule/_components/ScheduleWriteForm.module.css) compose these
+ * three classes, so the offset above PrimaryNav, the safe-area handling,
+ * the bounded inner column and the bottom escape spacing have one authority
+ * instead of the two copies that had already drifted apart (#307 item 3:
+ * only one of them looked at the safe area, and their escape spacing
+ * differed by nearly a factor of two).
+ *
+ * Usage: `.escape` on the scrolling <form>, `.band` on a child of that
+ * form, `.inner` on the band's single child. `.escape` and `.band` are one
+ * contract - a band without the matching escape leaves the form's last
+ * control stranded behind it at the end of the scroll.
+ */
+
+.band {
+  /*
+   * PrimaryNav's own row height. Deliberately not a design token:
+   * docs/ux-ui.md leaves PrimaryNav's measurements untokenised, so this
+   * names where the value comes from - `.link { min-height: 60px }` in
+   * src/ui/PrimaryNav.module.css - and fixedSubmitBar.test.ts fails if the
+   * two drift apart.
+   */
+  --primary-nav-row-height: 60px;
+
+  position: fixed;
+  /*
+   * Above PrimaryNav's own z-index: 1. The two only overlap along the
+   * nav's top hairline, but the band owns that edge - it draws its own
+   * border-top there.
+   */
+  z-index: 2;
+  inset-inline: 0;
+  /*
+   * The nav is sticky rather than fixed and pads itself by
+   * env(safe-area-inset-bottom) below the row above, so clearing it means
+   * clearing both terms. The env() term resolves to 0 under the shell's
+   * current `viewportFit` default (src/app/layout.tsx leaves it unset, so
+   * the browser insets the viewport itself and nothing is drawn into the
+   * home-indicator area); it costs nothing today and is what keeps this
+   * bar off the home indicator if that default ever changes.
+   */
+  bottom: calc(var(--primary-nav-row-height) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-canvas);
+}
+
+/*
+ * Full-bleed band, bounded content: the same relationship PrimaryNav has
+ * between its bar and its `.items`, so the two read as one piece of bottom
+ * chrome on viewports wider than the content column. The width matches
+ * AppShell's own column (both untokenised, see docs/ux-ui.md "Platform
+ * priority").
+ */
+.inner {
+  display: flex;
+  justify-content: flex-end;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: var(--space-compact) var(--space-md);
+}
+
+/*
+ * Scroll clearance for `.band`. The band is out of flow, so at the end of
+ * the scroll it would otherwise sit on top of the form's last control.
+ *
+ * What has to be cleared is the band's height (its hairline + two
+ * --space-compact steps + the Button's 35px fill) minus what the flow
+ * below the form already contributes at that point - AppShell's own
+ * --space-md column padding and PrimaryNav's row, less the band's offset
+ * above that row. The safe-area term appears on both sides of that
+ * comparison and cancels, which is why this stays a plain length.
+ *
+ * Measured rather than assumed (Issue #316 asked for exactly this): 60px
+ * of band over 17px of existing flow needs 43px, so this keeps the prior
+ * Event value of 72px - about a half-band of breathing room - and drops
+ * the Schedule form's 128px, which left an empty band-and-a-half below the
+ * last field.
+ */
+.escape {
+  padding-bottom: 72px;
+}

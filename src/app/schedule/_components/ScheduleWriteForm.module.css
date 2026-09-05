@@ -1,8 +1,8 @@
 .form {
+  composes: escape from '../../../ui/fixedSubmitBar.module.css';
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding-bottom: 128px;
 }
 
 .fields {
@@ -137,22 +137,14 @@
   color: var(--color-text-secondary);
 }
 
+/* Fixed submit bar - see src/ui/fixedSubmitBar.module.css for the shared
+   geometry these compose (Issue #316). */
 .submitBand {
-  position: fixed;
-  z-index: 2;
-  right: 0;
-  bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-  left: 0;
-  border-top: 1px solid var(--color-border);
-  background-color: var(--color-canvas);
+  composes: band from '../../../ui/fixedSubmitBar.module.css';
 }
 
 .submitInner {
-  display: flex;
-  justify-content: flex-end;
-  max-width: 640px;
-  margin: 0 auto;
-  padding: var(--space-compact) var(--space-md);
+  composes: inner from '../../../ui/fixedSubmitBar.module.css';
 }
 
 .sheetFooter {
