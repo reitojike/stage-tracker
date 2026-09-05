@@ -238,6 +238,19 @@ const knownBad: readonly (readonly [string, string, string])[] = [
     'row',
     ".text {\n  composes: main from '../../../ui/row.module.css';\n}\n\n.text,\n.other {\n  min-width: 0;\n}\n",
   ],
+  // Merged blocks are read at their cascade-final value, so an earlier
+  // benign value cannot hide the one that actually applies (PR #342
+  // closure review).
+  [
+    'a signature whose property is overwritten into place by a later block',
+    'pending-label-sizing-copy',
+    '.sizing {\n  visibility: visible;\n}\n\n.sizing {\n  visibility: hidden;\n  pointer-events: none;\n}\n',
+  ],
+  [
+    'a composed role whose owned property is restated by a later block',
+    'row',
+    ".text {\n  composes: main from '../../../ui/row.module.css';\n  min-width: 10px;\n}\n\n.text {\n  min-width: 0;\n}\n",
+  ],
 ];
 
 void test('the detector catches each known-bad case', () => {
@@ -340,6 +353,18 @@ const knownGood: readonly (readonly [string, string])[] = [
   [
     'two different classes that merely share a declaration block',
     '.alpha,\n.beta {\n  visibility: hidden;\n}\n',
+  ],
+  [
+    // The mirror of the cascade-final known-bad cases: a value the cascade
+    // has already replaced is not judged, in either direction.
+    'a signature value overridden away by a later block',
+    '.sizing {\n  visibility: hidden;\n  pointer-events: none;\n}\n\n.sizing {\n  visibility: visible;\n}\n',
+  ],
+  [
+    // The exact restatement in the first block is no longer what applies,
+    // so what is judged is the screen-local exception that replaced it.
+    'a restated value replaced by a documented screen-local exception',
+    ".titleRow {\n  composes: row from '../../../ui/row.module.css';\n  align-items: center;\n}\n\n.titleRow {\n  align-items: flex-start;\n}\n",
   ],
 ];
 

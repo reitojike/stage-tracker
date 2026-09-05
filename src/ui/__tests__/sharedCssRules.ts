@@ -492,8 +492,17 @@ export interface SignatureRule {
   readonly legitimateExample: CatalogExample;
 }
 
+/**
+ * The declaration that actually applies for a property: the last one
+ * written, not the first.
+ *
+ * Merged rules concatenate the blocks in source order, so reading the first
+ * entry would answer with a value the cascade has already replaced - a
+ * `.sizing { visibility: visible }` earlier in the file would hide the
+ * `visibility: hidden` that follows it (PR #342 closure review).
+ */
 const declarationOf = (rule: CssRule, property: string): CssDeclaration | null =>
-  rule.declarations.find((entry) => entry.property === property) ?? null;
+  rule.declarations.findLast((entry) => entry.property === property) ?? null;
 
 const hasValue = (rule: CssRule, property: string, value: string): boolean =>
   normalizeValue(declarationOf(rule, property)?.value ?? '') === value;
@@ -747,16 +756,23 @@ export const detectSharedRuleViolations = (
           }
         }
 
-        for (const declared of rule.declarations) {
-          if (declared.property === 'composes') {
+        // One verdict per property, on the declaration that actually
+        // applies. Reading every entry of a merged rule would judge a value
+        // the cascade has already replaced (PR #342 closure review).
+        for (const property of new Set(rule.declarations.map((entry) => entry.property))) {
+          if (property === 'composes') {
             continue;
           }
-          const sharedValue = ownedHere.get(declared.property);
+          const sharedValue = ownedHere.get(property);
           if (sharedValue === undefined) {
             continue;
           }
+          const declared = declarationOf(rule, property);
+          if (declared === null) {
+            continue;
+          }
           const restatesValue = normalizeValue(declared.value) === sharedValue;
-          if (!restatesValue && module.locallyOverridable.includes(declared.property)) {
+          if (!restatesValue && module.locallyOverridable.includes(property)) {
             continue;
           }
           const what = restatesValue
