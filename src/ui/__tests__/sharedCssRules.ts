@@ -228,27 +228,44 @@ export const parseCssRules = (css: string): CssRule[] => {
 };
 
 /**
- * One entry per selector within an at-rule context, carrying every
- * declaration written for it.
+ * One entry per selector branch within an at-rule context, carrying every
+ * declaration written for that branch.
  *
  * CSS lets the same selector appear more than once, so a rule's meaning is
  * the union of its blocks, not whichever block happens to be read first: a
  * consumer that composes a shared role in one block and restates part of it
  * in a later block has still restated it, and a signature whose two halves
- * sit in separate blocks is still that signature. Contexts stay separate -
- * a `@media` block is a conditional override, not more of the same rule.
+ * sit in separate blocks is still that signature.
+ *
+ * Selector *lists* are split first, so `.sizing, .other { visibility:
+ * hidden }` and `.sizing { pointer-events: none }` meet on `.sizing` rather
+ * than being kept apart by the company `.sizing` keeps in one of the two
+ * blocks (PR #342 closure review). Splitting is top-level only, so a comma
+ * inside `:not(...)` / `:is(...)` stays part of its branch.
+ *
+ * At-rule contexts stay separate - a `@media` block is a conditional
+ * override, not more of the same rule.
  */
-export const mergeRulesBySelector = (rules: readonly CssRule[]): CssRule[] => {
+export const mergeRulesBySelectorBranch = (rules: readonly CssRule[]): CssRule[] => {
   const merged = new Map<string, { rule: CssRule; declarations: CssDeclaration[] }>();
 
   for (const rule of rules) {
-    const key = `${rule.atContext.join('|')}||${rule.selector}`;
-    const existing = merged.get(key);
-    if (existing === undefined) {
-      merged.set(key, { rule, declarations: [...rule.declarations] });
-      continue;
+    for (const raw of splitTopLevel(rule.selector, ',')) {
+      const selector = raw.replace(/\s+/g, ' ').trim();
+      if (selector === '') {
+        continue;
+      }
+      const key = `${rule.atContext.join('|')}||${selector}`;
+      const existing = merged.get(key);
+      if (existing === undefined) {
+        merged.set(key, {
+          rule: { selector, atContext: rule.atContext, declarations: [] },
+          declarations: [...rule.declarations],
+        });
+        continue;
+      }
+      existing.declarations.push(...rule.declarations);
     }
-    existing.declarations.push(...rule.declarations);
   }
 
   return [...merged.values()].map(({ rule, declarations }) => ({
@@ -643,7 +660,7 @@ const authorityShape = (css: string): AuthorityShape => {
   const names = new Set<string>();
   const owned = new Map<string, Map<string, string>>();
 
-  for (const rule of mergeRulesBySelector(parseCssRules(css))) {
+  for (const rule of mergeRulesBySelectorBranch(parseCssRules(css))) {
     for (const name of selectorClasses(rule.selector)) {
       names.add(name);
     }
@@ -681,7 +698,7 @@ export const detectSharedRuleViolations = (
   }
 
   for (const file of files) {
-    const rules = mergeRulesBySelector(parseCssRules(file.css));
+    const rules = mergeRulesBySelectorBranch(parseCssRules(file.css));
 
     // --- B. authority signatures ---
     for (const signature of SIGNATURE_RULES) {

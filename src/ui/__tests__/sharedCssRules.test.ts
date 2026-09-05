@@ -225,6 +225,19 @@ const knownBad: readonly (readonly [string, string, string])[] = [
     'fixed-submit-bar-safe-area',
     '.band {\n  position: fixed;\n}\n\n.band {\n  bottom: calc(60px + env(safe-area-inset-bottom, 0px));\n}\n',
   ],
+  // ... including when one of the blocks writes the selector as part of a
+  // list, so the branches have to meet before the declarations are read
+  // (PR #342 closure review).
+  [
+    'a signature split across blocks, one of them a selector list',
+    'pending-label-sizing-copy',
+    '.sizing,\n.other {\n  visibility: hidden;\n}\n\n.sizing {\n  pointer-events: none;\n}\n',
+  ],
+  [
+    'a composed role restated in a later selector list',
+    'row',
+    ".text {\n  composes: main from '../../../ui/row.module.css';\n}\n\n.text,\n.other {\n  min-width: 0;\n}\n",
+  ],
 ];
 
 void test('the detector catches each known-bad case', () => {
@@ -317,6 +330,16 @@ const knownGood: readonly (readonly [string, string])[] = [
     // not read as more of the base rule.
     'halves of a signature separated by a media query',
     '.band {\n  position: fixed;\n}\n\n@media (min-width: 600px) {\n  .other {\n    bottom: env(safe-area-inset-bottom, 0px);\n  }\n}\n',
+  ],
+  [
+    // Splitting selector lists is top-level only: a comma inside :not()/:is()
+    // belongs to its branch and must not split it.
+    'a functional pseudo-class whose argument contains a comma',
+    '.day:not(.daySelected, .dayOutside):hover {\n  background-color: var(--color-surface-subtle);\n}\n',
+  ],
+  [
+    'two different classes that merely share a declaration block',
+    '.alpha,\n.beta {\n  visibility: hidden;\n}\n',
   ],
 ];
 
