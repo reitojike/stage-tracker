@@ -55,6 +55,7 @@ void test('contextual write labels stay short while accessible names retain thei
 void test('event edit puts a canceled badge beside a wrapping datetime', () => {
   const page = read('src/app/catalog/events/[eventId]/edit/page.tsx');
   const css = read('src/app/catalog/_components/EventWriteForm.module.css');
+  const rowCss = read('src/ui/row.module.css');
 
   assert.match(page, /styles\.occurrenceDateTimeRow/);
   assert.match(page, /styles\.occurrenceCanceledBadge/);
@@ -62,7 +63,47 @@ void test('event edit puts a canceled badge beside a wrapping datetime', () => {
     css,
     /\.occurrenceDateTimeRow\s*\{[\s\S]*?align-items:\s*flex-start;[\s\S]*?gap:\s*6px;/,
   );
-  assert.match(css, /\.occurrenceCanceledBadge\s*\{\s*flex-shrink:\s*0;/);
+  assert.match(
+    css,
+    /\.occurrenceCanceledBadge\s*\{\s*composes:\s*inlineBadge\s+from\s+['"][^'"]*row\.module\.css['"];\s*\}/,
+  );
+  assert.match(rowCss, /\.inlineBadge\s*\{\s*flex-shrink:\s*0;\s*\}/);
+  assert.doesNotMatch(css, /\.occurrenceCanceledBadge\s*\{[\s\S]*?flex-shrink\s*:/);
+});
+
+void test('Issue #311: every inline canceled badge composes the row contract without moving intentional alignment', () => {
+  const eventDetail = read('src/app/catalog/_components/EventDetail.module.css');
+  const eventWrite = read('src/app/catalog/_components/EventWriteForm.module.css');
+  const invitation = read('src/app/catalog/_components/InvitationCard.module.css');
+  const rowCss = read('src/ui/row.module.css');
+
+  assert.equal((rowCss.match(/flex-shrink:\s*0\s*;/g) ?? []).length, 1);
+
+  for (const [css, selector] of [
+    [eventDetail, '.occurrenceCanceledBadge'],
+    [eventWrite, '.occurrenceCanceledBadge'],
+    [invitation, '.canceledBadge'],
+  ] as const) {
+    const escaped = selector.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+    const match = css.match(new RegExp(`${escaped}\\s*\\{([^{}]*)\\}`));
+    assert.ok(match, `${selector} rule is missing`);
+    assert.match(
+      match[1] ?? '',
+      /composes:\s*inlineBadge\s+from\s+['"][^'"]*row\.module\.css['"];/,
+    );
+    assert.doesNotMatch(match[1] ?? '', /flex-shrink\s*:/);
+  }
+
+  assert.equal(
+    [eventDetail, eventWrite, invitation].reduce(
+      (count, css) => count + (css.match(/flex-shrink:\s*0\s*;/g) ?? []).length,
+      0,
+    ),
+    0,
+  );
+
+  assert.match(eventDetail, /\.occurrenceTime\s*\{[\s\S]*?align-items:\s*flex-start;/);
+  assert.match(invitation, /\.title\s*\{[\s\S]*?align-items:\s*center;/);
 });
 
 void test('occurrence lifecycle feedback is composed above one horizontal action row', () => {

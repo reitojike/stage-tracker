@@ -139,9 +139,10 @@
 
 /* Issue #245: distinct from the event-level `.canceledBadge` below (which
    stays on its own line under the title) - this one is a flex child of
-   .occurrenceTime and must not shrink when the datetime wraps. */
+   .occurrenceTime and uses row.module.css's inline-badge contract so it does
+   not shrink when the datetime wraps. */
 .occurrenceCanceledBadge {
-  flex-shrink: 0;
+  composes: inlineBadge from '../../../ui/row.module.css';
 }
 
 /* Marks the exact occurrence a selected-day row was chosen for (Issue
