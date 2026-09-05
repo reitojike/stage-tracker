@@ -520,9 +520,18 @@ runtimeからのconsumerが0のものは、見つかり次第削除します（I
 そのものをutility classへ切り出すことはしません。2つのtokenが既に言って
 いること以下しか言わない名前を増やすと、かえって意味が隠れます。
 
-**CSS Modulesの `composes` は、単一class selectorの規則にしか書けません。**
-`:disabled` / `:has()` / `+` を含む規則はclassでは共有できないため、その種
-の反復を共有する必要がある場合はtokenで行います。
+**`composes` は単一class selectorの規則にしか書けません**が、これは
+`composes` 宣言をどこへ置けるかの制約であって、共有できる範囲の制約では
+ありません。共有module側でそのclassに紐づけた擬似クラス・擬似要素・結合子
+の規則は、そのclassをcomposeしたconsumerにも適用されます。
+`src/ui/tapTarget.module.css` の `.expand44::before` を Button と BackLink
+がcomposition経由で共有しているのが実例です。**`:disabled` / `:has()` /
+`+` を含むというだけで、classによる共有を候補から外さないでください。**
+
+ただし `:has()` のように、共有module側から書けない内側のclass名に依存する
+規則は、consumerごとに名前が違えば共有できません。また、反復しているのが
+roleではなく値だけの場合は、composeする先のroleがそもそもありません。
+その2つの場合はtokenが値の置き場所です。
 
 ## Common states
 
