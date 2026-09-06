@@ -709,15 +709,21 @@ src/app/**` という feature間 composition だったため、いずれも
   `src/ui/listRow.module.css` を直接composeする形へ変更しています。
   My Calendar自身の `MySelectedDayList.module.css` も同じ authority を
   composeするconsumerの1つになりました。
-- **separator role の判断。** `.item:not(:last-child)` は
-  `src/ui/listRow.module.css` 側のshared roleとして残します。My Calendar
-  のリストは items の末尾に別種類の行（`.addRow`、Issue #196）が続き得る
-  ため、`.item` に限定した `:not(:last-child)` で「item同士の間だけ」に
-  区切り線を引き、`.addRow` 側は自分の `border-bottom` で列の下端を
-  閉じます。catalogの2つのリスト（`SelectedDayList` /
-  `EventLevelFallbackList`）はこの末尾行を持たず、`.items > li + li`
-  という素朴なsibling ruleのままローカルに残しています。raw declarationが
-  近いというだけで1方式へ強制統合はしません。
+- **separator role の判断。** `.item` の `:not(:last-child)` rule は
+  `src/ui/listRow.module.css` 側のshared roleとして残します。この rule は
+  `.item` にだけ適用され、`.addRow` へは適用されません。My Calendar の
+  リストは items の末尾に別種類の行（`.addRow`、Issue #196）が続き得る
+  ため、`.addRow` が続く場合、最後の `.item` は（`.addRow` という後続
+  sibling があるため）`:last-child` ではなくなり、この rule の
+  `border-bottom` が引き続き適用されます。したがって実際の区切り線は
+  「item 同士の間」だけでなく、「最後の item と `.addRow` の間」にも
+  最後の `.item` 側の `border-bottom` として引かれます。list 全体の
+  下端は `.addRow` 側が自分の `border-bottom` で閉じます（`.item` 側の
+  rule が `.addRow` へ及ばないため、二重線にはなりません）。catalogの
+  2つのリスト（`SelectedDayList` / `EventLevelFallbackList`）はこの
+  末尾行を持たず、`.items > li + li` という素朴なsibling ruleのまま
+  ローカルに残しています。raw declarationが近いというだけで1方式へ
+  強制統合はしません。
 - **title role の判断。** `HomeDeadlineList.eventTitle` /
   `TicketOpportunityRow.eventTitle` は、`.title` と同じ4宣言
   （`--font-size-title` / `--font-weight-semibold` /
