@@ -18,7 +18,11 @@ export interface SheetProps {
    * Pass the actions themselves, not a pre-wrapped row: Sheet owns the footer
    * bar's own presentation (placement, padding, top rule, alignment) as part
    * of owning this slot's position. Callers keep the content semantics -
-   * which actions, what they submit - and any per-action sizing. */
+   * which actions, what they submit - and any per-action sizing.
+   *
+   * A value that renders nothing raises no bar: nullish is skipped here, and
+   * anything else that produces no DOM is handled by `.footer:empty` rather
+   * than by re-deriving React's renderability rules in JS. */
   footer?: ReactNode;
   /** Whether the default quiet header close action is rendered. */
   showCloseButton?: boolean;
@@ -53,12 +57,6 @@ export function Sheet({
 }: SheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  // React renders nothing for null/undefined/booleans/'', so neither can the bar
-  // around them: a caller writing `footer={canSubmit && <Button />}` got no
-  // footer at all while this slot was rendered raw, and must not now get an
-  // empty one with padding and a top rule (review finding, Issue #318).
-  const hasFooter =
-    footer !== null && footer !== undefined && typeof footer !== 'boolean' && footer !== '';
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -118,7 +116,7 @@ export function Sheet({
           ) : null}
         </div>
         <div className={[styles.body, bodyClassName].filter(Boolean).join(' ')}>{children}</div>
-        {hasFooter ? <div className={styles.footer}>{footer}</div> : null}
+        {footer == null ? null : <div className={styles.footer}>{footer}</div>}
       </div>
     </dialog>
   );
