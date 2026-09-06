@@ -243,7 +243,11 @@ visible fillのruleは絶対値ではなく **強調の順序** です
 44px以上です。WCAG 2.2 SC 2.5.8（Target Size Minimum, Level AA）が定める
 寸法は24×24 CSS px（例外あり）であり、44pxはこれを上回る
 **stage-tracker独自のproduct usability floor** です。実装の都合ではなく、
-この44pxという数値自体がstage-trackerのruleです。
+この44pxという数値自体がstage-trackerのruleです。なお WCAG 2.2 SC 2.5.5
+（Target Size Enhanced, Level AAA）は44×44 CSS px以上（例外あり）を
+定めており、44pxはこの数値と一致します。ただしstage-trackerはAAA準拠を
+主張しているわけではなく、44pxはAAA基準への言及ではなくstage-tracker
+自身のproduct usability floorとして扱います。
 
 44pxを満たす方式は2つあります。`tapTarget.module.css` の `expand44` で
 視覚上小さい塗りを透明な擬似要素で外側へ広げる方式（Button・BackLink等）
@@ -253,6 +257,13 @@ checkbox row、native input/select、calendarの日セルのLink等）です。
 たまたま同じ44pxを使っていても（例: `CalendarSkeleton.day` は実dayセルと
 高さを揃えるための非interactiveなgeometryで、tap targetではありません）
 同じauthorityへ混ぜません（Issue #357）。
+
+唯一の記録済み例外が `ScheduleWriteForm.segmentedControl` 内の
+`.segment` です。outer groupの1px borderは`.segment`自身のhit areaに
+含まれないため、実際にtapされるlabelの高さは44px − 1px×2 = 42pxです
+（`ScheduleWriteForm.module.css`のコメント参照）。WCAG 2.2 SC 2.5.8の
+24×24 CSS pxは上回るため標準は満たしますが、stage-tracker自身の44px
+floorには2px届かない、意図的なexceptionとして記録します（Issue #357）。
 
 tap target群では `touch-action: manipulation` も維持します。pan / pinch
 zoomは妨げず、mobile double-tap-zoomの遅延だけを消してpressed状態を
