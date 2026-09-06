@@ -45,8 +45,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  /* Value shared with ScheduleWriteForm's screen-local checkbox via
+     --size-checkbox-box (Issue #358) - not a component API, just the same
+     number. See docs/ux-ui.md "component API sharingとpresentation /
+     semantic value sharingは別軸". */
+  width: var(--size-checkbox-box);
+  height: var(--size-checkbox-box);
   border: 1px solid var(--color-control-border);
   /* Issue #139's handoff specifies a flat 2px corner, and --radius-badge is
      the only 2px step this token set defines - reused here even though its
@@ -65,8 +69,10 @@
 }
 
 .check {
-  width: 12px;
-  height: 12px;
+  /* Value shared with ScheduleWriteForm's checkmark svg via
+     --size-checkbox-glyph (Issue #358) - see .box's comment above. */
+  width: var(--size-checkbox-glyph);
+  height: var(--size-checkbox-glyph);
 }
 
 .dash {

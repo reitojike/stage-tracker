@@ -35,13 +35,18 @@
   composes: visuallyHidden from '../../../ui/visuallyHidden.module.css';
 }
 
+/* Box/glyph dimensions are shared value authority with TriStateCheckbox via
+   --size-checkbox-box / --size-checkbox-glyph (Issue #358) - this is a
+   2-value checkbox with its own DOM/selector/state implementation, not an
+   API shared with TriStateCheckbox. See docs/ux-ui.md "component API
+   sharingとpresentation / semantic value sharingは別軸". */
 .checkboxBox {
   display: flex;
-  flex: 0 0 18px;
+  flex: 0 0 var(--size-checkbox-box);
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--size-checkbox-box);
+  height: var(--size-checkbox-box);
   border: 1px solid var(--color-control-border);
   border-radius: var(--radius-badge);
   background-color: var(--color-surface);
@@ -50,8 +55,8 @@
 
 .checkboxBox svg {
   display: none;
-  width: 12px;
-  height: 12px;
+  width: var(--size-checkbox-glyph);
+  height: var(--size-checkbox-glyph);
 }
 
 .checkboxRow:has(.controlInput:checked) .checkboxBox {

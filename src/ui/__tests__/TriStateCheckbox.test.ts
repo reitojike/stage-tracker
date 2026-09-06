@@ -59,11 +59,13 @@ void test('the row suppresses the mobile double-tap-zoom delay like every other 
   assert.match(rowRule[1] ?? '', /touch-action:\s*manipulation\s*;/);
 });
 
-void test('the visible box is 18px with a 1px border, independent of checked/indeterminate fill', () => {
+void test('the visible box has a 1px border, independent of checked/indeterminate fill', () => {
+  // Box/check *dimensions* are the shared presentation value with
+  // ScheduleWriteForm's checkbox and are asserted once, at their authority,
+  // by src/ui/__tests__/checkboxSizeTokens.test.ts (Issue #358) - this test
+  // only owns what is specific to this component's own box, not shared.
   const boxRule = css.match(/(?:^|\n)\.box\s*\{([^}]*)\}/);
   assert.ok(boxRule, '.box rule is missing from TriStateCheckbox.module.css');
-  assert.match(boxRule[1] ?? '', /width:\s*18px\s*;/);
-  assert.match(boxRule[1] ?? '', /height:\s*18px\s*;/);
   assert.match(boxRule[1] ?? '', /border:\s*1px solid var\(--color-control-border\)\s*;/);
 });
 
