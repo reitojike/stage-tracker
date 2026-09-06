@@ -6,11 +6,13 @@ import { composesRole, readCss, ruleBody } from './sharedRoleWiring.ts';
 /*
  * The shared 44px tap-target expansion.
  *
- * WCAG 2.2 SC 2.5.8 is the rule here, not an implementation preference: a
- * control's visible fill may be smaller than 44px, its tap target may not.
- * Losing this composition is invisible on screen - the control looks
- * exactly the same - and only shows up as a control that is hard to hit,
- * which is why it is worth wiring rather than leaving to review.
+ * stage-tracker's 44px floor (stronger than WCAG 2.2 SC 2.5.8's 24x24 CSS
+ * px AA minimum - see tapTarget.module.css) is the rule here, not an
+ * implementation preference: a control's visible fill may be smaller than
+ * 44px, its tap target may not. Losing this composition is invisible on
+ * screen - the control looks exactly the same - and only shows up as a
+ * control that is hard to hit, which is why it is worth wiring rather than
+ * leaving to review.
  *
  * Added by the PR #342 review: the first pass of Issue #312 wired five
  * authorities and dropped this one silently, so deleting BackLink's

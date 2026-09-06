@@ -75,6 +75,9 @@
   opacity: var(--opacity-disabled);
 }
 
+/* Outer group's own visual footprint, not itself a tap target - the group
+   is a non-interactive <div> (see ScheduleFields.tsx); .segment below is
+   what's actually tapped. */
 .segmentedControl {
   display: flex;
   min-height: 44px;
@@ -83,6 +86,15 @@
   border-radius: var(--radius-control);
 }
 
+/* .segment (a <label>, the real tap target - ScheduleFields.tsx) sits
+   inside .segmentedControl's own 1px top/bottom border and, via flex
+   stretch, is exactly 44px - 2x1px = 42px tall (border-box); the border
+   itself belongs to the parent div, so it isn't part of the label's hit
+   area. This is a real 2px shortfall against the 44px floor, not a
+   disguised pass - accepted as an intentional exception (Issue #357)
+   because the border must stay part of the group's own visual boundary,
+   and each segment already has a wide horizontal hit area. 42px still
+   clears WCAG 2.2 SC 2.5.8's 24x24 CSS px AA minimum. */
 .segment {
   display: flex;
   flex: 1 1 0;
