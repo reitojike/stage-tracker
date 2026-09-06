@@ -9,7 +9,7 @@
  * Which consumer must compose which role is a semantic fact, so it is
  * written down beside each authority rather than inferred: see the wiring
  * lists in fixedSubmitBar/pendingLabel/visuallyHidden/monthCalendarGrid/
- * selectedDayList's own tests. These helpers only answer mechanical
+ * listRow's own tests. These helpers only answer mechanical
  * questions about a stylesheet's text.
  *
  * Deliberately regex-only. Issue #312 was first implemented with a

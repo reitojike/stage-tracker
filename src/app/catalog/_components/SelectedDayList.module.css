@@ -1,49 +1,53 @@
 .list {
-  composes: list from '../../../ui/selectedDayList.module.css';
+  composes: list from '../../../ui/listRow.module.css';
 }
 
 .heading {
-  composes: heading from '../../../ui/selectedDayList.module.css';
+  composes: heading from '../../../ui/listRow.module.css';
 }
 
 .items {
-  composes: items from '../../../ui/selectedDayList.module.css';
+  composes: items from '../../../ui/listRow.module.css';
 }
 
 /*
  * Line + 1px separator layout (Issue #145: "Surface card面を外す", visual
  * reference design_handoff_stage_tracker/09-catalog.md) - no rounded
  * card/background per row any more, only a border between consecutive
- * items so the list reads as one continuous scannable block.
+ * items so the list reads as one continuous scannable block. Kept local
+ * rather than composing ui/listRow.module.css's own `.item` separator role
+ * (Issue #359): this list has no trailing non-item row, so a plain
+ * sibling rule needs no class scoping the way My Calendar's `.item` +
+ * `.addRow` pairing does.
  */
 .items > li + li {
   border-top: 1px solid var(--color-border);
 }
 
 .itemLink {
-  composes: itemLink from '../../../ui/selectedDayList.module.css';
+  composes: itemLink from '../../../ui/listRow.module.css';
 }
 
 .itemBody {
-  composes: itemBody from '../../../ui/selectedDayList.module.css';
+  composes: itemBody from '../../../ui/listRow.module.css';
 }
 
 .chevron {
-  composes: chevron from '../../../ui/selectedDayList.module.css';
+  composes: chevron from '../../../ui/listRow.module.css';
 }
 
 .time {
-  composes: time from '../../../ui/selectedDayList.module.css';
+  composes: time from '../../../ui/listRow.module.css';
 }
 
 .title {
-  composes: title from '../../../ui/selectedDayList.module.css';
+  composes: title from '../../../ui/listRow.module.css';
 }
 
 .venue {
-  composes: venue from '../../../ui/selectedDayList.module.css';
+  composes: venue from '../../../ui/listRow.module.css';
 }
 
 .badges {
-  composes: badges from '../../../ui/selectedDayList.module.css';
+  composes: badges from '../../../ui/listRow.module.css';
 }

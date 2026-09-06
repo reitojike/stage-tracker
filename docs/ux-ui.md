@@ -646,7 +646,7 @@ sharingを諦める必要もありません。
 2. **複数consumerが同一のnamed roleを共有している** — 「時刻ラベル」
    「会場ラベル」のように、名前の付く役割が一致している。
 
-したがって共有境界は、**named role**（`src/ui/selectedDayList.module.css`
+したがって共有境界は、**named role**（`src/ui/listRow.module.css`
 の `.time` / `.venue` のように役割で名前が付くもの）か、**semantic token**
 （`src/ui/tokens.css` が値の正本を持つもの）のどちらかに置きます。宣言の組
 そのものをutility classへ切り出すことはしません。2つのtokenが既に言って
@@ -689,6 +689,53 @@ roleではなく値だけの場合は、composeする先のroleがそもそも�
 - **shared ruleを変えるときは、検証責務も共有側へ移します。** 置き換え
   られたconsumer側のsource/CSS assertionは残さず削除します。同じ保証を
   共有元と各consumerで二重に持ちません。
+
+### list-row presentation authorityの境界（Issue #359）
+
+`src/ui/selectedDayList.module.css` は `src/ui/listRow.module.css` へ改名
+しました。My Calendarの選択日リストだけでなく、Home / My Page / catalog /
+Ticketsの各list-row consumerが実際に使う語彙になったため、「selected-day」
+という名前がconsumer scopeを誤解させる状態になっていたためです（#358の
+「component API sharingとpresentation / semantic value sharingは別軸」を
+前提に、React componentやDOMは各featureのまま、CSSのvalue authorityだけを
+移します）。改名そのものを目的にはしていません。
+
+- **cross-feature composition の解消。** Home（`HomeUpcomingList` /
+  `HomeDeadlineList`）、My Page（`ScheduleAndEventSection`）は、以前は
+  My Calendarの screen-local module（`MySelectedDayList.module.css`）から
+  `item` / `itemLink` / `itemBody` / `chevron` / `time` / `title` /
+  `venue` / `badgeRow` を直接composeしていました。`src/app/** ->
+src/app/**` という feature間 composition だったため、いずれも
+  `src/ui/listRow.module.css` を直接composeする形へ変更しています。
+  My Calendar自身の `MySelectedDayList.module.css` も同じ authority を
+  composeするconsumerの1つになりました。
+- **separator role の判断。** `.item` の `:not(:last-child)` rule は
+  `src/ui/listRow.module.css` 側のshared roleとして残します。この rule は
+  `.item` にだけ適用され、`.addRow` へは適用されません。My Calendar の
+  リストは items の末尾に別種類の行（`.addRow`、Issue #196）が続き得る
+  ため、`.addRow` が続く場合、最後の `.item` は（`.addRow` という後続
+  sibling があるため）`:last-child` ではなくなり、この rule の
+  `border-bottom` が引き続き適用されます。したがって実際の区切り線は
+  「item 同士の間」だけでなく、「最後の item と `.addRow` の間」にも
+  最後の `.item` 側の `border-bottom` として引かれます。list 全体の
+  下端は `.addRow` 側が自分の `border-bottom` で閉じます（`.item` 側の
+  rule が `.addRow` へ及ばないため、二重線にはなりません）。catalogの
+  2つのリスト（`SelectedDayList` / `EventLevelFallbackList`）はこの
+  末尾行を持たず、`.items > li + li` という素朴なsibling ruleのまま
+  ローカルに残しています。raw declarationが近いというだけで1方式へ
+  強制統合はしません。
+- **title role の判断。** `HomeDeadlineList.eventTitle` /
+  `TicketOpportunityRow.eventTitle` は、`.title` と同じ4宣言
+  （`--font-size-title` / `--font-weight-semibold` /
+  `--line-height-title` / `--color-text`）を持つだけでなく、どちらも
+  「list/card row に出る Event名」という同じsemantic roleであるため、
+  `src/ui/listRow.module.css` の `.title` をcomposeする形にしました
+  （`margin: 0` は `<p>`要素向けのlocal override として残ります）。
+  Ticketsをこの名称の由来だった「selected-day」module へ直接composeさせる
+  ことは避け、改名後の `listRow.module.css` へ配線しています。
+  `ScheduleAndEventSection.label` はこのroleとは別（プレーンな
+  navigation行であり、Event/entry titleではない）と判断し、ローカルの
+  ままです。
 
 ## Common states
 

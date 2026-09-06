@@ -1,51 +1,52 @@
 .list {
-  composes: list from '../../../ui/selectedDayList.module.css';
+  composes: list from '../../../ui/listRow.module.css';
 }
 
 .heading {
-  composes: heading from '../../../ui/selectedDayList.module.css';
+  composes: heading from '../../../ui/listRow.module.css';
 }
 
 .items {
-  composes: items from '../../../ui/selectedDayList.module.css';
+  composes: items from '../../../ui/listRow.module.css';
 }
 
 /* Issue #146: no card Surface any more - each entry is a plain row divided
    by a bottom border (design authority's own list vocabulary), not a
    floating card. Both occurrences and personal-schedule entries share this
    same row shape so the two read as one mixed list, not two visually
-   distinct sub-lists. */
-.item:not(:last-child) {
-  border-bottom: 1px solid var(--color-border);
+   distinct sub-lists. The separator itself is the shared `.item` role
+   (Issue #359: moved to src/ui/listRow.module.css so Home/My Page stop
+   reaching into this screen-local module for it). */
+.item {
+  composes: item from '../../../ui/listRow.module.css';
 }
 
 .itemLink {
-  composes: itemLink from '../../../ui/selectedDayList.module.css';
+  composes: itemLink from '../../../ui/listRow.module.css';
 }
 
 .itemBody {
-  composes: itemBody from '../../../ui/selectedDayList.module.css';
+  composes: itemBody from '../../../ui/listRow.module.css';
 }
 
 .chevron {
-  composes: chevron from '../../../ui/selectedDayList.module.css';
+  composes: chevron from '../../../ui/listRow.module.css';
 }
 
 .time {
-  composes: time from '../../../ui/selectedDayList.module.css';
+  composes: time from '../../../ui/listRow.module.css';
 }
 
 .title {
-  composes: title from '../../../ui/selectedDayList.module.css';
+  composes: title from '../../../ui/listRow.module.css';
 }
 
 .venue {
-  composes: venue from '../../../ui/selectedDayList.module.css';
+  composes: venue from '../../../ui/listRow.module.css';
 }
 
 .badgeRow {
-  composes: badges from '../../../ui/selectedDayList.module.css';
-  margin-top: var(--space-2xs);
+  composes: badgeRow from '../../../ui/listRow.module.css';
 }
 
 /* Issue #196: the trailing "add" row is always appended after at least one

@@ -58,11 +58,12 @@
   align-self: flex-start;
 }
 
+/* Issue #359: same list/card-row Event-title emphasis as
+   ui/listRow.module.css's own `.title` (font-size-title/semibold/
+   line-height-title/color-text) - `margin: 0` stays local since this role
+   sits on a `<p>`, which `.title`'s own span-style consumers don't need. */
 .eventTitle {
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-title);
-  color: var(--color-text);
+  composes: title from '../../../ui/listRow.module.css';
   margin: 0;
 }
 
@@ -91,6 +92,6 @@
    the app shares (Issue #190's own precedent, HomeUpcomingList.module.css
    included), adding only the size override this card's own spec calls for. */
 .chevron {
-  composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: chevron from '../../../ui/listRow.module.css';
   font-size: 15px;
 }

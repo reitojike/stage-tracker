@@ -13,7 +13,9 @@ import { fileURLToPath } from 'node:url';
  * for the selected-day list (Issue #315).
  *
  * Issue #312 removed all four. The selected-day wiring moved to
- * selectedDayList.test.ts, next to the module it belongs to. The row roles
+ * selectedDayList.test.ts, next to the module it belongs to (renamed
+ * listRow.test.ts by Issue #359, alongside the module's own rename). The row
+ * roles
  * deliberately kept no consumer wiring of their own: unlike the fixed
  * submit bar or the visually-hidden contract, these are small generic flex
  * declarations whose loss degrades a layout rather than breaking a control,

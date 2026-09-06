@@ -10,10 +10,12 @@
 
 /*
  * Row shape reuses the exact "plain row, bottom-border, no card Surface"
- * vocabulary src/app/calendar/_components/MySelectedDayList.module.css
- * already established (Issue #146) and HomeUpcomingList.module.css already
- * composes onto Home's own list (Issue #143) - a third copy of the same
- * nine rules would drift from those over time.
+ * vocabulary My Calendar's own selected-day list already established
+ * (Issue #146) and HomeUpcomingList.module.css already composes onto
+ * Home's own list (Issue #143) - a third copy of the same nine rules would
+ * drift from those over time. Composed directly from the shared
+ * ui/listRow.module.css authority (Issue #359), not from a screen-local
+ * module.
  */
 .items {
   list-style: none;
@@ -24,14 +26,14 @@
 }
 
 .item {
-  composes: item from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: item from '../../../ui/listRow.module.css';
 }
 
 .itemLink {
-  composes: itemLink from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: itemLink from '../../../ui/listRow.module.css';
 }
 
-/* Single-line row label - deliberately not MySelectedDayList's `.title`
+/* Single-line row label - deliberately not ui/listRow.module.css's `.title`
    (font-weight-semibold): these are plain navigation rows, not event/entry
    titles, and the design handoff's 12f mock renders them at regular
    weight. */
@@ -43,7 +45,7 @@
 }
 
 .chevron {
-  composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: chevron from '../../../ui/listRow.module.css';
 }
 
 /* Pending-invitation count badge (Issue #230 addendum): pale surface, sits
