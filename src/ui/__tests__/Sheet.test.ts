@@ -6,6 +6,16 @@ import { fileURLToPath } from 'node:url';
 // No jsdom/React Testing Library in this project's toolchain (test:unit runs
 // on plain `node --test`), so this guards the shared primitive's source/CSS
 // contract and its existing consumers the same way the other UI tests do.
+//
+// Division of responsibility with the browser checks (Issue #341): the
+// dismissal that a user performs - Escape closing the Sheet, and focus
+// returning to the trigger afterwards - is observed on the real screen by
+// test/auth/sharedUiBehavior.test.ts. What stays here is the primitive's
+// own API contract: that every dismissal path (Escape, backdrop, the
+// header button) funnels through the one native `close` event, that the
+// footer slot sits outside the scroll region, and the shared frame's
+// declarations. Those are statements about the source and CSS, not about
+// what a user sees, so they are not duplicated over there.
 const componentPath = fileURLToPath(new URL('../Sheet.tsx', import.meta.url));
 const cssPath = fileURLToPath(new URL('../Sheet.module.css', import.meta.url));
 const participationPath = fileURLToPath(

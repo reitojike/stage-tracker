@@ -100,13 +100,35 @@ void test('every consumer composes the shared overlay rather than restating it',
   }
 });
 
-void test('every pending swap renders the pair, sized by a copy at least as long as its labels', () => {
-  // The overlay only holds the width if the aria-hidden copy carries the
-  // longest wording the visible span can take - "保存" -> "保存中…" must be
-  // sized by "保存中…", not by "保存". Character count is a proxy: the two
-  // labels render in the same font on the same button. Issue #341 replaces
-  // that proxy with the button's actual rendered width; until it does, this
-  // is the only check that the pattern is used correctly at each call site.
+/*
+ * What is left here is markup shape: every call site renders the pair the
+ * overlay is made of, and its sizing copy carries some wording.
+ *
+ * The comparison that used to follow - sizing copy at least as many
+ * *characters* as each swapped label - is gone (Issue #341). It stood in
+ * for "the button does not resize", which is a question about rendered
+ * width that a character count cannot answer: "招待する" and "送信中…" are
+ * both 4 characters and need not paint the same width, so the proxy passed
+ * on exactly the pairs where the answer was least obvious.
+ *
+ * That guarantee moved to test/auth/sharedUiBehavior.test.ts, which drives
+ * a real submit through 通常 → 送信中 → 失敗 and measures the button
+ * itself: the width and height do not move across the swap, and the
+ * aria-hidden copy's painted text is at least as wide as the visible
+ * label's. Both halves of what the proxy claimed, measured instead of
+ * guessed.
+ *
+ * The transfer is not one-for-one, and deliberately so. The overlay is one
+ * shared CSS module, so the *mechanism* half carries to all 17 call sites
+ * from the one that is measured. The *content* half - "this particular
+ * call site's copy is the wider wording" - is now measured at one call
+ * site rather than approximated at seventeen. Re-checking it at every call
+ * site would mean reaching seventeen screens and states in a browser,
+ * which Issue #341 rules out ("同じ確認を全 consumer へ複製せず"). A copy
+ * that is present but too narrow is left to review, the same call #312
+ * made for a consumer restating what it composes.
+ */
+void test('every pending swap renders the pair the overlay is made of', () => {
   let checked = 0;
 
   for (const relativePath of CALL_SITES) {
@@ -128,18 +150,12 @@ void test('every pending swap renders the pair, sized by a copy at least as long
       const sizingText = (sizing[1] ?? '').trim();
       assert.ok(sizingText.length > 0, `${relativePath} sizes its button with an empty copy`);
 
+      // A wrapper whose visible span never swaps has nothing for the
+      // sizing copy to hold open, so the pair would be pointless there.
       const swapped = region.slice((sizing.index ?? 0) + sizing[0].length);
       const labels = [...swapped.matchAll(/'([^']*)'/g)].map((match) => match[1] ?? '');
       assert.ok(labels.length > 0, `${relativePath} has a wrapper with no swapped label`);
 
-      for (const label of labels) {
-        // These labels are BMP-only (kana/kanji plus "…"), so UTF-16 length is
-        // the character count.
-        assert.ok(
-          sizingText.length >= label.length,
-          `${relativePath}: sizing copy "${sizingText}" is shorter than the label "${label}"`,
-        );
-      }
       checked += 1;
     }
   }
