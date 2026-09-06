@@ -30,6 +30,27 @@ export const sourceExists = (repoRelativePath: string): boolean =>
   existsSync(`${repoRoot}/${repoRelativePath}`);
 
 /**
+ * Strips `//` and `/* *\/` comments plus single/double/template string
+ * literal contents, so JSX-shaped text inside prose or a string cannot be
+ * mistaken for a real usage (PR #363 review: CodeRabbit found
+ * `importsAndRendersComponent`'s usage check matching `<PageHeading />`
+ * inside a comment, which would let this guard keep passing after the real
+ * usage was deleted as long as the import and a stray mention remained).
+ * Bounded, not a real TSX parse - mirrors
+ * src/ui/__tests__/sharedRoleWiring.ts's own `stripCssComments`, which
+ * exists for the same reason: a full parser was rejected there after
+ * costing three review rounds for less benefit than this regex approach
+ * already gives.
+ */
+export const stripCommentsAndStrings = (source: string): string =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/.*$/gm, '')
+    .replace(/`(?:\\.|[^`\\])*`/g, '``')
+    .replace(/"(?:\\.|[^"\\])*"/g, '""')
+    .replace(/'(?:\\.|[^'\\])*'/g, "''");
+
+/**
  * Whether `source` both imports and renders `componentName` as a JSX
  * element - either alone is not enough: an unused import proves nothing
  * about what actually renders, and a JSX-shaped string inside prose/a
@@ -37,9 +58,10 @@ export const sourceExists = (repoRelativePath: string): boolean =>
  * into scope.
  */
 export const importsAndRendersComponent = (source: string, componentName: string): boolean => {
+  const stripped = stripCommentsAndStrings(source);
   const importPattern = new RegExp(`import\\s*\\{[^}]*\\b${componentName}\\b[^}]*\\}\\s*from`);
   const usagePattern = new RegExp(`<${componentName}[\\s/>]`);
-  return importPattern.test(source) && usagePattern.test(source);
+  return importPattern.test(stripped) && usagePattern.test(stripped);
 };
 
 export interface LoadingChromeExpectation {

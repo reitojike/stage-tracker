@@ -57,6 +57,27 @@ void test('importsAndRendersComponent ignores a bare mention with no import', ()
   assert.equal(importsAndRendersComponent(source, 'PageHeading'), false);
 });
 
+void test('importsAndRendersComponent ignores JSX-shaped text left behind in a comment after the real usage is removed', () => {
+  // PR #363 review (CodeRabbit): a retained import plus a stray
+  // `<PageHeading />`-shaped comment must not read as "still rendered" -
+  // that is exactly the false negative this guard exists to prevent.
+  const source =
+    "import { PageHeading } from '@/ui/PageHeading';\n" +
+    '// <PageHeading>ホーム</PageHeading> used to live here.\n' +
+    'export default function X() { return null; }\n';
+
+  assert.equal(importsAndRendersComponent(source, 'PageHeading'), false);
+});
+
+void test('importsAndRendersComponent ignores JSX-shaped text inside a string literal', () => {
+  const source =
+    "import { PageHeading } from '@/ui/PageHeading';\n" +
+    "const example = '<PageHeading>ホーム</PageHeading>';\n" +
+    'export default function X() { return null; }\n';
+
+  assert.equal(importsAndRendersComponent(source, 'PageHeading'), false);
+});
+
 for (const expectation of LOADING_CHROME_ALLOWLIST) {
   void test(`${expectation.route}: loading.tsx exists and materializes its allowlisted chrome`, () => {
     assert.equal(
