@@ -16,7 +16,8 @@
  * named component", not whether the JSX is well-formed or reachable.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
@@ -28,6 +29,23 @@ export const readSource = (repoRelativePath: string): string =>
 /** Whether a repository-relative path exists. */
 export const sourceExists = (repoRelativePath: string): boolean =>
   existsSync(`${repoRoot}/${repoRelativePath}`);
+
+/**
+ * The repository-relative path of every `loading.tsx` actually present
+ * under `src/app`, forward-slashed to match `LOADING_CHROME_ALLOWLIST`'s
+ * own `loadingPath` format - the coverage source of truth
+ * `LOADING_CHROME_ALLOWLIST` is checked against (PR #363 review). A plain
+ * file-system listing, not route analysis: it says nothing about a
+ * route's control flow, only that a `loading.tsx` file exists at that
+ * path, so pairing it with the manually-classified allowlist stays a
+ * bounded mechanism rather than the AST/control-flow analyzer Issue #355
+ * rules out.
+ */
+export const discoverLoadingFilePaths = (): readonly string[] =>
+  readdirSync(`${repoRoot}/src/app`, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name === 'loading.tsx')
+    .map((entry) => relative(repoRoot, `${entry.parentPath}/${entry.name}`).replace(/\\/g, '/'))
+    .sort();
 
 /**
  * Matches whichever of a block comment, line comment, template string,
@@ -93,9 +111,14 @@ export interface LoadingChromeExpectation {
 
 /**
  * Issue #355's fresh, per-route classification of `src/app/**\/loading.tsx`
- * (13 routes, verified against current page.tsx control flow - not the
- * route census itself, so a 14th route added later is not required to
- * appear here until it is deliberately classified).
+ * (13 routes as of Issue #355, verified against current page.tsx control
+ * flow). This list is a manual classification, not something derived from
+ * source - but its *coverage* (does it name every `loading.tsx` that
+ * exists, and nothing that no longer does) is machine-checked against
+ * `discoverLoadingFilePaths()` (PR #363 review), so a new route's
+ * `loading.tsx` left unclassified, or a stale entry for a route that no
+ * longer has one, fails the coverage test below rather than passing
+ * silently.
  *
  * Three entries correct Issue #355's own starting allowlist after fresh
  * verification found it did not match current page.tsx control flow (see

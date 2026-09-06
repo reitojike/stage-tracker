@@ -1,6 +1,13 @@
+'use client';
+
+import { useParams, useSearchParams } from 'next/navigation';
 import { BackLink } from '@/ui/BackLink';
 import { LoadingIndicator } from '@/ui/LoadingIndicator';
-import { catalogMonthHref } from '@/domain/catalogNavigation';
+import {
+  catalogEventHref,
+  resolveCatalogParams,
+  searchParamsToRecord,
+} from '@/domain/catalogNavigation';
 import { currentTokyoDate } from '../../../_lib/today.ts';
 
 /**
@@ -13,18 +20,25 @@ import { currentTokyoDate } from '../../../_lib/today.ts';
  * starting allowlist, which listed this route as `PageHeading` before
  * fresh verification against current page.tsx control flow.
  *
- * page.tsx's own BackLink points at this specific event's detail page
- * ("公演情報に戻る", via catalogEventHref(eventId, context)) - unreachable
- * here since loading.tsx receives no params/searchParams from Next.js, so
- * eventId itself is unavailable. This falls back to the calendar-root
- * label+destination pair the sibling create screen's own BackLink uses
- * (src/app/catalog/events/new/loading.tsx) instead of a label that
- * promises a destination this fallback cannot deliver.
+ * A Client Component so it can read `eventId` (via `useParams()`) and the
+ * month/day query-string context (via `useSearchParams()`) page.tsx's own
+ * BackLink carries, reproducing its exact "公演情報に戻る" destination
+ * rather than falling back to a different one - loading.tsx receives no
+ * `params`/`searchParams` props from Next.js, but these hooks resolve
+ * correctly even during the initial server-rendered pass (see
+ * src/app/catalog/events/new/loading.tsx's own comment). A destination
+ * that differs from page.tsx's own is a navigation-semantics change, not
+ * just a layout-stability one (PR #363 review) - eventId is a path segment
+ * of the current URL, not fetched data, so it is always available here.
  */
 export default function EditEventLoading() {
+  const { eventId } = useParams<{ eventId: string }>();
+  const searchParams = useSearchParams();
+  const context = resolveCatalogParams(searchParamsToRecord(searchParams), currentTokyoDate());
+
   return (
     <>
-      <BackLink href={catalogMonthHref(currentTokyoDate().slice(0, 7))}>カレンダーに戻る</BackLink>
+      <BackLink href={catalogEventHref(eventId, context)}>公演情報に戻る</BackLink>
       <LoadingIndicator label="編集フォームを読み込み中" />
     </>
   );

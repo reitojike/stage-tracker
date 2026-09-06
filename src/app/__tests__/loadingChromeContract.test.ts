@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  discoverLoadingFilePaths,
   importsAndRendersComponent,
   LOADING_CHROME_ALLOWLIST,
   readSource,
@@ -9,13 +10,19 @@ import {
 } from './loadingChromeContract.ts';
 
 /*
- * Issue #355. Two layers, mirroring src/ui/__tests__/sharedRoleWiring.test.ts:
+ * Issue #355. Three layers, mirroring src/ui/__tests__/sharedRoleWiring.test.ts:
  *
  * 1. Meta tests proving `importsAndRendersComponent` actually fails on the
  *    ways a route could lose its stable chrome (Acceptance Criteria: "guard
  *    が current violation を検出できる") - without these, the per-route
  *    tests below would only prove the allowlist agrees with itself.
- * 2. One test per allowlisted route, checking current
+ * 2. A coverage test proving `LOADING_CHROME_ALLOWLIST` names every
+ *    `loading.tsx` that actually exists, and nothing that no longer does
+ *    (PR #363 review) - without this, a new route's `loading.tsx` could go
+ *    unclassified, or a removed route's stale entry could linger, and
+ *    layer 3 below would never notice either since it only iterates the
+ *    allowlist itself.
+ * 3. One test per allowlisted route, checking current
  *    `src/app/**\/loading.tsx` content against Issue #355's fresh
  *    classification. This is the "route -> expected chrome" guard the
  *    Acceptance Criteria asks for, and deliberately checks only the chrome
@@ -90,6 +97,32 @@ void test('importsAndRendersComponent does not let a "//"-bearing string swallow
     'export default function X() { const url = "https://example.com"; return <PageHeading>ホーム</PageHeading>; }\n';
 
   assert.equal(importsAndRendersComponent(source, 'PageHeading'), true);
+});
+
+void test('LOADING_CHROME_ALLOWLIST exactly covers every loading.tsx that currently exists', () => {
+  // This is a coverage check on which loading.tsx files are classified at
+  // all, not a route census: it says nothing about how many routes exist,
+  // only that the set of classified paths matches the set of actual paths.
+  // Adding an unrelated route with no loading.tsx does not touch this
+  // test; adding a loading.tsx without an allowlist entry does.
+  const discovered = new Set(discoverLoadingFilePaths());
+  const allowlisted = new Set(
+    LOADING_CHROME_ALLOWLIST.map((expectation) => expectation.loadingPath),
+  );
+
+  const unclassified = [...discovered].filter((path) => !allowlisted.has(path)).sort();
+  const stale = [...allowlisted].filter((path) => !discovered.has(path)).sort();
+
+  assert.deepEqual(
+    unclassified,
+    [],
+    `found loading.tsx not classified in LOADING_CHROME_ALLOWLIST: ${unclassified.join(', ')}`,
+  );
+  assert.deepEqual(
+    stale,
+    [],
+    `LOADING_CHROME_ALLOWLIST references a loading.tsx that no longer exists: ${stale.join(', ')}`,
+  );
 });
 
 for (const expectation of LOADING_CHROME_ALLOWLIST) {

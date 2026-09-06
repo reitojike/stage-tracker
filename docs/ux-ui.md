@@ -422,12 +422,21 @@ domain semanticsの正本は引き続き
   - route ごとの現在の分類（stable chromeの有無・内訳）は
     `src/app/__tests__/loadingChromeContract.ts` のallowlistを正本とし、
     ここでは重複して列挙しません。
-  - loading.tsxはNext.jsから`params`/`searchParams`を受け取れないため、
-    本物のpageのBackLinkが持つ動的なhref（選択中の月/日、event id、
-    entry id等）をそのまま再現できない場合があります。その場合は、
-    再現できない具体的contextを要求しない安定した代替先
-    （例: 当月のcalendar root）へ変更してよく、労力を割いてまで
-    generic route control-flow analyzerやloading DSLを新設しません。
+  - stable chromeがBackLinkのように動的なhref（選択中の月/日、event id、
+    entry id等）を持つ場合、loading.tsxはpage.tsxと同じ意味・同じ
+    destinationを維持します。label / destinationを別のnavigationへ
+    差し替えることは、layout shiftを防ぐ範囲を超えたnavigation
+    semanticsの変更であり、避けます（PR #363 review）。
+  - Next.jsはloading.tsxへ`params`/`searchParams`をpropsとして渡しません
+    が、`next/navigation`の`useParams()`/`useSearchParams()`はApp
+    Routerが提供するcontextから解決するため、loading.tsxを Client
+    Component にすれば同じ値を読めます（初回のserver-rendered pass
+    でも正しく解決し、hydration後だけ正しくなるわけではありません）。
+    stable chromeが動的contextに依存するrouteでは、この hook を使って
+    page.tsx側と同じ関数呼び出しで同じhrefを再現します（例:
+    `src/app/catalog/events/[eventId]/edit/loading.tsx`）。
+  - この手法はrouteごとに個別のhookを呼ぶだけの局所的な対応であり、
+    generic route control-flow analyzerやloading DSLの新設ではありません。
 - 遷移中もAppBarとPrimaryNavは画面に残ります。navやアバターのtap中は
   iconをspinnerに差し替え、行の高さを増やしません。
 - calendarのmonth navigationのpending中は、tapしたcontrol自身だけが

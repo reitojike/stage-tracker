@@ -10,6 +10,7 @@ import {
   previousYearMonth,
   resolveCatalogParams,
   resolveFocusedOccurrenceId,
+  searchParamsToRecord,
 } from '../catalogNavigation.ts';
 
 const TODAY = '2026-08-21';
@@ -64,6 +65,31 @@ void test('resolveCatalogParams: an array-valued query param uses its first entr
   assert.deepEqual(resolveCatalogParams({ month: ['2026-12', '2027-01'] }, TODAY), {
     yearMonth: '2026-12',
     selectedDate: null,
+  });
+});
+
+void test('searchParamsToRecord: a single-valued key becomes a plain string, matching a bare query param', () => {
+  assert.deepEqual(searchParamsToRecord(new URLSearchParams('month=2026-12&date=2026-12-05')), {
+    month: '2026-12',
+    date: '2026-12-05',
+  });
+});
+
+void test('searchParamsToRecord: a repeated key becomes an array, matching Next.js searchParams for a repeated param', () => {
+  assert.deepEqual(searchParamsToRecord(new URLSearchParams('month=2026-12&month=2027-01')), {
+    month: ['2026-12', '2027-01'],
+  });
+});
+
+void test('searchParamsToRecord: an empty URLSearchParams becomes an empty record', () => {
+  assert.deepEqual(searchParamsToRecord(new URLSearchParams()), {});
+});
+
+void test('searchParamsToRecord output feeds resolveCatalogParams unchanged, the same as a plain Next.js searchParams prop', () => {
+  const record = searchParamsToRecord(new URLSearchParams('date=2026-08-10'));
+  assert.deepEqual(resolveCatalogParams(record, TODAY), {
+    yearMonth: '2026-08',
+    selectedDate: '2026-08-10',
   });
 });
 

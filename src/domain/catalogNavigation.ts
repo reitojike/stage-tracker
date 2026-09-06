@@ -48,6 +48,35 @@ function firstValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+/**
+ * Converts a `URLSearchParams` (the shape `next/navigation`'s
+ * `useSearchParams()` hands back to a Client Component) into the same
+ * `string | string[] | undefined` record shape Next.js gives `page.tsx`'s
+ * own `searchParams` prop, so `resolveCatalogParams` accepts either input
+ * unchanged.
+ *
+ * `URLSearchParams` is a Web standard type, not a Next.js one, so this
+ * still keeps this module framework-free (see this file's own header
+ * comment) - it just also accepts an input shape a Client Component
+ * `loading.tsx` can produce without needing Next's `searchParams` prop,
+ * which - unlike `page.tsx` - it never receives (Issue #355: loading.tsx
+ * is invoked with no props at all).
+ */
+export function searchParamsToRecord(
+  searchParams: URLSearchParams,
+): Record<string, string | string[]> {
+  const record: Record<string, string | string[]> = {};
+  for (const key of new Set(searchParams.keys())) {
+    const values = searchParams.getAll(key);
+    const [first, ...rest] = values;
+    if (first === undefined) {
+      continue;
+    }
+    record[key] = rest.length === 0 ? first : values;
+  }
+  return record;
+}
+
 export function previousYearMonth(yearMonth: string): string {
   return shiftYearMonth(yearMonth, -1);
 }
