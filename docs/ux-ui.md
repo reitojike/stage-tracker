@@ -240,8 +240,27 @@ controlでは、**visible fill heightとtap targetを同一視しません**。c
 visible fillのruleは絶対値ではなく **強調の順序** です
 （primary / secondary / danger ＞ small ＞ quiet）。実際の高さは
 `Button.module.css` が持ち、まだtoken化していません。tap targetは全variant
-44px以上で、これはWCAG 2.2 SC 2.5.8（Target Size）が定める寸法なので、
-実装の都合ではなくこの数値自体がruleです。
+44px以上です。WCAG 2.2 SC 2.5.8（Target Size Minimum, Level AA）が定める
+寸法は24×24 CSS px（例外あり）であり、44pxはこれを上回る
+**stage-tracker独自のproduct usability floor** です。実装の都合ではなく、
+この44pxという数値自体がstage-trackerのruleです。
+
+44pxを満たす方式は2つあります。`tapTarget.module.css` の `expand44` で
+視覚上小さい塗りを透明な擬似要素で外側へ広げる方式（Button・BackLink等）
+と、control自身のboxを直接44px以上にする方式（row全体がtap targetの
+checkbox row、native input/select、calendarの日セルのLink等）です。
+どちらもtap target自体の役割であり、layout / skeletonのgeometryが
+たまたま同じ44pxを使っていても（例: `CalendarSkeleton.day` は実dayセルと
+高さを揃えるための非interactiveなgeometryで、tap targetではありません）
+同じauthorityへ混ぜません（Issue #357）。
+
+tap target群では `touch-action: manipulation` も維持します。pan / pinch
+zoomは妨げず、mobile double-tap-zoomの遅延だけを消してpressed状態を
+即時に見せるためのcurrent product behaviorです（`Button.module.css` の
+コメントが元rationale、他のcontrolはそこを参照します）。この
+プロパティは1行で自己文書化されており、`expand44` のような共有class配線
+とは別種のリスクのため、専用の shared class や repository-wide census
+testは追加しません（Issue #357）。
 
 - `danger` はhard delete等のirreversibleな操作専用です。cancel / uncancel
   のようなreversibleなlifecycle操作は `secondary` のままとし、危険度で
