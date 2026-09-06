@@ -6,7 +6,7 @@
 }
 
 .heading {
-  composes: heading from './sectionHeading.module.css';
+  composes: heading from '../../../ui/sectionHeading.module.css';
 }
 
 .identity {

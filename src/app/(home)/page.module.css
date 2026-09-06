@@ -14,9 +14,9 @@
 /* Same bold-rule "太罫見出し" the Design authority specifies for Home's two
    block headings - shared with My Page's AccountSection/PasskeySection
    (Issue #148/#159) via `composes` rather than a second copy of the same
-   rule (src/app/mypage/_components/sectionHeading.module.css). */
+   rule (src/ui/sectionHeading.module.css). */
 .blockHeading {
-  composes: heading from '../mypage/_components/sectionHeading.module.css';
+  composes: heading from '../../ui/sectionHeading.module.css';
 }
 
 /* Issue #194: the deadline block's own heading row - unlike the plain
@@ -25,7 +25,7 @@
    row (a flex container) instead of directly on the <h2>, keeping the rule
    under the row as a whole rather than just under the heading text. */
 .deadlineHeadingRow {
-  composes: heading from '../mypage/_components/sectionHeading.module.css';
+  composes: heading from '../../ui/sectionHeading.module.css';
   composes: row from '../../ui/row.module.css';
   align-items: baseline;
 }
