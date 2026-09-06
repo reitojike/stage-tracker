@@ -137,8 +137,12 @@ const EVENT_CREATE_PATH = '/catalog/events/new?month=2091-04';
 const TRISTATE_FIXTURE_SUFFIX = `${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
 const TRISTATE_GROUP_A_KEY = `sharedui-tristate-a-${TRISTATE_FIXTURE_SUFFIX}`;
 const TRISTATE_GROUP_B_KEY = `sharedui-tristate-b-${TRISTATE_FIXTURE_SUFFIX}`;
-const TRISTATE_GROUP_A_LABEL = 'TriState Group A';
-const TRISTATE_GROUP_B_LABEL = 'TriState Group B';
+// Suffixed (not a bare literal) so a leaked fixture from an interrupted
+// prior run - e.g. an old process kill between actor creation and cleanup
+// registration below - never collides with the current run's exact-text
+// locators (CodeRabbit review, PR #366).
+const TRISTATE_GROUP_A_LABEL = `TriState Group A ${TRISTATE_FIXTURE_SUFFIX}`;
+const TRISTATE_GROUP_B_LABEL = `TriState Group B ${TRISTATE_FIXTURE_SUFFIX}`;
 
 let app: AppServer;
 let browser: Browser;
@@ -182,6 +186,11 @@ before(async () => {
   tristateFixtureOwner = await createTestActor('shared-ui-behavior-tristate', 'Str0ng-Test-Pw!', {
     designatedCatalogCreator: true,
   });
+  // Registered immediately after the actor exists, not after the fixture
+  // write below succeeds - a failure in createEventWithoutOccurrence/the
+  // classification RPC/its assertion must still leave this actor (and the
+  // Event it owns) reachable for cleanup (Codex review, PR #366).
+  initializedCleanups.push(() => deleteTestActor(tristateFixtureOwner));
   const admin = createAdminClient();
   const { event: tristateEvent } = await createEventWithoutOccurrence(
     tristateFixtureOwner,
@@ -200,7 +209,6 @@ before(async () => {
     ],
   });
   assert.equal(classificationError, null, classificationError?.message);
-  initializedCleanups.push(() => deleteTestActor(tristateFixtureOwner));
 });
 
 after(async () => {
