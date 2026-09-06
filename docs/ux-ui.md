@@ -265,13 +265,17 @@ checkbox row、native input/select、calendarの日セルのLink等）です。
 24×24 CSS pxは上回るため標準は満たしますが、stage-tracker自身の44px
 floorには2px届かない、意図的なexceptionとして記録します（Issue #357）。
 
-tap target群では `touch-action: manipulation` も維持します。pan / pinch
-zoomは妨げず、mobile double-tap-zoomの遅延だけを消してpressed状態を
-即時に見せるためのcurrent product behaviorです（`Button.module.css` の
-コメントが元rationale、他のcontrolはそこを参照します）。この
-プロパティは1行で自己文書化されており、`expand44` のような共有class配線
-とは別種のリスクのため、専用の shared class や repository-wide census
-testは追加しません（Issue #357）。
+tap target群では `touch-action: manipulation` も維持します。この値は
+pan（scroll）と継続的なzoom（pinch zoom）は許可する一方、double-tapで
+zoomするような、一定時間内の複数回activationを前提とする追加gestureは
+無効化します（W3C Pointer Events）。double-tap-to-zoomそのものを無効化
+した結果として、対応browserは次のtapを待つdisambiguation遅延なしに
+tapを単発のactivationとして確定でき、pressed状態が即時に見えます
+（`Button.module.css` のコメントが元rationale、他のcontrolはそこを
+参照します）。double-tap-to-zoom自体は残したまま遅延だけを消す、という
+decisionではありません。このプロパティは1行で自己文書化されており、
+`expand44` のような共有class配線とは別種のリスクのため、専用の
+shared class や repository-wide census testは追加しません（Issue #357）。
 
 - `danger` はhard delete等のirreversibleな操作専用です。cancel / uncancel
   のようなreversibleなlifecycle操作は `secondary` のままとし、危険度で
