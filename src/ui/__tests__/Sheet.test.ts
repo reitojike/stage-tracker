@@ -52,11 +52,22 @@ void test('renders the shared header while allowing FilterSheet to keep its foot
 
 void test('renders the optional footer outside the scrollable body', () => {
   const bodyAndFooter = component.match(
-    /<div className=\{\[styles\.body, bodyClassName\][\s\S]*?<\/div>\s*\{footer\}/,
+    /<div className=\{\[styles\.body, bodyClassName\][\s\S]*?<\/div>\s*\{footer == null \? null : <div className=\{styles\.footer\}>\{footer\}<\/div>\}/,
   );
   assert.ok(bodyAndFooter, 'footer must follow the body instead of being nested in it');
   assert.match(component, /bodyClassName\?: string/);
   assert.match(component, /footer\?: ReactNode/);
+});
+
+// A ReactNode that renders no DOM - `footer={canSubmit && <Actions />}`, an
+// empty fragment, an empty array, or a component that returns null - is not
+// nullish, so the wrapper above is still created for it. What collapses the
+// bar is the rendered result, not a JS re-derivation of React's renderability
+// rules for every ReactNode shape (Issue #318).
+void test('collapses the footer bar when the slot rendered no DOM', () => {
+  const emptyRule = css.match(/(?:^|\n)\.footer:empty\s*\{([^}]*)\}/);
+  assert.ok(emptyRule, '.footer:empty rule is missing from Sheet.module.css');
+  assert.match(emptyRule[1] ?? '', /display:\s*none\s*;/);
 });
 
 void test('does not retain the removed dead close-button class API', () => {
@@ -78,6 +89,21 @@ void test('shared body remains the scroll region needed to keep a slotted footer
   const bodyRule = css.match(/(?:^|\n)\.body\s*\{([^}]*)\}/);
   assert.ok(bodyRule, '.body rule is missing from Sheet.module.css');
   assert.match(bodyRule[1] ?? '', /overflow-y:\s*auto\s*;/);
+});
+
+// Issue #318: the footer slot is Sheet's, so the bar it renders is Sheet's
+// too. This is the one place the shared footer declarations are asserted -
+// consumers pass actions and keep only per-action sizing, so there is no
+// composition for them to lose and no per-consumer copy of this to check.
+void test('owns the slotted footer bar rather than leaving it to each consumer', () => {
+  const footerRule = css.match(/(?:^|\n)\.footer\s*\{([^}]*)\}/);
+  assert.ok(footerRule, '.footer rule is missing from Sheet.module.css');
+  const declarations = footerRule[1] ?? '';
+  assert.match(declarations, /display:\s*flex\s*;/);
+  assert.match(declarations, /justify-content:\s*flex-end\s*;/);
+  assert.match(declarations, /gap:\s*var\(--space-sm\)\s*;/);
+  assert.match(declarations, /padding:\s*var\(--space-md\)\s*;/);
+  assert.match(declarations, /border-top:\s*1px solid var\(--color-border\)\s*;/);
 });
 
 void test('immediate-choice ParticipationSheet keeps close while submit-based InviteSheet uses the footer contract', () => {

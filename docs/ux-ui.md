@@ -292,8 +292,9 @@ domain semanticsの正本は引き続き
   border/padding boxは持たせません。
 - **action area** — 確定・送信のactionを横に並べる行は、右揃え
   （`justify-content: flex-end`）と `--space-sm` のgapを共通のかたちと
-  します。current implementationではこの行を各screenの `*.module.css` が
-  個別に持ちます（Sheetのfooter、InvitationCardのaction行等）。
+  します。Sheetのfooterはこのかたちを `Sheet` 自身が持ちます。それ以外の
+  action行（InvitationCardのaction行等）は、置かれる面の文脈に合わせて
+  各screenの `*.module.css` が持ちます。
 - 1つの画面に独立した書き込み単位が複数並ぶ場合（Event編集画面）、
   それぞれが自分のfeedbackを持ち、1つの失敗が他を巻き込みません。
 
@@ -315,6 +316,10 @@ domain semanticsの正本は引き続き
   置き、headerに「閉じる」を出しません。** `footer`を持たないimmediate-choice
   のSheetは、選択せずに離脱できるよう「閉じる」を出します。footerがないSheet
   では、「閉じる」が画面に見えている唯一の離脱手段だからです。
+- footerの帯そのもの（bodyとの境の細罫、内側のpadding、actionの揃え）は
+  `Sheet` が持ちます。呼び出し側はfooterへactionを渡すだけで、同じ帯を
+  screenごとに書きません。呼び出し側に残るのは、そのactionの意味と、
+  1つのfooterへ複数のactionを置く場合の幅の配分です。
 - 覆いのtapとEscapeはどちらでも効きます。confirmation Sheetでは、この2つが
   「取り消し」に当たります。
 - 藍の塗り（`primary`）はSheet内の実行ボタン1つだけです。

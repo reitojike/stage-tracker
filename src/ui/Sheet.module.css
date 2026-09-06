@@ -78,3 +78,32 @@
   overflow-y: auto;
   padding: var(--space-md);
 }
+
+/* The footer slot's own bar (Issue #318). Sheet already owns where a slotted
+   footer sits - outside .body's scroll region - so it owns how that bar reads
+   as well, rather than leaving each consumer to redeclare the same padding and
+   top rule beside its own actions. docs/ux-ui.md "action area" is the authority
+   for the shared shape (right-aligned, --space-sm gap); this rule adds the
+   sheet-specific separation from the scrolling body above it.
+
+   Consumers keep only per-action sizing (FilterSheet's .clearButton /
+   .confirmButton split their shared row) - never this bar. */
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+/* A footer that renders no DOM at all still reaches the wrapper above: a
+   caller writing `footer={canSubmit && <Actions />}`, an empty fragment, or a
+   component that returns null are all non-nullish ReactNode values, so the
+   nullish check in Sheet.tsx cannot see them. Deciding it in JS would mean
+   re-deriving React's own renderability rules for every ReactNode shape; the
+   rendered DOM already answers it. Without this, those callers would get a
+   padded strip with a top rule where the raw slot rendered nothing before
+   Sheet owned this bar (review finding, Issue #318). */
+.footer:empty {
+  display: none;
+}

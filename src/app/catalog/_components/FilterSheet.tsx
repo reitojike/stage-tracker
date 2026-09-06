@@ -315,7 +315,7 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
       showCloseButton={false}
       bodyClassName={styles.body}
       footer={
-        <div className={styles.footer}>
+        <>
           {/* Issue #195: draft-only reset - never touches `applied` or
               persistence, same "no commit without confirm" rule every other
               in-sheet interaction follows (see confirm()'s own doc comment
@@ -335,7 +335,7 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
           <Button variant="primary" className={styles.confirmButton} onClick={confirm}>
             この条件で絞り込む
           </Button>
-        </div>
+        </>
       }
     >
       <div className={styles.section}>
