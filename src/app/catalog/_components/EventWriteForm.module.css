@@ -138,17 +138,10 @@
 }
 
 .sheetLifecycleActions {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.sheetLifecycleActions > form {
-  flex: 1 1 0;
-  min-width: 0;
+  composes: equal from '../../../ui/actionRow.module.css';
 }
 
 .sheetLifecycleActions > form > button {
-  width: 100%;
   font-size: var(--font-size-body-sm);
 }
 
@@ -206,19 +199,11 @@
 }
 
 .dangerActions {
-  display: flex;
+  composes: equal from '../../../ui/actionRow.module.css';
   flex-wrap: wrap;
-  gap: var(--space-sm);
-}
-
-.dangerActions > button,
-.dangerActions > form {
-  flex: 1 1 0;
-  min-width: 0;
 }
 
 .dangerActions > form > button {
-  width: 100%;
   font-size: var(--font-size-body-sm);
 }
 

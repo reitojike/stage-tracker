@@ -154,3 +154,11 @@
 .stablePendingSizing {
   composes: sizing from '../../../ui/pendingLabel.module.css';
 }
+
+/* Issue #310: matches the danger trigger font-size the two-button
+   dangerActions/sheetLifecycleActions rows use (EventWriteForm.module.css) -
+   this trigger has no row-mate to share width with, but the size itself is
+   the same decided danger-trigger typography, not a layout concern. */
+.dangerTrigger {
+  font-size: var(--font-size-body-sm);
+}

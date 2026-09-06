@@ -51,6 +51,7 @@ export function DeleteEntryForm({ entryId }: DeleteEntryFormProps) {
         <Button
           type="button"
           variant="danger"
+          className={styles.dangerTrigger}
           disabled={isPending}
           onClick={() => {
             setOpen(true);

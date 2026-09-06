@@ -53,7 +53,7 @@ export function DeleteOccurrenceForm({
             setOpen(true);
           }}
         >
-          削除する
+          削除
         </Button>
       </form>
       <Sheet

@@ -26,6 +26,7 @@ void test('contextual write labels stay short while accessible names retain thei
   const occurrenceCancellation = read('src/app/catalog/_components/OccurrenceCancellationForm.tsx');
   const deleteEvent = read('src/app/catalog/_components/DeleteEventForm.tsx');
   const deleteOccurrence = read('src/app/catalog/_components/DeleteOccurrenceForm.tsx');
+  const deleteEntry = read('src/app/schedule/_components/DeleteEntryForm.tsx');
   const occurrenceUpdate = read('src/app/catalog/_components/OccurrenceUpdateForm.tsx');
   const eventRange = read('src/app/catalog/_components/EventRangeEditForm.tsx');
   const occurrenceAdd = read('src/app/catalog/_components/OccurrenceAddForm.tsx');
@@ -41,10 +42,17 @@ void test('contextual write labels stay short while accessible names retain thei
   assert.match(occurrenceCancellation, /'中止を解除'/);
   assert.match(occurrenceCancellation, /'この公演回を中止'/);
   assert.match(occurrenceCancellation, /'この公演回の中止を解除'/);
-  assert.match(deleteEvent, /削除する/);
+  // Issue #310: the trigger label is the short noun form, matching the
+  // Sheet's own execute button and docs/screens.md's danger button label
+  // rule - `aria-label` alone still carries the target.
+  assert.match(deleteEvent, />\s*削除\s*<\/Button>/);
+  assert.doesNotMatch(deleteEvent, />\s*削除する\s*<\/Button>/);
   assert.match(deleteEvent, /aria-label="このイベントを削除"/);
-  assert.match(deleteOccurrence, /削除する/);
+  assert.match(deleteOccurrence, />\s*削除\s*<\/Button>/);
+  assert.doesNotMatch(deleteOccurrence, />\s*削除する\s*<\/Button>/);
   assert.match(deleteOccurrence, /aria-label="この公演回を削除"/);
+  assert.match(deleteEntry, />\s*削除\s*<\/Button>/);
+  assert.match(deleteEntry, /className=\{styles\.dangerTrigger\}/);
   assert.match(occurrenceUpdate, /<span>\{isPending \? '保存中…' : '保存'\}<\/span>/);
   assert.match(eventRange, /<span>\{isPending \? '保存中…' : '保存'\}<\/span>/);
   assert.match(occurrenceAdd, /<span>\{isPending \? '追加中…' : '追加'\}<\/span>/);
@@ -86,17 +94,17 @@ void test('occurrence lifecycle feedback is composed above one horizontal action
     css,
     /\.sheetLifecycle\s*\{[\s\S]*?flex-direction:\s*column;[\s\S]*?gap:\s*var\(--space-md\);/,
   );
+  // The equal-width layout itself (flex sizing, min-width, child button
+  // width) moved to the shared `src/ui/actionRow.module.css` `.equal` role
+  // (Issue #310; actionRow.test.ts owns that contract). What stays local
+  // here is that this screen's row still composes it, and font-size - a
+  // danger-trigger typography decision, not the row's layout - remains a
+  // per-selector declaration (Button.test.ts no longer duplicates this;
+  // Issue #312 moved it here, Issue #310 narrowed it to font-size only).
   assert.match(
     css,
-    /\.sheetLifecycleActions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?gap:\s*var\(--space-sm\);/,
+    /\.sheetLifecycleActions\s*\{\s*composes:\s*equal from '\.\.\/\.\.\/\.\.\/ui\/actionRow\.module\.css';\s*\}/,
   );
-  assert.match(css, /\.sheetLifecycleActions > form\s*\{[\s\S]*?flex:\s*1 1 0;/);
-
-  // The two-column lifecycle/danger action rows fill their column and take
-  // the smaller label size. Moved here from Button.test.ts (Issue #312):
-  // this is Event-edit's own row sizing, not part of the shared Button
-  // contract that file guards. The equal-width action row itself is
-  // Issue #310's scope.
   for (const selector of [
     '.sheetLifecycleActions > form > button',
     '.dangerActions > form > button',
@@ -104,8 +112,12 @@ void test('occurrence lifecycle feedback is composed above one horizontal action
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const rule = css.match(new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^}]*)\\}`));
     assert.ok(rule, `${selector} rule is missing`);
-    assert.match(rule[1] ?? '', /width:\s*100%;/);
     assert.match(rule[1] ?? '', /font-size:\s*var\(--font-size-body-sm\);/);
+    assert.doesNotMatch(
+      rule[1] ?? '',
+      /width:\s*100%;/,
+      `${selector} should get width from the shared equal-width role, not restate it`,
+    );
   }
 
   assert.doesNotMatch(cancellation, /window\.confirm/);
