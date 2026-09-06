@@ -407,9 +407,27 @@ domain semanticsの正本は引き続き
 
 迷ったらspinnerです。skeletonは「実物と同じ骨組みが描ける」ときだけ使います。
 
-- 各routeの `loading.tsx` は、本物のpageと同じ `PageHeading` を先に置きます
-  （pendingの間だけtitleが消えて、commit時に押し戻される layout shiftを
-  避けるため）。逆に、本物のpageが持たない要素を fallbackで足しません。
+- 各routeの `loading.tsx` は、そのrouteのpage.tsxがdata取得前から確定して
+  持つ **stable / unconditionalなchrome** を先に置きます（pendingの間だけ
+  chromeが消えて、commit時に押し戻される layout shiftを避けるため）。
+  対象は `PageHeading` に限らず、page.tsxが無条件に描く `BackLink` 等も
+  含みます（Issue #355）。
+  - 判別基準は「そのcomponentがpage内に存在するか」ではなく、「pending
+    開始前 - どのdata read / permission checkの結果より前 - から確定して
+    いるか」です。同じcomponentでも、data / permission依存のsuccess
+    branchにしか出ない場合はfallbackで捏造しません（例:
+    `catalog/events/[eventId]/edit/page.tsx` は `BackLink` を無条件に
+    描く一方、`PageHeading` はevent読み込み + 権限確認が成立した
+    success branchにしか存在しません）。
+  - route ごとの現在の分類（stable chromeの有無・内訳）は
+    `src/app/__tests__/loadingChromeContract.ts` のallowlistを正本とし、
+    ここでは重複して列挙しません。
+  - loading.tsxはNext.jsから`params`/`searchParams`を受け取れないため、
+    本物のpageのBackLinkが持つ動的なhref（選択中の月/日、event id、
+    entry id等）をそのまま再現できない場合があります。その場合は、
+    再現できない具体的contextを要求しない安定した代替先
+    （例: 当月のcalendar root）へ変更してよく、労力を割いてまで
+    generic route control-flow analyzerやloading DSLを新設しません。
 - 遷移中もAppBarとPrimaryNavは画面に残ります。navやアバターのtap中は
   iconをspinnerに差し替え、行の高さを増やしません。
 - calendarのmonth navigationのpending中は、tapしたcontrol自身だけが
