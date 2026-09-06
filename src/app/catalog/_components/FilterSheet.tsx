@@ -376,7 +376,7 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
                   setDraft(withGenre(draft, null));
                 }}
               />
-              <span className={styles.chipLabel}>すべて</span>
+              <span>すべて</span>
             </label>
             {genres.map((genre) => (
               <label
@@ -394,7 +394,7 @@ export const FilterSheet = forwardRef<FilterSheetHandle, FilterSheetProps>(funct
                     setDraft(withGenre(draft, genre.key));
                   }}
                 />
-                <span className={styles.chipLabel}>{genre.displayName}</span>
+                <span>{genre.displayName}</span>
               </label>
             ))}
           </div>

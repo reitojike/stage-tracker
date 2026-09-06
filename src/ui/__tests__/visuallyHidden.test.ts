@@ -3,20 +3,21 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { composesRole, readCss } from './sharedRoleWiring.ts';
+
+/*
+ * The shared visually-hidden contracts (Issue #317).
+ *
+ * This file used to carry a census - exactly 6 compositions, 4 of one
+ * contract and 2 of the other - which had to be edited whenever a consumer
+ * was added, and which said nothing about *which* consumer had lost its
+ * composition. Issue #312 replaced it with the wiring below: named
+ * consumers, no counts.
+ */
+
 const sharedCss = readFileSync(
   fileURLToPath(new URL('../visuallyHidden.module.css', import.meta.url)),
   'utf8',
-);
-
-const consumerCss = [
-  '../TriStateCheckbox.module.css',
-  '../../app/schedule/_components/ScheduleWriteForm.module.css',
-  '../../app/catalog/_components/FilterSheet.module.css',
-  '../../app/tickets/_components/TicketOpportunityRow.module.css',
-  '../WriteNotice.module.css',
-  '../../app/catalog/_components/EventWriteForm.module.css',
-].map((relativePath) =>
-  readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8'),
 );
 
 void test('keeps the full visually-hidden contract centralized and focusable', () => {
@@ -40,21 +41,30 @@ void test('keeps a separate minimal contract for empty live-region shells', () =
   assert.doesNotMatch(minimalRule[1] ?? '', /white-space|border:|padding:|margin:/);
 });
 
-void test('all six existing consumers compose one of the two shared contracts', () => {
-  const compositions = consumerCss.flatMap(
-    (css) =>
-      css.match(
-        /composes:\s*visuallyHidden(?:Region)?\s+from\s+['"][^'"]+visuallyHidden\.module\.css['"];?/g,
-      ) ?? [],
-  );
-  assert.equal(compositions.length, 6);
-  assert.equal(
-    compositions.filter((composition) => composition.includes('visuallyHiddenRegion')).length,
-    2,
-  );
-  assert.equal(
-    compositions.filter((composition) => /^composes:\s*visuallyHidden\s/.test(composition)).length,
-    4,
-  );
-  assert.doesNotMatch(consumerCss.join('\n'), /clip:\s*rect\(0,\s*0,\s*0,\s*0\)/);
+/*
+ * Required composition wiring. A control that loses this composition does
+ * not look broken - its label simply becomes visible, or its input becomes
+ * unreachable - so it is worth naming the consumers. Adding a seventh means
+ * adding a row; there is no count to keep in step.
+ */
+const wiring = [
+  ['src/ui/TriStateCheckbox.module.css', 'input', 'visuallyHidden'],
+  ['src/app/catalog/_components/FilterSheet.module.css', 'chipInput', 'visuallyHidden'],
+  ['src/app/schedule/_components/ScheduleWriteForm.module.css', 'controlInput', 'visuallyHidden'],
+  ['src/app/tickets/_components/TicketOpportunityRow.module.css', 'srOnly', 'visuallyHidden'],
+  ['src/ui/WriteNotice.module.css', 'noticeRegionEmpty', 'visuallyHiddenRegion'],
+  [
+    'src/app/catalog/_components/EventWriteForm.module.css',
+    'sheetLifecycleFeedbackEmpty',
+    'visuallyHiddenRegion',
+  ],
+] as const;
+
+void test('every visually-hidden consumer composes one of the two shared contracts', () => {
+  for (const [relativePath, className, role] of wiring) {
+    assert.ok(
+      composesRole(readCss(relativePath), className, role, 'visuallyHidden.module.css'),
+      `${relativePath} .${className} must compose ${role} from visuallyHidden.module.css`,
+    );
+  }
 });

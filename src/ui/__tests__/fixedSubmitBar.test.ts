@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { composesRole, readCss as readRepoCss } from './sharedRoleWiring.ts';
+
 /*
  * Issue #316. The Event create form and the Personal Schedule create/edit
  * forms used to carry two independent fixed submit bars, and they had
@@ -11,9 +13,16 @@ import { fileURLToPath } from 'node:url';
  * single authority (src/ui/fixedSubmitBar.module.css) from silently
  * splitting back into two.
  *
- * Bounded on purpose: this asserts the fixed-submit contract and its two
- * consumers, not CSS duplication in general. The repository-wide scan is
- * Issue #312's own scope.
+ * What this file owns: the shared module's own values, the pin to
+ * PrimaryNav's actual row height, the required composition wiring, and the
+ * markup pairing the contract needs.
+ *
+ * The per-consumer "and does not restate what it composes" assertions this
+ * file used to carry are gone (Issue #312) - a consumer restating a value it
+ * already composes is redundant rather than broken, and is left to review.
+ * What is not left to review is the composition itself: the wiring below is
+ * the only thing standing between a dropped `composes:` line and a submit
+ * bar that silently stops being fixed.
  */
 
 const read = (relativePath: string) =>
@@ -24,8 +33,6 @@ const readCss = (relativePath: string) => read(relativePath).replace(/\/\*[\s\S]
 
 const sharedCss = readCss('../fixedSubmitBar.module.css');
 const primaryNavCss = readCss('../PrimaryNav.module.css');
-const eventCss = readCss('../../app/catalog/_components/EventWriteForm.module.css');
-const scheduleCss = readCss('../../app/schedule/_components/ScheduleWriteForm.module.css');
 
 const eventCreateForm = read('../../app/catalog/_components/EventCreateForm.tsx');
 const scheduleCreateForm = read('../../app/schedule/_components/ScheduleEntryCreateForm.tsx');
@@ -37,11 +44,6 @@ const ruleBody = (css: string, selector: string): string => {
   assert.ok(match, `.${selector} rule is missing`);
   return match[1] ?? '';
 };
-
-const composition = (css: string, selector: string, exported: string) =>
-  new RegExp(
-    `(?:^|\\n)\\.${selector}\\s*\\{\\s*composes:\\s*${exported}\\s+from\\s+['"][^'"]*fixedSubmitBar\\.module\\.css['"];`,
-  ).test(css);
 
 void test('the shared band owns the fixed positioning and the safe-area-aware nav offset', () => {
   const band = ruleBody(sharedCss, 'band');
@@ -89,26 +91,29 @@ void test('the shared inner column and escape spacing are single-valued', () => 
   assert.doesNotMatch(escape, /env\(safe-area-inset-bottom/);
 });
 
-void test('both write forms compose the shared bar instead of restating it', () => {
-  assert.ok(composition(eventCss, 'fixedSubmit', 'band'));
-  assert.ok(composition(eventCss, 'fixedSubmitInner', 'inner'));
-  assert.ok(composition(eventCss, 'fixedForm', 'escape'));
+/*
+ * Required composition wiring: which consumer class carries which shared
+ * role. Written down because the names differ on purpose (each form keeps
+ * its own vocabulary) - there is nothing mechanical to derive it from.
+ * Adding a third fixed submit bar means adding a row here; that is the
+ * intended cost of the guarantee.
+ */
+const wiring = [
+  ['src/app/catalog/_components/EventWriteForm.module.css', 'fixedSubmit', 'band'],
+  ['src/app/catalog/_components/EventWriteForm.module.css', 'fixedSubmitInner', 'inner'],
+  ['src/app/catalog/_components/EventWriteForm.module.css', 'fixedForm', 'escape'],
+  ['src/app/schedule/_components/ScheduleWriteForm.module.css', 'submitBand', 'band'],
+  ['src/app/schedule/_components/ScheduleWriteForm.module.css', 'submitInner', 'inner'],
+  ['src/app/schedule/_components/ScheduleWriteForm.module.css', 'form', 'escape'],
+] as const;
 
-  assert.ok(composition(scheduleCss, 'submitBand', 'band'));
-  assert.ok(composition(scheduleCss, 'submitInner', 'inner'));
-  assert.ok(composition(scheduleCss, 'form', 'escape'));
-
-  for (const css of [eventCss, scheduleCss]) {
-    assert.doesNotMatch(css, /position:\s*fixed/);
-    assert.doesNotMatch(css, /env\(safe-area-inset-bottom/);
-    assert.doesNotMatch(css, /640px/);
+void test('both write forms compose the shared bar rather than growing their own', () => {
+  for (const [relativePath, className, role] of wiring) {
+    assert.ok(
+      composesRole(readRepoCss(relativePath), className, role, 'fixedSubmitBar.module.css'),
+      `${relativePath} .${className} must compose ${role} from fixedSubmitBar.module.css`,
+    );
   }
-
-  // The two escape classes carry no local padding-bottom of their own, so
-  // neither 72px nor 128px can come back as a second authority.
-  assert.doesNotMatch(ruleBody(eventCss, 'fixedForm'), /padding-bottom/);
-  assert.doesNotMatch(ruleBody(scheduleCss, 'form'), /padding-bottom/);
-  assert.doesNotMatch(scheduleCss, /128px/);
 });
 
 void test('every fixed submit bar renders the band/inner pair the contract expects', () => {

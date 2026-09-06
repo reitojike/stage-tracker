@@ -536,6 +536,31 @@ runtimeからのconsumerが0のものは、見つかり次第削除します（I
 roleではなく値だけの場合は、composeする先のroleがそもそもありません。
 その2つの場合はtokenが値の置き場所です。
 
+### 決定済みshared roleのwiringを共有元で保証する
+
+- **shared roleは、consumerが実際にcomposeしている間だけ共有されています。**
+  `composes` の行が消えれば、その画面は静かに自前のpresentationへ戻ります。
+  これを防ぐため、どのconsumerがどのshared roleをcomposeするかを
+  **共有元のtest 1箇所**へ書きます（Issue #312、
+  `src/ui/__tests__/sharedRoleWiring.ts` と各authorityのtest）。
+  classごと消えた場合だけでなく、**局所宣言を残したまま `composes` だけが
+  消えた場合**も検出します。
+- **どのconsumerがどのroleを使うべきかはsemantic factなので、機械に推測
+  させず明示的に書きます。** 一方、次には戻しません。
+  - exact consumer count（`compositions.length === 6` のようなcensus）
+  - 移行時の全件census
+  - 同じconsumer一覧を複数のtestへ複製すること
+- **未知の一致はCIを失敗させません。** shared roleをcomposeせず同じCSSを
+  自前で書き直したケースを自動検出することは必須にしていません。宣言の
+  組がたまたま一致したというだけで違反にはせず、上記「反復する宣言をいつ
+  共通化するか」で共通化しないと決めたもの（縦積みのflex、副文の指定、
+  list reset、focus ringの転送）や、単独の `justify-content: space-between`
+  / `flex` / `min-width` / `flex-shrink` も違反ではありません。これは
+  **code reviewの責務として明示的に残したresidual risk**です。
+- **shared ruleを変えるときは、検証責務も共有側へ移します。** 置き換え
+  られたconsumer側のsource/CSS assertionは残さず削除します。同じ保証を
+  共有元と各consumerで二重に持ちません。
+
 ## Common states
 
 loading / empty / error / disabled / unavailableのglobal visual pattern

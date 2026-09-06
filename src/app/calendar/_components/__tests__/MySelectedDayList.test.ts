@@ -83,6 +83,23 @@ void test('the add-row copy is date-specific ("{M月D日}に予定を追加"), r
   assert.match(source, /const addLabel = `\$\{myCalendarMonthDayLabel\(date\)\}に予定を追加`;/);
 });
 
+void test('Issue #315: the badge row is the shared badges presentation plus this screen’s own offset', () => {
+  // Moved here from Row.test.ts (Issue #312): the shared selected-day
+  // presentation and its consumer wiring live in
+  // src/ui/__tests__/selectedDayList.test.ts, but `.badgeRow` is My
+  // Calendar's own class - it composes the shared badges rule and adds the
+  // gap above it that only this screen needs.
+  const cssPath = fileURLToPath(new URL('../MySelectedDayList.module.css', import.meta.url));
+  const css = readFileSync(cssPath, 'utf8');
+  const badgeRow = /\.badgeRow\s*\{([^}]*)\}/.exec(css);
+  assert.ok(badgeRow, '.badgeRow rule not found');
+  assert.match(
+    badgeRow[1] ?? '',
+    /composes:\s*badges\s+from\s+['"][^'"]*selectedDayList\.module\.css['"]/,
+  );
+  assert.match(badgeRow[1] ?? '', /margin-top:\s*var\(--space-2xs\);/);
+});
+
 void test('.addRow sets only border-bottom, not border-top (review fix: .addRow always follows an .item, whose own :not(:last-child) rule already supplies the border between them - a border-top here would double that hairline)', () => {
   const cssPath = fileURLToPath(new URL('../MySelectedDayList.module.css', import.meta.url));
   const css = readFileSync(cssPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
