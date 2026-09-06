@@ -64,7 +64,9 @@ import {
 const GEOMETRY_VIEWPORT = { width: 375, height: 667 } as const;
 
 /**
- * Allowance when comparing two rendered widths of the same button.
+ * Allowance when comparing two rendered sizes of the same button - both
+ * dimensions, since docs/ux-ui.md's guarantee is that neither moves
+ * ("押しても行の高さや幅が動きません").
  *
  * The pending overlay stacks both labels in one grid cell, so the cell -
  * and the button around it - is the width of the widest label in every
@@ -546,6 +548,14 @@ void test('pending label: the submit button keeps its size through 通常 → �
     Math.abs(settled.buttonWidth - idle.buttonWidth) <= WIDTH_TOLERANCE_PX,
     `the submit button did not return to its original width after the failure: ` +
       `${String(idle.buttonWidth)}px -> ${String(settled.buttonWidth)}px`,
+  );
+  // Both dimensions here, as in the pending comparison above: the failure
+  // state adds a StatePanel and re-mounts the fields around this button, so
+  // "the button came back the same size" is not answered by width alone.
+  assert.ok(
+    Math.abs(settled.buttonHeight - idle.buttonHeight) <= WIDTH_TOLERANCE_PX,
+    `the submit button did not return to its original height after the failure: ` +
+      `${String(idle.buttonHeight)}px -> ${String(settled.buttonHeight)}px`,
   );
 });
 
