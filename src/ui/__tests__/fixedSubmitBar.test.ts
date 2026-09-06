@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { composesRole, readCss as readRepoCss } from './sharedRoleWiring.ts';
+
 /*
  * Issue #316. The Event create form and the Personal Schedule create/edit
  * forms used to carry two independent fixed submit bars, and they had
@@ -11,13 +13,16 @@ import { fileURLToPath } from 'node:url';
  * single authority (src/ui/fixedSubmitBar.module.css) from silently
  * splitting back into two.
  *
- * The two-consumer CSS list this file used to carry (each composing band /
- * inner / escape, and each asserted not to restate them) is gone: Issue
- * #312's sharedCssRules.ts fails any rule that restates what it composes,
- * and any module outside this authority that fixes a bar over the safe area
- * or names PrimaryNav's row height again. What stays is the shared module's
- * own values, the pin to PrimaryNav's actual row height, and the markup
- * pairing the contract needs - none of which a CSS scan can see.
+ * What this file owns: the shared module's own values, the pin to
+ * PrimaryNav's actual row height, the required composition wiring, and the
+ * markup pairing the contract needs.
+ *
+ * The per-consumer "and does not restate what it composes" assertions this
+ * file used to carry are gone (Issue #312) - a consumer restating a value it
+ * already composes is redundant rather than broken, and is left to review.
+ * What is not left to review is the composition itself: the wiring below is
+ * the only thing standing between a dropped `composes:` line and a submit
+ * bar that silently stops being fixed.
  */
 
 const read = (relativePath: string) =>
@@ -84,6 +89,31 @@ void test('the shared inner column and escape spacing are single-valued', () => 
   // The safe-area term cancels between the band's offset and PrimaryNav's own
   // padding, so the escape must not add a second one.
   assert.doesNotMatch(escape, /env\(safe-area-inset-bottom/);
+});
+
+/*
+ * Required composition wiring: which consumer class carries which shared
+ * role. Written down because the names differ on purpose (each form keeps
+ * its own vocabulary) - there is nothing mechanical to derive it from.
+ * Adding a third fixed submit bar means adding a row here; that is the
+ * intended cost of the guarantee.
+ */
+const wiring = [
+  ['src/app/catalog/_components/EventWriteForm.module.css', 'fixedSubmit', 'band'],
+  ['src/app/catalog/_components/EventWriteForm.module.css', 'fixedSubmitInner', 'inner'],
+  ['src/app/catalog/_components/EventWriteForm.module.css', 'fixedForm', 'escape'],
+  ['src/app/schedule/_components/ScheduleWriteForm.module.css', 'submitBand', 'band'],
+  ['src/app/schedule/_components/ScheduleWriteForm.module.css', 'submitInner', 'inner'],
+  ['src/app/schedule/_components/ScheduleWriteForm.module.css', 'form', 'escape'],
+] as const;
+
+void test('both write forms compose the shared bar rather than growing their own', () => {
+  for (const [relativePath, className, role] of wiring) {
+    assert.ok(
+      composesRole(readRepoCss(relativePath), className, role, 'fixedSubmitBar.module.css'),
+      `${relativePath} .${className} must compose ${role} from fixedSubmitBar.module.css`,
+    );
+  }
 });
 
 void test('every fixed submit bar renders the band/inner pair the contract expects', () => {

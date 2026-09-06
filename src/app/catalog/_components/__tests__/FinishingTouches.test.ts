@@ -54,10 +54,11 @@ void test('contextual write labels stay short while accessible names retain thei
 
 void test('event edit puts a canceled badge beside a wrapping datetime', () => {
   // Issue #311's own three-file list (each badge composing inlineBadge and
-  // restating no flex-shrink of its own) is gone: sharedCssRules.ts (Issue
-  // #312) catches a rule that restates what it composes, and Row.test.ts
-  // owns the shared `.inlineBadge` declaration itself. What stays here is
-  // this screen's intentional alignment either side of the badge.
+  // restating no flex-shrink of its own) is gone (Issue #312): Row.test.ts
+  // owns the shared `.inlineBadge` declaration itself, and a consumer
+  // restating a value it already composes is redundant rather than broken.
+  // What stays here is this screen's intentional alignment either side of
+  // the badge.
   const page = read('src/app/catalog/events/[eventId]/edit/page.tsx');
   const css = read('src/app/catalog/_components/EventWriteForm.module.css');
   const eventDetail = read('src/app/catalog/_components/EventDetail.module.css');

@@ -3,18 +3,21 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { composesRole, readCss as readRepoCss } from './sharedRoleWiring.ts';
+
 /*
  * Issue #308. Six modules carried the same three-rule overlay that keeps a
  * submit button from resizing when its label swaps to the pending wording,
  * across 17 call sites.
  *
- * What is left here is the shared module's own contract and the call sites
- * that have to render the pair it needs. The six-consumer list this file
- * used to carry - each entry asserting the composition and the absence of a
- * local copy - is gone: sharedCssRules.ts (Issue #312) catches a rule that
- * restates what it composes, and catches a fresh copy of the sizing rule in
- * any module, which is what a consumer dropping the composition would leave
- * behind.
+ * What is left here is the shared module's own contract, the composition
+ * wiring, and the call sites that have to render the pair it needs.
+ *
+ * The "and does not restate the rule locally" half of the old six-consumer
+ * list is gone (Issue #312): a consumer restating what it composes is
+ * redundant rather than broken, and is left to review. The composition half
+ * stays - dropping it silently returns the button to resizing under the
+ * user's finger.
  */
 
 const read = (relativePath: string) =>
@@ -66,6 +69,35 @@ void test('the shared module owns the overlay that holds the button width', () =
   assert.match(sizing, /visibility:\s*hidden;/);
   assert.match(sizing, /pointer-events:\s*none;/);
   assert.doesNotMatch(sizing, /display:\s*none/);
+});
+
+/*
+ * Required composition wiring. All six consumers name the pair the same
+ * way, so the wiring is the consumer list plus the two roles - no per-file
+ * role mapping to keep in step.
+ */
+const CONSUMERS = [
+  'src/app/catalog/_components/EventWriteForm.module.css',
+  'src/app/catalog/_components/InvitationCard.module.css',
+  'src/app/catalog/_components/InviteSheet.module.css',
+  'src/app/schedule/_components/ScheduleDetail.module.css',
+  'src/app/schedule/_components/ScheduleWriteForm.module.css',
+  'src/app/schedule/_components/ShareAddSheet.module.css',
+] as const;
+
+void test('every consumer composes the shared overlay rather than restating it', () => {
+  for (const relativePath of CONSUMERS) {
+    const css = readRepoCss(relativePath);
+    for (const [className, role] of [
+      ['stablePendingLabel', 'label'],
+      ['stablePendingSizing', 'sizing'],
+    ] as const) {
+      assert.ok(
+        composesRole(css, className, role, 'pendingLabel.module.css'),
+        `${relativePath} .${className} must compose ${role} from pendingLabel.module.css`,
+      );
+    }
+  }
 });
 
 void test('every pending swap renders the pair, sized by a copy at least as long as its labels', () => {

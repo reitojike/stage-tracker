@@ -10,11 +10,18 @@ import { fileURLToPath } from 'node:url';
  * migratedAsides - three hand-kept lists of every consumer that composes
  * these roles, each entry asserting both that the consumer composes and
  * that it does not restate what it composed - plus the same shape of list
- * for the selected-day list (Issue #315). Issue #312 replaced the
- * "does not restate" half with sharedCssRules.ts, which checks every
- * *.module.css under src/app and src/ui without a registry, so a new
- * consumer needs no entry anywhere; the selected-day wiring moved to
- * selectedDayList.test.ts, next to the module it belongs to.
+ * for the selected-day list (Issue #315).
+ *
+ * Issue #312 removed all four. The selected-day wiring moved to
+ * selectedDayList.test.ts, next to the module it belongs to. The row roles
+ * deliberately kept no consumer wiring of their own: unlike the fixed
+ * submit bar or the visually-hidden contract, these are small generic flex
+ * declarations whose loss degrades a layout rather than breaking a control,
+ * and the list ran to 58 entries across 15 files. Tracking every one of
+ * them permanently was not justified by any observed regression, so it is
+ * an accepted residual risk covered by review. If a row composition is ever
+ * actually lost in a way that reaches users, that evidence - not the
+ * possibility - is what should bring a bounded wiring list back here.
  */
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));

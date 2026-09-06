@@ -38,9 +38,8 @@ void test('Issue #270: the shared label span carries no nowrap policy of its own
   // inside it (src/ui/pendingLabel.module.css). Issue #312 removed the
   // six-consumer list that asserted the same absence file by file: those
   // consumers' own `.stablePendingButton { white-space: nowrap }` was
-  // deleted by #270 and the class no longer exists anywhere, while a local
-  // copy of the overlay itself is now caught repository-wide by
-  // sharedCssRules.ts.
+  // deleted by #270 and the class no longer exists anywhere, so the list
+  // was migration evidence rather than a standing guarantee.
   const sharedLabelSpan = read('src/ui/pendingLabel.module.css').match(
     /\.label\s*>\s*span\s*\{([^}]*)\}/,
   );

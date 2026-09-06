@@ -536,24 +536,30 @@ runtimeからのconsumerが0のものは、見つかり次第削除します（I
 roleではなく値だけの場合は、composeする先のroleがそもそもありません。
 その2つの場合はtokenが値の置き場所です。
 
-### 決定済み共有規約の再宣言を検出する
+### 決定済みshared roleのwiringを共有元で保証する
 
-- **決定済みのshared ruleを再宣言することは、detectorが防ぎます**（Issue
-  #312、`src/ui/__tests__/sharedCssRules.ts`）。`src/app/**` /
-  `src/ui/**` の `*.module.css` を自動列挙するので、consumerを一覧へ
-  登録する必要はありません。
-- **detectorの対象はnamed roleだけです。** 宣言の組がたまたま一致した
-  というだけではCIを失敗させません。上記「反復する宣言をいつ共通化する
-  か」で共通化しないと決めたもの（縦積みのflex、副文の指定、list reset、
-  focus ringの転送）や、単独の `justify-content: space-between` /
-  `flex` / `min-width` / `flex-shrink` は違反ではありません。正当な別
-  用途がhitした場合は、exceptionを足す前にdetectorの対象が広すぎない
-  かを先に見直します。
+- **shared roleは、consumerが実際にcomposeしている間だけ共有されています。**
+  `composes` の行が消えれば、その画面は静かに自前のpresentationへ戻ります。
+  これを防ぐため、どのconsumerがどのshared roleをcomposeするかを
+  **共有元のtest 1箇所**へ書きます（Issue #312、
+  `src/ui/__tests__/sharedRoleWiring.ts` と各authorityのtest）。
+  classごと消えた場合だけでなく、**局所宣言を残したまま `composes` だけが
+  消えた場合**も検出します。
+- **どのconsumerがどのroleを使うべきかはsemantic factなので、機械に推測
+  させず明示的に書きます。** 一方、次には戻しません。
+  - exact consumer count（`compositions.length === 6` のようなcensus）
+  - 移行時の全件census
+  - 同じconsumer一覧を複数のtestへ複製すること
+- **未知の一致はCIを失敗させません。** shared roleをcomposeせず同じCSSを
+  自前で書き直したケースを自動検出することは必須にしていません。宣言の
+  組がたまたま一致したというだけで違反にはせず、上記「反復する宣言をいつ
+  共通化するか」で共通化しないと決めたもの（縦積みのflex、副文の指定、
+  list reset、focus ringの転送）や、単独の `justify-content: space-between`
+  / `flex` / `min-width` / `flex-shrink` も違反ではありません。これは
+  **code reviewの責務として明示的に残したresidual risk**です。
 - **shared ruleを変えるときは、検証責務も共有側へ移します。** 置き換え
   られたconsumer側のsource/CSS assertionは残さず削除します。同じ保証を
-  共有元・detector・各consumerで二重に持ちません。consumerが実際に共有
-  classやcomponentを使っている必要がある場合のwiringだけを、共有元の
-  testに1箇所だけ残します。
+  共有元と各consumerで二重に持ちません。
 
 ## Common states
 
