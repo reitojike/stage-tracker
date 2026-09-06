@@ -5,10 +5,10 @@ import { BackLink } from '@/ui/BackLink';
 import { LoadingIndicator } from '@/ui/LoadingIndicator';
 import {
   catalogEventHref,
-  resolveCatalogParams,
+  catalogEventHrefWithoutContext,
+  explicitCatalogParams,
   searchParamsToRecord,
 } from '@/domain/catalogNavigation';
-import { currentTokyoDate } from '../../../_lib/today.ts';
 
 /**
  * Restates page.tsx's own unconditional BackLink (Issue #355) - present in
@@ -30,15 +30,25 @@ import { currentTokyoDate } from '../../../_lib/today.ts';
  * that differs from page.tsx's own is a navigation-semantics change, not
  * just a layout-stability one (PR #363 review) - eventId is a path segment
  * of the current URL, not fetched data, so it is always available here.
+ *
+ * When no explicit month/day is in the URL, this links to the event's
+ * detail page with no query string at all (`catalogEventHrefWithoutContext`)
+ * rather than computing "today" itself: a Client Component's `new Date()`
+ * reads the browser's clock, not the server's, and could disagree with
+ * what page.tsx (always server-rendered) resolves once it actually loads
+ * (PR #363 review, round 2: codex). The detail page resolves its own
+ * default month server-side once it actually loads.
  */
 export default function EditEventLoading() {
   const { eventId } = useParams<{ eventId: string }>();
   const searchParams = useSearchParams();
-  const context = resolveCatalogParams(searchParamsToRecord(searchParams), currentTokyoDate());
+  const context = explicitCatalogParams(searchParamsToRecord(searchParams));
+  const backHref =
+    context === null ? catalogEventHrefWithoutContext(eventId) : catalogEventHref(eventId, context);
 
   return (
     <>
-      <BackLink href={catalogEventHref(eventId, context)}>公演情報に戻る</BackLink>
+      <BackLink href={backHref}>公演情報に戻る</BackLink>
       <LoadingIndicator label="編集フォームを読み込み中" />
     </>
   );

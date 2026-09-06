@@ -5,10 +5,9 @@ import { BackLink } from '@/ui/BackLink';
 import { LoadingIndicator } from '@/ui/LoadingIndicator';
 import {
   catalogMonthHref,
-  resolveCatalogParams,
+  explicitCatalogParams,
   searchParamsToRecord,
 } from '@/domain/catalogNavigation';
-import { currentTokyoDate } from '../../_lib/today.ts';
 
 /**
  * Restates page.tsx's own unconditional BackLink (Issue #355) - present in
@@ -29,14 +28,23 @@ import { currentTokyoDate } from '../../_lib/today.ts';
  * page.tsx's exact destination rather than an approximation (PR #363
  * review: a fallback destination/label that differs from the real page's
  * own is a navigation-semantics change, not just a layout-stability one).
+ *
+ * When no explicit month/day is in the URL, this links to bare `/catalog`
+ * rather than computing "today" itself: a Client Component's `new Date()`
+ * reads the browser's clock, not the server's, and could disagree with
+ * what page.tsx (always server-rendered) resolves once it actually loads
+ * (PR #363 review, round 2: codex). `/catalog` lets the destination decide
+ * its own default month server-side, the same as page.tsx's BackLink would
+ * if it too had no context to carry.
  */
 export default function NewEventLoading() {
   const searchParams = useSearchParams();
-  const context = resolveCatalogParams(searchParamsToRecord(searchParams), currentTokyoDate());
+  const context = explicitCatalogParams(searchParamsToRecord(searchParams));
+  const backHref = context === null ? '/catalog' : catalogMonthHref(context.yearMonth);
 
   return (
     <>
-      <BackLink href={catalogMonthHref(context.yearMonth)}>カレンダーに戻る</BackLink>
+      <BackLink href={backHref}>カレンダーに戻る</BackLink>
       <LoadingIndicator label="登録フォームを準備中" />
     </>
   );

@@ -6,10 +6,9 @@ import { LoadingIndicator } from '@/ui/LoadingIndicator';
 import {
   catalogDayHref,
   catalogMonthHref,
-  resolveCatalogParams,
+  explicitCatalogParams,
   searchParamsToRecord,
 } from '@/domain/catalogNavigation';
-import { currentTokyoDate } from '../../_lib/today.ts';
 
 /**
  * Restates page.tsx's own unconditional BackLink (Issue #355) - present
@@ -18,15 +17,19 @@ import { currentTokyoDate } from '../../_lib/today.ts';
  * A Client Component so it can read the same month/day query-string
  * context page.tsx's own BackLink carries via `useSearchParams()` (see
  * src/app/catalog/events/new/loading.tsx's own comment for why this
- * reproduces the exact destination rather than an approximation).
+ * resolves correctly even during the initial server-rendered pass, and
+ * why the no-context case links to bare `/catalog` rather than computing
+ * "today" itself from the browser's clock).
  */
 export default function EventDetailLoading() {
   const searchParams = useSearchParams();
-  const context = resolveCatalogParams(searchParamsToRecord(searchParams), currentTokyoDate());
+  const context = explicitCatalogParams(searchParamsToRecord(searchParams));
   const backHref =
-    context.selectedDate !== null
-      ? catalogDayHref(context.yearMonth, context.selectedDate)
-      : catalogMonthHref(context.yearMonth);
+    context === null
+      ? '/catalog'
+      : context.selectedDate !== null
+        ? catalogDayHref(context.yearMonth, context.selectedDate)
+        : catalogMonthHref(context.yearMonth);
 
   return (
     <>

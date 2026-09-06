@@ -21,27 +21,54 @@ export interface CatalogParams {
 }
 
 /**
- * Resolves the effective month/selected-day from raw (and possibly
- * missing/malformed) query params, given the caller's notion of "today"
- * (Asia/Tokyo calendar date) as the default. A valid `date` always wins for
+ * The month/selected-day explicit in raw (and possibly missing/malformed)
+ * query params, or `null` when neither a valid `date` nor a valid `month`
+ * is present - i.e. exactly the case `resolveCatalogParams` would
+ * otherwise need a "today" seed to resolve. A valid `date` always wins for
  * deriving the displayed month - a `month` param that disagreed with it
  * would otherwise let the grid and the selected day silently drift apart.
  * Malformed values are ignored rather than surfaced as an error: this is
  * client-supplied navigation state, not domain data.
+ *
+ * Split out from `resolveCatalogParams` (Issue #355, PR #363 review) for
+ * callers that must not resolve "today" themselves - a Client Component
+ * `loading.tsx` fallback computing it from `new Date()` would use the
+ * browser's clock, not the server's, and could disagree with what the real
+ * page.tsx (always server-rendered) resolves once it actually loads. Such
+ * a caller checks for `null` and defers to the destination's own
+ * server-side default (e.g. a bare `/catalog` with no `month` query)
+ * instead of guessing "today" here.
  */
-export function resolveCatalogParams(
+export function explicitCatalogParams(
   searchParams: Readonly<Record<string, string | string[] | undefined>>,
-  todayTokyoDate: string,
-): CatalogParams {
+): CatalogParams | null {
   const rawDate = firstValue(searchParams.date);
   const selectedDate = rawDate !== undefined && isValidCalendarDate(rawDate) ? rawDate : null;
 
   const rawMonth = firstValue(searchParams.month);
   const monthFromDate = selectedDate?.slice(0, 7) ?? null;
   const monthFromParam = rawMonth !== undefined && isValidYearMonth(rawMonth) ? rawMonth : null;
-  const yearMonth = monthFromDate ?? monthFromParam ?? todayTokyoDate.slice(0, 7);
+  const yearMonth = monthFromDate ?? monthFromParam;
 
-  return { yearMonth, selectedDate };
+  return yearMonth === null ? null : { yearMonth, selectedDate };
+}
+
+/**
+ * Resolves the effective month/selected-day from raw (and possibly
+ * missing/malformed) query params, given the caller's notion of "today"
+ * (Asia/Tokyo calendar date) as the default for when neither is explicit
+ * (see `explicitCatalogParams`, which this delegates to).
+ */
+export function resolveCatalogParams(
+  searchParams: Readonly<Record<string, string | string[] | undefined>>,
+  todayTokyoDate: string,
+): CatalogParams {
+  return (
+    explicitCatalogParams(searchParams) ?? {
+      yearMonth: todayTokyoDate.slice(0, 7),
+      selectedDate: null,
+    }
+  );
 }
 
 function firstValue(value: string | string[] | undefined): string | undefined {
@@ -135,6 +162,19 @@ export function catalogEventHref(
   }
   params.set('occurrence', occurrenceId);
   return `/catalog/events/${eventId}?${params.toString()}#${occurrenceAnchorId(occurrenceId)}`;
+}
+
+/**
+ * The event detail page with no month/day query context at all - for a
+ * caller with no explicit context to carry (see `explicitCatalogParams`)
+ * that must not invent a "today" itself. `catalogEventHref` always emits a
+ * `month` param, computed from a `CatalogParams` the caller must already
+ * have; this is the one case where there deliberately is none, and the
+ * destination page resolves its own default month server-side once it
+ * actually loads.
+ */
+export function catalogEventHrefWithoutContext(eventId: string): string {
+  return `/catalog/events/${eventId}`;
 }
 
 /**
