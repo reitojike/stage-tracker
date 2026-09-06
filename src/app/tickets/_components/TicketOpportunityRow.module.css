@@ -86,11 +86,12 @@
   gap: var(--space-xs);
 }
 
+/* Issue #359: same list/card-row Event-title emphasis as
+   ui/listRow.module.css's own `.title` (font-size-title/semibold/
+   line-height-title/color-text) - `margin: 0` stays local since this role
+   sits on a `<p>`, which `.title`'s own span-style consumers don't need. */
 .eventTitle {
-  font-size: var(--font-size-title);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-title);
-  color: var(--color-text);
+  composes: title from '../../../ui/listRow.module.css';
   margin: 0;
 }
 

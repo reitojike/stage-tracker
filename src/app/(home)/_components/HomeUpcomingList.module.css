@@ -30,36 +30,38 @@
  * bottom-border, no card Surface" shape My Calendar's own selected-day list
  * already established (Issue #146) - shared via `composes` (same mechanism
  * page.module.css's blockHeading uses for My Page's section-heading rule)
- * rather than a second byte-identical copy of the same nine rules.
+ * rather than a second byte-identical copy of the same nine rules. Composed
+ * directly from the shared ui/listRow.module.css authority (Issue #359),
+ * not from My Calendar's own screen-local module.
  */
 .item {
-  composes: item from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: item from '../../../ui/listRow.module.css';
 }
 
 .itemLink {
-  composes: itemLink from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: itemLink from '../../../ui/listRow.module.css';
 }
 
 .itemBody {
-  composes: itemBody from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: itemBody from '../../../ui/listRow.module.css';
 }
 
 .chevron {
-  composes: chevron from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: chevron from '../../../ui/listRow.module.css';
 }
 
 .time {
-  composes: time from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: time from '../../../ui/listRow.module.css';
 }
 
 .title {
-  composes: title from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: title from '../../../ui/listRow.module.css';
 }
 
 .venue {
-  composes: venue from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: venue from '../../../ui/listRow.module.css';
 }
 
 .badgeRow {
-  composes: badgeRow from '../../calendar/_components/MySelectedDayList.module.css';
+  composes: badgeRow from '../../../ui/listRow.module.css';
 }
