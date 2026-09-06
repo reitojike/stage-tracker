@@ -295,6 +295,12 @@ domain semanticsの正本は引き続き
   します。Sheetのfooterはこのかたちを `Sheet` 自身が持ちます。それ以外の
   action行（InvitationCardのaction行等）は、置かれる面の文脈に合わせて
   各screenの `*.module.css` が持ちます。
+- 同じroleの2つのactionが行の幅を均等に分け合う場合（Event編集の
+  「中止と削除」、公演回lifecycle行）は、`src/ui/actionRow.module.css` の
+  `.equal` をcomposeします（[Issue #310](https://github.com/reitojike/stage-tracker/issues/310)）。
+  flex-wrapの要否、各actionの意味・variant・font-sizeは呼び出し側が持ちます。
+  幅だけが目的の見た目の一致は対象にせず、比率の異なる行（`FilterSheet`の
+  クリア／確定行等）はこの共有roleを使いません。
 - 1つの画面に独立した書き込み単位が複数並ぶ場合（Event編集画面）、
   それぞれが自分のfeedbackを持ち、1つの失敗が他を巻き込みません。
 
@@ -383,6 +389,10 @@ domain semanticsの正本は引き続き
   - **中止・解除（元に戻せる2件）** — 確認を出しません。押した時点で実行し、
     結果は通知で伝えます。
 - native `window.confirm()` は使いません。
+- **danger triggerのlabelは短い名詞形（「削除」）、font-sizeは
+  `--font-size-body-sm`に統一します**（[Issue #310](https://github.com/reitojike/stage-tracker/issues/310)）。
+  中止・解除のtoggle labelはこの短縮の対象にせず、双方向の意味をそのまま
+  保ちます。
 
 ## 読み込み中の見せ方
 
