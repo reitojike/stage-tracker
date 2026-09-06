@@ -78,6 +78,20 @@ void test('importsAndRendersComponent ignores JSX-shaped text inside a string li
   assert.equal(importsAndRendersComponent(source, 'PageHeading'), false);
 });
 
+void test('importsAndRendersComponent does not let a "//"-bearing string swallow a real usage on the same line', () => {
+  // PR #363 review, round 2 (codex): stripping comments and strings in
+  // separate passes is order-dependent - a plain string containing `//`
+  // (e.g. a URL) ahead of the real usage would have the line-comment pass
+  // treat everything after that `//`, including the real tag later on the
+  // same line, as commented out. This is the false *negative* the combined
+  // single-pass pattern exists to prevent.
+  const source =
+    "import { PageHeading } from '@/ui/PageHeading';\n" +
+    'export default function X() { const url = "https://example.com"; return <PageHeading>ホーム</PageHeading>; }\n';
+
+  assert.equal(importsAndRendersComponent(source, 'PageHeading'), true);
+});
+
 for (const expectation of LOADING_CHROME_ALLOWLIST) {
   void test(`${expectation.route}: loading.tsx exists and materializes its allowlisted chrome`, () => {
     assert.equal(

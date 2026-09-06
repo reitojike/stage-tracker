@@ -30,25 +30,38 @@ export const sourceExists = (repoRelativePath: string): boolean =>
   existsSync(`${repoRoot}/${repoRelativePath}`);
 
 /**
- * Strips `//` and `/* *\/` comments plus single/double/template string
- * literal contents, so JSX-shaped text inside prose or a string cannot be
- * mistaken for a real usage (PR #363 review: CodeRabbit found
- * `importsAndRendersComponent`'s usage check matching `<PageHeading />`
- * inside a comment, which would let this guard keep passing after the real
- * usage was deleted as long as the import and a stray mention remained).
- * Bounded, not a real TSX parse - mirrors
+ * Matches whichever of a block comment, line comment, template string,
+ * double-quoted string, or single-quoted string starts first at each
+ * position - a single left-to-right pass, not four independent ones.
+ *
+ * Ordering four separate `.replace()` passes (PR #363 review, round 2:
+ * codex) is unsound: a plain string containing `//` (e.g. `"https://..."`)
+ * sitting before the real usage would have its line-comment pass treat
+ * everything from that `//` to end of line - including a real
+ * `<PageHeading ... />` later on the same line - as a comment and delete
+ * it, producing a false *negative* (a loading.tsx that correctly renders
+ * its chrome reads as if it does not). One combined alternation avoids
+ * this: whichever construct's opening delimiter is leftmost consumes its
+ * entire span (through embedded `//`/`/*`/quotes) before the scan moves
+ * on, so a token can never be split across two independent passes.
+ */
+const COMMENT_OR_STRING_PATTERN =
+  /\/\*[\s\S]*?\*\/|\/\/.*$|`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gm;
+
+/**
+ * Strips comments and string literal contents, so JSX-shaped text inside
+ * prose or a string cannot be mistaken for a real usage (PR #363 review:
+ * CodeRabbit found `importsAndRendersComponent`'s usage check matching
+ * `<PageHeading />` inside a comment, which would let this guard keep
+ * passing after the real usage was deleted as long as the import and a
+ * stray mention remained). Bounded, not a real TSX parse - mirrors
  * src/ui/__tests__/sharedRoleWiring.ts's own `stripCssComments`, which
  * exists for the same reason: a full parser was rejected there after
  * costing three review rounds for less benefit than this regex approach
  * already gives.
  */
 export const stripCommentsAndStrings = (source: string): string =>
-  source
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/.*$/gm, '')
-    .replace(/`(?:\\.|[^`\\])*`/g, '``')
-    .replace(/"(?:\\.|[^"\\])*"/g, '""')
-    .replace(/'(?:\\.|[^'\\])*'/g, "''");
+  source.replace(COMMENT_OR_STRING_PATTERN, (match) => (match.startsWith('/') ? '' : '""'));
 
 /**
  * Whether `source` both imports and renders `componentName` as a JSX
