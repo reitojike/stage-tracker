@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import type { Page } from 'playwright-core';
-import { grantCatalogCreator } from '../rls/support/testActors.ts';
+import { createEventWithoutOccurrence } from '../rls/support/eventFixtures.ts';
+import {
+  createAdminClient,
+  createTestActor,
+  deleteTestActor,
+  grantCatalogCreator,
+  type TestActor,
+} from '../rls/support/testActors.ts';
 import { startAppServer, type AppServer } from './support/appServer.ts';
 import { launchBrowser, type Browser } from './support/browserPage.ts';
 import {
@@ -114,6 +121,25 @@ const RANGE_STARTS_ON = '2091-04-11';
 const RANGE_ENDS_ON = '2091-04-10';
 const EVENT_CREATE_PATH = '/catalog/events/new?month=2091-04';
 
+/*
+ * Group 4 of Issue #358: TriStateCheckbox's own indeterminate->checked
+ * activation semantics (domain/triState.ts's nextTriState: activating an
+ * indeterminate control resolves to `checked`, never `unchecked` - the one
+ * behavior a plain 2-state checkbox does not have and Schedule create's own
+ * checkbox coverage above says nothing about). Static source/CSS reading
+ * (src/ui/__tests__/TriStateCheckbox.test.ts) already proves that contract
+ * as *code*; this is the one representative real-browser check that a user
+ * actually gets a checked box, not a stuck indeterminate one, after
+ * operating the aggregate control by keyboard. FilterSheet's 宝塚/組 facet
+ * stands in for every other TriStateCheckbox consumer - this is not
+ * repeated per consumer.
+ */
+const TRISTATE_FIXTURE_SUFFIX = `${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
+const TRISTATE_GROUP_A_KEY = `sharedui-tristate-a-${TRISTATE_FIXTURE_SUFFIX}`;
+const TRISTATE_GROUP_B_KEY = `sharedui-tristate-b-${TRISTATE_FIXTURE_SUFFIX}`;
+const TRISTATE_GROUP_A_LABEL = 'TriState Group A';
+const TRISTATE_GROUP_B_LABEL = 'TriState Group B';
+
 let app: AppServer;
 let browser: Browser;
 /** Granted catalog_creators membership, which is what makes
@@ -121,6 +147,12 @@ let browser: Browser;
  * catalog write boundary"). Reusing the membership helper the Event
  * journey and the operational script both use - never a hard-coded UUID. */
 let creator: JourneyActor;
+/** A separate, non-browser `TestActor` used only to own the group-4 fixture
+ * Event below - `creator` is a browser `JourneyActor` (no `.client` of its
+ * own to call `create_event` through), and this fixture's ownership has no
+ * bearing on any of the other groups' assertions, so it gets its own
+ * independent actor and teardown rather than borrowing `creator`'s. */
+let tristateFixtureOwner: TestActor;
 
 const createdUserIds: string[] = [];
 const initializedCleanups: Array<() => Promise<void>> = [];
@@ -138,6 +170,37 @@ before(async () => {
   initializedCleanups.push(() => creator.close());
   await grantCatalogCreator(creator.userId);
   await creator.page.setViewportSize(GEOMETRY_VIEWPORT);
+
+  // Seeds a 0-occurrence Event classified as 宝塚 with two catalog groups,
+  // via the same operator-assisted import_event_classification RPC
+  // test/rls/eventClassification.test.ts uses - not a new write path. This
+  // is the minimum the group-4 TriStateCheckbox test below needs: without
+  // an Event actually associated with a genre's groups,
+  // listCatalogGroupOptions returns none and FilterSheet never renders the
+  // group facet's TriStateCheckbox options at all
+  // (secondaryOptions.length > 0 in FilterSheet.tsx).
+  tristateFixtureOwner = await createTestActor('shared-ui-behavior-tristate', 'Str0ng-Test-Pw!', {
+    designatedCatalogCreator: true,
+  });
+  const admin = createAdminClient();
+  const { event: tristateEvent } = await createEventWithoutOccurrence(
+    tristateFixtureOwner,
+    '2094-06-01',
+    '2094-06-01',
+    { title: `shared ui behavior tristate ${TRISTATE_FIXTURE_SUFFIX}` },
+  );
+  const { error: classificationError } = await admin.rpc('import_event_classification', {
+    p_event_id: tristateEvent.id,
+    p_set_genre: true,
+    p_genre_key: 'takarazuka',
+    p_set_groups: true,
+    p_groups: [
+      { key: TRISTATE_GROUP_A_KEY, displayName: TRISTATE_GROUP_A_LABEL },
+      { key: TRISTATE_GROUP_B_KEY, displayName: TRISTATE_GROUP_B_LABEL },
+    ],
+  });
+  assert.equal(classificationError, null, classificationError?.message);
+  initializedCleanups.push(() => deleteTestActor(tristateFixtureOwner));
 });
 
 after(async () => {
@@ -682,4 +745,101 @@ void test('Catalog filter Sheet: a chip is operable by keyboard, and Escape retu
     '絞り込み',
     'expected focus to return to the filter trigger after Escape',
   );
+});
+
+/*
+ * Group 4 of Issue #358: TriStateCheckbox's own indeterminate activation.
+ *
+ * The genre chip above is a `role="radio"` input, not a TriStateCheckbox -
+ * it says nothing about whether TriStateCheckbox's own checked/unchecked/
+ * indeterminate contract holds up for a real consumer. This is the one
+ * shared-control-specific behavior that is not just "checkbox in general"
+ * (already covered for the screen-local 2-state checkbox in group 3 above):
+ * activating an *indeterminate* control resolves to `checked`, never back
+ * to `unchecked` (domain/triState.ts's nextTriState).
+ */
+void test("Catalog filter Sheet: the group facet's TriStateCheckbox resolves indeterminate to checked, not unchecked, on Space", async () => {
+  await creator.goto('/catalog');
+  await creator.page
+    .locator('[data-catalog-ready="true"]')
+    .waitFor({ state: 'attached', timeout: 30_000 });
+
+  const trigger = creator.page.getByRole('button', { name: '絞り込み', exact: true });
+  const dialog = creator.page.locator('dialog').first();
+  await clickWhenInteractive(trigger, dialog, 'opening the catalog filter Sheet');
+
+  await creator.page.locator('[role="radiogroup"]').getByText('宝塚', { exact: true }).click();
+
+  const groupA = creator.page.getByText(TRISTATE_GROUP_A_LABEL, { exact: true });
+  const groupB = creator.page.getByText(TRISTATE_GROUP_B_LABEL, { exact: true });
+  await groupA.waitFor({ state: 'visible', timeout: 10_000 });
+  await groupB.waitFor({ state: 'visible', timeout: 10_000 });
+
+  const aggregateInput = creator.page.getByLabel('組すべて');
+
+  // Selecting exactly one of the two known groups (mouse - this establishes
+  // the fixture state the keyboard step below exercises, it is not itself
+  // part of what's being tested) puts the aggregate "組すべて" control into
+  // `indeterminate` (domain/catalogFilterSheet.ts's secondaryAggregateState:
+  // some but not all known values selected).
+  await groupA.click();
+  await creator.page.waitForFunction(
+    () => document.querySelector('input[aria-checked="mixed"]') !== null,
+    undefined,
+    { timeout: 10_000 },
+  );
+
+  const beforeSpace = await aggregateInput.evaluate((el: HTMLInputElement) => ({
+    indeterminate: el.indeterminate,
+    ariaChecked: el.getAttribute('aria-checked'),
+    checked: el.checked,
+  }));
+  assert.equal(
+    beforeSpace.indeterminate,
+    true,
+    'expected the aggregate control to be indeterminate',
+  );
+  assert.equal(beforeSpace.ariaChecked, 'mixed');
+  assert.equal(beforeSpace.checked, false);
+
+  // Reaches the aggregate control by real keyboard focus: clicking groupA's
+  // label above also focuses its native input (label click semantics), and
+  // the aggregate control renders immediately before it in DOM order
+  // (FilterSheet.tsx), so one Shift+Tab is the real, minimal path back to
+  // it - not a programmatic .focus() that would bypass the same
+  // :focus-visible mechanism group 3 above already verified generically.
+  await creator.page.keyboard.press('Shift+Tab');
+  const focusedLabel = await creator.page.evaluate(
+    () => document.activeElement?.closest('label')?.textContent.trim() ?? '',
+  );
+  assert.equal(
+    focusedLabel,
+    '組すべて',
+    'expected Shift+Tab from group A to land on the aggregate "組すべて" control',
+  );
+
+  await creator.page.keyboard.press('Space');
+
+  const afterSpace = await aggregateInput.evaluate((el: HTMLInputElement) => ({
+    indeterminate: el.indeterminate,
+    ariaChecked: el.getAttribute('aria-checked'),
+    checked: el.checked,
+  }));
+  assert.equal(
+    afterSpace.checked,
+    true,
+    'expected Space on an indeterminate TriStateCheckbox to resolve to checked, not unchecked',
+  );
+  assert.equal(afterSpace.indeterminate, false);
+  assert.equal(afterSpace.ariaChecked, null);
+
+  // The aggregate resolving to checked applies to the whole facet
+  // (applyAggregateToggle -> the full known-groups list), so both options
+  // end up selected too - not just the aggregate's own visual state.
+  const groupBChecked = await creator.page
+    .locator('label')
+    .filter({ hasText: TRISTATE_GROUP_B_LABEL })
+    .locator('input[type="checkbox"]')
+    .isChecked();
+  assert.equal(groupBChecked, true, 'expected group B to become checked too');
 });

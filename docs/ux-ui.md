@@ -593,6 +593,45 @@ runtimeからのconsumerが0のものは、見つかり次第削除します（I
 
 未来のfeature componentを大量に先行実装しません。
 
+### component API sharingとpresentation / semantic value sharingは別軸（Issue #358）
+
+上記のlocal-first ruleは「2つ目の使い手が出るまでAPIを共有しない」という
+**component API sharing** の軸だけを見ています。これとは別に、**同じ
+presentation / semantic valueの置き場所を1つにするかどうか**という軸が
+あり、この2つは独立に判断します。consumer数はAPI sharingの判断材料には
+なりますが、value sharingの判断材料にはなりません。
+
+- **DOM構造・selector・state semanticsがconsumer固有のままでも、同じ
+  semantic/presentation valueはshared authorityを持てます。** 逆に言うと、
+  「まだscreen-localだから」「使い手が1つだから」という理由だけで、値の
+  authorityを複数箇所に放置してよいことにはなりません。値が複数箇所に
+  散っている場合の置き場所は、前節「反復する宣言をいつ共通化するか」の
+  named role / semantic tokenのどちらかに従います。
+- **逆方向も成立します。** 見た目（presentation）が一致しているという
+  事実は、API semanticsが異なるcontrolを1つのcomponent / 1つのAPIへ
+  統合する理由にはなりません。API統合の判断は、値の一致とは別に、その
+  controlが同じ状態・同じ操作契約を持つかどうかで行います。
+
+具体例（checkbox）: `TriStateCheckbox`（checked/unchecked/indeterminateの
+3値）と `ScheduleWriteForm` の2値checkboxは、API semanticsが異なるため
+1つのcomponent / 1つのAPIへ統合しません。一方、両者のbox 18px・checkの
+glyph 12pxという寸法は同じpresentation valueであり、`src/ui/tokens.css`
+の `--size-checkbox-box` / `--size-checkbox-glyph` を値のauthorityとして
+共有します。それぞれのDOM（`<span>` + SVG構造）・selector・checked-state
+の実装（`TriStateCheckbox.module.css` の `.checked`/`.indeterminate` と
+`ScheduleWriteForm.module.css` の `:has(.controlInput:checked)`）は、
+consumerごとに引き続き別々に所有します。
+
+具体例（disabled）: disabled controlの見た目の値authorityは
+`--opacity-disabled` の1箇所です（下記「Common states」参照）。Button /
+TextInput / TriStateCheckbox / ParticipationSheet / ScheduleWriteFormは、
+このtokenをそれぞれ自分のselector（`:disabled`、`:has(:disabled)`等）と
+DOM構造の中で参照しており、selectorやDOM構造そのものを1つのshared
+class / component へ統合してはいません。「`:disabled` / `:has()` /
+`+` を含む」という理由でこれらのselectorをclass sharingの対象外にする
+必要がないのと同様に、selectorがconsumerごとに違うという理由で値の
+sharingを諦める必要もありません。
+
 ### 反復する宣言をいつ共通化するか
 
 **同じ宣言の組が複数箇所に現れること自体は、共通化の理由になりません**
@@ -682,7 +721,9 @@ presentation primitiveのみを提供します。
   #324）。`cursor: not-allowed` と併記し、Button / TextInput /
   TriStateCheckbox / ParticipationSheet / ScheduleWriteFormの各disabled
   siteがこのtokenを参照します。値はここに書かず、`tokens.css` を参照して
-  ください。
+  ください。各consumerのselector / DOM構造は統合対象ではありません
+  （「Shared / feature-local component boundary」の「component API
+  sharingとpresentation / semantic value sharingは別軸」参照）。
 
 ### 補助的な件数表示の例外
 

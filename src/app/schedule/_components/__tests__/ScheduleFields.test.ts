@@ -33,7 +33,11 @@ void test('schedule controls keep the bounded local temporal and blocking vocabu
     assert.match(fields, new RegExp(`name="${name}"`));
   }
   assert.doesNotMatch(fields, /\(blocking\)/);
-  assert.match(css, /\.checkboxBox\s*\{[\s\S]*width:\s*18px;[\s\S]*height:\s*18px;/);
+  // The box/glyph *dimensions* are the shared presentation value with
+  // TriStateCheckbox and are asserted once, at their authority
+  // (--size-checkbox-box/--size-checkbox-glyph in tokens.css), by
+  // src/ui/__tests__/checkboxSizeTokens.test.ts (Issue #358) - this file
+  // only owns what is specific to this screen-local checkbox.
   assert.match(css, /\.checkboxBox\s*\{[\s\S]*border-radius:\s*var\(--radius-badge\);/);
   assert.match(css, /\.checkboxRow\s*\{[\s\S]*min-height:\s*44px;/);
   assert.match(
