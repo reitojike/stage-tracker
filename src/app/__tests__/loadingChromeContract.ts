@@ -1,0 +1,185 @@
+/*
+ * Loading fallback stable-chrome contract (Issue #355).
+ *
+ * docs/ux-ui.md's loading rule says a route's `loading.tsx` must restate
+ * the stable/unconditional page chrome its own page.tsx renders before any
+ * data/permission-dependent branch - not merely "a component that also
+ * appears somewhere in page.tsx". Which chrome is actually unconditional
+ * for a given route is a control-flow fact read by hand off each
+ * page.tsx (see this file's own allowlist comments and docs/ux-ui.md) -
+ * this module does not derive it from source, matching Issue #355's Test
+ * contract ("AST / control-flow analyzerの新設へscopeを広げず... bounded
+ * mechanismにする").
+ *
+ * Deliberately regex-only, mirroring src/ui/__tests__/sharedRoleWiring.ts:
+ * this only answers "does this loading.tsx's source import and render the
+ * named component", not whether the JSX is well-formed or reachable.
+ */
+
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
+
+/** Reads a repository-relative source file. */
+export const readSource = (repoRelativePath: string): string =>
+  readFileSync(`${repoRoot}/${repoRelativePath}`, 'utf8');
+
+/** Whether a repository-relative path exists. */
+export const sourceExists = (repoRelativePath: string): boolean =>
+  existsSync(`${repoRoot}/${repoRelativePath}`);
+
+/**
+ * The repository-relative path of every `loading.tsx` actually present
+ * under `src/app`, forward-slashed to match `LOADING_CHROME_ALLOWLIST`'s
+ * own `loadingPath` format - the coverage source of truth
+ * `LOADING_CHROME_ALLOWLIST` is checked against (PR #363 review). A plain
+ * file-system listing, not route analysis: it says nothing about a
+ * route's control flow, only that a `loading.tsx` file exists at that
+ * path, so pairing it with the manually-classified allowlist stays a
+ * bounded mechanism rather than the AST/control-flow analyzer Issue #355
+ * rules out.
+ */
+export const discoverLoadingFilePaths = (): readonly string[] =>
+  readdirSync(`${repoRoot}/src/app`, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name === 'loading.tsx')
+    .map((entry) => relative(repoRoot, `${entry.parentPath}/${entry.name}`).replace(/\\/g, '/'))
+    .sort();
+
+/**
+ * Matches whichever of a block comment, line comment, template string,
+ * double-quoted string, or single-quoted string starts first at each
+ * position - a single left-to-right pass, not four independent ones.
+ *
+ * Ordering four separate `.replace()` passes (PR #363 review, round 2:
+ * codex) is unsound: a plain string containing `//` (e.g. `"https://..."`)
+ * sitting before the real usage would have its line-comment pass treat
+ * everything from that `//` to end of line - including a real
+ * `<PageHeading ... />` later on the same line - as a comment and delete
+ * it, producing a false *negative* (a loading.tsx that correctly renders
+ * its chrome reads as if it does not). One combined alternation avoids
+ * this: whichever construct's opening delimiter is leftmost consumes its
+ * entire span (through embedded `//`/`/*`/quotes) before the scan moves
+ * on, so a token can never be split across two independent passes.
+ */
+const COMMENT_OR_STRING_PATTERN =
+  /\/\*[\s\S]*?\*\/|\/\/.*$|`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gm;
+
+/**
+ * Strips comments and string literal contents, so JSX-shaped text inside
+ * prose or a string cannot be mistaken for a real usage (PR #363 review:
+ * CodeRabbit found `importsAndRendersComponent`'s usage check matching
+ * `<PageHeading />` inside a comment, which would let this guard keep
+ * passing after the real usage was deleted as long as the import and a
+ * stray mention remained). Bounded, not a real TSX parse - mirrors
+ * src/ui/__tests__/sharedRoleWiring.ts's own `stripCssComments`, which
+ * exists for the same reason: a full parser was rejected there after
+ * costing three review rounds for less benefit than this regex approach
+ * already gives.
+ */
+export const stripCommentsAndStrings = (source: string): string =>
+  source.replace(COMMENT_OR_STRING_PATTERN, (match) => (match.startsWith('/') ? '' : '""'));
+
+/**
+ * Whether `source` both imports and renders `componentName` as a JSX
+ * element - either alone is not enough: an unused import proves nothing
+ * about what actually renders, and a JSX-shaped string inside prose/a
+ * comment is not a real usage without a matching import bringing that name
+ * into scope.
+ */
+export const importsAndRendersComponent = (source: string, componentName: string): boolean => {
+  const stripped = stripCommentsAndStrings(source);
+  const importPattern = new RegExp(`import\\s*\\{[^}]*\\b${componentName}\\b[^}]*\\}\\s*from`);
+  const usagePattern = new RegExp(`<${componentName}[\\s/>]`);
+  return importPattern.test(stripped) && usagePattern.test(stripped);
+};
+
+export interface LoadingChromeExpectation {
+  /** Human-readable route label, matching docs/ux-ui.md's/Issue #355's own notation. */
+  route: string;
+  /** Repository-relative path to that route's `loading.tsx`. */
+  loadingPath: string;
+  /**
+   * Stable/unconditional chrome components this route's page.tsx renders
+   * before any data/permission-dependent branch, and which this route's
+   * loading.tsx must therefore also render. Empty when the route has no
+   * stable chrome to restate.
+   */
+  expectedChrome: readonly string[];
+}
+
+/**
+ * Issue #355's fresh, per-route classification of `src/app/**\/loading.tsx`
+ * (13 routes as of Issue #355, verified against current page.tsx control
+ * flow). This list is a manual classification, not something derived from
+ * source - but its *coverage* (does it name every `loading.tsx` that
+ * exists, and nothing that no longer does) is machine-checked against
+ * `discoverLoadingFilePaths()` (PR #363 review), so a new route's
+ * `loading.tsx` left unclassified, or a stale entry for a route that no
+ * longer has one, fails the coverage test below rather than passing
+ * silently.
+ *
+ * Three entries correct Issue #355's own starting allowlist after fresh
+ * verification found it did not match current page.tsx control flow (see
+ * each route's own loading.tsx for the full reasoning):
+ *
+ * - `catalog/events/new` and `catalog/events/[eventId]/edit`: the Issue's
+ *   allowlist listed `PageHeading`, but in current page.tsx both routes
+ *   render `PageHeading` only in the final success branch (after an
+ *   auth/permission or event-load/canEdit check passes) while `BackLink`
+ *   is unconditional across every branch - the exact "BackLink
+ *   unconditional, heading conditional" pattern the Issue's own Context
+ *   section names as the motivating problem for `schedule/[entryId]/edit`
+ *   and `catalog/events/[eventId]`.
+ * - `catalog/invitations`: the Issue's allowlist omitted `BackLink`, but
+ *   current page.tsx renders it unconditionally ahead of its `state`
+ *   branch, same as every other BackLink-classified route here.
+ */
+export const LOADING_CHROME_ALLOWLIST: readonly LoadingChromeExpectation[] = [
+  {
+    route: 'calendar',
+    loadingPath: 'src/app/calendar/loading.tsx',
+    expectedChrome: ['PageHeading'],
+  },
+  { route: 'catalog', loadingPath: 'src/app/catalog/loading.tsx', expectedChrome: ['PageHeading'] },
+  { route: 'tickets', loadingPath: 'src/app/tickets/loading.tsx', expectedChrome: ['PageHeading'] },
+  { route: '(home)', loadingPath: 'src/app/(home)/loading.tsx', expectedChrome: ['PageHeading'] },
+  { route: 'mypage', loadingPath: 'src/app/mypage/loading.tsx', expectedChrome: ['PageHeading'] },
+  {
+    route: 'catalog/events/new',
+    loadingPath: 'src/app/catalog/events/new/loading.tsx',
+    expectedChrome: ['BackLink'],
+  },
+  {
+    route: 'catalog/events/[eventId]/edit',
+    loadingPath: 'src/app/catalog/events/[eventId]/edit/loading.tsx',
+    expectedChrome: ['BackLink'],
+  },
+  {
+    route: 'catalog/invitations',
+    loadingPath: 'src/app/catalog/invitations/loading.tsx',
+    expectedChrome: ['BackLink', 'PageHeading'],
+  },
+  {
+    route: 'schedule/new',
+    loadingPath: 'src/app/schedule/new/loading.tsx',
+    expectedChrome: ['BackLink', 'SchedulePageHeading'],
+  },
+  {
+    route: 'schedule/[entryId]',
+    loadingPath: 'src/app/schedule/[entryId]/loading.tsx',
+    expectedChrome: ['BackLink'],
+  },
+  {
+    route: 'schedule/[entryId]/edit',
+    loadingPath: 'src/app/schedule/[entryId]/edit/loading.tsx',
+    expectedChrome: ['BackLink'],
+  },
+  {
+    route: 'catalog/events/[eventId]',
+    loadingPath: 'src/app/catalog/events/[eventId]/loading.tsx',
+    expectedChrome: ['BackLink'],
+  },
+  { route: 'schedule', loadingPath: 'src/app/schedule/loading.tsx', expectedChrome: [] },
+];

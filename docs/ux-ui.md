@@ -407,9 +407,44 @@ domain semanticsの正本は引き続き
 
 迷ったらspinnerです。skeletonは「実物と同じ骨組みが描ける」ときだけ使います。
 
-- 各routeの `loading.tsx` は、本物のpageと同じ `PageHeading` を先に置きます
-  （pendingの間だけtitleが消えて、commit時に押し戻される layout shiftを
-  避けるため）。逆に、本物のpageが持たない要素を fallbackで足しません。
+- 各routeの `loading.tsx` は、そのrouteのpage.tsxがdata取得前から確定して
+  持つ **stable / unconditionalなchrome** を先に置きます（pendingの間だけ
+  chromeが消えて、commit時に押し戻される layout shiftを避けるため）。
+  対象は `PageHeading` に限らず、page.tsxが無条件に描く `BackLink` 等も
+  含みます（Issue #355）。
+  - 判別基準は「そのcomponentがpage内に存在するか」ではなく、「pending
+    開始前 - どのdata read / permission checkの結果より前 - から確定して
+    いるか」です。同じcomponentでも、data / permission依存のsuccess
+    branchにしか出ない場合はfallbackで捏造しません（例:
+    `catalog/events/[eventId]/edit/page.tsx` は `BackLink` を無条件に
+    描く一方、`PageHeading` はevent読み込み + 権限確認が成立した
+    success branchにしか存在しません）。
+  - route ごとの現在の分類（stable chromeの有無・内訳）は
+    `src/app/__tests__/loadingChromeContract.ts` のallowlistを正本とし、
+    ここでは重複して列挙しません。
+  - stable chromeがBackLinkのように動的なhref（選択中の月/日、event id、
+    entry id等）を持つ場合、loading.tsxはpage.tsxと同じ意味・同じ
+    destinationを維持します。label / destinationを別のnavigationへ
+    差し替えることは、layout shiftを防ぐ範囲を超えたnavigation
+    semanticsの変更であり、避けます（PR #363 review）。
+  - Next.jsはloading.tsxへ`params`/`searchParams`をpropsとして渡しません
+    が、`next/navigation`の`useParams()`/`useSearchParams()`はApp
+    Routerが提供するcontextから解決するため、loading.tsxを Client
+    Component にすれば同じ値を読めます。これはNext.jsの全routeに対する
+    一般ruleではなく、**現行の対象route（本アプリのGate A routeは全て
+    dynamic rendering - `next build`の出力で `ƒ` と表示される、request
+    ごとにserver-renderされるroute）で成立する技法**です。dynamic
+    renderingでは、requestごとの実際のsearch paramsがserver側で既に
+    確定しているため、useSearchParams()は初回のserver-rendered pass
+    でも正しく解決します。static renderingのroute（build時に事前生成
+    される`○`route）でuseSearchParams()を使うcomponentは扱いが異なり
+    （CSR-onlyへbail outする等）、この技法をそのまま適用できません。
+    stable chromeが動的contextに依存するdynamic routeでは、この hook
+    を使ってpage.tsx側と同じ関数呼び出しで同じhrefを再現します（例:
+    `src/app/catalog/events/[eventId]/edit/loading.tsx`）。static
+    routeが同様の要件を持つ場合は、その時点で改めて検討します。
+  - この手法はrouteごとに個別のhookを呼ぶだけの局所的な対応であり、
+    generic route control-flow analyzerやloading DSLの新設ではありません。
 - 遷移中もAppBarとPrimaryNavは画面に残ります。navやアバターのtap中は
   iconをspinnerに差し替え、行の高さを増やしません。
 - calendarのmonth navigationのpending中は、tapしたcontrol自身だけが

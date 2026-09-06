@@ -3,13 +3,16 @@ import { test } from 'node:test';
 import {
   catalogDayHref,
   catalogEventHref,
+  catalogEventHrefWithoutContext,
   catalogMonthHref,
+  explicitCatalogParams,
   nextYearMonth,
   occurrenceAnchorId,
   occurrenceEventDetailHref,
   previousYearMonth,
   resolveCatalogParams,
   resolveFocusedOccurrenceId,
+  searchParamsToRecord,
 } from '../catalogNavigation.ts';
 
 const TODAY = '2026-08-21';
@@ -65,6 +68,87 @@ void test('resolveCatalogParams: an array-valued query param uses its first entr
     yearMonth: '2026-12',
     selectedDate: null,
   });
+});
+
+void test('searchParamsToRecord: a single-valued key becomes a plain string, matching a bare query param', () => {
+  assert.deepEqual(searchParamsToRecord(new URLSearchParams('month=2026-12&date=2026-12-05')), {
+    month: '2026-12',
+    date: '2026-12-05',
+  });
+});
+
+void test('searchParamsToRecord: a repeated key becomes an array, matching Next.js searchParams for a repeated param', () => {
+  assert.deepEqual(searchParamsToRecord(new URLSearchParams('month=2026-12&month=2027-01')), {
+    month: ['2026-12', '2027-01'],
+  });
+});
+
+void test('searchParamsToRecord: an empty URLSearchParams becomes an empty record', () => {
+  assert.deepEqual(searchParamsToRecord(new URLSearchParams()), {});
+});
+
+void test('searchParamsToRecord output feeds resolveCatalogParams unchanged, the same as a plain Next.js searchParams prop', () => {
+  const record = searchParamsToRecord(new URLSearchParams('date=2026-08-10'));
+  assert.deepEqual(resolveCatalogParams(record, TODAY), {
+    yearMonth: '2026-08',
+    selectedDate: '2026-08-10',
+  });
+});
+
+void test('explicitCatalogParams: no params resolves to null, not a guessed "today" (Issue #355, PR #363 review)', () => {
+  // A caller (e.g. a Client Component loading.tsx) that must not resolve
+  // "today" itself gets null here and defers to the real destination's own
+  // server-side default instead - see this route's own loading.tsx.
+  assert.equal(explicitCatalogParams({}), null);
+});
+
+void test('explicitCatalogParams: malformed month/date also resolves to null, same as missing', () => {
+  assert.equal(explicitCatalogParams({ month: 'not-a-month', date: 'not-a-date' }), null);
+});
+
+void test('explicitCatalogParams: a valid month param resolves without needing a "today" seed', () => {
+  assert.deepEqual(explicitCatalogParams({ month: '2026-12' }), {
+    yearMonth: '2026-12',
+    selectedDate: null,
+  });
+});
+
+void test('explicitCatalogParams: a valid date param resolves the day and its month', () => {
+  assert.deepEqual(explicitCatalogParams({ date: '2026-08-10' }), {
+    yearMonth: '2026-08',
+    selectedDate: '2026-08-10',
+  });
+});
+
+void test('explicitCatalogParams: date always wins the displayed month over a disagreeing month param', () => {
+  assert.deepEqual(explicitCatalogParams({ month: '2026-08', date: '2026-09-05' }), {
+    yearMonth: '2026-09',
+    selectedDate: '2026-09-05',
+  });
+});
+
+void test('resolveCatalogParams and explicitCatalogParams agree on every explicit-context case, differing only on the "no context" default', () => {
+  const cases = [
+    {},
+    { month: '2026-12' },
+    { date: '2026-08-10' },
+    { month: '2026-08', date: '2026-09-05' },
+    { month: 'not-a-month', date: 'not-a-date' },
+    { month: '2026-13' },
+  ];
+  for (const params of cases) {
+    const explicit = explicitCatalogParams(params);
+    const resolved = resolveCatalogParams(params, TODAY);
+    if (explicit === null) {
+      assert.deepEqual(resolved, { yearMonth: TODAY.slice(0, 7), selectedDate: null });
+    } else {
+      assert.deepEqual(resolved, explicit);
+    }
+  }
+});
+
+void test('catalogEventHrefWithoutContext: the event detail page with no query string at all', () => {
+  assert.equal(catalogEventHrefWithoutContext('event-1'), '/catalog/events/event-1');
 });
 
 void test('nextYearMonth / previousYearMonth: wrap across a year boundary', () => {
