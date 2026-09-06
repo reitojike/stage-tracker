@@ -13,7 +13,7 @@
  * children (PageHeading, .editLink) set their own explicit font-size.
  */
 .titleRow {
-  composes: heading from '../../mypage/_components/sectionHeading.module.css';
+  composes: heading from '../../../ui/sectionHeading.module.css';
   composes: row from '../../../ui/row.module.css';
   align-items: baseline;
 }
@@ -83,7 +83,7 @@
  * regular weight so it reads as a lighter annotation, not a second heading.
  */
 .occurrenceHeading {
-  composes: heading from '../../mypage/_components/sectionHeading.module.css';
+  composes: heading from '../../../ui/sectionHeading.module.css';
   composes: row from '../../../ui/row.module.css';
   align-items: baseline;
 }

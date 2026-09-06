@@ -22,8 +22,10 @@
 
 .titleRow {
   composes: row from '../../../ui/row.module.css';
-  border-bottom: 2px solid var(--color-text);
-  padding-bottom: var(--space-card-block);
+  /* `.title` and `.titleAction` below both set their own explicit
+     font-size/weight, so the composed heading's typography is harmless
+     here (same pattern EventDetail's `.titleRow` already established). */
+  composes: heading from '../../../ui/sectionHeading.module.css';
 }
 
 .sectionHeadingRow {
@@ -143,12 +145,9 @@
 }
 
 .dangerHeading {
-  margin: 0;
-  border-bottom: 2px solid var(--color-danger);
-  padding-bottom: var(--space-card-block);
+  composes: heading from '../../../ui/sectionHeading.module.css';
+  border-color: var(--color-danger);
   color: var(--color-danger);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
 }
 
 .dangerDescription {

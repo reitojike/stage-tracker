@@ -1,7 +1,9 @@
 .heading {
-  margin: 0;
-  padding-bottom: var(--space-card-block);
-  border-bottom: 2px solid var(--color-text);
+  /* Border/spacing only, not the shared file's `heading` typography: this
+     is a page-level heading (`--font-size-heading`, docs/ux-ui.md's
+     typography table), not the section-heading `title` role the shared
+     class's typography is for. */
+  composes: rule from '../../../ui/sectionHeading.module.css';
   color: var(--color-text);
   font-size: var(--font-size-heading);
   font-weight: var(--font-weight-semibold);

@@ -31,11 +31,17 @@
 
 .sectionHeading {
   composes: row from '../../../ui/row.module.css';
+  /* Only the border/spacing contract, not the typography: `.sectionAction`
+     can render plain text (EventCreateForm's `action="任意"`) with no
+     font-weight override of its own, so composing the shared `heading`
+     class here would bold it. `.sectionHeadingTitle` below sets its own
+     explicit font-size regardless, so that half is unaffected either way. */
+  composes: rule from '../../../ui/sectionHeading.module.css';
 }
 
-.writeSection:not(.subtleSection) .sectionHeading {
-  padding-bottom: var(--space-md);
-  border-bottom: 2px solid var(--color-text);
+.subtleSection .sectionHeading {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .sectionRule {

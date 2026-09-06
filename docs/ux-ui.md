@@ -179,6 +179,12 @@ heading として、直下の本文より小さくならない階層を保ちま
   破壊的操作のsection headingだけは `--color-danger` の2px 太罫を使います
   （「破壊的操作の置き場所」参照）。
 
+- **section heading本文から2px太罫までの `padding-bottom` は
+  `--space-card-block`（14px）です。** 太罫見出しの実装は
+  `src/ui/sectionHeading.module.css` に一本化し、値もここでのみ持ちます
+  （Issue #309）。個別画面が別の値（一覧行相当の `--space-compact` 等）を
+  自前で書くことはしません。
+
 - 縦の間隔はspacing tokenのscale（`--space-2xs` / `--space-xs` /
   `--space-sm` / `--space-compact` / `--space-card-block` / `--space-md` /
   `--space-section` / `--space-lg` / `--space-xl`）から選び、任意の数値を

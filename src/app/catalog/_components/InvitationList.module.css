@@ -8,7 +8,7 @@
  * font-size.
  */
 .headingRow {
-  composes: heading from '../../mypage/_components/sectionHeading.module.css';
+  composes: heading from '../../../ui/sectionHeading.module.css';
   composes: row from '../../../ui/row.module.css';
   align-items: baseline;
 }
