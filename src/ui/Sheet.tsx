@@ -12,8 +12,13 @@ export interface SheetProps {
   /** Optional class added to the scrollable body while Sheet retains the
    * shared body/frame behavior. */
   bodyClassName?: string;
-  /** Optional content rendered after the scrollable body, outside its scroll
-   * region so a caller can keep a footer reachable on short viewports. */
+  /** Optional action content rendered after the scrollable body, outside its
+   * scroll region so a caller can keep a footer reachable on short viewports.
+   *
+   * Pass the actions themselves, not a pre-wrapped row: Sheet owns the footer
+   * bar's own presentation (placement, padding, top rule, alignment) as part
+   * of owning this slot's position. Callers keep the content semantics -
+   * which actions, what they submit - and any per-action sizing. */
   footer?: ReactNode;
   /** Whether the default quiet header close action is rendered. */
   showCloseButton?: boolean;
@@ -31,6 +36,8 @@ export interface SheetProps {
  * `children` owns everything in the scrollable body below the header. An
  * optional `footer` is rendered outside that scroll region so callers can
  * provide a reachable action row without taking over the dialog lifecycle.
+ * Sheet owns that action row's presentation too (Issue #318) - callers pass
+ * the actions, not a footer bar of their own.
  *
  * This component has no notion of choices, forms, or save/confirm semantics
  * of its own.
@@ -105,7 +112,7 @@ export function Sheet({
           ) : null}
         </div>
         <div className={[styles.body, bodyClassName].filter(Boolean).join(' ')}>{children}</div>
-        {footer}
+        {footer == null ? null : <div className={styles.footer}>{footer}</div>}
       </div>
     </dialog>
   );

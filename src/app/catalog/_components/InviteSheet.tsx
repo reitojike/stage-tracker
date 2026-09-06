@@ -64,22 +64,20 @@ export function InviteSheet({
       title="招待する"
       showCloseButton={false}
       footer={
-        <div className={styles.footer}>
-          <Button
-            type="submit"
-            form={formId}
-            variant="primary"
-            disabled={isPending}
-            aria-label={isPending ? '招待を送信中…' : '招待する'}
-          >
-            <span className={styles.stablePendingLabel}>
-              <span aria-hidden="true" className={styles.stablePendingSizing}>
-                招待する
-              </span>
-              <span>{isPending ? '送信中…' : '招待する'}</span>
+        <Button
+          type="submit"
+          form={formId}
+          variant="primary"
+          disabled={isPending}
+          aria-label={isPending ? '招待を送信中…' : '招待する'}
+        >
+          <span className={styles.stablePendingLabel}>
+            <span aria-hidden="true" className={styles.stablePendingSizing}>
+              招待する
             </span>
-          </Button>
-        </div>
+            <span>{isPending ? '送信中…' : '招待する'}</span>
+          </span>
+        </Button>
       }
     >
       <WriteNotice notice={state.notice} attempt={state.attempt} />

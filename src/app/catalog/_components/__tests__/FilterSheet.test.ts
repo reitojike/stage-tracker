@@ -38,11 +38,17 @@ void test('Filter-specific body and footer are passed as Sheet slots, keeping fo
   assert.ok(sheetProps, 'FilterSheet is missing its shared Sheet composition');
   assert.match(sheetProps[1] ?? '', /bodyClassName=\{styles\.body\}/);
   assert.match(sheetProps[1] ?? '', /footer=\{/);
-  assert.match(component, /<div className=\{styles\.footer\}>/);
+  // FilterSheet's own footer meaning: two actions share the one slot. The
+  // bar around them (padding, top rule, alignment) is Sheet's since Issue
+  // #318 and is checked once in src/ui/__tests__/Sheet.test.ts, not here.
+  const footerSlot = component.match(/footer=\{([\s\S]*?)\n      \}/);
+  assert.ok(footerSlot, 'FilterSheet is missing its footer slot content');
+  assert.match(footerSlot[1] ?? '', /className=\{styles\.clearButton\}/);
+  assert.match(footerSlot[1] ?? '', /className=\{styles\.confirmButton\}/);
 });
 
 void test('FilterSheet no longer carries a duplicate shared dialog/frame CSS surface', () => {
-  assert.doesNotMatch(css, /(?:^|\n)\.(dialog|sheet|title)\s*\{/);
+  assert.doesNotMatch(css, /(?:^|\n)\.(dialog|sheet|title|footer)\s*\{/);
 });
 
 void test('the genre/facet dispatch (secondaryOptionsForFacet vs knownSecondaryValuesByGenre) shares one source: activeSecondaryFacet', () => {
@@ -252,9 +258,12 @@ void test('more than 10 known genres falls back to a bounded <select>, not an un
 });
 
 void test('the footer holds both a quiet draft-only clear action and the primary confirm action, sharing the row', () => {
-  const footerRule = css.match(/(?:^|\n)\.footer\s*\{([^}]*)\}/);
-  assert.ok(footerRule, '.footer rule is missing from FilterSheet.module.css');
-  assert.match(footerRule[1] ?? '', /display:\s*flex\s*;/);
+  // The row itself is Sheet's footer bar (Issue #318). What is FilterSheet's
+  // own is how its two actions divide that row: clear keeps its intrinsic
+  // width, confirm takes the rest.
+  const clearButtonRule = css.match(/(?:^|\n)\.clearButton\s*\{([^}]*)\}/);
+  assert.ok(clearButtonRule, '.clearButton rule is missing from FilterSheet.module.css');
+  assert.match(clearButtonRule[1] ?? '', /flex:\s*0 0 auto\s*;/);
   const confirmButtonRule = css.match(/(?:^|\n)\.confirmButton\s*\{([^}]*)\}/);
   assert.ok(confirmButtonRule, '.confirmButton rule is missing from FilterSheet.module.css');
   assert.match(confirmButtonRule[1] ?? '', /flex:\s*1 1 auto\s*;/);
