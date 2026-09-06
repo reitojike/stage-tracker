@@ -52,11 +52,24 @@ void test('renders the shared header while allowing FilterSheet to keep its foot
 
 void test('renders the optional footer outside the scrollable body', () => {
   const bodyAndFooter = component.match(
-    /<div className=\{\[styles\.body, bodyClassName\][\s\S]*?<\/div>\s*\{footer == null \? null : <div className=\{styles\.footer\}>\{footer\}<\/div>\}/,
+    /<div className=\{\[styles\.body, bodyClassName\][\s\S]*?<\/div>\s*\{hasFooter \? <div className=\{styles\.footer\}>\{footer\}<\/div> : null\}/,
   );
   assert.ok(bodyAndFooter, 'footer must follow the body instead of being nested in it');
   assert.match(component, /bodyClassName\?: string/);
   assert.match(component, /footer\?: ReactNode/);
+});
+
+// A falsy-but-legal ReactNode (a caller writing `footer={canSubmit && ...}`)
+// rendered nothing while this slot was raw. Now that Sheet supplies the bar,
+// the same value must still render nothing rather than an empty padded strip
+// with a top rule (review finding, Issue #318).
+void test('does not raise a footer bar for a ReactNode React itself renders nothing for', () => {
+  const guard = component.match(/const hasFooter =([\s\S]*?);/);
+  assert.ok(guard, 'Sheet is missing its footer-content guard');
+  assert.match(guard[1] ?? '', /footer !== null/);
+  assert.match(guard[1] ?? '', /footer !== undefined/);
+  assert.match(guard[1] ?? '', /typeof footer !== 'boolean'/);
+  assert.match(guard[1] ?? '', /footer !== ''/);
 });
 
 void test('does not retain the removed dead close-button class API', () => {

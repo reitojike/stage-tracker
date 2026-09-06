@@ -53,6 +53,12 @@ export function Sheet({
 }: SheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  // React renders nothing for null/undefined/booleans/'', so neither can the bar
+  // around them: a caller writing `footer={canSubmit && <Button />}` got no
+  // footer at all while this slot was rendered raw, and must not now get an
+  // empty one with padding and a top rule (review finding, Issue #318).
+  const hasFooter =
+    footer !== null && footer !== undefined && typeof footer !== 'boolean' && footer !== '';
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -112,7 +118,7 @@ export function Sheet({
           ) : null}
         </div>
         <div className={[styles.body, bodyClassName].filter(Boolean).join(' ')}>{children}</div>
-        {footer == null ? null : <div className={styles.footer}>{footer}</div>}
+        {hasFooter ? <div className={styles.footer}>{footer}</div> : null}
       </div>
     </dialog>
   );
