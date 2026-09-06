@@ -11,9 +11,7 @@ export function WriteNotice({ notice, attempt }: WriteNoticeProps) {
     <div
       role="status"
       aria-live="polite"
-      className={[styles.noticeRegion, notice === null ? styles.noticeRegionEmpty : undefined]
-        .filter(Boolean)
-        .join(' ')}
+      className={notice === null ? styles.noticeRegionEmpty : undefined}
     >
       {notice !== null ? (
         <p key={attempt} className={styles.notice}>

@@ -192,11 +192,16 @@ void test('the official source link capability is preserved (never silently drop
   assert.match(rowSource, />\s*公式情報\s*</);
 });
 
-// --- Issue #227: chevron semantic token convergence ---
+// --- Issue #227/#360: chevron authority convergence ---
 
-void test('the trailing chevron consumes the shared semantic icon-affordance token, never the raw neutral primitive directly', () => {
-  assert.match(rowCss, /\.chevron\s*\{[\s\S]*?color:\s*var\(--color-icon-affordance\);/);
+void test('the trailing chevron composes the shared list-row chevron role rather than restating its aside/color authority', () => {
+  assert.match(
+    rowCss,
+    /\.chevron\s*\{[\s\S]*?composes:\s*chevron from '\.\.\/\.\.\/\.\.\/ui\/listRow\.module\.css';/,
+  );
   assert.doesNotMatch(rowCss, /\.chevron\s*\{[\s\S]*?color:\s*var\(--color-neutral-500\);/);
+  assert.doesNotMatch(rowCss, /\.chevron\s*\{[\s\S]*?color:\s*var\(--color-icon-affordance\);/);
+  assert.doesNotMatch(rowCss, /\.chevron\s*\{[\s\S]*?font-size:\s*var\(--font-size-title\);/);
 });
 
 void test('the state controls cover every required transition, including applied -> planned', () => {

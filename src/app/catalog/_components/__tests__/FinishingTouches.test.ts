@@ -204,13 +204,22 @@ void test('requested sign-in acknowledgement is page-local and keeps its copy', 
     'リクエストを受け付けました。登録済みのメールアドレスで、メール送信が利用可能な場合はサインインリンクが届きます。届かない場合は時間をおいて再試行するか、管理者に連絡してください。';
 
   assert.doesNotMatch(page, /Surface/);
+  assert.doesNotMatch(page, /WriteNotice/);
   assert.match(page, new RegExp(copy));
+  // Issue #360: presentation aligned to docs/ux-ui.md's canonical
+  // write-feedback contract (subtle surface / --radius-control-sm /
+  // --font-size-body-sm), even though this stays page-local rather than
+  // reusing <WriteNotice> - see the comment on .requestAcknowledgement.
   assert.match(
     css,
-    /\.requestAcknowledgement\s*\{[\s\S]*?background:\s*var\(--color-surface-subtle\);/,
+    /\.requestAcknowledgement\s*\{[\s\S]*?background-color:\s*var\(--color-surface-subtle\);/,
   );
   assert.match(
     css,
-    /\.requestAcknowledgement\s*\{[\s\S]*?border-radius:\s*var\(--radius-control\);/,
+    /\.requestAcknowledgement\s*\{[\s\S]*?border-radius:\s*var\(--radius-control-sm\);/,
+  );
+  assert.match(
+    css,
+    /\.requestAcknowledgement\s*\{[\s\S]*?font-size:\s*var\(--font-size-body-sm\);/,
   );
 });
