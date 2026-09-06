@@ -28,8 +28,7 @@ import {
 void test('importsAndRendersComponent requires both the import and a JSX usage', () => {
   const importOnly =
     "import { PageHeading } from '@/ui/PageHeading';\nexport default function X() { return null; }\n";
-  const usageOnly =
-    'export default function X() { return <PageHeading>x</PageHeading>; }\n';
+  const usageOnly = 'export default function X() { return <PageHeading>x</PageHeading>; }\n';
   const both =
     "import { PageHeading } from '@/ui/PageHeading';\nexport default function X() { return <PageHeading>x</PageHeading>; }\n";
 
@@ -40,7 +39,7 @@ void test('importsAndRendersComponent requires both the import and a JSX usage',
 
 void test('importsAndRendersComponent does not match a different component name', () => {
   const source =
-    'import { BackLink } from \'@/ui/BackLink\';\n' +
+    "import { BackLink } from '@/ui/BackLink';\n" +
     'export default function X() { return <BackLink href="/">back</BackLink>; }\n';
 
   assert.equal(importsAndRendersComponent(source, 'PageHeading'), false);
@@ -52,7 +51,8 @@ void test('importsAndRendersComponent ignores a bare mention with no import', ()
   // without importing/rendering it must not pass - that is exactly the
   // "component present in text but not actually materialized" case this
   // guard exists to catch.
-  const source = '// PageHeading lives on the real page, not here.\nexport default function X() { return null; }\n';
+  const source =
+    '// PageHeading lives on the real page, not here.\nexport default function X() { return null; }\n';
 
   assert.equal(importsAndRendersComponent(source, 'PageHeading'), false);
 });

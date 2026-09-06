@@ -79,7 +79,11 @@ export interface LoadingChromeExpectation {
  *   branch, same as every other BackLink-classified route here.
  */
 export const LOADING_CHROME_ALLOWLIST: readonly LoadingChromeExpectation[] = [
-  { route: 'calendar', loadingPath: 'src/app/calendar/loading.tsx', expectedChrome: ['PageHeading'] },
+  {
+    route: 'calendar',
+    loadingPath: 'src/app/calendar/loading.tsx',
+    expectedChrome: ['PageHeading'],
+  },
   { route: 'catalog', loadingPath: 'src/app/catalog/loading.tsx', expectedChrome: ['PageHeading'] },
   { route: 'tickets', loadingPath: 'src/app/tickets/loading.tsx', expectedChrome: ['PageHeading'] },
   { route: '(home)', loadingPath: 'src/app/(home)/loading.tsx', expectedChrome: ['PageHeading'] },
