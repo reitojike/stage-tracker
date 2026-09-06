@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { classesDefinedIn, classesMentionedIn, composesRole, readCss } from './sharedRoleWiring.ts';
+import {
+  classesDefinedIn,
+  classesMentionedIn,
+  composesRole,
+  readCss,
+  splitSelectorList,
+  stripCssComments,
+} from './sharedRoleWiring.ts';
 
 /*
  * The shared month-calendar grid (Issue #314), asserted here once rather
@@ -14,46 +21,88 @@ import { classesDefinedIn, classesMentionedIn, composesRole, readCss } from './s
 const AUTHORITY = 'monthCalendarGrid.module.css';
 const shared = readCss('src/ui/monthCalendarGrid.module.css');
 
-void test('Issue #77: every hovered/pressed .day branch excludes .daySelected', () => {
-  // `.day:hover` (a class + a pseudo-class) is more specific than the
-  // single-class `.daySelected`, so an unscoped hover rule wins the cascade
-  // over the selected cell's own presentation whenever both match - which
-  // touch browsers make sticky after a tap, until a different cell is
-  // tapped.
-  //
-  // Checked branch by branch rather than by one anchored pattern: a valid
-  // rule elsewhere in the file must not be able to satisfy this while a
-  // reordered one (`.day:not(.other):hover`) slips past, and `:active`
-  // carries the same cascade conflict as `:hover`.
-  const branches = [...shared.replace(/\/\*[\s\S]*?\*\//g, ' ').matchAll(/([^{}]+)\{/g)]
-    .flatMap((match) => (match[1] ?? '').split(','))
-    .map((branch) => branch.trim())
-    .filter((branch) => branch !== '' && !branch.startsWith('@'));
-
+/**
+ * Selector branches that style a hovered or pressed `.day` without
+ * excluding `.daySelected`, plus the branches that do exclude it.
+ *
+ * `.day:hover` (a class + a pseudo-class) is more specific than the
+ * single-class `.daySelected`, so an unscoped hover rule wins the cascade
+ * over the selected cell's own presentation whenever both match - which
+ * touch browsers make sticky after a tap, until a different cell is tapped
+ * (Issue #77).
+ *
+ * Read branch by branch rather than with one anchored pattern: a valid rule
+ * elsewhere in the file must not be able to satisfy the guard while a
+ * reordered one slips past, and `:active` carries the same cascade conflict
+ * as `:hover`.
+ */
+const dayHoverBranches = (css: string): { unguarded: string[]; guarded: string[] } => {
+  const unguarded: string[] = [];
   const guarded: string[] = [];
-  for (const branch of branches) {
-    if (!/:hover|:active/.test(branch)) {
-      continue;
+
+  for (const rule of stripCssComments(css).matchAll(/([^{}]+)\{/g)) {
+    for (const branch of splitSelectorList(rule[1] ?? '')) {
+      if (branch.startsWith('@') || !/:hover|:active/.test(branch)) {
+        continue;
+      }
+      const classes = [...branch.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((match) => match[1]);
+      if (!classes.includes('day')) {
+        // `.daySelected:hover` is the selected cell's own rule, not a
+        // generic one competing with it.
+        continue;
+      }
+      (/:not\(\s*\.daySelected\s*\)/.test(branch) ? guarded : unguarded).push(branch);
     }
-    const classes = [...branch.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((match) => match[1]);
-    if (!classes.includes('day')) {
-      // `.daySelected:hover` is the selected cell's own rule, not a generic
-      // one competing with it.
-      continue;
-    }
-    assert.match(
-      branch,
-      /:not\(\s*\.daySelected\s*\)/,
-      `${branch} styles a hovered/pressed day without excluding .daySelected`,
-    );
-    guarded.push(branch);
   }
 
+  return { unguarded, guarded };
+};
+
+void test('Issue #77: every hovered/pressed .day branch excludes .daySelected', () => {
+  const { unguarded, guarded } = dayHoverBranches(shared);
+
+  assert.deepEqual(
+    unguarded,
+    [],
+    'these style a hovered/pressed day without excluding .daySelected',
+  );
   // The guard is only meaningful while the rules it guards exist.
   assert.ok(
     guarded.length >= 2,
     `expected hover and press rules, found ${JSON.stringify(guarded)}`,
   );
+});
+
+void test('the guard reads selector lists rather than splitting inside :is()/:not()', () => {
+  // A comma inside a selector function must not break a branch in two:
+  // neither half would carry both `.day` and `:hover`, so an unguarded
+  // selector would be skipped entirely (PR #342 review).
+  for (const selector of [
+    '.day:hover',
+    '.day:active',
+    '.day:not(.other):hover',
+    '.day:is(.past, .future):hover',
+    '.other:hover,\n.day:hover',
+  ]) {
+    assert.equal(
+      dayHoverBranches(`${selector} {\n  background-color: red;\n}\n`).unguarded.length,
+      1,
+      selector,
+    );
+  }
+
+  for (const selector of [
+    '.day:hover:not(.daySelected)',
+    '.day:is(.past, .future):hover:not(.daySelected)',
+    '.daySelected:hover',
+    '.daySelected:active',
+  ]) {
+    assert.deepEqual(
+      dayHoverBranches(`${selector} {\n  background-color: red;\n}\n`).unguarded,
+      [],
+      selector,
+    );
+  }
 });
 
 /*

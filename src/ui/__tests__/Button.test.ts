@@ -48,8 +48,9 @@ void test('Issue #270: the shared label span carries no nowrap policy of its own
 });
 
 void test('Issue #270 regression guard: tap target, fill heights and icon sizing are untouched', () => {
+  // The expand44 composition itself is wired in tapTarget.test.ts, beside
+  // the authority it belongs to, rather than asserted a second time here.
   const base = cssRule('.button');
-  assert.match(base, /composes:\s*expand44 from '\.\/tapTarget\.module\.css';/);
   assert.match(base, /min-height:\s*35px;/);
   assert.match(base, /touch-action:\s*manipulation;/);
 

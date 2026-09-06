@@ -60,12 +60,54 @@ export const classesMentionedIn = (css: string): ReadonlySet<string> =>
   );
 
 /**
+ * Splits a selector list on its top-level commas only, so a comma inside
+ * `:is(...)` / `:not(...)` / `[attr="a,b"]` stays part of its branch.
+ */
+export const splitSelectorList = (selector: string): string[] => {
+  const branches: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quote: string | null = null;
+
+  for (const char of selector) {
+    if (quote !== null) {
+      current += char;
+      if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '(' || char === '[') {
+      depth += 1;
+    } else if (char === ')' || char === ']') {
+      depth = Math.max(0, depth - 1);
+    } else if (char === ',' && depth === 0) {
+      branches.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  branches.push(current);
+
+  return branches.map((branch) => branch.trim()).filter((branch) => branch !== '');
+};
+
+/**
  * Whether `.className` composes `role` from the module whose file name is
  * `authorityFileName`.
  *
- * Anchored on the class's own rule body, so a composition elsewhere in the
- * file cannot stand in for a missing one here, and a commented-out
- * `composes:` cannot satisfy it.
+ * Anchored three ways, because each is a way a composition has been or
+ * could be lost while the stylesheet still reads plausibly:
+ *
+ * - on the class's own rule body, so a composition elsewhere in the file
+ *   cannot stand in for a missing one here;
+ * - on comment-stripped text, so a commented-out `composes:` does not count;
+ * - on a declaration boundary, so `--composes: band from '...'` - a valid
+ *   custom property that composes nothing - is not mistaken for the real
+ *   declaration (PR #342 review).
  */
 export const composesRole = (
   css: string,
@@ -78,9 +120,8 @@ export const composesRole = (
     return false;
   }
   const pattern = new RegExp(
-    `composes:\\s*[^;]*\\b${escapeForRegExp(role)}\\b[^;]*from\\s+['"][^'"]*${escapeForRegExp(
-      authorityFileName,
-    )}['"]`,
+    `(?:^|;)\\s*composes\\s*:\\s*[^;]*\\b${escapeForRegExp(role)}\\b[^;]*from\\s+['"][^'"]*` +
+      `${escapeForRegExp(authorityFileName)}['"]`,
   );
   return pattern.test(body);
 };

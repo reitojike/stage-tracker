@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { classesDefinedIn, classesMentionedIn, composesRole } from './sharedRoleWiring.ts';
+import {
+  classesDefinedIn,
+  classesMentionedIn,
+  composesRole,
+  splitSelectorList,
+} from './sharedRoleWiring.ts';
 
 /*
  * Issue #312. The wiring lists in each authority's own test are only worth
@@ -47,6 +52,21 @@ void test('a composition elsewhere in the file cannot stand in for a missing one
   assert.equal(composesRole(css, 'fixedSubmit', 'band', AUTHORITY), false);
 });
 
+void test('a custom property that merely looks like composes does not count', () => {
+  // `--composes: band from '...'` is a valid custom property that composes
+  // nothing at all, and leaves the stylesheet reading plausibly (PR #342
+  // review). Matching it would defeat the whole point of this check.
+  const css =
+    ".fixedSubmit {\n  --composes: band from '../../../ui/fixedSubmitBar.module.css';\n  z-index: 3;\n}\n";
+  assert.equal(composesRole(css, 'fixedSubmit', 'band', AUTHORITY), false);
+});
+
+void test('a composition that is not the first declaration still counts', () => {
+  const css =
+    ".fixedSubmit {\n  z-index: 3;\n  composes: band from '../../../ui/fixedSubmitBar.module.css';\n}\n";
+  assert.equal(composesRole(css, 'fixedSubmit', 'band', AUTHORITY), true);
+});
+
 void test('a commented-out composition does not count', () => {
   const css =
     ".fixedSubmit {\n  /* composes: band from '../../../ui/fixedSubmitBar.module.css'; */\n  z-index: 3;\n}\n";
@@ -68,4 +88,16 @@ void test('class extraction ignores prose and reads only real rules', () => {
   // stylesheet names, which is what an authority exports.
   assert.deepEqual(classesDefinedIn(css), ['real']);
   assert.deepEqual([...classesMentionedIn(css)].sort(), ['child', 'real']);
+});
+
+void test('selector lists split only at top-level commas', () => {
+  assert.deepEqual(splitSelectorList('.a, .b'), ['.a', '.b']);
+  assert.deepEqual(splitSelectorList('.day:is(.past, .future):hover'), [
+    '.day:is(.past, .future):hover',
+  ]);
+  assert.deepEqual(splitSelectorList('.a:not(.x, .y), .b[data-v="p,q"]'), [
+    '.a:not(.x, .y)',
+    '.b[data-v="p,q"]',
+  ]);
+  assert.deepEqual(splitSelectorList('  '), []);
 });
