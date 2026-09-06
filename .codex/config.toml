@@ -1,0 +1,3 @@
+# Validation-only override for reitojike/ai-dev-foundation#104.
+# This branch/PR must not be merged.
+project_doc_max_bytes = 0
