@@ -1,15 +1,11 @@
-import type { ReactNode } from "react";
-import { AppBar, type AppBarProps } from "./app-bar";
-import { PrimaryNav } from "./primary-nav";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { AppBar, type AppBarProps } from './app-bar';
+import { PrimaryNav } from './primary-nav';
+import { cn } from './lib/utils';
 
 export type AppShellProps = Pick<
   AppBarProps,
-  | "showActions"
-  | "hasUnreadNotifications"
-  | "onNotificationsPress"
-  | "myPageHref"
-  | "myPageInitial"
+  'showActions' | 'hasUnreadNotifications' | 'onNotificationsPress' | 'myPageHref' | 'myPageInitial'
 > & {
   children: ReactNode;
   /** Hides the bottom PrimaryNav on unauthenticated surfaces. Default `true`. */
@@ -42,7 +38,7 @@ export function AppShell({
   return (
     <div
       data-slot="app-shell"
-      className={cn("flex min-h-full flex-1 flex-col bg-background", className)}
+      className={cn('flex min-h-full flex-1 flex-col bg-background', className)}
     >
       <AppBar
         showActions={showActions}

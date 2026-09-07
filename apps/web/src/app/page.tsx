@@ -2,7 +2,7 @@
 
 import { useAction } from "next-safe-action/hooks";
 import { pingAction } from "@/app/_actions/ping";
-import { Button } from "@/components/ui/button";
+import { Button } from "@stage-tracker/ui";
 
 /**
  * env / Supabase client / next-safe-action の配線を実際に確認するための
@@ -25,7 +25,8 @@ export default function Home() {
       {result.data ? (
         <p className="text-sm text-muted-foreground">
           成功: userId={result.data.userId} / echo=
-          {result.data.echoedMessage}
+          {result.data.echoedMessage} / server date (Asia/Tokyo)=
+          {result.data.serverTokyoDate}
         </p>
       ) : null}
       {result.serverError ? (

@@ -1,12 +1,12 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Bell } from "lucide-react";
-import { Button } from "./button";
+import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { Bell } from 'lucide-react';
+import { Button } from './button';
 
 const meta: Meta<typeof Button> = {
-  title: "UI/Button",
+  title: 'UI/Button',
   component: Button,
   args: {
-    children: "ボタン",
+    children: 'ボタン',
   },
 };
 

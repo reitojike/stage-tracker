@@ -2,6 +2,17 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 /*
+ * `packages/ui` is a pnpm workspace package - it lives behind a
+ * `node_modules/@stage-tracker/ui` symlink from apps/web's point of view,
+ * which Tailwind v4's automatic content detection does not follow (verified
+ * both directions in docs/v2/decisions.md "packages/ui 抽出の実測結果").
+ * Without this explicit `@source`, none of packages/ui's Tailwind classes
+ * (state-panel.tsx, app-shell.tsx, app-bar.tsx, primary-nav.tsx,
+ * ui/badge.tsx, ui/button.tsx) would be scanned and their utility classes
+ * would be missing from the generated CSS.
+ */
+@source "../../../../packages/ui/src";
+/*
  ---break---
  */
 @custom-variant dark (&:is(.dark *));

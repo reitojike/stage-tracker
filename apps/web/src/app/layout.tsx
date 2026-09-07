@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { cn } from "@/lib/utils";
+import { cn } from "cn";
 
 export const metadata: Metadata = {
   title: "stage-tracker",

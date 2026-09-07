@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { Bell } from 'lucide-react';
+import { cn } from './lib/utils';
 
 export type AppBarProps = {
   /**
@@ -43,30 +43,27 @@ export function AppBar({
   myPageInitial,
   className,
 }: AppBarProps) {
-  const notificationsEnabled =
-    showActions && typeof onNotificationsPress === "function";
+  const notificationsEnabled = showActions && typeof onNotificationsPress === 'function';
 
   return (
     <header
       data-slot="app-bar"
       className={cn(
-        "flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-md",
+        'flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-md',
         className,
       )}
     >
       {showActions ? (
         <button
           type="button"
-          aria-label={
-            hasUnreadNotifications ? "お知らせ（未読あり）" : "お知らせ"
-          }
+          aria-label={hasUnreadNotifications ? 'お知らせ（未読あり）' : 'お知らせ'}
           aria-disabled={notificationsEnabled ? undefined : true}
           onClick={notificationsEnabled ? onNotificationsPress : undefined}
           className={cn(
-            "relative inline-flex size-10 items-center justify-center rounded-control-sm text-foreground",
+            'relative inline-flex size-10 items-center justify-center rounded-control-sm text-foreground',
             notificationsEnabled
-              ? "hover:bg-muted active:bg-surface-active"
-              : "cursor-not-allowed opacity-(--opacity-disabled)",
+              ? 'hover:bg-muted active:bg-surface-active'
+              : 'cursor-not-allowed opacity-(--opacity-disabled)',
           )}
         >
           <Bell aria-hidden className="size-5" />
@@ -81,9 +78,7 @@ export function AppBar({
         <span aria-hidden className="size-10" />
       )}
 
-      <span className="text-label font-semibold tracking-wide text-foreground">
-        stage-tracker
-      </span>
+      <span className="text-label font-semibold tracking-wide text-foreground">stage-tracker</span>
 
       {showActions ? (
         <Link

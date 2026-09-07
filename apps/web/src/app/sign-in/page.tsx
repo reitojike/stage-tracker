@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@stage-tracker/ui";
 import { requestSignInLink } from "./actions";
 
 interface SignInPageProps {

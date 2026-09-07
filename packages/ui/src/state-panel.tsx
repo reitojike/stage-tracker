@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { cn } from './lib/utils';
 
 /**
  * The 3 states a read/render decision can be in. There is no 4th "unknown"
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * rendered as "0 results" (`empty`). decisions.md keeps this as one of the
  * explicitly-carried-forward invariants for v2.
  */
-export const STATE_PANEL_VARIANTS = ["empty", "error", "unavailable"] as const;
+export const STATE_PANEL_VARIANTS = ['empty', 'error', 'unavailable'] as const;
 
 export type StatePanelVariant = (typeof STATE_PANEL_VARIANTS)[number];
 
@@ -45,29 +45,19 @@ export type StatePanelProps = {
  * is exactly what must not happen for `unavailable` (RLS-denied) or `error`
  * (a real fetch failure).
  */
-export function StatePanel({
-  variant,
-  title,
-  description,
-  action,
-  className,
-}: StatePanelProps) {
+export function StatePanel({ variant, title, description, action, className }: StatePanelProps) {
   return (
     <div
       data-slot="state-panel"
       data-variant={variant}
-      role={variant === "error" ? "alert" : undefined}
+      role={variant === 'error' ? 'alert' : undefined}
       className={cn(
-        "flex flex-col items-start gap-sm rounded-control border border-border bg-card p-md text-body-sm text-foreground",
+        'flex flex-col items-start gap-sm rounded-control border border-border bg-card p-md text-body-sm text-foreground',
         className,
       )}
     >
-      <p className="text-title leading-title font-medium text-foreground">
-        {title}
-      </p>
-      {description ? (
-        <p className="text-body-sm text-muted-foreground">{description}</p>
-      ) : null}
+      <p className="text-title leading-title font-medium text-foreground">{title}</p>
+      {description ? <p className="text-body-sm text-muted-foreground">{description}</p> : null}
       {action ? <div>{action}</div> : null}
     </div>
   );
