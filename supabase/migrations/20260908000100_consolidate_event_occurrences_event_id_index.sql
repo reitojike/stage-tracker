@@ -52,4 +52,41 @@
 -- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
 -- fence: no application code depends on this index's absence or presence.
 -- No ordering dependency on any other migration in this PR.
-drop index concurrently public.event_occurrences_event_id_idx;
+--
+-- === REPLAY SAFETY (review finding on PR #378, round 2) ===
+--
+-- `drop index concurrently` cannot run inside a transaction block (see
+-- above), so - unlike every other migration in this repository, which
+-- commits its DDL and its `supabase_migrations.schema_migrations` version
+-- row together as one atomic transaction - this statement's completion and
+-- this migration's version-history record are not atomic with each other.
+-- If the connection drops or the CLI process is killed after the index
+-- drop completes but before the version row is written, the index is
+-- already gone, but this migration is still recorded as not applied. The
+-- next `supabase db push` / `migration up` would then replay this file and
+-- try to drop an index that no longer exists, failing with `42704 index
+-- ... does not exist` and blocking every migration after it from applying.
+--
+-- `if exists` makes that replay a no-op success instead of a hard failure:
+-- once the target state (no such index) is reached - whether by this
+-- statement or by an earlier, uncommitted-in-history run of it - a replay
+-- can still record the migration as applied and let `db push` proceed to
+-- later migrations, instead of getting stuck re-attempting a drop that has
+-- already happened.
+--
+-- The rest of this migration set (supabase/migrations/20260908000000
+-- through 20260908000025) was also audited for this same non-atomic-with-
+-- history gap. None of the ADD CONSTRAINT / VALIDATE CONSTRAINT / DROP
+-- CONSTRAINT / RENAME CONSTRAINT statements there use CONCURRENTLY or any
+-- other construct that Postgres refuses to run inside a transaction block,
+-- so the Supabase CLI applies each of those files' statements and their
+-- version-history row together as one ordinary atomic transaction: either
+-- the whole file's DDL and its history row commit together, or a failure
+-- rolls back the whole file and nothing is recorded - there is no
+-- in-between state for a replay to land in. This DROP INDEX CONCURRENTLY
+-- is the only statement in this migration set with the gap `if exists`
+-- closes here. A repository-wide grep for other CONCURRENTLY / ADD VALUE /
+-- REINDEX / VACUUM / CREATE DATABASE statements (the other constructs
+-- Postgres refuses to run inside a transaction block) found no other match
+-- among this repository's migrations.
+drop index concurrently if exists public.event_occurrences_event_id_idx;

@@ -1,0 +1,79 @@
+-- v2 M4 (Issue #375, In Scope #1 / decisions.md P5). Step 3 of the
+-- expand/validate/swap pattern started in 20260908000000 - see that file
+-- for the full ON DELETE policy rationale and the production lock-safety
+-- analysis behind splitting steps 1 and 3 one file per table.
+--
+-- By this point the pending FK (added in 20260908000000) has already been
+-- validated against every existing row (20260908000010), so all that
+-- remains is a catalog-only swap: drop the old constraint (whose
+-- ON DELETE behavior we're replacing) and rename the now-validated pending
+-- constraint into its place, so the final constraint name matches what
+-- existed before this migration set (`events_owner_id_fkey`) - required so
+-- that nothing outside this migration set that might reference this name
+-- by text (e.g. `supabase:types:check` / pgTAP tests, see
+-- supabase/tests/*.sql and apps/legacy-web/scripts/check-supabase-types-
+-- drift.mjs) observes a name change.
+--
+-- === PRODUCTION LOCK SAFETY (review finding on PR #378, round 2) ===
+--
+-- Both DROP CONSTRAINT and RENAME CONSTRAINT take ACCESS EXCLUSIVE on the
+-- table, same as any FK add/drop, but neither scans table data (DROP just
+-- removes catalog rows and the associated RI triggers; RENAME CONSTRAINT
+-- is a pure system-catalog rename), so each pair is expected to hold
+-- ACCESS EXCLUSIVE only briefly - comparable to any ordinary fast DDL
+-- statement, not to the FK-validation scan this three-step split exists
+-- to avoid holding ACCESS EXCLUSIVE for.
+--
+-- Round 1 of this review combined all seven tables' drop+rename pairs into
+-- a single migration file (a single transaction), on the reasoning that
+-- each pair is independently fast. Round 2 found that reasoning
+-- insufficient: Postgres holds every lock a transaction has acquired until
+-- the *transaction* ends, not until the statement ends, so if a later
+-- table in that combined transaction was busy with a long-running
+-- production transaction, the ACCESS EXCLUSIVE lock already taken (and
+-- released back to "briefly held" in isolation) on an *earlier* table
+-- would in fact stay held for the entire wait on the later table - the
+-- same cross-table contagion problem step 1 has, just with a shorter
+-- per-statement duration.
+--
+-- Fix: step 3 is now one migration file per distinct table (this file
+-- covers events; 20260908000021..000025 cover the other five product
+-- tables - occurrence_invitations has two FKs but they share one
+-- file/transaction since both target the same table, so there is no
+-- second table whose lock could be held hostage). Each file is its own
+-- transaction, so no table's lock can ever be held hostage behind another
+-- table's contention.
+--
+-- `set local lock_timeout` bounds how long this statement will wait to
+-- acquire that ACCESS EXCLUSIVE lock before giving up. 5s (same value and
+-- rationale as 20260908000000): DROP CONSTRAINT / RENAME CONSTRAINT are
+-- catalog-only and normally instantaneous, so under normal conditions this
+-- lock is granted in milliseconds; a multi-second wait already means a
+-- real conflicting transaction is in progress.
+--
+-- If this statement fails with `55P03 lock not available`: a long-running
+-- transaction is currently holding a conflicting lock on public.events. No
+-- partial state is left behind - DROP CONSTRAINT and RENAME CONSTRAINT are
+-- both in the same transaction, so if the lock times out on either
+-- statement the whole transaction rolls back and neither change applies -
+-- so the operator can wait a short while and re-run `supabase db push` (or
+-- re-apply this file directly via psql); retrying is always safe. The
+-- events_owner_id_fkey_pending constraint from 20260908000000 stays in
+-- place (redundant but harmless) until this succeeds.
+--
+-- After 20260908000000..000025 have all been applied, the schema is
+-- byte-for-byte equivalent (same constraint names, same ON DELETE actions,
+-- same referenced table/column) to what a plain, single-transaction FK
+-- recreation would have produced - this multi-file split only changes
+-- *how* production gets there, not the end state.
+--
+-- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
+-- fence (same reasoning as the earlier steps). Depends on 20260908000010
+-- having already validated the pending constraint dropped and renamed
+-- here.
+set local lock_timeout = '5s';
+
+alter table public.events
+  drop constraint events_owner_id_fkey;
+alter table public.events
+  rename constraint events_owner_id_fkey_pending to events_owner_id_fkey;

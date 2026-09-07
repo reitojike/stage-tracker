@@ -1,7 +1,13 @@
--- v2 M4 (Issue #375, In Scope #1 / decisions.md P5). Step 2 of 3 of the
--- expand/validate pattern started in 20260908000000 - see that file for
--- the full ON DELETE policy rationale and the production lock-safety
--- analysis behind splitting this change across three migration files.
+-- v2 M4 (Issue #375, In Scope #1 / decisions.md P5). Step 2 of the
+-- expand/validate/swap pattern started in 20260908000000 - see that file
+-- for the full ON DELETE policy rationale. Step 1 (expand) is split one
+-- file per table (20260908000000..000005) and step 3 (swap) likewise
+-- (20260908000020..000025); see 20260908000000 for why those two steps
+-- needed a per-table split (review finding on PR #378, round 2: ACCESS
+-- EXCLUSIVE locks taken earlier in a transaction stay held while that same
+-- transaction waits on a later table's lock, so combining multiple tables'
+-- ACCESS EXCLUSIVE DDL in one transaction can stall unrelated tables for an
+-- unbounded time). This step does not need that split - see below.
 --
 -- === PRODUCTION LOCK SAFETY ===
 --
@@ -39,8 +45,8 @@
 -- to this file so it never coincides with an ACCESS EXCLUSIVE lock.
 --
 -- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
--- fence (same reasoning as 20260908000000). No dependency on any migration
--- other than 20260908000000 having already been applied (the `_pending`
+-- fence (same reasoning as 20260908000000). Depends only on
+-- 20260908000000..000005 having already been applied (the `_pending`
 -- constraints validated here must already exist).
 alter table public.events
   validate constraint events_owner_id_fkey_pending;

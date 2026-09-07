@@ -1,6 +1,7 @@
 -- oracle: docs/v2/oracle-database.md §7 point 2 and decisions.md "PO 判断:
 -- v2 の DB 方針" P5 (Issue #375 In Scope #1). Verifies the ON DELETE policy
--- migration (20260908000000_set_auth_users_fk_on_delete_policy.sql):
+-- expand/validate/swap migration set (supabase/migrations/20260908000000
+-- through 20260908000025):
 -- shared catalog data (events.owner_id) is kept - deleting its owner is
 -- refused while the Event still references them - and personal data
 -- (personal_schedule_entries / personal_schedule_shares / occurrence_
