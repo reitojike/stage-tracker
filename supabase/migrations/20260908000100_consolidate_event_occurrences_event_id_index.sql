@@ -18,4 +18,38 @@
 -- an event_id-only lookup, which the remaining composite index already
 -- covers. Legacy issues no queries that require this specific index to
 -- exist (nothing references it by name), so this is safe for legacy.
-drop index public.event_occurrences_event_id_idx;
+--
+-- === PRODUCTION LOCK SAFETY (review finding on PR #378) ===
+--
+-- This index is not the backing index for any constraint (that's
+-- event_occurrences_event_id_starts_at_key, untouched here), so it can be
+-- dropped on its own. A plain `drop index` still takes ACCESS EXCLUSIVE on
+-- event_occurrences for the statement's duration, which - unlike an FK
+-- validation scan - is normally fast for an index drop by itself, but it
+-- still queues behind, and blocks, any reads/writes already in flight or
+-- arriving while it waits for a lock slot, so a long-running query against
+-- event_occurrences (a table both legacy and v2 read from directly) could
+-- still make this stall visibly.
+--
+-- `drop index concurrently` avoids that: it never takes more than SHARE
+-- UPDATE EXCLUSIVE on the table, so ordinary reads/writes against
+-- event_occurrences are never blocked while it runs. The tradeoff is that
+-- CONCURRENTLY cannot run inside a transaction block.
+--
+-- Confirmed against the local Supabase CLI (v2.116.0): `drop index
+-- concurrently` applies successfully via both `supabase migration up` and
+-- `supabase db reset` even though this statement is not wrapped in an
+-- explicit BEGIN/COMMIT in this file - the CLI does not run this
+-- statement inside the same transaction as the rest of a migration file
+-- (verified by reproducing the same behavior with an unrelated
+-- CONCURRENTLY statement placed alongside other DDL in one file: the
+-- CONCURRENTLY statement's effect was already committed even when a later
+-- statement in the same file failed and the file as a whole was not
+-- recorded as applied). This statement is deliberately the only statement
+-- in this file regardless, so its success/failure maps to exactly one
+-- migration version with no partial-file-apply ambiguity.
+--
+-- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
+-- fence: no application code depends on this index's absence or presence.
+-- No ordering dependency on any other migration in this PR.
+drop index concurrently public.event_occurrences_event_id_idx;
