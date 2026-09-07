@@ -27,6 +27,7 @@
     "agent-rules:check": "cd apps/legacy-web && node ../../.ai-dev-foundation/quality/check-agent-rules-disabled.mjs",
     "test:rls": "node apps/legacy-web/scripts/run-rls-suite.mjs",
     "test:rls:guardrail-proof": "node --experimental-strip-types apps/legacy-web/test/rls/guardrail-proof.mjs",
+    "test:db": "supabase test db --local",
     "build:auth-app": "node --experimental-strip-types apps/legacy-web/scripts/build-app-for-auth-tests.mjs",
     "test:auth": "node --experimental-strip-types --test --test-concurrency=2 apps/legacy-web/test/auth/*.test.ts",
     "client-role-privileges:check": "node .ai-dev-foundation/quality/check-client-role-table-privileges.mjs",

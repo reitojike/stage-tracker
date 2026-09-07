@@ -7,52 +7,127 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * The semantic tokens below (background/foreground/primary/... as CSS
- * variables driving Tailwind v4's @theme) are a placeholder set generated
- * by shadcn/ui init and are expected to be replaced by the outcome of the
- * actual design token extraction work.
+ * Design tokens: stage-tracker's semantic tokens ported from the legacy
+ * primitive -> semantic CSS variables (apps/legacy-web/src/ui/tokens.css)
+ * onto Tailwind v4 `@theme`. Source of truth for the *values* and their
+ * product meaning: docs/v2/oracle-routes-ui.md §4 "Design token" and
+ * docs/v2/decisions.md (A2/A3/A4).
+ *
+ * Naming policy:
+ * - Where shadcn/ui's generated components (Button etc.) already reserve a
+ *   semantic variable name (--background/--primary/--border/--ring/
+ *   --destructive/...), that NAME is kept and only its VALUE is replaced,
+ *   mapped by MEANING (not by visual proximity) onto the matching legacy
+ *   token. See the per-variable comments below for the mapping rationale,
+ *   in particular the --primary/--accent naming collision explained there.
+ * - stage-tracker concepts with no shadcn slot (surface-active, band/
+ *   calendar/terminal roles, spacing/radius/typography scale, ...) are
+ *   added as new tokens under their legacy semantic name.
+ * - component / feature-local code must only ever reference the semantic
+ *   tokens below (either the shadcn-named ones or the added ones), never
+ *   the small primitive set - this is enforced structurally: primitives
+ *   live as plain `:root` custom properties outside `@theme`, so Tailwind
+ *   never turns them into utility classes (docs/v2/decisions.md A3 - the
+ *   legacy primitive-leak in monthCalendarGrid.module.css is not carried
+ *   forward).
+ *
+ * Dark mode: docs/ux-ui.md confirms dark mode is architecturally possible
+ * (semantic-token-only swap) but its UI was never implemented, and no
+ * theme toggle exists in this app. Per this task's instructions we do not
+ * invent dark values, so the shadcn-generated `.dark { ... }` value block
+ * has been removed rather than filled with guessed colors. The
+ * `@custom-variant dark (&:is(.dark *))` line above is kept so the
+ * architecture stays class-toggle-ready (matching docs/ux-ui.md): nothing
+ * currently applies a `.dark` class, so this is inert until a future task
+ * both designs real dark values and adds a toggle.
  */
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
+
+  /* ---- color: shadcn-reserved semantic slots (value replaced) ---- */
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* ---- color: stage-tracker-specific, no shadcn slot ---- */
+  --color-surface-active: var(--surface-active);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-icon-affordance: var(--icon-affordance);
+  --color-danger-on: var(--danger-on);
+  --color-terminal: var(--terminal);
+  --color-terminal-on: var(--terminal-on);
+  --color-band-fill: var(--band-fill);
+  --color-band-text: var(--band-text);
+  --color-band-outline: var(--band-outline);
+  --color-calendar-saturday: var(--calendar-saturday);
+  --color-calendar-sunday: var(--calendar-sunday);
+  --color-calendar-holiday: var(--calendar-holiday);
+
+  /* ---- radius: shadcn's t-shirt scale, base value repinned ---- */
+  /* stage-tracker はコントロールの角丸を一律 4px に収束させている
+   * (Design Wave 2 / Issue #185)。shadcn の比例スケールをそのまま使うと
+   * --radius-md が 3.2px になり、この設計事実を表現できない。比例スケールに
+   * 設計を合わせるのではなく、コントロール域 (sm/md/lg) を固定値へ倒す。 */
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ---- radius: stage-tracker role names, no shadcn slot ---- */
+  --radius-control: var(--radius);
+  --radius-control-sm: var(--radius-control);
+  --radius-badge: 2px;
+  --radius-band: var(--radius-badge);
+  --radius-pill: 999px;
+  --radius-sheet: var(--radius-control);
+
+  /* ---- spacing: legacy 4px-based scale (--space-* semantic names) ---- */
+  --spacing-2xs: 2px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-compact: 12px;
+  --spacing-card-block: 14px;
+  --spacing-md: 16px;
+  --spacing-section: 20px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* ---- typography: font size (legacy --font-size-* semantic names) ---- */
+  --text-caption: 11px;
+  --text-label: 12px;
+  --text-body-sm: 14px;
+  --text-body: 16px;
+  --text-title: 16px;
+  --text-heading: 20px;
+
+  /* ---- typography: line-height not already covered by Tailwind's
+     defaults (--leading-tight=1.25 and --leading-normal=1.5 already ship
+     as Tailwind v4 built-ins and match legacy --line-height-tight/-base
+     exactly, so they are intentionally not redeclared here - see the
+     report for this correspondence). ---- */
+  --leading-heading: 1.3;
+  --leading-title: 1.35;
 }
 /*
  ---break---
@@ -71,74 +146,201 @@
     ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN",
     "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Segoe UI", Meiryo, Roboto,
     "Helvetica Neue", Arial, "Noto Sans JP", sans-serif;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-/*
- ---break---
- */
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+
+  /*
+   * ---- primitive layer ----
+   * Deliberately trimmed to the handful of steps that still have an actual
+   * semantic consumer after the orphan pruning below (docs/v2/decisions.md
+   * A4). The legacy file carries a full neutral 0-900 / accent 50-900
+   * scale, but after Issue #137's "repin semantic tokens to literal
+   * values" refresh, only these steps are still referenced by a semantic
+   * token that this migration keeps. The full scale remains available at
+   * apps/legacy-web/src/ui/tokens.css if a future token needs another
+   * step.
+   */
+  --color-neutral-0: #ffffff; /* legacy --color-neutral-0 - backs surface/card/popover */
+  --color-neutral-500: #737b82; /* legacy --color-neutral-500 - backs icon-affordance */
+  --color-accent-700: #304472; /* legacy --color-accent-700 - backs primary-hover */
+  --color-accent-800: #253455; /* legacy --color-accent-800 - backs primary-active */
+
+  /*
+   * ---- semantic: shadcn-reserved slots, mapped onto legacy tokens by
+   * MEANING ----
+   * shadcn/ui's own components (Button etc.) read these variable names
+   * directly, so the names are kept; only the values are replaced.
+   */
+
+  /* legacy --color-canvas/--color-bg (#eef0f1): page background. */
+  --background: #eef0f1;
+  /* legacy --color-text (#1f2426): body text. */
+  --foreground: #1f2426;
+  /* legacy --color-surface (#ffffff): white card face. popover reuses the
+     same surface - legacy has no separate popover-specific tone. */
+  --card: var(--color-neutral-0);
+  --card-foreground: var(--foreground);
+  --popover: var(--color-neutral-0);
+  --popover-foreground: var(--foreground);
+  /*
+   * legacy --color-accent (#2f4a7a, 藍): primary operation color (Button
+   * primary, links, selected chip, focus ring). This is the token
+   * decisions.md A2 warns about (`--color-primary` was an undefined typo
+   * for --color-accent in the legacy file) - that bug is not carried
+   * forward: shadcn's *own* --primary slot is what now legitimately holds
+   * this value, under its own name, not as a stray reference to a
+   * non-existent --color-accent.
+   */
+  --primary: #2f4a7a;
+  /* legacy --color-accent-foreground (#ffffff): text/glyph on accent fill. */
+  --primary-foreground: var(--color-neutral-0);
+  /*
+   * shadcn's --secondary is a filled, lower-emphasis-than-primary role.
+   * Legacy has no dedicated "filled neutral button" tone (its own
+   * `secondary` Button variant is transparent + control-border, an
+   * implementation detail of Button.module.css, not a token) - the
+   * closest existing semantic fill for "a neutral surface one step off
+   * canvas" is --color-surface-subtle, already reused for several roles
+   * in the legacy file itself.
+   */
+  --secondary: #dfe4e7;
+  --secondary-foreground: var(--foreground);
+  /* legacy --color-surface-subtle (#dfe4e7): hover background generally,
+     and skeleton/notice static background. muted-foreground is legacy's
+     --color-text-secondary (secondary text / helper text / metadata). */
+  --muted: #dfe4e7;
+  --muted-foreground: #5c6467;
+  /*
+   * IMPORTANT naming collision: shadcn's --accent is NOT the same concept
+   * as legacy's --color-accent. In shadcn/ui, --accent/--accent-foreground
+   * back a neutral hover/highlight background (e.g. a menu item on
+   * hover) - it is unrelated to "brand/primary action color" despite the
+   * shared word "accent". Mapped BY MEANING, shadcn --accent corresponds
+   * to legacy's --color-surface-subtle (the hover-background role), the
+   * same value already used for --muted above. Legacy's actual "primary
+   * action color" meaning lives under shadcn's --primary (see above) -
+   * see also --primary-hover/--primary-active further down for the
+   * accent-hover/accent-active legacy roles, deliberately renamed to
+   * avoid reusing the now-repurposed word "accent".
+   */
+  --accent: #dfe4e7;
+  --accent-foreground: var(--foreground);
+  /*
+   * legacy --color-danger (#a13b2e): the one color role that means
+   * "irreversible operation" (also reused for calendar Sunday/holiday and
+   * an in-time deadline marker - see --calendar-* below). This is exactly
+   * shadcn's --destructive semantic meaning (irreversible/destructive
+   * action), so it is mapped by meaning, not by "both are reddish".
+   */
+  --destructive: #a13b2e;
+  /* legacy --color-border (#d7dcde): generic container/row divider - the
+     most frequently used border color. */
+  --border: #d7dcde;
+  /*
+   * legacy --color-control-border (#7f878b): form control boundary
+   * (input/button/badge outline), intentionally a separate, higher-
+   * contrast token from --border (WCAG 1.4.11 non-text 3:1). This is
+   * exactly shadcn's --input role (form control border).
+   */
+  --input: #7f878b;
+  /* legacy --color-focus-ring (= --color-accent): focus ring tracks the
+     primary color directly rather than a separate literal. */
+  --ring: var(--primary);
+
+  /*
+   * ---- semantic: stage-tracker-specific, no shadcn slot ----
+   * Real, currently-used legacy tokens with no shadcn/ui counterpart.
+   * Kept under their original legacy name (docs/v2/decisions.md A4:
+   * carry forward tokens with actual usage, not orphans - see the report
+   * for which tokens were pruned instead).
+   */
+
+  /* legacy --color-surface-active (#dde1e4): pressed-state background for
+     neutral/secondary controls, one step past --muted/--accent so a
+     pressed row never fades back into canvas. */
+  --surface-active: #dde1e4;
+  /* legacy --color-accent-hover/-active (accent-700/800): Button primary's
+     hover/press steps. Renamed from "accent-*" to "primary-*" to match
+     the --primary rename above and avoid colliding with shadcn's
+     differently-meaning --accent (see the comment on --accent above). */
+  --primary-hover: var(--color-accent-700);
+  --primary-active: var(--color-accent-800);
+  /* legacy --color-text-tertiary (#454b4e): Badge-only third text tier
+     (outline/subtle badge text). Not a general body-text color. */
+  --text-tertiary: #454b4e;
+  /* legacy --color-icon-affordance (neutral-500): non-text icon color
+     (e.g. listRow chevron). 4.30:1 clears the WCAG 3:1 non-text bar only -
+     must not be reused for readable text. */
+  --icon-affordance: var(--color-neutral-500);
+  /* legacy --color-danger-on (#f7f5f1): text on a solid --destructive
+     fill (Badge `deadline` only). shadcn's destructive Button variant
+     uses a tinted/ghost fill with --destructive as the text color itself,
+     so it has no equivalent "-foreground" slot to reuse here. */
+  --danger-on: #f7f5f1;
+  /* legacy --color-terminal/-on (#2b3033 / #eef0f1, 墨): the third color
+     role - a finished/no-longer-actionable state, distinct from
+     --destructive (still-in-time deadline) and --primary (actionable). */
+  --terminal: #2b3033;
+  --terminal-on: #eef0f1;
+  /* legacy --color-band-fill/-text/-outline: multi-day calendar Event-
+     range band (fill/text for blocking bands, outline for non-blocking
+     bands). Independent from --primary rather than an accent tint,
+     matching the legacy token's own dedicated value. */
+  --band-fill: #dbe2ee;
+  --band-text: #24365c;
+  --band-outline: #6a7d9e;
+  /* legacy --color-calendar-saturday/-sunday/-holiday: weekday/holiday
+     role colors. Saturday follows --primary (legacy: "follows
+     --color-accent itself"); Sunday/holiday follow --destructive (the
+     "period still open" / holiday role), always paired with a non-color
+     cue by the consuming component. */
+  --calendar-saturday: var(--primary);
+  --calendar-sunday: var(--destructive);
+  --calendar-holiday: var(--destructive);
+
+  /*
+   * ---- radius base ----
+   * legacy --radius-control/--radius-control-sm converged onto the same
+   * 4px step (Design Wave 2, Issue #185). Used as the shadcn --radius
+   * base, which in turn drives --radius-lg (shadcn Button's main corner)
+   * via the calc scale in @theme above. Note: shadcn's proportional scale
+   * (--radius-sm/md/xl/...) cannot represent "every control step is
+   * exactly 4px" the way legacy's flat set did - see the report for this
+   * known, small approximation (affects only Button's xs/sm sizes, which
+   * read var(--radius-md) - button.tsx itself is out of this task's
+   * scope).
+   */
+  --radius: 4px;
+
+  /*
+   * ---- accessibility: focus ring dimensions (docs/ux-ui.md
+   * "Accessibility baseline") ----
+   * Not a Tailwind theme namespace (ring width/offset utilities are plain
+   * literal classes in v4, not driven by a --ring-width theme scale), so
+   * these stay as plain reference variables for any future non-utility-
+   * driven focus-ring styling. Note the shadcn Button already in this
+   * repo hardcodes `ring-3` (3px) via its own utility classes rather than
+   * reading these variables - see the report for this pre-existing,
+   * out-of-scope drift from the 2px design value.
+   */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /*
+   * Common states (docs/ux-ui.md "Common states"): disabled control
+   * opacity, single semantic value authority. Tailwind v4 has no
+   * `--opacity-*` theme namespace (opacity utilities take a literal
+   * percentage directly), so this also stays a plain reference variable.
+   * Note shadcn Button hardcodes `disabled:opacity-50` directly rather
+   * than reading this token - see the report.
+   */
+  --opacity-disabled: 0.6;
+
+  /*
+   * Checkbox presentation value (Issue #358): visible box/glyph
+   * dimensions shared as a value only, not a component API - see
+   * apps/legacy-web/src/ui/tokens.css for the full rationale.
+   */
+  --size-checkbox-box: 18px;
+  --size-checkbox-glyph: 12px;
 }
 /*
  ---break---
