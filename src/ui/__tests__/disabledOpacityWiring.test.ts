@@ -40,19 +40,22 @@ void test('the docs-specified 5 disabled sites wire opacity to --opacity-disable
     const css = readCss(relativePath);
     const body = ruleBody(css, selector);
     assert.ok(body, `${relativePath}: selector "${selector}" is missing`);
-    assert.match(
-      body,
-      /opacity:\s*var\(--opacity-disabled\)\s*;/,
-      `${relativePath}: "${selector}" must reference var(--opacity-disabled)`,
-    );
+    // Every `opacity:` declaration in this rule must be the token reference -
+    // checking only that the token is *present* would still pass if a later
+    // `opacity: .6;` / `opacity: 60%;` override in the same rule silently
+    // wins the cascade (CodeRabbit finding, PR #369).
     const opacityDeclarations = [...body.matchAll(/opacity:\s*([^;]+);/g)].map((match) =>
-      match[1].trim(),
+      (match[1] ?? '').trim(),
     );
-    for (const value of opacityDeclarations) {
+    assert.ok(
+      opacityDeclarations.length > 0,
+      `${relativePath}: "${selector}" has no opacity declaration`,
+    );
+    for (const declaration of opacityDeclarations) {
       assert.equal(
-        value,
+        declaration,
         'var(--opacity-disabled)',
-        `${relativePath}: "${selector}" must not override opacity with a raw literal ("${value}")`,
+        `${relativePath}: "${selector}" must not declare opacity as anything but var(--opacity-disabled)`,
       );
     }
   }
