@@ -567,3 +567,53 @@ database.types.ts` の再生成、および `Invitation.declinedAt` /
 **product operation としての owner transfer を提供するという意味ではない。**
 product-rules.md の「owner transfer は product operation として提供しません」は維持する。
 v2 の実装で owner 変更の UI / API を作らないこと。
+
+---
+
+## `packages/ui` 抽出の実測結果（2026-09-08）
+
+「後で抽出できる」を推測で言わないため、使い捨て worktree で spike を実施した。
+**結論: 抽出は可能。必要なのは 2 点のみ。**
+
+### 検証結果
+
+| #   | 問い                                                      | 結果                                                         |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | Next は workspace package の TS ソースを transpile するか | **する**（ビルド成功、route 生成を確認）                     |
+| 2   | `"use client"` は package 越しに効くか                    | **効く**（client chunk 内に該当コードを確認）                |
+| 3   | Tailwind は package 内のクラスを走査するか                | **しない。`@source` の明示が必要**（両方向の対照実験で確定） |
+
+### 抽出時に必要なこと
+
+1. **`globals.css` に `@source "<package の src への相対パス>";` を追加する。**
+   workspace package は `node_modules` 経由の symlink になり Tailwind の自動検出から
+   除外される。対照実験（追加前 0 件 -> 追加後 出力 -> 除去後 0 件）で確定済み
+2. **`react` / `react-dom` は `peerDependencies` のみで宣言する。**
+   `dependencies` / `devDependencies` に入れると `react-dom` のリンクが切れる
+   （実体は `react-dom@19.2.8(react@19.2.8)` だが、リンクは修飾なしを指す）。
+   これは `packages/domain` の eslint が exit 127 になったのと**同じクラスの問題**で、
+   React の場合は二重ロードで hooks が壊れるため深刻度が高い。
+   型（`@types/react` 等）は peer を持たないので devDependencies で問題ない
+
+### 未検証の点
+
+- **package 内で component テストを実行できるか。** peer のみの構成では `react-dom` の
+  実体が無いため動かない見込み。root へ hoist すれば解決すると予想されるが未検証
+  （`eslint` / `vitest` を root へ集約した先例はある）
+
+### 判断: 当面は作らない
+
+コストが低いことは確認できたが、**「安い」は「価値がある」ではない。**
+
+`packages/ui` に期待できる実質的な価値は「UI が env / Supabase client / Server Action を
+import できない」という依存制約だが、**それは ESLint ルール一本で同じ効果が得られる**
+（`apps/legacy-web` の import 禁止と同じ手法）。同じ制約が一行で手に入るなら、
+package 境界の追加分は割に合わない。加えて component テストの置き場が未解決である。
+
+**したがって次の順序とする。**
+
+1. ESLint ルールで UI からアプリ固有モジュールへの import を禁止する（M6 で入れる）
+2. `@stage-tracker/domain` を `apps/web` へ配線する（M6 で必要。**現在まだ未配線**）
+3. 二つ目の consumer が現れた時点で `packages/ui` を抽出する
+
+抽出手順は上記のとおり実測済みなので、後回しにしても不確実性は残らない。
