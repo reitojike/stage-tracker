@@ -548,3 +548,22 @@ database.types.ts` の再生成、および `Invitation.declinedAt` /
 `RawInvitationRow.declined_at` への参照を先に除去し、`database.types.ts` を
 再生成してから、`declined_at` 列を DROP する contract マイグレーションを別途
 起票する。
+
+### PO 確認: `events.owner_id` は `NO ACTION` で確定（2026-09-08）
+
+`auth.users` 削除時に Event を「残す」の解釈として、**`NO ACTION`（Event を所有する間は
+ユーザー削除を拒否）で確定**。`SET NULL`（所有者なしの Event を許す）は採らない。
+`owner_id` を nullable にする product 判断は不要になった。
+
+**運用方針（PO より）**
+
+- **Event 作成は Admin アカウントからの実施のみに集約する。**
+  したがって `NO ACTION` によって「Event を持つユーザーはアカウント削除できない」
+  という制約が効くのは実質 Admin アカウントのみであり、運用上の問題にならない
+- **Production Supabase の既存 Event についても、近日中に `owner_id` を
+  Admin アカウントへ変更する予定**（operator 作業）
+
+**注意**: この `owner_id` 変更は operator が DB 上で行う作業であり、
+**product operation としての owner transfer を提供するという意味ではない。**
+product-rules.md の「owner transfer は product operation として提供しません」は維持する。
+v2 の実装で owner 変更の UI / API を作らないこと。
