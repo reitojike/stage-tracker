@@ -13,7 +13,7 @@
     "typecheck": "turbo run typecheck",
     "test:unit": "turbo run test:unit",
     "build": "turbo run build",
-    "build-storybook": "pnpm --filter @stage-tracker/legacy-web run build-storybook",
+    "build-storybook": "turbo run build-storybook",
     "foundation:sync": "node apps/legacy-web/scripts/run-foundation-tool.mjs sync",
     "foundation:check": "node apps/legacy-web/scripts/run-foundation-tool.mjs check && node apps/legacy-web/scripts/check-quality-profile-drift.mjs",
     "db:start": "supabase start",

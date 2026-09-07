@@ -3,11 +3,13 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
+import storybook from "eslint-plugin-storybook";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   ...tseslint.configs.recommended,
+  ...storybook.configs["flat/recommended"],
   eslintConfigPrettier,
   // v2 は greenfield 実装であり、apps/legacy-web は「実行して結果を比較する
   // oracle」であってコードの参照先ではない。legacy の実装を取り込むと、
@@ -40,6 +42,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated test/build outputs (Vitest coverage / Playwright / Storybook).
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**",
+    "storybook-static/**",
   ]),
 ]);
 
