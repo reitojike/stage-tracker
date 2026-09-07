@@ -28,7 +28,7 @@ catalog の最初の product slice (Issue #3 / PR B) です。
 ## Setup
 
 ```bash
-npm install
+pnpm install
 ```
 
 Foundation tooling を使う `foundation:sync` / `foundation:check` は、pinされた
@@ -45,9 +45,9 @@ local-first の Supabase スタックに対して実行します。Docker が起
 必要があります。
 
 ```bash
-npm run db:start   # ローカル Supabase スタックを起動
-npm run db:reset    # migrations だけを適用してDBを再構築
-npm run db:stop     # 停止
+pnpm run db:start   # ローカル Supabase スタックを起動
+pnpm run db:reset    # migrations だけを適用してDBを再構築
+pnpm run db:stop     # 停止
 ```
 
 ## Component catalog
@@ -55,8 +55,14 @@ npm run db:stop     # 停止
 Shared UI primitiveの examples / states は Storybook で確認できます。
 
 ```bash
-npm run storybook        # local起動 (http://localhost:6006)
-npm run build-storybook  # static build (storybook-static/)
+# v2 (apps/web)
+pnpm --filter @stage-tracker/web run storybook         # http://localhost:6007
+
+# legacy (apps/legacy-web)
+pnpm --filter @stage-tracker/legacy-web run storybook  # http://localhost:6006
+
+# 両パッケージの static build
+pnpm run build-storybook
 ```
 
 Storybookはrendered examples / states catalogであり、UI ruleの正本では
@@ -65,7 +71,7 @@ Storybookはrendered examples / states catalogであり、UI ruleの正本では
 ## Verify
 
 ```bash
-npm run verify
+pnpm run verify
 ```
 
 local / agent向けのone-command full deterministic verificationです。内部では
@@ -76,15 +82,15 @@ local / agent向けのone-command full deterministic verificationです。内部
 `Verify / Auth checks` のnamed stepへ分けているため、PR Checks上でDB層と
 Auth層のどちらが failed したかを個別に確認できます。
 
-- `npm run verify:code` — `format:check` / `lint` / `typecheck` /
+- `pnpm run verify:code` — `format:check` / `lint` / `typecheck` /
   `test:unit` / `foundation:check` (generated adapter と Foundation-managed
   quality profile のdrift 検知) / `agent-rules:check` /
   `supabase:migrations:check`。いずれも local Supabase runtimeを必要としない
   deterministic checkです。
-- `npm run verify:build` — `build` / `build-storybook`（component catalogの
+- `pnpm run verify:build` — `build` / `build-storybook`（component catalogの
   static build。Storybookのruntime Node要件がrepoのNode baselineと非互換化
   する事態をCIで検知するためblocking checkに含めています）。
-- `npm run verify:database` — local Supabaseを起動・resetした上で、
+- `pnpm run verify:database` — local Supabaseを起動・resetした上で、
   `verify:database:checks` を実行します。これは先に DB層の
   `supabase:types:check` / `test:rls` / `client-role-privileges:check` を
   `verify:database:db-checks` として、続けて `build:auth-app` /
@@ -123,7 +129,7 @@ rename/分割は行っていません）。`agent-rules:check` /
 `verify:database:checks`）を呼ぶ構成にしており、DB runtimeを要する部分は
 `verify:database`を単一のsourceとして参照します（同じ手順を2箇所へ独立に
 ハードコードしないため）。stage-trackerのcurrent full
-verificationは`verify:profile`を経由せず、`npm run verify`から
+verificationは`verify:profile`を経由せず、`pnpm run verify`から
 `verify:code`/`verify:build`/`verify:database`を直接呼びます。
 `agent-rules:check` / `supabase:migrations:check`はDB runtime不要なので
 `verify:code`側にも含めており、`verify:profile`とはこの2 checkの呼び出し
@@ -136,7 +142,7 @@ profile固有checkを追加・変更する場合は、DB runtimeが不要なら
 `verify:database`へ追加してください。
 
 RLS policy の guardrail proof (`test/rls/guardrail-proof.mjs`) は
-`npm run test:rls:guardrail-proof` で手動実行します。実際に policy /
+`pnpm run test:rls:guardrail-proof` で手動実行します。実際に policy /
 grant を一時的に壊してnegative testが red になることを確認し、必ず
 restore する one-off の検証スクリプトであり、blocking verify には含めて
 いません。

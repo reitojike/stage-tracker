@@ -124,7 +124,7 @@ Production の migration version が一致している」という positive evid
 がある場合のみ返り、pending migration がある場合は exit code 1、CLI が
 未 link / 未認証 / network failure 等で判定できない場合は exit code 2
 （`UNKNOWN`）を返します — いずれの failure も synchronized とは表示しま
-せん。`npm run supabase:migrations:drift -- --linked` でも同じです。
+せん。`pnpm run supabase:migrations:drift -- --linked` でも同じです。
 
 migration を追加する merge の後は毎回 `supabase db push` を re-run します。
 hosted project へ migration を push する自動 CI ステップは存在しません。
@@ -233,7 +233,7 @@ backward-compatible かどうかで決まります。
 1. migration をこの repository で review する。
 2. **PR を merge する前に**、operator が hosted project へ必要な
    migration を適用する（下記「Schema migration to the hosted project」）。
-3. `npm run supabase:migrations:drift -- --linked`（下記参照）で
+3. `pnpm run supabase:migrations:drift -- --linked`（下記参照）で
    Production の migration state を確認し、pending がないことを確かめる。
 4. PR 本文に `Migration ordering: schema-first-required` と
    `Production migration applied: <evidence>` を記録する

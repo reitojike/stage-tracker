@@ -37,7 +37,7 @@ Saturdayより優先されること、色に加えてnon-color cueを併用す�
 1. repo rootから次を実行します。
 
    ```sh
-   npm run holidays:update
+   pnpm run holidays:update
    ```
 
 2. `src/domain/japaneseHolidaysData.ts`のdiff（特に新しいcoverage end

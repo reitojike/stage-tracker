@@ -124,7 +124,7 @@ diff` だけを見る）。そのため、実際に Production へ migration が
    適用済みの migration を比較する。
 
    ```text
-   npm run supabase:migrations:drift -- --linked
+   pnpm run supabase:migrations:drift -- --linked
    ```
 
    pending（repository にはあるが Production 未適用）・unexpected
@@ -242,7 +242,7 @@ Issue #61 の docs consistency 対応で両方とも解消済みです。履歴�
   依存している Auth 設定（Site URL、Redirect URLs、Email Templates、
   signup 無効化設定）を、config-as-code で管理し drift を検知できる仕組みに
   すること。
-- **Drift 検知の継続的自動化**: Issue #131 で `npm run
+- **Drift 検知の継続的自動化**: Issue #131 で `pnpm run
 supabase:migrations:drift -- --linked` という operator-facing の
   on-demand deterministic command は追加したが（上記「migration
   pre-merge ordering fence」参照）、これは手動実行が前提であり、
