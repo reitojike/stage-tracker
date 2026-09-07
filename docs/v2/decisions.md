@@ -306,3 +306,47 @@ Claude と Codex の独立レビューで 5 件の指摘。4 件を修正し、1
 CodeRabbit が「130 files exceed the limit of 100」でレビューをスキップした。
 `path_filters` で `apps/legacy-web/**` を除外してもファイル数の上限判定には効かない。
 **M4 以降は 1 マイルストーン 1 PR とし、100 ファイル未満を目安にする。**
+
+---
+
+## 再レビューで発見した CI 破壊（2026-09-07）
+
+Codex の再レビューが **CI が現に壊れていること**を検出した。2 件とも実測で再現・修正済み。
+
+### 1. `packages/domain` の lint が CI で exit 127（コマンド不在）
+
+**症状**: クリーンインストール後、`packages/domain/node_modules/.bin` に `tsc` しか作られず、
+`eslint` / `vitest` のバイナリが存在しない。`apps/web` では 9 個作られる。
+
+**根本原因**: lockfile が `apps/web` の eslint を
+`9.39.5(jiti@2.7.0)(supports-color@7.2.0)` と **peer 修飾付き**で記録する一方、
+`packages/domain` では修飾なしの `9.39.5` として記録していた。eslint の
+optional peer（`jiti` / `supports-color`）が domain の依存ツリーに存在しないため
+別スナップショットへ解決され、そちらのリンクが機能していなかった。
+**lockfile を削除して再生成しても再発する** ため、記録の破損ではなく解決結果そのもの。
+
+**修正**: 対症療法ではなく構成を変えた。**共有の開発ツール（eslint / vitest / vite /
+typescript / typescript-eslint / @types/node / eslint-config-prettier）を root の
+devDependencies へ集約し、`packages/domain` からは削除した。** 設定を共有している
+ツールを各パッケージが重複して持つ必要がそもそも無い。`pnpm run` は自パッケージから
+workspace root まで `node_modules/.bin` を遡るため、スクリプトはそのまま動く。
+
+**検証**: `node_modules` を全削除して `pnpm install --frozen-lockfile` した状態から
+`lint` / `test:unit`（239 件）/ `typecheck` がすべて成功することを確認した。
+
+**申し送り F3（Windows の pnpm リンク不具合）は誤診だった。** Windows 固有ではなく、
+lockfile の解決結果に起因する OS 非依存の問題であり、CI（ubuntu）でも同じく再現していた。
+domain 実装時に `node_modules` を手動修復して受け入れ条件を確認したことが、
+この問題を隠していた。**手動修復した環境での「検証済み」は信用しない。**
+
+### 2. `Verify / Build` が env 未設定で失敗
+
+**症状**: `apps/web/src/env.ts`（T3 Env + Zod）が Supabase の env を必須とするため、
+env を持たない fresh runner で `next build` が失敗する。認証境界（env を参照する経路）を
+追加した時点から壊れていた。それ以前に Build が pass していたのは、その経路が
+存在しなかったため。
+
+**修正**: CI の Build step へ明らかに偽の placeholder を渡す。`SKIP_ENV_VALIDATION` で
+検証ごと迂回するのではなく placeholder を渡すことで、スキーマ自体（URL 形式等）は
+依然として実行される。この job が検証するのはコンパイルが通ることであり、env 配線の
+正しさは Vercel の build が本物の値で行う。成果物は破棄される。

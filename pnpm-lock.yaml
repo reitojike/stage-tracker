@@ -115,6 +115,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.0
         version: 8.23.1
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       eslint-config-prettier:
         specifier: ^10.0.0
         version: 10.1.8(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))
@@ -133,9 +136,18 @@ importers:
       turbo:
         specifier: 2.10.12
         version: 2.10.12
+      typescript:
+        specifier: ^5
+        version: 5.9.3
       typescript-eslint:
         specifier: ^8.0.0
         version: 8.69.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
+      vite:
+        specifier: ^7.3.6
+        version: 7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@20.19.43)(jsdom@30.0.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@20.19.43)(typescript@5.9.3))(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
 
   apps/legacy-web:
     dependencies:
@@ -324,28 +336,6 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
-    devDependencies:
-      '@types/node':
-        specifier: ^20
-        version: 20.19.43
-      eslint:
-        specifier: ^9
-        version: 9.39.5
-      eslint-config-prettier:
-        specifier: ^10.1.8
-        version: 10.1.8
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-      typescript-eslint:
-        specifier: ^8.69.0
-        version: 8.69.0
-      vite:
-        specifier: ^7.3.6
-        version: 7.3.6
-      vitest:
-        specifier: ^5.0.0
-        version: 5.0.0
 
 packages:
 
