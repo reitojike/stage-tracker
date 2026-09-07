@@ -43,6 +43,18 @@
 -- This is specific to CONCURRENTLY, not a general statement about how the
 -- runner treats migration files. Measured on the same CLI:
 --
+-- Verified on the `supabase migration up` path (the same apply+record path
+-- `db push` uses, not just `db reset`):
+--
+--   | file                                        | table | history |
+--   |---------------------------------------------|-------|---------|
+--   | create table X; select 1/0;                 |     0 |       0 |
+--   | begin; create table X; commit; select 1/0;  |     1 |       0 |
+--
+-- The second row is the failure window: DDL committed, version row absent,
+-- so a replay fails on the duplicate object. Adding BEGIN/COMMIT creates
+-- exactly the hazard it was meant to prevent.
+--
 --   * a file containing `create table ...; select 1/0;` fails as a whole and
 --     leaves no table behind - ordinary files ARE wrapped in a transaction
 --     by the runner, and
