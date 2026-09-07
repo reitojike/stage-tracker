@@ -5,23 +5,23 @@ oracle 抽出中に見つかった、v2 で判断が必要な論点。
 
 ## PO 判断が必要
 
-| # | 論点 | 現状 | 出典 |
-|---|---|---|---|
-| P1 | 通知ベルが未配線のまま UI に存在（Issue #141 以降）。v2 で実装するか、UI から外すか | `aria-disabled` の非活性ボタンとして表示され続けている | oracle-routes-ui §5 |
-| P2 | `/schedule` と `/mypage` が PrimaryNav に無く、文脈的な入口からしか到達できない。個人予定管理の重要度次第で IA を再検討するか | 意図的な設計（コード内コメントに明記）だが妥当性は未評価 | oracle-routes-ui §5 |
-| P3 | Invitation の decline が client-side 8秒タイマー + unmount 確定の楽観的 UI。タブを閉じる等の離脱で pending が残り得る。server 主導へ変えるか、現挙動を仕様として明文化するか | 実際の離脱時挙動は未検証 | oracle-routes-ui §5 |
-| P4 | エラー表示の粒度が画面間で不揃い。ホームは read ごとに独立劣化、カレンダーは単一エラーへ縮退。v2 で揃えるか、意図的な差として明文化するか | 意図か未整理かが不明 | oracle-routes-ui §5 |
+| #   | 論点                                                                                                                                                                         | 現状                                                     | 出典                |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------- |
+| P1  | 通知ベルが未配線のまま UI に存在（Issue #141 以降）。v2 で実装するか、UI から外すか                                                                                          | `aria-disabled` の非活性ボタンとして表示され続けている   | oracle-routes-ui §5 |
+| P2  | `/schedule` と `/mypage` が PrimaryNav に無く、文脈的な入口からしか到達できない。個人予定管理の重要度次第で IA を再検討するか                                                | 意図的な設計（コード内コメントに明記）だが妥当性は未評価 | oracle-routes-ui §5 |
+| P3  | Invitation の decline が client-side 8秒タイマー + unmount 確定の楽観的 UI。タブを閉じる等の離脱で pending が残り得る。server 主導へ変えるか、現挙動を仕様として明文化するか | 実際の離脱時挙動は未検証                                 | oracle-routes-ui §5 |
+| P4  | エラー表示の粒度が画面間で不揃い。ホームは read ごとに独立劣化、カレンダーは単一エラーへ縮退。v2 で揃えるか、意図的な差として明文化するか                                    | 意図か未整理かが不明                                     | oracle-routes-ui §5 |
 
 ## 実装側で決めてよい技術判断
 
-| # | 論点 | 方針 |
-|---|---|---|
-| A1 | `Button` の variant に「意味」と「サイズ」が混在（`secondary` と `small` が同一 chrome でサイズのみ差） | shadcn 準拠で `variant`（意味）と `size` の2軸へ分離する |
-| A2 | `--color-primary` という未定義 token 参照が1箇所ある | 現行のバグ。v2 へ踏襲しない |
-| A3 | `monthCalendarGrid.module.css` が primitive token を直接参照（自社規約の唯一の違反） | v2 では semantic token のみ参照する規約を維持し、これを踏襲しない |
-| A4 | orphan token（`--space-scale-7`, `--radius-scale-xs/md/lg`, `--color-success/-warning/-info` 等）が複数ある | Tailwind `@theme` 移行時に棚卸しし、使用実績のないものは移さない |
-| A5 | `loading.tsx` が Client Component 化して URL を再解決している | Next.js が `loading.tsx` に params を渡さない制約への対処。v2 でも Next.js を使うため制約は同じ。ただし「データ依存の見出しを先取り表示しない」原則は維持する |
-| A6 | 各ルートが「今日」を個別実装（`_lib/today.ts` / `_lib/now.ts`） | `packages/domain` を clock-free に保つ意図は正しい。clock 境界を1箇所に集約し直す |
+| #   | 論点                                                                                                        | 方針                                                                                                                                                          |
+| --- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | `Button` の variant に「意味」と「サイズ」が混在（`secondary` と `small` が同一 chrome でサイズのみ差）     | shadcn 準拠で `variant`（意味）と `size` の2軸へ分離する                                                                                                      |
+| A2  | `--color-primary` という未定義 token 参照が1箇所ある                                                        | 現行のバグ。v2 へ踏襲しない                                                                                                                                   |
+| A3  | `monthCalendarGrid.module.css` が primitive token を直接参照（自社規約の唯一の違反）                        | v2 では semantic token のみ参照する規約を維持し、これを踏襲しない                                                                                             |
+| A4  | orphan token（`--space-scale-7`, `--radius-scale-xs/md/lg`, `--color-success/-warning/-info` 等）が複数ある | Tailwind `@theme` 移行時に棚卸しし、使用実績のないものは移さない                                                                                              |
+| A5  | `loading.tsx` が Client Component 化して URL を再解決している                                               | Next.js が `loading.tsx` に params を渡さない制約への対処。v2 でも Next.js を使うため制約は同じ。ただし「データ依存の見出しを先取り表示しない」原則は維持する |
+| A6  | 各ルートが「今日」を個別実装（`_lib/today.ts` / `_lib/now.ts`）                                             | `packages/domain` を clock-free に保つ意図は正しい。clock 境界を1箇所に集約し直す                                                                             |
 
 ## 引き継ぐと決めた不変原則
 
@@ -36,27 +36,27 @@ oracle 抽出中に見つかった、v2 で判断が必要な論点。
 
 ### PO 判断が必要（追加）
 
-| # | 論点 | 現状 | 出典 |
-|---|---|---|---|
-| P5 | `auth.users` への FK の `ON DELETE` 方針が一貫していない（`catalog_creators` だけ CASCADE、他は全て NO ACTION）。アカウント削除・退会を v2 の scope に入れるか。入れるなら「shared catalog data は残す / personal data は消す」等の方針を先に決める必要がある | アカウント削除機能が無いため、一度も明示的に決定されていない | oracle-database §7 |
-| P6 | `venue` を canonical master 無しの生 text + exact match のまま踏襲するか | product rules で明示的に先送り済み。実データの表記揺れ実態を見てから判断すべき、という指摘 | oracle-database §7 |
+| #   | 論点                                                                                                                                                                                                                                                          | 現状                                                                                       | 出典               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------ |
+| P5  | `auth.users` への FK の `ON DELETE` 方針が一貫していない（`catalog_creators` だけ CASCADE、他は全て NO ACTION）。アカウント削除・退会を v2 の scope に入れるか。入れるなら「shared catalog data は残す / personal data は消す」等の方針を先に決める必要がある | アカウント削除機能が無いため、一度も明示的に決定されていない                               | oracle-database §7 |
+| P6  | `venue` を canonical master 無しの生 text + exact match のまま踏襲するか                                                                                                                                                                                      | product rules で明示的に先送り済み。実データの表記揺れ実態を見てから判断すべき、という指摘 | oracle-database §7 |
 
 ### 実装側で決めてよい技術判断（追加）
 
-| # | 論点 | 方針 |
-|---|---|---|
-| A7 | `occurrence_invitations.declined_at` が死列（pending-only 移行後に誰も読み書きしない）。`updated_at` トリガーもほぼ発火しない | pending invitation を INSERT / DELETE のみの不変レコードとして設計し直し、両列を持ち越さない |
-| A8 | RPC 例外の意味復元を `error.message.includes(...)` の文字列マッチングで行っている。migration の文言変更で静かに壊れる | cancellation 系が既に custom SQLSTATE（`90001`/`90002`）で構造化済み。invite / decline / share 系も custom SQLSTATE へ寄せ、message matching を撤去する。エラーコード表はコード内の単一定数モジュールを正本にする |
-| A9 | エラー分類語彙が 2 系統に分裂（`EventCatalogWriteErrorKind` と `PlanningErrorKind`） | 共通の error kind 語彙へ統一し、feature 固有 kind は discriminated union の拡張として表現する |
-| A10 | `mapXRow` 系が pure boundary 内で `throw` する。周囲は全て `Result` 規約なので、ここだけ例外が boundary を突き破る | 「読めない行はスキップ」か「`Result` に倒す」かを v2 で明示的に決める |
-| A11 | ページネーションヘルパーが実質同一実装で 2 箇所に存在 | 1 つの共有ユーティリティへ統合する |
-| A12 | FormData 手続き的 reader が feature ごとに重複 | Zod schema を入力契約にすれば層ごと不要。v2 では手書き reader を作らない |
-| A13 | Event range containment を constraint trigger 2 本 + `SET CONSTRAINTS DEFERRED` で実現 | `daterange` + `btree_gist` の `EXCLUDE` 等でより宣言的に表現できないか、採用 Postgres バージョンと併せて検討する |
-| A14 | `event_occurrences_event_id_idx` が一意制約 `(event_id, starts_at)` のインデックスと事実上重複 | v1 では scope 外として残されただけ。v2 で単一インデックスへ統合する |
-| A15 | genre（0..1 の nullable FK）と group（0..N の中間テーブル）でモデリング様式が非対称 | 意図的な設計判断。理由をスキーマ設計ドキュメントにも明示し、非対称のまま維持する |
-| A16 | SECURITY DEFINER RPC 間でボイラープレートが重複（invite 系 2 本、import 系 4 本） | opacity 境界のような本質的差分は保ったまま、共通の書き込みパターンを部品化できないか検討する |
-| A17 | TicketOpportunity のタイムライン計算が、歴史的な差分の積層で読みにくい | ルール自体は忠実に再現しつつ、実装は最初から 1 つの設計として書き直す |
-| A18 | imperative action（`QuickActionResult`）と `useActionState` action（`OperationState`）で戻り値の形が違う | imperative UI パターン自体は残る。next-safe-action 採用時に戻り値 shape だけ揃えられるか検討する |
+| #   | 論点                                                                                                                          | 方針                                                                                                                                                                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A7  | `occurrence_invitations.declined_at` が死列（pending-only 移行後に誰も読み書きしない）。`updated_at` トリガーもほぼ発火しない | pending invitation を INSERT / DELETE のみの不変レコードとして設計し直し、両列を持ち越さない                                                                                                                      |
+| A8  | RPC 例外の意味復元を `error.message.includes(...)` の文字列マッチングで行っている。migration の文言変更で静かに壊れる         | cancellation 系が既に custom SQLSTATE（`90001`/`90002`）で構造化済み。invite / decline / share 系も custom SQLSTATE へ寄せ、message matching を撤去する。エラーコード表はコード内の単一定数モジュールを正本にする |
+| A9  | エラー分類語彙が 2 系統に分裂（`EventCatalogWriteErrorKind` と `PlanningErrorKind`）                                          | 共通の error kind 語彙へ統一し、feature 固有 kind は discriminated union の拡張として表現する                                                                                                                     |
+| A10 | `mapXRow` 系が pure boundary 内で `throw` する。周囲は全て `Result` 規約なので、ここだけ例外が boundary を突き破る            | 「読めない行はスキップ」か「`Result` に倒す」かを v2 で明示的に決める                                                                                                                                             |
+| A11 | ページネーションヘルパーが実質同一実装で 2 箇所に存在                                                                         | 1 つの共有ユーティリティへ統合する                                                                                                                                                                                |
+| A12 | FormData 手続き的 reader が feature ごとに重複                                                                                | Zod schema を入力契約にすれば層ごと不要。v2 では手書き reader を作らない                                                                                                                                          |
+| A13 | Event range containment を constraint trigger 2 本 + `SET CONSTRAINTS DEFERRED` で実現                                        | `daterange` + `btree_gist` の `EXCLUDE` 等でより宣言的に表現できないか、採用 Postgres バージョンと併せて検討する                                                                                                  |
+| A14 | `event_occurrences_event_id_idx` が一意制約 `(event_id, starts_at)` のインデックスと事実上重複                                | v1 では scope 外として残されただけ。v2 で単一インデックスへ統合する                                                                                                                                               |
+| A15 | genre（0..1 の nullable FK）と group（0..N の中間テーブル）でモデリング様式が非対称                                           | 意図的な設計判断。理由をスキーマ設計ドキュメントにも明示し、非対称のまま維持する                                                                                                                                  |
+| A16 | SECURITY DEFINER RPC 間でボイラープレートが重複（invite 系 2 本、import 系 4 本）                                             | opacity 境界のような本質的差分は保ったまま、共通の書き込みパターンを部品化できないか検討する                                                                                                                      |
+| A17 | TicketOpportunity のタイムライン計算が、歴史的な差分の積層で読みにくい                                                        | ルール自体は忠実に再現しつつ、実装は最初から 1 つの設計として書き直す                                                                                                                                             |
+| A18 | imperative action（`QuickActionResult`）と `useActionState` action（`OperationState`）で戻り値の形が違う                      | imperative UI パターン自体は残る。next-safe-action 採用時に戻り値 shape だけ揃えられるか検討する                                                                                                                  |
 
 ## v2 実装で踏んではいけない地雷
 
@@ -73,3 +73,10 @@ oracle が「実際に踏んだ失敗」として記録している事項。単�
 - **Invitation の opacity 境界は「動いているように見えても静かに破れる」領域。**
   エラーメッセージや revalidate タイミングの差から invitee の状態が間接的に漏れうる。
   v2 実装時は oracle-domain §1.7 をレビューのチェックリストとして明示的に使う。
+
+### 追加の技術判断
+
+| #   | 論点                                                                                                                            | 方針                                                                                                                                                                                                                                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A19 | `apps/web` の prettier 設定（double quote）が Foundation の quality profile（single quote）と衝突する                           | shadcn/ui は double quote でコードを生成し、`shadcn add` のたびに再生成される。Foundation config に合わせ続けると恒久的な摩擦になるため、`apps/web` は自前の `.prettierrc.json` を正とする。root の `format:check` からは除外し、`pnpm --filter @stage-tracker/web run format:check` が自分の設定で検証する |
+| A20 | shadcn init が `layout.tsx` に `next/font/google` の Geist を追加し、ビルド時に Google Fonts へのネットワークアクセスが発生する | CI のビルド再現性を損なうため、M2 でセルフホストフォントか system font stack へ差し替える                                                                                                                                                                                                                   |

@@ -96,7 +96,7 @@
 - Event-level と Occurrence-level の cancellation は独立した nullable
   timestamp。
 - **実質的中止 = `event.canceledAt !== null OR occurrence.canceledAt !==
-  null`**（OR 合成。cascade しない。値そのものの正確な時刻には意味がなく
+null`**（OR 合成。cascade しない。値そのものの正確な時刻には意味がなく
   「null か非 null か」だけが product 上の意味）。
 - Event の uncancel は個別に canceled な Occurrence を uncancel しない。
 
@@ -128,7 +128,7 @@
   - option universe（selectable な値の集合）は catalog 全体から構成し、
     表示中の月やその他の期間には依存しない。
 - 分類の write path は operator-assisted import のみ（`import_event_
-  classification` RPC、service_role 限定）。owner を含む通常 authenticated
+classification` RPC、service_role 限定）。owner を含む通常 authenticated
   user は classification を編集できない。
 
 ### 1.5 CatalogCreator（designated catalog creator membership）
@@ -136,9 +136,9 @@
 - `catalog_creators` テーブルへの membership（1 行 = 1 user）による
   allowlist。特定 UUID のハードコードでも generic role framework でもない。
 - Event 作成の必要条件（`canCreateEvent`）: `actor === ownerId &&
-  isDesignatedCatalogCreator`。
+isDesignatedCatalogCreator`。
 - 判定関数 `isDesignatedCatalogCreator`（`src/infrastructure/supabase/
-  eventCatalogWrite.ts`）は「行が無い」を確定的な `false` として返し、
+eventCatalogWrite.ts`）は「行が無い」を確定的な `false` として返し、
   read failure（`ok: false`）とは区別する。
 
 ### 1.6 Participation（参加予定）
@@ -194,7 +194,7 @@ Issue #225/#230 で pending-only モデルへ収束済み（旧: auto-considerin
 - **Accept**（参加する）: 通常の participation write（`considering`/
   行なし → `attending`）と全く同じ operation。専用 accept RPC は無い。
   DB trigger（`occurrence_participations_resolve_invitations_on_
-  attending`）が同一 occurrence/invitee の pending invitation を副作用
+attending`）が同一 occurrence/invitee の pending invitation を副作用
   として全て解消する。
 - **Decline**（参加しない）: pending invitation を削除（
   `decline_occurrence_invitation` RPC）。`not_attending` は作らない。
@@ -271,7 +271,7 @@ application tracking ではない（Ticket model 自体は Issue #234 で撤去
       時点で存在する Occurrence 一覧の snapshot へ暗黙変換しない
       （後から Occurrence が増減しても re-scope しない）。
     - `selected_occurrences` の場合のみ `TicketOpportunity ↔
-      Occurrence` の関連（`ticket_opportunity_target_occurrences`）を
+Occurrence` の関連（`ticket_opportunity_target_occurrences`）を
       explicit に保持。対象は必ず同じ Event に属する Occurrence。
   - `displayName`（source 上の表示名をそのまま保持。closed enum へ
     潰さない、例:「FC先行」）
@@ -280,7 +280,7 @@ application tracking ではない（Ticket model 自体は Issue #234 で撤去
   - `createdAt` / `updatedAt`
 - `TicketOpportunityMilestone`（`ticket_opportunity_milestones`）:
   - `milestoneType`: `'application_open' | 'application_close' |
-    'result_announcement' | 'sale_start' | 'payment_window'`
+'result_announcement' | 'sale_start' | 'payment_window'`
   - `temporalPrecision`: `'date' | 'datetime' | 'window'`
     - `date` → `dateValue` のみ非 null
     - `datetime` → `at` のみ非 null
@@ -388,7 +388,7 @@ application tracking ではない（Ticket model 自体は Issue #234 で撤去
 ### 2.3 Cancellation（中止）
 
 - 実質的中止 = `event.canceledAt !== null OR occurrence.canceledAt !==
-  null`（1.3 参照）。
+null`（1.3 参照）。
 - 実質的中止状態にある Event/Occurrence への **新規の active action**
   （新規 participation の `considering/なし -> attending`、新規
   invitation）は拒否する（custom SQLSTATE `90002`）。
@@ -413,7 +413,7 @@ application tracking ではない（Ticket model 自体は Issue #234 で撤去
 
 - Event/Occurrence の hard delete は owner-only。soft delete は無い。
 - Occurrence 削除: `occurrence_participations` / `occurrence_
-  invitations` のいずれか 1 件でも存在すれば拒否（cascade しない）。
+invitations` のいずれか 1 件でも存在すれば拒否（cascade しない）。
 - Event 削除: 0-occurrence Event は削除可能。child Occurrence がある
   場合、**全 child** が削除条件を満たす場合のみ Event + 全 child が
   atomic に削除される。1 件でも削除不可な child があれば全体を拒否
@@ -436,7 +436,7 @@ application tracking ではない（Ticket model 自体は Issue #234 で撤去
 ### 2.7 Ticket Opportunity 集約ルール
 
 - **Opportunity-scope の実質的中止判定**（`isTicketOpportunityRow
-  EffectivelyCanceled`）:
+EffectivelyCanceled`）:
   1. 親 Event が中止 → targetScope に関わらず Opportunity 全体が
      terminal。
   2. `event_wide` かつ Event が中止でない → Occurrence 側の状態だけで
@@ -444,7 +444,7 @@ application tracking ではない（Ticket model 自体は Issue #234 で撤去
      snapshot ではなく semantic fact のため）。
   3. `selected_occurrences` かつ Event が中止でない → 対象 Occurrence
      が **完全に解決**（`targetOccurrences.length ===
-     targetOccurrenceIdCount`）かつ非空、かつ解決済み対象の **全て**
+targetOccurrenceIdCount`）かつ非空、かつ解決済み対象の **全て**
      が中止の場合のみ terminal。部分的にしか解決できていない場合や、
      一部だけ中止の場合は terminal と判定しない（取りこぼしを
      「全部中止」と誤読しない）。
@@ -455,13 +455,14 @@ application tracking ではない（Ticket model 自体は Issue #234 で撤去
   - 経過日数（Asia/Tokyo calendar day 差、milestone の締切日
     `ticketOpportunityMilestoneTokyoCalendarDate` を基準）としきい値:
 
-    | 日数差 | variant | label |
-    |---|---|---|
-    | 既に過ぎている | `terminal` | 受付終了 |
-    | 0（当日） | `deadline` | 本日 HH:MM まで（時刻不明なら「本日締切」）|
-    | 1〜3 | `deadline` | 残りN日 |
-    | 4〜13 | `outline` | 残りN日 |
-    | 14 以上 | なし | null |
+    | 日数差         | variant    | label                                       |
+    | -------------- | ---------- | ------------------------------------------- |
+    | 既に過ぎている | `terminal` | 受付終了                                    |
+    | 0（当日）      | `deadline` | 本日 HH:MM まで（時刻不明なら「本日締切」） |
+    | 1〜3           | `deadline` | 残りN日                                     |
+    | 4〜13          | `outline`  | 残りN日                                     |
+    | 14 以上        | なし       | null                                        |
+
   - 締切日は `at`（datetime）> `endsAt`（window の終わり）>
     `startsAt`（window の開始、endsAt が無い場合）> `dateValue`
     の優先順で解決する。window の締切は開始日ではなく終了日。
@@ -561,17 +562,17 @@ membership check）が enforce し、action はその結果を UI 向けの状�
 
 ### 3.1 Event catalog write（`src/app/catalog/_actions/eventWrite.ts`）
 
-| action | 入力（FormData キー） | 型/必須性/検証 | 成功時 | 権限（DB 側） |
-|---|---|---|---|---|
-| `createEventAction` | `title`(必須) `venue`(任意) `sourceUrl`(任意, http/https) `memo`(任意) `startsOn`(必須, calendar date) `endsOn`(任意→空なら startsOn) `doorsAt`/`startsAt`/`endsAt`(3 つとも空なら「初期 occurrence なし」、`startsAt` だけ入力必須で他は任意) `month`/`date`(navigation context) | `parseEventCreate` | `create_event` RPC 呼び出し→ 新規 Event id へ `redirect` | designated catalog creator であること。owner は caller 自身固定 |
-| `updateEventDetailsAction` | `eventId`(必須) `title`(必須) `venue`/`sourceUrl`/`memo`(任意) | `parseEventDetails` | `events` UPDATE（`owner_id` は payload に含めない）→ state に notice | owner-only（RLS）。0 行更新は `permission-denied` |
-| `updateEventRangeAction` | `eventId`(必須) `startsOn`(必須) `endsOn`(必須、この action は blank 許可なし) | `parseEventRange({allowBlankEndsOn:false})` | 既存 occurrence 全件を現状のまま添えて `reschedule_event` RPC | owner-only |
-| `addOccurrenceAction` | `eventId`(必須) `doorsAt`/`startsAt`(必須)/`endsAt` | `parseOccurrence` + `validateOccurrenceWithinRange`（事前に `getEventRange` で range 取得） | `event_occurrences` INSERT | owner-only。`(event_id, starts_at)` 重複は `duplicate-occurrence`（`startsAt` field error として提示） |
-| `updateOccurrenceAction` | `eventId`(必須, revalidate 用) `occurrenceId`(必須) `doorsAt`/`startsAt`(必須)/`endsAt` | 同上 | `event_occurrences` UPDATE（`event_id` は payload から除外） | owner-only。重複は同上 |
-| `deleteEventOccurrenceAction` | `eventId`(必須) `occurrenceId`(必須) | フィールドなし | `delete_event_occurrence` RPC | owner-only。downstream data ありなら `delete-blocked` |
-| `deleteEventAction` | `eventId`(必須) | フィールドなし | `delete_event` RPC → `/catalog` へ redirect | owner-only。1 件でも child が blocked なら全体拒否 |
-| `cancelEventAction` / `uncancelEventAction` | `eventId`(必須) | フィールドなし | `events.canceled_at` を now()/null に更新 | owner-only |
-| `cancelEventOccurrenceAction` / `uncancelEventOccurrenceAction` | `eventId`(必須, revalidate 用) `occurrenceId`(必須) | フィールドなし | `event_occurrences.canceled_at` を now()/null に更新 | owner-only |
+| action                                                          | 入力（FormData キー）                                                                                                                                                                                                                                                             | 型/必須性/検証                                                                              | 成功時                                                               | 権限（DB 側）                                                                                          |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `createEventAction`                                             | `title`(必須) `venue`(任意) `sourceUrl`(任意, http/https) `memo`(任意) `startsOn`(必須, calendar date) `endsOn`(任意→空なら startsOn) `doorsAt`/`startsAt`/`endsAt`(3 つとも空なら「初期 occurrence なし」、`startsAt` だけ入力必須で他は任意) `month`/`date`(navigation context) | `parseEventCreate`                                                                          | `create_event` RPC 呼び出し→ 新規 Event id へ `redirect`             | designated catalog creator であること。owner は caller 自身固定                                        |
+| `updateEventDetailsAction`                                      | `eventId`(必須) `title`(必須) `venue`/`sourceUrl`/`memo`(任意)                                                                                                                                                                                                                    | `parseEventDetails`                                                                         | `events` UPDATE（`owner_id` は payload に含めない）→ state に notice | owner-only（RLS）。0 行更新は `permission-denied`                                                      |
+| `updateEventRangeAction`                                        | `eventId`(必須) `startsOn`(必須) `endsOn`(必須、この action は blank 許可なし)                                                                                                                                                                                                    | `parseEventRange({allowBlankEndsOn:false})`                                                 | 既存 occurrence 全件を現状のまま添えて `reschedule_event` RPC        | owner-only                                                                                             |
+| `addOccurrenceAction`                                           | `eventId`(必須) `doorsAt`/`startsAt`(必須)/`endsAt`                                                                                                                                                                                                                               | `parseOccurrence` + `validateOccurrenceWithinRange`（事前に `getEventRange` で range 取得） | `event_occurrences` INSERT                                           | owner-only。`(event_id, starts_at)` 重複は `duplicate-occurrence`（`startsAt` field error として提示） |
+| `updateOccurrenceAction`                                        | `eventId`(必須, revalidate 用) `occurrenceId`(必須) `doorsAt`/`startsAt`(必須)/`endsAt`                                                                                                                                                                                           | 同上                                                                                        | `event_occurrences` UPDATE（`event_id` は payload から除外）         | owner-only。重複は同上                                                                                 |
+| `deleteEventOccurrenceAction`                                   | `eventId`(必須) `occurrenceId`(必須)                                                                                                                                                                                                                                              | フィールドなし                                                                              | `delete_event_occurrence` RPC                                        | owner-only。downstream data ありなら `delete-blocked`                                                  |
+| `deleteEventAction`                                             | `eventId`(必須)                                                                                                                                                                                                                                                                   | フィールドなし                                                                              | `delete_event` RPC → `/catalog` へ redirect                          | owner-only。1 件でも child が blocked なら全体拒否                                                     |
+| `cancelEventAction` / `uncancelEventAction`                     | `eventId`(必須)                                                                                                                                                                                                                                                                   | フィールドなし                                                                              | `events.canceled_at` を now()/null に更新                            | owner-only                                                                                             |
+| `cancelEventOccurrenceAction` / `uncancelEventOccurrenceAction` | `eventId`(必須, revalidate 用) `occurrenceId`(必須)                                                                                                                                                                                                                               | フィールドなし                                                                              | `event_occurrences.canceled_at` を now()/null に更新                 | owner-only                                                                                             |
 
 エラーケースと表示文言は `src/domain/eventWriteFeedback.ts` に
 `operation × EventCatalogWriteErrorKind`（`permission-denied` /
@@ -581,14 +582,15 @@ membership check）が enforce し、action はその結果を UI 向けの状�
 最小変更。
 
 ### 3.2 Participation / Invitation write
+
 （`src/app/catalog/_actions/participationWrite.ts`）
 
-| action | 入力 | 効果 | 権限 |
-|---|---|---|---|
-| `inviteToOccurrenceAction`（`useActionState` 形式） | `eventId`(必須) `occurrenceId`(必須) `email`(必須, exact email format) | `parseInviteeEmail` → `invite_to_occurrence_by_email` RPC。成功文言は分岐に関わらず常に同一「招待を送信しました。」 | inviter が対象 occurrence で `attending` であること |
-| `setParticipationChoiceAction`（imperative, `QuickActionResult` 返却） | `eventId`, `occurrenceId`, `choice: 'considering'\|'attending'\|'withdraw'`, `participationId: string\|null` | `withdraw` → `withdrawParticipation`。それ以外 → `setParticipation`。`attending` への遷移は pending invitation を解消（trigger 副作用） | 自分自身の participation のみ |
-| `acceptInvitationAction`（imperative） | `occurrenceId`, `eventId: string\|null` | `setParticipation(status:'attending')` と同一操作（invitation 専用 RPC は存在しない） | 自分自身の participation のみ |
-| `finalizeDeclineInvitationAction`（imperative） | `invitationId` | `decline_occurrence_invitation` RPC。既に resolve 済みでもエラーにしない（`data:null` を benign no-op として扱う） | invitee 本人のみ |
+| action                                                                 | 入力                                                                                                         | 効果                                                                                                                                    | 権限                                                |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `inviteToOccurrenceAction`（`useActionState` 形式）                    | `eventId`(必須) `occurrenceId`(必須) `email`(必須, exact email format)                                       | `parseInviteeEmail` → `invite_to_occurrence_by_email` RPC。成功文言は分岐に関わらず常に同一「招待を送信しました。」                     | inviter が対象 occurrence で `attending` であること |
+| `setParticipationChoiceAction`（imperative, `QuickActionResult` 返却） | `eventId`, `occurrenceId`, `choice: 'considering'\|'attending'\|'withdraw'`, `participationId: string\|null` | `withdraw` → `withdrawParticipation`。それ以外 → `setParticipation`。`attending` への遷移は pending invitation を解消（trigger 副作用） | 自分自身の participation のみ                       |
+| `acceptInvitationAction`（imperative）                                 | `occurrenceId`, `eventId: string\|null`                                                                      | `setParticipation(status:'attending')` と同一操作（invitation 専用 RPC は存在しない）                                                   | 自分自身の participation のみ                       |
+| `finalizeDeclineInvitationAction`（imperative）                        | `invitationId`                                                                                               | `decline_occurrence_invitation` RPC。既に resolve 済みでもエラーにしない（`data:null` を benign no-op として扱う）                      | invitee 本人のみ                                    |
 
 `inviteToOccurrenceAction` 以外は `<form>`/`useActionState` を使わず、
 component のローカル state から plain function として呼ばれる
@@ -600,19 +602,19 @@ component のローカル state から plain function として呼ばれる
 
 ### 3.3 Personal schedule write（`src/app/schedule/_actions/scheduleWrite.ts`）
 
-| action | 入力 | 検証 | 効果 | 権限 |
-|---|---|---|---|---|
-| `createScheduleEntryAction` | `title`(必須) `blocking`(checkbox, 'true'/'false' 2 entry trick) `temporalMode: 'all-day'\|'time-bounded'` + それぞれの日時フィールド `memo`(任意) | `parsePersonalScheduleEntry` | INSERT → `/calendar` へ redirect | 認証済みであれば誰でも自分の entry として作成可 |
-| `updateScheduleEntryAction` | `entryId`(必須) + 上記と同じ | 同上 | UPDATE → `/calendar` へ redirect | owner-only（0 行更新は `permission-denied`。SELECT は owner-or-shared のため「見えるが書けない」が起こり得る） |
-| `deleteScheduleEntryAction` | `entryId`(必須) | なし | hard DELETE（share は `ON DELETE CASCADE`）→ `/calendar` へ redirect | owner-only |
-| `removeScheduleShareAction`（self-leave） | `shareId`(必須) | なし | `personal_schedule_shares` DELETE → `/calendar` へ redirect | recipient 自身 or owner（同一 DELETE policy）。0 行は `not-found` |
-| `addScheduleShareByEmailAction` | `entryId`(必須) `email`(必須) | RPC 側の `raise exception` メッセージで分類（未登録・不正形式・自己共有・空欄の 4 種） | `share_schedule_entry_by_email` RPC | owner-only |
-| `removeScheduleShareAsOwnerAction` | `shareId`(必須) `entryId`(必須, revalidate 用) | なし | 同上 DELETE、ただし redirect せずページに留まる | owner-only（他人の share を削除する操作） |
+| action                                    | 入力                                                                                                                                               | 検証                                                                                   | 効果                                                                 | 権限                                                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `createScheduleEntryAction`               | `title`(必須) `blocking`(checkbox, 'true'/'false' 2 entry trick) `temporalMode: 'all-day'\|'time-bounded'` + それぞれの日時フィールド `memo`(任意) | `parsePersonalScheduleEntry`                                                           | INSERT → `/calendar` へ redirect                                     | 認証済みであれば誰でも自分の entry として作成可                                                                |
+| `updateScheduleEntryAction`               | `entryId`(必須) + 上記と同じ                                                                                                                       | 同上                                                                                   | UPDATE → `/calendar` へ redirect                                     | owner-only（0 行更新は `permission-denied`。SELECT は owner-or-shared のため「見えるが書けない」が起こり得る） |
+| `deleteScheduleEntryAction`               | `entryId`(必須)                                                                                                                                    | なし                                                                                   | hard DELETE（share は `ON DELETE CASCADE`）→ `/calendar` へ redirect | owner-only                                                                                                     |
+| `removeScheduleShareAction`（self-leave） | `shareId`(必須)                                                                                                                                    | なし                                                                                   | `personal_schedule_shares` DELETE → `/calendar` へ redirect          | recipient 自身 or owner（同一 DELETE policy）。0 行は `not-found`                                              |
+| `addScheduleShareByEmailAction`           | `entryId`(必須) `email`(必須)                                                                                                                      | RPC 側の `raise exception` メッセージで分類（未登録・不正形式・自己共有・空欄の 4 種） | `share_schedule_entry_by_email` RPC                                  | owner-only                                                                                                     |
+| `removeScheduleShareAsOwnerAction`        | `shareId`(必須) `entryId`(必須, revalidate 用)                                                                                                     | なし                                                                                   | 同上 DELETE、ただし redirect せずページに留まる                      | owner-only（他人の share を削除する操作）                                                                      |
 
 ### 3.4 Ticket opportunity write（`src/app/tickets/_actions/ticketOpportunityWrite.ts`）
 
-| action | 入力 | 効果 | 権限 |
-|---|---|---|---|
+| action                               | 入力                                                           | 効果                                                            | 権限                  |
+| ------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------- | --------------------- |
 | `updateTicketOpportunityStateAction` | `opportunityId`(必須) `intent: 'planned'\|'applied'\|'remove'` | `remove` → DELETE。それ以外 → upsert-pattern で `status` を設定 | 自分自身の state のみ |
 
 このアクションは `/tickets` が行う唯一の write（shared
@@ -620,8 +622,8 @@ TicketOpportunity/milestone データ自体は read-only）。
 
 ### 3.5 Passkey management（`src/app/mypage/_actions/passkeyActions.ts`）
 
-| action | 入力 | 効果 | 権限 |
-|---|---|---|---|
+| action                | 入力              | 効果                                                                                       | 権限                                      |
+| --------------------- | ----------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------- |
 | `deletePasskeyAction` | `passkeyId`(必須) | Supabase Auth `auth.passkey.delete()`（session-scoped、`service_role`/admin API は不使用） | 自分自身のセッションに紐づく passkey のみ |
 
 register/sign-in（ceremony）は Server Action ではなく、ブラウザ client
@@ -631,7 +633,7 @@ register/sign-in（ceremony）は Server Action ではなく、ブラウザ clie
 ### 3.6 入出力契約の横断的な設計判断
 
 - 全 action は「まず parse（純粋関数、`ParseResult<T> = {ok:true,
-  value}|{ok:false,fieldErrors}`）→ 次に DB 呼び出し→ `PlanningResult`/
+value}|{ok:false,fieldErrors}`）→ 次に DB 呼び出し→ `PlanningResult`/
   `EventCatalogWriteResult` を feedback へ変換」という 3 段の構造を
   例外なく踏む。v2 では 1 段目を Zod schema（`safeParse`）へ、3 段目を
   `next-safe-action` の `ActionError` へ、それぞれ機械的に置き換え
@@ -654,12 +656,12 @@ register/sign-in（ceremony）は Server Action ではなく、ブラウザ clie
 
 ### 4.1 Client 生成の 3 系統
 
-| client | 生成場所 | 鍵 | 用途 | Cookie 戦略 |
-|---|---|---|---|---|
-| Browser client | `src/infrastructure/supabase/browserClient.ts`（`createSupabaseBrowserClient`） | anon key | Client Component から直接呼ぶ操作。現状唯一の用途は passkey の WebAuthn ceremony（`registerPasskey`/`signInWithPasskey`。`auth.experimental.passkey: true`） | `@supabase/ssr` の browser 既定（ブラウザの cookie storage） |
-| Server client | `src/infrastructure/supabase/serverClient.ts`（`createSupabaseServerClient`） | anon key | Server Component / Route Handler / Server Action からの通常の read/write 全般。`auth.experimental.passkey: true`（list/delete 用） | `next/headers` の `cookies()` から読み取り、書き込みも試行。Server Component render 中の書き込み失敗（read-only cookie store）は握りつぶす（`proxy.ts` が毎リクエストでセッションを refresh するため安全） |
-| Cookieless server client | `src/infrastructure/supabase/serverClient.ts`（`createSupabaseCookielessServerClient`） | anon key | magic link 送信（`signInWithOtp`）専用 | cookie を読むが **書き込みを一切しない**（`setAll` が no-op）。理由: PKCE code verifier の cookie 有無が「そのメールアドレスのアカウントが存在するかどうか」のオラクルになるため、sign-in request では応答側に一切の cookie 差分を残さない。実際のサインイン完了は magic link 自体の `verifyOtp({token_hash})` 経由で、code verifier を使わない |
-| Service-role client | アプリ本体には存在しない。`scripts/lib/adminTarget.mjs`（`resolveAdminTarget`）が `@supabase/supabase-js` の `createClient` を service_role key で直接生成 | service_role key | operator 実行の import/provision スクリプトのみ | 該当なし（サーバーレス実行の使い捨てプロセス） |
+| client                   | 生成場所                                                                                                                                                   | 鍵               | 用途                                                                                                                                                         | Cookie 戦略                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser client           | `src/infrastructure/supabase/browserClient.ts`（`createSupabaseBrowserClient`）                                                                            | anon key         | Client Component から直接呼ぶ操作。現状唯一の用途は passkey の WebAuthn ceremony（`registerPasskey`/`signInWithPasskey`。`auth.experimental.passkey: true`） | `@supabase/ssr` の browser 既定（ブラウザの cookie storage）                                                                                                                                                                                                                                                                                    |
+| Server client            | `src/infrastructure/supabase/serverClient.ts`（`createSupabaseServerClient`）                                                                              | anon key         | Server Component / Route Handler / Server Action からの通常の read/write 全般。`auth.experimental.passkey: true`（list/delete 用）                           | `next/headers` の `cookies()` から読み取り、書き込みも試行。Server Component render 中の書き込み失敗（read-only cookie store）は握りつぶす（`proxy.ts` が毎リクエストでセッションを refresh するため安全）                                                                                                                                      |
+| Cookieless server client | `src/infrastructure/supabase/serverClient.ts`（`createSupabaseCookielessServerClient`）                                                                    | anon key         | magic link 送信（`signInWithOtp`）専用                                                                                                                       | cookie を読むが **書き込みを一切しない**（`setAll` が no-op）。理由: PKCE code verifier の cookie 有無が「そのメールアドレスのアカウントが存在するかどうか」のオラクルになるため、sign-in request では応答側に一切の cookie 差分を残さない。実際のサインイン完了は magic link 自体の `verifyOtp({token_hash})` 経由で、code verifier を使わない |
+| Service-role client      | アプリ本体には存在しない。`scripts/lib/adminTarget.mjs`（`resolveAdminTarget`）が `@supabase/supabase-js` の `createClient` を service_role key で直接生成 | service_role key | operator 実行の import/provision スクリプトのみ                                                                                                              | 該当なし（サーバーレス実行の使い捨てプロセス）                                                                                                                                                                                                                                                                                                  |
 
 **確認できた事実として重要な点**: service role client を返す共通
 infra モジュールは `src/infrastructure/supabase/**` の中には存在しない
@@ -679,7 +681,7 @@ service role は CI/operator/Trigger.dev job 内に限定）を維持すべき�
   （layout の AppBar identity + page 本体等）が Auth server への
   round trip を共有する。
 - `requireAuthenticatedUserId()`（`src/infrastructure/supabase/
-  planningAuth.ts`）: 型付き read/write boundary（participation /
+planningAuth.ts`）: 型付き read/write boundary（participation /
   personal schedule / ticket opportunity 等）が「自分自身の user_id」を
   必要とする箇所で使う。**caller から渡された id を信用せず、常に
   client 自身のセッションから解決する**。これにより「セッション切れ」
@@ -711,7 +713,7 @@ service role は CI/operator/Trigger.dev job 内に限定）を維持すべき�
 ### 4.4 `database.types.ts` の位置づけ
 
 - Supabase 生成 TypeScript 型（`src/infrastructure/supabase/
-  database.types.ts`）を database schema の source of truth として
+database.types.ts`）を database schema の source of truth として
   扱う（`AGENTS.md` Technology profile の明文規定）。
 - domain 層（`src/domain/**`）はこの生成型を **import しない**。
   かわりに `RawEventRow` 等、必要な列だけを持つ最小限の interface を
@@ -738,16 +740,16 @@ service role は CI/operator/Trigger.dev job 内に限定）を維持すべき�
 
 ### 5.2 Manifest の内容（`buildPwaManifest`）
 
-| field | 値 | 安定性 |
-|---|---|---|
-| `id` | `/` | **不変**。変更すると既に install 済みの app が別 app として扱われ孤立する |
-| `start_url` | `/` | 同上 |
-| `scope` | `/` | 同上 |
-| `name` / `short_name` | `stage-tracker` / `stage-tracker`（同一文字列。短縮は意図的なブランディング判断が必要なため作らない） | - |
-| `display` | `standalone` | - |
-| `theme_color` | `#2f4a7a`（`--color-accent` と同値を manifest 生成時にリテラル複製。CSS custom property は server-side manifest から解決できないため） | tokens.css との一致をテストで担保 |
-| `background_color` | `#eef0f1`（`--color-canvas` と同値） | 同上 |
-| `icons` | `PWA_ICON_ASSETS` のうち `role: 'manifest'` の 4 種中 3 種（192/512 の `any` purpose、512 の `maskable` purpose） | maskable art は 80% safe-zone 内に収める別レンダリング |
+| field                 | 値                                                                                                                                     | 安定性                                                                    |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `id`                  | `/`                                                                                                                                    | **不変**。変更すると既に install 済みの app が別 app として扱われ孤立する |
+| `start_url`           | `/`                                                                                                                                    | 同上                                                                      |
+| `scope`               | `/`                                                                                                                                    | 同上                                                                      |
+| `name` / `short_name` | `stage-tracker` / `stage-tracker`（同一文字列。短縮は意図的なブランディング判断が必要なため作らない）                                  | -                                                                         |
+| `display`             | `standalone`                                                                                                                           | -                                                                         |
+| `theme_color`         | `#2f4a7a`（`--color-accent` と同値を manifest 生成時にリテラル複製。CSS custom property は server-side manifest から解決できないため） | tokens.css との一致をテストで担保                                         |
+| `background_color`    | `#eef0f1`（`--color-canvas` と同値）                                                                                                   | 同上                                                                      |
+| `icons`               | `PWA_ICON_ASSETS` のうち `role: 'manifest'` の 4 種中 3 種（192/512 の `any` purpose、512 の `maskable` purpose）                      | maskable art は 80% safe-zone 内に収める別レンダリング                    |
 
 ### 5.3 公開リソースの扱い
 
@@ -813,7 +815,7 @@ ticketOpportunityImport.mjs` / `ticketOpportunitySeed.mjs`）、
     containment を DB 適用前に検証（DB 制約と同じ判定をレビュー時点で
     先取り）。
   - 同一 entry 内で `startsAt` instant の重複は拒否（`(event_id,
-    starts_at)` の一意性を壊すため）。
+starts_at)` の一意性を壊すため）。
   - 実行全体（複数ファイル）で `sourceKey` の重複、および `groups`
     の `key` に対する `displayName` の矛盾（同一 run 内で同じ group
     key に異なる表示名を与える）を拒否。
@@ -890,9 +892,9 @@ ticketOpportunityImport.mjs` / `ticketOpportunitySeed.mjs`）、
 - **冪等性 / 副作用**: 冪等性の概念は無く、実行するたびに
   `src/domain/japaneseHolidaysData.ts`（生成ファイル、"GENERATED FILE
   - do not hand-edit" 注記付き）を完全上書きする。祝日を演算で
-  「補完」することは一切なく、fetch 時点で CSV が公表している範囲
-  （`JAPANESE_HOLIDAY_DATA_COVERAGE_START/END`）がそのままコード上の
-  coverage になる。未来の祝日を推測しない。
+    「補完」することは一切なく、fetch 時点で CSV が公表している範囲
+    （`JAPANESE_HOLIDAY_DATA_COVERAGE_START/END`）がそのままコード上の
+    coverage になる。未来の祝日を推測しない。
 - **実行タイミング**: 固定スケジュールのジョブではなく、内閣府が
   新しい年の祝日を公表するたびに手動実行する運用（`AGENTS.md` は
   この手動運用を明示的に是とする）。
@@ -903,7 +905,7 @@ ticketOpportunityImport.mjs` / `ticketOpportunitySeed.mjs`）、
 
 - `scripts/lib/adminTarget.mjs`（`resolveAdminTarget`）を共有し、
   `--remote` フラグの有無で local Supabase CLI（`supabase status -o
-  json` から URL/service role key を取得）か、環境変数
+json` から URL/service role key を取得）か、環境変数
   （`STAGE_TRACKER_REMOTE_SUPABASE_URL` /
   `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY`）で指定した remote
   プロジェクトかを選ぶ。remote は明示指定しない限り既定にならない。

@@ -8,7 +8,12 @@
     "node": ">=22.6.0"
   },
   "scripts": {
-    "format:check": "prettier --config .ai-dev-foundation/quality/prettier.config.mjs --ignore-path .gitignore --ignore-path supabase/.gitignore --ignore-path .prettierignore --ignore-path apps/legacy-web/.prettierignore --check .",
+    "format:check": "prettier --config .ai-dev-foundation/quality/prettier.config.mjs --ignore-path .gitignore --ignore-path supabase/.gitignore --ignore-path .prettierignore --ignore-path apps/legacy-web/.prettierignore --check . && pnpm --filter @stage-tracker/web run format:check",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test:unit": "turbo run test:unit",
+    "build": "turbo run build",
+    "build-storybook": "pnpm --filter @stage-tracker/legacy-web run build-storybook",
     "foundation:sync": "node apps/legacy-web/scripts/run-foundation-tool.mjs sync",
     "foundation:check": "node apps/legacy-web/scripts/run-foundation-tool.mjs check && node apps/legacy-web/scripts/check-quality-profile-drift.mjs",
     "db:start": "supabase start",
@@ -29,7 +34,16 @@
     "catalog:grant-creator": "node apps/legacy-web/scripts/grant-catalog-creator.mjs",
     "catalog:import": "node apps/legacy-web/scripts/import-catalog-events.mjs",
     "tickets:import": "node apps/legacy-web/scripts/import-ticket-opportunities.mjs",
-    "holidays:update": "node apps/legacy-web/scripts/update-japanese-holidays.mjs"
+    "holidays:update": "node apps/legacy-web/scripts/update-japanese-holidays.mjs",
+    "verify:code": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run foundation:check && pnpm run agent-rules:check && pnpm run supabase:migrations:check",
+    "verify:build": "pnpm run build && pnpm run build-storybook",
+    "verify:database:start": "supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor",
+    "verify:database:db-checks": "pnpm run supabase:types:check && pnpm run test:rls && pnpm run client-role-privileges:check",
+    "verify:database:auth-checks": "pnpm run build:auth-app && pnpm run test:auth",
+    "verify:database:checks": "pnpm run verify:database:db-checks && pnpm run verify:database:auth-checks",
+    "verify:database": "pnpm run verify:database:start && supabase db reset && pnpm run verify:database:checks",
+    "verify:profile": "pnpm run agent-rules:check && pnpm run supabase:migrations:check && pnpm run verify:database",
+    "verify": "pnpm run verify:code && pnpm run verify:build && pnpm run verify:database"
   },
   "devDependencies": {
     "@types/node": "^20",

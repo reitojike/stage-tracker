@@ -27,7 +27,7 @@ schema / RLS / function / invariant だけを記載します。
   `anon`/`authenticated` へ `TRUNCATE + REFERENCES + TRIGGER + MAINTAIN`
   を自動付与してしまう（`TRUNCATE` は RLS を一切迂回する）。そのため
   ほぼ全テーブルの migration が `revoke all ... from public, anon,
-  authenticated` を明示してからテーブル/列単位で必要な権限だけを再付与
+authenticated` を明示してからテーブル/列単位で必要な権限だけを再付与
   している。v2 でも同じ罠がある前提で設計すること。
 - `service_role` は Postgres の `BYPASSRLS` 属性を持つが、PostgREST は
   RLS とは別にテーブルレベル権限も見るため、`service_role` にも明示的な
@@ -73,27 +73,28 @@ schema / RLS / function / invariant だけを記載します。
 
 ### 1.1 `events` — 興行（公演そのもの）の shared catalog エントリ
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| owner_id | uuid | NOT NULL | — | 作成者=情報管理者。FK → `auth.users(id)`（ON DELETE 指定なし = NO ACTION） |
-| title | text | NOT NULL | — | 興行名 |
-| venue | text | NULL | — | 会場（exact text。venue master は無い） |
-| source_url | text | NULL | — | 参照 URL |
-| memo | text | NULL | — | メモ |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | トリガーで実更新時のみ更新 |
-| source_key | text | NULL | — | import 由来の冪等性キー。手動作成イベントは null のまま |
-| starts_on | date | NOT NULL | — | Event range 開始日（Asia/Tokyo calendar date） |
-| ends_on | date | NOT NULL | — | Event range 終了日（両端 inclusive） |
-| genre_id | uuid | NULL | — | FK → `genres(id)`（ON DELETE 指定なし = NO ACTION）。0..1 |
-| canceled_at | timestamptz | NULL | — | Event-level cancellation。null=active、not null=canceled（値そのものに意味はない） |
+| column      | type        | nullable | default             | 意味                                                                               |
+| ----------- | ----------- | -------- | ------------------- | ---------------------------------------------------------------------------------- |
+| id          | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                                                 |
+| owner_id    | uuid        | NOT NULL | —                   | 作成者=情報管理者。FK → `auth.users(id)`（ON DELETE 指定なし = NO ACTION）         |
+| title       | text        | NOT NULL | —                   | 興行名                                                                             |
+| venue       | text        | NULL     | —                   | 会場（exact text。venue master は無い）                                            |
+| source_url  | text        | NULL     | —                   | 参照 URL                                                                           |
+| memo        | text        | NULL     | —                   | メモ                                                                               |
+| created_at  | timestamptz | NOT NULL | `now()`             |                                                                                    |
+| updated_at  | timestamptz | NOT NULL | `now()`             | トリガーで実更新時のみ更新                                                         |
+| source_key  | text        | NULL     | —                   | import 由来の冪等性キー。手動作成イベントは null のまま                            |
+| starts_on   | date        | NOT NULL | —                   | Event range 開始日（Asia/Tokyo calendar date）                                     |
+| ends_on     | date        | NOT NULL | —                   | Event range 終了日（両端 inclusive）                                               |
+| genre_id    | uuid        | NULL     | —                   | FK → `genres(id)`（ON DELETE 指定なし = NO ACTION）。0..1                          |
+| canceled_at | timestamptz | NULL     | —                   | Event-level cancellation。null=active、not null=canceled（値そのものに意味はない） |
 
 (historical, 現在は存在しない): `starts_at` / `ends_at`。PR B 時点では
 event が直接この2列を持っていたが、`event_occurrences` 導入時に全行を
 occurrence へ backfill した上で drop 済み。
 
 PK/UK/FK:
+
 - PK: `id`
 - FK: `owner_id → auth.users(id)`（NO ACTION）
 - FK: `genre_id → genres(id)`（NO ACTION／実質 RESTRICT。genre 削除経路が
@@ -103,34 +104,38 @@ PK/UK/FK:
   すべて null）同士は衝突しない。
 
 CHECK:
+
 - `events_starts_on_le_ends_on`: `starts_on <= ends_on`
   → invariant: 「Event range の開始日は終了日以前でなければならない」
 
 Constraint trigger（詳細は §3）:
+
 - `events_range_contains_occurrences`（AFTER UPDATE OF `starts_on`,
   `ends_on`, DEFERRABLE INITIALLY IMMEDIATE）
   → invariant: 「Event range を狭める更新は、既存の全 occurrence の
   開演日を引き続き含んでいなければ拒否される」
 
 Index:
+
 - `events_owner_id_idx (owner_id)`
 - `events_source_key_key`（上記 UK と同一）
 - `events_genre_id_idx (genre_id)`
 
 ### 1.2 `event_occurrences` — 公演回
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| event_id | uuid | NOT NULL | — | FK → `events(id)`（NO ACTION） |
-| starts_at | timestamptz | NOT NULL | — | 開演日時 |
-| ends_at | timestamptz | NULL | — | 終演日時（不明可） |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
-| doors_at | timestamptz | NULL | — | 開場日時（不明可） |
-| canceled_at | timestamptz | NULL | — | Occurrence-level cancellation |
+| column      | type        | nullable | default             | 意味                           |
+| ----------- | ----------- | -------- | ------------------- | ------------------------------ |
+| id          | uuid        | NOT NULL | `gen_random_uuid()` | PK                             |
+| event_id    | uuid        | NOT NULL | —                   | FK → `events(id)`（NO ACTION） |
+| starts_at   | timestamptz | NOT NULL | —                   | 開演日時                       |
+| ends_at     | timestamptz | NULL     | —                   | 終演日時（不明可）             |
+| created_at  | timestamptz | NOT NULL | `now()`             |                                |
+| updated_at  | timestamptz | NOT NULL | `now()`             |                                |
+| doors_at    | timestamptz | NULL     | —                   | 開場日時（不明可）             |
+| canceled_at | timestamptz | NULL     | —                   | Occurrence-level cancellation  |
 
 PK/UK/FK:
+
 - PK: `id`
 - FK: `event_id → events(id)`（NO ACTION）
 - UK: `event_occurrences_event_id_starts_at_key` — `(event_id, starts_at)`
@@ -138,6 +143,7 @@ PK/UK/FK:
   DB level で強制する制約。
 
 CHECK:
+
 - `event_occurrences_doors_at_le_starts_at`:
   `doors_at IS NULL OR doors_at <= starts_at`
 - `event_occurrences_starts_at_le_ends_at`:
@@ -147,6 +153,7 @@ CHECK:
   比較対象外。
 
 Constraint trigger:
+
 - `event_occurrences_within_event_range`（AFTER INSERT OR UPDATE OF
   `starts_at`, `event_id`, DEFERRABLE INITIALLY IMMEDIATE）
   → invariant: 「occurrence の `starts_at` を Asia/Tokyo calendar date に
@@ -154,15 +161,16 @@ Constraint trigger:
   ならない」
 
 Index:
+
 - `event_occurrences_event_id_idx (event_id)`（UK のインデックスと重複
   気味だが drop されず残存）
 
 ### 1.3 `catalog_creators` — Event 作成権限の allowlist
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| user_id | uuid | NOT NULL (PK) | — | FK → `auth.users(id)` **ON DELETE CASCADE** |
-| created_at | timestamptz | NOT NULL | `now()` | |
+| column     | type        | nullable      | default | 意味                                        |
+| ---------- | ----------- | ------------- | ------- | ------------------------------------------- |
+| user_id    | uuid        | NOT NULL (PK) | —       | FK → `auth.users(id)` **ON DELETE CASCADE** |
+| created_at | timestamptz | NOT NULL      | `now()` |                                             |
 
 - 特定 role/permission framework ではなく、「Event 作成」という一機能
   だけに紐づいた membership allowlist。
@@ -171,26 +179,27 @@ Index:
 
 ### 1.4 `personal_schedule_entries` — event 非依存の個人予定
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| owner_id | uuid | NOT NULL | — | FK → `auth.users(id)`（NO ACTION） |
-| memo | text | NULL | — | |
-| is_all_day | boolean | NOT NULL | — | 終日 or 時刻指定の判別 |
-| starts_on | date | NULL | — | 終日エントリの開始日 |
-| ends_on | date | NULL | — | 終日エントリの終了日 |
-| starts_at | timestamptz | NULL | — | 時刻指定エントリの開始 |
-| ends_at | timestamptz | NULL | — | 時刻指定エントリの終了（不明可） |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
-| title | text | NOT NULL | — | 自由記述の件名（旧 `schedule_type` 固定語彙を置換） |
-| blocking | boolean | NOT NULL | — | true=availability を占有、false=表示のみ |
+| column     | type        | nullable | default             | 意味                                                |
+| ---------- | ----------- | -------- | ------------------- | --------------------------------------------------- |
+| id         | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                  |
+| owner_id   | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）                  |
+| memo       | text        | NULL     | —                   |                                                     |
+| is_all_day | boolean     | NOT NULL | —                   | 終日 or 時刻指定の判別                              |
+| starts_on  | date        | NULL     | —                   | 終日エントリの開始日                                |
+| ends_on    | date        | NULL     | —                   | 終日エントリの終了日                                |
+| starts_at  | timestamptz | NULL     | —                   | 時刻指定エントリの開始                              |
+| ends_at    | timestamptz | NULL     | —                   | 時刻指定エントリの終了（不明可）                    |
+| created_at | timestamptz | NOT NULL | `now()`             |                                                     |
+| updated_at | timestamptz | NOT NULL | `now()`             |                                                     |
+| title      | text        | NOT NULL | —                   | 自由記述の件名（旧 `schedule_type` 固定語彙を置換） |
+| blocking   | boolean     | NOT NULL | —                   | true=availability を占有、false=表示のみ            |
 
 (historical, 現在は存在しない): `schedule_type text CHECK IN
 ('paid_leave','work','travel','other')`。`title`/`blocking` 導入時に
 drop 済み。
 
 CHECK:
+
 - `personal_schedule_entries_temporal_shape`:
   ```
   (is_all_day AND starts_on/ends_on NOT NULL AND ends_on >= starts_on
@@ -206,12 +215,12 @@ Index: `personal_schedule_entries_owner_id_idx (owner_id)`
 
 ### 1.5 `personal_schedule_shares` — 個人予定の共有先
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| schedule_entry_id | uuid | NOT NULL | — | FK → `personal_schedule_entries(id)` **ON DELETE CASCADE** |
-| shared_with_user_id | uuid | NOT NULL | — | FK → `auth.users(id)`（NO ACTION） |
-| created_at | timestamptz | NOT NULL | `now()` | |
+| column              | type        | nullable | default             | 意味                                                       |
+| ------------------- | ----------- | -------- | ------------------- | ---------------------------------------------------------- |
+| id                  | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                         |
+| schedule_entry_id   | uuid        | NOT NULL | —                   | FK → `personal_schedule_entries(id)` **ON DELETE CASCADE** |
+| shared_with_user_id | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）                         |
+| created_at          | timestamptz | NOT NULL | `now()`             |                                                            |
 
 - UK: `(schedule_entry_id, shared_with_user_id)` — 同一エントリを同一
   recipient へ重複共有できない。
@@ -222,15 +231,15 @@ Index: `personal_schedule_shares_schedule_entry_id_idx`,
 
 ### 1.6 `occurrence_participations` — 公演回への参加意思
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| occurrence_id | uuid | NOT NULL | — | FK → `event_occurrences(id)`（NO ACTION） |
-| user_id | uuid | NOT NULL | — | FK → `auth.users(id)`（NO ACTION） |
-| status | `participation_status` enum | NOT NULL | — | `considering` / `attending` |
-| visibility | `participation_visibility` enum | NOT NULL | `'private'` | `private` / `public` |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
+| column        | type                            | nullable | default             | 意味                                      |
+| ------------- | ------------------------------- | -------- | ------------------- | ----------------------------------------- |
+| id            | uuid                            | NOT NULL | `gen_random_uuid()` | PK                                        |
+| occurrence_id | uuid                            | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION） |
+| user_id       | uuid                            | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）        |
+| status        | `participation_status` enum     | NOT NULL | —                   | `considering` / `attending`               |
+| visibility    | `participation_visibility` enum | NOT NULL | `'private'`         | `private` / `public`                      |
+| created_at    | timestamptz                     | NOT NULL | `now()`             |                                           |
+| updated_at    | timestamptz                     | NOT NULL | `now()`             |                                           |
 
 - UK: `(occurrence_id, user_id)` — 1 occurrence につき 1 user 1 行。
   `not_attending` は永久に非永続（行が無い＝not attending）。
@@ -239,25 +248,28 @@ Index: `occurrence_participations_user_id_idx (user_id)`
 
 ### 1.7 `occurrence_invitations` — 公演回への未回答招待（pending のみ）
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| occurrence_id | uuid | NOT NULL | — | FK → `event_occurrences(id)`（NO ACTION） |
-| inviter_id | uuid | NOT NULL | — | FK → `auth.users(id)`（NO ACTION） |
-| invitee_id | uuid | NOT NULL | — | FK → `auth.users(id)`（NO ACTION） |
-| declined_at | timestamptz | NULL | — | **死んだ列**（後述）。書き込む経路が現存しない |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | 実質発火機会が無い（後述） |
+| column        | type        | nullable | default             | 意味                                           |
+| ------------- | ----------- | -------- | ------------------- | ---------------------------------------------- |
+| id            | uuid        | NOT NULL | `gen_random_uuid()` | PK                                             |
+| occurrence_id | uuid        | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION）      |
+| inviter_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）             |
+| invitee_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）             |
+| declined_at   | timestamptz | NULL     | —                   | **死んだ列**（後述）。書き込む経路が現存しない |
+| created_at    | timestamptz | NOT NULL | `now()`             |                                                |
+| updated_at    | timestamptz | NOT NULL | `now()`             | 実質発火機会が無い（後述）                     |
 
 CHECK:
+
 - `occurrence_invitations_not_self`: `inviter_id <> invitee_id`
 
 UK:
+
 - `occurrence_invitations_occurrence_inviter_invitee_key`:
   `(occurrence_id, inviter_id, invitee_id)`
 
 現行意味論（Issue #225/#230 で確定した pending-only モデル、旧
 accepted/declined history モデルは supersede 済み）:
+
 - 行の存在 = 「その occurrence へその招待が pending 中」を意味する
   唯一の表現。resolve（decline / invitee が attending に到達）される
   と行ごと削除される。durable な履歴は一切残らない。
@@ -268,32 +280,33 @@ accepted/declined history モデルは supersede 済み）:
 
 ### 1.8 `ticket_opportunities` — 販売機会（TicketOpportunity, shared）
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| event_id | uuid | NOT NULL | — | FK → `events(id)` **ON DELETE CASCADE** |
-| target_scope | text | NOT NULL | — | CHECK IN `('event_wide','selected_occurrences')` |
-| display_name | text | NOT NULL | — | source 上の表示名をそのまま保持 |
-| source_key | text | NOT NULL | — | UNIQUE。import の冪等キー |
-| source_url | text | NULL | — | |
-| memo | text | NULL | — | |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
+| column       | type        | nullable | default             | 意味                                             |
+| ------------ | ----------- | -------- | ------------------- | ------------------------------------------------ |
+| id           | uuid        | NOT NULL | `gen_random_uuid()` | PK                                               |
+| event_id     | uuid        | NOT NULL | —                   | FK → `events(id)` **ON DELETE CASCADE**          |
+| target_scope | text        | NOT NULL | —                   | CHECK IN `('event_wide','selected_occurrences')` |
+| display_name | text        | NOT NULL | —                   | source 上の表示名をそのまま保持                  |
+| source_key   | text        | NOT NULL | —                   | UNIQUE。import の冪等キー                        |
+| source_url   | text        | NULL     | —                   |                                                  |
+| memo         | text        | NULL     | —                   |                                                  |
+| created_at   | timestamptz | NOT NULL | `now()`             |                                                  |
+| updated_at   | timestamptz | NOT NULL | `now()`             |                                                  |
 
 Index: `ticket_opportunities_event_id_idx`,
 `ticket_opportunities_source_key_key`（UNIQUE）
 
 ### 1.9 `ticket_opportunity_target_occurrences` — Opportunity ↔ Occurrence（selected_occurrences 用）
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| opportunity_id | uuid | NOT NULL | — | FK → `ticket_opportunities(id)` **ON DELETE CASCADE** |
-| occurrence_id | uuid | NOT NULL | — | FK → `event_occurrences(id)` **ON DELETE CASCADE** |
-| created_at | timestamptz | NOT NULL | `now()` | |
+| column         | type        | nullable | default | 意味                                                  |
+| -------------- | ----------- | -------- | ------- | ----------------------------------------------------- |
+| opportunity_id | uuid        | NOT NULL | —       | FK → `ticket_opportunities(id)` **ON DELETE CASCADE** |
+| occurrence_id  | uuid        | NOT NULL | —       | FK → `event_occurrences(id)` **ON DELETE CASCADE**    |
+| created_at     | timestamptz | NOT NULL | `now()` |                                                       |
 
 PK: `(opportunity_id, occurrence_id)`
 
 Trigger（§3）:
+
 - `ticket_opportunity_target_occurrences_check`（BEFORE INSERT）
   → invariant: 「行は親 Opportunity の `target_scope` が
   `selected_occurrences` の場合のみ存在でき、`occurrence` は必ず親
@@ -304,23 +317,24 @@ Index: `ticket_opportunity_target_occurrences_occurrence_id_idx
 
 ### 1.10 `ticket_opportunity_milestones` — 開催前後のマイルストーン
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| opportunity_id | uuid | NOT NULL | — | FK → `ticket_opportunities(id)` **ON DELETE CASCADE** |
-| milestone_type | text | NOT NULL | — | CHECK IN `('application_open','application_close','result_announcement','sale_start','payment_window')` |
-| temporal_precision | text | NOT NULL | — | CHECK IN `('date','datetime','window')` |
-| date_value | date | NULL | — | `temporal_precision='date'` のときのみ非null |
-| at | timestamptz | NULL | — | `temporal_precision='datetime'` のときのみ非null |
-| starts_at | timestamptz | NULL | — | `temporal_precision='window'` のときのみ非null |
-| ends_at | timestamptz | NULL | — | 同上 |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
+| column             | type        | nullable | default             | 意味                                                                                                    |
+| ------------------ | ----------- | -------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
+| id                 | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                                                                      |
+| opportunity_id     | uuid        | NOT NULL | —                   | FK → `ticket_opportunities(id)` **ON DELETE CASCADE**                                                   |
+| milestone_type     | text        | NOT NULL | —                   | CHECK IN `('application_open','application_close','result_announcement','sale_start','payment_window')` |
+| temporal_precision | text        | NOT NULL | —                   | CHECK IN `('date','datetime','window')`                                                                 |
+| date_value         | date        | NULL     | —                   | `temporal_precision='date'` のときのみ非null                                                            |
+| at                 | timestamptz | NULL     | —                   | `temporal_precision='datetime'` のときのみ非null                                                        |
+| starts_at          | timestamptz | NULL     | —                   | `temporal_precision='window'` のときのみ非null                                                          |
+| ends_at            | timestamptz | NULL     | —                   | 同上                                                                                                    |
+| created_at         | timestamptz | NOT NULL | `now()`             |                                                                                                         |
+| updated_at         | timestamptz | NOT NULL | `now()`             |                                                                                                         |
 
 UK: `(opportunity_id, milestone_type)` — 同一 Opportunity に同種
 milestone は最大1件。
 
 CHECK:
+
 - 精度に対応する列グループだけが非null（他は全て null）
   → invariant: 「date-only の情報を datetime/window として偽装しない」
 - `temporal_precision <> 'window' OR ends_at >= starts_at`
@@ -329,14 +343,14 @@ Index: `ticket_opportunity_milestones_opportunity_id_idx`
 
 ### 1.11 `user_ticket_opportunity_states` — 個人の申込予定状態
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| user_id | uuid | NOT NULL | — | FK → `auth.users(id)`（NO ACTION） |
-| opportunity_id | uuid | NOT NULL | — | FK → `ticket_opportunities(id)` **ON DELETE CASCADE** |
-| status | text | NOT NULL | — | CHECK IN `('planned','applied')` |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
+| column         | type        | nullable | default             | 意味                                                  |
+| -------------- | ----------- | -------- | ------------------- | ----------------------------------------------------- |
+| id             | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                    |
+| user_id        | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）                    |
+| opportunity_id | uuid        | NOT NULL | —                   | FK → `ticket_opportunities(id)` **ON DELETE CASCADE** |
+| status         | text        | NOT NULL | —                   | CHECK IN `('planned','applied')`                      |
+| created_at     | timestamptz | NOT NULL | `now()`             |                                                       |
+| updated_at     | timestamptz | NOT NULL | `now()`             |                                                       |
 
 UK: `(user_id, opportunity_id)` — 行なし＝未登録（実際の申込記録ではない）。
 
@@ -346,37 +360,37 @@ index は無い。UK のインデックスが `user_id` 先頭の複合btreeな�
 
 ### 1.12 `genres` — ジャンルの canonical lookup
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| key | text | NOT NULL | — | UNIQUE。安定識別子（英語スラッグ） |
-| display_name | text | NOT NULL | — | 表示名（日本語） |
-| sort_order | smallint | NOT NULL | — | UI 表示順 |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
+| column       | type        | nullable | default             | 意味                               |
+| ------------ | ----------- | -------- | ------------------- | ---------------------------------- |
+| id           | uuid        | NOT NULL | `gen_random_uuid()` | PK                                 |
+| key          | text        | NOT NULL | —                   | UNIQUE。安定識別子（英語スラッグ） |
+| display_name | text        | NOT NULL | —                   | 表示名（日本語）                   |
+| sort_order   | smallint    | NOT NULL | —                   | UI 表示順                          |
+| created_at   | timestamptz | NOT NULL | `now()`             |                                    |
+| updated_at   | timestamptz | NOT NULL | `now()`             |                                    |
 
 シード行（3件、Gate A canonical set）: 詳細は §4。
 
 ### 1.13 `groups` — 組・グループの canonical lookup
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| id | uuid | NOT NULL | `gen_random_uuid()` | PK |
-| key | text | NOT NULL | — | UNIQUE。安定識別子 |
-| display_name | text | NOT NULL | — | 表示名 |
-| created_at | timestamptz | NOT NULL | `now()` | |
-| updated_at | timestamptz | NOT NULL | `now()` | |
+| column       | type        | nullable | default             | 意味               |
+| ------------ | ----------- | -------- | ------------------- | ------------------ |
+| id           | uuid        | NOT NULL | `gen_random_uuid()` | PK                 |
+| key          | text        | NOT NULL | —                   | UNIQUE。安定識別子 |
+| display_name | text        | NOT NULL | —                   | 表示名             |
+| created_at   | timestamptz | NOT NULL | `now()`             |                    |
+| updated_at   | timestamptz | NOT NULL | `now()`             |                    |
 
 genre に紐づかない汎用 identity。宝塚の「組」とアイドルの「グループ」を
 同一機構で扱う。
 
 ### 1.14 `event_groups` — Event ↔ group（0..N）
 
-| column | type | nullable | default | 意味 |
-|---|---|---|---|---|
-| event_id | uuid | NOT NULL | — | FK → `events(id)` **ON DELETE CASCADE** |
-| group_id | uuid | NOT NULL | — | FK → `groups(id)`（NO ACTION） |
-| created_at | timestamptz | NOT NULL | `now()` | |
+| column     | type        | nullable | default | 意味                                    |
+| ---------- | ----------- | -------- | ------- | --------------------------------------- |
+| event_id   | uuid        | NOT NULL | —       | FK → `events(id)` **ON DELETE CASCADE** |
+| group_id   | uuid        | NOT NULL | —       | FK → `groups(id)`（NO ACTION）          |
+| created_at | timestamptz | NOT NULL | `now()` |                                         |
 
 PK: `(event_id, group_id)` — 重複関連付けを構造的に防止。
 
@@ -511,9 +525,9 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
 ### 3.1 Event catalog 書き込み系
 
 - **`create_event(p_title, p_starts_on, p_ends_on, p_venue default null,
-  p_source_url default null, p_memo default null, p_starts_at default
-  null, p_ends_at default null, p_doors_at default null) returns
-  events`** — SECURITY DEFINER, `authenticated` のみ EXECUTE。
+p_source_url default null, p_memo default null, p_starts_at default
+null, p_ends_at default null, p_doors_at default null) returns
+events`** — SECURITY DEFINER, `authenticated` のみ EXECUTE。
   - 未認証は拒否。呼び出し者が `catalog_creators` に居なければ `42501`。
   - `p_starts_at` が null なのに `p_ends_at`/`p_doors_at` が非null なら
     `22004`（0-occurrence 作成の意図を曖昧にしない）。
@@ -523,8 +537,8 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
     バックする。
   - (historical) 旧名 `create_event_with_occurrence` は drop 済み。
 - **`import_event_with_occurrences(p_owner_id, p_source_key, p_title,
-  p_starts_on, p_ends_on, p_occurrences jsonb, p_venue default null,
-  p_source_url default null, p_memo default null) returns events`** —
+p_starts_on, p_ends_on, p_occurrences jsonb, p_venue default null,
+p_source_url default null, p_memo default null) returns events`** —
   SECURITY INVOKER, `service_role` のみ EXECUTE。
   - owner/source_key/starts_on・ends_on/occurrences配列 いずれか欠落で
     `22004`。owner が `catalog_creators` 非会員なら `42501`。
@@ -532,9 +546,9 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
     作成。挿入件数が payload 件数と一致しなければ `23514`
     （malformed 要素の握りつぶし防止）。
 - **`import_update_event(p_event_id, p_title, p_starts_on, p_ends_on,
-  p_venue default null, p_source_url default null, p_memo default
-  null, p_new_occurrences default '[]', p_occurrence_fixes default
-  '[]') returns events`** — SECURITY INVOKER, `service_role` のみ。
+p_venue default null, p_source_url default null, p_memo default
+null, p_new_occurrences default '[]', p_occurrence_fixes default
+'[]') returns events`** — SECURITY INVOKER, `service_role` のみ。
   - Event range containment の2つの constraint trigger を呼び出し内で
     `SET CONSTRAINTS ... DEFERRED` し、range 変更と occurrence 変更を
     任意の順で適用できるようにする。
@@ -543,7 +557,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
   - `p_occurrence_fixes` は `COALESCE` で「既存値を埋める」だけで、
     既にある値をクリアしない。
 - **`reschedule_event(p_event_id, p_starts_on, p_ends_on, p_occurrences
-  default '[]') returns setof event_occurrences`** — SECURITY INVOKER
+default '[]') returns setof event_occurrences`** — SECURITY INVOKER
   （owner 本人が持つ既存の UPDATE 権限をまとめて原子化するだけなので
   DEFINER 昇格が不要）、`authenticated` のみ。
   - owner 本人でなければ `42501`。containment 2トリガーを呼び出し内で
@@ -571,7 +585,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
 ### 3.2 Cancellation
 
 - **`event_occurrence_is_effectively_canceled(p_occurrence_id) returns
-  boolean`** — SECURITY DEFINER（`for share` ロック読み取りが
+boolean`** — SECURITY DEFINER（`for share` ロック読み取りが
   UPDATE policy の USING も評価されてしまうため、呼び出し者が owner
   でなくても正しく読めるように DEFINER が必須）。`authenticated` と
   `service_role` に EXECUTE。
@@ -593,7 +607,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
 ### 3.3 Invitation（pending-only, 現行仕様）
 
 - **`invite_to_occurrence(p_occurrence_id, p_invitee_id) returns
-  void`** — SECURITY DEFINER, `authenticated`。
+void`** — SECURITY DEFINER, `authenticated`。
   - 未認証/自己招待/canceled occurrence はそれぞれ例外
     （自己招待・未認証は generic exception、canceled は `90002`）。
   - inviter が対象 occurrence で `attending` でなければ拒否
@@ -605,7 +619,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
   - invitee が既に `attending` なら pending invitation を作らず
     無言で return（opaque）。
   - それ以外は `occurrence_invitations` へ `(occurrence_id, inviter_id,
-    invitee_id)` を `on conflict do nothing` で挿入するのみ。
+invitee_id)` を `on conflict do nothing` で挿入するのみ。
   - **現行仕様（Issue #225/#230 以降）**: 招待は invitee の
     participation を一切作成・変更しない。行が無い invitee に対する
     「`considering` を自動作成する」旧挙動は廃止済み。
@@ -613,7 +627,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
     呼び出し元から一切区別できない（invitee の private な
     participation 状態を漏らさないための意図的な opacity）。
 - **`invite_to_occurrence_by_email(p_occurrence_id, p_invitee_email)
-  returns void`** — SECURITY DEFINER, `authenticated`。
+returns void`** — SECURITY DEFINER, `authenticated`。
   - `p_invitee_email` を正規化（trim + lower）し、簡易フォーマット検証
     後、`auth.users`（`deleted_at is null`）を大文字小文字無視で照合。
   - 「該当アカウントなし」を含む invitee 依存の全分岐が同一の `void`
@@ -621,7 +635,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
   - それ以外のロジックは `invite_to_occurrence` と同一
     （advisory lock、pending 重複の no-op、canceled チェック等）。
 - **`decline_occurrence_invitation(p_invitation_id) returns
-  occurrence_invitations`** — SECURITY DEFINER, `authenticated`。
+occurrence_invitations`** — SECURITY DEFINER, `authenticated`。
   - invitee 本人の行のみ `DELETE ... RETURNING`。見つからなければ
     （invitee でない、id が違う、既に resolved 済み）例外を投げず
     `null` を返す（idempotent、二重呼び出しも安全）。
@@ -631,7 +645,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
   SECURITY DEFINER。
   - `occurrence_participations` への INSERT（`status='attending'`時）
     または UPDATE（`old.status IS DISTINCT FROM new.status AND
-    new.status='attending'`時）で発火。
+new.status='attending'`時）で発火。
   - `(occurrence_id, user_id)` に対する advisory lock を取ってから、
     その occurrence/invitee の組に対する **全ての** pending invitation
     （inviter を問わず）を削除する。
@@ -640,7 +654,7 @@ scope ではない（product-rules.md「Ticket model removal」）。v2 で
     でも invitation 経由でも）が同じトリガーを通る
     （"generic attending convergence"）。
   - 2つのトリガーに分割: `..._ins`（AFTER INSERT, `new.status=
-    'attending'`）と `..._upd`（AFTER UPDATE, 同条件 + status 遷移
+'attending'`）と `..._upd`（AFTER UPDATE, 同条件 + status 遷移
     条件）。Postgres は INSERT トリガーの WHEN 句で `OLD` を参照
     できないための分割。
 
@@ -661,7 +675,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
     「caller は指定エントリの owner か」だけで、caller が既に知り得る
     情報しか開示しない。
 - **`share_schedule_entry_by_email(p_schedule_entry_id,
-  p_recipient_email) returns personal_schedule_shares`** — SECURITY
+p_recipient_email) returns personal_schedule_shares`** — SECURITY
   DEFINER, `authenticated`。
   - owner 本人でなければ拒否。email フォーマット検証、自分自身との
     共有は拒否。
@@ -671,7 +685,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
   - 既存共有への再共有は `on conflict do update`（no-op 相当）で
     idempotent に同じ行を返す。
 - **`list_schedule_share_recipient_emails(p_schedule_entry_id) returns
-  table(share_id, recipient_email, shared_at)`** — SECURITY DEFINER
+table(share_id, recipient_email, shared_at)`** — SECURITY DEFINER
   STABLE, `authenticated`。
   - owner 本人でなければ拒否。汎用 user directory ではなく、その
     エントリに既に共有済みの recipient の email だけを投影する
@@ -680,9 +694,9 @@ replace`）されている。旧モデルの記述は再実装対象ではない
 ### 3.5 Ticket Opportunity / Classification（import 系、`service_role` 専用）
 
 - **`import_ticket_opportunity(p_event_id, p_source_key,
-  p_display_name, p_target_scope, p_occurrence_ids default null,
-  p_source_url default null, p_memo default null, p_milestones
-  default '[]') returns ticket_opportunities`** — SECURITY INVOKER,
+p_display_name, p_target_scope, p_occurrence_ids default null,
+p_source_url default null, p_memo default null, p_milestones
+default '[]') returns ticket_opportunities`** — SECURITY INVOKER,
   `service_role` のみ。
   - `target_scope='event_wide'` なのに occurrence 指定があれば拒否、
     `'selected_occurrences'` なのに1件も無ければ拒否、指定
@@ -692,8 +706,8 @@ replace`）されている。旧モデルの記述は再実装対象ではない
     （replace-all。マージしない＝source から消えた項目は次回 import
     で消える）。
 - **`import_event_classification(p_event_id, p_set_genre default
-  false, p_genre_key default null, p_set_groups default false,
-  p_groups default '[]') returns events`** — SECURITY INVOKER,
+false, p_genre_key default null, p_set_groups default false,
+p_groups default '[]') returns events`** — SECURITY INVOKER,
   `service_role` のみ。
   - `p_set_genre` / `p_set_groups` は独立した「この facet に触るか」
     フラグ。触らない facet は既存値を一切変更しない（旧 seed が
@@ -784,14 +798,15 @@ replace`）されている。旧モデルの記述は再実装対象ではない
 
 - **`genres`**（`key`, `display_name`, `sort_order`）— シード3行:
 
-  | key | display_name | sort_order |
-  |---|---|---|
-  | `takarazuka` | 宝塚 | 1 |
-  | `kabuki` | 歌舞伎 | 2 |
-  | `idol` | アイドル | 3 |
+  | key          | display_name | sort_order |
+  | ------------ | ------------ | ---------- |
+  | `takarazuka` | 宝塚         | 1          |
+  | `kabuki`     | 歌舞伎       | 2          |
+  | `idol`       | アイドル     | 3          |
 
   永久固定の3値ではなく、将来行を追加するだけで genre を増やせる設計
   （enum 拡張のような破壊的マイグレーションを避けるため）。
+
 - **`groups`**（`key`, `display_name`）— 宝塚の「組」とアイドルの
   「グループ」を同一機構で扱う汎用 lookup。genre に紐づかない
   （genre との関連は `event_groups` を介して動的に導出する）。
@@ -820,12 +835,12 @@ replace`）されている。旧モデルの記述は再実装対象ではない
    （`considering`/`attending` の重複行は作れない）。`not_attending` を
    表す永続化された値は存在しない。
 8. `occurrence_invitations` は自己招待できない（`inviter_id <>
-   invitee_id`）。同一 `(occurrence, inviter, invitee)` の組につき
+invitee_id`）。同一 `(occurrence, inviter, invitee)` の組につき
    pending invitation は最大1件。
 9. invitation は inviter からは自身が送った招待の存在すら読み取れず
    （opacity）、招待操作は invitee の participation を
    `attending→considering` へ降格させることも、`considering/なし
-   →attending` へ昇格させることもできない。invitee 自身の書き込みだけが
+→attending` へ昇格させることもできない。invitee 自身の書き込みだけが
    `attending` を成立させられる。
 10. invitee の participation が（どの経路であれ）`attending` に到達した
     瞬間、その occurrence に対する invitee 宛の pending invitation は
@@ -872,6 +887,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
 省く）。
 
 ### Event catalog 全般
+
 - shared read: authenticated は誰の event/occurrence も読める。anon は
   event/occurrence/catalog_creators/participation/invitation/personal
   schedule/ticket opportunity/classification のいずれも読めない
@@ -925,11 +941,12 @@ replace`）されている。旧モデルの記述は再実装対象ではない
   重複検出、0-occurrence event の可視化、重複時の去重）を満たすこと。
 
 ### Cancellation
+
 - owner による cancel/uncancel の往復、non-owner・anon の拒否。
 - Event uncancel が既に canceled な子 Occurrence を自動解除しないこと。
 - effective cancellation 下での新規 participation 拒否
   （event-level/occurrence-level 双方の原因で）、`considering→
-  attending` の拒否、`attending→considering`・visibility のみの更新・
+attending` の拒否、`attending→considering`・visibility のみの更新・
   withdraw(削除) は引き続き許可されること。
 - invitation の新規作成（uuid版/email版とも）が cancel 下で拒否される
   こと。cancel 操作自体は既存 participation を変更しないこと。
@@ -939,6 +956,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
   （cancel が先/insert が先）の安全性。
 
 ### Participation
+
 - 本人のみが自分の participation を書ける（他人代理不可、他人の行の
   更新・削除も不可、reassignできない、occurrence 付け替え不可）。
 - visibility の既定値が `private` であること、`public` への変更で
@@ -952,6 +970,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
 - 列 grant が意図した集合と厳密に一致すること。
 
 ### Invitation
+
 - 3つの invitee 分岐（行なし/considering/attending）が inviter からは
   区別不能で、RPC の戻り値がいずれも同一であること。
 - 現行モデル: 行なし invitee への招待が participation を作成しない
@@ -986,6 +1005,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
   （書き込み surface が完全にゼロであること）。
 
 ### Personal schedule
+
 - 終日/時刻指定の各正常系作成、および形状 CHECK 違反（片方の形に
   当てはまらない入力）それぞれの拒否パターン。
 - owner 本人の read/update、無関係な user の read/update 拒否
@@ -1003,6 +1023,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
   owner には見え続けること。
 
 ### Ticket Opportunity / Classification / UserTicketOpportunityState
+
 - shared read は authenticated 全員、anon は拒否。
 - authenticated（Event owner 含む）は opportunities/milestones/target
   occurrences/genres/groups/event_groups を直接書き込めないこと。
@@ -1014,7 +1035,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
   milestones/targets を完全に置換すること、同一 source_url でも
   source_key が異なれば別 Opportunity になること。
 - `import_event_classification`: 単一 genre の設定、`p_set_genre=
-  false` で既存値を変更しないこと、`p_set_genre=true` かつ key なしで
+false` で既存値を変更しないこと、`p_set_genre=true` かつ key なしで
   genre 解除、未知 genre key の拒否、再分類が前の genre を置換して
   蓄積しないこと、複数 group 関連付け、同一 key の group が重複作成
   されず再利用されること、displayName 訂正が canonical 行を更新する
@@ -1036,6 +1057,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
   こと、再 import が既存の個人状態に触れないこと。
 
 ### 横断的な grant/権限監査
+
 - `publicSchemaGrants.test.ts`: `public` スキーマの全テーブルについて
   `anon`/`authenticated` が `TRUNCATE`/`REFERENCES`/`TRIGGER`/
   `MAINTAIN` を一切持たないことを一括監査。加えて
@@ -1094,7 +1116,7 @@ replace`）されている。旧モデルの記述は再実装対象ではない
    コメントに頼らず、コード内の単一箇所（例: 定数モジュール +
    このドキュメントのような oracle）でエラーコード表を正本化すべき。
 5. **Event range containment を constraint trigger 2本 + `SET
-   CONSTRAINTS DEFERRED` の組み合わせで実現している。** 正しく機能
+CONSTRAINTS DEFERRED` の組み合わせで実現している。** 正しく機能
    しているが、この「範囲同士の包含関係」は PostgreSQL の GiST
    排他制約（`btree_gist` + `EXCLUDE USING gist`）や範囲型
    （`daterange`）でより宣言的に表現できる可能性がある。v2 で

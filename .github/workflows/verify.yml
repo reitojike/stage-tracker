@@ -5,7 +5,7 @@ name: Verify
 # per-responsibility lanes for Issue #118 so PR Checks show which
 # responsibility failed instead of a single collapsed `Verify` result).
 # Checks out ai-dev-foundation at a reproducible pinned revision alongside
-# this repository so `npm run verify:code` can validate the generated
+# this repository so `pnpm run verify:code` can validate the generated
 # adapters and Foundation-managed quality profile against the canonical
 # source, not just against files already committed here. `Verify / Database`
 # starts a local Supabase stack (via the `supabase` npm devDependency, using
@@ -14,7 +14,7 @@ name: Verify
 # against a real local Postgres - no remote Supabase project or credentials
 # are required.
 #
-# The full `npm run verify` one-command sequence (code + build + database)
+# The full `pnpm run verify` one-command sequence (code + build + database)
 # remains the local/agent deterministic verification contract; these three
 # jobs each run one slice of it so failures are attributable per
 # responsibility instead of only via the aggregate command's exit code. The
@@ -100,17 +100,20 @@ jobs:
           path: .foundation-checkout
           persist-credentials: false
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.6'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Verify / Code
-        run: npm run verify:code
+        run: pnpm run verify:code
 
   build:
     name: Verify / Build
@@ -122,17 +125,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.6'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Verify / Build
-        run: npm run verify:build
+        run: pnpm run verify:build
 
   database:
     name: Verify / Database
@@ -144,14 +150,17 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.6'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Issue #209: this runner is always a fresh GitHub-hosted VM with no
       # pre-existing Docker volumes, so `supabase start` here is always the
@@ -159,21 +168,21 @@ jobs:
       # possibly stale local backup) and already applies every migration
       # from disk - unlike a long-lived local/agent Supabase instance, where
       # `supabase start` alone can silently resume from a prior backup
-      # instead of re-applying migrations, which is why `npm run
+      # instead of re-applying migrations, which is why `pnpm run
       # verify:database` (the local/agent contract) still runs `supabase db
       # reset` explicitly. CI skips that redundant reset here. The named
       # check steps below are the exact grouped commands composed by
       # verify:database:checks, so CI keeps the same coverage while recording
       # DB guardrails before any Auth browser work.
       - name: Start local Supabase
-        run: npm run verify:database:start
+        run: pnpm run verify:database:start
 
       - name: Verify / DB checks
-        run: npm run verify:database:db-checks
+        run: pnpm run verify:database:db-checks
 
       - name: Verify / Auth checks
         timeout-minutes: 5
-        run: npm run verify:database:auth-checks
+        run: pnpm run verify:database:auth-checks
 
       # Distinguishes deadlock/concurrency failures (SQLSTATE 40P01, already
       # visible in the step above's own test output) from container
@@ -219,7 +228,7 @@ jobs:
   # file record that ordering judgment in the PR body; it has no Production
   # credentials and cannot verify the migration was actually applied (see
   # "Environment Variables の所有境界" in the same doc) - actual apply and
-  # its read-only drift confirmation remain an operator action via `npm run
+  # its read-only drift confirmation remain an operator action via `pnpm run
   # supabase:migrations:drift -- --linked` (docs/runbooks/
   # gate-a-remote-environment.md).
   migration-ordering-fence:
@@ -234,18 +243,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.6'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Verify / Migration Ordering Fence
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
-        run: npm run supabase:migrations:ordering-fence
+        run: pnpm run supabase:migrations:ordering-fence
