@@ -38,4 +38,38 @@ describe("Button", () => {
 
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  // decisions.md A1: variant (meaning) and size (dimension) are independent
+  // axes. These pin the specific legacy `danger`/`icon` mappings this task
+  // decided on.
+  describe("variant/size 2-axis mapping (decisions.md A1)", () => {
+    it('maps legacy "danger" to variant="destructive" (shadcn\'s irreversible/destructive-action semantic)', () => {
+      render(<Button variant="destructive">削除</Button>);
+      expect(screen.getByRole("button", { name: "削除" })).toHaveClass(
+        "bg-destructive/10",
+      );
+    });
+
+    it('maps legacy "icon" to size="icon" at 40x40 (size-10), not shadcn\'s default 32px', () => {
+      render(
+        <Button variant="ghost" size="icon" aria-label="アイコン">
+          x
+        </Button>,
+      );
+      expect(screen.getByRole("button", { name: "アイコン" })).toHaveClass(
+        "size-10",
+      );
+    });
+
+    it('combines any variant with any size independently (e.g. legacy "small" = outline chrome + sm size)', () => {
+      render(
+        <Button variant="outline" size="sm">
+          small
+        </Button>,
+      );
+      const button = screen.getByRole("button", { name: "small" });
+      expect(button).toHaveClass("border-border");
+      expect(button).toHaveClass("h-7");
+    });
+  });
 });
