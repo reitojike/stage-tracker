@@ -51,3 +51,10 @@ storybook-static
 # reasoning as /data/catalog-imports/ above - see
 # docs/runbooks/ticket-opportunity-import.md.
 /data/ticket-imports/
+
+# monorepo (stage-tracker v2)
+# 既存の /node_modules と /.next/ は root 直下のみを対象とするため、
+# apps/* と packages/* の分もここで無視する。
+node_modules/
+.next/
+.turbo/

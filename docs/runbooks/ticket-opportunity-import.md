@@ -213,7 +213,7 @@ public repository へ第三者の公開スケジュールを転載しないた�
 ### 2. dry run
 
 ```bash
-npm run tickets:import -- ./data/ticket-imports
+pnpm run tickets:import -- ./data/ticket-imports
 ```
 
 `--apply` を付けない限り一切書き込みません。各 Opportunity について
@@ -227,7 +227,7 @@ review してください。
 ### 3. 適用
 
 ```bash
-npm run tickets:import -- ./data/ticket-imports --apply
+pnpm run tickets:import -- ./data/ticket-imports --apply
 ```
 
 remote へ適用する場合は `docs/runbooks/catalog-import.md`「3.
@@ -235,7 +235,7 @@ remote へ適用する場合は `docs/runbooks/catalog-import.md`「3.
 手順を踏んでください。この runbook はその手順を複製しません。
 
 ```bash
-npm run tickets:import -- ./data/ticket-imports --apply --remote
+pnpm run tickets:import -- ./data/ticket-imports --apply --remote
 ```
 
 `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY`

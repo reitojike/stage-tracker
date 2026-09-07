@@ -1,0 +1,93 @@
+-- Reusable pgTAP test helpers for switching the Postgres auth context.
+--
+-- RLS policies in this project read auth.uid()/auth.role(), which are
+-- defined (see auth schema, GoTrue-installed) to resolve from the
+-- `request.jwt.claims` GUC - the same GUC PostgREST sets from the caller's
+-- JWT on every request. Table/column grants are further scoped to the
+-- `anon` / `authenticated` / `service_role` Postgres roles. To reproduce
+-- what a real request sees, a pgTAP test therefore has to change *both*:
+--   1. the active Postgres role (`set local role ...`), which is what the
+--      GRANT/REVOKE and RLS `to authenticated`/`to anon` targeting checks,
+--      and
+--   2. the `request.jwt.claims` GUC (`sub`, `role`), which is what
+--      auth.uid()/auth.role() read.
+-- `set local` and `set_config(..., true)` are transaction-scoped, so the
+-- switch automatically reverts at the enclosing test file's `rollback`.
+--
+-- Not a migration: these are plain SQL definitions loaded into `pg_temp`
+-- (session-scoped, dropped automatically when the test connection closes)
+-- by `\ir`-including this file near the top of a test file, before `begin`:
+--
+--   \ir helpers/auth.psql
+--   begin;
+--   ...
+--
+-- File extension is deliberately `.psql`, not `.sql`: `supabase test db`
+-- treats every `*.sql` file under supabase/tests as its own pgTAP suite
+-- (and fails it for having no `plan()`), so this shared, non-test file must
+-- not match that glob.
+
+-- Creates a minimal auth.users row for use as an owner_id/user_id fixture.
+-- Only `id` is NOT NULL on auth.users itself; every FK from product tables
+-- points at auth.users(id), so nothing else is required to satisfy them.
+-- Must run as a role that can write auth.users (e.g. the test session's
+-- default `postgres` role, before any pg_temp.auth_as* switch below).
+create or replace function pg_temp.create_test_user(p_email text default null)
+returns uuid
+language sql
+as $$
+  insert into auth.users (id, email)
+  values (
+    gen_random_uuid(),
+    coalesce(p_email, gen_random_uuid()::text || '@example.test')
+  )
+  returning id;
+$$;
+
+-- Switches the current transaction to `authenticated`, acting as p_user_id.
+-- format(%I) + execute is required because `set role`/`set local role` are
+-- utility statements a plain `language sql` function body cannot contain;
+-- plpgsql can only reach them via EXECUTE.
+create or replace procedure pg_temp.auth_as_user(p_user_id uuid)
+language plpgsql
+as $$
+begin
+  reset role;
+  execute 'set local role authenticated';
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', p_user_id, 'role', 'authenticated')::text,
+    true
+  );
+end;
+$$;
+
+-- Switches the current transaction to `anon`, matching an unauthenticated
+-- request (no `sub` claim - auth.uid() resolves to null, same as a real
+-- anonymous PostgREST call).
+create or replace procedure pg_temp.auth_as_anon()
+language plpgsql
+as $$
+begin
+  reset role;
+  execute 'set local role anon';
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('role', 'anon')::text,
+    true
+  );
+end;
+$$;
+
+-- Drops back to the test session's original role (`postgres`, a superuser
+-- with BYPASSRLS) and clears the JWT claims GUC. Useful for fixture setup
+-- steps that need to run between two guarded actions within the same
+-- transaction.
+create or replace procedure pg_temp.auth_as_admin()
+language plpgsql
+as $$
+begin
+  reset role;
+  perform set_config('request.jwt.claims', null, true);
+end;
+$$;

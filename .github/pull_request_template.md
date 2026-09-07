@@ -20,7 +20,7 @@ Migration ordering: schema-first-required
 "schema-first-required" の場合: このPRをmergeする前に、operatorが
 Productionへ該当migrationを適用してください（docs/runbooks/
 gate-a-remote-environment.md「Schema migration to the hosted project」）。
-`npm run supabase:migrations:drift -- --linked` で確認した上で、
+`pnpm run supabase:migrations:drift -- --linked` で確認した上で、
 下の行を実際の内容に書き換えてから残してください（このコメント内の
 例示テキストのままでは evidence として扱われません）。
 

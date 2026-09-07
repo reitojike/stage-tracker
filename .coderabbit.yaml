@@ -4,3 +4,13 @@ reviews:
   review_status: false
   review_progress: false
   commit_status: false
+  # v2 リライト中の除外設定。
+  # apps/legacy-web は monorepo 化で移動しただけの未変更コードであり、
+  # v2 完成時に削除する。レビューしても得るものが無く、リネーム 400 件超が
+  # 差分を埋めて本当に見るべき箇所を隠すため除外する。
+  # storybook-static / .next / lockfile は生成物。
+  path_filters:
+    - '!apps/legacy-web/**'
+    - '!**/storybook-static/**'
+    - '!**/.next/**'
+    - '!pnpm-lock.yaml'

@@ -51,7 +51,7 @@ seed cache の canonical local location は **primary checkout の
 `data/catalog-imports/`** です（現状 10 ファイル）。**task 用の linked
 worktree 内には保管しません。** 別 worktree から import を実行する場合
 は、primary checkout 側の seed path を明示的に指定してください
-（例: `npm run catalog:import -- /path/to/primary-checkout/data/catalog-imports --owner ...`）。
+（例: `pnpm run catalog:import -- /path/to/primary-checkout/data/catalog-imports --owner ...`）。
 
 ignore は 2 段構えです。
 
@@ -259,7 +259,7 @@ agent へ公式 URL を渡して依頼します。宝塚は概要ページと日
 ### 2. dry run
 
 ```bash
-npm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email>
+pnpm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email>
 ```
 
 作成 / 追加予定の件数と日時範囲が出力されます。**`--apply` を付けない
@@ -269,7 +269,7 @@ npm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email>
 ### 3. 適用
 
 ```bash
-npm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email> --apply
+pnpm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email> --apply
 ```
 
 remote へ適用する場合は、事前に次の 3a〜3c の準備が必要です（`--remote`
@@ -371,7 +371,7 @@ order by event_id, starts_at;
 #### 3e. import の適用
 
 ```bash
-npm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email> --apply --remote
+pnpm run catalog:import -- ./data/catalog-imports --owner <catalog-creator-email> --apply --remote
 ```
 
 ### 4. 確認
