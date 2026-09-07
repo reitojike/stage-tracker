@@ -154,9 +154,12 @@ P1–P6 はすべて PO 判断済み。以下が正本であり、上記の「PO
 なく決めていない結果であり、後から変更するとデータ移行が必要になる。ゼロから作る
 今なら追加コストがほぼ無い。
 
-方針: **shared catalog data（Event / Occurrence）は残す。personal data
-（participation / invitation / personal schedule / ticket opportunity state）は消す。**
+**PO 確定の方針**: shared catalog data（Event / Occurrence）は残す。personal data
+（participation / invitation / personal schedule / ticket opportunity state）は消す。
 これを FK の `ON DELETE` 句として明示する。
+
+この方針は M4 のスキーマ再構築で FK に反映すること。アカウント削除機能そのものの
+実装時期とは独立であり、機能が無い段階でも FK は正しい方針で作る。
 
 ### P6 — venue の正規化
 
