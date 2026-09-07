@@ -503,3 +503,135 @@ Testing Library で render してクリックで state が更新されること�
 
 `packages/domain` と `packages/ui` が価値を出しているかは、親 Issue #373 の
 Acceptance Criteria どおり Milestone 8 で改めて評価する。この決定はそれを免除しない。
+
+## Issue #375 実装時の追記: 死列 `occurrence_invitations.declined_at` を削除しない（2026-09-08）
+
+A7（`declined_at` は死列）を根拠に Issue #375 は削除を In Scope としていたが、
+**実装時の実測で legacy が参照していることが判明したため、このマイグレーションでは
+削除しないと判断した。** Issue の Escalate When 節「legacy が死列を参照していることが
+判明した場合」に該当する。
+
+実測結果:
+
+1. `apps/legacy-web/src/infrastructure/supabase/invitation.ts` の
+   `listMyReceivedInvitations` は `select('*', ...)` で列指定ではなく全列取得して
+   いる。`declined_at` は select 対象に含まれる。
+2. `apps/legacy-web/src/domain/invitation.ts` の `mapInvitationRow` がこれを
+   `Invitation.declinedAt` へマップし、型定義上は公開されている。しかし
+   `.declinedAt` を実際に読む箇所は `apps/legacy-web/src/domain/__tests__/
+invitation.test.ts` の 1 アサーション（fixture に対して null を確認するだけ）のみで、
+   UI コンポーネント（`InvitationCard.tsx` / `InvitationList.tsx` 等）はどれも
+   読んでいない。
+3. 書き込みは無い。`decline_occurrence_invitation`（
+   `supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`）は
+   pending-only 移行後、行を DELETE するだけで `declined_at` に一切書き込まない。
+
+判断: 選択肢 (a)（読み取りが型定義だけで実質未使用なら expand → contract の順序が
+必要）を採用し、**このマイグレーションでは削除しない。**
+
+決め手は (b) の影響評価: `apps/legacy-web/src/infrastructure/supabase/
+database.types.ts`（生成された Supabase 型、Technology profile が database type の
+source of truth と定める）は `occurrence_invitations.declined_at` を宣言している。
+`select('*')` なので列削除自体は SELECT を壊さないが、DB からその列を落とすと
+生成型がその時点の実 schema と食い違う（`pnpm run supabase:types:check` が
+検出する drift）。型を追従させるには `apps/legacy-web/src/infrastructure/supabase/
+database.types.ts` の再生成、および `Invitation.declinedAt` /
+`RawInvitationRow.declined_at` を参照除去する `apps/legacy-web` 側の編集が要る。
+これは本 Task の「`apps/` 配下のアプリケーションコードを変更しないこと」制約の
+対象であり、この PR の scope（DB migration + pgTAP）を越える。
+
+実際に確認済み: 本 PR のマイグレーション適用後、`pnpm run supabase:types:check` は
+`Generated Supabase types match the local schema exactly.` と報告している
+（`declined_at` を残したことで drift が発生していないことの直接の証跡）。
+
+**次にやること（別 Task）**: legacy 側で `Invitation.declinedAt` /
+`RawInvitationRow.declined_at` への参照を先に除去し、`database.types.ts` を
+再生成してから、`declined_at` 列を DROP する contract マイグレーションを別途
+起票する。
+
+### PO 確認: `events.owner_id` は `NO ACTION` で確定（2026-09-08）
+
+`auth.users` 削除時に Event を「残す」の解釈として、**`NO ACTION`（Event を所有する間は
+ユーザー削除を拒否）で確定**。`SET NULL`（所有者なしの Event を許す）は採らない。
+`owner_id` を nullable にする product 判断は不要になった。
+
+**運用方針（PO より）**
+
+- **Event 作成は Admin アカウントからの実施のみに集約する。**
+  したがって `NO ACTION` によって「Event を持つユーザーはアカウント削除できない」
+  という制約が効くのは実質 Admin アカウントのみであり、運用上の問題にならない
+- **Production Supabase の既存 Event についても、近日中に `owner_id` を
+  Admin アカウントへ変更する予定**（operator 作業）
+
+**注意**: この `owner_id` 変更は operator が DB 上で行う作業であり、
+**product operation としての owner transfer を提供するという意味ではない。**
+product-rules.md の「owner transfer は product operation として提供しません」は維持する。
+v2 の実装で owner 変更の UI / API を作らないこと。
+
+---
+
+## `packages/ui` 抽出の実測結果（2026-09-08）
+
+「後で抽出できる」を推測で言わないため、使い捨て worktree で spike を実施した。
+**結論: 抽出は可能。必要なのは 2 点のみ。**
+
+### 検証結果
+
+| #   | 問い                                                      | 結果                                                         |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | Next は workspace package の TS ソースを transpile するか | **する**（ビルド成功、route 生成を確認）                     |
+| 2   | `"use client"` は package 越しに効くか                    | **効く**（client chunk 内に該当コードを確認）                |
+| 3   | Tailwind は package 内のクラスを走査するか                | **しない。`@source` の明示が必要**（両方向の対照実験で確定） |
+
+### 抽出時に必要なこと
+
+1. **`globals.css` に `@source "<package の src への相対パス>";` を追加する。**
+   workspace package は `node_modules` 経由の symlink になり Tailwind の自動検出から
+   除外される。対照実験（追加前 0 件 -> 追加後 出力 -> 除去後 0 件）で確定済み
+2. **`react` / `react-dom` は `peerDependencies` のみで宣言する。**
+   `dependencies` / `devDependencies` に入れると `react-dom` のリンクが切れる
+   （実体は `react-dom@19.2.8(react@19.2.8)` だが、リンクは修飾なしを指す）。
+   これは `packages/domain` の eslint が exit 127 になったのと**同じクラスの問題**で、
+   React の場合は二重ロードで hooks が壊れるため深刻度が高い。
+   型（`@types/react` 等）は peer を持たないので devDependencies で問題ない
+
+### 未検証の点
+
+- **package 内で component テストを実行できるか。** peer のみの構成では `react-dom` の
+  実体が無いため動かない見込み。root へ hoist すれば解決すると予想されるが未検証
+  （`eslint` / `vitest` を root へ集約した先例はある）
+
+### 判断: 当面は作らない 【この判断は撤回済み。下記「PO 判断の更新」を正本とすること】
+
+> **【撤回済み】** この節は「component テストの置き場が未解決である」ことを理由の一つに
+> していたが、その後の実測で解決した（React のテストツールチェーンを root へ集約すれば
+> package 内で Vitest の component テストが動く）。PO 判断の更新により `packages/ui` は
+> **作成済み**であり、`@stage-tracker/domain` の配線も**完了済み**である。
+> 判断の根拠として下記の「PO 判断の更新: `packages/ui` を作る」節を読むこと。
+> 以下は当時の検討記録として残す。
+
+コストが低いことは確認できたが、**「安い」は「価値がある」ではない。**
+
+`packages/ui` に期待できる実質的な価値は「UI が env / Supabase client / Server Action を
+import できない」という依存制約だが、**それは ESLint ルール一本で同じ効果が得られる**
+（`apps/legacy-web` の import 禁止と同じ手法）。同じ制約が一行で手に入るなら、
+package 境界の追加分は割に合わない。加えて component テストの置き場が未解決である。
+
+**当時想定した順序**（いずれも実施済み。1 と 2 は M6 で完了、3 は前倒しで実施）。
+
+1. ESLint ルールで UI からアプリ固有モジュールへの import を禁止する
+2. `@stage-tracker/domain` を `apps/web` へ配線する
+3. `packages/ui` を抽出する
+
+### 運用メモ: migration ordering fence は PR 本文の更新後に再実行では通らない
+
+`check-migration-ordering-fence.mjs` は PR 本文を `PR_BODY` 環境変数から読み、
+workflow がそれをイベントペイロードから渡している。**GitHub Actions の再実行は
+元のイベントペイロードを再利用する**ため、PR 本文へマーカーを追加した後に
+「失敗した job の再実行」をしても、古い本文が読まれて通らない。
+
+**マーカーを追加したら、新しい commit を push して新しい実行を発生させること。**
+`pull_request` の `synchronize` イベントで現在の本文が渡る。
+
+（実測で確認。マーカーが正しい形式であることをチェッカーと同じ正規表現でローカル
+検証した上で、再実行が 2 回とも同じエラーで失敗した）

@@ -1,0 +1,120 @@
+-- v2 M4 (Issue #375, In Scope #3 / oracle-database.md §7 point 8, A14).
+--
+-- event_occurrences_event_id_idx (20260821000000_create_event_occurrences.sql,
+-- a plain btree on (event_id)) has been redundant since
+-- 20260824000000_add_event_occurrences_starts_at_uniqueness.sql added the
+-- unique constraint event_occurrences_event_id_starts_at_key, whose backing
+-- index is a composite btree on (event_id, starts_at). A composite btree
+-- index also serves any query that filters on just its leading column(s),
+-- so every lookup event_occurrences_event_id_idx could serve, the unique
+-- constraint's index already serves - confirmed against the local instance
+-- (\d public.event_occurrences) rather than assumed. That migration
+-- deliberately left the plain index in place ("dropping a now-redundant
+-- index is a separate, non-additive cleanup decision"); this is that
+-- cleanup.
+--
+-- Dropping a plain, non-unique, non-PK index changes no constraint, no RLS
+-- policy, and no query result - only which index the planner may pick for
+-- an event_id-only lookup, which the remaining composite index already
+-- covers. Legacy issues no queries that require this specific index to
+-- exist (nothing references it by name), so this is safe for legacy.
+--
+-- === PRODUCTION LOCK SAFETY (review finding on PR #378) ===
+--
+-- This index is not the backing index for any constraint (that's
+-- event_occurrences_event_id_starts_at_key, untouched here), so it can be
+-- dropped on its own. A plain `drop index` still takes ACCESS EXCLUSIVE on
+-- event_occurrences for the statement's duration, which - unlike an FK
+-- validation scan - is normally fast for an index drop by itself, but it
+-- still queues behind, and blocks, any reads/writes already in flight or
+-- arriving while it waits for a lock slot, so a long-running query against
+-- event_occurrences (a table both legacy and v2 read from directly) could
+-- still make this stall visibly.
+--
+-- `drop index concurrently` avoids that: it never takes more than SHARE
+-- UPDATE EXCLUSIVE on the table, so ordinary reads/writes against
+-- event_occurrences are never blocked while it runs. The tradeoff is that
+-- CONCURRENTLY cannot run inside a transaction block.
+--
+-- Confirmed against the local Supabase CLI (v2.116.0): `drop index
+-- concurrently` applies successfully via both `supabase migration up` and
+-- `supabase db reset`.
+--
+-- This is specific to CONCURRENTLY, not a general statement about how the
+-- runner treats migration files. Measured on the same CLI:
+--
+-- Verified on the `supabase migration up` path (the same apply+record path
+-- `db push` uses, not just `db reset`):
+--
+--   | file                                        | table | history |
+--   |---------------------------------------------|-------|---------|
+--   | create table X; select 1/0;                 |     0 |       0 |
+--   | begin; create table X; commit; select 1/0;  |     1 |       0 |
+--
+-- The second row is the failure window: DDL committed, version row absent,
+-- so a replay fails on the duplicate object. Adding BEGIN/COMMIT creates
+-- exactly the hazard it was meant to prevent.
+--
+--   * a file containing `create table ...; select 1/0;` fails as a whole and
+--     leaves no table behind - ordinary files ARE wrapped in a transaction
+--     by the runner, and
+--   * `set local lock_timeout` inside an ordinary file does take effect
+--     (probed by raising if `current_setting('lock_timeout')` was not the
+--     value just set), which follows from the above.
+--
+-- Do NOT add an explicit BEGIN/COMMIT to the other migrations in this change
+-- set. Measured: a file containing `begin; create table ...; commit;
+-- select 1/0;` DOES leave the table behind. PostgreSQL's BEGIN does not
+-- nest, so an explicit COMMIT ends the runner's own transaction early - the
+-- DDL commits while the version row is not yet written, and a replay then
+-- fails on the duplicate constraint name. The wrapping is not harmless
+-- insurance; it actively removes the atomicity it was meant to guarantee.
+--
+-- CONCURRENTLY is the exception because PostgreSQL refuses to run it inside
+-- a transaction block at all; the runner therefore cannot include it in one.
+-- That is why this statement is deliberately the only statement in this
+-- file: its success or failure maps to exactly one migration version with no
+-- partial-file-apply ambiguity, and `if exists` lets a replay record the
+-- version if the drop already committed before the version was written.
+--
+-- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
+-- fence: no application code depends on this index's absence or presence.
+-- No ordering dependency on any other migration in this PR.
+--
+-- === REPLAY SAFETY (review finding on PR #378, round 2) ===
+--
+-- `drop index concurrently` cannot run inside a transaction block (see
+-- above), so - unlike every other migration in this repository, which
+-- commits its DDL and its `supabase_migrations.schema_migrations` version
+-- row together as one atomic transaction - this statement's completion and
+-- this migration's version-history record are not atomic with each other.
+-- If the connection drops or the CLI process is killed after the index
+-- drop completes but before the version row is written, the index is
+-- already gone, but this migration is still recorded as not applied. The
+-- next `supabase db push` / `migration up` would then replay this file and
+-- try to drop an index that no longer exists, failing with `42704 index
+-- ... does not exist` and blocking every migration after it from applying.
+--
+-- `if exists` makes that replay a no-op success instead of a hard failure:
+-- once the target state (no such index) is reached - whether by this
+-- statement or by an earlier, uncommitted-in-history run of it - a replay
+-- can still record the migration as applied and let `db push` proceed to
+-- later migrations, instead of getting stuck re-attempting a drop that has
+-- already happened.
+--
+-- The rest of this migration set (supabase/migrations/20260908000000
+-- through 20260908000025) was also audited for this same non-atomic-with-
+-- history gap. None of the ADD CONSTRAINT / VALIDATE CONSTRAINT / DROP
+-- CONSTRAINT / RENAME CONSTRAINT statements there use CONCURRENTLY or any
+-- other construct that Postgres refuses to run inside a transaction block,
+-- so the Supabase CLI applies each of those files' statements and their
+-- version-history row together as one ordinary atomic transaction: either
+-- the whole file's DDL and its history row commit together, or a failure
+-- rolls back the whole file and nothing is recorded - there is no
+-- in-between state for a replay to land in. This DROP INDEX CONCURRENTLY
+-- is the only statement in this migration set with the gap `if exists`
+-- closes here. A repository-wide grep for other CONCURRENTLY / ADD VALUE /
+-- REINDEX / VACUUM / CREATE DATABASE statements (the other constructs
+-- Postgres refuses to run inside a transaction block) found no other match
+-- among this repository's migrations.
+drop index concurrently if exists public.event_occurrences_event_id_idx;
