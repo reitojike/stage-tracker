@@ -42,16 +42,18 @@ void test('the docs-specified 5 disabled sites wire opacity to --opacity-disable
     assert.ok(body, `${relativePath}: selector "${selector}" is missing`);
     // Every `opacity:` declaration in this rule must be the token reference -
     // checking only that the token is *present* would still pass if a later
-    // `opacity: .6;` / `opacity : 60%;` override in the same rule silently
-    // wins the cascade (CodeRabbit findings, PR #369). Splitting on `;` first
-    // (rather than matching `opacity:\s*([^;]+);` directly) avoids a
-    // declaration-boundary regex consuming the separator a later match would
-    // need, which would silently skip every declaration after the first.
+    // `opacity: .6;` / `opacity : 60%;` / `OPACITY: .6;` override in the same
+    // rule silently wins the cascade (CodeRabbit findings, PR #369).
+    // Splitting on `;` first (rather than matching `opacity:\s*([^;]+);`
+    // directly) avoids a declaration-boundary regex consuming the separator a
+    // later match would need, which would silently skip every declaration
+    // after the first. CSS property names are ASCII case-insensitive, so the
+    // matcher and the replacement it feeds are both case-insensitive too.
     const opacityDeclarations = body
       .split(';')
       .map((declaration) => declaration.trim())
-      .filter((declaration) => /^opacity\s*:/.test(declaration))
-      .map((declaration) => declaration.replace(/^opacity\s*:\s*/, '').trim());
+      .filter((declaration) => /^opacity\s*:/i.test(declaration))
+      .map((declaration) => declaration.replace(/^opacity\s*:\s*/i, '').trim());
     assert.ok(
       opacityDeclarations.length > 0,
       `${relativePath}: "${selector}" has no opacity declaration`,
