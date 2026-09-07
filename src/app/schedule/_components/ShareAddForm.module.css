@@ -1,9 +1,9 @@
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
+/* .form (the persistent element) and .fields (remounted via
+   `key={state.attempt}` in ShareAddForm.tsx to reset the uncontrolled
+   TextInput on each submit attempt) are two different DOM nodes with the
+   same column layout - grouped rather than merged into one selector so
+   that remount boundary stays explicit in the markup. */
+.form,
 .fields {
   display: flex;
   flex-direction: column;

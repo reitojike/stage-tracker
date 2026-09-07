@@ -118,7 +118,13 @@ const partialConsumers = [
       ['chevron', 'chevron'],
     ],
   ],
-  ['src/app/tickets/_components/TicketOpportunityRow.module.css', [['eventTitle', 'title']]],
+  [
+    'src/app/tickets/_components/TicketOpportunityRow.module.css',
+    [
+      ['eventTitle', 'title'],
+      ['chevron', 'chevron'],
+    ],
+  ],
 ] as const;
 
 void test('Issue #359: Home / My Page / Tickets compose the list-row roles they reuse directly from ui/listRow.module.css, not through a screen-local module', () => {

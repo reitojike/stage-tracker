@@ -132,12 +132,17 @@
   align-self: flex-start;
 }
 
+/* Issue #360: same standard list-row trailing chevron role as
+   ui/listRow.module.css's own `.chevron` (aside sizing + the
+   icon-affordance color) - font-size stays unset here too, since the
+   ambient body font-size it inherits already equals --font-size-title
+   (same scale step), so a value that duplicated the shared role's own
+   token was drift, not an intentional larger glyph. What stays local is
+   this row's own stacking need: `pointer-events: none` so the decorative
+   glyph never intercepts a click of its own, always passing through to the
+   stretched .rowLink beneath it. */
 .chevron {
-  composes: aside from '../../../ui/row.module.css';
+  composes: chevron from '../../../ui/listRow.module.css';
   align-self: center;
-  font-size: var(--font-size-title);
-  color: var(--color-icon-affordance);
-  /* Purely decorative (aria-hidden) - never intercepts a click of its own,
-     always passing through to the stretched .rowLink beneath it. */
   pointer-events: none;
 }

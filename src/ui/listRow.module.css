@@ -2,10 +2,12 @@
  * Shared list-row presentation (Issue #359, renamed from
  * selectedDayList.module.css). My Calendar's selected-day list, Home's
  * upcoming/deadline rows, My Page's schedule section, and the catalog's own
- * per-day lists all draw their row/title/time/venue vocabulary from here;
- * Tickets composes only `.title` (see that role below). Each consumer keeps
- * its own row membership, DOM, and content-specific rules beyond what is
- * composed here.
+ * per-day lists all draw their row/title/time/venue vocabulary from here.
+ * Tickets is a partial consumer, composing only the specific roles its own
+ * row layout needs (see listRow.test.ts's own per-consumer role map for the
+ * current set) rather than the whole vocabulary. Each consumer keeps its own
+ * row membership, DOM, and content-specific rules beyond what is composed
+ * here.
  */
 .list {
   display: flex;

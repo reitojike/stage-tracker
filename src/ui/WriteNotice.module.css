@@ -2,12 +2,9 @@
   margin: 0;
   padding: var(--space-compact) var(--space-md);
   border-radius: var(--radius-control-sm);
-  background: var(--color-surface-subtle);
+  background-color: var(--color-surface-subtle);
   color: var(--color-text);
   font-size: var(--font-size-body-sm);
-}
-
-.noticeRegion {
 }
 
 .noticeRegionEmpty {
