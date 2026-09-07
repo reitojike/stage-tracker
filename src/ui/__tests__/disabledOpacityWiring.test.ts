@@ -42,13 +42,16 @@ void test('the docs-specified 5 disabled sites wire opacity to --opacity-disable
     assert.ok(body, `${relativePath}: selector "${selector}" is missing`);
     // Every `opacity:` declaration in this rule must be the token reference -
     // checking only that the token is *present* would still pass if a later
-    // `opacity: .6;` / `opacity: 60%;` / `opacity : .6;` override in the same
-    // rule silently wins the cascade (CodeRabbit findings, PR #369). Match
-    // from a declaration boundary (start-of-body or a preceding `;`) and
-    // allow whitespace before the colon so a spaced `opacity :` isn't missed.
-    const opacityDeclarations = [...body.matchAll(/(?:^|;)\s*opacity\s*:\s*([^;]+);/g)].map(
-      (match) => (match[1] ?? '').trim(),
-    );
+    // `opacity: .6;` / `opacity : 60%;` override in the same rule silently
+    // wins the cascade (CodeRabbit findings, PR #369). Splitting on `;` first
+    // (rather than matching `opacity:\s*([^;]+);` directly) avoids a
+    // declaration-boundary regex consuming the separator a later match would
+    // need, which would silently skip every declaration after the first.
+    const opacityDeclarations = body
+      .split(';')
+      .map((declaration) => declaration.trim())
+      .filter((declaration) => /^opacity\s*:/.test(declaration))
+      .map((declaration) => declaration.replace(/^opacity\s*:\s*/, '').trim());
     assert.ok(
       opacityDeclarations.length > 0,
       `${relativePath}: "${selector}" has no opacity declaration`,
