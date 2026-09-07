@@ -29,3 +29,47 @@ oracle 抽出中に見つかった、v2 で判断が必要な論点。
   空状態 UI へ誤変換しないための全画面共通原則。v2 でも維持する。
 - 認証は `proxy.ts` 相当の default-deny を基本とし、ページ内でも権限を再確認する二重化を維持する。
 - 権限判定の真の境界は RPC / RLS 側にあり、画面側の判定はレンダー制御に過ぎない、という位置づけを維持する。
+
+---
+
+## 追記: DB / domain oracle から（2巡目）
+
+### PO 判断が必要（追加）
+
+| # | 論点 | 現状 | 出典 |
+|---|---|---|---|
+| P5 | `auth.users` への FK の `ON DELETE` 方針が一貫していない（`catalog_creators` だけ CASCADE、他は全て NO ACTION）。アカウント削除・退会を v2 の scope に入れるか。入れるなら「shared catalog data は残す / personal data は消す」等の方針を先に決める必要がある | アカウント削除機能が無いため、一度も明示的に決定されていない | oracle-database §7 |
+| P6 | `venue` を canonical master 無しの生 text + exact match のまま踏襲するか | product rules で明示的に先送り済み。実データの表記揺れ実態を見てから判断すべき、という指摘 | oracle-database §7 |
+
+### 実装側で決めてよい技術判断（追加）
+
+| # | 論点 | 方針 |
+|---|---|---|
+| A7 | `occurrence_invitations.declined_at` が死列（pending-only 移行後に誰も読み書きしない）。`updated_at` トリガーもほぼ発火しない | pending invitation を INSERT / DELETE のみの不変レコードとして設計し直し、両列を持ち越さない |
+| A8 | RPC 例外の意味復元を `error.message.includes(...)` の文字列マッチングで行っている。migration の文言変更で静かに壊れる | cancellation 系が既に custom SQLSTATE（`90001`/`90002`）で構造化済み。invite / decline / share 系も custom SQLSTATE へ寄せ、message matching を撤去する。エラーコード表はコード内の単一定数モジュールを正本にする |
+| A9 | エラー分類語彙が 2 系統に分裂（`EventCatalogWriteErrorKind` と `PlanningErrorKind`） | 共通の error kind 語彙へ統一し、feature 固有 kind は discriminated union の拡張として表現する |
+| A10 | `mapXRow` 系が pure boundary 内で `throw` する。周囲は全て `Result` 規約なので、ここだけ例外が boundary を突き破る | 「読めない行はスキップ」か「`Result` に倒す」かを v2 で明示的に決める |
+| A11 | ページネーションヘルパーが実質同一実装で 2 箇所に存在 | 1 つの共有ユーティリティへ統合する |
+| A12 | FormData 手続き的 reader が feature ごとに重複 | Zod schema を入力契約にすれば層ごと不要。v2 では手書き reader を作らない |
+| A13 | Event range containment を constraint trigger 2 本 + `SET CONSTRAINTS DEFERRED` で実現 | `daterange` + `btree_gist` の `EXCLUDE` 等でより宣言的に表現できないか、採用 Postgres バージョンと併せて検討する |
+| A14 | `event_occurrences_event_id_idx` が一意制約 `(event_id, starts_at)` のインデックスと事実上重複 | v1 では scope 外として残されただけ。v2 で単一インデックスへ統合する |
+| A15 | genre（0..1 の nullable FK）と group（0..N の中間テーブル）でモデリング様式が非対称 | 意図的な設計判断。理由をスキーマ設計ドキュメントにも明示し、非対称のまま維持する |
+| A16 | SECURITY DEFINER RPC 間でボイラープレートが重複（invite 系 2 本、import 系 4 本） | opacity 境界のような本質的差分は保ったまま、共通の書き込みパターンを部品化できないか検討する |
+| A17 | TicketOpportunity のタイムライン計算が、歴史的な差分の積層で読みにくい | ルール自体は忠実に再現しつつ、実装は最初から 1 つの設計として書き直す |
+| A18 | imperative action（`QuickActionResult`）と `useActionState` action（`OperationState`）で戻り値の形が違う | imperative UI パターン自体は残る。next-safe-action 採用時に戻り値 shape だけ揃えられるか検討する |
+
+## v2 実装で踏んではいけない地雷
+
+oracle が「実際に踏んだ失敗」として記録している事項。単純化する場合も、根拠を確認せずに消してはならない。
+
+- **旧 Ticket モデル（取得済みチケットの在庫・割当・譲渡）を history から復元しないこと。**
+  v1 は一度実装してから過剰スコープに気づき、Issue #225 → #234 で完全撤去した実例。
+  詳細な申込管理が必要になった場合は、TicketOpportunity を前提にゼロから設計する。
+- **並行性対策（`FOR SHARE` 行ロック / advisory lock / デッドロック回避の順序規律）は、
+  実際に踏んだレースコンディションの再現テストから来ている実証済みの対策。**
+  advisory lock は「invitee の participation 行が存在しない状態」を安全に扱うための
+  やや特殊な回避策なので代替設計を検討する価値はあるが、単純化するなら同等のテストで
+  再検証すること。テストごと消してはならない。
+- **Invitation の opacity 境界は「動いているように見えても静かに破れる」領域。**
+  エラーメッセージや revalidate タイミングの差から invitee の状態が間接的に漏れうる。
+  v2 実装時は oracle-domain §1.7 をレビューのチェックリストとして明示的に使う。
