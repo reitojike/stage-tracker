@@ -31,3 +31,8 @@ export * from './ticket/ticketOpportunityMilestone';
 export * from './ticket/ticketOpportunityCancellation';
 export * from './ticket/ticketOpportunityInvariants';
 export * from './ticket/ticketOpportunityTimeline';
+
+export * from './catalog/ids';
+export * from './catalog/genre';
+export * from './catalog/group';
+export * from './catalog/eventClassification';
