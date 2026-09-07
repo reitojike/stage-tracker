@@ -1,12 +1,12 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Badge } from "./badge";
+import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { Badge } from './badge';
 
 /**
  * 5-variant shape-based Badge (docs/v2/oracle-routes-ui.md §3). Variants are
  * not distinguished by color alone - see each story's usage note.
  */
 const meta: Meta<typeof Badge> = {
-  title: "UI/Badge",
+  title: 'UI/Badge',
   component: Badge,
 };
 
@@ -15,12 +15,12 @@ type Story = StoryObj<typeof Badge>;
 
 /** 分類（組 / 一般発売 等）。トーンを持たないニュートラルなラベル。 */
 export const Outline: Story = {
-  args: { variant: "outline", children: "花組" },
+  args: { variant: 'outline', children: '花組' },
 };
 
 /** 進行中・未完了の意思（例: `/tickets` の「申し込む予定」）。 */
 export const Subtle: Story = {
-  args: { variant: "subtle", children: "申し込む予定" },
+  args: { variant: 'subtle', children: '申し込む予定' },
 };
 
 /**
@@ -28,17 +28,17 @@ export const Subtle: Story = {
  * トーンだけでなく、component が自ら描くチェックマークで `subtle` と区別する。
  */
 export const Done: Story = {
-  args: { variant: "done", children: "申し込み済み" },
+  args: { variant: 'done', children: '申し込み済み' },
 };
 
 /** まだ間に合う期限。 */
 export const Deadline: Story = {
-  args: { variant: "deadline", children: "本日23:59締切" },
+  args: { variant: 'deadline', children: '本日23:59締切' },
 };
 
 /** 終了・行動不可（例: 中止、受付終了）。 */
 export const Terminal: Story = {
-  args: { variant: "terminal", children: "受付終了" },
+  args: { variant: 'terminal', children: '受付終了' },
 };
 
 /**

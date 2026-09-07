@@ -1,7 +1,7 @@
-import type { ComponentProps } from "react";
-import { Check } from "lucide-react";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "cn";
+import type { ComponentProps } from 'react';
+import { Check } from 'lucide-react';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from 'cn';
 
 /**
  * stage-tracker's Badge is a 5-variant, shape-based semantic vocabulary, not
@@ -25,15 +25,15 @@ import { cn } from "cn";
  * meaning must be read from its label text, same principle as StatePanel.
  */
 const badgeVariants = cva(
-  "inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-badge border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap [&>svg]:pointer-events-none [&>svg]:size-3!",
+  'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-badge border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap [&>svg]:pointer-events-none [&>svg]:size-3!',
   {
     variants: {
       variant: {
-        outline: "border-input bg-transparent text-text-tertiary",
-        subtle: "bg-muted text-text-tertiary",
-        done: "bg-band-fill text-band-text",
-        deadline: "bg-destructive text-danger-on",
-        terminal: "bg-terminal text-terminal-on",
+        outline: 'border-input bg-transparent text-text-tertiary',
+        subtle: 'bg-muted text-text-tertiary',
+        done: 'bg-band-fill text-band-text',
+        deadline: 'bg-destructive text-danger-on',
+        terminal: 'bg-terminal text-terminal-on',
       },
     },
     // No default variant, matching StatePanel's "no default" policy: which
@@ -42,11 +42,9 @@ const badgeVariants = cva(
   },
 );
 
-export type BadgeVariant = NonNullable<
-  VariantProps<typeof badgeVariants>["variant"]
->;
+export type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>['variant']>;
 
-export type BadgeProps = ComponentProps<"span"> & {
+export type BadgeProps = ComponentProps<'span'> & {
   variant: BadgeVariant;
 };
 
@@ -58,7 +56,7 @@ function Badge({ className, variant, children, ...props }: BadgeProps) {
       className={cn(badgeVariants({ variant }), className)}
       {...props}
     >
-      {variant === "done" ? <Check aria-hidden /> : null}
+      {variant === 'done' ? <Check aria-hidden /> : null}
       {children}
     </span>
   );

@@ -451,3 +451,55 @@ RLS は権限の無い行を「存在しない」ように見せるため、**�
 （decisions.md の P4「read ごとに独立して劣化」とも整合する）。
 
 型が守るのは「caller が 3 択から選ぶこと」までであり、**選択が正しいことは守らない。**
+
+---
+
+## PO 判断の更新: `packages/ui` を作る（2026-09-08）
+
+**上記「目標構成の修正: `packages/ui` は作らない」を明示的に上書きする。**
+以降はこの節を正本とすること。
+
+### 経緯
+
+「作らない」と判断した時点では、抽出コストと component テストの置き場が未検証だった。
+その後 PO から「検証ができてデメリットが気にならないレベルなら作ってよい」との判断を得て
+実測したところ、**すべて解決した**。
+
+### 実測結果（使い捨て worktree での spike）
+
+| #   | 問い                                                      | 結果                                                         |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | Next は workspace package の TS ソースを transpile するか | **する**（ビルド成功、route 生成を確認）                     |
+| 2   | `"use client"` は package 越しに効くか                    | **効く**（client chunk 内に該当コードを確認）                |
+| 3   | Tailwind は package 内のクラスを走査するか                | **しない。`@source` の明示が必要**（両方向の対照実験で確定） |
+| 4   | package 内で component テストを実行できるか               | **できる**（下記の構成で実際に pass）                        |
+
+### 必須の構成（実測で確定。守らないと壊れる）
+
+1. **`react` / `react-dom` は package の `peerDependencies` のみで宣言する。**
+   `dependencies` / `devDependencies` に入れると `react-dom` のリンクが切れる。
+   実体は `react-dom@19.2.8(react@19.2.8)` だが、package からは修飾なしを指してしまう。
+   `dependencies` / `devDependencies` のどちらでも、lockfile を完全再生成しても再発する。
+   **`packages/domain` の eslint が exit 127 になったのと同じクラスの問題**であり、
+   React の場合は二重ロードで hooks が壊れるため深刻度が高い
+
+2. **React のテストツールチェーンを root の devDependencies へ集約する。**
+   `react` / `react-dom` / `@types/react` / `@types/react-dom` / `@vitejs/plugin-react` /
+   `@testing-library/{react,jest-dom,user-event}` / `jsdom`。
+   これにより package 内の Vitest から解決できる。`eslint` / `vitest` を root へ
+   集約したのと同じパターン
+
+3. **`apps/web/src/app/globals.css` へ `@source "<package の src への相対パス>";` を追加する。**
+   workspace package は `node_modules` 経由の symlink になり Tailwind の自動検出から
+   除外される
+
+### 検証の証跡
+
+`useState` を使う `"use client"` コンポーネントを package 内に置き、Vitest +
+Testing Library で render してクリックで state が更新されることを確認した
+（`react-dom` が package 内で動く証拠）。
+
+### 残る判断
+
+`packages/domain` と `packages/ui` が価値を出しているかは、親 Issue #373 の
+Acceptance Criteria どおり Milestone 8 で改めて評価する。この決定はそれを免除しない。

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Theater, Ticket } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { CalendarDays, Home, Theater, Ticket } from 'lucide-react';
+import { cn } from './lib/utils';
 
 /**
  * Fixed 4-item bottom navigation (docs/v2/oracle-routes-ui.md §3 PrimaryNav).
@@ -13,14 +13,14 @@ import { cn } from "@/lib/utils";
  * from here - do not add items without a new PO decision superseding P2.
  */
 const PRIMARY_NAV_ITEMS = [
-  { href: "/", label: "ホーム", Icon: Home },
-  { href: "/catalog", label: "イベント", Icon: Theater },
-  { href: "/tickets", label: "チケット", Icon: Ticket },
-  { href: "/calendar", label: "カレンダー", Icon: CalendarDays },
+  { href: '/', label: 'ホーム', Icon: Home },
+  { href: '/catalog', label: 'イベント', Icon: Theater },
+  { href: '/tickets', label: 'チケット', Icon: Ticket },
+  { href: '/calendar', label: 'カレンダー', Icon: CalendarDays },
 ] as const;
 
 function isActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
+  if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -53,7 +53,7 @@ function isActive(pathname: string, href: string) {
  *   number, WCAG 2.5.8 target size with room for a two-line label).
  */
 export function PrimaryNav() {
-  const pathname = usePathname() ?? "";
+  const pathname = usePathname();
 
   return (
     <nav
@@ -68,22 +68,17 @@ export function PrimaryNav() {
             <Link
               key={href}
               href={href}
-              aria-current={active ? "page" : undefined}
+              aria-current={active ? 'page' : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-2xs text-caption",
-                active
-                  ? "font-semibold text-primary"
-                  : "font-medium text-muted-foreground",
+                'flex flex-1 flex-col items-center justify-center gap-2xs text-caption',
+                active ? 'font-semibold text-primary' : 'font-medium text-muted-foreground',
               )}
             >
               <Icon aria-hidden className="size-5" />
               <span>{label}</span>
               <span
                 aria-hidden
-                className={cn(
-                  "h-0.5 w-6 rounded-pill",
-                  active ? "bg-primary" : "bg-transparent",
-                )}
+                className={cn('h-0.5 w-6 rounded-pill', active ? 'bg-primary' : 'bg-transparent')}
               />
             </Link>
           );

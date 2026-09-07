@@ -1,13 +1,13 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { fn } from "storybook/test";
-import { AppBar } from "./app-bar";
+import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { fn } from 'storybook/test';
+import { AppBar } from './app-bar';
 
 const meta: Meta<typeof AppBar> = {
-  title: "Components/AppBar",
+  title: 'Components/AppBar',
   component: AppBar,
   args: {
-    myPageHref: "/mypage",
-    myPageInitial: "S",
+    myPageHref: '/mypage',
+    myPageInitial: 'S',
   },
 };
 
