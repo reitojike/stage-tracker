@@ -1,0 +1,21 @@
+-- v2 M4 (Issue #375, In Scope #3 / oracle-database.md §7 point 8, A14).
+--
+-- event_occurrences_event_id_idx (20260821000000_create_event_occurrences.sql,
+-- a plain btree on (event_id)) has been redundant since
+-- 20260824000000_add_event_occurrences_starts_at_uniqueness.sql added the
+-- unique constraint event_occurrences_event_id_starts_at_key, whose backing
+-- index is a composite btree on (event_id, starts_at). A composite btree
+-- index also serves any query that filters on just its leading column(s),
+-- so every lookup event_occurrences_event_id_idx could serve, the unique
+-- constraint's index already serves - confirmed against the local instance
+-- (\d public.event_occurrences) rather than assumed. That migration
+-- deliberately left the plain index in place ("dropping a now-redundant
+-- index is a separate, non-additive cleanup decision"); this is that
+-- cleanup.
+--
+-- Dropping a plain, non-unique, non-PK index changes no constraint, no RLS
+-- policy, and no query result - only which index the planner may pick for
+-- an event_id-only lookup, which the remaining composite index already
+-- covers. Legacy issues no queries that require this specific index to
+-- exist (nothing references it by name), so this is safe for legacy.
+drop index public.event_occurrences_event_id_idx;

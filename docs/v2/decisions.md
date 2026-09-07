@@ -503,3 +503,48 @@ Testing Library で render してクリックで state が更新されること�
 
 `packages/domain` と `packages/ui` が価値を出しているかは、親 Issue #373 の
 Acceptance Criteria どおり Milestone 8 で改めて評価する。この決定はそれを免除しない。
+
+## Issue #375 実装時の追記: 死列 `occurrence_invitations.declined_at` を削除しない（2026-09-08）
+
+A7（`declined_at` は死列）を根拠に Issue #375 は削除を In Scope としていたが、
+**実装時の実測で legacy が参照していることが判明したため、このマイグレーションでは
+削除しないと判断した。** Issue の Escalate When 節「legacy が死列を参照していることが
+判明した場合」に該当する。
+
+実測結果:
+
+1. `apps/legacy-web/src/infrastructure/supabase/invitation.ts` の
+   `listMyReceivedInvitations` は `select('*', ...)` で列指定ではなく全列取得して
+   いる。`declined_at` は select 対象に含まれる。
+2. `apps/legacy-web/src/domain/invitation.ts` の `mapInvitationRow` がこれを
+   `Invitation.declinedAt` へマップし、型定義上は公開されている。しかし
+   `.declinedAt` を実際に読む箇所は `apps/legacy-web/src/domain/__tests__/
+invitation.test.ts` の 1 アサーション（fixture に対して null を確認するだけ）のみで、
+   UI コンポーネント（`InvitationCard.tsx` / `InvitationList.tsx` 等）はどれも
+   読んでいない。
+3. 書き込みは無い。`decline_occurrence_invitation`（
+   `supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`）は
+   pending-only 移行後、行を DELETE するだけで `declined_at` に一切書き込まない。
+
+判断: 選択肢 (a)（読み取りが型定義だけで実質未使用なら expand → contract の順序が
+必要）を採用し、**このマイグレーションでは削除しない。**
+
+決め手は (b) の影響評価: `apps/legacy-web/src/infrastructure/supabase/
+database.types.ts`（生成された Supabase 型、Technology profile が database type の
+source of truth と定める）は `occurrence_invitations.declined_at` を宣言している。
+`select('*')` なので列削除自体は SELECT を壊さないが、DB からその列を落とすと
+生成型がその時点の実 schema と食い違う（`pnpm run supabase:types:check` が
+検出する drift）。型を追従させるには `apps/legacy-web/src/infrastructure/supabase/
+database.types.ts` の再生成、および `Invitation.declinedAt` /
+`RawInvitationRow.declined_at` を参照除去する `apps/legacy-web` 側の編集が要る。
+これは本 Task の「`apps/` 配下のアプリケーションコードを変更しないこと」制約の
+対象であり、この PR の scope（DB migration + pgTAP）を越える。
+
+実際に確認済み: 本 PR のマイグレーション適用後、`pnpm run supabase:types:check` は
+`Generated Supabase types match the local schema exactly.` と報告している
+（`declined_at` を残したことで drift が発生していないことの直接の証跡）。
+
+**次にやること（別 Task）**: legacy 側で `Invitation.declinedAt` /
+`RawInvitationRow.declined_at` への参照を先に除去し、`database.types.ts` を
+再生成してから、`declined_at` 列を DROP する contract マイグレーションを別途
+起票する。
