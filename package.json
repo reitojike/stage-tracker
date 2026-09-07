@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@12.3.4",
   "engines": {
-    "node": ">=22.6.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "format:check": "prettier --config .ai-dev-foundation/quality/prettier.config.mjs --ignore-path .gitignore --ignore-path supabase/.gitignore --ignore-path .prettierignore --ignore-path apps/legacy-web/.prettierignore --check . && pnpm --filter @stage-tracker/web run format:check",
