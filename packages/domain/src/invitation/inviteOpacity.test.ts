@@ -39,7 +39,7 @@ describe('evaluateInvite - opacity: the inviter-facing outcome must not distingu
       if (!result.ok) {
         throw new Error('expected all 3 branches to be eligible in this test setup');
       }
-      return result.value.outcome;
+      return result.value;
     });
 
     // Every branch must produce byte-for-byte the same value, and that value
@@ -51,28 +51,62 @@ describe('evaluateInvite - opacity: the inviter-facing outcome must not distingu
     expect(new Set(outcomes).size).toBe(1);
   });
 
-  it('the outcome object has an identical shape (same keys) across all 3 branches', () => {
+  it('the full Result object is deeply identical across all 3 branches - not just matching keys', () => {
+    const results = branches.map((inviteeStatus) => evaluateInvite(baseRequest(inviteeStatus)));
+
+    // Deep-equal each branch's full Result (ok + value) against a fixed
+    // expected shape, and against every other branch's Result. This is a
+    // value comparison, not merely a key-name comparison: if a future change
+    // ever widened the success value into an object carrying a
+    // branch-dependent field (e.g. re-attaching `writePlan`), the branches
+    // would still share the same *keys* but differ in *value*, and this
+    // assertion would catch that - `toEqual`'s recursive value comparison,
+    // not `Object.keys`, is what makes that meaningful.
+    for (const result of results) {
+      expect(result).toEqual({ ok: true, value: INVITE_OUTCOME });
+    }
+    const [first, ...rest] = results;
+    for (const result of rest) {
+      expect(result).toEqual(first);
+    }
+  });
+
+  it("evaluateInvite's success value carries no invitee-state-derived field (e.g. no writePlan)", () => {
     for (const inviteeStatus of branches) {
       const result = evaluateInvite(baseRequest(inviteeStatus));
       if (!result.ok) {
         throw new Error('expected all 3 branches to be eligible in this test setup');
       }
-      expect(Object.keys(result.value)).toEqual(['outcome', 'writePlan']);
-      expect(Object.keys(result.value.writePlan)).toEqual(['createInvitation']);
+      // `result.value` is the bare `InviteOutcome` string literal, not an
+      // object - there is no container a `writePlan` field could be
+      // attached to, accidentally or otherwise.
+      expect(typeof result.value).toBe('string');
+      expect(result.value).not.toHaveProperty('writePlan');
     }
   });
+});
 
-  it('still computes the correct (branch-dependent) write plan internally for each branch', () => {
-    const noRow = evaluateInvite(baseRequest(null));
-    const considering = evaluateInvite(baseRequest('considering'));
-    const attending = evaluateInvite(baseRequest('attending'));
-    if (!noRow.ok || !considering.ok || !attending.ok) {
-      throw new Error('expected all 3 branches to be eligible in this test setup');
-    }
-    expect(noRow.value.writePlan.createInvitation).toBe(true);
-    expect(considering.value.writePlan.createInvitation).toBe(true);
-    expect(attending.value.writePlan.createInvitation).toBe(false);
-  });
+describe('trusted write-boundary flow: evaluateInvite and planInviteWrite are obtained separately', () => {
+  const branches: (ParticipationStatus | null)[] = [null, 'considering', 'attending'];
+
+  it.each(branches)(
+    'for invitee state %s, the write boundary calls planInviteWrite itself after evaluateInvite succeeds',
+    (inviteeStatus) => {
+      const request = baseRequest(inviteeStatus);
+
+      const decision = evaluateInvite(request);
+      if (!decision.ok) {
+        throw new Error('expected all 3 branches to be eligible in this test setup');
+      }
+      expect(decision.value).toBe(INVITE_OUTCOME);
+
+      // The write boundary derives the write plan from the same
+      // `inviteeParticipationStatus` it already holds on `request` - not
+      // from anything returned by `evaluateInvite`.
+      const writePlan = planInviteWrite(request.inviteeParticipationStatus);
+      expect(writePlan.createInvitation).toBe(inviteeStatus !== 'attending');
+    },
+  );
 });
 
 describe('evaluateInvite - eligibility and guards (inviter-visible rejections)', () => {

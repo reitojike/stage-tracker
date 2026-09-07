@@ -74,6 +74,16 @@ function parseInstantToEpochMs(raw: string): number | null {
     const sign = offsetStr.startsWith('-') ? -1 : 1;
     const offsetHour = Number(offsetStr.slice(1, 3));
     const offsetMinute = Number(offsetStr.slice(4, 6));
+    // The regex only constrains each part to 2 digits, not to a valid
+    // range - "+99:99" matches the pattern just as well as "+09:00". ISO-8601
+    // (and PostgreSQL's own timestamptz input parser) bounds an offset to
+    // 00-23 hours and 00-59 minutes; without this check, an out-of-range
+    // offset like "+99:99" would silently subtract a nonsensical number of
+    // minutes instead of being rejected, producing a wrong-but-plausible
+    // instant rather than a parse error.
+    if (offsetHour > 23 || offsetMinute > 59) {
+      return null;
+    }
     offsetMinutes = sign * (offsetHour * 60 + offsetMinute);
   }
 

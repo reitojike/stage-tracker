@@ -16,13 +16,14 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(6);
+select plan(7);
 
 select pg_temp.create_test_user() as owner_id \gset
 select pg_temp.create_test_user() as attending_user_id \gset
 select pg_temp.create_test_user() as considering_user_id \gset
 select pg_temp.create_test_user() as withdrawing_user_id \gset
 select pg_temp.create_test_user() as latecomer_id \gset
+select pg_temp.create_test_user() as latecomer_attending_id \gset
 select pg_temp.create_test_user() as reinstated_user_id \gset
 
 insert into events (owner_id, title, starts_on, ends_on)
@@ -69,6 +70,21 @@ select throws_ok(
   '90002',
   null,
   'a new participation on an effectively-canceled occurrence is rejected'
+);
+
+-- A brand new participation created directly as `attending` (not merely
+-- `considering`) is rejected the same way: the INSERT guard rejects every
+-- new participation row - considering or attending - once effectively
+-- canceled, regardless of which status the new row is created with.
+call pg_temp.auth_as_user(:'latecomer_attending_id');
+select throws_ok(
+  format(
+    $$ insert into occurrence_participations (occurrence_id, user_id, status) values (%L, %L, 'attending') $$,
+    :'occurrence_id', :'latecomer_attending_id'
+  ),
+  '90002',
+  null,
+  'a new attending participation on an effectively-canceled occurrence is rejected'
 );
 
 -- The pre-existing considering fixture cannot advance to attending: that

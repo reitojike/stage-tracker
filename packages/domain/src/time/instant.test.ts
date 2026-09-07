@@ -68,6 +68,43 @@ describe('instantSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  describe('UTC offset range validation', () => {
+    it('rejects an offset with both hour and minute out of range (+99:99)', () => {
+      const result = instantSchema.safeParse('2026-01-02T03:04:05+99:99');
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an offset hour of exactly 24 (out of the 00-23 range)', () => {
+      const result = instantSchema.safeParse('2026-01-02T03:04:05+24:00');
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an offset minute of exactly 60 (out of the 00-59 range)', () => {
+      const result = instantSchema.safeParse('2026-01-02T03:04:05+23:60');
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts the maximum valid positive offset (+23:59)', () => {
+      const result = instantSchema.safeParse('2026-01-02T03:04:05+23:59');
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts the maximum valid negative offset (-23:59)', () => {
+      const result = instantSchema.safeParse('2026-01-02T03:04:05-23:59');
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a zero offset written as +00:00', () => {
+      const result = instantSchema.safeParse('2026-01-02T03:04:05+00:00');
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a zero offset written as Z', () => {
+      const result = instantSchema.safeParse('2026-01-02T03:04:05Z');
+      expect(result.success).toBe(true);
+    });
+  });
+
   it('accepts a real leap-day instant (2028 is a leap year)', () => {
     const result = instantSchema.safeParse('2028-02-29T00:00:00Z');
     expect(result.success).toBe(true);

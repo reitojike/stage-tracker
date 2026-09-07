@@ -24,7 +24,7 @@
     "supabase:migrations:check": "node .ai-dev-foundation/quality/check-migration-version-collision.mjs",
     "supabase:migrations:ordering-fence": "node apps/legacy-web/scripts/check-migration-ordering-fence.mjs",
     "supabase:migrations:drift": "node apps/legacy-web/scripts/check-migration-drift.mjs",
-    "agent-rules:check": "cd apps/legacy-web && node ../../.ai-dev-foundation/quality/check-agent-rules-disabled.mjs",
+    "agent-rules:check": "cd apps/legacy-web && node ../../.ai-dev-foundation/quality/check-agent-rules-disabled.mjs && cd ../web && node ../../.ai-dev-foundation/quality/check-agent-rules-disabled.mjs",
     "test:rls": "node apps/legacy-web/scripts/run-rls-suite.mjs",
     "test:rls:guardrail-proof": "node --experimental-strip-types apps/legacy-web/test/rls/guardrail-proof.mjs",
     "test:db": "supabase test db --local",

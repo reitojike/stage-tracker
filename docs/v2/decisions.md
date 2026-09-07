@@ -257,3 +257,52 @@ withdraw、attending -> considering の降格、considering -> attending の昇�
 - `product-rules.md` の「新規の active action（新規 participation の attending 化…）」という
   表現は、この決定に照らすと誤解を招く。v2 の product rule を書き直す際は
   「新規 participation の作成（ステータス問わず）」と明記すること
+
+---
+
+## レビュー指摘の対応（PR #372 / 2026-09-07）
+
+Claude と Codex の独立レビューで 5 件の指摘。4 件を修正し、1 件を申し送りにした。
+
+### 修正した指摘
+
+| #   | 出典   | 指摘                                                                                                |
+| --- | ------ | --------------------------------------------------------------------------------------------------- |
+| F3  | Codex  | `InviteDecision` が inviter へ返す値に invitee の private state 由来の `writePlan` を同居させていた |
+| F1  | Codex  | `apps/web` に `agentRules: false` が無く、`agent-rules:check` も legacy しか検査していなかった      |
+| F4  | Codex  | UTC offset の範囲が未検証で、`+99:99` 等を受理して別の時刻へ変換していた                            |
+| —   | Claude | pgTAP が `attending` の新規 INSERT 拒否を検証していなかった（冒頭コメントは両方を主張）             |
+
+**F3 が最も重要。** `InviteOutcome` を単一値のリテラル型にして「分岐を区別できない」を
+型で満たしていたが、**同じオブジェクトに `writePlan` を同居させたことで構造として
+破っていた**。Server Action が `result.value` を serialize すれば
+`createInvitation: false` から「invitee は既に attending」が読める。
+
+修正は `evaluateInvite` の成功値を**オブジェクトではなく文字列リテラルそのもの**
+（`Result<InviteOutcome, InviteRejectionReason>`）にした。文字列には分岐依存の値を
+後から付けられないため、漏洩が構造的に不可能になる。write boundary は
+`planInviteWrite` を別途呼ぶ。
+
+**この指摘は Claude が見逃し Codex が発見した。** Claude は同じファイルを明示的に
+レビューして「型レベルでよく効いている」と評価している。opacity が
+「動いているように見えても静かに破れる」領域であることの実例であり、
+独立した 2 系統のレビューが必要であることの実証でもある。
+
+### 申し送り（修正しない）
+
+| #   | 内容                                                                                                                                                                                                                                                                                                                                                                                            |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F4b | **Preview origin を Magic Link に渡していない。** `emailRedirectTo` 未指定のため、Vercel Preview でサインインするとメール内リンクが Production の `/auth/confirm` へ向かう。ただし `apps/web` は現在どこにもデプロイされておらず（Vercel の Root Directory は `apps/legacy-web`）、Preview サインインを実行する経路が存在しないため今は直せない・検証できない。**cutover 前に必ず対応すること** |
+
+### レビュアーからの補足（対応不要だが記録）
+
+- **タイミング側チャネル**: `signInWithOtp` はアカウント有無で Supabase 側の処理が
+  非対称なため応答時間に差が出得る。stage-tracker のコードでは制御できない残存リスク
+- **Invitation の write boundary 実装時**: 3 分岐で SQL のクエリ時間と
+  エラーコードが揃っているかを、型だけでなく実行時にも確認すること
+
+### PR サイズについて
+
+CodeRabbit が「130 files exceed the limit of 100」でレビューをスキップした。
+`path_filters` で `apps/legacy-web/**` を除外してもファイル数の上限判定には効かない。
+**M4 以降は 1 マイルストーン 1 PR とし、100 ファイル未満を目安にする。**
