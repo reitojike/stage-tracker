@@ -229,3 +229,31 @@ oracle-database の §2（RLS policy）§5（product invariant）§6（既存テ
 - 2 桁の年を 1900 年代へ読み替える（`26` -> `1926`）
 
 `setUTCFullYear` / `setUTCHours` で構成要素を round-trip 検証する方式で回避している。
+
+---
+
+## PO 判断: 中止時の participation 新規作成（2026-09-07）
+
+**oracle 間の矛盾を PO 判断で解消した。**
+
+`oracle-database.md` §3.2 / §5 invariant 12（DB の trigger 実装）は「実質的中止状態では
+新規 participation の作成をステータス問わず拒否」と記述する一方、`product-rules.md` および
+`oracle-domain.md` §1.6 / §2.4 は「拒否するのは新規の active action（新規 participation の
+**attending 化**、新規 invitation 等）」と、considering の新規作成は拒否対象外に読める
+書き方をしていた。
+
+争点は 1 ケースのみ。**中止された occurrence に対して新規に `considering` 行を作れるか。**
+withdraw、attending -> considering の降格、considering -> attending の昇格については
+両文書が一致していた。
+
+### 決定
+
+**拒否する。** 現行の DB 実装（一律ブロック）が正しい。中止された公演に新たに「検討中」を
+付ける意味が薄いため。既存行の withdraw と降格は引き続き許可する。
+
+- `packages/domain/src/participation/participationCancellationGate.ts` は既にこの意味論で
+  実装済み。コード変更は不要
+- **M4 の DB 制約もこの意味論で書くこと**
+- `product-rules.md` の「新規の active action（新規 participation の attending 化…）」という
+  表現は、この決定に照らすと誤解を招く。v2 の product rule を書き直す際は
+  「新規 participation の作成（ステータス問わず）」と明記すること
