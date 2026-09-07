@@ -38,16 +38,32 @@
 --
 -- Confirmed against the local Supabase CLI (v2.116.0): `drop index
 -- concurrently` applies successfully via both `supabase migration up` and
--- `supabase db reset` even though this statement is not wrapped in an
--- explicit BEGIN/COMMIT in this file - the CLI does not run this
--- statement inside the same transaction as the rest of a migration file
--- (verified by reproducing the same behavior with an unrelated
--- CONCURRENTLY statement placed alongside other DDL in one file: the
--- CONCURRENTLY statement's effect was already committed even when a later
--- statement in the same file failed and the file as a whole was not
--- recorded as applied). This statement is deliberately the only statement
--- in this file regardless, so its success/failure maps to exactly one
--- migration version with no partial-file-apply ambiguity.
+-- `supabase db reset`.
+--
+-- This is specific to CONCURRENTLY, not a general statement about how the
+-- runner treats migration files. Measured on the same CLI:
+--
+--   * a file containing `create table ...; select 1/0;` fails as a whole and
+--     leaves no table behind - ordinary files ARE wrapped in a transaction
+--     by the runner, and
+--   * `set local lock_timeout` inside an ordinary file does take effect
+--     (probed by raising if `current_setting('lock_timeout')` was not the
+--     value just set), which follows from the above.
+--
+-- Do NOT add an explicit BEGIN/COMMIT to the other migrations in this change
+-- set. Measured: a file containing `begin; create table ...; commit;
+-- select 1/0;` DOES leave the table behind. PostgreSQL's BEGIN does not
+-- nest, so an explicit COMMIT ends the runner's own transaction early - the
+-- DDL commits while the version row is not yet written, and a replay then
+-- fails on the duplicate constraint name. The wrapping is not harmless
+-- insurance; it actively removes the atomicity it was meant to guarantee.
+--
+-- CONCURRENTLY is the exception because PostgreSQL refuses to run it inside
+-- a transaction block at all; the runner therefore cannot include it in one.
+-- That is why this statement is deliberately the only statement in this
+-- file: its success or failure maps to exactly one migration version with no
+-- partial-file-apply ambiguity, and `if exists` lets a replay record the
+-- version if the drop already committed before the version was written.
 --
 -- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
 -- fence: no application code depends on this index's absence or presence.
