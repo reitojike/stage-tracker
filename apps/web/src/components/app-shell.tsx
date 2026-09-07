@@ -53,10 +53,17 @@ export function AppShell({
       />
       {/* Bounded content column: 640px matches the legacy fixed-width
           content contract (docs/v2/oracle-routes-ui.md §3
-          fixedSubmitBar.module.css). */}
-      <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-section px-md py-lg">
+          fixedSubmitBar.module.css). `<main>` (not `<div>`) matches
+          apps/legacy-web/src/ui/AppShell.tsx, which owns the page's single
+          `<main>` landmark here - lost in the initial v2 port and caught by
+          an axe-core run against the AppShell stories (PR #377 review,
+          Issue #376 a11y verification): without it, axe flags both
+          `landmark-one-main` and `region` (page content not contained by
+          any landmark). Individual route pages still own their own `<h1>`
+          inside `{children}`, same division of responsibility as legacy. */}
+      <main className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-section px-md py-lg">
         {children}
-      </div>
+      </main>
       {showPrimaryNav ? <PrimaryNav /> : null}
     </div>
   );
