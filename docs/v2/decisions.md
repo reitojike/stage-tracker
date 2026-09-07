@@ -635,3 +635,48 @@ workflow がそれをイベントペイロードから渡している。**GitHub
 
 （実測で確認。マーカーが正しい形式であることをチェッカーと同じ正規表現でローカル
 検証した上で、再実行が 2 回とも同じエラーで失敗した）
+
+---
+
+## M7 の検討事項: Preview 環境の DB 隔離（2026-09-08）
+
+**当初のアーキテクチャ案にあった Supabase Branching が、Milestone へ落とし込む段階で
+抜け落ちていた。** `packages/ui` や Spec Kit と同じ抜け方をしている。PO の指摘で判明した。
+
+### 解決したい問題
+
+**現在、Vercel Preview は本番 Supabase を共有している。** Preview での書き込みが
+dogfood データに到達し得る。M6 で v2 の画面を作り始めると Preview で操作する機会が
+増えるため、リスクが顕在化する。
+
+あわせて、`Verify / Database` が Docker で毎回スタックを立てるため 5 分かかっている。
+
+### 選択肢
+
+| 方式                           | Preview の隔離              | 費用                              | 手間                      |
+| ------------------------------ | --------------------------- | --------------------------------- | ------------------------- |
+| 現状（Preview が本番を共有）   | 無し                        | 0                                 | 0                         |
+| Supabase Branching             | PR ごとに完全隔離           | **branch ごとに課金**（Pro 以上） | dashboard 設定 + workflow |
+| Preview 用の別 project を 1 つ | 本番とは分離、PR 間では共有 | project 1 つ分                    | 中                        |
+
+**「Preview を本番から隔離する」ことが目的なら 3 番目でも大半を達成でき、費用も読みやすい。**
+
+### 後付け可能である理由（PO へ回答済み）
+
+Branching は **CI と Preview の実行環境の話**であり、アプリのコードに影響しない。
+
+- `apps/web` / `packages/*` / migration / RLS / pgTAP: 影響なし
+- `.github/workflows/verify.yml` の接続先のみ変わる
+
+**移行コストが時間で増えない。** `packages/ui` のように「後回しにすると移す対象が増える」
+性質ではないため、M7 で扱えばよい。
+
+### 制約
+
+**cutover より前に決める必要がある。** cutover では Vercel の Root Directory を
+`apps/web` へ切り替えるため、Preview の DB 接続先も同時に確定させる必要がある。
+
+### それまでの運用
+
+**M6 の Preview では書き込みを伴う操作を実行しない。** 画面の表示確認までに留める。
+書き込みの検証はローカルの Supabase と CI の `Verify / Database` で行う。
