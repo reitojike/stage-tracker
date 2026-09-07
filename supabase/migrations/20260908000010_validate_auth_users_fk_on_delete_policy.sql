@@ -73,6 +73,14 @@
 -- fence (same reasoning as 20260908000000). Depends only on
 -- 20260908000000..000005 having already been applied (the `_pending`
 -- constraints validated here must already exist).
+-- Wrapped in an explicit transaction. The Supabase migration runner is not
+-- guaranteed to wrap a file's statements in one (20260821000100 wraps for
+-- the same reason), and `set local` has no effect outside a transaction
+-- block - it would emit a warning and silently leave lock_timeout at its
+-- default, removing the bound this file relies on. Wrapping explicitly
+-- makes the bound hold regardless of runner behavior.
+begin;
+
 set local lock_timeout = '5s';
 
 alter table public.events
@@ -95,3 +103,5 @@ alter table public.occurrence_invitations
 
 alter table public.user_ticket_opportunity_states
   validate constraint user_ticket_opportunity_states_user_id_fkey_pending;
+
+commit;

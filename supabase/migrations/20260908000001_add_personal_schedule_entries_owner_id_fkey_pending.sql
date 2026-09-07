@@ -15,9 +15,19 @@
 --
 -- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
 -- fence (same reasoning as 20260908000000).
+-- Wrapped in an explicit transaction. The Supabase migration runner is not
+-- guaranteed to wrap a file's statements in one (20260821000100 wraps for
+-- the same reason), and `set local` has no effect outside a transaction
+-- block - it would emit a warning and silently leave lock_timeout at its
+-- default, removing the bound this file relies on. Wrapping explicitly
+-- makes the bound hold regardless of runner behavior.
+begin;
+
 set local lock_timeout = '5s';
 
 alter table public.personal_schedule_entries
   add constraint personal_schedule_entries_owner_id_fkey_pending
     foreign key (owner_id) references auth.users (id) on delete cascade
     not valid;
+
+commit;
