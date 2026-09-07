@@ -45,11 +45,16 @@ void test('the docs-specified 5 disabled sites wire opacity to --opacity-disable
       /opacity:\s*var\(--opacity-disabled\)\s*;/,
       `${relativePath}: "${selector}" must reference var(--opacity-disabled)`,
     );
-    assert.doesNotMatch(
-      body,
-      /opacity:\s*0(\.\d+)?\s*;/,
-      `${relativePath}: "${selector}" must not fall back to a raw opacity literal`,
+    const opacityDeclarations = [...body.matchAll(/opacity:\s*([^;]+);/g)].map((match) =>
+      match[1].trim(),
     );
+    for (const value of opacityDeclarations) {
+      assert.equal(
+        value,
+        'var(--opacity-disabled)',
+        `${relativePath}: "${selector}" must not override opacity with a raw literal ("${value}")`,
+      );
+    }
   }
 });
 
