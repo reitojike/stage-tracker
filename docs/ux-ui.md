@@ -318,12 +318,19 @@ domain semanticsの正本は引き続き
   `TextInput`/`TextArea`はlabelに渡された`required`から自動的にこれを表示し、
   native `required`属性・`aria-*`・label associationは変更しません。「任意です。」
   のような、任意であること自体だけを説明するhelper textは書きません。
-- **section / fieldsetの既定** — `src/ui/FormSection.tsx`が既定の
-  section/fieldset primitiveです。`as="section"`（既定）はboxなしのheading +
-  contentで、purely organizationalなgroupingに使います。`as="fieldset"`は
-  実際にrelatedなinputのgroupingがある場合（choice group等）にのみ使い、
+- **section / fieldsetの既定** — `src/ui/FormSection.tsx`は、feature固有の
+  presentation要件を持たないform groupingが最初に使う**generic default
+  primitive**です。`as="section"`（既定）はboxなしのheading + contentで、
+  purely organizationalなgroupingに使います。`as="fieldset"`は実際に
+  relatedなinputのgroupingがある場合（choice group等）にのみ使い、
   `<fieldset>`/`<legend>`のaccessibility semanticsを保ちながら、prototype的な
-  border/padding boxは持たせません。
+  border/padding boxは持たせません。**「既定」は、既存のfeature-specific
+  wrapperをFormSectionへ統合すべきというruleではありません。** heading /
+  surfaceのvocabularyがfeature固有のscreen（Event write formの
+  `EventWriteSection`が持つdanger heading・subtle surface等）は、その
+  専用wrapperを引き続き所有してよく、これはcomponent API sharingと
+  presentation/semantic value sharingが別軸である（「Shared /
+  feature-local component boundary」参照）ことの一例です。
 - **action area** — 確定・送信のactionを横に並べる行は、右揃え
   （`justify-content: flex-end`）と `--space-sm` のgapを共通のかたちと
   します。Sheetのfooterはこのかたちを `Sheet` 自身が持ちます。それ以外の
@@ -423,10 +430,21 @@ domain semanticsの正本は引き続き
   - **中止・解除（元に戻せる2件）** — 確認を出しません。押した時点で実行し、
     結果は通知で伝えます。
 - native `window.confirm()` は使いません。
-- **danger triggerのlabelは短い名詞形（「削除」）、font-sizeは
-  `--font-size-body-sm`に統一します**（[Issue #310](https://github.com/reitojike/stage-tracker/issues/310)）。
-  中止・解除のtoggle labelはこの短縮の対象にせず、双方向の意味をそのまま
-  保ちます。
+- **danger triggerのlabelは短い名詞形（「削除」）にします。** font-sizeの
+  `--font-size-body-sm`は、shared `src/ui/actionRow.module.css`の`.equal`
+  ではなく、各consumer（`EventWriteForm.module.css`の`.dangerActions` /
+  `.sheetLifecycleActions`、`ScheduleWriteForm.module.css`の
+  `.dangerTrigger`）がこのcanonical tokenを参照する形で表現します
+  （[Issue #310](https://github.com/reitojike/stage-tracker/issues/310)）。
+  `.equal`自身はequal-width layoutだけを持ち、font-sizeは持ちません
+  （`src/ui/__tests__/actionRow.test.ts`がguard）。`.dangerActions` /
+  `.sheetLifecycleActions`はrow内の子buttonへ一律にこの値を適用するため、
+  同じrowに同居するreversibleなcancel/uncancel（`secondary`）actionも
+  結果として同じcompactなfont-sizeになります。これは「dangerだけの
+  typography rule」ではなく、equal-width rowを持つconsumer自身が選んだ
+  row-level typography contractです。中止・解除のtoggle labelは
+  短い名詞形へのlabel短縮の対象にせず、双方向の意味をそのまま保ちます
+  （font-sizeの共有とlabel短縮は別の軸です）。
 
 ## 読み込み中の見せ方
 
@@ -583,7 +601,9 @@ Visual / interaction semanticsがdomain-independentで実際に再利用され�
 `src/ui/` にあることは「現に共有されている」ことを意味しません。current
 runtimeからのconsumerが0のものは、見つかり次第削除します（Issue #283で
 `Surface` / `ActionRow` を削除済み）。本ファイルはそうした未使用component
-を、現に使うべきvocabularyとしては提示しません。
+を、現に使うべきvocabularyとしては提示しません。（Issue #361時点のfresh
+scanでも、production/runtime importを持たないshared componentは
+見つかっていません。）
 
 **新しいcontrolはscreen-localのCSS Moduleで始めてよい**（PO確定、
 2026-08-31）。2つ目の使い手が出た時点で `src/ui/` へ引き上げます。先に
@@ -689,6 +709,12 @@ roleではなく値だけの場合は、composeする先のroleがそもそも�
 - **shared ruleを変えるときは、検証責務も共有側へ移します。** 置き換え
   られたconsumer側のsource/CSS assertionは残さず削除します。同じ保証を
   共有元と各consumerで二重に持ちません。
+- **shared moduleであること自体は、専用testを追加する理由になりません。**
+  dedicated testを持たないshared componentが複数ありますが、consumer数や
+  既存coverageに照らしてtest追加の維持費が見合わない場合は追加しません
+  （Issue #361）。例外は、compositionが静かに落ちる具体的なsilent
+  regression riskがある高ROIケースだけです（`TextArea.module.css`が
+  `TextInput.module.css`の6つのroleをcomposeする配線、Issue #356）。
 
 ### list-row presentation authorityの境界（Issue #359）
 
@@ -770,7 +796,11 @@ presentation primitiveのみを提供します。
   siteがこのtokenを参照します。値はここに書かず、`tokens.css` を参照して
   ください。各consumerのselector / DOM構造は統合対象ではありません
   （「Shared / feature-local component boundary」の「component API
-  sharingとpresentation / semantic value sharingは別軸」参照）。
+  sharingとpresentation / semantic value sharingは別軸」参照）。この5
+  siteが`--opacity-disabled`へ配線され続けることは、
+  `src/ui/__tests__/disabledOpacityWiring.test.ts`がbounded structural
+  testとしてguardします（repository-wide censusではなく、この5 siteの
+  wiringだけを対象とします）。
 
 ### 補助的な件数表示の例外
 
@@ -857,6 +887,16 @@ qualityを阻害する場合は、exceptionを足すだけでなくglobal rule�
   なく、global defaultを増やすよりも、マーカーを消すという判断が各listの
   siteに見えている方を優先します。
 - **focus ringの転送** — globalsの重複ではありません。次節を参照します。
+- **calendar marker geometry** — `MonthCalendar.module.css`（Event
+  Catalog）と`MyMonthCalendar.module.css`（My Calendar）の`.markerRow`
+  （`min-height: 9px`）・`.dot`（`7px`）・`.band`（`min-height: 10px` /
+  `padding-inline: 3px` / `line-height: 1.6`）は一致する反復です。marker
+  presentationは各calendar screenのlocal ownershipを維持し、shared
+  presentation moduleや共通tokenへは統合しません。raw valueが一致して
+  いても、ここでの共通化はしないと決定済みです。`MonthCalendar`だけが
+  持つ`.weekOverflow`の`line-height: 1.4`は、この2ファイルで一致していない
+  別presentation role（week overflow summary text）であり、marker
+  geometryのこのdecisionには含めません。
 
 ### visually hidden inputからvisible proxyへのfocus ring転送
 
