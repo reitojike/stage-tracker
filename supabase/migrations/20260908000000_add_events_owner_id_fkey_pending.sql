@@ -107,9 +107,8 @@
 -- No partial state is left behind - the failed statement's transaction
 -- rolls back automatically, and this migration is not recorded as
 -- applied - so the operator can simply wait a short while for the
--- conflicting transaction to finish and re-run `supabase db push` (or
--- re-apply this file directly via psql); retrying is always safe and has
--- no side effects if it fails again.
+-- conflicting transaction to finish and re-run `supabase db push`;
+-- retrying is always safe and has no side effects if it fails again.
 --
 -- No cross-file ordering dependency on any other migration in this
 -- repository, and no Vercel deploy depends on this migration (application

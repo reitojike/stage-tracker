@@ -44,10 +44,37 @@
 -- is the actual "long-running" part of the change, deliberately isolated
 -- to this file so it never coincides with an ACCESS EXCLUSIVE lock.
 --
+-- Even though SHARE UPDATE EXCLUSIVE does not block ordinary reads/writes,
+-- this file still sets `lock_timeout` (review finding on PR #378, round
+-- 2): if a later VALIDATE CONSTRAINT in this same transaction has to wait
+-- for a conflicting SHARE UPDATE EXCLUSIVE-or-stronger operation already
+-- running against one of the *other* six tables (e.g. a VACUUM, a CREATE
+-- INDEX CONCURRENTLY, or an out-of-band VALIDATE CONSTRAINT), it would
+-- otherwise wait indefinitely - and because Postgres holds every lock a
+-- transaction has acquired until the transaction ends, the SHARE UPDATE
+-- EXCLUSIVE locks this transaction already took on the earlier tables
+-- would stay held for that entire wait too, blocking maintenance DDL
+-- against those earlier tables as collateral damage. This is the same
+-- cross-table lock contagion that forced the per-table split for steps 1
+-- and 3 (see above), except here it can only ever stall other
+-- maintenance DDL, never ordinary application reads/writes, which is why
+-- this step does not need that same per-table file split - one bounded
+-- wait per table, all in one file, is enough.
+--
+-- If this statement fails with `55P03 lock not available`: a maintenance
+-- operation (VACUUM, CREATE INDEX CONCURRENTLY, or another VALIDATE
+-- CONSTRAINT) is currently running against one of the seven tables below.
+-- No partial state is left behind - all seven VALIDATE CONSTRAINT calls
+-- are in the same transaction, so a timeout on any one of them rolls the
+-- whole transaction back - so the operator can wait a short while and
+-- re-run `supabase db push`; retrying is always safe.
+--
 -- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
 -- fence (same reasoning as 20260908000000). Depends only on
 -- 20260908000000..000005 having already been applied (the `_pending`
 -- constraints validated here must already exist).
+set local lock_timeout = '5s';
+
 alter table public.events
   validate constraint events_owner_id_fkey_pending;
 

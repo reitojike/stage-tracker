@@ -7,10 +7,9 @@
 -- If this statement fails with `55P03 lock not available`: a long-running
 -- transaction is currently holding a conflicting lock on
 -- public.personal_schedule_shares. No partial state is left behind, so
--- the operator can wait a short while and re-run `supabase db push` (or
--- re-apply this file directly via psql); retrying is always safe. The
--- `_pending` constraint from 20260908000002 stays in place (redundant but
--- harmless) until this succeeds.
+-- the operator can wait a short while and re-run `supabase db push`;
+-- retrying is always safe. The `_pending` constraint from 20260908000002 stays
+-- in place (redundant but harmless) until this succeeds.
 --
 -- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
 -- fence (same reasoning as 20260908000020). Depends on 20260908000010

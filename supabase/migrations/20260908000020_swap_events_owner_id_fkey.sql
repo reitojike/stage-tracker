@@ -56,10 +56,10 @@
 -- partial state is left behind - DROP CONSTRAINT and RENAME CONSTRAINT are
 -- both in the same transaction, so if the lock times out on either
 -- statement the whole transaction rolls back and neither change applies -
--- so the operator can wait a short while and re-run `supabase db push` (or
--- re-apply this file directly via psql); retrying is always safe. The
--- events_owner_id_fkey_pending constraint from 20260908000000 stays in
--- place (redundant but harmless) until this succeeds.
+-- so the operator can wait a short while and re-run `supabase db push`;
+-- retrying is always safe. The events_owner_id_fkey_pending constraint
+-- from 20260908000000 stays in place (redundant but harmless) until
+-- this succeeds.
 --
 -- After 20260908000000..000025 have all been applied, the schema is
 -- byte-for-byte equivalent (same constraint names, same ON DELETE actions,
