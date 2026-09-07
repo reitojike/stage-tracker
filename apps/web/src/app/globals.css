@@ -58,6 +58,19 @@
  ---break---
  */
 :root {
+  /*
+   * next/font/google (Geist) はビルド時に Google Fonts へのネットワーク
+   * アクセスを発生させ、CI のビルド再現性を損なう（docs/v2/decisions.md
+   * A20）。v2 のこの段階ではブランド上のフォント選定が未確定であり、
+   * self-host する固有フォントの資産もまだ無いため、資産追加なしで
+   * ネットワークアクセスを完全に除去できる system font stack を採用する。
+   * 日本語表記が中心のプロダクトのため、主要 OS の日本語 UI フォントを
+   * 明示的に含める。
+   */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Segoe UI", Meiryo, Roboto,
+    "Helvetica Neue", Arial, "Noto Sans JP", sans-serif;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
