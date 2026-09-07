@@ -38,27 +38,16 @@
 --
 -- Confirmed against the local Supabase CLI (v2.116.0): `drop index
 -- concurrently` applies successfully via both `supabase migration up` and
--- `supabase db reset`.
---
--- This is specific to CONCURRENTLY, not a general statement about how the
--- runner treats migration files. Measured separately on the same CLI:
---
---   * a file containing `create table ...; select 1/0;` fails as a whole and
---     leaves no table behind - so ordinary files ARE atomic, and
---   * `set local lock_timeout` inside an ordinary file does take effect
---     (probed by raising if `current_setting('lock_timeout')` was not the
---     value just set).
---
--- CONCURRENTLY is the exception because PostgreSQL refuses to run it inside
--- a transaction block at all; the runner therefore cannot include it in one.
--- That is why this statement is deliberately the only statement in this
--- file: its success or failure maps to exactly one migration version with no
--- partial-file-apply ambiguity, and `if exists` lets a replay record the
--- version if the drop already committed before the version was written.
---
--- The other migrations in this change set wrap their statements in an
--- explicit BEGIN/COMMIT so that `set local lock_timeout` holds regardless of
--- runner behavior. This file cannot and must not do that.
+-- `supabase db reset` even though this statement is not wrapped in an
+-- explicit BEGIN/COMMIT in this file - the CLI does not run this
+-- statement inside the same transaction as the rest of a migration file
+-- (verified by reproducing the same behavior with an unrelated
+-- CONCURRENTLY statement placed alongside other DDL in one file: the
+-- CONCURRENTLY statement's effect was already committed even when a later
+-- statement in the same file failed and the file as a whole was not
+-- recorded as applied). This statement is deliberately the only statement
+-- in this file regardless, so its success/failure maps to exactly one
+-- migration version with no partial-file-apply ambiguity.
 --
 -- `post-deploy-safe` per docs/architecture/runtime-stack.md's ordering
 -- fence: no application code depends on this index's absence or presence.
