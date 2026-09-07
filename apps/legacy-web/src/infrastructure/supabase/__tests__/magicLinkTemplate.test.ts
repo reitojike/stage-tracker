@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const template = readFileSync(
-  new URL('../../../../supabase/templates/magic_link.html', import.meta.url),
+  new URL('../../../../../../supabase/templates/magic_link.html', import.meta.url),
   'utf8',
 );
 

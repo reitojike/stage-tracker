@@ -1,9 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const consumerRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Monorepo layout: this script (and its callers, run-foundation-tool.mjs /
+// check-quality-profile-drift.mjs) is invoked with the repository root as
+// cwd - that is where .ai-dev-foundation actually lives, one level above
+// this app package that scripts/ itself now lives under. Resolving from
+// process.cwd() rather than this file's own location keeps that correct
+// regardless of which app package scripts/ is nested under.
+const consumerRoot = process.cwd();
 const pin = JSON.parse(
   readFileSync(path.join(consumerRoot, '.ai-dev-foundation', 'foundation-pin.json'), 'utf8'),
 );

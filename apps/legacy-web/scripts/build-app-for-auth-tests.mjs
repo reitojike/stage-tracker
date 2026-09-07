@@ -1,6 +1,16 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readLocalSupabaseStatus } from '../test/rls/support/localSupabase.ts';
+
+// Monorepo layout: this script is invoked with the repository root as cwd
+// (see root package.json's build:auth-app, which must stay root-rooted so
+// readLocalSupabaseStatus's `supabase status` call below resolves
+// supabase/config.toml), but `next build` itself has to run against this
+// app package's own directory (its node_modules/next and next.config.ts),
+// not the repository root. Resolved from this file's own location so it is
+// correct regardless of cwd.
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Produces the production build that test/auth runs against (Issue #286).
 // test:auth boots the app with `next start` instead of `next dev`, so a build
@@ -34,9 +44,10 @@ const status = readLocalSupabaseStatus();
 // build (same reasoning as spawnNextStart in appServer.ts).
 const result = spawnSync(
   process.execPath,
-  [path.join('node_modules', 'next', 'dist', 'bin', 'next'), 'build'],
+  [path.join(APP_ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), 'build'],
   {
     stdio: 'inherit',
+    cwd: APP_ROOT,
     env: {
       ...process.env,
       NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,

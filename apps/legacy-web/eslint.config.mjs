@@ -3,7 +3,7 @@ import storybook from 'eslint-plugin-storybook';
 import {
   architectureImportBoundary,
   nextSupabaseQualityProfile,
-} from './.ai-dev-foundation/quality/eslint.config.mjs';
+} from '../../.ai-dev-foundation/quality/eslint.config.mjs';
 
 /**
  * Deliberately a dedicated rule (its own plugin/rule name), not another

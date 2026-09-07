@@ -6,7 +6,11 @@ import path from 'node:path';
 // generator even runs, so a mid-generation failure would leave it empty or
 // partial. Generate to a temp file first and only replace the committed
 // file once generation has actually succeeded.
-const committedPath = path.resolve('src/infrastructure/supabase/database.types.ts');
+// Monorepo layout: this script is invoked with the repository root as cwd
+// (see root package.json's supabase:types, which must stay root-rooted so
+// `supabase gen types` resolves supabase/config.toml), while the generated
+// file itself lives under this app package.
+const committedPath = path.resolve('apps/legacy-web/src/infrastructure/supabase/database.types.ts');
 const tempPath = `${committedPath}.tmp`;
 
 // Windows can only launch node_modules/.bin's supabase.cmd shim through a

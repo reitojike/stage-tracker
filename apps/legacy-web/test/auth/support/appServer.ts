@@ -2,10 +2,20 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   readLocalSupabaseStatus,
   type LocalSupabaseStatus,
 } from '../../rls/support/localSupabase.ts';
+
+// Monorepo layout: test:auth is invoked with the repository root as cwd
+// (see root package.json's test:auth, which must stay root-rooted so
+// readLocalSupabaseStatus's `supabase status` call below resolves
+// supabase/config.toml), but the app under test - its node_modules/next and
+// its production .next build - lives under this app package's own
+// directory, not the repository root. Resolved from this file's own
+// location so it is correct regardless of cwd.
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 async function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -146,7 +156,7 @@ export function stopProcess(child: KillableChild): Promise<void> {
  * `next`/`npx` shim so the spawned child *is* the server process: no shell
  * on Windows, and no wrapper process whose own pid says nothing about
  * whether the server is still listening. */
-const NEXT_BIN = path.join('node_modules', 'next', 'dist', 'bin', 'next');
+const NEXT_BIN = path.join(APP_ROOT, 'node_modules', 'next', 'dist', 'bin', 'next');
 
 interface SpawnedNextStart {
   child: ChildProcess;
@@ -165,6 +175,7 @@ function spawnNextStart(port: number, status: LocalSupabaseStatus): SpawnedNextS
       // substituted at build time - see
       // scripts/build-app-for-auth-tests.mjs), so passing them here is what
       // points the server at this machine's local Supabase stack.
+      cwd: APP_ROOT,
       env: {
         ...process.env,
         NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
@@ -292,8 +303,8 @@ export function isHealthyReadyResponse(status: number): boolean {
  * across local and CI runs); Issue #303 tracks whether the gap needs closing.
  */
 export async function startAppServer(): Promise<AppServer> {
-  assertDependenciesInstalled(process.cwd());
-  assertProductionBuildPresent(process.cwd());
+  assertDependenciesInstalled(APP_ROOT);
+  assertProductionBuildPresent(APP_ROOT);
   const status = readLocalSupabaseStatus();
   const port = await findFreePort();
   const { child, exited } = spawnNextStart(port, status);

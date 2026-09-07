@@ -7,7 +7,11 @@ import path from 'node:path';
 // truth. This regenerates from that running database and fails non-zero on
 // any byte-exact diff against the committed file, so drift can never be
 // silently merged.
-const committedPath = path.resolve('src/infrastructure/supabase/database.types.ts');
+// Monorepo layout: this script is invoked with the repository root as cwd
+// (see root package.json's supabase:types:check, which must stay
+// root-rooted so `supabase gen types` resolves supabase/config.toml), while
+// the generated file itself lives under this app package.
+const committedPath = path.resolve('apps/legacy-web/src/infrastructure/supabase/database.types.ts');
 
 // Windows can only launch node_modules/.bin's supabase.cmd shim through a
 // shell (Node throws EINVAL otherwise); the args below are static literals,

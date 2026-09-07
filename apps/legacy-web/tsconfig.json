@@ -1,5 +1,5 @@
 {
-  "extends": "./.ai-dev-foundation/quality/tsconfig.quality.json",
+  "extends": "../../.ai-dev-foundation/quality/tsconfig.quality.json",
   "compilerOptions": {
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],

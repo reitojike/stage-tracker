@@ -23,7 +23,11 @@ import { spawnSync } from 'node:child_process';
 // POSIX shell does) and on CI's bash - see docs/runbooks and Issue #209 for
 // the constraint that local Windows verification must not depend on
 // shell-specific glob/filter tricks.
-const RLS_DIR = 'test/rls';
+// Monorepo layout: this script is invoked with the repository root as cwd
+// (see root package.json's test:rls, which must stay root-rooted so
+// supabase/migrations resolves for the migration-replay tests below), while
+// the RLS test files themselves live under this app package.
+const RLS_DIR = 'apps/legacy-web/test/rls';
 
 const MIGRATION_REPLAY_FILES = [
   'migrationDataPreservation.test.ts',
