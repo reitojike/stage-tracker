@@ -6,6 +6,7 @@ import {
   dayOfWeek,
   firstDayOfMonth,
   formatMonthParam,
+  isRenderableMonth,
   lastDayOfMonth,
   parseDateParam,
   parseMonthParam,
@@ -163,5 +164,63 @@ describe("buildMonthGridDays", () => {
     const days = buildMonthGridDays({ year: 2026, month: 3 });
     expect(days[0]).toBe("2026-03-01");
     expect(days[days.length - 1]).toBe("2026-04-04");
+  });
+});
+
+describe("境界年の月（PR #381 review）", () => {
+  const fallback = { year: 2026, month: 1 };
+
+  it("グリッドが表現できない月を含む date は無視して fallback する", () => {
+    // 9999-12 のグリッドは 10000-01-06 まで伸びる。以前はここで
+    // tokyoCalendarDateSchema が throw し、ページ全体が 500 になっていた。
+    expect(
+      resolveCalendarMonthAndDate(undefined, "9999-12-31", fallback),
+    ).toEqual({ month: fallback, selectedDate: null });
+  });
+
+  it("同じ月を month param で渡してもカレンダーの解決では fallback する", () => {
+    expect(resolveCalendarMonthAndDate("9999-12", undefined, fallback)).toEqual(
+      {
+        month: fallback,
+        selectedDate: null,
+      },
+    );
+  });
+
+  // /catalog は firstDayOfMonth / lastDayOfMonth しか使わず grid を作らない。
+  // grid 制約を parseMonthParam に置くと、その月の Event が参照不能になる。
+  it("parseMonthParam 自体は grid 制約で有効な月を拒否しない", () => {
+    expect(parseMonthParam("9999-12", fallback)).toEqual({
+      year: 9999,
+      month: 12,
+    });
+    expect(firstDayOfMonth({ year: 9999, month: 12 })).toBe("9999-12-01");
+    expect(lastDayOfMonth({ year: 9999, month: 12 })).toBe("9999-12-31");
+  });
+
+  it("0-99 年を 1900+year に写さない（曜日計算を含む）", () => {
+    // Date.UTC(1, 0, 1) は 1901-01-01。以前はこの写像により
+    // ?date=0001-01-01 が 1900-12-30 起点のグリッドを描いていた。
+    expect(isRenderableMonth({ year: 1, month: 1 })).toBe(true);
+
+    // 0001-01-01 は月曜。したがってグリッドは前日の日曜 0000-12-31 から
+    // 始まる。dayOfWeek が Date.UTC のままだと 1901 年の曜日で計算され、
+    // 0000-12-30 起点になって 1 月 1 日が火曜列へずれる。
+    expect(dayOfWeek("0001-01-01" as never)).toBe(1);
+    expect(buildMonthGridDays({ year: 1, month: 1 })[0]).toBe("0000-12-31");
+  });
+
+  it("グリッド開始が負の年になる月は表現不能とみなす", () => {
+    expect(isRenderableMonth({ year: 0, month: 1 })).toBe(false);
+    expect(
+      resolveCalendarMonthAndDate(undefined, "0000-01-01", fallback),
+    ).toEqual({ month: fallback, selectedDate: null });
+  });
+
+  it("境界の内側は従来どおり通る", () => {
+    expect(isRenderableMonth({ year: 9999, month: 11 })).toBe(true);
+    expect(
+      resolveCalendarMonthAndDate(undefined, "9999-11-30", fallback),
+    ).toEqual({ month: { year: 9999, month: 11 }, selectedDate: "9999-11-30" });
   });
 });

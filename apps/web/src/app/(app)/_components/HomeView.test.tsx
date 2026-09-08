@@ -289,4 +289,17 @@ describe("HomeView", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  // 種別と日時だけでは、同日に複数の同種 milestone がある場合に 2 行が
+  // 同一に見える。販売機会名がその唯一の判別材料（PR #381 review）。
+  it("申し込み期限の行に販売機会名を表示する", () => {
+    render(
+      <HomeView
+        ticketState={POPULATED_TICKET}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(screen.getByText("一般発売")).toBeInTheDocument();
+  });
 });

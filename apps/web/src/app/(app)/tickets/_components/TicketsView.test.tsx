@@ -8,15 +8,25 @@ function row(
   overrides: Partial<{
     myState: "planned" | "applied" | null;
     isPostFinalRetainedHistory: boolean;
+    displayName: string;
+    opportunityId: string;
+    milestoneId: string;
   }> = {},
 ) {
-  const { myState = null, isPostFinalRetainedHistory = false } = overrides;
+  const {
+    myState = null,
+    isPostFinalRetainedHistory = false,
+    displayName = "一般発売",
+    opportunityId = "44444444-4444-4444-8444-444444444444",
+    milestoneId = "55555555-5555-4555-8555-555555555555",
+  } = overrides;
   return {
-    opportunityId: "44444444-4444-4444-8444-444444444444",
+    opportunityId,
+    displayName,
     eventId: "22222222-2222-4222-8222-222222222222",
     milestone: {
-      id: "55555555-5555-4555-8555-555555555555",
-      opportunityId: "44444444-4444-4444-8444-444444444444",
+      id: milestoneId,
+      opportunityId,
       milestoneType: "sale_start",
       temporalPrecision: "datetime",
       at: "2026-03-10T10:00:00.000Z",
@@ -189,5 +199,42 @@ describe("TicketsView", () => {
     expect(
       screen.queryByText("申し込み状態を確認できません"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("販売機会名の表示（PR #381 review）", () => {
+  it("同種 milestone・同日時の 2 行を販売機会名で区別できる", () => {
+    const state: OptionalPartBlockState<TicketsTimelineState> = {
+      block: {
+        variant: "populated",
+        data: {
+          groups: [
+            {
+              monthKey: "2026-03",
+              rows: [
+                row({
+                  displayName: "FC先行",
+                  opportunityId: "44444444-4444-4444-8444-444444444444",
+                  milestoneId: "55555555-5555-4555-8555-555555555555",
+                }),
+                row({
+                  displayName: "一般発売",
+                  opportunityId: "66666666-6666-4666-8666-666666666666",
+                  milestoneId: "77777777-7777-4777-8777-777777777777",
+                }),
+              ],
+            },
+          ],
+        },
+      },
+      optional: { ok: true },
+    };
+
+    render(<TicketsView state={state} />);
+
+    // 種別と日時だけでは 2 行が同一に見える。販売機会名がその唯一の
+    // 判別材料なので、両方が実際に描画されていることを確認する。
+    expect(screen.getByText("FC先行")).toBeInTheDocument();
+    expect(screen.getByText("一般発売")).toBeInTheDocument();
   });
 });

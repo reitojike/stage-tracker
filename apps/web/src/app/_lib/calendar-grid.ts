@@ -85,9 +85,49 @@ export function resolveCalendarMonthAndDate(
 ): { month: TokyoYearMonth; selectedDate: TokyoCalendarDate | null } {
   const selectedDate = parseDateParam(rawDate);
   if (selectedDate !== null) {
-    return { month: tokyoYearMonthOf(selectedDate), selectedDate };
+    const month = tokyoYearMonthOf(selectedDate);
+    // A date whose month has no representable grid is ignored entirely
+    // rather than kept alongside a different displayed month - keeping it
+    // would recreate exactly the grid/selected-day drift this function
+    // exists to prevent.
+    if (isRenderableMonth(month)) {
+      return { month, selectedDate };
+    }
   }
-  return { month: parseMonthParam(rawMonth, fallback), selectedDate: null };
+  // The grid constraint belongs here, not in `parseMonthParam`: `/catalog`
+  // shares that parser but only ever needs `firstDayOfMonth`/`lastDayOfMonth`,
+  // which stay representable for a month whose *grid* would overflow. Applying
+  // it there made `/catalog?month=9999-12` silently fall back to the current
+  // month and hid that month's events (PR #381 review).
+  const fromParam = parseMonthParam(rawMonth, fallback);
+  return {
+    month: isRenderableMonth(fromParam) ? fromParam : fallback,
+    selectedDate: null,
+  };
+}
+
+/**
+ * `Date.UTC(year, ...)` maps years 0-99 to 1900+year (a legacy quirk kept for
+ * `new Date(99, 0)`), so `Date.UTC(1, 0, 1)` is 1901-01-01, not 0001-01-01.
+ * That silently produced a 1899-1901 grid for `?date=0000-01-01` while the
+ * selected day stayed 0000-01-01 - a wrong month rendered as if correct
+ * (PR #381 review). `setUTCFullYear(year, month, day)` takes the year
+ * literally and still normalizes month/day overflow against that real year,
+ * so leap-day arithmetic stays correct.
+ */
+function utcFromYmd(year: number, month: number, day: number): Date {
+  const asUtc = new Date(0);
+  asUtc.setUTCFullYear(year, month - 1, day);
+  return asUtc;
+}
+
+/** Formats without validating. The year may fall outside "YYYY" (e.g. a grid
+ * edge landing in year 10000 or a negative year); callers decide whether to
+ * reject that - see `isRenderableMonth`. */
+function formatYmd(asUtc: Date): string {
+  return `${String(asUtc.getUTCFullYear()).padStart(4, "0")}-${String(
+    asUtc.getUTCMonth() + 1,
+  ).padStart(2, "0")}-${String(asUtc.getUTCDate()).padStart(2, "0")}`;
 }
 
 function dateFromYmd(
@@ -95,11 +135,33 @@ function dateFromYmd(
   month: number,
   day: number,
 ): TokyoCalendarDate {
-  const asUtc = new Date(Date.UTC(year, month - 1, day));
-  const formatted = `${String(asUtc.getUTCFullYear()).padStart(4, "0")}-${String(
-    asUtc.getUTCMonth() + 1,
-  ).padStart(2, "0")}-${String(asUtc.getUTCDate()).padStart(2, "0")}`;
-  return tokyoCalendarDateSchema.parse(formatted);
+  return tokyoCalendarDateSchema.parse(formatYmd(utcFromYmd(year, month, day)));
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Whether `buildMonthGridDays` can represent this month's whole grid.
+ *
+ * The grid extends up to 6 days before the 1st and 6 days after the last, so
+ * a month at the edge of the representable range spills into a year
+ * `tokyoCalendarDateSchema` rejects: `?date=9999-12-31` produced a grid
+ * ending 10000-01-06 and threw, turning the whole page into a 500
+ * (PR #381 review). Months whose grid cannot be represented are treated as
+ * invalid navigation state and fall back, matching the oracle's "不正値は
+ * 今日にフォールバック" rule rather than surfacing an error.
+ */
+export function isRenderableMonth(yearMonth: TokyoYearMonth): boolean {
+  const first = utcFromYmd(yearMonth.year, yearMonth.month, 1);
+  const last = utcFromYmd(yearMonth.year, yearMonth.month + 1, 0);
+  const gridStart = new Date(first.getTime() - first.getUTCDay() * MS_PER_DAY);
+  const gridEnd = new Date(
+    last.getTime() + (6 - last.getUTCDay()) * MS_PER_DAY,
+  );
+  return (
+    tokyoCalendarDateSchema.safeParse(formatYmd(gridStart)).success &&
+    tokyoCalendarDateSchema.safeParse(formatYmd(gridEnd)).success
+  );
 }
 
 export function firstDayOfMonth(yearMonth: TokyoYearMonth): TokyoCalendarDate {
@@ -137,10 +199,14 @@ export function addDays(
   return dateFromYmd(year, month, day + delta);
 }
 
-/** 0 = Sunday, matching `Date.prototype.getUTCDay()`. */
+/** 0 = Sunday, matching `Date.prototype.getUTCDay()`.
+ *
+ * Uses `utcFromYmd` for the same reason `dateFromYmd` does: `Date.UTC` maps
+ * years 0-99 to 1900+year, so year 0001 would be given 1901's weekday and the
+ * grid would start one column off (PR #381 review). */
 export function dayOfWeek(date: TokyoCalendarDate): number {
   const [year, month, day] = splitYmd(date);
-  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return utcFromYmd(year, month, day).getUTCDay();
 }
 
 /**

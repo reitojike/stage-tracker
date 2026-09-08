@@ -163,6 +163,10 @@ function TicketDeadlineSection({
                   <span className="text-title font-medium text-foreground">
                     {formatMilestoneWhenJa(row.milestone)}
                   </span>
+                  {/* 販売機会名。/tickets と同じ理由で必要（PR #381 review）。 */}
+                  <span className="text-body-sm text-muted-foreground">
+                    {row.displayName}
+                  </span>
                 </Link>
               </li>
             ))}
