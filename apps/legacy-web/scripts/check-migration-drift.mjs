@@ -1,13 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { classifyMigrationDrift } from './lib/migrationDrift.mjs';
+import { classifyMigrationDrift } from '../../../scripts/lib/migrationDrift.mjs';
 
-// Operator-only, read-only drift check against the linked Production
-// Supabase project (Issue #131). Not wired into CI: CI has no Production
-// credentials (see docs/architecture/runtime-stack.md "Environment
-// Variables の所有境界"), and this repository's established pattern is
-// that remote/Production access is always an explicit, session-local
-// operator action (scripts/lib/adminTarget.mjs, docs/runbooks/
-// gate-a-remote-environment.md), never CI automation. This script performs
+// Read-only drift check against the linked Production Supabase project
+// (Issue #131). Originally operator-only; since Issue #387 の PO 判断
+// D1 = C, the Release workflow also runs this against Production using
+// credentials held in the GitHub Environment `production`. The
+// classification logic now lives at repository root (scripts/lib/) so it
+// survives the removal of apps/legacy-web (Milestone 9). This script performs
 // no writes - it only reads applied-migration state via the Supabase CLI's
 // own linked-project auth (`supabase login` + `supabase link
 // --project-ref <ref>`, per docs/runbooks/catalog-import.md "3a"), the

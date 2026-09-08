@@ -1,0 +1,158 @@
+name: Release
+
+# Production への release を一本の authority にする（Issue #387、PO 判断 D1 = C）。
+#
+# 以前は 2 系統が並行しており、順序が人間の記憶に依存していた。
+#
+#   main merge ─┬→ Vercel が push を検知して Production auto-deploy
+#               └→ Supabase migration は operator が手動 apply
+#
+# Issue #121 / #124 / #125 は、schema-first-required という判断自体は正しく
+# 認識されていたのに、3 件連続で Production migration の適用が Vercel デプロイ
+# より後回しになった実例。human memory に依存した手順は recurring failure に
+# なるため、この workflow が `migration -> drift 確認 -> deploy` の順序を
+# 機械で保証する。
+#
+# **Vercel の Production auto-deploy は止めてあることが前提**
+# （docs/runbooks/v2-release-pipeline-setup.md 手順 2-1）。止めないと
+# migration 適用中に Vercel が先に deploy して race する。
+#
+# secret は GitHub Environment `production` が持ち、Deployment branches を
+# `main` のみに限定してある。**この repository は agent が workflow ファイルを
+# 書く**ため、PR の branch から secret を読めないことが実質的な保護になる。
+
+on:
+  # Verify が main で成功した後にだけ走る。CI が落ちている状態で deploy しない。
+  workflow_run:
+    workflows: ['Verify']
+    types: [completed]
+    branches: [main]
+  # dry-run 用。既定は dry-run にして、誤操作が本番へ届かないようにする。
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '実際には適用・deploy せず、判断だけを表示する'
+        type: boolean
+        default: true
+
+# release は同時に 1 本だけ。cancel-in-progress にしないのは、migration 適用中の
+# job を途中で切ると Production が中途半端な状態になり得るため。
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release / Production
+    # workflow_run の場合は Verify が success のときだけ。
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Resolve target commit
+        id: target
+        env:
+          # workflow_run では、CI が通った commit を明示的に使う。
+          # 「main の最新」ではない —— その間に別の merge が入っている可能性がある。
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ -n "$WORKFLOW_RUN_SHA" ]; then
+            echo "sha=$WORKFLOW_RUN_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout stage-tracker
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `supabase` は devDependency なので、素の run: では PATH に入らず
+      # exit 127 になる（Verify / E2E で実際に踏んだ）。pnpm exec 経由で呼ぶ。
+      - name: Link Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: pnpm exec supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      # pending（適用してよい）と remote-only（止めるべき）を区別する。
+      # remote-only は repository に対応するファイルが無い migration が
+      # Production にある状態で、その上に local を重ねてはいけない。
+      - name: Plan migrations
+        id: plan
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: pnpm run release:migration-plan
+
+      - name: Apply migrations
+        if: >-
+          steps.plan.outputs.plan == 'apply' &&
+          !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: pnpm run supabase:migrations:apply
+
+      - name: Report skipped apply (dry-run)
+        if: >-
+          steps.plan.outputs.plan == 'apply' &&
+          github.event_name == 'workflow_dispatch' && inputs.dry_run
+        run: |
+          echo "DRY-RUN: would apply -> ${{ steps.plan.outputs.pending }}"
+
+      # 適用後に drift 0 を確認してから deploy する。dry-run では pending が
+      # 残ったままなので drift が出るのが正しく、ここは実行しない。
+      - name: Verify no drift
+        if: "!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: pnpm run supabase:migrations:drift -- --linked
+
+      # ここまでが success のときだけ deploy が走る。migration が失敗しても
+      # drift が残っても、この step には到達しない。
+      - name: Trigger Vercel production deploy
+        if: "!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$DEPLOY_HOOK_URL")
+          echo "deploy hook responded: $status"
+          case "$status" in
+            2*) ;;
+            *) echo "::error::deploy hook did not accept the request"; exit 1 ;;
+          esac
+
+      - name: Report skipped deploy (dry-run)
+        if: "github.event_name == 'workflow_dispatch' && inputs.dry_run"
+        run: |
+          echo "DRY-RUN: would POST the Vercel deploy hook."
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Release"
+            echo ""
+            echo "- target: \`${{ steps.target.outputs.sha }}\`"
+            echo "- migration plan: \`${{ steps.plan.outputs.plan }}\`"
+            echo "- pending: \`${{ steps.plan.outputs.pending }}\`"
+            echo "- dry-run: \`${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

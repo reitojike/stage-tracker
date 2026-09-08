@@ -36,7 +36,7 @@
     "catalog:import": "node apps/legacy-web/scripts/import-catalog-events.mjs",
     "tickets:import": "node apps/legacy-web/scripts/import-ticket-opportunities.mjs",
     "holidays:update": "node apps/legacy-web/scripts/update-japanese-holidays.mjs",
-    "verify:code": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run foundation:check && pnpm run agent-rules:check && pnpm run supabase:migrations:check",
+    "verify:code": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run test:scripts && pnpm run foundation:check && pnpm run agent-rules:check && pnpm run supabase:migrations:check",
     "verify:build": "pnpm run build && pnpm run build-storybook",
     "verify:database:start": "supabase start --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor",
     "verify:database:db-checks": "pnpm run supabase:types:check && pnpm run test:rls && pnpm run client-role-privileges:check",
@@ -47,7 +47,10 @@
     "verify": "pnpm run verify:code && pnpm run verify:build && pnpm run verify:database",
     "e2e:install-browsers": "pnpm --filter @stage-tracker/web exec playwright install --with-deps chromium",
     "test:e2e": "pnpm --filter @stage-tracker/web run test:e2e",
-    "verify:e2e": "pnpm run verify:database:start && supabase db reset && pnpm run test:e2e"
+    "verify:e2e": "pnpm run verify:database:start && supabase db reset && pnpm run test:e2e",
+    "release:migration-plan": "node scripts/release-migration-plan.mjs",
+    "supabase:migrations:apply": "supabase db push --linked",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\""
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
