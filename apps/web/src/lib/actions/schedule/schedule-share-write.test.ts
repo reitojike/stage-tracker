@@ -98,6 +98,104 @@ describe("addScheduleShareByEmail", () => {
   });
 
   /**
+   * PR #389 の migration 適用**後**の形。`share_schedule_entry_by_email` が
+   * 「未登録 email」を custom SQLSTATE `90010` で返すようになる。
+   *
+   * 上の `P0001` のテストと**両方が通る**ことが、この PR を単独で deploy
+   * して安全である根拠。現行 DB（`P0001`）でも切替後の DB（`90010`）でも
+   * 同じ classified 文言になる。
+   */
+  it("classifies an unregistered-recipient-email 90010 rejection as validation with the classified message", async () => {
+    server.use(
+      http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
+        HttpResponse.json(
+          {
+            code: "90010",
+            message: "recipient email is not a registered account",
+            details: "",
+            hint: "",
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    await expect(
+      addScheduleShareByEmail(
+        createTestClient(),
+        ENTRY_ID,
+        "nobody@example.test",
+      ),
+    ).rejects.toMatchObject({
+      kind: "validation",
+      message: "このメールアドレスは、Stage Trackerに登録されていません。",
+    });
+  });
+
+  /**
+   * 分類は `error.code` だけで行い、HTTP status には依存しない。
+   *
+   * PostgREST が custom SQLSTATE をどの status へ写像するかは PostgREST の
+   * version と設定に依存し、この repository が固定できる契約ではない。
+   * status が 500 で届いても分類が変わらないことを固定する - さもないと
+   * PostgREST の写像が変わった日に、未登録 email が汎用 failure へ退行する。
+   */
+  it("classifies 90010 by SQLSTATE alone, regardless of the HTTP status PostgREST maps it to", async () => {
+    server.use(
+      http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
+        HttpResponse.json(
+          {
+            code: "90010",
+            message: "recipient email is not a registered account",
+            details: "",
+            hint: "",
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    await expect(
+      addScheduleShareByEmail(
+        createTestClient(),
+        ENTRY_ID,
+        "nobody@example.test",
+      ),
+    ).rejects.toMatchObject({
+      kind: "validation",
+      message: "このメールアドレスは、Stage Trackerに登録されていません。",
+    });
+  });
+
+  /**
+   * 自己共有（`90011`）は `validation` のままだが、product rule が開示を
+   * 許可しているのは「未登録 email」の一点だけなので、文言は generic な
+   * 安全文言へ fail-closed する（`90010` と同じ扱いにはしない）。
+   */
+  it("classifies a self-share 90011 rejection as validation with the generic safe message", async () => {
+    server.use(
+      http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
+        HttpResponse.json(
+          {
+            code: "90011",
+            message: "cannot share with yourself",
+            details: "",
+            hint: "",
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    await expect(
+      addScheduleShareByEmail(createTestClient(), ENTRY_ID, "me@example.test"),
+    ).rejects.toMatchObject({
+      kind: "validation",
+      message: "入力内容をご確認のうえ、再度お試しください。",
+    });
+  });
+
+  /**
    * 未登録 email 以外の P0001 業務ルール違反（自己共有・owner以外からの
    * 呼び出し等）はすべて同一の SQLSTATE で返り、`resolveShareByEmailBusinessRuleMessage`
    * が一致しないため generic な安全文言へ fail-closed する

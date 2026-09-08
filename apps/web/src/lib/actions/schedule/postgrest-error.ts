@@ -99,49 +99,97 @@ export function classifyWritePostgrestError(
 }
 
 /**
+ * `share_schedule_entry_by_email` の業務ルール違反を表す custom SQLSTATE
+ * （`supabase/migrations/20260908010000_add_share_by_email_sqlstates.sql`、
+ * PR #389 で追加する）。
+ *
+ * **`90010` を Invitation 側で再利用してはいけない。** share by email は
+ * 「対象 email が未登録であることを owner へ知らせてよい」operation だが
+ * （product-rules.md「Authenticated-user targeting」節）、Invitation は
+ * invitee の状態を inviter へ開示してはいけない。opacity boundary が違うため、
+ * 同じ code を使うと handler を共有した瞬間に Invitation 側の opacity が壊れる。
+ */
+const SHARE_UNREGISTERED_RECIPIENT_CODE = "90010";
+const SHARE_SELF_SHARE_CODE = "90011";
+
+/**
+ * この write 層が業務ルール違反（business rule rejection）として扱う SQLSTATE。
+ *
+ * **`P0001` と custom SQLSTATE の両方を受け付けるのは、移行期間中だから。**
+ *
+ * `share_schedule_entry_by_email` は当初、業務ルール違反をすべて
+ * `raise exception` のデフォルト SQLSTATE（`P0001`）で返していた
+ * （`supabase/migrations/20260823020000_create_schedule_share_email_boundary.sql`）。
+ * `docs/v2/decisions.md` A8 が求める custom SQLSTATE 化を、次の順序で行う。
+ *
+ *   PR A（この変更）  client が `P0001` と `90010`/`90011` の両方を受け付ける
+ *   PR B（#389）      migration が errcode を切り替える
+ *   PR C              `P0001` + message 一致の分岐を撤去する
+ *
+ * **順序が column 追加と逆になる理由**: `raise ... using errcode` は 1 つの
+ * 値しか持てないため、「新旧どちらの code も出す」という DB 側だけの expand
+ * が原理的にできない。広げられるのは読む側だけなので、reader を先に広げる。
+ * writer（DB）が新しい語彙を話し始める前に、reader（client）が両方を理解
+ * できる状態にしておく（`docs/v2/decisions.md`「A8 追補」）。
+ *
+ * この PR は単独で deploy して安全である。現行 DB は `P0001` しか出さないので
+ * 新しい 2 つの分岐に到達せず、挙動は一切変わらない。
+ */
+const BUSINESS_RULE_POSTGRES_CODES: ReadonlySet<string> = new Set([
+  "P0001",
+  SHARE_UNREGISTERED_RECIPIENT_CODE,
+  SHARE_SELF_SHARE_CODE,
+]);
+
+/**
  * RPC（`share_schedule_entry_by_email` / `list_schedule_share_recipient_emails`）
  * の失敗分類。
  *
- * これらの RPC は、業務ルール違反（未登録 email・自分自身への共有・
- * owner 以外からの呼び出し等）をすべて `raise exception` のデフォルト
- * SQLSTATE（`P0001`）で返す — 個別の custom SQLSTATE
- * （`docs/v2/decisions.md` A8 が invite/decline/share 系に求めている区分）
- * はこの migration
- * （`supabase/migrations/20260823020000_create_schedule_share_email_boundary.sql`）
- * にまだ導入されていない。したがって `P0001` だけからは「owner でない」と
- * 「email が不正/未登録」を構造的に区別できず、本 Task の変更対象外
- * （`supabase/migrations/` は scope 外）でもあるため、`businessRuleKind`
- * を呼び出し側が1つ選んで渡す（このタスクの報告に判断として記録する）。
+ * `BUSINESS_RULE_POSTGRES_CODES` のいずれかであれば業務ルール違反として扱う。
+ * `P0001` はどの業務ルールに違反したのかを構造的に区別できないため
+ * （「owner でない」と「email が不正/未登録」が同じ code で来る）、
+ * `businessRuleKind` を呼び出し側が 1 つ選んで渡す。
  *
- * `resolveBusinessRuleMessage` は、呼び出し元が特定の生メッセージだけを
- * 既知の分類済み安全文言へ差し替えたい場合のための、任意の狭い exit
- * hatch。汎用の message 文字列マッチング判定（A8 が禁止する
+ * `resolveBusinessRuleMessage` は、呼び出し元が特定のエラーだけを既知の
+ * 分類済み安全文言へ差し替えたい場合のための、任意の狭い exit hatch。
+ * 汎用の message 文字列マッチング判定（A8 が禁止する
  * `error.message.includes(...)` によるエラー種別自体の判定）ではなく、
- * `error.code === "P0001"` で既に `businessRuleKind` が確定した *後*、
- * 表示文言だけを呼び出し元の裁量で上書きするための狭いフックである。
+ * `kind`（`businessRuleKind`）が既に確定した *後*、表示文言だけを
+ * 呼び出し元の裁量で上書きするための狭いフックである。
  * `undefined` を返す（= 呼び出し元が resolver を渡さない、または渡しても
  * 一致しない）場合は常に `businessRuleKind` に応じた generic な安全文言
  * （`genericBusinessRuleMessage`）にフォールバックする - fail-closed に、
  * 生メッセージが漏れることはない。
+ *
+ * resolver へ `code` と `message` の両方を渡すのは、移行期間中は同じ業務
+ * ルール違反が新旧 2 通りの形（`90010` / `P0001` + 生メッセージ）で到着し得る
+ * ため。PR C で旧形式の分岐を撤去したら、resolver は `code` だけを見る。
  */
 export function classifyRpcError(
   error: PostgrestError,
   status: number,
   businessRuleKind: "validation" | "permission-denied",
-  resolveBusinessRuleMessage?: (rawMessage: string) => string | undefined,
+  resolveBusinessRuleMessage?: (rejection: {
+    readonly code: string;
+    readonly rawMessage: string;
+  }) => string | undefined,
 ): ActionError {
   let kind: BaseActionErrorKind;
   let message: string;
   if (status === 401) {
     kind = "unauthenticated";
     message = "サインインが必要です。";
-  } else if (error.code === "P0001") {
+  } else if (BUSINESS_RULE_POSTGRES_CODES.has(error.code)) {
     kind = businessRuleKind;
-    const resolved = resolveBusinessRuleMessage?.(error.message);
+    const resolved = resolveBusinessRuleMessage?.({
+      code: error.code,
+      rawMessage: error.message,
+    });
     if (resolved === undefined) {
       console.error(
-        "[schedule write] unclassified P0001 business rule rejection",
+        "[schedule write] unresolved business rule rejection message",
         {
+          code: error.code,
           message: error.message,
         },
       );

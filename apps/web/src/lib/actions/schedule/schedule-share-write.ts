@@ -27,40 +27,50 @@ import {
  */
 
 /**
- * `share_schedule_entry_by_email` RPC
- * （`supabase/migrations/20260823020000_create_schedule_share_email_boundary.sql`）
- * が「対象 email が登録済みアカウントではない」場合に `raise exception` する、
- * 唯一かつ安定した生メッセージ。この RPC の業務ルール違反はすべて同一の
- * SQLSTATE (`P0001`) で返るため（`classifyRpcError` の doc comment参照）、
- * この1件だけを他の業務ルール違反（自己共有・owner 以外からの呼び出し等）
- * から区別する構造化された手段が migration 側にまだ無い。
+ * `share_schedule_entry_by_email` RPC が「対象 email が登録済みアカウント
+ * ではない」場合に返す、2 通りの形。
  *
- * この定数を使った完全一致比較は、`docs/v2/decisions.md` A8 が禁止する
- * 「エラー種別自体を message で判定する」こととは別軸の狭い用途に限定する:
- * `error.code === "P0001"` によって `kind`（`validation`）は既に確定済みで
- * あり、ここでは *その後* の表示文言だけを、product rule が明示的に開示を
- * 許可した一点（「Authenticated-user targeting」節: personal schedule の
- * 共有には Invitation のような第三者 private state がなく、対象 email が
- * 未登録であることを owner へ知らせてよい）に絞って安全な classified な
- * 文言へ差し替える。一致しない場合（migration の文言変更を含む）は
+ * **移行期間中なので両方を受け付ける。** 詳細は `postgrest-error.ts` の
+ * `BUSINESS_RULE_POSTGRES_CODES` の doc comment 参照。
+ *
+ * - **新**: SQLSTATE `90010`（構造化された判定。これが本来あるべき形）
+ * - **旧**: `P0001` + 生メッセージの完全一致（PR #389 の migration が
+ *   Production へ適用されるまでの現行 DB の形）
+ *
+ * 旧形式の完全一致比較は、`docs/v2/decisions.md` A8 が禁止する「エラー種別
+ * 自体を message で判定する」こととは別軸の狭い用途に限定する: `kind`
+ * （`validation`）は `classifyRpcError` が既に確定済みであり、ここでは
+ * *その後* の表示文言だけを、product rule が明示的に開示を許可した一点
+ * （「Authenticated-user targeting」節: personal schedule の共有には
+ * Invitation のような第三者 private state がなく、対象 email が未登録で
+ * あることを owner へ知らせてよい）に絞って安全な classified 文言へ
+ * 差し替える。一致しない場合（migration の文言変更を含む）は
  * `classifyRpcError` が自動的に generic な安全文言へ fail-closed する -
- * この関数が「未登録」を見逃す方向にしか壊れない。
+ * この関数は「未登録」を見逃す方向にしか壊れない。
  *
- * 正しい長期的解決（A8 の指示どおり custom SQLSTATE を追加する）は
- * `supabase/migrations/` の変更を要するためこの Task の scope 外
- * （このタスクの報告に技術的負債として記録する）。
+ * **PR C（contract）でこの関数から旧形式の分岐を落とす。** その時点で
+ * message 一致は完全に無くなり、A8 の負債が解消する。
  */
+const UNREGISTERED_RECIPIENT_EMAIL_CODE = "90010";
 const UNREGISTERED_RECIPIENT_EMAIL_RAW_MESSAGE =
   "recipient email is not a registered account";
 const UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA =
   "このメールアドレスは、Stage Trackerに登録されていません。";
 
-function resolveShareByEmailBusinessRuleMessage(
-  rawMessage: string,
-): string | undefined {
-  return rawMessage === UNREGISTERED_RECIPIENT_EMAIL_RAW_MESSAGE
-    ? UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA
-    : undefined;
+function resolveShareByEmailBusinessRuleMessage(rejection: {
+  readonly code: string;
+  readonly rawMessage: string;
+}): string | undefined {
+  if (rejection.code === UNREGISTERED_RECIPIENT_EMAIL_CODE) {
+    return UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA;
+  }
+  if (
+    rejection.code === "P0001" &&
+    rejection.rawMessage === UNREGISTERED_RECIPIENT_EMAIL_RAW_MESSAGE
+  ) {
+    return UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA;
+  }
+  return undefined;
 }
 
 interface RawScheduleShareRow {
@@ -94,18 +104,18 @@ export async function addScheduleShareByEmail(
 
   if (error !== null) {
     // この RPC の業務ルール違反（未登録 email・自己共有・owner 以外からの
-    // 呼び出し等）はすべて同一の SQLSTATE (`P0001`) で返るため、code だけ
-    // からは細分できない（`classifyRpcError` の doc comment参照）。
-    // この呼び出し元は常に owner 本人が「共有追加」フォームから呼ぶため、
-    // 現実的に起こり得るのは email 起因の入力拒否であり、`validation` を
-    // 選ぶ。
+    // 呼び出し等）のうち、code で区別できるのは未登録 email（`90010`）と
+    // 自己共有（`90011`）だけで、残りは依然 `P0001` にまとまっている
+    // （`classifyRpcError` の doc comment 参照）。この呼び出し元は常に
+    // owner 本人が「共有追加」フォームから呼ぶため、現実的に起こり得るのは
+    // email 起因の入力拒否であり、`validation` を選ぶ。
     //
     // `resolveShareByEmailBusinessRuleMessage`（このファイル冒頭）だけが
-    // 唯一、生メッセージを見て表示文言を選ぶ狭い exception:
+    // 唯一、表示文言を個別に選ぶ狭い exception:
     // 「対象 email が未登録」は product rule
     // （product-rules.md「Authenticated-user targeting」節）が owner への
-    // 開示を明示的に許可した classified な状態であり、それ以外の P0001
-    // 原因（自己共有・owner 以外からの呼び出し等）は `classifyRpcError` の
+    // 開示を明示的に許可した classified な状態であり、それ以外の業務ルール
+    // 違反（自己共有・owner 以外からの呼び出し等）は `classifyRpcError` の
     // generic な安全文言（`GENERIC_VALIDATION_MESSAGE_JA`）へ fail-closed
     // する - 生メッセージそのものは決して `ActionError.message` に載らない。
     throw classifyRpcError(
