@@ -83,9 +83,9 @@ oracle が「実際に踏んだ失敗」として記録している事項。単�
 
 ## PO / owner 作業が必要（dashboard 操作）
 
-| #   | 作業                                                                 | 理由                                                                                                                                                                                                                                         | 状態   |
-| --- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| O1  | Vercel project の **Root Directory を `apps/legacy-web` に設定する** | monorepo 化で root から Next.js アプリが無くなり、Vercel の Next.js ビルダーが Root Directory の `package.json` に `next` を見つけられずデプロイが失敗する。Root Directory は dashboard 設定であり、リポジトリ内のファイルからは変更できない | 未対応 |
+| #   | 作業                                                                 | 理由                                                                                                                                                                                                                                         | 状態                                                                                                          |
+| --- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| O1  | Vercel project の **Root Directory を `apps/legacy-web` に設定する** | monorepo 化で root から Next.js アプリが無くなり、Vercel の Next.js ビルダーが Root Directory の `package.json` に `next` を見つけられずデプロイが失敗する。Root Directory は dashboard 設定であり、リポジトリ内のファイルからは変更できない | **対応済み**（2026-09-08 実測。main の `52e0e6d` の Production デプロイが success、`/sign-in` が 200 を返す） |
 
 補足:
 
@@ -798,3 +798,52 @@ migration との乖離は typecheck でも CI でも検出されない。**
 
 legacy-web を cutover で削除した時点でこの複製は消える。それまでの
 暫定として、複製そのものではなく**複製が機械的であること**を担保する。
+
+---
+
+## A23: v2 E2E は Playwright + 実 magic-link で組む（2026-09-08）
+
+**決定: `apps/web` の E2E は Playwright で書き、認証は Supabase SDK の
+ショートカットではなく実際の magic-link フロー（Mailpit 経由）を通す。**
+
+Issue #380 の受け入れ条件「Playwright の E2E が主要 journey をカバーし、
+**CI で実行される**」に対する実装方針。
+
+### 認証をショートカットしない
+
+legacy の `test/auth` は `signInWithOtp` -> Mailpit から token_hash 取得 ->
+アプリ自身の `/auth/confirm` を叩く、という実経路を通している。session を
+SDK で直接作らないのは、**cookie の発行経路そのものが検証対象**だから。
+v2 の `/auth/confirm` も session cookie を発行する Route Handler なので
+同じ性質を持つ。
+
+legacy のコードは import していない。経路の設計だけを踏襲して書き直した。
+
+### service-role の接続先を構造的に縛る
+
+E2E はアカウントの provision / 削除に service-role key を使う。接続先は
+`supabase status -o json`（`--linked` なし、env フォールバックなし）からのみ
+得るが、**それに暗黙に頼らず `assertLocalApiUrl` で明示的に検査する**。
+将来 env フォールバックを足す変更が入っても、この検査が先に落ちる。
+
+「そうならないはず」ではなく「そうなったら止まる」形にしている。
+検査自体の発火は unit test で固定した。
+
+### CI ジョブを分ける
+
+`Verify / E2E` を `Verify / Database` とは別ジョブにする。同じジョブに
+入れると、DB 検証が落ちたのか journey が落ちたのかを区別できなくなる。
+
+### 対象 journey
+
+網羅率を目標にしない。**read boundary の 3 状態分類や P4 の独立劣化は
+unit test の担当**で、E2E で二重化しない。
+
+1. magic-link サインイン（送信 -> Mailpit -> `/auth/confirm` -> 認証済みホーム）
+2. participation の登録と取り消し
+3. personal schedule の作成 -> 閲覧 -> 編集 -> 削除
+4. designated catalog creator による event の作成と編集
+5. invitation（attending の user が招待し、招待先が受諾する）
+
+各 journey が自分でアカウントと catalog 行を用意し、自分で片付ける。
+journey 間で共有 fixture に依存しない。
