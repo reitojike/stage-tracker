@@ -14,10 +14,20 @@ import { parseTokyoDateTimeLocal } from "./tokyo-form";
  * （zod に依存しない）。`docs/v2/decisions.md` A12「Zod schema を入力契約に
  * すれば層ごと不要」の方針どおり、実際の schema wiring（`./eventSchemas.ts`）
  * は本モジュールが返す field-keyed error を `ctx.addIssue` へ渡すだけの
- * 薄い adapter にする。フォーマット/相互整合性チェックはここに集約し、
- * DB でしか判定できないもの（Event range containment は
- * `occurrenceWithinRangeError` で提供するが、range 自体は既存 event を
- * 読まないと分からないため呼び出し側の action 本体が呼ぶ）。
+ * 薄い adapter にする。フォーマット/相互整合性チェックはここに集約する。
+ *
+ * Event range containment（occurrence の startsAt が Event range に収まって
+ * いるか）は `occurrenceWithinRangeError` が pure logic として提供する。
+ * Event 作成時（`./eventSchemas.ts` の `createEventInputSchema`）は range と
+ * 初回 occurrence が同一送信に含まれるため、この場で cross-field check として
+ * 配線している。既存 event への occurrence 追加/更新（`addOccurrenceInputSchema`
+ * / `updateOccurrenceInputSchema`）は、その送信が event の range 自体を
+ * 含まないため（呼び出し元は eventId/occurrenceId しか渡さない）、この
+ * pure logic からは配線していない。**この invariant の真の source of
+ * truth は常に DB 側の `event_occurrences_within_event_range` trigger
+ * （SQLSTATE `23514`）であり、ここでの client 側チェックはあくまで
+ * 早期に分かりやすい field error を返すための UX 上の先出し検証に過ぎない**
+ * （二重化したつもりの安全境界ではない）。
  *
  * `apps/legacy-web/src/domain/eventCatalogWrite.ts` の
  * `parseEventDetails`/`parseEventRange`/`parseOccurrence`/

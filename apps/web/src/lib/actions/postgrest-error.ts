@@ -17,6 +17,16 @@ import { ActionError } from "@/lib/action-error";
  * `classifyWriteError` と同じ SQLSTATE 集合を採用するが、共通の
  * `ActionErrorShape` 語彙（`@/lib/action-error.ts` の
  * `BaseActionErrorKind`）を基底にして拡張する（A9: 語彙の統一）。
+ *
+ * **`error.message`（PostgREST/Postgres の生メッセージ）は
+ * `ActionError.message`（client にそのまま渡る - `action-error.ts` の
+ * doc comment、`safe-action.ts` の `toActionErrorShape` 参照）へ絶対に
+ * 転記しない。** kind ごとに固定の日本語文言を返し、生メッセージは
+ * `console.error` で server 側ログにのみ残す（`./schedule/postgrest-error.ts`
+ * の `classifyWritePostgrestError`/`classifyRpcError` と同じ方針。M6d の
+ * review finding 1: NewEventForm/AddOccurrenceForm/OccurrenceItem/
+ * EditEventForm が `result.serverError.message` をそのまま表示するため、
+ * ここで生メッセージを渡すと client へ露出してしまう）。
  */
 export type EventWriteExtraKind = "duplicate-occurrence" | "delete-blocked";
 
@@ -48,6 +58,18 @@ const DELETE_BLOCKED = "90001";
  * 分類する（legacy `planningError.ts` の分類方針を踏襲）。 */
 const EFFECTIVELY_CANCELED = "90002";
 
+const PERMISSION_DENIED_MESSAGE_JA =
+  "対象が見つからないか、操作する権限がありません。";
+const DUPLICATE_OCCURRENCE_MESSAGE_JA =
+  "同じ開始日時の公演回が既に登録されています。";
+const DELETE_BLOCKED_MESSAGE_JA =
+  "参加・招待データが存在するため削除できませんでした。";
+const EFFECTIVELY_CANCELED_MESSAGE_JA =
+  "この公演は中止されているため操作できません。";
+const VALIDATION_MESSAGE_JA = "入力内容をご確認のうえ、再度お試しください。";
+const GENERIC_FAILURE_MESSAGE_JA =
+  "処理に失敗しました。しばらくしてから再度お試しください。";
+
 export interface RawPostgrestLikeError {
   readonly code: string;
   readonly message: string;
@@ -57,31 +79,59 @@ export function classifyPostgrestLikeError(
   error: RawPostgrestLikeError,
 ): ActionError<EventWriteExtraKind> {
   if (error.code === INSUFFICIENT_PRIVILEGE) {
+    console.error("[event write] permission denied", {
+      code: error.code,
+      message: error.message,
+    });
     return new ActionError<EventWriteExtraKind>(
       "permission-denied",
-      error.message,
+      PERMISSION_DENIED_MESSAGE_JA,
     );
   }
   if (error.code === UNIQUE_VIOLATION) {
+    console.error("[event write] duplicate occurrence", {
+      code: error.code,
+      message: error.message,
+    });
     return new ActionError<EventWriteExtraKind>(
       "duplicate-occurrence",
-      error.message,
+      DUPLICATE_OCCURRENCE_MESSAGE_JA,
     );
   }
   if (error.code === DELETE_BLOCKED) {
+    console.error("[event write] delete blocked", {
+      code: error.code,
+      message: error.message,
+    });
     return new ActionError<EventWriteExtraKind>(
       "delete-blocked",
-      error.message,
+      DELETE_BLOCKED_MESSAGE_JA,
     );
   }
   if (error.code === EFFECTIVELY_CANCELED) {
+    // 業務上ありふれた状態遷移であり異常ではないため、他の分岐と異なり
+    // console.error は出さない（従来どおり）。
     return new ActionError<EventWriteExtraKind>(
       "validation",
-      "この公演は中止されているため操作できません。",
+      EFFECTIVELY_CANCELED_MESSAGE_JA,
     );
   }
   if (VALIDATION_CODES.has(error.code)) {
-    return new ActionError<EventWriteExtraKind>("validation", error.message);
+    console.error("[event write] validation rejected", {
+      code: error.code,
+      message: error.message,
+    });
+    return new ActionError<EventWriteExtraKind>(
+      "validation",
+      VALIDATION_MESSAGE_JA,
+    );
   }
-  return new ActionError<EventWriteExtraKind>("failure", error.message);
+  console.error("[event write] unclassified PostgREST error", {
+    code: error.code,
+    message: error.message,
+  });
+  return new ActionError<EventWriteExtraKind>(
+    "failure",
+    GENERIC_FAILURE_MESSAGE_JA,
+  );
 }

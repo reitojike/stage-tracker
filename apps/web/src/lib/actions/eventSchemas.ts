@@ -6,6 +6,7 @@ import type {
   OccurrenceDraft,
 } from "./eventFormLogic";
 import {
+  occurrenceWithinRangeError,
   parseEventDetailsFields,
   parseEventRangeFields,
   parseOccurrenceFields,
@@ -103,6 +104,22 @@ export const createEventInputSchema = createEventRawSchema.transform(
       occurrence.kind === "errors"
     ) {
       return z.NEVER;
+    }
+
+    // Event range containment（`./eventFormLogic.ts` 冒頭のコメント参照）。
+    // Event 作成では range と初回 occurrence が同一送信に含まれるため、
+    // ここで cross-field check として配線する。DB 側の
+    // `event_occurrences_within_event_range` trigger（23514）を UX 面で
+    // 先回りするだけで、これに代わるものではない。
+    if (occurrence.kind === "ok") {
+      const rangeError = occurrenceWithinRangeError(
+        occurrence.value.startsAt,
+        range.value,
+      );
+      if (rangeError !== null) {
+        addFieldIssues(ctx, { occurrenceStartsAt: rangeError });
+        return z.NEVER;
+      }
     }
 
     return {

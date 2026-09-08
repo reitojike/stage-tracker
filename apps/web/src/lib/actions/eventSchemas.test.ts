@@ -67,7 +67,7 @@ describe("createEventInputSchema", () => {
     }
   });
 
-  it("rejects an occurrence outside of implied ordering even when the range itself is valid", () => {
+  it("accepts an occurrence whose Tokyo calendar date is within the event range", () => {
     const result = createEventInputSchema.safeParse({
       title: "My Event",
       venue: "",
@@ -80,6 +80,28 @@ describe("createEventInputSchema", () => {
       occurrenceDoorsAt: "",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("rejects an occurrence outside of the event range even when both are individually valid", () => {
+    const result = createEventInputSchema.safeParse({
+      title: "My Event",
+      venue: "",
+      sourceUrl: "",
+      memo: "",
+      startsOn: "2026-05-10",
+      endsOn: "2026-05-10",
+      occurrenceStartsAt: "2026-06-01T18:00",
+      occurrenceEndsAt: "",
+      occurrenceDoorsAt: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) => issue.path[0] === "occurrenceStartsAt",
+        ),
+      ).toBe(true);
+    }
   });
 });
 
