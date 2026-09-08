@@ -7,7 +7,9 @@ import {
   occurrenceIdSchema,
   userIdSchema,
 } from "@stage-tracker/domain";
+import { ActionError } from "@/lib/action-error";
 import { authActionClient } from "@/lib/safe-action";
+import { setParticipationChoice } from "./participation";
 import { classifyPostgrestLikeError } from "./postgrest-error";
 
 /**
@@ -23,6 +25,13 @@ import { classifyPostgrestLikeError } from "./postgrest-error";
  * occurrence への他の pending invitation も含めて自動的に解決する
  * （`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`）
  * ため、この action 自身は invitation テーブルに一切触れない。
+ *
+ * **書き込みは `setParticipationChoice` をそのまま使う。** 当初はここで
+ * SELECT -> INSERT/UPDATE を独自に組んでいたが、それでは「同一の
+ * operation」という上記の主張がコード上は成立しておらず、実際 PR #383 が
+ * participation 側で直した 0 行 UPDATE race（SELECT と UPDATE の間に対象行が
+ * 並行 withdraw で消えても PostgREST は成功を返す）を、こちらだけが抱えた
+ * ままだった。同じ競合処理を 2 箇所で持たない（PR #384 review）。
  */
 const acceptInvitationInputSchema = z.object({
   occurrenceId: occurrenceIdSchema,
@@ -31,56 +40,24 @@ const acceptInvitationInputSchema = z.object({
 export const acceptInvitationAction = authActionClient
   .inputSchema(acceptInvitationInputSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const { data: existing, error: selectError } = await ctx.supabase
-      .from("occurrence_participations")
-      .select("id, status")
-      .eq("occurrence_id", parsedInput.occurrenceId)
-      .eq("user_id", ctx.userId)
-      .maybeSingle();
-    if (selectError) {
-      throw classifyPostgrestLikeError(selectError);
-    }
+    const userId = userIdSchema.parse(ctx.userId);
 
-    if (existing === null) {
-      const { error: insertError } = await ctx.supabase
-        .from("occurrence_participations")
-        .insert({
-          occurrence_id: parsedInput.occurrenceId,
-          user_id: ctx.userId,
-          status: "attending",
-        });
-      if (insertError) {
-        // 23505 (unique_violation on (occurrence_id, user_id)): select と
-        // insert の間に別リクエストが行を作った稀な race。同じ意図
-        // （このoccurrenceに attending になる）を UPDATE として再試行する。
-        if (insertError.code === "23505") {
-          const { error: retryError } = await ctx.supabase
-            .from("occurrence_participations")
-            .update({ status: "attending" })
-            .eq("occurrence_id", parsedInput.occurrenceId)
-            .eq("user_id", ctx.userId);
-          if (retryError) {
-            throw classifyPostgrestLikeError(retryError);
-          }
-        } else {
-          throw classifyPostgrestLikeError(insertError);
-        }
-      }
-    } else if (existing.status !== "attending") {
-      const { error: updateError } = await ctx.supabase
-        .from("occurrence_participations")
-        .update({ status: "attending" })
-        .eq("id", existing.id);
-      if (updateError) {
-        throw classifyPostgrestLikeError(updateError);
-      }
+    const result = await setParticipationChoice(ctx.supabase, {
+      occurrenceId: parsedInput.occurrenceId,
+      userId,
+      choice: "attending",
+    });
+
+    if (!result.ok) {
+      throw new ActionError(result.error.kind, result.error.message);
     }
-    // else: 既に attending（pending-only モデルでは通常この invitation
-    // 自体が既に存在しないはずだが、念のため冪等に成功として扱う）。
 
     revalidatePath("/catalog/invitations");
     revalidatePath("/mypage");
     revalidatePath("/calendar");
+    // ホームの「直近の予定」も listMyParticipations を読むので、
+    // setParticipationChoiceAction と同じ範囲を再検証する。
+    revalidatePath("/");
     return { ok: true as const };
   });
 
