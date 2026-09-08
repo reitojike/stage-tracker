@@ -11,7 +11,12 @@ import path from 'node:path';
 // (see root package.json's supabase:types:check, which must stay
 // root-rooted so `supabase gen types` resolves supabase/config.toml), while
 // the generated file itself lives under this app package.
-const committedPath = path.resolve('apps/legacy-web/src/infrastructure/supabase/database.types.ts');
+// Both committed copies must match the running schema. See
+// generate-supabase-types.mjs for why apps/web keeps its own copy.
+const committedPaths = [
+  path.resolve('apps/legacy-web/src/infrastructure/supabase/database.types.ts'),
+  path.resolve('apps/web/src/lib/data/database.types.ts'),
+];
 
 // Windows can only launch node_modules/.bin's supabase.cmd shim through a
 // shell (Node throws EINVAL otherwise); the args below are static literals,
@@ -31,24 +36,28 @@ if (result.status !== 0) {
 
 const generated = result.stdout;
 
-let committed;
-try {
-  committed = readFileSync(committedPath, 'utf8');
-} catch {
-  console.error(
-    `Committed generated types file not found at ${committedPath}. Run "npm run supabase:types" first.`,
-  );
-  process.exitCode = 1;
-  process.exit();
+for (const committedPath of committedPaths) {
+  let committed;
+  try {
+    committed = readFileSync(committedPath, 'utf8');
+  } catch {
+    console.error(
+      `Committed generated types file not found at ${committedPath}. Run "npm run supabase:types" first.`,
+    );
+    process.exitCode = 1;
+    process.exit();
+  }
+
+  if (generated !== committed) {
+    console.error(
+      `Generated Supabase types differ from ${committedPath}.\n` +
+        'Run "npm run supabase:types" and commit the diff.',
+    );
+    process.exitCode = 1;
+    process.exit();
+  }
 }
 
-if (generated !== committed) {
-  console.error(
-    `Generated Supabase types differ from ${committedPath}.\n` +
-      'Run "npm run supabase:types" and commit the diff.',
-  );
-  process.exitCode = 1;
-  process.exit();
-}
-
-console.log('Generated Supabase types match the local schema exactly.');
+console.log(
+  `Generated Supabase types match the local schema exactly (${committedPaths.length} committed copies).`,
+);

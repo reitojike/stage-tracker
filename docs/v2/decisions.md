@@ -635,3 +635,162 @@ workflow がそれをイベントペイロードから渡している。**GitHub
 
 （実測で確認。マーカーが正しい形式であることをチェッカーと同じ正規表現でローカル
 検証した上で、再実行が 2 回とも同じエラーで失敗した）
+
+---
+
+## M7 の検討事項: Preview 環境の DB 隔離（2026-09-08）
+
+**当初のアーキテクチャ案にあった Supabase Branching が、Milestone へ落とし込む段階で
+抜け落ちていた。** `packages/ui` や Spec Kit と同じ抜け方をしている。PO の指摘で判明した。
+
+### 解決したい問題
+
+**現在、Vercel Preview は本番 Supabase を共有している。** Preview での書き込みが
+dogfood データに到達し得る。M6 で v2 の画面を作り始めると Preview で操作する機会が
+増えるため、リスクが顕在化する。
+
+あわせて、`Verify / Database` が Docker で毎回スタックを立てるため 5 分かかっている。
+
+### 選択肢
+
+| 方式                           | Preview の隔離              | 費用                              | 手間                      |
+| ------------------------------ | --------------------------- | --------------------------------- | ------------------------- |
+| 現状（Preview が本番を共有）   | 無し                        | 0                                 | 0                         |
+| Supabase Branching             | PR ごとに完全隔離           | **branch ごとに課金**（Pro 以上） | dashboard 設定 + workflow |
+| Preview 用の別 project を 1 つ | 本番とは分離、PR 間では共有 | project 1 つ分                    | 中                        |
+
+**「Preview を本番から隔離する」ことが目的なら 3 番目でも大半を達成でき、費用も読みやすい。**
+
+### 後付け可能である理由（PO へ回答済み）
+
+Branching は **CI と Preview の実行環境の話**であり、アプリのコードに影響しない。
+
+- `apps/web` / `packages/*` / migration / RLS / pgTAP: 影響なし
+- `.github/workflows/verify.yml` の接続先のみ変わる
+
+**移行コストが時間で増えない。** `packages/ui` のように「後回しにすると移す対象が増える」
+性質ではないため、M7 で扱えばよい。
+
+### 制約
+
+**cutover より前に決める必要がある。** cutover では Vercel の Root Directory を
+`apps/web` へ切り替えるため、Preview の DB 接続先も同時に確定させる必要がある。
+
+### それまでの運用
+
+**M6 の Preview では書き込みを伴う操作を実行しない。** 画面の表示確認までに留める。
+書き込みの検証はローカルの Supabase と CI の `Verify / Database` で行う。
+
+---
+
+## P3 の実装可否: decline の undo は現行スキーマでは実現できない（2026-09-08）
+
+M6d の実装時に実測で判明。**PO 判断により、undo は Issue #382 で別途対応する。**
+
+### 判明した事実
+
+**invitee には invitation を作る手段が存在しない。**
+
+| 確認項目                                               | 結果                                                                   |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `occurrence_invitations` への `authenticated` の grant | **SELECT のみ**（INSERT 無し）                                         |
+| `invite_to_occurrence` / `_by_email`                   | `inviter_id := auth.uid()` で束縛。invitee が呼ぶと self-invite で拒否 |
+| invitee が呼べる復元 RPC                               | 存在しない                                                             |
+
+decline のページを見られるのは invitee 本人だけなので、既存経路では構造的に復元できない。
+`env.ts` が app runtime の service-role key 保持を禁じているため、その回避も不可。
+
+### PO 判断
+
+**M6d（未マージ）では decline のみ実装し、undo は Issue #382 で対応する予定。**
+実装状況の正本は `docs/prd.md` と `docs/roadmap.md`。この節は決定の記録であって
+実装完了の記録ではない。M6d は別ブランチであり、この時点の main には含まれない。
+
+### この判断の含意
+
+**「押し間違いを直後に取り消せる仕組みはほしい」という PO の要望は、
+Issue #382 が完了するまで満たされない。** cutover 前に対応すること。
+
+P3 で決めた「decline は即座に確定させる」部分は、未マージの M6d ブランチで
+実装する予定の範囲に含まれる。それがマージされれば、現行 legacy の
+「8 秒タイマーで確定（タブを閉じると pending が残り得る）」というバグは
+解消される。undo が無い状態は、現行より悪くはならない。
+
+---
+
+## 規約: authenticated route は `(app)` route group 配下に置く（2026-09-08）
+
+**M6a が確立した構造を、M6b / M6c / M6d の 3 本すべてが踏み外した。** 原因は
+この規約が明文化されておらず、後続への指示にも含めなかったこと。
+
+### 規約
+
+**認証を要する画面は `apps/web/src/app/(app)/` 配下に置く。**
+`(app)/layout.tsx` が `AppShell`（AppBar + PrimaryNav）と identity 解決を担う。
+
+- **画面ごとに `layout.tsx` を作って `AppShell` を当てない。** 重複になる
+- **identity 解決を feature-local に再実装しない。** `(app)/_lib/app-bar-identity.ts` を使う
+- route group なので **URL には現れない**。`(app)/schedule/new` の URL は `/schedule/new`
+
+`(app)` の外に置くのは、**認証を要しない画面だけ**。
+`/sign-in` `/sign-out` `/auth/confirm` は素の layout を使うため group の外に置く。
+
+### 何が起きたか
+
+| PR  | 状態                                                                     |
+| --- | ------------------------------------------------------------------------ |
+| M6b | `(app)` の外。**`AppShell` を持たない**（AppBar も PrimaryNav も出ない） |
+| M6c | `(app)` の外。独自 `schedule/layout.tsx` + 独自 `appBarIdentity`         |
+| M6d | `(app)` の外。`mypage` だけ独自 layout、他 3 画面は `AppShell` なし      |
+
+**同じ問題に 3 者が別々の解を出した。** 「規約が無ければ、各自がその場で妥当な解を作る」
+という当然の結果であり、実装者の問題ではない。
+
+### 教訓
+
+**構造を作った PR は、その構造を使う側への規約も同時に書く。**
+M6a は `(app)` route group を作ったが、「以降の authenticated route はここへ置く」
+という規約を残さなかった。基盤を作る PR ほど、**使い方の明文化が成果物の一部**である。
+
+同種の抜けが `packages/ui` の shadcn 生成先でも起きかけた（あちらは
+「共有すべきと分かった時点で手動昇格」と運用を明記して回避した）。
+
+---
+
+## A22: 生成 Supabase 型は 2 箇所へ機械的に書き出す（2026-09-08）
+
+**決定: `pnpm run supabase:types` は同じ生成結果を 2 つのパスへ書き、
+`supabase:types:check` は両方を byte-exact で検証する。**
+
+- `apps/legacy-web/src/infrastructure/supabase/database.types.ts`
+- `apps/web/src/lib/data/database.types.ts`
+
+### なぜ複製するのか
+
+`apps/web` の ESLint boundary（`apps/web/eslint.config.mjs`）が
+`apps/legacy-web` からの import を一律禁止している。これは「legacy は
+仕様の出典であって import 元ではない」という v2 の前提そのものなので、
+生成型のためだけに穴を開けない。
+
+### なぜ手動コピーではだめか
+
+最初の実装は legacy 側のファイルを手でコピーし、ヘッダーコメントに
+「手動で同期する運用」と書いていた。これは Codex の指摘
+（「生成型を read boundary に接続せよ」）が防ごうとしていた drift を、
+別の場所に作り直しているだけだった。**同期を運用規律に委ねた時点で、
+migration との乖離は typecheck でも CI でも検出されない。**
+
+生成スクリプトと drift チェッカーの両方を複数パス対応にし、
+`apps/web/.prettierignore` へ生成物を追加して byte 一致を保てるようにした。
+
+### 発火することの確認
+
+生成コマンド部分だけを差し替えたプローブで、`apps/web` 側だけを 1 行
+変更した状態を検出して exit 1 することを確認した（同期済みなら exit 0、
+`2 committed copies` と報告する）。CI では Verify / Database の
+`supabase:types:check` が実 DB に対してこれを実行する。
+
+### 解消時期
+
+legacy-web を cutover で削除した時点でこの複製は消える。それまでの
+暫定として、複製そのものではなく**複製が機械的であること**を担保する。
