@@ -56,7 +56,17 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
+  // `docs/ux-ui.md` は「stage-tracker は smartphone-first。desktop は
+  // secondary」「mobile experience を desktop 版の縮小版にはしない」と
+  // している。desktop だけで journey を回すと、**主要な形態**の reflow・
+  // bottom navigation・フォーム操作が壊れても CI は成功してしまう
+  // （PR #386 review, Codex）。主要形態を先に置き、両方で同じ journey を
+  // 回す。実行時間は約 2 倍になるが、journey は 5 本なので許容範囲。
   projects: [
+    {
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 5"] },
+    },
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },

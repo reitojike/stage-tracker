@@ -272,8 +272,12 @@ jobs:
       # `supabase start`), but explicit here rather than assumed, so this
       # job's migrations are never silently stale if that assumption ever
       # stops holding for either job independently.
+      # `pnpm run` 経由で呼ぶこと。`supabase` は devDependency なので、素の
+      # run: では node_modules/.bin が PATH に無く exit 127
+      # (command not found) になる。この job の他のステップと、Verify /
+      # Database の全ステップも同じ理由で pnpm script を経由している。
       - name: Reset local Supabase
-        run: supabase db reset
+        run: pnpm run db:reset
 
       - name: Verify / E2E
         run: pnpm run test:e2e

@@ -6,6 +6,7 @@ import {
   type MagicLinkDiagnostics,
 } from "@/lib/auth/magic-link";
 import { createSupabaseCookielessServerClient } from "@/lib/supabase/server";
+import { isPreviewDeployment } from "@/lib/auth/vercel-environment";
 
 /**
  * この action が返す唯一の acknowledgement。`sent=1` ではなく
@@ -35,6 +36,14 @@ const diagnostics: MagicLinkDiagnostics = {
  * verifier cookie の有無がアカウント存在の oracle になるため
  * （`src/lib/supabase/server.ts` の `createSupabaseCookielessServerClient`
  * doc comment、`docs/v2/oracle-domain.md` §4.1 参照）。
+ *
+ * Preview（`isPreviewDeployment`、`src/lib/auth/vercel-environment.ts`）
+ * では magic link を送らない（Codex P1、`docs/v2/decisions.md`）。この
+ * 判定は environment 由来でアカウント依存ではないため、
+ * `requestMagicLink` の呼び出し自体を早期 return で省いても
+ * enumeration 対策の不変性は壊れない——preview かどうかは何を送信しても
+ * 変わらない定数であり、応答からアカウントの有無を分岐させる新しい経路には
+ * ならない。最終的な redirect 先は常に同じ `ACKNOWLEDGEMENT`。
  */
 export async function requestSignInLink(formData: FormData): Promise<void> {
   const emailValue = formData.get("email");
@@ -46,14 +55,16 @@ export async function requestSignInLink(formData: FormData): Promise<void> {
     redirect("/sign-in?error=missing_email");
   }
 
-  const supabase = await createSupabaseCookielessServerClient();
-  // emailRedirectTo は渡さない。PO 判断（decisions.md「Preview 環境の位置づけ」）
-  // により、Free 運用中は remote Preview Supabase を持たず、Vercel Preview で
-  // authenticated flow を提供しない。Supabase の Site URL による既定の挙動へ委ねる。
-  await requestMagicLink(supabase, email, diagnostics);
+  if (!isPreviewDeployment()) {
+    const supabase = await createSupabaseCookielessServerClient();
+    // emailRedirectTo は渡さない。PO 判断（decisions.md「Preview 環境の位置づけ」）
+    // により、Free 運用中は remote Preview Supabase を持たず、Vercel Preview で
+    // authenticated flow を提供しない。Supabase の Site URL による既定の挙動へ委ねる。
+    await requestMagicLink(supabase, email, diagnostics);
+  }
 
   // unconditional: ここに分岐を再導入しないこと。account の有無・送信
-  // 成否・provider の障害、いずれも同じ status / target / body / cookie
-  // で終わる。
+  // 成否・provider の障害・preview 判定、いずれも同じ status / target /
+  // body / cookie で終わる。
   redirect(ACKNOWLEDGEMENT);
 }

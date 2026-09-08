@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { isPublicPath } from "@/lib/auth/public-paths";
+import { isPreviewDeployment } from "@/lib/auth/vercel-environment";
 
 function copyCookies(from: NextResponse, to: NextResponse): void {
   for (const cookie of from.cookies.getAll()) {
@@ -26,6 +27,13 @@ function copyCookies(from: NextResponse, to: NextResponse): void {
  * 内の `createSupabaseServerClient`（`src/lib/supabase/server.ts`）が
  * cookie 書き込みに失敗しても安全なのは、この層が毎リクエストで refresh
  * を担保しているため。
+ *
+ * Preview（`isPreviewDeployment`、`src/lib/auth/vercel-environment.ts`）
+ * では、有効な session cookie があっても常に未認証として扱う。安定した
+ * branch URL に以前のデプロイで発行された cookie が新しい deployment でも
+ * 受理され続けてしまう経路（Codex P1、`docs/v2/decisions.md`）を塞ぐ。
+ * token の refresh 自体は行ってよいため `getUser()` の呼び出しは変えず、
+ * その結果を認証済み判定へ反映する箇所だけを preview で無効化する。
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
@@ -57,7 +65,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const authenticated = user !== null;
+  const authenticated = user !== null && !isPreviewDeployment();
   const { pathname } = request.nextUrl;
 
   if (!authenticated && !isPublicPath(pathname)) {
