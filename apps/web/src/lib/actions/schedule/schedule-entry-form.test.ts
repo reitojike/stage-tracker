@@ -46,6 +46,12 @@ describe("parseScheduleEntryTemporal", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.field).toBe("allDayEndsOn");
+      // domain schema の invariant メッセージ（開発者向けの英語）を
+      // そのまま画面へ出さない。
+      expect(result.error.message).toBe(
+        "終了日は開始日以降の日付を入力してください。",
+      );
+      expect(result.error.message).not.toMatch(/[A-Za-z]/u);
     }
   });
 
@@ -105,6 +111,10 @@ describe("parseScheduleEntryTemporal", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.field).toBe("timeBoundedEndsAt");
+      expect(result.error.message).toBe(
+        "終了日時は開始日時以降の日時を入力してください。",
+      );
+      expect(result.error.message).not.toMatch(/[A-Za-z]/u);
     }
   });
 });

@@ -7,3 +7,9 @@ pnpm-lock.yaml
 # チェックする。root の format:check からは除外し、
 # pnpm --filter @stage-tracker/web run format:check が別途検証する。
 apps/web/
+
+# Claude Code のセッション worktree。git は `.git/info/exclude`（local-only）で
+# 無視しているが、prettier の `--ignore-path .gitignore` はそれを読まないため、
+# セッション worktree があるとローカルの format:check だけが失敗する
+# （CI はクリーンチェックアウトなので再現しない）。CI と揃えるために除外する。
+.claude/worktrees/

@@ -5,6 +5,7 @@ import {
   requestMagicLink,
   type MagicLinkDiagnostics,
 } from "@/lib/auth/magic-link";
+import { readPreviewOrigin } from "@/lib/auth/preview-origin";
 import { createSupabaseCookielessServerClient } from "@/lib/supabase/server";
 
 /**
@@ -47,7 +48,14 @@ export async function requestSignInLink(formData: FormData): Promise<void> {
   }
 
   const supabase = await createSupabaseCookielessServerClient();
-  await requestMagicLink(supabase, email, diagnostics);
+  // Preview デプロイでは、そのデプロイ自身へ戻るリンクをメールに埋める。
+  // 渡さないと Supabase は project の Site URL（= Production）へ戻すため、
+  // Preview でサインインの動作確認ができない（decisions.md F4b）。
+  // Production / local では undefined になり、Supabase の既定の挙動のまま。
+  const previewOrigin = readPreviewOrigin();
+  await requestMagicLink(supabase, email, diagnostics, {
+    ...(previewOrigin === undefined ? {} : { emailRedirectTo: previewOrigin }),
+  });
 
   // unconditional: ここに分岐を再導入しないこと。account の有無・送信
   // 成否・provider の障害、いずれも同じ status / target / body / cookie

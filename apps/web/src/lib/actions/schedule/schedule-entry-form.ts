@@ -113,9 +113,16 @@ export function parseScheduleEntryTemporal(
       const issue = parsed.error.issues[0];
       const field =
         issue?.path[0] === "endsOn" ? "allDayEndsOn" : "allDayStartsOn";
+      // issue.message は使わない。domain schema のメッセージは invariant を
+      // 説明する開発者向けの英語（"endsOn must be on or after startsOn."）で
+      // あって画面表示用ではなく、そのまま出すとユーザーに英語が見える。
+      // どのフィールドが問題かは path から分かるので、表示文言はこの層が持つ。
       return err({
         field,
-        message: issue?.message ?? "開始日・終了日を確認してください。",
+        message:
+          field === "allDayEndsOn"
+            ? "終了日は開始日以降の日付を入力してください。"
+            : "開始日・終了日を確認してください。",
       });
     }
     return ok(parsed.data);
@@ -152,9 +159,13 @@ export function parseScheduleEntryTemporal(
     const issue = parsed.error.issues[0];
     const field =
       issue?.path[0] === "endsAt" ? "timeBoundedEndsAt" : "timeBoundedStartsAt";
+    // all-day 側と同じ理由で issue.message は使わない（上のコメント参照）。
     return err({
       field,
-      message: issue?.message ?? "開始日時・終了日時を確認してください。",
+      message:
+        field === "timeBoundedEndsAt"
+          ? "終了日時は開始日時以降の日時を入力してください。"
+          : "開始日時・終了日時を確認してください。",
     });
   }
   return ok(parsed.data);
