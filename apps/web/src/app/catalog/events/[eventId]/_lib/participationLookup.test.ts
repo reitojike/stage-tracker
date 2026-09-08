@@ -50,7 +50,6 @@ describe("buildParticipationLookup", () => {
   it("never collapses an `unavailable` read into an empty lookup", () => {
     const state: ReadState<readonly ParticipationWithOccurrence[]> = {
       variant: "unavailable",
-      message: "permission denied",
     };
 
     const lookup = buildParticipationLookup(state, eventId);
@@ -58,14 +57,12 @@ describe("buildParticipationLookup", () => {
     expect(lookup).toEqual({
       ok: false,
       variant: "unavailable",
-      message: "permission denied",
     });
   });
 
   it("never collapses an `error` read into an empty lookup", () => {
     const state: ReadState<readonly ParticipationWithOccurrence[]> = {
       variant: "error",
-      message: "network failure",
     };
 
     const lookup = buildParticipationLookup(state, eventId);
@@ -73,7 +70,6 @@ describe("buildParticipationLookup", () => {
     expect(lookup).toEqual({
       ok: false,
       variant: "error",
-      message: "network failure",
     });
   });
 

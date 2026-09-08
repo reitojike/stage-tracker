@@ -16,6 +16,11 @@ import type { ParticipationWithOccurrence, ReadState } from "@/lib/data";
  * について「参加状況を読み込めなかった」ものとして扱う責任を負う
  * （event 本体は表示継続 - oracle-routes-ui.md §2 イベント詳細の
  * 「participation の個別読込失敗は event 本体とは別枠で表示」）。
+ *
+ * `unavailable`/`error` はどちらも `message` を持たない（PR #381 review
+ * finding 2 / `@/lib/data`の`ReadState`と同じ方針）。生の PostgREST/network
+ * メッセージを screen まで運ばない。表示文言は呼び出し元 (`page.tsx`) が
+ * `variant` を見て自分で決める。
  */
 export type ParticipationLookup =
   | {
@@ -25,7 +30,6 @@ export type ParticipationLookup =
   | {
       readonly ok: false;
       readonly variant: "unavailable" | "error";
-      readonly message: string;
     };
 
 export function buildParticipationLookup(
@@ -33,7 +37,7 @@ export function buildParticipationLookup(
   eventId: EventId,
 ): ParticipationLookup {
   if (state.variant === "unavailable" || state.variant === "error") {
-    return { ok: false, variant: state.variant, message: state.message };
+    return { ok: false, variant: state.variant };
   }
 
   const rows = state.variant === "populated" ? state.data : [];

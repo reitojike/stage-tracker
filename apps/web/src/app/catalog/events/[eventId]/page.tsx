@@ -9,6 +9,7 @@ import {
 } from "@stage-tracker/domain";
 import { Badge, StatePanel } from "@stage-tracker/ui";
 import { classifyListReadResult, listMyParticipations } from "@/lib/data";
+import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getEventWithOccurrences } from "./_data/getEventDetail";
 import { InviteForm } from "./_components/InviteForm";
@@ -94,11 +95,13 @@ export default async function EventDetailPage({
           title={
             eventState.variant === "empty"
               ? "指定された公演が見つかりません"
-              : "イベントを読み込めませんでした"
+              : eventState.variant === "unavailable"
+                ? "イベントを確認できません"
+                : "イベントを読み込めませんでした"
           }
-          {...(eventState.variant === "empty"
-            ? {}
-            : { description: eventState.message })}
+          {...(eventState.variant === "error"
+            ? { description: READ_FAILURE_RETRY_HINT_JA }
+            : {})}
         />
       </main>
     );
@@ -156,8 +159,14 @@ export default async function EventDetailPage({
       {!participationLookup.ok ? (
         <StatePanel
           variant={participationLookup.variant}
-          title="参加状況を読み込めませんでした"
-          description={participationLookup.message}
+          title={
+            participationLookup.variant === "unavailable"
+              ? "参加状況を確認できません"
+              : "参加状況を読み込めませんでした"
+          }
+          {...(participationLookup.variant === "error"
+            ? { description: READ_FAILURE_RETRY_HINT_JA }
+            : {})}
         />
       ) : null}
 
