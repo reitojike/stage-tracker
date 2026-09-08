@@ -27,7 +27,7 @@ import { ActionError } from "@/lib/action-error";
  * できない）。そのため、このファイル内で同じ cookie 配線を持つ
  * 独立した client をこの1箇所だけのために構築する（重複はこの1呼び出し
  * にとどめる）。`docs/v2/oracle-routes-ui.md` §1 の `/mypage` の Passkey
- * 一覧側（`app/mypage/_data/passkeySupabaseClient.ts`）も同じ理由で
+ * 一覧側（`app/(app)/mypage/_data/passkeySupabaseClient.ts`）も同じ理由で
  * 独自に client を持つ。理想的には共有 factory 側に flag を集約すべきだが
  * それは本タスクの scope 外（このタスクの報告に記録する）。
  */

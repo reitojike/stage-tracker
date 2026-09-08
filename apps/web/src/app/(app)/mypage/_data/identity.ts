@@ -79,15 +79,3 @@ export async function countMyPendingInvitations(
   }
   return count;
 }
-
-/**
- * AppBar avatar の頭文字（Issue #159 相当）。`Array.from(email)` により
- * 先頭が surrogate pair な絵文字等でも分割しない。
- */
-export function resolveMyPageInitial(email: string | null): string {
-  if (email === null || email.length === 0) {
-    return "?";
-  }
-  const [first] = Array.from(email);
-  return (first ?? "?").toUpperCase();
-}
