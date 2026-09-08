@@ -1015,3 +1015,132 @@ key でビルドを通す方式を採っており、この考え方と整合す�
 **アプリのコードで「環境の性質」を再現しようとしない。** 環境の違いは
 環境の設定で表す。app code で表そうとすると、その表現を参照し忘れた
 経路が静かに穴になる。今回は 4 ラウンドかけてそれを実証した。
+
+## PO 判断: D1 = D。release を orchestrate せず artifact を順序非依存にする（2026-09-08）
+
+### 経緯
+
+C 案（GitHub Actions が「migration 適用 → deploy」の順序を保証する release
+orchestrator）を PR #388 で実装したが、**4 ラウンド連続で P1 が残り close した**。
+
+閉じられなかったのは TOCTOU である。
+
+```
+main == A を確認  ->  （main は動き得る）  ->  Production DB へ A を書く
+```
+
+単一 DB への write と Git ref の移動を共通 transaction に載せられない以上、
+check をどこに足しても閉じない。`release.yml` は 330 行に達していた。
+
+### D で変わること
+
+**「順序保証が不要になる」のではない。** D でも
+`expand → Production 適用 → app code` という意味上の順序は残る。
+
+変わるのは、**その順序を orchestrator で保証するのをやめ、PR / artifact の
+構造そのものに埋め込む**ことである。
+
+```
+PR A — migration + DB tests だけ
+PR B — deploy に届く artifact だけ
+```
+
+同居を `Verify / Artifact Sequencing Fence`
+（`scripts/lib/artifactSequencingFence.mjs`）が機械的に拒否する。
+
+### fence が判定すること / しないこと
+
+判定するのは **deterministic fact**（同じ PR にあるか）だけ。
+次はいずれも **semantic judgment** であり reviewer が担う。
+
+- この migration は後方互換な expand か
+- **どちらの PR を先に land させるか**
+
+### 判定を反転している理由
+
+当初は runtime 側を列挙していた（`apps/*/src/**` → `apps/**` と `packages/**`）。
+**列挙漏れがそのまま穴になる**ため、PR #390 で 2 ラウンド続けて
+「これも漏れている」型の finding が出た。
+
+| round | 漏れ                                                                   |
+| ----- | ---------------------------------------------------------------------- |
+| 2     | `database.types.ts` の suffix 一致で任意の runtime module が迂回できた |
+| 3     | `packages/**` と `apps/*/package.json` / `next.config.ts`              |
+
+`apps/**` / `packages/**` を既定 runtime にしても、**root の `package.json` /
+lockfile / build config は素通り**する。
+
+そこで **deploy に届かないと明示的に認めた path だけを通し、それ以外は既定で
+拒否する**形にした。新しい path・新しい package・root への追加はすべて既定で
+拒否され、**漏れは「過剰に拒否する」方向にしか倒れない**。
+
+許可しているのは次だけである。
+
+```
+supabase/**                          migration 本体、pgTAP、seed、config
+docs/**                              文書
+apps/legacy-web/test/rls/**          DB/RLS integration test
+生成された database.types.ts 2 file  exact path のみ
+```
+
+### D が保証しないこと（残存リスク）
+
+fence が保証するのは「同じ PR に無い」ことだけで、**PR をまたぐ merge 順序は
+保証しない**。これを機械的な gate にしようとしたのが PR #388 であり、
+**D はその gate を作らないという判断である。**
+
+順序は運用規律で担保する。reviewer は、依存する側の PR をレビューする際に
+相手側が既に land / 適用済みかを確認する。
+
+## A8 追補: error code の変更では runtime を先に出す（2026-09-08）
+
+**きっかけ**: PR #389（`share_schedule_entry_by_email` に custom SQLSTATE
+`90010`/`90011` を追加）に対し、codex と claude が独立に同じ P1 を出した。
+
+### 何が間違っていたか
+
+「`raise exception` の message 本文を変えていないので後方互換であり、
+migration を単独で先に適用してよい」という前提が成立しない。
+
+`error.code` 自体が `P0001` → `90010`/`90011` へ変わる。
+`apps/web/src/lib/actions/schedule/postgrest-error.ts` の `classifyRpcError` は
+
+```ts
+} else if (error.code === "P0001") {
+  const resolved = resolveBusinessRuleMessage?.(error.message);
+```
+
+と **`error.code` の外側ゲートを通ってから** message を見る。code が変われば
+このゲートを素通りし、`kind = "failure"` と汎用文言へ落ちる。
+
+（`apps/legacy-web` は `error.message` だけで判定し code のゲートを持たないため
+影響を受けない。Production は legacy なので、この不具合の影響は未 deploy の
+`apps/web` に閉じていた。）
+
+### 一般化: expand の向きは変更の種類で決まる
+
+| 変更の種類                               | 先に出す側  | 理由                                                         |
+| ---------------------------------------- | ----------- | ------------------------------------------------------------ |
+| column / table を**足す**                | migration   | 既存 reader は新しい列を見ないだけ。無害                     |
+| DB が出す値を**変える**（error code 等） | **runtime** | reader が新旧両方を理解できるまで、writer は切り替えられない |
+
+`raise ... using errcode` は **1 つの値しか持てない**。したがって
+「新旧どちらの code も出す」という DB 側だけの expand は**原理的に不可能**で、
+広げられるのは reader 側だけである。
+
+**writer が新しい語彙を話し始める前に、reader が両方を理解できる状態にしておく。**
+
+実際に採った順序:
+
+|     | 内容                                                                    | PR     |
+| --- | ----------------------------------------------------------------------- | ------ |
+| A   | `classifyRpcError` が `P0001` **に加えて** `90010`/`90011` も受け付ける | #392   |
+| B   | migration が errcode を切り替える                                       | #389   |
+| C   | `P0001` + message 一致の分岐を撤去                                      | 未着手 |
+
+### fence との関係
+
+artifact sequencing fence は「同じ PR にあるか」しか判定せず、**どちらを先に
+出すかは判定しない**。fence の説明が「migration が常に先」と読めると次も同じ
+間違いが起きるため、fence の doc comment・失敗メッセージ・PR template の
+いずれにも順序を書かない。
