@@ -170,6 +170,25 @@ describe('parseChangedFiles', () => {
     ]);
   });
 
+  // git は filename に LF を許す。NUL 区切りの出力を LF でも分割すると path が
+  // 割れ、どちらの断片も MIGRATION_PATTERN に一致せず **その migration が
+  // 見えなくなる**（fail open）。NUL 入力では NUL だけで区切る。
+  it('path に含まれる LF で分割しない', () => {
+    const files = parseChangedFiles('supabase/migrations/20260908_a\nb.sql\0apps/web/src/a.ts\0');
+    assert.deepEqual(files, ['supabase/migrations/20260908_a\nb.sql', 'apps/web/src/a.ts']);
+
+    // 分割されていたら migration が 0 件になり、fence が素通りする。
+    const r = evaluateArtifactSequencingFence(files);
+    assert.equal(r.migrations.length, 1);
+    assert.equal(r.ok, false);
+    assert.deepEqual(r.blocked, ['apps/web/src/a.ts']);
+  });
+
+  // NUL 入力では trim しない —— path の前後の空白は path の一部。
+  it('NUL 入力では前後の空白を保つ', () => {
+    assert.deepEqual(parseChangedFiles(' apps/web/src/a.ts \0'), [' apps/web/src/a.ts ']);
+  });
+
   it('NUL 区切りの非 ASCII path をそのまま扱える', () => {
     const files = parseChangedFiles('supabase/migrations/20260908_\u65e5\u672c.sql\0');
     assert.deepEqual(files, ['supabase/migrations/20260908_\u65e5\u672c.sql']);

@@ -13,7 +13,23 @@
 // design; see docs/architecture/runtime-stack.md "Environment Variables の
 // 所有境界"), only that the judgment and its evidence were recorded.
 
-const MIGRATION_PATH_PATTERN = /^supabase\/migrations\/.+\.sql$/;
+const MIGRATION_DIR = 'supabase/migrations/';
+const MIGRATION_SUFFIX = '.sql';
+
+// **正規表現を使わない。** 末尾を固定する正規表現だと、git が許す
+// **LF を含む filename** で `.` が LF を跨げず一致しない。その結果その file が
+// migration として数えられず、fence が「migration の無い PR」として素通りする
+// （fail open。PR #396 review finding）。
+//
+// 末尾アンカーが「最後の改行の直前」にも一致する挙動も含め、端点の解釈に
+// 依存させない。
+function isMigrationFile(file) {
+  return (
+    file.startsWith(MIGRATION_DIR) &&
+    file.endsWith(MIGRATION_SUFFIX) &&
+    file.length > MIGRATION_DIR.length + MIGRATION_SUFFIX.length
+  );
+}
 
 // [\s*_`]* tolerates markdown emphasis/code-span punctuation (**bold**,
 // `code`, _italic_) between the "ordering:" label and the value, so authors
@@ -25,15 +41,20 @@ const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
 
 // NUL 区切り（`git diff -z`）と改行区切りの両方を受ける。呼び出し側が `-z` を
 // 使うのは、既定の `core.quotepath=true` が非 ASCII を含む path を quote して
-// 返し、`MIGRATION_PATH_PATTERN` に一致しなくなる（= その migration を
+// 返し、migration と判定されなくなる（= その migration を
 // 「追加されていない」とみなす fail open）を避けるため。
 export function parseAddedMigrationFiles(diffNameStatusOutput) {
   if (typeof diffNameStatusOutput !== 'string' || diffNameStatusOutput.length === 0) return [];
-  return diffNameStatusOutput
-    .split(/[\0\n]/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .filter((line) => MIGRATION_PATH_PATTERN.test(line));
+
+  // NUL を含むなら `git diff -z` の出力。**NUL だけで区切り、trim しない。**
+  // git は filename に LF を許すため、LF でも分割すると path が割れて
+  // migration と判定されず、その migration を「追加されていない」
+  // とみなす（fail open。PR #396 review finding）。
+  const records = diffNameStatusOutput.includes('\0')
+    ? diffNameStatusOutput.split('\0')
+    : diffNameStatusOutput.split('\n').map((line) => line.trim());
+
+  return records.filter((record) => record.length > 0).filter((record) => isMigrationFile(record));
 }
 
 export function extractMigrationOrdering(prBody) {

@@ -35,7 +35,23 @@
 // 連続で P1）。**順序を pipeline で保証するのをやめ、artifact の構造に
 // 埋め込む。**
 
-const MIGRATION_PATTERN = /^supabase\/migrations\/.+\.sql$/;
+const MIGRATION_DIR = 'supabase/migrations/';
+const MIGRATION_SUFFIX = '.sql';
+
+// **正規表現を使わない。** 末尾を固定する正規表現だと、git が許す
+// **LF を含む filename** で `.` が LF を跨げず一致しない。その結果その file が
+// migration として数えられず、fence が「migration の無い PR」として素通りする
+// （fail open。PR #396 review finding）。
+//
+// 末尾アンカーが「最後の改行の直前」にも一致する挙動も含め、端点の解釈に
+// 依存させない。
+function isMigrationFile(file) {
+  return (
+    file.startsWith(MIGRATION_DIR) &&
+    file.endsWith(MIGRATION_SUFFIX) &&
+    file.length > MIGRATION_DIR.length + MIGRATION_SUFFIX.length
+  );
+}
 
 // migration を含む PR で同居してよい path。**これ以外はすべて拒否する。**
 //
@@ -113,15 +129,29 @@ function isAllowedAlongsideMigration(file) {
 // 渡せるようにするため。
 export function parseChangedFiles(diffNameOnlyOutput) {
   if (typeof diffNameOnlyOutput !== 'string' || diffNameOnlyOutput.length === 0) return [];
+
+  // NUL を含むなら `git diff -z` の出力。**NUL だけで区切り、trim しない。**
+  //
+  // 以前は `/[\0\n]/` で分割していたが、git は filename に LF を
+  // 許すため、`supabase/migrations/a<LF>b.sql` が `supabase/migrations/a` と
+  // `b.sql` に割れ、どちらも migration と判定されず **その migration が
+  // 見えなくなる**（fail open。PR #396 review finding）。
+  //
+  // trim もしない —— path の前後の空白は path の一部。
+  if (diffNameOnlyOutput.includes('\0')) {
+    return diffNameOnlyOutput.split('\0').filter((file) => file.length > 0);
+  }
+
+  // NUL が無いのは、手で動かした場合や test から素の文字列を渡した場合。
   return diffNameOnlyOutput
-    .split(/[\0\n]/)
+    .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 }
 
 export function evaluateArtifactSequencingFence(changedFiles) {
   const files = Array.isArray(changedFiles) ? changedFiles : [];
-  const migrations = files.filter((f) => MIGRATION_PATTERN.test(f));
+  const migrations = files.filter((f) => isMigrationFile(f));
 
   if (migrations.length === 0) {
     return { ok: true, migrations: [], blocked: [], reason: 'No migration files in this PR.' };

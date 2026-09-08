@@ -1077,7 +1077,8 @@ lockfile / build config は素通り**する。
 許可しているのは次だけである。
 
 ```text
-supabase/**                          migration 本体、pgTAP、seed、config
+supabase/migrations/**               migration 本体
+supabase/tests/**                    pgTAP
 docs/**                              文書
 apps/legacy-web/test/rls/**          DB/RLS integration test
 生成された database.types.ts 2 file  exact path のみ
