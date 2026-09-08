@@ -34,6 +34,14 @@ auto-deploy はそのまま維持します。
 
 ### Secret（1 つだけ）
 
+**Environment secrets へ登録する。Environment variables ではない。**
+同じ environment 画面に両方の欄があるが、variables は平文で保存され log にも
+出るため、password を含むこの値を置いてはいけない。Repository secrets でもなく
+Environment secrets である点も重要で、これによって上の Deployment branches の
+制限が効く。
+
+`Settings -> Environments -> production -> Environment secrets -> Add secret`
+
 | 名前              | 取得元                                                            |
 | ----------------- | ----------------------------------------------------------------- |
 | `SUPABASE_DB_URL` | Dashboard 右上の **Connect** ボタン → Connection String → **URI** |
@@ -57,8 +65,32 @@ auto-deploy はそのまま維持します。
 
 1. URI をコピーする
 2. `[YOUR-PASSWORD]` を実際の DB password に置き換える
-3. **記号は percent-encode する**（CLI が「must be percent-encoded」と要求する。
-   例: `@` → `%40`、`#` → `%23`、`/` → `%2F`）
+3. **記号を percent-encode する**（CLI が「must be percent-encoded」と要求する）
+
+   **手作業で表を当てない。** 次で変換する。
+
+   ```sh
+   node -e "console.log(encodeURIComponent('ここにパスワード'))"
+   ```
+
+   `encodeURIComponent` は必須の文字をすべて変換し、userinfo で許される記号
+   （`! ~ * ' ( ) - _ .`）はそのまま残すので、この用途にちょうど合う。
+
+   必須の文字（参考）:
+
+   | 文字    | 変換後      | 理由                                        |
+   | ------- | ----------- | ------------------------------------------- |
+   | `%`     | `%25`       | **エスケープの開始と誤読される。** 最も危険 |
+   | `@`     | `%40`       | userinfo の終端                             |
+   | `:`     | `%3A`       | user と password の区切り                   |
+   | `/`     | `%2F`       | path の開始                                 |
+   | `?`     | `%3F`       | query の開始                                |
+   | `#`     | `%23`       | fragment の開始                             |
+   | `[` `]` | `%5B` `%5D` | IPv6 ホスト表記の予約文字                   |
+
+   **エンコード漏れはエラーにならず「認証失敗」としてだけ現れる**ので原因が
+   分かりにくい。**そもそも英数字だけのパスワードにすれば、この考慮が丸ごと
+   不要になる**（長さで強度を確保する）。
 
 > **Supabase の Personal Access Token は使わない。** access token には
 > **scope 設定が無く、アカウント配下の全 project を操作できる**。
