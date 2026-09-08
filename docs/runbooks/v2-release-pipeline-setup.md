@@ -34,6 +34,20 @@ recurring failure になる、という実績がある。
   最初から C でよい（PO 判断、2026-09-08）
 - 詳細と代替案の比較は `docs/v2/decisions.md` を参照
 
+## 設定前の状態について
+
+**この手順を実施するまで、Release workflow は何もしない。** secret が
+未登録の間は「未設定」と notice を出して skip する。設定が入った時点で
+自動的に本来の動作になる。
+
+未設定を失敗にしていないのは、**赤い CI を常態化させると本当の失敗が
+埋もれる**ため。`main` への push ごとに赤が出る状態は、数日で誰も
+見なくなる。
+
+したがって手順の途中で止まっても Production には影響しない。ただし
+**手順 2-1（Vercel の auto-deploy 停止）だけを先に実施すると deploy が
+止まる**ので、手順 1 → 2 → 3 の順で通しで実施すること。
+
 ## 手順 1: GitHub Environment を作る
 
 **Settings → Environments → New environment**、名前 `production`。
