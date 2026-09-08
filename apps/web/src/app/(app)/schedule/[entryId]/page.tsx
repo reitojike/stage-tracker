@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { StatePanel } from "@stage-tracker/ui";
 import {
   personalScheduleEntryIdSchema,
+  userIdSchema,
   type PersonalScheduleEntryId,
 } from "@stage-tracker/domain";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -78,12 +79,14 @@ async function OwnerShareManagement({
 async function NonOwnerShareStatus({
   supabase,
   entryId,
+  userId,
 }: {
   readonly supabase: SupabaseClient;
   readonly entryId: PersonalScheduleEntryId;
+  readonly userId: string;
 }) {
   const result = await safelyCall(() =>
-    findOwnScheduleShareId(supabase, entryId),
+    findOwnScheduleShareId(supabase, entryId, userIdSchema.parse(userId)),
   );
 
   if (!result.ok) {
@@ -195,7 +198,11 @@ async function ScheduleEntryDetailBody({
           </div>
         </>
       ) : (
-        <NonOwnerShareStatus supabase={supabase} entryId={entryId} />
+        <NonOwnerShareStatus
+          supabase={supabase}
+          entryId={entryId}
+          userId={user.id}
+        />
       )}
     </div>
   );

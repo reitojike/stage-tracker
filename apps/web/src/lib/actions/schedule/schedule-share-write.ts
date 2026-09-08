@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ScheduleShareId,
   PersonalScheduleEntryId,
+  UserId,
 } from "@stage-tracker/domain";
 import { ActionError } from "@/lib/action-error";
 import {
@@ -14,8 +15,9 @@ import {
  * 自己離脱をここに集約する。
  *
  * `removeScheduleShare` は owner-as-remover と self-as-leaver の両方で
- * **同一の DB 操作**（`personal_schedule_shares` の DELETE、対象は shareId）
- * であることに注意 - RLS の `personal_schedule_shares_delete_owner_or_self`
+ * **同一の DB 操作**（`personal_schedule_shares` の DELETE、対象は
+ * `entryId` + `shareId` の組）であることに注意 - RLS の
+ * `personal_schedule_shares_delete_owner_or_self`
  * が「owner 自身の share row 削除」と「recipient 自身の self-leave」の
  * 両方を1つの USING 句で許可しているのと対称。呼び出し元
  * （`schedule-share-actions.ts` の2つの Server Action）は同じ関数を呼ぶが、
@@ -118,15 +120,27 @@ export async function addScheduleShareByEmail(
 /**
  * owner が entry の recipient を除去する場合と、recipient が自分自身を
  * 除去する場合の両方が使う共通 DELETE（doc comment 上部参照）。
+ *
+ * `entryId` と `shareId` の両方を DELETE の条件に入れる。RLS は「呼び出し元が
+ * その share の owner または recipient 本人であること」までしか enforce
+ * せず、「呼び出し元が指定した `entryId` にその `shareId` が属している
+ * こと」までは保証しない。`entryId` を revalidate 用の値として受け取るだけで
+ * WHERE 句に使わないと、caller が owner である別 entry の shareId を渡した
+ * 場合に、その shareId が実在すれば削除自体は成功してしまい、無関係な
+ * entry の path を revalidate することになる。`.eq("schedule_entry_id",
+ * entryId)` を足すことで、shareId が指定した entryId に属していない限り
+ * 0 行 DELETE（= 下の `not-found`）にする。
  */
 export async function removeScheduleShare(
   client: SupabaseClient,
+  entryId: PersonalScheduleEntryId,
   shareId: ScheduleShareId,
 ): Promise<void> {
   const { data, error, status } = await client
     .from("personal_schedule_shares")
     .delete()
     .eq("id", shareId)
+    .eq("schedule_entry_id", entryId)
     .select("id")
     .overrideTypes<{ id: string }[]>();
 
@@ -147,17 +161,28 @@ export async function removeScheduleShare(
  * （`list_schedule_share_recipient_emails`）とは異なり、email 列を
  * 必要としないため）。
  *
+ * `shared_with_user_id` を呼び出し元の `userId` で明示的に絞る。
+ * `personal_schedule_shares_select_owner_or_recipient` RLS は recipient
+ * 本人だけでなく **entry owner にもその entry の全 share row の SELECT を
+ * 許可している**ため、`schedule_entry_id` だけの絞り込みでは、この関数を
+ * owner が呼んだ場合に recipient 全員の share row が返り得る。self-leave
+ * の呼び出し元（`removeScheduleShareAction`）は「自分自身の share だけを
+ * 対象にする」という契約のため、`shared_with_user_id = userId` まで
+ * 絞ってはじめて「自分の共有」に束縛される。
+ *
  * 一意制約 `(schedule_entry_id, shared_with_user_id)` により、この
  * 呼び出しが1行を超えて返すことはない。
  */
 export async function findOwnScheduleShareId(
   client: SupabaseClient,
   entryId: PersonalScheduleEntryId,
+  userId: UserId,
 ): Promise<ScheduleShareId | null> {
   const { data, error, status } = await client
     .from("personal_schedule_shares")
     .select("id")
     .eq("schedule_entry_id", entryId)
+    .eq("shared_with_user_id", userId)
     .overrideTypes<Pick<RawScheduleShareRow, "id">[]>();
 
   if (error !== null) {

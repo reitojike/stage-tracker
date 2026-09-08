@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   personalScheduleEntryIdSchema,
   scheduleShareIdSchema,
+  userIdSchema,
 } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
@@ -70,7 +71,11 @@ const removeScheduleShareAsOwnerInputSchema = z.object({
 export const removeScheduleShareAsOwnerAction = authActionClient
   .inputSchema(removeScheduleShareAsOwnerInputSchema)
   .action(async ({ parsedInput, ctx }) => {
-    await removeScheduleShare(ctx.supabase, parsedInput.shareId);
+    await removeScheduleShare(
+      ctx.supabase,
+      parsedInput.entryId,
+      parsedInput.shareId,
+    );
     revalidatePath(`/schedule/${parsedInput.entryId}`);
   });
 
@@ -80,11 +85,17 @@ export const removeScheduleShareAsOwnerAction = authActionClient
  * 別の operation** であることをこの action の入力形状自体で表現する:
  * 引数は `shareId` ではなく `entryId` のみ受け取り、削除対象の shareId は
  * 「呼び出した本人（`ctx.userId`）が、この entry に対して持つ自分自身の
- * share row」をこの action が自分で解決する
- * （`findOwnScheduleShareId`）。client 側は自分以外の shareId を
- * 指定する余地が最初からなく、「self-leave は必ず自分の共有だけを
- * 対象にする」という不変条件を、DB の RLS（owner-or-self）だけでなく
- * この action の入力契約自体でも二重に保証する。
+ * share row」をこの action が自分で解決する（`findOwnScheduleShareId`）。
+ *
+ * この「自分自身の share」束縛は、入力形状（`shareId` を受け取らないこと）
+ * だけでは成立しない点に注意する。`personal_schedule_shares_select_owner_
+ * or_recipient` RLS は recipient 本人だけでなく **entry owner にもその
+ * entry の全 share row の SELECT を許可している**ため、owner がこの action
+ * を直接呼んだ場合、`entryId` だけの絞り込みでは recipient 全員の share
+ * row が見えてしまう。そのため `findOwnScheduleShareId` へ
+ * `userIdSchema.parse(ctx.userId)` を明示的に渡し、
+ * `shared_with_user_id = ctx.userId` まで絞ってはじめて「自分の共有だけを
+ * 対象にする」不変条件が成立する。
  *
  * 成功時は `/calendar` へ redirect（`docs/v2/oracle-routes-ui.md` §2
  * 「予定詳細」: 「非owner の『共有から外れる』は確認なしの即時実行、
@@ -101,11 +112,12 @@ export const removeScheduleShareAction = authActionClient
     const ownShareId = await findOwnScheduleShareId(
       ctx.supabase,
       parsedInput.entryId,
+      userIdSchema.parse(ctx.userId),
     );
     if (ownShareId === null) {
       throw new ActionError("not-found", "対象の共有が見つかりませんでした。");
     }
-    await removeScheduleShare(ctx.supabase, ownShareId);
+    await removeScheduleShare(ctx.supabase, parsedInput.entryId, ownShareId);
     revalidatePath(CALENDAR_PATH);
     redirect(CALENDAR_PATH);
   });

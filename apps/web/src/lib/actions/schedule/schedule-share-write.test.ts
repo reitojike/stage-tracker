@@ -5,6 +5,7 @@ import { server } from "@/test/msw/server";
 import type {
   PersonalScheduleEntryId,
   ScheduleShareId,
+  UserId,
 } from "@stage-tracker/domain";
 import {
   addScheduleShareByEmail,
@@ -25,6 +26,10 @@ function createTestClient(): SupabaseClient {
 const ENTRY_ID =
   "11111111-1111-4111-8111-111111111111" as PersonalScheduleEntryId;
 const SHARE_ID = "55555555-5555-4555-8555-555555555555" as ScheduleShareId;
+const OTHER_SHARE_ID =
+  "66666666-6666-4666-8666-666666666666" as ScheduleShareId;
+const CALLER_ID = "33333333-3333-4333-8333-333333333333" as UserId;
+const OTHER_RECIPIENT_ID = "44444444-4444-4444-8444-444444444444" as UserId;
 
 afterEach(() => {
   server.resetHandlers();
@@ -152,7 +157,7 @@ describe("removeScheduleShare", () => {
     );
 
     await expect(
-      removeScheduleShare(createTestClient(), SHARE_ID),
+      removeScheduleShare(createTestClient(), ENTRY_ID, SHARE_ID),
     ).resolves.toBeUndefined();
   });
 
@@ -164,7 +169,74 @@ describe("removeScheduleShare", () => {
     );
 
     await expect(
-      removeScheduleShare(createTestClient(), SHARE_ID),
+      removeScheduleShare(createTestClient(), ENTRY_ID, SHARE_ID),
+    ).rejects.toMatchObject({
+      kind: "not-found",
+    });
+  });
+
+  /**
+   * finding 2 の回帰テスト: owner 解除の DELETE は `shareId` だけでなく
+   * `entryId` も条件に持たなければならない。RLS は「caller が owner または
+   * recipient である share」までしか絞らないため、mutation 自体が両方を
+   * WHERE 句に持たないと、caller が owner である別 entry の shareId を
+   * 渡した場合にも削除が成立してしまう（doc comment 参照）。ここでは
+   * 実際に発行される DELETE request の query に両条件が乗ることを検証する
+   * - MSW handler が模す PostgREST はサーバー側で絞り込みを行うため、
+   * client がクエリを送っていなければこのテストは失敗する。
+   */
+  it("sends both schedule_entry_id and id as DELETE query filters", async () => {
+    let capturedUrl: URL | undefined;
+    server.use(
+      http.delete(`${REST_URL}/personal_schedule_shares`, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json([{ id: SHARE_ID }], { status: 200 });
+      }),
+    );
+
+    await removeScheduleShare(createTestClient(), ENTRY_ID, SHARE_ID);
+
+    expect(capturedUrl?.searchParams.get("id")).toBe(`eq.${SHARE_ID}`);
+    expect(capturedUrl?.searchParams.get("schedule_entry_id")).toBe(
+      `eq.${ENTRY_ID}`,
+    );
+  });
+
+  /**
+   * 上と対称の否定側。MSW handler は実際の PostgREST の絞り込み挙動を
+   * 忠実に再現する: query に `eq.` フィルタが**乗っていない**列は絞り込み
+   * 対象外として全行通過させ、乗っている列だけ一致判定する（PostgREST の
+   * 実際の意味論どおり）。この handler は `SHARE_ID` が実在は `ENTRY_ID` に
+   * 属する行として振る舞う。
+   *
+   * DELETE に `schedule_entry_id` を条件として送らない実装（fix 前）だと、
+   * caller が別 entry の `entryId`（`UNRELATED_ENTRY_ID`）を渡しても
+   * `id=eq.SHARE_ID` にしか一致条件がないため削除が成立してしまう
+   * （finding 2 が指摘した実害）。`schedule_entry_id` も条件に送る実装
+   * （fix 後）では、`UNRELATED_ENTRY_ID` はこの行の実際の所属先と一致せず
+   * 0 行になり `not-found` になる。
+   */
+  it("treats a mismatched entryId as a 0-row delete (not-found), not a successful delete of an unrelated share", async () => {
+    server.use(
+      http.delete(`${REST_URL}/personal_schedule_shares`, ({ request }) => {
+        const url = new URL(request.url);
+        const idFilter = url.searchParams.get("id");
+        const entryFilter = url.searchParams.get("schedule_entry_id");
+        const row = { id: SHARE_ID, entryId: ENTRY_ID };
+        const matches =
+          (idFilter === null || idFilter === `eq.${row.id}`) &&
+          (entryFilter === null || entryFilter === `eq.${row.entryId}`);
+        return HttpResponse.json(matches ? [{ id: row.id }] : [], {
+          status: 200,
+        });
+      }),
+    );
+
+    const UNRELATED_ENTRY_ID =
+      "77777777-7777-4777-8777-777777777777" as PersonalScheduleEntryId;
+
+    await expect(
+      removeScheduleShare(createTestClient(), UNRELATED_ENTRY_ID, SHARE_ID),
     ).rejects.toMatchObject({
       kind: "not-found",
     });
@@ -180,7 +252,7 @@ describe("findOwnScheduleShareId", () => {
     );
 
     await expect(
-      findOwnScheduleShareId(createTestClient(), ENTRY_ID),
+      findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID),
     ).resolves.toBe(SHARE_ID);
   });
 
@@ -192,7 +264,70 @@ describe("findOwnScheduleShareId", () => {
     );
 
     await expect(
-      findOwnScheduleShareId(createTestClient(), ENTRY_ID),
+      findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID),
+    ).resolves.toBeNull();
+  });
+
+  /**
+   * finding 1 の回帰テスト: self-leave の対象を「呼び出した本人の share」に
+   * 束縛するのは `schedule_entry_id` だけでは不十分で、
+   * `shared_with_user_id` も query 条件に乗せなければならない
+   * （`personal_schedule_shares_select_owner_or_recipient` RLS は entry
+   * owner にもその entry の全 share row の SELECT を許可しているため）。
+   * ここでは実際に発行される GET request の query に
+   * `shared_with_user_id=eq.<callerId>` が乗ることを検証する。
+   */
+  it("sends shared_with_user_id as a query filter alongside schedule_entry_id", async () => {
+    let capturedUrl: URL | undefined;
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_shares`, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json([{ id: SHARE_ID }], { status: 200 });
+      }),
+    );
+
+    await findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID);
+
+    expect(capturedUrl?.searchParams.get("schedule_entry_id")).toBe(
+      `eq.${ENTRY_ID}`,
+    );
+    expect(capturedUrl?.searchParams.get("shared_with_user_id")).toBe(
+      `eq.${CALLER_ID}`,
+    );
+  });
+
+  /**
+   * finding 1 が指摘した実害の再現。MSW handler は実際の PostgREST の
+   * 絞り込み挙動を忠実に再現する: query に `eq.` フィルタが**乗っていない**
+   * 列は絞り込み対象外として通過させ、乗っている列だけ一致判定する。この
+   * handler は、対象 entry に caller 以外（`OTHER_RECIPIENT_ID`）の share
+   * row だけが実在する状態を模す。
+   *
+   * `shared_with_user_id` を条件に送らない実装（fix 前）だと、
+   * `schedule_entry_id` の一致だけで他人の share row（`OTHER_SHARE_ID`）が
+   * 返ってしまい、self-leave がそれを「自分の共有」として削除対象にできて
+   * しまう（finding 1 の実害）。`shared_with_user_id = callerId` も条件に
+   * 送る実装（fix 後）では、この行の実際の recipient
+   * （`OTHER_RECIPIENT_ID`）と一致せず 0 行になり `null` を返す。
+   */
+  it("resolves to null (not another recipient's share) when only another user's share row exists for this entry", async () => {
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_shares`, ({ request }) => {
+        const url = new URL(request.url);
+        const entryFilter = url.searchParams.get("schedule_entry_id");
+        const userFilter = url.searchParams.get("shared_with_user_id");
+        const row = { id: OTHER_SHARE_ID, sharedWith: OTHER_RECIPIENT_ID };
+        const matches =
+          (entryFilter === null || entryFilter === `eq.${ENTRY_ID}`) &&
+          (userFilter === null || userFilter === `eq.${row.sharedWith}`);
+        return HttpResponse.json(matches ? [{ id: row.id }] : [], {
+          status: 200,
+        });
+      }),
+    );
+
+    await expect(
+      findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID),
     ).resolves.toBeNull();
   });
 });
