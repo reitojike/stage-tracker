@@ -23,10 +23,14 @@ const ORDERING_PATTERN =
 const PRODUCTION_APPLY_PATTERN = /production migration applied:\s*(.+)/i;
 const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
 
+// NUL 区切り（`git diff -z`）と改行区切りの両方を受ける。呼び出し側が `-z` を
+// 使うのは、既定の `core.quotepath=true` が非 ASCII を含む path を quote して
+// 返し、`MIGRATION_PATH_PATTERN` に一致しなくなる（= その migration を
+// 「追加されていない」とみなす fail open）を避けるため。
 export function parseAddedMigrationFiles(diffNameStatusOutput) {
   if (typeof diffNameStatusOutput !== 'string' || diffNameStatusOutput.length === 0) return [];
   return diffNameStatusOutput
-    .split('\n')
+    .split(/[\0\n]/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .filter((line) => MIGRATION_PATH_PATTERN.test(line));

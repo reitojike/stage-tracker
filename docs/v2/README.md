@@ -25,25 +25,25 @@ oracle ドキュメントだけを見て再実装する。
 
 ## Target stack
 
-| 領域               | 採用                                                                        |
-| ------------------ | --------------------------------------------------------------------------- |
-| Web                | Next.js 16 + React 19 + TypeScript                                          |
-| Package            | pnpm workspace + Turborepo                                                  |
-| DB / Auth          | Supabase Postgres + Auth + RLS（ORM は使わない）                            |
-| UI                 | Tailwind CSS v4 + shadcn/ui + Base UI                                       |
-| Design token       | Tailwind `@theme` semantic token                                            |
-| Validation         | Zod                                                                         |
-| Server Action      | next-safe-action + Zod                                                      |
-| env                | T3 Env + Zod                                                                |
-| Unit / integration | Vitest                                                                      |
-| Component          | Storybook                                                                   |
-| API mock           | MSW                                                                         |
-| E2E / visual       | Playwright Test                                                             |
-| DB / RLS test      | pgTAP                                                                       |
-| Background job     | Trigger.dev                                                                 |
-| Mail               | React Email + Resend                                                        |
-| Observability      | Sentry + PostHog                                                            |
-| Deploy             | GitHub Actions が Supabase migration → Vercel deploy を単一 pipeline で実行 |
+| 領域               | 採用                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Web                | Next.js 16 + React 19 + TypeScript                                                                            |
+| Package            | pnpm workspace + Turborepo                                                                                    |
+| DB / Auth          | Supabase Postgres + Auth + RLS（ORM は使わない）                                                              |
+| UI                 | Tailwind CSS v4 + shadcn/ui + Base UI                                                                         |
+| Design token       | Tailwind `@theme` semantic token                                                                              |
+| Validation         | Zod                                                                                                           |
+| Server Action      | next-safe-action + Zod                                                                                        |
+| env                | T3 Env + Zod                                                                                                  |
+| Unit / integration | Vitest                                                                                                        |
+| Component          | Storybook                                                                                                     |
+| API mock           | MSW                                                                                                           |
+| E2E / visual       | Playwright Test                                                                                               |
+| DB / RLS test      | pgTAP                                                                                                         |
+| Background job     | Trigger.dev                                                                                                   |
+| Mail               | React Email + Resend                                                                                          |
+| Observability      | Sentry + PostHog                                                                                              |
+| Deploy             | Vercel の Git auto-deploy を維持。migration と deploy を単一 pipeline で orchestrate しない（PO 判断 D1 = D） |
 
 Supabase を SQL migration + RLS + generated types のまま維持するのは意図的な選択。
 現行の設計上の強みであり、ORM へ寄せる理由がない。
@@ -73,7 +73,7 @@ supabase/         migrations / pgTAP（共有）
 | 4   | DB layer 再構築（migration + RLS + pgTAP）                                          | pgTAP green                                    |
 | 5   | UI 再構築                                                                           | Storybook + a11y                               |
 | 6   | 画面統合 + E2E                                                                      | Playwright green                               |
-| 7   | CI/CD 単一 release pipeline                                                         | dry-run 成功                                   |
+| 7   | release contract（artifact sequencing fence / Preview 隔離）                        | fence が同居を拒否する                         |
 | 8   | 並行検証 → cutover 判断                                                             | 停止して報告                                   |
 | 9   | legacy 削除 + 構成の最終化                                                          | clean-repo equivalence check                   |
 

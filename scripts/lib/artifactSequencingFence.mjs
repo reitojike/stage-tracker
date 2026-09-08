@@ -62,8 +62,13 @@ const MIGRATION_PATTERN = /^supabase\/migrations\/.+\.sql$/;
 // **「ついでに直したくなる」ものを足していくと fence の意味が無くなる。**
 // 追加は理由とともに 1 件ずつ足す。
 const ALLOWED_ALONGSIDE_PATTERNS = [
-  // migration 本体、pgTAP、seed、Supabase の config。deploy されない
-  /^supabase\//,
+  // migration 本体、pgTAP、seed、Supabase の config。deploy されない。
+  //
+  // **`supabase/functions/` は除く。** Edge Function は `supabase functions deploy`
+  // で実際に deploy されるため、migration と同居すればこの fence が防ぐはずの
+  // schema race をそのまま再現できる。現時点でこの directory は存在しないが、
+  // 既定で許可される側に置かない（PR #396 review finding）。
+  /^supabase\/(?!functions\/)/,
   // 文書。deploy されない
   /^docs\//,
   // DB/RLS integration test。`docs/v2/decisions.md` が
@@ -90,10 +95,19 @@ function isAllowedAlongsideMigration(file) {
   );
 }
 
+// NUL 区切り（`git diff -z`）と改行区切りの両方を受ける。
+//
+// `-z` を使うのは、既定の `core.quotepath=true` が非 ASCII を含む path を
+// quote/escape して返し、allowlist の正規表現に一致しなくなる（= その file が
+// 黙って素通りする fail open）ため。この fence は「漏れは過剰拒否の側にしか
+// 倒れない」ことを設計の要点にしているので、ここで閉じる。
+//
+// 改行区切りも受けておくのは、手で動かすときや test から素の文字列を
+// 渡せるようにするため。
 export function parseChangedFiles(diffNameOnlyOutput) {
   if (typeof diffNameOnlyOutput !== 'string' || diffNameOnlyOutput.length === 0) return [];
   return diffNameOnlyOutput
-    .split('\n')
+    .split(/[\0\n]/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 }

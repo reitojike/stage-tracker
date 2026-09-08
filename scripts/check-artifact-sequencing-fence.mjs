@@ -28,7 +28,12 @@ if (typeof headSha !== 'string' || headSha.length === 0) {
 // **three-dot（merge-base 起点）で取る。** two-dot（`git diff A B`）だと、
 // branch を切ってから main 側が進んだぶんの差分まで混ざり、この PR が
 // 触っていないファイルを blocked として報告してしまう。
-const diff = spawnSync('git', ['diff', '--name-only', `${baseSha}...${headSha}`], {
+// `-z` を付ける理由: 既定の `core.quotepath=true` では、非 ASCII を含む path が
+// `"supabase/migrations/æ..."` のように quote/escape されて返る。すると
+// 先頭の `"` のせいで allowlist の正規表現に一致せず、**その file が黙って
+// 素通りする**（fail open）。この fence は「漏れは過剰拒否の側にしか倒れない」
+// ことを設計の要点にしているので、ここで閉じる。`-z` は NUL 区切り・quote 無し。
+const diff = spawnSync('git', ['diff', '--name-only', '-z', `${baseSha}...${headSha}`], {
   encoding: 'utf8',
 });
 if (diff.error || diff.status !== 0) {

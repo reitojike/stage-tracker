@@ -76,6 +76,25 @@ describe('deploy に届く artifact は既定で拒否する', () => {
   });
 
   // 誤りが安全側に落ちること。列挙方式に戻すとこれが通ってしまう。
+  // Edge Function は `supabase functions deploy` で実際に deploy される。
+  // `^supabase/` を丸ごと許可すると、migration と同居してこの fence が防ぐはずの
+  // schema race を再現できてしまう。現時点でこの directory は存在しない。
+  it('supabase/functions は deploy されるので拒否する', () => {
+    const r = evaluateArtifactSequencingFence([MIGRATION, 'supabase/functions/hello/index.ts']);
+    assert.equal(r.ok, false);
+    assert.deepEqual(r.blocked, ['supabase/functions/hello/index.ts']);
+  });
+
+  it('supabase 配下の他の path は引き続き許可する', () => {
+    const r = evaluateArtifactSequencingFence([
+      MIGRATION,
+      'supabase/tests/11_x_test.sql',
+      'supabase/config.toml',
+      'supabase/seed.sql',
+    ]);
+    assert.equal(r.ok, true);
+  });
+
   it('未知の path は既定で拒否する（fail closed）', () => {
     const r = evaluateArtifactSequencingFence([
       MIGRATION,
@@ -115,6 +134,23 @@ describe('parseChangedFiles', () => {
   it('空入力は空配列', () => {
     assert.deepEqual(parseChangedFiles(''), []);
     assert.deepEqual(parseChangedFiles(undefined), []);
+  });
+
+  // `git diff -z` の出力。既定の core.quotepath が非 ASCII path を quote して
+  // 返すと allowlist の正規表現に一致せず、その file が黙って素通りする
+  // （fail open）ため、呼び出し側は -z を使う。
+  it('NUL 区切り（git diff -z）を受け付ける', () => {
+    assert.deepEqual(parseChangedFiles('supabase/migrations/x.sql\0apps/web/src/a.ts\0'), [
+      'supabase/migrations/x.sql',
+      'apps/web/src/a.ts',
+    ]);
+  });
+
+  it('NUL 区切りの非 ASCII path をそのまま扱える', () => {
+    const files = parseChangedFiles('supabase/migrations/20260908_\u65e5\u672c.sql\0');
+    assert.deepEqual(files, ['supabase/migrations/20260908_\u65e5\u672c.sql']);
+    // quote された形（`"..."`）で来ていたら、この migration が検出されない。
+    assert.equal(evaluateArtifactSequencingFence(files).migrations.length, 1);
   });
 
   it('行を trim して空行を落とす', () => {
