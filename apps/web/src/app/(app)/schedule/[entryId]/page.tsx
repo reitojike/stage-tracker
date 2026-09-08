@@ -34,7 +34,7 @@ function resolveBackHref(month: string | undefined): string {
  * - entry 自体は表示を継続する。
  *
  * `description` は `(app)/` 配下の read panel（例:
- * `../../(app)/page.tsx`）と同じ `READ_FAILURE_RETRY_HINT_JA` を使う固定文言
+ * `../../page.tsx`）と同じ `READ_FAILURE_RETRY_HINT_JA` を使う固定文言
  * であり、`safelyCall` が拾った例外の内容（`ActionError.message` を含む）を
  * 一切表示に使わない。`description={...message}` の形を全廃する M6c の
  * 修正対象であり、`safelyCall` 自体もこの節を受けて「呼び出し元が dynamic
