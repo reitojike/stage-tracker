@@ -1114,3 +1114,61 @@ Vercel の Production auto-deploy 停止。
 
 **残る**: Vercel Preview の環境変数を Production から分離すること（Preview 隔離。
 D とは独立の論点）。
+
+## A8 追補: error code の変更では runtime を先に出す（2026-09-08）
+
+**きっかけ**: PR #389（`share_schedule_entry_by_email` に custom SQLSTATE
+`90010`/`90011` を追加）に対し、codex と claude が独立に同じ P1 を出した。
+
+### 何が間違っていたか
+
+PR #389 の前提は「`raise exception` の message 本文を変えていないので
+後方互換であり、migration を単独で先に適用してよい」だった。**成立しない。**
+
+`error.code` 自体が `P0001` → `90010`/`90011` へ変わる。
+`apps/web/src/lib/actions/schedule/postgrest-error.ts` の `classifyRpcError` は
+
+```ts
+} else if (error.code === "P0001") {
+  const resolved = resolveBusinessRuleMessage?.(error.message);
+```
+
+と、**`error.code` の外側ゲートを通ってから** message を見る。code が変われば
+このゲートを素通りし、`kind = "failure"` と汎用文言へ落ちる。
+message 一致のコードパスに到達できない。
+
+（`apps/legacy-web` は `error.message` だけで判定し code のゲートを持たないため
+影響を受けない。Production は legacy なので、この不具合の影響は未 deploy の
+`apps/web` に閉じていた。）
+
+### 一般化: expand の向きは変更の種類で決まる
+
+| 変更の種類                               | 先に出す側  | 理由                                                         |
+| ---------------------------------------- | ----------- | ------------------------------------------------------------ |
+| column / table を**足す**                | migration   | 既存 reader は新しい列を見ないだけ。無害                     |
+| DB が出す値を**変える**（error code 等） | **runtime** | reader が新旧両方を理解できるまで、writer は切り替えられない |
+
+`raise ... using errcode` は **1 つの値しか持てない**。したがって
+「新旧どちらの code も出す」という DB 側だけの expand は**原理的に不可能**。
+広げられるのは reader 側だけなので、reader が先になる。
+
+**writer が新しい語彙を話し始める前に、reader が両方を理解できる状態に
+しておく。**
+
+正しい順序:
+
+|      | 内容                                                                    | 現行 DB との関係                                            |
+| ---- | ----------------------------------------------------------------------- | ----------------------------------------------------------- |
+| PR A | `classifyRpcError` が `P0001` **に加えて** `90010`/`90011` も受け付ける | 現行 DB は `P0001` を出すので挙動不変。単独 deploy して安全 |
+| PR B | migration が errcode を切り替える                                       | A が deploy 済みなので分類できる                            |
+| PR C | `P0001` + message 一致の分岐を撤去                                      | 十分稼働した後                                              |
+
+### D1 = D の fence との関係
+
+artifact sequencing fence（`scripts/lib/artifactSequencingFence.mjs`）が
+判定するのは「migration と runtime code が同じ PR にあるか」という
+**deterministic fact** だけで、**どちらを先に出すかは判定しない**。
+それは semantic judgment であり reviewer の担当。
+
+fence の説明が「migration が常に先」と読めると次も同じ間違いが起きるため、
+fence の doc comment と PR template の両方へこの向きの違いを明記した。

@@ -17,6 +17,24 @@
 // code が同じ PR にあるか）だけ。「この migration は後方互換な expand か」
 // という **semantic judgment** は agent / reviewer が行う。
 //
+// ## どちら側を先に出すかは、この checker の管轄ではない
+//
+// 上の A -> B -> C は「column/table を *足す*」変更の順序。**DB が出す値を
+// *変える* 変更では順序が逆になる。**
+//
+//   error code（SQLSTATE）の変更:
+//   PR A  client が新旧どちらの code も受け付ける（runtime）
+//   PR B  migration が code を切り替える
+//   PR C  旧 code の分岐を撤去する（runtime）
+//
+// `raise ... using errcode` は **1 つの値しか持てない**ので、DB 側だけで
+// 「新旧どちらの code も出す」expand はできない。読む側を先に広げないと、
+// 切り替えた瞬間に既存 client が分類に失敗する。**writer が新しい語彙を
+// 話し始める前に、reader が両方を理解できる状態にしておく。**
+//
+// この checker は「同居しているか」しか見ないので、どちらを先に出すかは
+// reviewer が判断する（PR #389 の review finding で実際に間違えた）。
+//
 // ## なぜ release orchestrator ではなくこれなのか
 //
 // PR #388 で「GitHub Actions が migration -> deploy の順序を保証する」案を

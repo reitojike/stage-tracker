@@ -67,11 +67,25 @@ Environment secrets である点も重要で、これによって上の Deployme
 2. `[YOUR-PASSWORD]` を実際の DB password に置き換える
 3. **記号を percent-encode する**（CLI が「must be percent-encoded」と要求する）
 
-   **手作業で表を当てない。** 次で変換する。
+   **password を reset する場合は、英数字だけにするのが最も安全。**
+   この手順が丸ごと不要になり、下記の事故も起こらない（強度は長さで確保する）。
+   password は作成時にしか表示されず後から取得できないため、この secret を
+   用意する時点で reset することになる。その reset で英数字だけを選べばよい。
+
+   記号を含む既存 password を使う場合のみ、次で変換する。
 
    ```sh
-   node -e "console.log(encodeURIComponent('ここにパスワード'))"
+   node -e 'process.stdout.write(encodeURIComponent(require("fs").readFileSync(0,"utf8").replace(/\r?\n$/,""))+"\n")'
    ```
+
+   実行してから password を入力し、Enter のあと `Ctrl-D`（Windows の
+   `cmd`/PowerShell では `Ctrl-Z` → Enter）で終了する。
+
+   > **password を command line に書かないこと。** `node -e "...('パスワード')"`
+   > の形にすると、(1) 本番 DB の password が shell history に平文で残り、
+   > (2) 二重引用符の中で `$HOME` や `` `...` ``、`$(...)` が **shell に展開・実行**
+   > され、(3) `'` を含む値は JavaScript の文字列リテラルを壊す。
+   > 上の形なら値は stdin から読むだけなので、shell も JavaScript も解釈しない。
 
    `encodeURIComponent` は必須の文字をすべて変換し、userinfo で許される記号
    （`! ~ * ' ( ) - _ .`）はそのまま残すので、この用途にちょうど合う。
@@ -89,8 +103,7 @@ Environment secrets である点も重要で、これによって上の Deployme
    | `[` `]` | `%5B` `%5D` | IPv6 ホスト表記の予約文字                   |
 
    **エンコード漏れはエラーにならず「認証失敗」としてだけ現れる**ので原因が
-   分かりにくい。**そもそも英数字だけのパスワードにすれば、この考慮が丸ごと
-   不要になる**（長さで強度を確保する）。
+   分かりにくい。
 
 > **Supabase の Personal Access Token は使わない。** access token には
 > **scope 設定が無く、アカウント配下の全 project を操作できる**。

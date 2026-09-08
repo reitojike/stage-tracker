@@ -24,6 +24,21 @@ Issue #121/#124/#125 の事故は、同居していたために「migration が�
 Production に無いのに新 schema 必須の app が先に deploy される」状態を
 作れてしまったのが原因でした。その状態自体を作れなくします。
 
+**どちら側を先に出すかは checker が決めません。** 上の A → B → C は
+「column/table を*足す*」変更の順序です。**DB が出す値を*変える*変更では
+順序が逆になります。**
+
+  error code（SQLSTATE）の変更の場合:
+  PR A  client が新旧どちらの code も受け付けるようにする（runtime）
+  PR B  migration が code を切り替える
+  PR C  旧 code の分岐を撤去する（runtime）
+
+`raise ... using errcode` は **1 つの値しか持てない**ため、DB 側だけでは
+「新旧どちらの code も出す」expand ができません。読む側（client）を先に
+広げないと、切り替えた瞬間に既存 client が分類に失敗します。
+**writer が新しい語彙を話し始める前に、reader が両方を理解できる状態に
+しておく**、と考えてください（PR #389 の review finding）。
+
 **「この migration は後方互換な expand か」は checker が判断しません。**
 reviewer が判断してください。
 -->
