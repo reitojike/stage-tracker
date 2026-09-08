@@ -91,3 +91,55 @@ describe('ALLOWED_ALONGSIDE_PATHS', () => {
     assert.deepEqual(result.runtime, []);
   });
 });
+
+describe('RUNTIME_PATTERN の境界', () => {
+  // --- 列挙漏れの regression（PR #390 codex finding） ---
+  //
+  // 当初は /^apps\/[^/]+\/src\// だったため、bundle に入る shared package と
+  // app 直下の runtime 設定がすべて漏れていた。
+
+  it('workspace package（bundle に入る）を runtime として拒否する', () => {
+    for (const p of ['packages/domain/src/event.ts', 'packages/ui/src/Button.tsx']) {
+      const r = evaluateArtifactSequencingFence(['supabase/migrations/20260908010000_x.sql', p]);
+      assert.equal(r.ok, false, p);
+      assert.deepEqual(r.runtime, [p]);
+    }
+  });
+
+  it('app 直下の runtime 設定を拒否する', () => {
+    for (const p of [
+      'apps/web/package.json',
+      'apps/web/next.config.ts',
+      'packages/domain/package.json',
+    ]) {
+      const r = evaluateArtifactSequencingFence(['supabase/migrations/20260908010000_x.sql', p]);
+      assert.equal(r.ok, false, p);
+    }
+  });
+
+  // 新しい package / app が増えても既定で拒否されること。列挙式なら
+  // 「まだ足していない」ぶんが黙って通ってしまう。
+  it('まだ存在しない package も既定で拒否する（fail closed）', () => {
+    const r = evaluateArtifactSequencingFence([
+      'supabase/migrations/20260908010000_x.sql',
+      'packages/not-yet-created/src/index.ts',
+      'apps/some-future-app/src/index.ts',
+    ]);
+    assert.equal(r.ok, false);
+    assert.equal(r.runtime.length, 2);
+  });
+
+  // deploy されないものは引き続き同居してよい。過剰に拒否すると迂回される。
+  it('deploy されない path は同居してよい', () => {
+    const r = evaluateArtifactSequencingFence([
+      'supabase/migrations/20260908010000_x.sql',
+      'supabase/tests/11_x_test.sql',
+      'docs/v2/decisions.md',
+      'scripts/lib/x.mjs',
+      '.github/workflows/verify.yml',
+      'README.md',
+    ]);
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.runtime, []);
+  });
+});

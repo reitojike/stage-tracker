@@ -60,8 +60,27 @@ const ALLOWED_ALONGSIDE_PATHS = new Set([
   'apps/legacy-web/src/infrastructure/supabase/database.types.ts',
 ]);
 
-// runtime code とみなす path。migration と同居したら拒否する。
-const RUNTIME_PATTERN = /^apps\/[^/]+\/src\//;
+// deploy される runtime とみなす path。**migration と同居したら拒否する。**
+//
+// **境界は `apps/*/src/` ではなく `apps/**` と `packages/**` そのもの。**
+//
+// 当初は `/^apps\/[^/]+\/src\//` としていたが、これでは次がすべて漏れた
+// （PR #390 codex finding）。
+//
+//   packages/domain/src/**   apps/web の workspace dependency。bundle に入る
+//   packages/ui/src/**       同上
+//   apps/web/package.json    依存の変更は bundle を変える
+//   apps/web/next.config.ts  runtime の挙動を変える
+//
+// **列挙を反転した理由**: 「runtime に当たる path を数え上げる」設計は、
+// 数え漏れが必ず穴になる（実際 2 ラウンド続けて「これも漏れている」という
+// finding が出た）。deploy 対象の境界そのもの（`apps/` と `packages/`）を
+// runtime とし、**そこに新しい package や app が増えても既定で拒否される**
+// 形にする。例外は下の exact path だけ。
+//
+// 逆に `scripts/**` `.github/**` `docs/**` `supabase/**` は deploy されない
+// ので同居してよい。
+const RUNTIME_PATTERN = /^(apps|packages)\//;
 
 export function parseChangedFiles(diffNameOnlyOutput) {
   if (typeof diffNameOnlyOutput !== 'string' || diffNameOnlyOutput.length === 0) return [];
