@@ -56,13 +56,16 @@ describe("addScheduleShareByEmail", () => {
   });
 
   /**
-   * 未登録 email・自己共有・owner以外からの呼び出しはすべて同一の P0001
-   * として返る（`postgrest-error.ts` の doc comment）。ここでは
-   * message 文字列の中身では分岐せず（A8）、code (`P0001`) だけで
-   * `validation` へ分類されることを検証する - 具体的な message の文言は
-   * 表示用にそのまま透過するだけであることも合わせて確認する。
+   * `share_schedule_entry_by_email` の「対象 email が未登録アカウント」
+   * 拒否は、product rule（「Authenticated-user targeting」節: sharing に
+   * Invitation のような opacity 要件がないため owner へ知らせてよい）が
+   * 開示を許可した唯一の classified な状態。`postgrest-error.ts`/
+   * `resolveShareByEmailBusinessRuleMessage`（このファイル上部の doc
+   * comment参照）が、この1件だけ RPC の生メッセージ（`error.message`）を
+   * 見て固定の安全な日本語文言へ差し替える - 生メッセージ自体は
+   * `ActionError.message` に一切現れない。
    */
-  it("classifies a P0001 business-rule rejection as validation, quoting the raw message for display without branching on it", async () => {
+  it("classifies an unregistered-recipient-email P0001 rejection as validation with a classified message (never the raw PostgREST message)", async () => {
     server.use(
       http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
         HttpResponse.json(
@@ -85,9 +88,38 @@ describe("addScheduleShareByEmail", () => {
       ),
     ).rejects.toMatchObject({
       kind: "validation",
-      message: expect.stringContaining(
-        "recipient email is not a registered account",
+      message: "このメールアドレスは、Stage Trackerに登録されていません。",
+    });
+  });
+
+  /**
+   * 未登録 email 以外の P0001 業務ルール違反（自己共有・owner以外からの
+   * 呼び出し等）はすべて同一の SQLSTATE で返り、`resolveShareByEmailBusinessRuleMessage`
+   * が一致しないため generic な安全文言へ fail-closed する
+   * （`postgrest-error.ts` の doc comment参照）。ここでは
+   * message 文字列の中身で分岐せず（A8）、生メッセージが `ActionError`
+   * へ一切転記されないことを検証する。
+   */
+  it("classifies any other P0001 business-rule rejection as validation with the generic safe message (never the raw PostgREST message)", async () => {
+    server.use(
+      http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
+        HttpResponse.json(
+          {
+            code: "P0001",
+            message: "cannot share with yourself",
+            details: "",
+            hint: "",
+          },
+          { status: 400 },
+        ),
       ),
+    );
+
+    await expect(
+      addScheduleShareByEmail(createTestClient(), ENTRY_ID, "me@example.test"),
+    ).rejects.toMatchObject({
+      kind: "validation",
+      message: "入力内容をご確認のうえ、再度お試しください。",
     });
   });
 
@@ -195,7 +227,7 @@ describe("listScheduleShareRecipientEmails", () => {
     ]);
   });
 
-  it("classifies a P0001 (non-owner caller) rejection as permission-denied", async () => {
+  it("classifies a P0001 (non-owner caller) rejection as permission-denied with a fixed safe message (never the raw PostgREST message)", async () => {
     server.use(
       http.post(`${REST_URL}/rpc/list_schedule_share_recipient_emails`, () =>
         HttpResponse.json(
@@ -212,6 +244,9 @@ describe("listScheduleShareRecipientEmails", () => {
 
     await expect(
       listScheduleShareRecipientEmails(createTestClient(), ENTRY_ID),
-    ).rejects.toMatchObject({ kind: "permission-denied" });
+    ).rejects.toMatchObject({
+      kind: "permission-denied",
+      message: "権限がありません。",
+    });
   });
 });

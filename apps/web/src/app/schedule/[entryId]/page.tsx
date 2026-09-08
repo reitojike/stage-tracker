@@ -6,6 +6,7 @@ import {
   type PersonalScheduleEntryId,
 } from "@stage-tracker/domain";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import {
   listScheduleShareRecipientEmails,
   findOwnScheduleShareId,
@@ -31,6 +32,14 @@ function resolveBackHref(month: string | undefined): string {
  * （`docs/v2/oracle-routes-ui.md` §2「予定詳細」: 「owner側の recipient
  * 一覧取得失敗」）は、entry 本体の表示とは別枠の専用メッセージで表す
  * - entry 自体は表示を継続する。
+ *
+ * `description` は `(app)/` 配下の read panel（例:
+ * `../../(app)/page.tsx`）と同じ `READ_FAILURE_RETRY_HINT_JA` を使う固定文言
+ * であり、`safelyCall` が拾った例外の内容（`ActionError.message` を含む）を
+ * 一切表示に使わない。`description={...message}` の形を全廃する M6c の
+ * 修正対象であり、`safelyCall` 自体もこの節を受けて「呼び出し元が dynamic
+ * な message を表示できないよう、そもそも message を返さない」形へ変更した
+ * （`_lib/safelyCall.ts` 参照）。
  */
 async function OwnerShareManagement({
   supabase,
@@ -52,7 +61,7 @@ async function OwnerShareManagement({
         <StatePanel
           variant="error"
           title="共有相手の一覧を読み込めませんでした。"
-          description={result.message}
+          description={READ_FAILURE_RETRY_HINT_JA}
         />
       )}
       <ShareAddForm entryId={entryId} />
@@ -63,7 +72,8 @@ async function OwnerShareManagement({
 /**
  * 非owner向けの自分の共有状態。自分の share 行取得失敗
  * （oracle 同節: 「非owner側の自分のshare行取得失敗」）は entry 本体とは
- * 別枠で表示する。
+ * 別枠で表示する。`description` は上記 `OwnerShareManagement` と同じ理由で
+ * 固定文言にする。
  */
 async function NonOwnerShareStatus({
   supabase,
@@ -81,7 +91,7 @@ async function NonOwnerShareStatus({
       <StatePanel
         variant="error"
         title="共有状態を確認できませんでした。"
-        description={result.message}
+        description={READ_FAILURE_RETRY_HINT_JA}
       />
     );
   }
@@ -152,11 +162,7 @@ async function ScheduleEntryDetailBody({
   }
   if (entryState.variant === "unavailable") {
     return (
-      <StatePanel
-        variant="unavailable"
-        title="この予定を表示できません。"
-        description={entryState.message}
-      />
+      <StatePanel variant="unavailable" title="この予定を表示できません。" />
     );
   }
   if (entryState.variant === "error") {
@@ -164,7 +170,7 @@ async function ScheduleEntryDetailBody({
       <StatePanel
         variant="error"
         title="予定を読み込めませんでした。"
-        description={entryState.message}
+        description={READ_FAILURE_RETRY_HINT_JA}
       />
     );
   }

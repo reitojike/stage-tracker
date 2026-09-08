@@ -24,6 +24,43 @@ import {
  * （このタスクの報告「自己離脱と削除の区別」参照）で表現する。
  */
 
+/**
+ * `share_schedule_entry_by_email` RPC
+ * （`supabase/migrations/20260823020000_create_schedule_share_email_boundary.sql`）
+ * が「対象 email が登録済みアカウントではない」場合に `raise exception` する、
+ * 唯一かつ安定した生メッセージ。この RPC の業務ルール違反はすべて同一の
+ * SQLSTATE (`P0001`) で返るため（`classifyRpcError` の doc comment参照）、
+ * この1件だけを他の業務ルール違反（自己共有・owner 以外からの呼び出し等）
+ * から区別する構造化された手段が migration 側にまだ無い。
+ *
+ * この定数を使った完全一致比較は、`docs/v2/decisions.md` A8 が禁止する
+ * 「エラー種別自体を message で判定する」こととは別軸の狭い用途に限定する:
+ * `error.code === "P0001"` によって `kind`（`validation`）は既に確定済みで
+ * あり、ここでは *その後* の表示文言だけを、product rule が明示的に開示を
+ * 許可した一点（「Authenticated-user targeting」節: personal schedule の
+ * 共有には Invitation のような第三者 private state がなく、対象 email が
+ * 未登録であることを owner へ知らせてよい）に絞って安全な classified な
+ * 文言へ差し替える。一致しない場合（migration の文言変更を含む）は
+ * `classifyRpcError` が自動的に generic な安全文言へ fail-closed する -
+ * この関数が「未登録」を見逃す方向にしか壊れない。
+ *
+ * 正しい長期的解決（A8 の指示どおり custom SQLSTATE を追加する）は
+ * `supabase/migrations/` の変更を要するためこの Task の scope 外
+ * （このタスクの報告に技術的負債として記録する）。
+ */
+const UNREGISTERED_RECIPIENT_EMAIL_RAW_MESSAGE =
+  "recipient email is not a registered account";
+const UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA =
+  "このメールアドレスは、Stage Trackerに登録されていません。";
+
+function resolveShareByEmailBusinessRuleMessage(
+  rawMessage: string,
+): string | undefined {
+  return rawMessage === UNREGISTERED_RECIPIENT_EMAIL_RAW_MESSAGE
+    ? UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA
+    : undefined;
+}
+
 interface RawScheduleShareRow {
   readonly id: string;
   readonly schedule_entry_id: string;
@@ -60,7 +97,21 @@ export async function addScheduleShareByEmail(
     // この呼び出し元は常に owner 本人が「共有追加」フォームから呼ぶため、
     // 現実的に起こり得るのは email 起因の入力拒否であり、`validation` を
     // 選ぶ。
-    throw classifyRpcError(error, status, "validation");
+    //
+    // `resolveShareByEmailBusinessRuleMessage`（このファイル冒頭）だけが
+    // 唯一、生メッセージを見て表示文言を選ぶ狭い exception:
+    // 「対象 email が未登録」は product rule
+    // （product-rules.md「Authenticated-user targeting」節）が owner への
+    // 開示を明示的に許可した classified な状態であり、それ以外の P0001
+    // 原因（自己共有・owner 以外からの呼び出し等）は `classifyRpcError` の
+    // generic な安全文言（`GENERIC_VALIDATION_MESSAGE_JA`）へ fail-closed
+    // する - 生メッセージそのものは決して `ActionError.message` に載らない。
+    throw classifyRpcError(
+      error,
+      status,
+      "validation",
+      resolveShareByEmailBusinessRuleMessage,
+    );
   }
 }
 

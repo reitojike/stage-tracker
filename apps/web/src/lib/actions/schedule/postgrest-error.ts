@@ -9,10 +9,14 @@ import { ActionError, type BaseActionErrorKind } from "@/lib/action-error";
  * 構造化された情報だけで判定する（read boundary の
  * `lib/data/supabase-select.ts` の `classifyPostgrestError` と対の write 版）。
  *
- * `error.message` 自体は分岐の材料にしないが、ユーザー向け表示には使う
- * （AGENTS.md「Human-facing output language」が `error / log /
- * provider-native output の引用` を翻訳不要な例外として明示しているため、
- * Postgres/PostgREST の生メッセージをそのまま引用してよい）。
+ * `error.message`（PostgREST/Postgres の生メッセージ）は `ActionError.message`
+ * （client にそのまま渡る - `action-error.ts` の doc comment、
+ * `safe-action.ts` の `toActionErrorShape` 参照）へ絶対に転記しない。M6a の
+ * PR #381 review finding 2 が read boundary の `ReadState` から生メッセージを
+ * 型で締め出したのと同じ理由で、write boundary の `ActionError.message` も
+ * 常に固定の安全な文言にする - `console.error` がサーバーログへ生詳細を
+ * 残す唯一の経路である（`./supabase-select.ts`/`classifyPostgrestError` と
+ * 同じパターン）。
  */
 const PERMISSION_DENIED_POSTGRES_CODES: ReadonlySet<string> = new Set([
   "42501",
@@ -29,6 +33,28 @@ const PERMISSION_DENIED_POSTGRES_CODES: ReadonlySet<string> = new Set([
  * （product-rules.md 由来）を write 側でも一貫させ、`not-found` へ畳み込む。
  */
 const SINGLE_ROW_NOT_MATCHED_CODE = "PGRST116";
+
+const GENERIC_FAILURE_MESSAGE_JA =
+  "処理に失敗しました。しばらくしてから再度お試しください。";
+const GENERIC_VALIDATION_MESSAGE_JA =
+  "入力内容をご確認のうえ、再度お試しください。";
+const PERMISSION_DENIED_MESSAGE_JA = "権限がありません。";
+
+/**
+ * `error.code === "P0001"` かつ `resolveBusinessRuleMessage` が一致しない
+ * 場合の generic fallback。`businessRuleKind` ごとに文言を分けるのは、
+ * 呼び出し元（`listScheduleShareRecipientEmails` 等）が
+ * `businessRuleKind: "permission-denied"` を選んだ場合にまで
+ * validation 向けの文言（「入力内容をご確認のうえ…」）を返すと、kind と
+ * 文言が食い違うため。
+ */
+function genericBusinessRuleMessage(
+  businessRuleKind: "validation" | "permission-denied",
+): string {
+  return businessRuleKind === "permission-denied"
+    ? PERMISSION_DENIED_MESSAGE_JA
+    : GENERIC_VALIDATION_MESSAGE_JA;
+}
 
 /**
  * 通常のテーブル write（INSERT/UPDATE/DELETE、`personal_schedule_entries` /
@@ -51,10 +77,18 @@ export function classifyWritePostgrestError(
     PERMISSION_DENIED_POSTGRES_CODES.has(error.code)
   ) {
     kind = "permission-denied";
-    message = "権限がありません。";
+    message = PERMISSION_DENIED_MESSAGE_JA;
   } else {
     kind = "failure";
-    message = error.message;
+    // 生の PostgREST メッセージはここでのみ console.error へ残し、
+    // ActionError.message には転記しない（このファイル冒頭の doc comment
+    // 参照）。
+    console.error("[schedule write] unclassified PostgREST error", {
+      status,
+      code: error.code,
+      message: error.message,
+    });
+    message = GENERIC_FAILURE_MESSAGE_JA;
   }
   // `<never>` を明示: `let` 変数への分岐代入は制御フロー解析で実際に
   // 代入された literal の union へ narrow されるため、`kind` の宣言型
@@ -78,11 +112,23 @@ export function classifyWritePostgrestError(
  * 「email が不正/未登録」を構造的に区別できず、本 Task の変更対象外
  * （`supabase/migrations/` は scope 外）でもあるため、`businessRuleKind`
  * を呼び出し側が1つ選んで渡す（このタスクの報告に判断として記録する）。
+ *
+ * `resolveBusinessRuleMessage` は、呼び出し元が特定の生メッセージだけを
+ * 既知の分類済み安全文言へ差し替えたい場合のための、任意の狭い exit
+ * hatch。汎用の message 文字列マッチング判定（A8 が禁止する
+ * `error.message.includes(...)` によるエラー種別自体の判定）ではなく、
+ * `error.code === "P0001"` で既に `businessRuleKind` が確定した *後*、
+ * 表示文言だけを呼び出し元の裁量で上書きするための狭いフックである。
+ * `undefined` を返す（= 呼び出し元が resolver を渡さない、または渡しても
+ * 一致しない）場合は常に `businessRuleKind` に応じた generic な安全文言
+ * （`genericBusinessRuleMessage`）にフォールバックする - fail-closed に、
+ * 生メッセージが漏れることはない。
  */
 export function classifyRpcError(
   error: PostgrestError,
   status: number,
   businessRuleKind: "validation" | "permission-denied",
+  resolveBusinessRuleMessage?: (rawMessage: string) => string | undefined,
 ): ActionError {
   let kind: BaseActionErrorKind;
   let message: string;
@@ -91,16 +137,30 @@ export function classifyRpcError(
     message = "サインインが必要です。";
   } else if (error.code === "P0001") {
     kind = businessRuleKind;
-    message = `処理を実行できませんでした（${error.message}）。`;
+    const resolved = resolveBusinessRuleMessage?.(error.message);
+    if (resolved === undefined) {
+      console.error(
+        "[schedule write] unclassified P0001 business rule rejection",
+        {
+          message: error.message,
+        },
+      );
+    }
+    message = resolved ?? genericBusinessRuleMessage(businessRuleKind);
   } else if (
     status === 403 ||
     PERMISSION_DENIED_POSTGRES_CODES.has(error.code)
   ) {
     kind = "permission-denied";
-    message = "権限がありません。";
+    message = PERMISSION_DENIED_MESSAGE_JA;
   } else {
     kind = "failure";
-    message = error.message;
+    console.error("[schedule write] unclassified PostgREST error (RPC)", {
+      status,
+      code: error.code,
+      message: error.message,
+    });
+    message = GENERIC_FAILURE_MESSAGE_JA;
   }
   return new ActionError<never>(kind, message);
 }

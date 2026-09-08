@@ -4,6 +4,7 @@ import {
   type PersonalScheduleEntryId,
 } from "@stage-tracker/domain";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { findVisibleScheduleEntry } from "../../_lib/entryLookup";
 import { classifyScheduleEntryReadResult } from "../../_lib/entryReadState";
 import { BackLink, PageHeading } from "../../_components/PageChrome";
@@ -70,11 +71,7 @@ async function EditScheduleEntryBody({
   }
   if (entryState.variant === "unavailable") {
     return (
-      <StatePanel
-        variant="unavailable"
-        title="この予定を表示できません。"
-        description={entryState.message}
-      />
+      <StatePanel variant="unavailable" title="この予定を表示できません。" />
     );
   }
   if (entryState.variant === "error") {
@@ -82,7 +79,7 @@ async function EditScheduleEntryBody({
       <StatePanel
         variant="error"
         title="予定を読み込めませんでした。"
-        description={entryState.message}
+        description={READ_FAILURE_RETRY_HINT_JA}
       />
     );
   }

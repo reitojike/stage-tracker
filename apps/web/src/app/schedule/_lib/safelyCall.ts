@@ -1,8 +1,5 @@
-import { ActionError } from "@/lib/action-error";
-
 export type SafeCallResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly message: string };
+  { readonly ok: true; readonly value: T } | { readonly ok: false };
 
 /**
  * `lib/actions/schedule/schedule-share-write.ts` の関数群は「例外で失敗を
@@ -19,6 +16,17 @@ export type SafeCallResult<T> =
  * （decisions.md「M6 が負う責任」）。このヘルパーはその場しのぎではなく、
  * 「例外で失敗を伝える write 層」と「`Result` で失敗を表現する画面表示」
  * という異なる2つの境界を、この呼び出し口だけで明示的に橋渡しする。
+ *
+ * `ok: false` は意図的に `message` を持たない（`@/lib/data/read-result.ts`
+ * の `ReadState` が `unavailable`/`error` に `message` を持たせない設計 -
+ * PR #381 review finding 2 - と同じ理由をこの feature-local な read-like
+ * ヘルパーにも揃える）。呼び出し元の Server Component はこの `ok: false`
+ * を受けて、`(app)/` 配下の read panel と同じ固定文言
+ * （`@/app/_lib/read-state.ts` の `READ_FAILURE_RETRY_HINT_JA` 等）を表示
+ * する - 投げられた `ActionError`/例外の `message`（`ActionError` 自身は
+ * 安全な文言のみを持つ設計だが、それでも画面側の variant 駆動 copy を
+ * 経由させ、`description={...message}` という形自体を作らない）は
+ * `console.error` でサーバーログにのみ残す。
  */
 export async function safelyCall<T>(
   fn: () => Promise<T>,
@@ -26,10 +34,7 @@ export async function safelyCall<T>(
   try {
     return { ok: true, value: await fn() };
   } catch (thrown) {
-    if (thrown instanceof ActionError) {
-      return { ok: false, message: thrown.message };
-    }
-    console.error(thrown);
-    return { ok: false, message: "予期しないエラーが発生しました。" };
+    console.error("[schedule] safelyCall caught an exception", thrown);
+    return { ok: false };
   }
 }

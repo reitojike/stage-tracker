@@ -1,41 +1,48 @@
 import type { PersonalScheduleEntry } from "@stage-tracker/domain";
-import type { ReadError, ReadResult } from "@/lib/data";
+import {
+  classifyReadResult,
+  type ReadResult,
+  type ReadState,
+} from "@/lib/data";
 
 /**
  * `/schedule/[entryId]` と `/schedule/[entryId]/edit` が `StatePanel` の
- * どの variant を描画するかを決める、この画面専用の1件版
- * 分類関数。`lib/data/read-result.ts` の `classifyListReadResult`
- * （一覧版）と同じ考え方を単一 nullable 値へ適用したもの - `lib/data/` は
- * 変更禁止のため複製するが、ロジック自体は `ReadError.kind` →
- * unavailable/error の写像という同じ1行に揃えている
- * （decisions.md「M6 が負う責任」節）。
+ * どの variant を描画するかを決める、この画面専用の1件版分類。
+ *
+ * PR #381 review finding 3（「同じ deterministic semantics を複数箇所に
+ * 散らさない」）を受け、`@/lib/data` の `classifyReadResult`/
+ * `toReadErrorVariant` - この codebase 全体で唯一の unavailable/error/empty
+ * 判定 primitive - の上に載る薄い adapter として書き直した。以前の実装は
+ * `ReadError.kind` → unavailable/error の写像を独自にここで再実装しており
+ * （`toUnavailableOrError`）、`ReadState`/`ReadError` 型が持たない `message`
+ * フィールドをこの型だけ独自に持たせていた（PR #381 review finding 2:
+ * `unavailable`/`error` は生の PostgREST メッセージを画面へ運ぶ手段を型で
+ * 塞ぐ - `@/lib/data/read-result.ts` 参照）。この adapter は
+ * `ScheduleEntryReadState`/`ReadState<PersonalScheduleEntry>` を分離した
+ * 型として保たず、そのままの alias にして二重管理をやめる。
+ *
+ * ここに残る schedule 固有のロジックは1点だけ: `PersonalScheduleEntry |
+ * null` の `null`（`_lib/entryLookup.ts` の doc comment のとおり「そもそも
+ * 存在しない entry」と「存在するが自分に見えない（非公開）entry」を RLS が
+ * 区別できないため意図的に一体化した empty）を `classifyReadResult` の
+ * `isEmpty` へそのまま渡すことだけで、kind → variant の写像そのものは
+ * 一切複製しない。
  */
-export type ScheduleEntryReadState =
-  | { readonly variant: "unavailable"; readonly message: string }
-  | { readonly variant: "error"; readonly message: string }
-  | { readonly variant: "empty" }
-  | { readonly variant: "populated"; readonly data: PersonalScheduleEntry };
-
-function toUnavailableOrError(
-  kind: ReadError["kind"],
-): "unavailable" | "error" {
-  return kind === "failure" ? "error" : "unavailable";
-}
+export type ScheduleEntryReadState = ReadState<PersonalScheduleEntry>;
 
 export function classifyScheduleEntryReadResult(
   result: ReadResult<PersonalScheduleEntry | null>,
 ): ScheduleEntryReadState {
-  if (!result.ok) {
-    return {
-      variant: toUnavailableOrError(result.error.kind),
-      message: result.error.message,
-    };
-  }
-  // `result.value === null` は「そもそも存在しない」と「存在するが自分に
-  // 見えない（非公開）」の両方を表す - `_lib/entryLookup.ts` の doc
-  // comment のとおり意図的に一体化された `empty` である。
-  if (result.value === null) {
-    return { variant: "empty" };
-  }
-  return { variant: "populated", data: result.value };
+  const state = classifyReadResult(
+    result,
+    (value) => value,
+    (value) => value === null,
+  );
+  // `isEmpty` 上記のとおり `value === null` を `empty` へ倒すため、
+  // `variant === "populated"` の場合の `data` は実行時には常に非 null。
+  // `classifyReadResult` は `isEmpty` の中身を型レベルで追跡できない
+  // ジェネリック関数のため、ここで明示的に narrow する。
+  return state.variant === "populated"
+    ? { variant: "populated", data: state.data as PersonalScheduleEntry }
+    : state;
 }

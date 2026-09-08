@@ -14,36 +14,36 @@ describe("classifyScheduleEntryReadResult", () => {
     );
   });
 
-  it("classifies a successful fetch with null (not found in the visible list) as empty - never as unavailable/error", () => {
+  it("classifies a successful fetch with null (not found or invisible) as empty - never as unavailable/error", () => {
     expect(classifyScheduleEntryReadResult({ ok: true, value: null })).toEqual({
       variant: "empty",
     });
   });
 
-  it("classifies unauthenticated as unavailable, never empty", () => {
+  it("classifies unauthenticated as unavailable, never empty, and never carries a message (PR #381 review finding 2)", () => {
     expect(
       classifyScheduleEntryReadResult({
         ok: false,
         error: { kind: "unauthenticated", message: "サインインが必要です。" },
       }),
-    ).toEqual({ variant: "unavailable", message: "サインインが必要です。" });
+    ).toEqual({ variant: "unavailable" });
   });
 
-  it("classifies permission-denied as unavailable, never empty", () => {
+  it("classifies permission-denied as unavailable, never empty, and never carries a message", () => {
     expect(
       classifyScheduleEntryReadResult({
         ok: false,
         error: { kind: "permission-denied", message: "権限がありません。" },
       }),
-    ).toEqual({ variant: "unavailable", message: "権限がありません。" });
+    ).toEqual({ variant: "unavailable" });
   });
 
-  it("classifies a generic failure as error, never empty", () => {
+  it("classifies a generic failure as error, never empty, and never carries a message", () => {
     expect(
       classifyScheduleEntryReadResult({
         ok: false,
         error: { kind: "failure", message: "予期しないエラーです。" },
       }),
-    ).toEqual({ variant: "error", message: "予期しないエラーです。" });
+    ).toEqual({ variant: "error" });
   });
 });
