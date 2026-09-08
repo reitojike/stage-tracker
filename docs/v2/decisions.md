@@ -973,8 +973,16 @@ cookie を渡さない（読みも書きもしない）ようにすると:
 いるのはこの factory である。この層の違いはコード上のコメントにも書く。
 
 `proxy.ts` は `@supabase/ssr` の `createServerClient` を自前で構成するため
-この factory を通らない。そちらは引き続き明示の判定を持つ。**session cookie
-を Supabase へ渡す構成箇所は 2 つだけ**であり、消費側の数とは無関係に一定。
+この factory を通らない。**そちらにも同じ遮断を入れる。**
+
+当初 proxy 側は `getUser()` の結果を後から `authenticated = false` にする
+だけだったが、**それでは接続そのものは起きている** —— cookie を渡した状態で
+`getUser()` を実行し、refresh 時には `setAll()` で新しい cookie まで発行して
+しまう（PR #386 review で指摘。自分で「2 箇所」と書きながら片方しか同じ機構に
+していなかった）。判定を変えるのではなく cookie を渡さない。
+
+**session cookie を Supabase へ渡す構成箇所は 2 つだけ**であり、消費側の数とは
+無関係に一定。この 2 つが同じ機構であることが、この設計が成立する条件である。
 
 ### 教訓
 

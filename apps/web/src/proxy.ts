@@ -28,15 +28,22 @@ function copyCookies(from: NextResponse, to: NextResponse): void {
  * cookie 書き込みに失敗しても安全なのは、この層が毎リクエストで refresh
  * を担保しているため。
  *
- * Preview（`isPreviewDeployment`、`src/lib/auth/vercel-environment.ts`）
- * では、有効な session cookie があっても常に未認証として扱う。安定した
- * branch URL に以前のデプロイで発行された cookie が新しい deployment でも
- * 受理され続けてしまう経路（Codex P1、`docs/v2/decisions.md`）を塞ぐ。
- * token の refresh 自体は行ってよいため `getUser()` の呼び出しは変えず、
- * その結果を認証済み判定へ反映する箇所だけを preview で無効化する。
+ * ## Preview では session cookie を Supabase へ渡さない
+ *
+ * `src/lib/supabase/server.ts` と同じ機構（`docs/v2/decisions.md` A24）。
+ * server 側で session cookie を Supabase へ渡す構成箇所は、その factory と
+ * **この proxy の 2 つだけ**であり、両方で同じ遮断を行って初めて
+ * 「Preview は Production Supabase へ authenticated 接続しない」が成立する。
+ *
+ * 当初ここは `getUser()` の結果を後から `authenticated = false` にする
+ * だけだった。それでは**接続そのものは起きている** —— cookie を渡した状態で
+ * `getUser()` を実行し、refresh 時には `setAll()` で新しい cookie まで
+ * 発行してしまう（PR #386 review, Codex）。判定を変えるのではなく、
+ * cookie を渡さない。
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
+  const previewDeployment = isPreviewDeployment();
 
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -44,9 +51,14 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          // preview では session を一切渡さない（上記コメント参照）。
+          return previewDeployment ? [] : request.cookies.getAll();
         },
         setAll(cookiesToSet, headers) {
+          if (previewDeployment) {
+            // preview では session cookie を発行しない。
+            return;
+          }
           for (const { name, value } of cookiesToSet) {
             request.cookies.set(name, value);
           }
@@ -65,7 +77,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const authenticated = user !== null && !isPreviewDeployment();
+  // preview では上の cookie adapter が session を渡さないため `user` は
+  // 常に null になる。`previewDeployment` を再度見ないのは、判定を
+  // 二重化して「片方だけ古い」状態を作らないため。
+  const authenticated = user !== null;
   const { pathname } = request.nextUrl;
 
   if (!authenticated && !isPublicPath(pathname)) {
