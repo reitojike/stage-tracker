@@ -702,10 +702,9 @@ decline のページを見られるのは invitee 本人だけなので、既存
 
 ### PO 判断
 
-**M6d では decline のみ実装する。** undo は Issue #382 で復元 RPC を追加して対応する。
-
-M6d の `undoDeclineInvitationAction` は配線済みだが、**成功を装わず分類済みの
-`failure` を返す**状態にしてある。動かないものを動くように見せない。
+**M6d（未マージ）では decline のみ実装し、undo は Issue #382 で対応する予定。**
+実装状況の正本は `docs/prd.md` と `docs/roadmap.md`。この節は決定の記録であって
+実装完了の記録ではない。M6d は別ブランチであり、この時点の main には含まれない。
 
 ### この判断の含意
 
