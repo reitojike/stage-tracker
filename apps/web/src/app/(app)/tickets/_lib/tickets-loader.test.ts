@@ -33,7 +33,10 @@ describe("loadTicketsTimeline", () => {
 
     const state = await loadTicketsTimeline(createTestClient(), USER_ID, NOW);
 
-    expect(state).toEqual({ variant: "empty" });
+    expect(state).toEqual({
+      block: { variant: "empty" },
+      optional: { ok: true },
+    });
   });
 
   it("groups a populated timeline by month", async () => {
@@ -84,11 +87,12 @@ describe("loadTicketsTimeline", () => {
 
     const state = await loadTicketsTimeline(createTestClient(), USER_ID, NOW);
 
-    expect(state.variant).toBe("populated");
-    if (state.variant === "populated") {
-      expect(state.data.groups).toHaveLength(1);
-      expect(state.data.groups[0]?.monthKey).toBe("2026-03");
-      expect(state.data.groups[0]?.rows[0]?.myState).toBe("planned");
+    expect(state.block.variant).toBe("populated");
+    expect(state.optional).toEqual({ ok: true });
+    if (state.block.variant === "populated") {
+      expect(state.block.data.groups).toHaveLength(1);
+      expect(state.block.data.groups[0]?.monthKey).toBe("2026-03");
+      expect(state.block.data.groups[0]?.rows[0]?.myState).toBe("planned");
     }
   });
 
@@ -107,15 +111,22 @@ describe("loadTicketsTimeline", () => {
 
     const state = await loadTicketsTimeline(createTestClient(), USER_ID, NOW);
 
-    expect(state.variant).toBe("unavailable");
+    expect(state.block.variant).toBe("unavailable");
   });
 
-  it("stays populated from the shared timeline even when the personal-state read fails (P4 read-level degradation)", async () => {
+  it("stays populated from the shared timeline even when the personal-state read fails, and reports the personal-state read's own failure separately (P4 read-level degradation)", async () => {
     // PR #381 review finding 1: `listTicketOpportunities` is required,
     // `listMyTicketOpportunityStates` is optional (`classifyBlock2Optional`,
     // same shape as home's "申し込み期限" block) - the shared timeline must
-    // still render (with no `myState` badge) when only the personal-state
-    // read fails.
+    // still render (with no trustworthy `myState` per row) when only the
+    // personal-state read fails.
+    //
+    // PR #381 P4 follow-up review finding 2: `state.optional` must expose
+    // that failure separately from `state.block` - every row's `myState` is
+    // `null` either way, so a caller reading only `block` cannot tell "no
+    // personal state exists" apart from "the personal-state read failed",
+    // and `TicketsView` needs that distinction to render "不明" instead of
+    // silently omitting the badge.
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
         HttpResponse.json([
@@ -157,10 +168,11 @@ describe("loadTicketsTimeline", () => {
 
     const state = await loadTicketsTimeline(createTestClient(), USER_ID, NOW);
 
-    expect(state.variant).toBe("populated");
-    if (state.variant === "populated") {
-      expect(state.data.groups).toHaveLength(1);
-      expect(state.data.groups[0]?.rows[0]?.myState).toBeNull();
+    expect(state.block.variant).toBe("populated");
+    if (state.block.variant === "populated") {
+      expect(state.block.data.groups).toHaveLength(1);
+      expect(state.block.data.groups[0]?.rows[0]?.myState).toBeNull();
     }
+    expect(state.optional).toEqual({ ok: false, variant: "error" });
   });
 });

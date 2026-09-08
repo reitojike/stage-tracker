@@ -24,7 +24,8 @@ import {
 import {
   classifyBlock2Optional,
   classifyMergedListBlock2,
-  type BlockState,
+  type MergedListBlockState,
+  type OptionalPartBlockState,
 } from "@/app/_lib/read-state";
 import type { ScreenNow } from "@/app/_lib/now";
 
@@ -69,17 +70,24 @@ export interface HomeTicketDeadlineRow {
  * `listTicketOpportunities` is the **required** read here and
  * `listMyTicketOpportunityStates` is **optional**
  * (`classifyBlock2Optional`, PR #381 review finding 1): if only the
- * personal-state read fails, this still renders every opportunity with no
- * `myState` badge (identical to a caller with 0 rows in that table -
+ * personal-state read fails, `block` still renders every opportunity with
+ * `myState: null` per row (identical to a caller with 0 rows in that table -
  * `buildTicketOpportunityAggregates`'s own docstring), rather than hiding
  * the whole block. If the shared catalog read itself fails, there is no
- * opportunity data to show at all, so the block reports that failure.
+ * opportunity data to show at all, so `block` reports that failure.
+ *
+ * The returned `optional` field (PR #381 P4 follow-up review finding 2)
+ * always reflects `listMyTicketOpportunityStates`'s own real status, so
+ * `../_components/HomeView.tsx` can tell "no personal state for any row"
+ * apart from "the personal-state read failed" - the 2 cases that collapse to
+ * the exact same `block.data` shape (`myState: null` everywhere) and would
+ * otherwise be indistinguishable to a screen that only looked at `block`.
  */
 export async function loadHomeTicketDeadlines(
   supabase: SupabaseClient,
   userId: UserId,
   now: ScreenNow,
-): Promise<BlockState<readonly HomeTicketDeadlineRow[]>> {
+): Promise<OptionalPartBlockState<readonly HomeTicketDeadlineRow[]>> {
   const [opportunitiesResult, statesResult] = await Promise.all([
     listTicketOpportunities(supabase),
     listMyTicketOpportunityStates(supabase, userId),
@@ -169,14 +177,22 @@ function compareUpcomingItems(
  * the other - both independently contribute their own items to the merged
  * list. `classifyMergedListBlock2` (PR #381 review finding 1) therefore
  * degrades per-read: if either `listMyParticipations` or
- * `listVisiblePersonalSchedule` fails alone, this still renders the
- * surviving read's upcoming items rather than hiding the whole block.
+ * `listVisiblePersonalSchedule` fails alone, this still returns a `"partial"`
+ * `MergedListBlockState` built from the surviving read's upcoming items
+ * rather than hiding the whole block.
+ *
+ * `"partial"` is reported instead of `"empty"` even when the surviving
+ * read's own items happen to be empty (PR #381 P4 follow-up review finding
+ * 1) - `../_components/HomeView.tsx` renders that failed side's own "読み込
+ * めませんでした" note next to whatever the surviving side produced, instead
+ * of the failure disappearing into the same "直近の予定はありません" panel a
+ * caller would see with no failure at all.
  */
 export async function loadHomeUpcomingSchedule(
   supabase: SupabaseClient,
   userId: UserId,
   now: ScreenNow,
-): Promise<BlockState<readonly HomeUpcomingItem[]>> {
+): Promise<MergedListBlockState<readonly HomeUpcomingItem[]>> {
   const [participationsResult, scheduleResult] = await Promise.all([
     listMyParticipations(supabase, userId),
     listVisiblePersonalSchedule(supabase),

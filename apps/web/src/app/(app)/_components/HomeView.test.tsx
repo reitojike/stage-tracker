@@ -12,49 +12,58 @@ import {
   ticketOpportunityMilestoneIdSchema,
   userIdSchema,
 } from "@stage-tracker/domain";
-import type { BlockState } from "@/app/_lib/read-state";
+import type {
+  MergedListBlockState,
+  OptionalPartBlockState,
+} from "@/app/_lib/read-state";
 import type {
   HomeTicketDeadlineRow,
   HomeUpcomingItem,
 } from "../_lib/home-loader";
 import { HomeView } from "./HomeView";
 
-const EMPTY_TICKET: BlockState<readonly HomeTicketDeadlineRow[]> = {
-  variant: "empty",
+const EMPTY_TICKET: OptionalPartBlockState<readonly HomeTicketDeadlineRow[]> = {
+  block: { variant: "empty" },
+  optional: { ok: true },
 };
-const EMPTY_SCHEDULE: BlockState<readonly HomeUpcomingItem[]> = {
+const EMPTY_SCHEDULE: MergedListBlockState<readonly HomeUpcomingItem[]> = {
   variant: "empty",
 };
 
-const POPULATED_TICKET: BlockState<readonly HomeTicketDeadlineRow[]> = {
-  variant: "populated",
-  data: [
-    {
-      row: {
+const POPULATED_TICKET_ROWS: readonly HomeTicketDeadlineRow[] = [
+  {
+    row: {
+      opportunityId: ticketOpportunityIdSchema.parse(
+        "44444444-4444-4444-8444-444444444444",
+      ),
+      eventId: eventIdSchema.parse("22222222-2222-4222-8222-222222222222"),
+      displayName: "一般発売",
+      milestone: {
+        id: ticketOpportunityMilestoneIdSchema.parse(
+          "55555555-5555-4555-8555-555555555555",
+        ),
         opportunityId: ticketOpportunityIdSchema.parse(
           "44444444-4444-4444-8444-444444444444",
         ),
-        eventId: eventIdSchema.parse("22222222-2222-4222-8222-222222222222"),
-        milestone: {
-          id: ticketOpportunityMilestoneIdSchema.parse(
-            "55555555-5555-4555-8555-555555555555",
-          ),
-          opportunityId: ticketOpportunityIdSchema.parse(
-            "44444444-4444-4444-8444-444444444444",
-          ),
-          milestoneType: "sale_start",
-          temporalPrecision: "datetime",
-          at: instantSchema.parse("2026-03-10T10:00:00Z"),
-          createdAt: instantSchema.parse("2026-01-01T00:00:00Z"),
-          updatedAt: instantSchema.parse("2026-01-01T00:00:00Z"),
-        },
-        sortInstant: instantSchema.parse("2026-03-10T10:00:00Z"),
-        myState: "planned",
-        isFirstRowForOpportunity: true,
-        isPostFinalRetainedHistory: false,
+        milestoneType: "sale_start",
+        temporalPrecision: "datetime",
+        at: instantSchema.parse("2026-03-10T10:00:00Z"),
+        createdAt: instantSchema.parse("2026-01-01T00:00:00Z"),
+        updatedAt: instantSchema.parse("2026-01-01T00:00:00Z"),
       },
+      sortInstant: instantSchema.parse("2026-03-10T10:00:00Z"),
+      myState: "planned",
+      isFirstRowForOpportunity: true,
+      isPostFinalRetainedHistory: false,
     },
-  ],
+  },
+];
+
+const POPULATED_TICKET: OptionalPartBlockState<
+  readonly HomeTicketDeadlineRow[]
+> = {
+  block: { variant: "populated", data: POPULATED_TICKET_ROWS },
+  optional: { ok: true },
 };
 
 const event = eventSchema.parse({
@@ -92,7 +101,7 @@ const participation = participationSchema.parse({
   updatedAt: "2026-01-01T00:00:00Z",
 });
 
-const POPULATED_SCHEDULE: BlockState<readonly HomeUpcomingItem[]> = {
+const POPULATED_SCHEDULE: MergedListBlockState<readonly HomeUpcomingItem[]> = {
   variant: "populated",
   data: [
     {
@@ -122,7 +131,10 @@ describe("HomeView", () => {
   it("renders each block's own error/unavailable panel independently when only one fails (P4)", () => {
     render(
       <HomeView
-        ticketState={{ variant: "error" }}
+        ticketState={{
+          block: { variant: "error" },
+          optional: { ok: true },
+        }}
         scheduleState={POPULATED_SCHEDULE}
       />,
     );
@@ -138,7 +150,10 @@ describe("HomeView", () => {
   it("renders the unavailable variant distinctly from error", () => {
     render(
       <HomeView
-        ticketState={{ variant: "unavailable" }}
+        ticketState={{
+          block: { variant: "unavailable" },
+          optional: { ok: true },
+        }}
         scheduleState={EMPTY_SCHEDULE}
       />,
     );
@@ -171,5 +186,107 @@ describe("HomeView", () => {
     );
 
     expect(screen.getByText("直近の予定はありません")).toBeInTheDocument();
+  });
+
+  /**
+   * PR #381 P4 follow-up review finding 2: a failed personal-state read must
+   * never be indistinguishable from every row genuinely having no personal
+   * state - the badge must say "不明", not silently disappear.
+   */
+  it("renders the ticket-state badge as 不明, not omitted, when the personal-state read fails", () => {
+    render(
+      <HomeView
+        ticketState={{
+          block: { variant: "populated", data: POPULATED_TICKET_ROWS },
+          optional: { ok: false, variant: "error" },
+        }}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(screen.getByText("不明")).toBeInTheDocument();
+    // The row's own (fallback-derived) `myState` badge must not appear
+    // alongside/instead of 不明 - "不明" replaces it, it does not merely
+    // supplement it.
+    expect(screen.queryByText("申し込む予定")).not.toBeInTheDocument();
+    // The failure is also surfaced as its own inline note, not just via the
+    // badge - the block itself keeps rendering (title copy is never
+    // replaced by a StatePanel just because the optional read failed).
+    expect(
+      screen.getByText("申し込み状態を取得できませんでした"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the personal-state failure note when the optional read succeeds", () => {
+    render(
+      <HomeView
+        ticketState={POPULATED_TICKET}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(
+      screen.queryByText("申し込み状態を取得できませんでした"),
+    ).not.toBeInTheDocument();
+  });
+
+  /**
+   * PR #381 P4 follow-up review finding 1: "1 read fails + the surviving
+   * read succeeds with 0 rows" must render as `partial` (surfacing the
+   * failure), never as the same `empty` panel a caller would see with no
+   * failure at all.
+   */
+  it("renders the surviving schedule item and a failure note (not an empty panel) when participations fails and personal schedule alone is populated", () => {
+    render(
+      <HomeView
+        ticketState={EMPTY_TICKET}
+        scheduleState={{
+          variant: "partial",
+          data: [
+            {
+              kind: "occurrence",
+              sortInstant: occurrence.startsAt,
+              participation,
+              occurrence,
+              event,
+            },
+          ],
+          a: { ok: false, variant: "error" },
+          b: { ok: true },
+        }}
+      />,
+    );
+
+    // The surviving read's real data still renders...
+    expect(screen.getByText("テスト公演")).toBeInTheDocument();
+    // ...and the failed read's own failure is visible, not silently hidden.
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "参加予定を読み込めませんでした",
+    );
+    expect(
+      screen.queryByText("直近の予定はありません"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders only the failure note (no empty panel) when participations fails and personal schedule alone succeeds with 0 rows", () => {
+    render(
+      <HomeView
+        ticketState={EMPTY_TICKET}
+        scheduleState={{
+          variant: "partial",
+          data: [],
+          a: { ok: false, variant: "unavailable" },
+          b: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("参加予定を確認できません")).toBeInTheDocument();
+    // Never the same panel a genuine "both succeeded with 0 rows" empty
+    // state would show - that would hide the real, unresolved failure.
+    expect(
+      screen.queryByText("直近の予定はありません"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

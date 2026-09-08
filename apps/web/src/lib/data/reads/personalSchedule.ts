@@ -1,9 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PersonalScheduleEntry } from "@stage-tracker/domain";
-import {
-  mapPersonalScheduleEntryRow,
-  type PersonalScheduleEntryRow,
-} from "../mappers/scheduleEntryRow";
+import type { Database } from "../database.types";
+import { mapPersonalScheduleEntryRow } from "../mappers/scheduleEntryRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
 import { runSupabaseSelect } from "../supabase-select";
@@ -33,12 +31,9 @@ import { runSupabaseSelect } from "../supabase-select";
  * 記録する）。
  */
 export async function listVisiblePersonalSchedule(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly PersonalScheduleEntry[]>> {
-  const query = client
-    .from("personal_schedule_entries")
-    .select("*")
-    .overrideTypes<PersonalScheduleEntryRow[]>();
+  const query = client.from("personal_schedule_entries").select("*");
 
   const rowsResult = await runSupabaseSelect(query);
   if (!rowsResult.ok) {

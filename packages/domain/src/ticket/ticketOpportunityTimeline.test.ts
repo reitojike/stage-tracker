@@ -205,6 +205,7 @@ describe('buildTicketOpportunityTimelineRows', () => {
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [
           dateMilestone(1, 'application_open', '2026-03-05'),
           dateMilestone(2, 'application_close', '2026-03-10'),
@@ -214,6 +215,7 @@ describe('buildTicketOpportunityTimelineRows', () => {
       {
         opportunityId: oppId(2),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(3, 'result_announcement', '2026-03-07')],
         myState: null,
       },
@@ -231,6 +233,7 @@ describe('buildTicketOpportunityTimelineRows', () => {
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [
           dateMilestone(1, 'application_close', '2026-03-10'),
           dateMilestone(2, 'application_open', '2026-03-05'),
@@ -249,6 +252,7 @@ describe('buildTicketOpportunityTimelineRows', () => {
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [
           dateMilestone(1, 'application_open', '2026-03-05'),
           dateMilestone(2, 'application_close', '2026-03-10'),
@@ -260,9 +264,37 @@ describe('buildTicketOpportunityTimelineRows', () => {
     expect(rows.every((row) => row.myState === 'applied')).toBe(true);
   });
 
+  it('carries displayName per row, disambiguating two Opportunities that would otherwise collapse to the same "milestone type + date" (PR #381 review finding 2)', () => {
+    const aggregates: TicketOpportunityAggregate[] = [
+      {
+        opportunityId: oppId(1),
+        eventId,
+        displayName: 'FC先行',
+        milestones: [dateMilestone(1, 'application_close', '2026-03-10')],
+        myState: null,
+      },
+      {
+        opportunityId: oppId(2),
+        eventId,
+        displayName: '一般発売',
+        milestones: [dateMilestone(2, 'application_close', '2026-03-10')],
+        myState: null,
+      },
+    ];
+    const rows = buildTicketOpportunityTimelineRows(aggregates);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.displayName)).toEqual(['FC先行', '一般発売']);
+  });
+
   it('produces no rows for an opportunity the source gave no milestones for (never fabricates a placeholder row)', () => {
     const aggregates: TicketOpportunityAggregate[] = [
-      { opportunityId: oppId(1), eventId, milestones: [], myState: null },
+      {
+        opportunityId: oppId(1),
+        eventId,
+        displayName: 'FC先行',
+        milestones: [],
+        myState: null,
+      },
     ];
     expect(buildTicketOpportunityTimelineRows(aggregates)).toEqual([]);
   });
@@ -277,6 +309,7 @@ describe('selectTicketOpportunityPrimaryRows - non-past preference', () => {
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [
           dateMilestone(1, 'application_open', '2026-03-01'), // past
           dateMilestone(2, 'application_close', '2026-03-10'), // non-past
@@ -297,6 +330,7 @@ describe('selectTicketOpportunityPrimaryRows - non-past preference', () => {
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(1, 'application_close', '2026-01-01')],
         myState: 'applied',
       },
@@ -313,6 +347,7 @@ describe('selectTicketOpportunityPrimaryRows - post-final retention boundary', (
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(1, 'application_close', '2026-03-01')],
         myState: 'applied',
       },
@@ -331,6 +366,7 @@ describe('selectTicketOpportunityPrimaryRows - post-final retention boundary', (
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(1, 'application_close', '2026-03-01')],
         myState: 'applied',
       },
@@ -355,6 +391,7 @@ describe('selectTicketOpportunityPrimaryRows - final row tracked by final day, n
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [
           windowMilestone(1, 'payment_window', '2026-03-01T00:00:00Z', '2026-03-20T00:00:00Z'),
           dateMilestone(2, 'application_close', '2026-03-05'),
@@ -379,12 +416,14 @@ describe('selectTicketOpportunityPrimaryRows - result re-sorted chronologically'
     const currentAggregate: TicketOpportunityAggregate = {
       opportunityId: oppId(1),
       eventId,
+      displayName: 'FC先行',
       milestones: [dateMilestone(1, 'application_close', '2026-03-15')],
       myState: 'planned',
     };
     const retainedAggregate: TicketOpportunityAggregate = {
       opportunityId: oppId(2),
       eventId,
+      displayName: 'FC先行',
       milestones: [dateMilestone(2, 'application_close', '2026-03-01')],
       myState: 'applied',
     };
@@ -404,6 +443,7 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [
           dateMilestone(1, 'application_open', '2026-03-01'),
           dateMilestone(2, 'application_close', '2026-03-10'),
@@ -413,6 +453,7 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
       {
         opportunityId: oppId(2),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(3, 'sale_start', '2026-04-01')],
         myState: null,
       },
@@ -435,6 +476,7 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
       {
         opportunityId: oppId(1),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(1, 'application_open', '2026-03-01')],
         myState: null,
       },
@@ -443,6 +485,7 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
       {
         opportunityId: oppId(2),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(2, 'application_open', '2026-04-01')],
         myState: null,
       },
@@ -451,6 +494,7 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
       {
         opportunityId: oppId(3),
         eventId,
+        displayName: 'FC先行',
         milestones: [dateMilestone(3, 'application_open', '2026-03-15')],
         myState: null,
       },

@@ -711,9 +711,10 @@ decline のページを見られるのは invitee 本人だけなので、既存
 **「押し間違いを直後に取り消せる仕組みはほしい」という PO の要望は、
 Issue #382 が完了するまで満たされない。** cutover 前に対応すること。
 
-P3 で決めた「decline は即座に確定させる」部分は M6d で実装済みであり、
-現行の「8 秒タイマーで確定（タブを閉じると pending が残り得る）」という
-バグは解消されている。undo が無い状態は、現行より悪くはならない。
+P3 で決めた「decline は即座に確定させる」部分は、未マージの M6d ブランチで
+実装する予定の範囲に含まれる。それがマージされれば、現行 legacy の
+「8 秒タイマーで確定（タブを閉じると pending が残り得る）」というバグは
+解消される。undo が無い状態は、現行より悪くはならない。
 
 ---
 
@@ -753,3 +754,43 @@ M6a は `(app)` route group を作ったが、「以降の authenticated route �
 
 同種の抜けが `packages/ui` の shadcn 生成先でも起きかけた（あちらは
 「共有すべきと分かった時点で手動昇格」と運用を明記して回避した）。
+
+---
+
+## A22: 生成 Supabase 型は 2 箇所へ機械的に書き出す（2026-09-08）
+
+**決定: `pnpm run supabase:types` は同じ生成結果を 2 つのパスへ書き、
+`supabase:types:check` は両方を byte-exact で検証する。**
+
+- `apps/legacy-web/src/infrastructure/supabase/database.types.ts`
+- `apps/web/src/lib/data/database.types.ts`
+
+### なぜ複製するのか
+
+`apps/web` の ESLint boundary（`apps/web/eslint.config.mjs`）が
+`apps/legacy-web` からの import を一律禁止している。これは「legacy は
+仕様の出典であって import 元ではない」という v2 の前提そのものなので、
+生成型のためだけに穴を開けない。
+
+### なぜ手動コピーではだめか
+
+最初の実装は legacy 側のファイルを手でコピーし、ヘッダーコメントに
+「手動で同期する運用」と書いていた。これは Codex の指摘
+（「生成型を read boundary に接続せよ」）が防ごうとしていた drift を、
+別の場所に作り直しているだけだった。**同期を運用規律に委ねた時点で、
+migration との乖離は typecheck でも CI でも検出されない。**
+
+生成スクリプトと drift チェッカーの両方を複数パス対応にし、
+`apps/web/.prettierignore` へ生成物を追加して byte 一致を保てるようにした。
+
+### 発火することの確認
+
+生成コマンド部分だけを差し替えたプローブで、`apps/web` 側だけを 1 行
+変更した状態を検出して exit 1 することを確認した（同期済みなら exit 0、
+`2 committed copies` と報告する）。CI では Verify / Database の
+`supabase:types:check` が実 DB に対してこれを実行する。
+
+### 解消時期
+
+legacy-web を cutover で削除した時点でこの複製は消える。それまでの
+暫定として、複製そのものではなく**複製が機械的であること**を担保する。

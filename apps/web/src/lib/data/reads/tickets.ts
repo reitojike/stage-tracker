@@ -12,13 +12,13 @@ import {
   type UserId,
   type UserTicketOpportunityState,
 } from "@stage-tracker/domain";
+import type { Database } from "../database.types";
 import {
   mapTicketOpportunityMilestoneRow,
   mapTicketOpportunityRow,
   mapUserTicketOpportunityStateRow,
   type TicketOpportunityMilestoneRow,
   type TicketOpportunityRow,
-  type UserTicketOpportunityStateRow,
 } from "../mappers/ticketRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
@@ -95,14 +95,13 @@ function mapTicketOpportunityListRow(
  * 失敗しても、他方は独立して表示継続できるようにするため。
  */
 export async function listTicketOpportunities(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly TicketOpportunityDetail[]>> {
   const query = client
     .from("ticket_opportunities")
     .select(
       "*, ticket_opportunity_target_occurrences(occurrence_id), ticket_opportunity_milestones(*)",
-    )
-    .overrideTypes<TicketOpportunityListRow[]>();
+    );
 
   const rowsResult = await runSupabaseSelect(query);
   if (!rowsResult.ok) {
@@ -119,14 +118,13 @@ export async function listTicketOpportunities(
  * ない。
  */
 export async function listMyTicketOpportunityStates(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly UserTicketOpportunityState[]>> {
   const query = client
     .from("user_ticket_opportunity_states")
     .select("*")
-    .eq("user_id", userId)
-    .overrideTypes<UserTicketOpportunityStateRow[]>();
+    .eq("user_id", userId);
 
   const rowsResult = await runSupabaseSelect(query);
   if (!rowsResult.ok) {
@@ -157,6 +155,13 @@ export function buildTicketOpportunityAggregates(
   return opportunities.map((detail) => ({
     opportunityId: detail.opportunityWithTargets.opportunity.id,
     eventId: detail.opportunityWithTargets.opportunity.eventId,
+    // PR #381 review finding 2: displayName は timeline row まで運ばれ、
+    // 同日に複数の同種 milestone（例: 複数 Opportunity の
+    // application_close）があっても行を判別できるようにする
+    // (`TicketsView.tsx`/`home-loader.ts` 側で実際に表示するかどうかは
+    // 別 Task の scope - このタスクの報告に記載のとおり `eventTitle`
+    // 相当の追加 join は見送った)。
+    displayName: detail.opportunityWithTargets.opportunity.displayName,
     milestones: detail.milestones,
     myState:
       myStateByOpportunityId.get(

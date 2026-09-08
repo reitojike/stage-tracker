@@ -10,8 +10,17 @@ import path from 'node:path';
 // (see root package.json's supabase:types, which must stay root-rooted so
 // `supabase gen types` resolves supabase/config.toml), while the generated
 // file itself lives under this app package.
-const committedPath = path.resolve('apps/legacy-web/src/infrastructure/supabase/database.types.ts');
-const tempPath = `${committedPath}.tmp`;
+// Two committed copies, byte-identical. apps/web cannot import the
+// legacy-web one: its ESLint boundary (apps/web/eslint.config.mjs) forbids
+// every import from apps/legacy-web, which is what keeps the v2 rewrite
+// oracle-driven. Writing the generator output to both paths keeps the
+// duplication mechanical rather than hand-synced; check-supabase-types-drift.mjs
+// verifies both. The duplication disappears when legacy-web is removed at
+// cutover (docs/v2/decisions.md).
+const committedPaths = [
+  path.resolve('apps/legacy-web/src/infrastructure/supabase/database.types.ts'),
+  path.resolve('apps/web/src/lib/data/database.types.ts'),
+];
 
 // Windows can only launch node_modules/.bin's supabase.cmd shim through a
 // shell (Node throws EINVAL otherwise); the args below are static literals,
@@ -29,6 +38,9 @@ if (result.status !== 0) {
   process.exit();
 }
 
-writeFileSync(tempPath, result.stdout);
-renameSync(tempPath, committedPath);
-console.log(`Wrote ${committedPath}`);
+for (const committedPath of committedPaths) {
+  const tempPath = `${committedPath}.tmp`;
+  writeFileSync(tempPath, result.stdout);
+  renameSync(tempPath, committedPath);
+  console.log(`Wrote ${committedPath}`);
+}

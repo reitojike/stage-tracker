@@ -212,6 +212,57 @@ describe("buildTicketOpportunityAggregates", () => {
       expect(aggregates).toHaveLength(1);
       expect(aggregates[0]?.myState).toBeNull();
       expect(aggregates[0]?.milestones).toHaveLength(1);
+      // PR #381 review finding 2: the aggregate must not drop the source
+      // Opportunity's own `displayName` - without it, two Opportunities
+      // due on the same day are indistinguishable once reduced to
+      // "milestone type + date" (see the dedicated test below).
+      expect(aggregates[0]?.displayName).toBe("FC先行");
+    }
+  });
+
+  it("carries each opportunity's own displayName into its aggregate, disambiguating two opportunities that would otherwise collapse to the same milestone type + date (PR #381 review finding 2)", async () => {
+    const otherOpportunityId = "66666666-6666-4666-8666-666666666666";
+    server.use(
+      http.get(`${REST_URL}/ticket_opportunities`, () =>
+        HttpResponse.json(
+          [
+            opportunityRow(),
+            opportunityRow({
+              id: otherOpportunityId,
+              display_name: "一般発売",
+            }),
+          ],
+          { status: 200 },
+        ),
+      ),
+      http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
+        HttpResponse.json([], { status: 200 }),
+      ),
+    );
+
+    const opportunities = await listTicketOpportunities(createTestClient());
+    const myStates = await listMyTicketOpportunityStates(
+      createTestClient(),
+      userId,
+    );
+    expect(opportunities.ok && myStates.ok).toBe(true);
+    if (opportunities.ok && myStates.ok) {
+      const aggregates = buildTicketOpportunityAggregates(
+        opportunities.value,
+        myStates.value,
+      );
+      expect(aggregates).toHaveLength(2);
+      expect(aggregates.map((aggregate) => aggregate.displayName)).toEqual([
+        "FC先行",
+        "一般発売",
+      ]);
+      // Both opportunities still resolve to the same eventId here (this
+      // fixture doesn't vary event_id) - eventId alone is exactly the
+      // "cannot tell them apart" case the review finding names;
+      // displayName is what makes the two rows distinguishable.
+      expect(
+        new Set(aggregates.map((aggregate) => aggregate.eventId)).size,
+      ).toBe(1);
     }
   });
 });
