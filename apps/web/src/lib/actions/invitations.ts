@@ -8,7 +8,6 @@ import {
   userIdSchema,
 } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
-import { ActionError } from "@/lib/action-error";
 import { classifyPostgrestLikeError } from "./postgrest-error";
 
 /**
@@ -105,12 +104,16 @@ export interface DeclinedInvitationSnapshotOutput {
  * Decline: P3 決定（`docs/v2/decisions.md`）どおり、即座に hard delete して
  * 確定させる。`decline_occurrence_invitation` RPC
  * （`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`）
- * が対象行を削除して返す。中間状態はサーバに一切持たない — undo の可否は
- * 呼び出し元（client）が保持するこの snapshot だけに依存する。
+ * が対象行を削除して返す。中間状態はサーバに一切持たない。
  *
  * 既に解決済み（他のタブ/操作で先に resolve された）場合、RPC は `null`
- * を返す（idempotent）。この場合 undo に使える snapshot も無いため
- * `snapshot: null` を返す。
+ * を返す（idempotent）。
+ *
+ * この action は削除された行の `snapshot`（occurrence/inviter/invitee）を
+ * 引き続き返す。M6d の client はこれを消費しない（undo UI を持たないため -
+ * 下記コメント参照）が、Issue #382 が「同じ inviter からの pending
+ * invitation を作り直す」undo を実装する際にこの情報が必要になるため、
+ * RPC が無償で返す値を捨てずに残す。
  */
 export const declineInvitationAction = authActionClient
   .inputSchema(declineInvitationInputSchema)
@@ -137,46 +140,23 @@ export const declineInvitationAction = authActionClient
     return { snapshot };
   });
 
-const undoDeclineInvitationInputSchema = z.object({
-  occurrenceId: occurrenceIdSchema,
-  inviterId: userIdSchema,
-  inviteeId: userIdSchema,
-});
-
 /**
- * Undo: `docs/v2/decisions.md` P3 は「同じ inviter からの pending
- * invitation を作り直す」と記述するが、**現行の RPC/RLS 構成ではこの
- * action の呼び出し元（invitee 本人 - `occurrence_invitations` の SELECT
- * は invitee 限定なので招待一覧を見られるのは invitee だけ）が、
- * inviter に成り代わって invitation を作り直す経路が存在しない**:
+ * Undo（decline の取り消し）は M6d の scope に無い。実測により、現行の
+ * RPC/RLS 構成では invitee 側から invitation を作り直す経路が存在しない
+ * ことが判明したため（PO 判断、`docs/v2/decisions.md`「P3 の実装可否」
+ * 節参照）:
  *
- * - `invite_to_occurrence` は `inviter_id := auth.uid()` を必ず採用する。
- *   invitee 本人が呼ぶと `p_invitee_id`（= 元の invitee = 自分自身）との
- *   self-invite になり、無条件に拒否される
- *   （`cannot invite yourself`）。
- * - `occurrence_invitations` テーブルには authenticated 向けの INSERT
- *   grant が一切無く（SECURITY DEFINER RPC 経由の書き込みのみを許可する
- *   設計 - `supabase/migrations/20260822010100_create_occurrence_invitations.sql`）、
- *   direct insert の代替手段も無い。
- * - `apps/web/src/env.ts` が明記するとおり、この app runtime は
- *   service role key を意図的に持たない（`docs/v2/oracle-domain.md`
- *   §4.1）ため、RLS を迂回して代理挿入することもできない。
+ * - `occurrence_invitations` への `authenticated` grant は SELECT のみで
+ *   INSERT が無い（SECURITY DEFINER RPC 経由の書き込みのみを許可する設計）。
+ * - `invite_to_occurrence` / `_by_email` は `inviter_id := auth.uid()` に
+ *   束縛される。invitee 本人が呼ぶと元の invitee（= 自分自身）との
+ *   self-invite になり無条件に拒否される。
+ * - `apps/web/src/env.ts` が明記するとおりこの app runtime は service role
+ *   key を意図的に持たないため、RLS を迂回した代理挿入もできない。
  *
- * したがって元の invitation を正確に復元するには、invitee が
- * （元 inviter の現在の attending 状態と occurrence の中止状態を
- * re-validate した上で）代理で pending invitation を作れる、新しい
- * SECURITY DEFINER RPC が要る。これは migration の追加を要し、この
- * Task の許可された編集範囲（`apps/web/src/lib/actions/` 等）の外にある。
- * 「決められなかった点」としてこのタスクの報告に明記し、ここでは
- * 成功したふりをせず、また確実に失敗する `invite_to_occurrence` 呼び出し
- * （誤解を招く "cannot invite yourself" エラーになる）も行わず、
- * 分類済みの `failure` を返す。
+ * 復元には invitee が代理で pending invitation を作れる新しい SECURITY
+ * DEFINER RPC が要り、migration の追加を伴うため、この Task の許可された
+ * 編集範囲の外にある。**Issue #382 で undo（復元 RPC 追加）を対応する。**
+ * それまで、動かない undo action/UI は持たない（成功を装う・確実に失敗する
+ * `invite_to_occurrence` 呼び出しへ迂回する、のいずれも行わない）。
  */
-export const undoDeclineInvitationAction = authActionClient
-  .inputSchema(undoDeclineInvitationInputSchema)
-  .action(async () => {
-    throw new ActionError(
-      "failure",
-      "招待を復元できませんでした。お手数ですが、招待者に再度の招待を依頼してください。",
-    );
-  });

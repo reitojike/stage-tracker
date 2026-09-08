@@ -704,8 +704,8 @@ decline のページを見られるのは invitee 本人だけなので、既存
 
 **M6d では decline のみ実装する。** undo は Issue #382 で復元 RPC を追加して対応する。
 
-M6d の `undoDeclineInvitationAction` は配線済みだが、**成功を装わず分類済みの
-`failure` を返す**状態にしてある。動かないものを動くように見せない。
+M6d は undo action/UI を持たない（動かないものを動くように見せない）。decline は
+取り消せないため、client は実行前に一段階の確認を挟む（押し間違い対策）。
 
 ### この判断の含意
 

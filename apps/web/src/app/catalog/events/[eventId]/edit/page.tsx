@@ -2,6 +2,7 @@ import { StatePanel } from "@stage-tracker/ui";
 import { eventIdSchema } from "@stage-tracker/domain";
 import { classifyListReadResult } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { getEventForEdit } from "./_data/getEventForEdit";
 import { EditEventForm } from "./_components/EditEventForm";
 
@@ -50,8 +51,14 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     return (
       <StatePanel
         variant={state.variant}
-        title="イベントを読み込めませんでした"
-        description={state.message}
+        title={
+          state.variant === "unavailable"
+            ? "イベントを確認できません"
+            : "イベントを読み込めませんでした"
+        }
+        {...(state.variant === "error"
+          ? { description: READ_FAILURE_RETRY_HINT_JA }
+          : {})}
       />
     );
   }

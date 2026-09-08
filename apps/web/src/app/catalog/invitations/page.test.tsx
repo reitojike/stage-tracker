@@ -55,9 +55,9 @@ describe("InvitationsPage", () => {
     const ui = await InvitationsPage();
     render(ui);
 
-    expect(screen.getByText("招待を読み込めませんでした")).toBeInTheDocument();
+    expect(screen.getByText("招待を確認できません")).toBeInTheDocument();
     const panel = screen
-      .getByText("招待を読み込めませんでした")
+      .getByText("招待を確認できません")
       .closest("[data-slot=state-panel]");
     expect(panel).toHaveAttribute("data-variant", "unavailable");
   });

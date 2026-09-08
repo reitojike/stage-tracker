@@ -1,30 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@stage-tracker/ui";
 import {
   acceptInvitationAction,
   declineInvitationAction,
-  undoDeclineInvitationAction,
-  type DeclinedInvitationSnapshotOutput,
 } from "@/lib/actions/invitations";
 import type { ReceivedInvitation } from "../_data/listMyReceivedInvitations";
 import { instantToDateTimeLocalValue } from "../_lib/instantFormat";
 
-/** P3 決定（`docs/v2/decisions.md`）: decline は即座に hard delete して
- * 確定させ、undo は「作り直し」で実現する。undo の猶予時間は実装で
- * 決めてよい値 —— 8秒とする。 */
-const UNDO_WINDOW_MS = 8000;
-
 type CardPhase =
   | { readonly kind: "pending" }
+  | { readonly kind: "confirm-decline" }
   | { readonly kind: "busy" }
-  | {
-      readonly kind: "declined";
-      readonly snapshot: DeclinedInvitationSnapshotOutput | null;
-    }
-  | { readonly kind: "undo-failed" }
   | { readonly kind: "removed" };
 
 interface CardEntry {
@@ -46,11 +35,14 @@ export interface InvitationListProps {
  *   pending invitation も自動解決される（DB trigger）ため、client 側でも
  *   同一 occurrenceId のカードをまとめて除去する。
  * - 「参加しない」: P3 決定どおり即座に hard delete で確定
- *   （`declineInvitationAction`）。その後 `UNDO_WINDOW_MS` の間「取り消す」
- *   を表示する（サーバには一切中間状態を持たない —— 表示しているのは
- *   client-local な snapshot だけ）。
+ *   （`declineInvitationAction`）。undo は無い（`docs/v2/decisions.md`
+ *   「P3 の実装可否」節 - invitee 側から invitation を作り直す経路が現行
+ *   スキーマに存在しないため、PO 判断で Issue #382 へ切り出し済み）。
+ *   確定後は取り消せないため、実行前に一段階の確認を挟む
+ *   （押し間違い対策 - undo が無い現状ではここでしか防げない）。
  * - 効果的に中止済みの招待（event/occurrence どちらかが cancel 済み）は
- *   「閉じる」のみ（undo 無しの decline 相当）。
+ *   「閉じる」のみ。中止済みで元々参加できない招待を閉じるだけなので確認は
+ *   挟まない。
  */
 export function InvitationList({ initialInvitations }: InvitationListProps) {
   const router = useRouter();
@@ -61,16 +53,6 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
       phase: { kind: "pending" },
     })),
   );
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-
-  useEffect(() => {
-    const timerMap = timers.current;
-    return () => {
-      for (const timer of timerMap.values()) {
-        clearTimeout(timer);
-      }
-    };
-  }, []);
 
   function setPhase(key: string, phase: CardPhase) {
     setEntries((prev) =>
@@ -99,7 +81,7 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
     router.refresh();
   }
 
-  async function handleDecline(entry: CardEntry, offerUndo: boolean) {
+  async function handleDecline(entry: CardEntry) {
     setPhase(entry.key, { kind: "busy" });
     const result = await declineInvitationAction({
       invitationId: entry.invitation.invitationId,
@@ -108,44 +90,13 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
       setPhase(entry.key, { kind: "pending" });
       return;
     }
-    if (!offerUndo) {
-      setPhase(entry.key, { kind: "removed" });
-      return;
-    }
-    const snapshot = result?.data?.snapshot ?? null;
-    setPhase(entry.key, { kind: "declined", snapshot });
-    const timer = setTimeout(() => {
-      setPhase(entry.key, { kind: "removed" });
-      timers.current.delete(entry.key);
-    }, UNDO_WINDOW_MS);
-    timers.current.set(entry.key, timer);
-  }
-
-  async function handleUndo(
-    entry: CardEntry,
-    snapshot: DeclinedInvitationSnapshotOutput,
-  ) {
-    const timer = timers.current.get(entry.key);
-    if (timer !== undefined) {
-      clearTimeout(timer);
-      timers.current.delete(entry.key);
-    }
-    setPhase(entry.key, { kind: "busy" });
-    const result = await undoDeclineInvitationAction(snapshot);
-    if (result?.serverError) {
-      setPhase(entry.key, { kind: "undo-failed" });
-      return;
-    }
-    setPhase(entry.key, { kind: "pending" });
+    setPhase(entry.key, { kind: "removed" });
     router.refresh();
   }
 
   const visibleEntries = entries.filter(
     (entry) => entry.phase.kind !== "removed",
   );
-  const pendingCount = visibleEntries.filter(
-    (entry) => entry.phase.kind === "pending" || entry.phase.kind === "busy",
-  ).length;
 
   if (visibleEntries.length === 0) {
     return (
@@ -156,7 +107,7 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
   return (
     <div className="flex flex-col gap-md">
       <p className="text-body-sm text-muted-foreground">
-        未回答 {pendingCount}件
+        未回答 {visibleEntries.length}件
       </p>
       <ul className="flex flex-col gap-sm">
         {visibleEntries.map((entry) => (
@@ -166,11 +117,17 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
             onAccept={() => {
               void handleAccept(entry);
             }}
-            onDecline={(offerUndo) => {
-              void handleDecline(entry, offerUndo);
+            onRequestDecline={() => {
+              setPhase(entry.key, { kind: "confirm-decline" });
             }}
-            onUndo={(snapshot) => {
-              void handleUndo(entry, snapshot);
+            onCancelDecline={() => {
+              setPhase(entry.key, { kind: "pending" });
+            }}
+            onConfirmDecline={() => {
+              void handleDecline(entry);
+            }}
+            onClose={() => {
+              void handleDecline(entry);
             }}
           />
         ))}
@@ -182,13 +139,17 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
 function InvitationCard({
   entry,
   onAccept,
-  onDecline,
-  onUndo,
+  onRequestDecline,
+  onCancelDecline,
+  onConfirmDecline,
+  onClose,
 }: {
   entry: CardEntry;
   onAccept: () => void;
-  onDecline: (offerUndo: boolean) => void;
-  onUndo: (snapshot: DeclinedInvitationSnapshotOutput) => void;
+  onRequestDecline: () => void;
+  onCancelDecline: () => void;
+  onConfirmDecline: () => void;
+  onClose: () => void;
 }) {
   const { invitation, phase } = entry;
   const context = invitation.context;
@@ -218,37 +179,30 @@ function InvitationCard({
         </div>
       )}
 
-      {phase.kind === "declined" ? (
+      {phase.kind === "confirm-decline" ? (
         <div className="flex items-center gap-sm">
           <span className="text-body-sm text-muted-foreground">
-            参加しないにしました。
+            参加しないにしますか？あとから取り消せません。
           </span>
-          {phase.snapshot !== null ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (phase.snapshot !== null) {
-                  onUndo(phase.snapshot);
-                }
-              }}
-            >
-              取り消す
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onCancelDecline}
+          >
+            キャンセル
+          </Button>
+          <Button type="button" size="sm" onClick={onConfirmDecline}>
+            はい、参加しない
+          </Button>
         </div>
-      ) : phase.kind === "undo-failed" ? (
-        <p role="alert" className="text-body-sm text-destructive">
-          招待を復元できませんでした。招待者に再度の招待を依頼してください。
-        </p>
       ) : isEffectivelyCanceled ? (
         <Button
           type="button"
           variant="outline"
           size="sm"
           disabled={phase.kind === "busy"}
-          onClick={() => onDecline(false)}
+          onClick={onClose}
         >
           閉じる
         </Button>
@@ -265,7 +219,7 @@ function InvitationCard({
             type="button"
             variant="outline"
             disabled={phase.kind === "busy"}
-            onClick={() => onDecline(true)}
+            onClick={onRequestDecline}
           >
             参加しない
           </Button>
