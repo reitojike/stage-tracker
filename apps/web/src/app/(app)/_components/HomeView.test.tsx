@@ -1,0 +1,175 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import {
+  eventIdSchema,
+  eventSchema,
+  instantSchema,
+  occurrenceIdSchema,
+  occurrenceSchema,
+  participationIdSchema,
+  participationSchema,
+  ticketOpportunityIdSchema,
+  ticketOpportunityMilestoneIdSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
+import type { BlockState } from "@/app/_lib/read-state";
+import type {
+  HomeTicketDeadlineRow,
+  HomeUpcomingItem,
+} from "../_lib/home-loader";
+import { HomeView } from "./HomeView";
+
+const EMPTY_TICKET: BlockState<readonly HomeTicketDeadlineRow[]> = {
+  variant: "empty",
+};
+const EMPTY_SCHEDULE: BlockState<readonly HomeUpcomingItem[]> = {
+  variant: "empty",
+};
+
+const POPULATED_TICKET: BlockState<readonly HomeTicketDeadlineRow[]> = {
+  variant: "populated",
+  data: [
+    {
+      row: {
+        opportunityId: ticketOpportunityIdSchema.parse(
+          "44444444-4444-4444-8444-444444444444",
+        ),
+        eventId: eventIdSchema.parse("22222222-2222-4222-8222-222222222222"),
+        milestone: {
+          id: ticketOpportunityMilestoneIdSchema.parse(
+            "55555555-5555-4555-8555-555555555555",
+          ),
+          opportunityId: ticketOpportunityIdSchema.parse(
+            "44444444-4444-4444-8444-444444444444",
+          ),
+          milestoneType: "sale_start",
+          temporalPrecision: "datetime",
+          at: instantSchema.parse("2026-03-10T10:00:00Z"),
+          createdAt: instantSchema.parse("2026-01-01T00:00:00Z"),
+          updatedAt: instantSchema.parse("2026-01-01T00:00:00Z"),
+        },
+        sortInstant: instantSchema.parse("2026-03-10T10:00:00Z"),
+        myState: "planned",
+        isFirstRowForOpportunity: true,
+        isPostFinalRetainedHistory: false,
+      },
+    },
+  ],
+};
+
+const event = eventSchema.parse({
+  id: "22222222-2222-4222-8222-222222222222",
+  ownerId: "11111111-1111-4111-8111-111111111111",
+  title: "テスト公演",
+  venue: null,
+  sourceUrl: null,
+  memo: null,
+  startsOn: "2026-03-10",
+  endsOn: "2026-03-20",
+  canceledAt: null,
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+});
+
+const occurrence = occurrenceSchema.parse({
+  id: occurrenceIdSchema.parse("33333333-3333-4333-8333-333333333333"),
+  eventId: event.id,
+  doorsAt: null,
+  startsAt: "2026-03-15T10:00:00Z",
+  endsAt: null,
+  canceledAt: null,
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+});
+
+const participation = participationSchema.parse({
+  id: participationIdSchema.parse("66666666-6666-4666-8666-666666666666"),
+  occurrenceId: occurrence.id,
+  userId: userIdSchema.parse("11111111-1111-4111-8111-111111111111"),
+  status: "attending",
+  visibility: "private",
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+});
+
+const POPULATED_SCHEDULE: BlockState<readonly HomeUpcomingItem[]> = {
+  variant: "populated",
+  data: [
+    {
+      kind: "occurrence",
+      sortInstant: occurrence.startsAt,
+      participation,
+      occurrence,
+      event,
+    },
+  ],
+};
+
+describe("HomeView", () => {
+  it("renders a single merged empty panel only when both blocks are empty", () => {
+    render(
+      <HomeView ticketState={EMPTY_TICKET} scheduleState={EMPTY_SCHEDULE} />,
+    );
+
+    expect(
+      screen.getByText("期限が近い申し込みも、直近の予定もありません"),
+    ).toBeInTheDocument();
+    // The merged panel replaces the 2 section headings entirely.
+    expect(screen.queryByText("申し込み期限")).not.toBeInTheDocument();
+    expect(screen.queryByText("直近の予定")).not.toBeInTheDocument();
+  });
+
+  it("renders each block's own error/unavailable panel independently when only one fails (P4)", () => {
+    render(
+      <HomeView
+        ticketState={{ variant: "error", message: "boom" }}
+        scheduleState={POPULATED_SCHEDULE}
+      />,
+    );
+
+    // The failing block shows its own error panel...
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "申し込み期限を読み込めませんでした",
+    );
+    // ...while the sibling block still renders its real, populated data.
+    expect(screen.getByText("テスト公演")).toBeInTheDocument();
+  });
+
+  it("renders the unavailable variant distinctly from error", () => {
+    render(
+      <HomeView
+        ticketState={{ variant: "unavailable", message: "denied" }}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(
+      screen.getByText("申し込み期限を確認できません"),
+    ).toBeInTheDocument();
+    // unavailable is not an alert role (only `error` is, per StatePanel).
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("renders populated ticket rows with their planning-state badge", () => {
+    render(
+      <HomeView
+        ticketState={POPULATED_TICKET}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(screen.getByText("販売開始")).toBeInTheDocument();
+    expect(screen.getByText("申し込む予定")).toBeInTheDocument();
+  });
+
+  it("keeps 直近の予定 empty-but-independent when 申し込み期限 is populated", () => {
+    render(
+      <HomeView
+        ticketState={POPULATED_TICKET}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(screen.getByText("直近の予定はありません")).toBeInTheDocument();
+  });
+});
