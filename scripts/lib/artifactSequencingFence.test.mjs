@@ -171,7 +171,7 @@ describe('parseChangedFiles', () => {
   });
 
   // git は filename に LF を許す。NUL 区切りの出力を LF でも分割すると path が
-  // 割れ、どちらの断片も MIGRATION_PATTERN に一致せず **その migration が
+  // 割れ、どちらの断片も isMigrationFile に一致せず **その migration が
   // 見えなくなる**（fail open）。NUL 入力では NUL だけで区切る。
   it('path に含まれる LF で分割しない', () => {
     const files = parseChangedFiles('supabase/migrations/20260908_a\nb.sql\0apps/web/src/a.ts\0');
