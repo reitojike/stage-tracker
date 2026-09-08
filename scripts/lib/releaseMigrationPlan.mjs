@@ -18,12 +18,15 @@
 
 /**
  * @param {{status: string, pendingLocal: string[], remoteOnly: string[], reason: string | null}} classification
- * @returns {{action: "apply" | "skip" | "stop", pending: string[], reason: string}}
+ * @returns {{action: "apply" | "skip" | "stop", cause: "remote-only" | "unknown" | null, pending: string[], reason: string}}
  */
 export function planReleaseMigrations(classification) {
   if (classification.status === 'unknown') {
     return {
       action: 'stop',
+      // 呼び出し側が exit code を分けるための discriminant。message の
+      // 文字列一致で判断しない（PR #388 review）。
+      cause: 'unknown',
       pending: [],
       reason: classification.reason ?? 'Could not determine Production migration state.',
     };
@@ -32,6 +35,7 @@ export function planReleaseMigrations(classification) {
   if (classification.remoteOnly.length > 0) {
     return {
       action: 'stop',
+      cause: 'remote-only',
       pending: [],
       reason:
         'Production has migration(s) with no matching file in this repository: ' +
@@ -43,6 +47,7 @@ export function planReleaseMigrations(classification) {
   if (classification.pendingLocal.length > 0) {
     return {
       action: 'apply',
+      cause: null,
       pending: classification.pendingLocal,
       reason: `${String(classification.pendingLocal.length)} pending migration(s) to apply.`,
     };
@@ -50,6 +55,7 @@ export function planReleaseMigrations(classification) {
 
   return {
     action: 'skip',
+    cause: null,
     pending: [],
     reason: classification.reason ?? 'No pending migrations.',
   };

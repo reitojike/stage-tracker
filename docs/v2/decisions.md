@@ -1056,8 +1056,23 @@ credential は GitHub の secret として管理され、agent へ渡される�
   から secret を読めないことが実質的な保護になる
 - **Vercel の Production auto-deploy を止める。** 止めないと migration 適用中に
   Vercel が先に deploy し、race する。案 B / C のいずれでも残せない
-- **deploy の起動は Deploy Hook を使う。** Vercel の API token（project 設定の
-  変更や他 project の操作ができる）より権限が小さい
+- **deploy は Vercel CLI で、checkout した内容そのものを送る。**
+  当初は Deploy Hook を採用した（Vercel の API token より権限が小さいため）。
+  **しかし Deploy Hook は branch に紐づき、その branch の最新を build する。**
+  検証した SHA と deploy される SHA が一致せず、`A の migration を適用して
+から現在の main を deploy する` という状態になり得た（PR #388 review）。
+
+  **権限の小ささより、間違った commit を deploy しないことを優先する。**
+  `VERCEL_TOKEN` は Deploy Hook より広い権限を持つため、次で blast radius を
+  抑える。
+
+  - token は Vercel が許す最小の scope で発行する（team/project scope が
+    選べる場合はそれを使う。runbook に明記）
+  - GitHub Environment `production` の branch 制限により、PR の branch から
+    読めない
+  - CLI の version を固定する（`latest` は registry の最新をその場で取得する
+    ため、悪意ある release が出た瞬間に production deploy 権限で走る）
+
 - **service-role key は CI へ置かない。** migration の適用に必要なのは
   access token / project ref / DB password だけ
 

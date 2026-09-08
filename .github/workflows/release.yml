@@ -44,13 +44,29 @@ concurrency:
 jobs:
   release:
     name: Release / Production
-    # workflow_run の場合は Verify が success のときだけ。
+    # workflow_run の場合、**success だけでは足りない**。
+    #
+    # Verify は pull_request でも走る（verify.yml）。workflow_run の
+    # `branches: [main]` が見るのは triggering run の head_branch なので、
+    # **head branch 名が `main` の PR**（fork の main 等）で Verify が成功
+    # すると、この job が Production environment の secret を持った状態で
+    # 起動し、その PR の head_sha を checkout して repository 内の
+    # migration/build script を実行できてしまう（PR #388 review, Codex P1）。
+    #
+    # したがって「push 由来であること」と「同一 repository 由来であること」を
+    # 明示的に確認する。
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
+    # deploy に GITHUB_TOKEN の書き込み権限は要らない。target の解決で
+    # repository を読むだけ。
+    permissions:
+      contents: read
     steps:
       - name: Resolve target commit
         id: target
@@ -164,6 +180,35 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: pnpm run supabase:migrations:drift -- --linked
 
+      # **古い target で deploy しない。**
+      #
+      # Verify は SHA ごとに並行実行されるため、A の後に B が merge されても
+      # B の Verify が先に完了し得る。その場合 Release B が B を deploy した
+      # 後に、遅れて完了した Release A が A を deploy し、**application code
+      # を巻き戻す**（B に migration が無ければ drift check も止められない）
+      # （PR #388 review, Codex P1）。
+      #
+      # target が現在の main の先端でなければ deploy しない。より新しい
+      # Release がその commit を deploy する（migration は forward-only で、
+      # 既に適用済みなら plan=skip になる）。
+      - name: Ensure target is still the tip of main
+        id: tip
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          tip=$(git ls-remote "https://github.com/${{ github.repository }}.git" refs/heads/main | cut -f1)
+          echo "main tip: $tip"
+          echo "target:   $TARGET_SHA"
+          if [ "$tip" = "$TARGET_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main has moved past this target. Skipping deploy - a newer Release will deploy the tip."
+          fi
+
       # ここまでが success のときだけ deploy が走る。migration が失敗しても
       # drift が残っても、この step には到達しない。
       # **Deploy Hook を使わない。** Deploy Hook は branch に紐づき、その
@@ -185,15 +230,23 @@ jobs:
       - name: Deploy the verified commit to production
         if: >-
           steps.config.outputs.configured == 'true' &&
+          steps.tip.outputs.current == 'true' &&
           !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_CLI_VERSION: '59.11.7'
         run: |
-          pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
-          pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
-          url=$(pnpm dlx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          # **バージョンを固定する。** この pipeline の他の依存（GitHub
+          # Actions は commit SHA、supabase は lockfile）と揃える。
+          # `vercel@latest` は registry の最新をその場で取得するため、
+          # 悪意ある/壊れた release が `latest` に出た瞬間、**次の main
+          # push で production deploy 権限を持ったまま実行される**
+          # （PR #388 review, Claude）。
+          pnpm dlx vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@${VERCEL_CLI_VERSION} build --prod --token="$VERCEL_TOKEN"
+          url=$(pnpm dlx vercel@${VERCEL_CLI_VERSION} deploy --prebuilt --prod --token="$VERCEL_TOKEN")
           echo "deployed: $url"
           echo "deploy_url=$url" >> "$GITHUB_OUTPUT"
 

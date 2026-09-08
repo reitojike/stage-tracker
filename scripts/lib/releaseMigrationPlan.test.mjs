@@ -35,8 +35,9 @@ describe('planReleaseMigrations', () => {
       reason: null,
     });
     assert.equal(plan.action, 'stop');
+    // exit code を分けるのは message の文字列一致ではなく discriminant。
+    assert.equal(plan.cause, 'remote-only');
     assert.equal(plan.pending.length, 0);
-    assert.match(plan.reason, /no matching file/u);
   });
 
   it('unknown は stop。「何も無い」に潰さない', () => {
@@ -47,5 +48,6 @@ describe('planReleaseMigrations', () => {
       reason: 'Response did not contain a migrations array.',
     });
     assert.equal(plan.action, 'stop');
+    assert.equal(plan.cause, 'unknown');
   });
 });
