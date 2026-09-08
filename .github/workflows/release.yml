@@ -74,12 +74,18 @@ jobs:
         env:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           missing=""
           [ -z "$PROJECT_REF" ] && missing="$missing SUPABASE_PROJECT_REF"
           [ -z "$ACCESS_TOKEN" ] && missing="$missing SUPABASE_ACCESS_TOKEN"
-          [ -z "$DEPLOY_HOOK_URL" ] && missing="$missing VERCEL_DEPLOY_HOOK_URL"
+          [ -z "$DB_PASSWORD" ] && missing="$missing SUPABASE_DB_PASSWORD"
+          [ -z "$VERCEL_TOKEN" ] && missing="$missing VERCEL_TOKEN"
+          [ -z "$VERCEL_ORG_ID" ] && missing="$missing VERCEL_ORG_ID"
+          [ -z "$VERCEL_PROJECT_ID" ] && missing="$missing VERCEL_PROJECT_ID"
           if [ -n "$missing" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Release is not configured yet (missing:$missing). Skipping. See docs/runbooks/v2-release-pipeline-setup.md"
@@ -150,7 +156,9 @@ jobs:
       # 適用後に drift 0 を確認してから deploy する。dry-run では pending が
       # 残ったままなので drift が出るのが正しく、ここは実行しない。
       - name: Verify no drift
-        if: "!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -158,17 +166,36 @@ jobs:
 
       # ここまでが success のときだけ deploy が走る。migration が失敗しても
       # drift が残っても、この step には到達しない。
-      - name: Trigger Vercel production deploy
-        if: "!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"
+      # **Deploy Hook を使わない。** Deploy Hook は branch に紐づき、その
+      # branch の**最新**を build する。SHA を指定できない。したがって
+      #
+      #   A merge -> Verify A 成功 -> Release A が A の migration 適用
+      #   その間に B merge（main = B）
+      #   -> Release A が hook を叩く -> Vercel は B を deploy し得る
+      #
+      # となり、「A の schema を用意してから A を deploy する」という
+      # この workflow の中心的な保証が「A の schema を用意して現在の main を
+      # deploy する」に化ける（PR #388 review）。concurrency: release は
+      # Release job 同士を直列化するだけで、main が進むことは止めない。
+      #
+      # Vercel CLI は **checkout した内容そのもの**を deploy するので、
+      # target SHA との一致が構造的に保証される。加えて deploy 完了まで
+      # 待つため、build が失敗すればこの step が失敗する（hook の 2xx は
+      # 受理の意味しかなく、その後の build 失敗を拾えない）。
+      - name: Deploy the verified commit to production
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
-          DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$DEPLOY_HOOK_URL")
-          echo "deploy hook responded: $status"
-          case "$status" in
-            2*) ;;
-            *) echo "::error::deploy hook did not accept the request"; exit 1 ;;
-          esac
+          pnpm dlx vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@latest build --prod --token="$VERCEL_TOKEN"
+          url=$(pnpm dlx vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "deployed: $url"
+          echo "deploy_url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Report skipped deploy (dry-run)
         if: >-
