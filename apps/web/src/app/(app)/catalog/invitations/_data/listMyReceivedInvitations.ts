@@ -82,18 +82,28 @@ function mapInvitationRow(
     };
   }
 
+  // `event_occurrences`/`events` の embed が null なら「embed 未解決」
+  // として context unavailable へ fallback する（oracle どおり、上記
+  // docstring 参照）。embed 自体は存在するのに `mapOccurrenceRow`/
+  // `mapEventRow` が失敗する場合はスキーマ drift であり、embed 未解決と
+  // 区別して bulk 全体を `err` にする（A10「読めない行を黙って間引かない」
+  // - `mapRows` に委ねる）。
   let context: ReceivedInvitation["context"] = null;
   if (row.event_occurrences !== null) {
     const occurrenceResult = mapOccurrenceRow(row.event_occurrences);
+    if (!occurrenceResult.ok) {
+      return occurrenceResult;
+    }
     const eventRow = row.event_occurrences.events;
-    if (occurrenceResult.ok && eventRow !== null) {
+    if (eventRow !== null) {
       const eventResult = mapEventRow(eventRow);
-      if (eventResult.ok) {
-        context = {
-          occurrence: occurrenceResult.value,
-          event: eventResult.value,
-        };
+      if (!eventResult.ok) {
+        return eventResult;
       }
+      context = {
+        occurrence: occurrenceResult.value,
+        event: eventResult.value,
+      };
     }
   }
 

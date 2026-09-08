@@ -75,7 +75,12 @@ export const deletePasskeyAction = authActionClient
       ) {
         throw new ActionError("unauthenticated", "サインインが必要です。");
       }
-      throw new ActionError("failure", error.message);
+      // Supabase Auth の生 error.message を client へ渡さない
+      // （`@/lib/safe-action.ts` の `toActionErrorShape` が分類されて
+      // いない例外に対して行う扱いと同じ方針）。詳細は server 側の
+      // ログにのみ残す。
+      console.error("[passkey] delete failed", error);
+      throw new ActionError("failure", "Passkeyの削除に失敗しました。");
     }
 
     revalidatePath("/mypage");
