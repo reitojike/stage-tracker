@@ -62,6 +62,41 @@ interface ExistingParticipationRow {
   readonly status: string;
 }
 
+/** レース中に自分の書き込みが 0 行しか更新できなかった場合の opaque failure。
+ * DB エラーではない（PostgREST 上は成功応答）ため、`classifyWriteError` の
+ * 対象にはならない。呼び出し元は通常の失敗として扱い、再度操作すればよい。 */
+const CONCURRENT_WRITE_LOST: SetParticipationChoiceErrorKind = {
+  kind: "failure",
+  message: "参加状況を更新できませんでした。もう一度お試しください。",
+};
+
+/**
+ * `id` を指定して `status` を UPDATE し、実際に行が更新されたかどうかを
+ * `.select("id").maybeSingle()` で確認する。
+ *
+ * `.update().eq("id", id)` だけでは、対象行が UPDATE 実行前に別トランザクション
+ * から削除されていても PostgREST はエラーを返さず 0 行更新のまま成功応答する。
+ * `.select()` を付けずに `error` の有無だけを成功判定に使うと、この「0 行更新」を
+ * 気付かずに成功として扱ってしまう（指摘2の race）。ここで行の有無を明示的に
+ * 確認し、0 行だった場合は呼び出し元が fallback できるよう区別する。
+ */
+async function updateStatusById(
+  client: SupabaseClient,
+  id: string,
+  status: ParticipationChoice,
+): Promise<Result<boolean, SetParticipationChoiceErrorKind>> {
+  const { data, error } = await client
+    .from("occurrence_participations")
+    .update({ status })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    return err(classifyWriteError(error));
+  }
+  return ok(data !== null);
+}
+
 /**
  * `docs/v2/oracle-domain.md` §1.6 の `setParticipation`/`withdrawParticipation`
  * を1関数にまとめた write boundary。
@@ -109,14 +144,20 @@ export async function setParticipationChoice(
       // 既に同じ状態: 書き込み不要（no-op）。
       return ok(undefined);
     }
-    const { error } = await client
-      .from("occurrence_participations")
-      .update({ status: params.choice })
-      .eq("id", existing.id);
-    if (error) {
-      return err(classifyWriteError(error));
+    const updateResult = await updateStatusById(
+      client,
+      existing.id,
+      params.choice,
+    );
+    if (!updateResult.ok) {
+      return updateResult;
     }
-    return ok(undefined);
+    if (updateResult.value) {
+      return ok(undefined);
+    }
+    // 0 行更新: この SELECT と UPDATE の間に、対象行が既に削除されていた
+    // （並行 withdraw が先に commit した等）。この場合成功扱いにはせず、
+    // 「行が無いなら INSERT で作る」という以下の経路へ fall through する。
   }
 
   const { error: insertError } = await client
@@ -142,14 +183,20 @@ export async function setParticipationChoice(
       if (refetchError || !raceRow?.[0]) {
         return err(classifyWriteError(insertError));
       }
-      const { error: updateError } = await client
-        .from("occurrence_participations")
-        .update({ status: params.choice })
-        .eq("id", raceRow[0].id);
-      if (updateError) {
-        return err(classifyWriteError(updateError));
+      const updateResult = await updateStatusById(
+        client,
+        raceRow[0].id,
+        params.choice,
+      );
+      if (!updateResult.ok) {
+        return updateResult;
       }
-      return ok(undefined);
+      if (updateResult.value) {
+        return ok(undefined);
+      }
+      // ここでも 0 行更新: refetch した行がさらにその後削除された二重レース。
+      // 成功扱いにはせず、呼び出し元が再試行できる failure として返す。
+      return err(CONCURRENT_WRITE_LOST);
     }
     return err(classifyWriteError(insertError));
   }
