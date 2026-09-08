@@ -143,3 +143,44 @@ describe('RUNTIME_PATTERN の境界', () => {
     assert.deepEqual(r.runtime, []);
   });
 });
+
+describe('NOT_DEPLOYED_PATTERNS', () => {
+  // --- 過剰拒否の regression（PR #390 codex finding） ---
+  //
+  // `apps/**` 全体を runtime にしたところ、DB/RLS test まで拒否され、
+  // decisions.md が定める手順「PR A — Expand: migration + DB tests だけ」と
+  // 矛盾した。migration の回帰テストを同じ PR で出せないのは誤り。
+
+  const MIGRATION = 'supabase/migrations/20260908010000_x.sql';
+
+  it('deploy されない subtree は migration と同居してよい', () => {
+    for (const p of [
+      'apps/legacy-web/test/rls/personalSchedule.test.ts', // RLS test
+      'apps/legacy-web/test/auth/magicLink.test.ts', // auth test
+      'apps/web/e2e/schedule.spec.ts', // E2E
+      'apps/legacy-web/scripts/check-migration-drift.mjs', // operator script
+      'packages/domain/src/event.test.ts', // src 同居の unit test
+      'packages/ui/src/Button.stories.tsx', // storybook
+    ]) {
+      const r = evaluateArtifactSequencingFence([MIGRATION, p]);
+      assert.equal(r.ok, true, p);
+    }
+  });
+
+  it('同じ package の実装ファイルは引き続き拒否する', () => {
+    for (const p of ['packages/domain/src/event.ts', 'packages/ui/src/Button.tsx']) {
+      assert.equal(evaluateArtifactSequencingFence([MIGRATION, p]).ok, false, p);
+    }
+  });
+
+  // 除外リストの漏れは「過剰に拒否する」方向にしか効かない（安全側）。
+  // runtime 側を列挙する設計だと漏れがそのまま穴になる（危険側）。
+  // この非対称性が設計の要点なので、未知の path が拒否されることを固定する。
+  it('未知の path は runtime 扱いのまま（誤りが安全側に落ちる）', () => {
+    const r = evaluateArtifactSequencingFence([
+      MIGRATION,
+      'packages/whatever-comes-next/src/index.ts',
+    ]);
+    assert.equal(r.ok, false);
+  });
+});

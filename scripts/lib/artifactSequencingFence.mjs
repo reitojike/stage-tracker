@@ -82,6 +82,29 @@ const ALLOWED_ALONGSIDE_PATHS = new Set([
 // ので同居してよい。
 const RUNTIME_PATTERN = /^(apps|packages)\//;
 
+// `apps/**` / `packages/**` の中にあっても **deploy されない** subtree / file。
+//
+// ここを除外しないと、`docs/v2/decisions.md` が定める手順
+// 「PR A — Expand: migration + DB tests だけ」（同ファイル）と矛盾し、
+// **migration に対応する RLS / pgTAP 回帰テストを同じ PR で出せなくなる**
+// （PR #390 codex finding）。
+//
+// ## 誤りがどちら側に落ちるか
+//
+// 上の `RUNTIME_PATTERN` が「`apps/` と `packages/` は既定で runtime」と
+// しているので、**この除外リストの漏れは「過剰に拒否する」方向にしか
+// 効かない**。穴（危険側）ではなく不便（安全側）に倒れる。
+//
+// 逆に runtime 側を列挙する設計だと、漏れがそのまま穴になる。2 ラウンド
+// 続けてその型の finding が出たので、この非対称性を保つことを設計判断とする。
+const NOT_DEPLOYED_PATTERNS = [
+  // DB/RLS/auth test、E2E、operator/CI script
+  /^apps\/[^/]+\/(test|tests|e2e|scripts)\//,
+  /^packages\/[^/]+\/(test|tests)\//,
+  // src 配下に同居する test / story
+  /\.(test|spec|stories)\.[cm]?[jt]sx?$/,
+];
+
 export function parseChangedFiles(diffNameOnlyOutput) {
   if (typeof diffNameOnlyOutput !== 'string' || diffNameOnlyOutput.length === 0) return [];
   return diffNameOnlyOutput
@@ -98,7 +121,12 @@ export function evaluateArtifactSequencingFence(changedFiles) {
     return { ok: true, migrations: [], runtime: [], reason: 'No migration files in this PR.' };
   }
 
-  const runtime = files.filter((f) => RUNTIME_PATTERN.test(f) && !ALLOWED_ALONGSIDE_PATHS.has(f));
+  const runtime = files.filter(
+    (f) =>
+      RUNTIME_PATTERN.test(f) &&
+      !ALLOWED_ALONGSIDE_PATHS.has(f) &&
+      !NOT_DEPLOYED_PATTERNS.some((p) => p.test(f)),
+  );
 
   if (runtime.length === 0) {
     return {
