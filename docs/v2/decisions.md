@@ -290,9 +290,9 @@ Claude と Codex の独立レビューで 5 件の指摘。4 件を修正し、1
 
 ### 申し送り（修正しない）
 
-| #   | 内容                                                                                                                                                                                                                                                                                                                                                                                            |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F4b | **Preview origin を Magic Link に渡していない。** `emailRedirectTo` 未指定のため、Vercel Preview でサインインするとメール内リンクが Production の `/auth/confirm` へ向かう。ただし `apps/web` は現在どこにもデプロイされておらず（Vercel の Root Directory は `apps/legacy-web`）、Preview サインインを実行する経路が存在しないため今は直せない・検証できない。**cutover 前に必ず対応すること** |
+| #   | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F4b | ~~**Preview origin を Magic Link に渡していない。**~~ **撤回（2026-09-08、PO 判断）。** 下記「PO 判断: Preview 環境の位置づけ」により、Free 運用中は remote Preview Supabase を持たず、Vercel Preview で authenticated flow を提供しない。したがって Preview へ戻る redirect 先そのものが不要になった。将来 remote Preview 環境を持つ場合は、trusted な Vercel framework 値からのみ Preview origin を導出する方式を再採用候補とする |
 
 ### レビュアーからの補足（対応不要だが記録）
 
@@ -640,6 +640,9 @@ workflow がそれをイベントペイロードから渡している。**GitHub
 
 ## M7 の検討事項: Preview 環境の DB 隔離（2026-09-08）
 
+> **解決済み。** 下記「PO 判断: Preview 環境の位置づけ（2026-09-08）」を参照。
+> 選択肢の比較は判断の経緯として残すが、**結論はそちらが正本**。
+
 **当初のアーキテクチャ案にあった Supabase Branching が、Milestone へ落とし込む段階で
 抜け落ちていた。** `packages/ui` や Spec Kit と同じ抜け方をしている。PO の指摘で判明した。
 
@@ -847,3 +850,54 @@ unit test の担当**で、E2E で二重化しない。
 
 各 journey が自分でアカウントと catalog 行を用意し、自分で片付ける。
 journey 間で共有 fixture に依存しない。
+
+---
+
+## PO 判断: Preview 環境の位置づけ（2026-09-08）
+
+**「M7 の検討事項: Preview 環境の DB 隔離」の未決事項は、この判断で解決した。**
+
+### 決定
+
+- **stage-tracker は Free Plan で運用しており、remote Preview Supabase を持たない。**
+- **PR 単位の DB / Auth / RLS / full-stack の隔離は、ephemeral な local Supabase + CI が担う。**
+  `Verify / Database` と `Verify / E2E` が、それぞれ自分の runner 上に自分の
+  スタックを立てて検証する（A23）。
+- **Vercel Preview は Production Supabase へ authenticated 接続しない。**
+  deployment / runtime の smoke environment として扱い、
+  「authenticated UI 確認環境」とは位置づけない。
+- **authenticated UI と user journey の検証は local Supabase + Playwright / Storybook で行う。**
+- **hosted な authenticated Preview が実際に必要だと感じた時点で、独自の代替基盤を
+  構築せず Supabase Pro / Branching を再評価する。**
+
+### 直接の帰結
+
+**F4b（Preview origin を Magic Link へ渡す）を撤回した。**
+
+F4b は当初、hosted な authenticated Preview を成立させるための要件だった。
+この判断により Preview で authenticated flow を提供しないため、Preview へ戻る
+redirect 先そのものが不要になる。
+
+**むしろ実装すると方針に反する。** `emailRedirectTo` を渡さなければ、Preview で
+サインインを試みてもメール内リンクは Production の `/auth/confirm` へ向かい、
+**Preview 自体は authenticated にならない**。F4b を入れると Preview が
+Production Supabase に対する authenticated セッションを持つことになり、
+この判断が禁じている状態を作る。
+
+将来 remote Preview 環境を持つ場合は、**trusted な Vercel framework 値からのみ
+Preview origin を導出する方式**（リクエストの `Host` / `X-Forwarded-Host` は
+読まない。クライアントが指定できるため、攻撃者のドメインを載せたサインインリンクを
+他人へ送らせる経路になる）を再採用候補とする。
+
+### Preview の射程についての確認
+
+`apps/web` は default-deny であり、未認証では全パスが `/sign-in` へ redirect される
+（公開は `/sign-in` / `/auth/confirm` / manifest・icon のみ）。したがって
+cutover 後の Preview で未認証のまま確認できるのは、**ビルドが通ること・middleware が
+効くこと・サインイン画面の表示**までである。これで足りるという判断。
+
+### 撤回しないもの
+
+「M6 の Preview では書き込みを伴う操作を実行しない」という暫定運用は、この判断に
+包含されて恒久化した（Preview では authenticated にならないため、書き込み操作に
+到達しない）。
