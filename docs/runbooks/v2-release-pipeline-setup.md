@@ -197,6 +197,11 @@ Verify が遅れて完了した場合に起きる。**Production は古いまま
 復旧は Actions → Release → **Run workflow**（`dry_run` のチェックを外す）
 だけでよい。その場合 target は main の tip になる。
 
+> **手動実行でも未検証の commit は deploy されない。** workflow は対象 SHA に
+> 対する push 由来の Verify が success であることを確認してから進む。tip の
+> Verify がまだ実行中／失敗している場合は、その旨を表示して停止する
+> （待ってから再実行する）。
+
 ## 手順 5: release workflow の dry-run
 
 `workflow_dispatch` から `dry_run: true`（既定）で実行し、次を確認する。

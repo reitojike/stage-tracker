@@ -67,6 +67,8 @@ jobs:
     # repository を読むだけ。
     permissions:
       contents: read
+      # 手動実行時に、対象 SHA の Verify が成功しているかを確認するため。
+      actions: read
     steps:
       - name: Resolve target commit
         id: target
@@ -103,6 +105,33 @@ jobs:
             echo "::notice::Release is not configured yet (missing:$missing). Skipping. See docs/runbooks/v2-release-pipeline-setup.md"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # **手動実行でも Verify 成功を必須にする。**
+      #
+      # `main has moved past this target` の復旧手順として
+      # workflow_dispatch を案内しているが、そのままでは
+      # `workflow_run.conclusion` を確認せずに現在の main を deploy して
+      # しまう。新しい commit の Verify がまだ実行中／失敗している状況で
+      # operator が再実行すると、**未検証の commit が Production へ出る**
+      # （PR #388 review, Codex P1。この穴は前 round で追加した復旧手順
+      # 自身が作ったもの）。
+      #
+      # workflow_run 経由の場合は job の `if` で既に success を確認済み。
+      - name: Require a successful Verify for this commit
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          github.event_name == 'workflow_dispatch' &&
+          !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          conclusion=$(gh api             "repos/${{ github.repository }}/actions/workflows/verify.yml/runs?head_sha=$TARGET_SHA&status=completed"             --jq '[.workflow_runs[] | select(.event == "push")] | first | .conclusion // "none"')
+          echo "Verify conclusion for $TARGET_SHA: $conclusion"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::No successful push-triggered Verify run for $TARGET_SHA (got: $conclusion). Refusing to deploy an unverified commit."
+            exit 1
           fi
 
       - name: Checkout stage-tracker

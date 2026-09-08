@@ -1073,8 +1073,19 @@ credential は GitHub の secret として管理され、agent へ渡される�
   - CLI の version を固定する（`latest` は registry の最新をその場で取得する
     ため、悪意ある release が出た瞬間に production deploy 権限で走る）
 
+- **Supabase の access token を使わない。** Supabase の Personal Access Token
+  には **scope 設定が無く、アカウント配下の全 project を操作できる**。
+  `supabase db push` / `migration list` はどちらも `--db-url` を受け付ける
+  ので、**到達範囲をその 1 データベースに限定する**（PO からの
+  「発行時の設定値は？」という質問を受けて判明。PR #388）。
+
+  | 方式       | CI に置くもの                            | 到達範囲                       |
+  | ---------- | ---------------------------------------- | ------------------------------ |
+  | `--linked` | access token + project ref + DB password | アカウント配下の**全 project** |
+  | `--db-url` | 接続文字列 1 つ                          | **そのデータベースのみ**       |
+
 - **service-role key は CI へ置かない。** migration の適用に必要なのは
-  access token / project ref / DB password だけ
+  `SUPABASE_DB_URL` だけ
 
 手順は `docs/runbooks/v2-release-pipeline-setup.md`（operator 作業）。
 
