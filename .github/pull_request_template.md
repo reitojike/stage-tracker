@@ -11,6 +11,23 @@ literalに読み取ります。2行とも残っている場合はambiguousとし
 
 ## Migration ordering
 
+<!--
+**この PR は migration と application runtime code を同時に含めてはいけません**
+（PO 判断 D1 = D、docs/v2/decisions.md）。`Verify / Artifact Sequencing Fence`
+が機械的に拒否します。
+
+  PR A  expand migration のみ（current production app と後方互換）
+  PR B  その schema を使う app code のみ
+  PR C  contract migration のみ（新 app が十分稼働した後）
+
+Issue #121/#124/#125 の事故は、同居していたために「migration がまだ
+Production に無いのに新 schema 必須の app が先に deploy される」状態を
+作れてしまったのが原因でした。その状態自体を作れなくします。
+
+**「この migration は後方互換な expand か」は checker が判断しません。**
+reviewer が判断してください。
+-->
+
 <!-- どちらか一方だけを残し、他方は削除してください。 -->
 
 Migration ordering: post-deploy-safe

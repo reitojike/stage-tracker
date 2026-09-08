@@ -1015,3 +1015,102 @@ key でビルドを通す方式を採っており、この考え方と整合す�
 **アプリのコードで「環境の性質」を再現しようとしない。** 環境の違いは
 環境の設定で表す。app code で表そうとすると、その表現を参照し忘れた
 経路が静かに穴になる。今回は 4 ラウンドかけてそれを実証した。
+
+---
+
+## PO 判断: D1 = D。release を orchestrate せず artifact を順序非依存にする（2026-09-08）
+
+**「PO 判断: release authority は GitHub Actions が持つ（D1 = C）」を supersede する。**
+
+### 決定
+
+> Production release を GitHub Actions で transactional orchestration しない。
+> Vercel の Git auto-deploy を維持する。DB 変更と、それを必要とする runtime
+> 変更を同一 PR に含めることを禁止し、**expand → application → contract の
+> artifact sequencing** で compatibility を保証する。
+
+### C を実測して止めた
+
+PR #388 で C を実装し、release control-flow から **4 ラウンド連続で P1** が出た。
+
+| round | 指摘                                                                    |
+| ----- | ----------------------------------------------------------------------- |
+| 3     | 古い commit を deploy して application code を巻き戻す                  |
+| 4     | 手動実行（前 round で追加した復旧経路）が未検証 commit を deploy できる |
+| 5     | 古い commit の migration を Production へ書いてから停止する             |
+| 6     | target 解決と migration write の間に main が動く                        |
+
+round 5 で target の取り方を「常に main の tip」へ変えても消えなかった。
+round 6 は TOCTOU であり、**check を増やしても atomic にならない**。
+
+```
+check main == A
+    ↓  ← この瞬間にも main は B へ進める
+Production DB write A
+```
+
+**単一 DB への write と Git ref の移動を共通 transaction に載せられない以上、
+pipeline 側で完全な順序保証を自作すること自体が複雑性の源だった。**
+`release.yml` は 330 行に達していた。PR #388 は merge せず close した。
+
+### D で変わること（表現に注意）
+
+**「順序保証が不要になる」のではない。** D でも
+`expand migration → Production 適用 → app code` という意味上の順序は残る。
+
+変わるのは、**その順序を 330 行の orchestrator で保証するのをやめ、
+PR / artifact の構造そのものに埋め込む**ことである。
+
+```
+PR A — Expand
+  migration + DB tests だけ。current production app と後方互換
+        ↓  Production へ適用 → drift=0 → merge
+PR B — Application
+  migration なし。新 schema を利用する app code
+        ↓  通常の Vercel auto-deploy
+PR C — Contract（必要な場合のみ）
+  migration だけ。old schema を削除
+```
+
+Expand migration の条件（current app を壊さない）を満たす限り、PR A の適用が
+多少前後しても実害が無い。Vercel が PR A の merge を見て auto-deploy しても、
+application code は変わっていないので race しても影響しない。
+
+**Issue #121 / #124 / #125 で問題だった「migration がまだ無いのに、新 schema
+必須の app が先に deploy される」という状態そのものが作れなくなる。**
+
+### human memory に依存させない
+
+「同じ PR に入れないでください」と書くだけでは案 B と同じく人間の注意に戻る。
+**deterministic fence を 1 本入れる**（`scripts/check-artifact-sequencing-fence.mjs`）。
+
+- **deterministic fact**（migration と runtime code が同じ PR にあるか）→ checker
+- **semantic judgment**（この migration は後方互換な expand か）→ agent / reviewer
+
+既存 PR の実データで確認した。**M4（migration 14 件）は fence を通る** ——
+既に expand-only PR として作られていたためで、この規約は既存の実践と矛盾しない。
+
+### 既存の Migration Ordering Fence は捨てない
+
+D でも活きる。Expand PR は
+`migration-only PR → Production へ apply → drift=0 → evidence → merge` として
+機能する。
+
+### PR #388 から引き継ぐ知見（コードは採用しない）
+
+- **PR 由来の `workflow_run` から Production secret へ到達できる経路**
+  （`event == 'push'` と `head_repository` の検証が要る）
+- **Supabase Personal Access Token の blast radius** —— scope 設定が無く
+  アカウント配下の全 project に届く。`--db-url` なら 1 データベースに限定できる
+- **Deploy Hook は verified SHA を固定できない**（branch の最新を build する）
+- **GitHub Actions の concurrency** は pending を 1 つしか保持せず、新しい run が
+  既存の pending を置き換える
+
+### PO 作業への影響
+
+**不要になった**: GitHub Environment `production` と release 用 secret 一式
+（`SUPABASE_DB_URL` / `VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`）、
+Vercel の Production auto-deploy 停止。
+
+**残る**: Vercel Preview の環境変数を Production から分離すること（Preview 隔離。
+D とは独立の論点）。
