@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classifyMigrationDrift } from './migrationDrift.mjs';
+import { planMigrationApply } from './migrationApplyPlan.mjs';
 
 void test('classifyMigrationDrift reports unknown for null input', () => {
   const { status } = classifyMigrationDrift(null);
@@ -91,7 +92,7 @@ void test('classifyMigrationDrift reports unknown when a paired entry has mismat
   assert.equal(result.status, 'unknown');
   assert.deepEqual(result.pendingLocal, []);
   assert.deepEqual(result.remoteOnly, []);
-  assert.match(result.reason, /cannot confirm sync state/);
+  assert.ok(result.reason.includes('cannot confirm the repository/Production correspondence'));
 });
 
 void test('classifyMigrationDrift reports unknown when an entry has neither local nor remote', () => {
@@ -102,15 +103,49 @@ void test('classifyMigrationDrift reports unknown when an entry has neither loca
   );
 });
 
-void test('classifyMigrationDrift still reports drift (not unknown) when a real pending entry accompanies an invalid one', () => {
+// 前 revision はこの検査を drift の後ろに置き、**壊れた挙動をテストで固定して
+// いた**（PR #390 codex finding）。pending と不正 entry が同時に来た場合、
+// 'drift' を返すと planMigrationApply が 'apply' を返し、対応が未確認のまま
+// Production へ push が走る。'unknown' でなければならない。
+
+void test('classifyMigrationDrift reports unknown when an invalid entry accompanies a real pending one', () => {
   const result = classifyMigrationDrift({
     migrations: [
       { local: '20260908000000', remote: null },
       { local: '20260101000000', remote: '20260101000009' },
     ],
   });
-  // drift の判定を先に行う: 実際に pending がある場合は、それを unknown へ
-  // 畳み込まず actionable なまま返す。
-  assert.equal(result.status, 'drift');
+  assert.equal(result.status, 'unknown');
+  // pending の詳細は operator が状況を読めるよう payload に残す。
   assert.deepEqual(result.pendingLocal, ['20260908000000']);
+});
+
+// この module 単体ではなく、apply path の入口まで通して固定する。
+// 「unknown を返す」ことではなく「Production へ push しない」ことが目的。
+
+void test('planMigrationApply stops (never applies) when an invalid entry accompanies a real pending one', () => {
+  const plan = planMigrationApply(
+    classifyMigrationDrift({
+      migrations: [
+        { local: '20260908000000', remote: null },
+        { local: '20260101000000', remote: '20260101000009' },
+      ],
+    }),
+  );
+  assert.equal(plan.action, 'stop');
+  assert.equal(plan.cause, 'unknown');
+  assert.deepEqual(plan.pending, []);
+});
+
+void test('planMigrationApply still applies a genuinely pending-only state', () => {
+  const plan = planMigrationApply(
+    classifyMigrationDrift({
+      migrations: [
+        { local: '20260101000000', remote: '20260101000000' },
+        { local: '20260908000000', remote: null },
+      ],
+    }),
+  );
+  assert.equal(plan.action, 'apply');
+  assert.deepEqual(plan.pending, ['20260908000000']);
 });

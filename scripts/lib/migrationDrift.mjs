@@ -28,31 +28,49 @@ export function classifyMigrationDrift(parsed) {
     .filter((entry) => isNonEmpty(entry?.remote) && !isNonEmpty(entry?.local))
     .map((entry) => entry.remote);
 
-  if (pendingLocal.length > 0 || remoteOnly.length > 0) {
-    return { status: 'drift', pendingLocal, remoteOnly, reason: null };
-  }
-
-  // fail closed: pending / remote-only のどちらでもない entry が、'synced' の
-  // positive evidence になっているとは限らない。
+  // fail closed —— **drift の判定より先に行う。**
   //
-  //   { local: '20260908000000', remote: '20260908000001' }  -> どちらも非空
-  //   {}                                                        -> どちらも空
+  // pending / remote-only のどちらでもない entry は、'synced' の positive
+  // evidence にならないだけでなく、**pending と同時に存在する場合も
+  // 判断材料にできない**。
   //
-  // いずれも上の 2 つの filter に掛からず、そのまま 'synced' へ落ちていた
-  // （CodeRabbit の指摘）。この module の header が宣言している「positive
-  // evidence 無しに synced を返さない」に反する。version が一致する pair
-  // だけを synced の根拠として数え、それ以外が 1 件でもあれば 'unknown'。
-  const unpaired = parsed.migrations.filter(
-    (entry) =>
-      !isNonEmpty(entry?.local) || !isNonEmpty(entry?.remote) || entry.local !== entry.remote,
-  );
-  if (unpaired.length > 0) {
+  //   { local: 'A', remote: null }            <- pending
+  //   { local: 'B', remote: 'C' }             <- 対応不明
+  //
+  // これを 'drift' として返すと、`planMigrationApply` は status が
+  // 'unknown' でなく remoteOnly が空で pendingLocal が非空なのを見て
+  // **'apply' を返し、Production に対して `supabase db push` が走る**。
+  // repository と Production の対応が確認できていないまま。
+  //
+  // 前 revision はこの検査を drift の後ろに置き、その挙動をテストで
+  // 固定してしまっていた（PR #390 codex finding）。Production への
+  // write path では、確証の無い状態を actionable 扱いしない。
+  //
+  // pendingLocal / remoteOnly は operator が状況を読めるよう payload に
+  // 残す。`planMigrationApply` は 'unknown' を先に見て stop するので、
+  // この値が apply の根拠になることはない。
+  const unverifiable = parsed.migrations.filter((entry) => {
+    const hasLocal = isNonEmpty(entry?.local);
+    const hasRemote = isNonEmpty(entry?.remote);
+    if (hasLocal && !hasRemote) return false; // pending（上で拾っている）
+    if (hasRemote && !hasLocal) return false; // remote-only（上で拾っている）
+    if (hasLocal && hasRemote) return entry.local !== entry.remote; // version 不一致
+    return true; // どちらも空
+  });
+  if (unverifiable.length > 0) {
     return {
       status: 'unknown',
-      pendingLocal: [],
-      remoteOnly: [],
-      reason: `${String(unpaired.length)} migration entr(y/ies) had neither a pending nor a remote-only shape and did not pair a matching local/remote version; cannot confirm sync state.`,
+      pendingLocal,
+      remoteOnly,
+      reason:
+        `${String(unverifiable.length)} migration entr(y/ies) were neither pending nor ` +
+        'remote-only and did not pair a matching local/remote version; cannot confirm the ' +
+        'repository/Production correspondence.',
     };
+  }
+
+  if (pendingLocal.length > 0 || remoteOnly.length > 0) {
+    return { status: 'drift', pendingLocal, remoteOnly, reason: null };
   }
 
   return {
