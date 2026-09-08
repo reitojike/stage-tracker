@@ -165,6 +165,11 @@ function TicketTimelineRow({
       <span className="text-title font-medium text-foreground">
         {formatMilestoneWhenJa(row.milestone)}
       </span>
+      {/* 販売機会名。同日に複数の同種 milestone があると、種別と日時だけでは
+          どの Event / 販売機会の行か判別できない（PR #381 review）。 */}
+      <span className="text-body-sm text-muted-foreground">
+        {row.displayName}
+      </span>
     </Link>
   );
 }

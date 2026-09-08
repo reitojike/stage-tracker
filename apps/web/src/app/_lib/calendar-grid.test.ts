@@ -6,6 +6,7 @@ import {
   dayOfWeek,
   firstDayOfMonth,
   formatMonthParam,
+  isRenderableMonth,
   lastDayOfMonth,
   parseDateParam,
   parseMonthParam,
@@ -163,5 +164,44 @@ describe("buildMonthGridDays", () => {
     const days = buildMonthGridDays({ year: 2026, month: 3 });
     expect(days[0]).toBe("2026-03-01");
     expect(days[days.length - 1]).toBe("2026-04-04");
+  });
+});
+
+describe("境界年の月（PR #381 review）", () => {
+  const fallback = { year: 2026, month: 1 };
+
+  it("グリッドが表現できない月を含む date は無視して fallback する", () => {
+    // 9999-12 のグリッドは 10000-01-06 まで伸びる。以前はここで
+    // tokyoCalendarDateSchema が throw し、ページ全体が 500 になっていた。
+    expect(
+      resolveCalendarMonthAndDate(undefined, "9999-12-31", fallback),
+    ).toEqual({ month: fallback, selectedDate: null });
+  });
+
+  it("同じ月を month param で渡しても fallback する", () => {
+    expect(parseMonthParam("9999-12", fallback)).toEqual(fallback);
+  });
+
+  it("0-99 年を 1900+year に写さない", () => {
+    // Date.UTC(1, 0, 1) は 1901-01-01。以前はこの写像により
+    // ?date=0001-01-01 が 1900-12-30 起点のグリッドを描いていた。
+    expect(isRenderableMonth({ year: 1, month: 1 })).toBe(true);
+    expect(buildMonthGridDays({ year: 1, month: 1 })[0]?.slice(0, 4)).toBe(
+      "0000",
+    );
+  });
+
+  it("グリッド開始が負の年になる月は表現不能とみなす", () => {
+    expect(isRenderableMonth({ year: 0, month: 1 })).toBe(false);
+    expect(
+      resolveCalendarMonthAndDate(undefined, "0000-01-01", fallback),
+    ).toEqual({ month: fallback, selectedDate: null });
+  });
+
+  it("境界の内側は従来どおり通る", () => {
+    expect(isRenderableMonth({ year: 9999, month: 11 })).toBe(true);
+    expect(
+      resolveCalendarMonthAndDate(undefined, "9999-11-30", fallback),
+    ).toEqual({ month: { year: 9999, month: 11 }, selectedDate: "9999-11-30" });
   });
 });
