@@ -1108,12 +1108,36 @@ D でも活きる。Expand PR は
 
 ### PO 作業への影響
 
-**不要になった**: GitHub Environment `production` と release 用 secret 一式
-（`SUPABASE_DB_URL` / `VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`）、
-Vercel の Production auto-deploy 停止。
+**不要になった**: Vercel 用の release secret（`VERCEL_TOKEN` / `VERCEL_ORG_ID` /
+`VERCEL_PROJECT_ID`）と、Vercel の Production auto-deploy 停止。
+これらは release orchestrator（C 案）が deploy を制御するために必要だった
+ものであり、D では deploy に一切触れないため要らない。
+
+**必要**: GitHub Environment `production` と、その Environment secret
+`SUPABASE_DB_URL`。**D でも migration の自動適用は行う**ため、これは残る。
+（D で無くなったのは deploy の制御であって、migration 適用ではない。）
+手順は `docs/runbooks/v2-migration-apply-setup.md`。
 
 **残る**: Vercel Preview の環境変数を Production から分離すること（Preview 隔離。
 D とは独立の論点）。
+
+### D が保証しないこと（残存リスク）
+
+fence が保証するのは「migration と runtime code が**同じ PR に無い**」ことだけ。
+**PR をまたぐ merge 順序は保証しない。** PR B（app code）を PR A（migration）の
+適用前に merge することは、機械的には可能なまま。
+
+これを機械的な gate にしようとしたのが PR #388 で、4 ラウンド連続で P1 が
+残った。`main` は check と act の間に動くため、どこに check を足しても
+TOCTOU が閉じない。**PO 判断 D は、この gate を作らないという判断である。**
+
+したがって順序は運用規律で担保する:
+
+```
+PR A merge → apply-migrations workflow の完了を確認 → PR B merge
+```
+
+reviewer は PR B をレビューする際、依存する migration が適用済みかを確認する。
 
 ## A8 追補: error code の変更では runtime を先に出す（2026-09-08）
 

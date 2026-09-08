@@ -45,11 +45,20 @@
 
 const MIGRATION_PATTERN = /^supabase\/migrations\/.+\.sql$/;
 
-// migration と同居してよい path。deploy される runtime の挙動を変えない
-// ものに限る。**「ついでに直したくなる」ものを足していくと fence の意味が
-// 無くなる**ので、追加時は「これが deploy 後の runtime 挙動を変え得るか」で
-// 判断すること。
-const ALLOWED_ALONGSIDE_PATTERNS = [/\/database\.types\.ts$/];
+// migration と同居してよい path。**exact path の allowlist にする。**
+//
+// `/\/database\.types\.ts$/` のような suffix 一致にすると、
+// `apps/web/src/feature/database.types.ts` のような**手書きの runtime module**
+// を同じ名前で置くだけで fence を迂回できる（CodeRabbit の指摘）。
+// 生成物の出力先は `apps/legacy-web/scripts/generate-supabase-types.mjs` が
+// 知っている 2 箇所だけなので、その 2 つを literal で書く。
+//
+// 追加するときは「これが deploy 後の runtime 挙動を変え得るか」で判断すること。
+// **「ついでに直したくなる」ものを足していくと fence の意味が無くなる。**
+const ALLOWED_ALONGSIDE_PATHS = new Set([
+  'apps/web/src/lib/data/database.types.ts',
+  'apps/legacy-web/src/infrastructure/supabase/database.types.ts',
+]);
 
 // runtime code とみなす path。migration と同居したら拒否する。
 const RUNTIME_PATTERN = /^apps\/[^/]+\/src\//;
@@ -70,9 +79,7 @@ export function evaluateArtifactSequencingFence(changedFiles) {
     return { ok: true, migrations: [], runtime: [], reason: 'No migration files in this PR.' };
   }
 
-  const runtime = files.filter(
-    (f) => RUNTIME_PATTERN.test(f) && !ALLOWED_ALONGSIDE_PATTERNS.some((p) => p.test(f)),
-  );
+  const runtime = files.filter((f) => RUNTIME_PATTERN.test(f) && !ALLOWED_ALONGSIDE_PATHS.has(f));
 
   if (runtime.length === 0) {
     return {

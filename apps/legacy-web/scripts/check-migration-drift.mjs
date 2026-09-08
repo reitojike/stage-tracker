@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { classifyMigrationDrift } from './lib/migrationDrift.mjs';
+import { classifyMigrationDrift } from '../../../scripts/lib/migrationDrift.mjs';
 
 // Operator-only, read-only drift check against the linked Production
 // Supabase project (Issue #131). Not wired into CI: CI has no Production

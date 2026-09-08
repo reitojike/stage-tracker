@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { classifyMigrationDrift } from '../lib/migrationDrift.mjs';
+import { classifyMigrationDrift } from './migrationDrift.mjs';
 
 void test('classifyMigrationDrift reports unknown for null input', () => {
   const { status } = classifyMigrationDrift(null);
@@ -76,4 +76,41 @@ void test('classifyMigrationDrift can report both pending and remote-only in one
   assert.equal(status, 'drift');
   assert.deepEqual(pendingLocal, ['20260826000200']);
   assert.deepEqual(remoteOnly, ['20260826999999']);
+});
+
+// --- fail-closed regression（PR #390 CodeRabbit finding） ---
+//
+// pending でも remote-only でもない不正な entry が 'synced' へ落ちていた。
+// この module の header が宣言する「positive evidence 無しに synced を
+// 返さない」に反する。
+
+void test('classifyMigrationDrift reports unknown when a paired entry has mismatched local/remote versions', () => {
+  const result = classifyMigrationDrift({
+    migrations: [{ local: '20260908000000', remote: '20260908000001' }],
+  });
+  assert.equal(result.status, 'unknown');
+  assert.deepEqual(result.pendingLocal, []);
+  assert.deepEqual(result.remoteOnly, []);
+  assert.match(result.reason, /cannot confirm sync state/);
+});
+
+void test('classifyMigrationDrift reports unknown when an entry has neither local nor remote', () => {
+  assert.equal(classifyMigrationDrift({ migrations: [{}] }).status, 'unknown');
+  assert.equal(
+    classifyMigrationDrift({ migrations: [{ local: '', remote: '' }] }).status,
+    'unknown',
+  );
+});
+
+void test('classifyMigrationDrift still reports drift (not unknown) when a real pending entry accompanies an invalid one', () => {
+  const result = classifyMigrationDrift({
+    migrations: [
+      { local: '20260908000000', remote: null },
+      { local: '20260101000000', remote: '20260101000009' },
+    ],
+  });
+  // drift の判定を先に行う: 実際に pending がある場合は、それを unknown へ
+  // 畳み込まず actionable なまま返す。
+  assert.equal(result.status, 'drift');
+  assert.deepEqual(result.pendingLocal, ['20260908000000']);
 });

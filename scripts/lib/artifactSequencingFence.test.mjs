@@ -65,3 +65,29 @@ describe('parseChangedFiles', () => {
     assert.deepEqual(parseChangedFiles('a.ts\n\n  b.ts  \n'), ['a.ts', 'b.ts']);
   });
 });
+
+describe('ALLOWED_ALONGSIDE_PATHS', () => {
+  // --- allowlist 迂回の regression（PR #390 CodeRabbit finding） ---
+  //
+  // suffix 一致（`/\/database\.types\.ts$/`）だと、同じ名前の手書き runtime
+  // module を置くだけで fence を迂回できた。exact path の allowlist へ変更した。
+
+  it('a hand-written runtime module merely named database.types.ts does NOT get the generated-artifact exemption', () => {
+    const result = evaluateArtifactSequencingFence([
+      'supabase/migrations/20260908010000_x.sql',
+      'apps/web/src/feature/database.types.ts',
+    ]);
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.runtime, ['apps/web/src/feature/database.types.ts']);
+  });
+
+  it('both real generated database.types.ts paths keep the exemption', () => {
+    const result = evaluateArtifactSequencingFence([
+      'supabase/migrations/20260908010000_x.sql',
+      'apps/web/src/lib/data/database.types.ts',
+      'apps/legacy-web/src/infrastructure/supabase/database.types.ts',
+    ]);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.runtime, []);
+  });
+});
