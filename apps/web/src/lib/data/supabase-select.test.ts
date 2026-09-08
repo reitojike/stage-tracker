@@ -4,7 +4,7 @@ import {
   type SupabaseClient,
 } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/test/msw/server";
 import { classifyPostgrestError, runSupabaseSelect } from "./supabase-select";
 
@@ -135,11 +135,24 @@ describe("runSupabaseSelect", () => {
     }
   });
 
-  it("classifies an unrelated 500 as failure, not unavailable", async () => {
+  it("classifies an unrelated 500 as failure, not unavailable, without leaking the raw PostgREST message", async () => {
+    // PR #381 review finding 2: the raw DB/PostgREST message ("internal
+    // error" here stands in for real table/constraint-naming detail) must
+    // never reach the caller - it is logged server-side only, and
+    // `ReadError.message` is always one of the fixed, safe strings in
+    // `./read-error.ts`.
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // swallow the expected log for this test
+    });
     server.use(
       http.get(`${REST_URL}/widgets`, () =>
         HttpResponse.json(
-          { message: "internal error", details: "", hint: "", code: "XX000" },
+          {
+            message: "internal error: relation widgets_secret_col violates x",
+            details: "",
+            hint: "",
+            code: "XX000",
+          },
           { status: 500 },
         ),
       ),
@@ -151,12 +164,19 @@ describe("runSupabaseSelect", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+      expect(result.error.message).not.toContain("widgets_secret_col");
     }
+    expect(consoleError).toHaveBeenCalled();
+
+    consoleError.mockRestore();
   });
 
   it("classifies a network-level failure (fetch rejects) as failure, without throwing", async () => {
     server.use(http.get(`${REST_URL}/widgets`, () => HttpResponse.error()));
     const client = createTestClient();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // swallow the expected log for this test
+    });
 
     // postgrest-js retries GET requests on network errors by default
     // (exponential backoff, up to 3 attempts) - disabled here since this
@@ -170,6 +190,8 @@ describe("runSupabaseSelect", () => {
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
     }
+
+    consoleError.mockRestore();
   });
 });
 

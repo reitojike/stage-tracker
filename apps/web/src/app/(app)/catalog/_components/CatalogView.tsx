@@ -10,7 +10,10 @@ import {
   type TokyoYearMonth,
 } from "@/app/_lib/calendar-grid";
 import { formatMonthJa } from "@/app/_lib/format";
-import type { BlockState } from "@/app/_lib/read-state";
+import {
+  READ_FAILURE_RETRY_HINT_JA,
+  type BlockState,
+} from "@/app/_lib/read-state";
 import {
   DEFAULT_CATALOG_FILTER_SELECTION,
   activeFacetForGenre,
@@ -179,9 +182,9 @@ export function CatalogView({
                 ? "カタログを確認できません"
                 : "カタログを読み込めませんでした"
           }
-          description={
-            eventsState.variant === "empty" ? "" : eventsState.message
-          }
+          {...(eventsState.variant === "error"
+            ? { description: READ_FAILURE_RETRY_HINT_JA }
+            : {})}
           action={
             eventsState.variant === "error" ? (
               <Button
@@ -219,7 +222,9 @@ export function CatalogView({
             <StatePanel
               variant={filterOptionsResult.variant}
               title="絞り込みを利用できません"
-              description={filterOptionsResult.message}
+              {...(filterOptionsResult.variant === "error"
+                ? { description: READ_FAILURE_RETRY_HINT_JA }
+                : {})}
             />
           ) : null}
 

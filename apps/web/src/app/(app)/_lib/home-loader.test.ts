@@ -151,6 +151,65 @@ describe("loadHomeTicketDeadlines", () => {
 
     expect(state.variant).toBe("unavailable");
   });
+
+  it("stays populated from the shared catalog even when the personal-state read fails (P4 read-level degradation)", async () => {
+    // PR #381 review finding 1: `listTicketOpportunities` is required,
+    // `listMyTicketOpportunityStates` is optional
+    // (`classifyBlock2Optional`) - a failure fetching the caller's own
+    // planning state must not hide the shared opportunity itself, only the
+    // `myState` badge on it.
+    server.use(
+      http.get(`${REST_URL}/ticket_opportunities`, () =>
+        HttpResponse.json([
+          {
+            id: OPPORTUNITY_ID,
+            event_id: EVENT_ID,
+            target_scope: "event_wide",
+            display_name: "一般発売",
+            source_key: "src-1",
+            source_url: null,
+            memo: null,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+            ticket_opportunity_target_occurrences: [],
+            ticket_opportunity_milestones: [
+              {
+                id: "55555555-5555-4555-8555-555555555555",
+                opportunity_id: OPPORTUNITY_ID,
+                milestone_type: "sale_start",
+                temporal_precision: "datetime",
+                date_value: null,
+                at: "2026-03-10T10:00:00Z",
+                starts_at: null,
+                ends_at: null,
+                created_at: "2026-01-01T00:00:00Z",
+                updated_at: "2026-01-01T00:00:00Z",
+              },
+            ],
+          },
+        ]),
+      ),
+      http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
+        HttpResponse.json(
+          { message: "boom", details: "", hint: "", code: "XX000" },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    const state = await loadHomeTicketDeadlines(
+      createTestClient(),
+      USER_ID,
+      NOW,
+    );
+
+    expect(state.variant).toBe("populated");
+    if (state.variant === "populated") {
+      expect(state.data).toHaveLength(1);
+      expect(state.data[0]?.row.opportunityId).toBe(OPPORTUNITY_ID);
+      expect(state.data[0]?.row.myState).toBeNull();
+    }
+  });
 });
 
 describe("loadHomeUpcomingSchedule", () => {
@@ -188,7 +247,15 @@ describe("loadHomeUpcomingSchedule", () => {
     }
   });
 
-  it("stays populated from personal schedule even when the participations read fails (P4 independent degradation)", async () => {
+  it("stays populated from personal schedule even when the participations read fails (P4 read-level degradation)", async () => {
+    // PR #381 review finding 1: this test's own name previously asserted
+    // the opposite of what it verified (`variant` was checked as
+    // `"unavailable"`, i.e. the whole block hidden). `classifyMergedListBlock2`
+    // fixes that: `listMyParticipations` failing alone must not hide the
+    // items `listVisiblePersonalSchedule` still returns - the fixture below
+    // uses a real (non-empty), not-yet-past schedule entry so this actually
+    // exercises the "populated from the surviving read" path, not just an
+    // empty coincidence.
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
         HttpResponse.json(
@@ -197,7 +264,22 @@ describe("loadHomeUpcomingSchedule", () => {
         ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([
+          {
+            id: "77777777-7777-4777-8777-777777777777",
+            owner_id: USER_ID,
+            memo: null,
+            is_all_day: true,
+            starts_on: "2026-03-05",
+            ends_on: "2026-03-06",
+            starts_at: null,
+            ends_at: null,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+            title: "旅行",
+            blocking: true,
+          },
+        ]),
       ),
     );
 
@@ -207,13 +289,38 @@ describe("loadHomeUpcomingSchedule", () => {
       NOW,
     );
 
-    // The whole block is one unit backed by 2 reads (§ this file's own
-    // module docstring), but the point under test here is that a failure in
-    // THIS block never touches the other, sibling block
-    // (loadHomeTicketDeadlines) - covered together in
-    // `apps/web/src/app/(app)/page.test.tsx`-equivalent coverage at the
-    // HomeView level, since that is where the 2 blocks are actually
-    // independent of each other.
+    expect(state.variant).toBe("populated");
+    if (state.variant === "populated") {
+      expect(state.data).toHaveLength(1);
+      expect(state.data[0]?.kind).toBe("schedule");
+      if (state.data[0]?.kind === "schedule") {
+        expect(state.data[0].entry.title).toBe("旅行");
+      }
+    }
+  });
+
+  it("is unavailable when both participations and personal schedule fail", async () => {
+    server.use(
+      http.get(`${REST_URL}/occurrence_participations`, () =>
+        HttpResponse.json(
+          { message: "denied", details: "", hint: "", code: "42501" },
+          { status: 403 },
+        ),
+      ),
+      http.get(`${REST_URL}/personal_schedule_entries`, () =>
+        HttpResponse.json(
+          { message: "boom", details: "", hint: "", code: "XX000" },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    const state = await loadHomeUpcomingSchedule(
+      createTestClient(),
+      USER_ID,
+      NOW,
+    );
+
     expect(state.variant).toBe("unavailable");
   });
 

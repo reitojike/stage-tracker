@@ -110,9 +110,43 @@ describe("loadTicketsTimeline", () => {
     expect(state.variant).toBe("unavailable");
   });
 
-  it("is error when the personal-state read fails with a generic failure", async () => {
+  it("stays populated from the shared timeline even when the personal-state read fails (P4 read-level degradation)", async () => {
+    // PR #381 review finding 1: `listTicketOpportunities` is required,
+    // `listMyTicketOpportunityStates` is optional (`classifyBlock2Optional`,
+    // same shape as home's "申し込み期限" block) - the shared timeline must
+    // still render (with no `myState` badge) when only the personal-state
+    // read fails.
     server.use(
-      http.get(`${REST_URL}/ticket_opportunities`, () => HttpResponse.json([])),
+      http.get(`${REST_URL}/ticket_opportunities`, () =>
+        HttpResponse.json([
+          {
+            id: "44444444-4444-4444-8444-444444444444",
+            event_id: "22222222-2222-4222-8222-222222222222",
+            target_scope: "event_wide",
+            display_name: "一般発売",
+            source_key: "src-1",
+            source_url: null,
+            memo: null,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+            ticket_opportunity_target_occurrences: [],
+            ticket_opportunity_milestones: [
+              {
+                id: "55555555-5555-4555-8555-555555555555",
+                opportunity_id: "44444444-4444-4444-8444-444444444444",
+                milestone_type: "sale_start",
+                temporal_precision: "datetime",
+                date_value: null,
+                at: "2026-03-10T10:00:00Z",
+                starts_at: null,
+                ends_at: null,
+                created_at: "2026-01-01T00:00:00Z",
+                updated_at: "2026-01-01T00:00:00Z",
+              },
+            ],
+          },
+        ]),
+      ),
       http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
         HttpResponse.json(
           { message: "boom", details: "", hint: "", code: "XX000" },
@@ -123,6 +157,10 @@ describe("loadTicketsTimeline", () => {
 
     const state = await loadTicketsTimeline(createTestClient(), USER_ID, NOW);
 
-    expect(state.variant).toBe("error");
+    expect(state.variant).toBe("populated");
+    if (state.variant === "populated") {
+      expect(state.data.groups).toHaveLength(1);
+      expect(state.data.groups[0]?.rows[0]?.myState).toBeNull();
+    }
   });
 });

@@ -5,7 +5,10 @@ import {
   formatMilestoneWhenJa,
 } from "@/app/_lib/ticket-milestone-format";
 import { formatMonthJa } from "@/app/_lib/format";
-import type { BlockState } from "@/app/_lib/read-state";
+import {
+  READ_FAILURE_RETRY_HINT_JA,
+  type BlockState,
+} from "@/app/_lib/read-state";
 import type { TicketOpportunityTimelineRow } from "@stage-tracker/domain";
 import type { TicketsTimelineState } from "../_lib/tickets-loader";
 
@@ -43,7 +46,9 @@ export function TicketsView({ state }: TicketsViewProps) {
                 ? "チケット情報を確認できません"
                 : "チケット情報を読み込めませんでした"
           }
-          description={state.variant === "empty" ? "" : state.message}
+          {...(state.variant === "error"
+            ? { description: READ_FAILURE_RETRY_HINT_JA }
+            : {})}
         />
       ) : (
         <div className="flex flex-col gap-lg">

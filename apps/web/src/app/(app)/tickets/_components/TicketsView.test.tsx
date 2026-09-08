@@ -45,17 +45,18 @@ describe("TicketsView", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the error state as an alert", () => {
-    render(<TicketsView state={{ variant: "error", message: "boom" }} />);
+  it("renders the error state as an alert with a generic retry hint (never a raw message)", () => {
+    render(<TicketsView state={{ variant: "error" }} />);
     expect(screen.getByRole("alert")).toHaveTextContent(
       "チケット情報を読み込めませんでした",
     );
+    expect(
+      screen.getByText("しばらくしてから再度お試しください。"),
+    ).toBeInTheDocument();
   });
 
   it("renders the unavailable state distinctly from error", () => {
-    render(
-      <TicketsView state={{ variant: "unavailable", message: "denied" }} />,
-    );
+    render(<TicketsView state={{ variant: "unavailable" }} />);
     expect(
       screen.getByText("チケット情報を確認できません"),
     ).toBeInTheDocument();

@@ -4,6 +4,7 @@ import {
   listCatalogGroups,
   listCatalogVenues,
   listEventCatalogInRange,
+  toReadErrorVariant,
   type EventCatalogEntry,
   type TokyoCalendarDateRange,
 } from "@/lib/data";
@@ -35,7 +36,6 @@ export async function loadCatalogEvents(
 export interface CatalogFilterOptionsFailure {
   readonly ok: false;
   readonly variant: "unavailable" | "error";
-  readonly message: string;
 }
 
 export type CatalogFilterOptionsResult =
@@ -48,11 +48,16 @@ export type CatalogFilterOptionsResult =
  * venues just means the filter UI has nothing to offer, which is not a
  * failure (AGENTS.md never treats an empty lookup table as an error state).
  * `ok: false` covers exactly the 2 real failure kinds
- * (`unavailable`/`error`), same mapping as `@/app/_lib/read-state`'s
- * `toBlockVariant` - kept independent from that module since this type
- * deliberately excludes `empty`/`populated`, so reusing `BlockState<T>`
- * directly would let a caller mistakenly branch on an `empty` case that can
- * never occur here.
+ * (`unavailable`/`error`), using `@/lib/data`'s `toReadErrorVariant` (the
+ * single canonical failure-kind mapping, PR #381 review finding 3) - kept
+ * independent from `BlockState<T>` since this type deliberately excludes
+ * `empty`/`populated`, so reusing `BlockState<T>` directly would let a
+ * caller mistakenly branch on an `empty` case that can never occur here.
+ *
+ * Deliberately has no `message` (PR #381 review finding 2): the raw
+ * PostgREST/network detail never leaves `@/lib/data`'s read boundary in the
+ * first place (`readError()` no longer even accepts one), and the screen
+ * (`CatalogView`) owns its own display copy per `variant`.
  */
 export async function loadCatalogFilterOptions(
   supabase: SupabaseClient,
@@ -64,25 +69,13 @@ export async function loadCatalogFilterOptions(
   ]);
 
   if (!genresResult.ok) {
-    return {
-      ok: false,
-      variant: genresResult.error.kind === "failure" ? "error" : "unavailable",
-      message: genresResult.error.message,
-    };
+    return { ok: false, variant: toReadErrorVariant(genresResult.error.kind) };
   }
   if (!groupsResult.ok) {
-    return {
-      ok: false,
-      variant: groupsResult.error.kind === "failure" ? "error" : "unavailable",
-      message: groupsResult.error.message,
-    };
+    return { ok: false, variant: toReadErrorVariant(groupsResult.error.kind) };
   }
   if (!venuesResult.ok) {
-    return {
-      ok: false,
-      variant: venuesResult.error.kind === "failure" ? "error" : "unavailable",
-      message: venuesResult.error.message,
-    };
+    return { ok: false, variant: toReadErrorVariant(venuesResult.error.kind) };
   }
 
   return {

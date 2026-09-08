@@ -6,7 +6,10 @@ import {
   formatMilestoneWhenJa,
 } from "@/app/_lib/ticket-milestone-format";
 import { formatTokyoCalendarDateJa, formatTokyoTime } from "@/app/_lib/format";
-import type { BlockState } from "@/app/_lib/read-state";
+import {
+  READ_FAILURE_RETRY_HINT_JA,
+  type BlockState,
+} from "@/app/_lib/read-state";
 import type {
   HomeTicketDeadlineRow,
   HomeUpcomingItem,
@@ -111,7 +114,9 @@ function TicketDeadlineSection({
                 ? "申し込み期限を確認できません"
                 : "申し込み期限を読み込めませんでした"
           }
-          description={state.variant === "empty" ? "" : state.message}
+          {...(state.variant === "error"
+            ? { description: READ_FAILURE_RETRY_HINT_JA }
+            : {})}
         />
       )}
     </section>
@@ -159,7 +164,9 @@ function UpcomingScheduleSection({
                 ? "予定を確認できません"
                 : "予定を読み込めませんでした"
           }
-          description={state.variant === "empty" ? "" : state.message}
+          {...(state.variant === "error"
+            ? { description: READ_FAILURE_RETRY_HINT_JA }
+            : {})}
         />
       )}
     </section>

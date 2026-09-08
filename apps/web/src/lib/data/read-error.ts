@@ -43,6 +43,33 @@ export interface ReadError {
   readonly message: string;
 }
 
-export function readError(kind: ReadErrorKind, message: string): ReadError {
-  return { kind, message };
+/**
+ * PR #381 review finding 2（「DB / PostgREST の生エラーメッセージを画面へ
+ * 出している」）への対応。
+ *
+ * `@/lib/safe-action.ts` の `toActionErrorShape` は、書き込み側で「分類
+ * されていない例外の詳細（DB/RLS の生メッセージ、スタック等）を client へ
+ * 渡さない」ため、`ActionError` を経由しない例外を常に固定の generic
+ * message へ変換する。read 側もこの思想を踏襲する: `readError()` は
+ * `message` を呼び出し元から一切受け取らない（型としてそもそも受け取れ
+ * ない - 「型で防ぐ」ための設計）。PostgREST/network/mapping の生詳細は
+ * `console.error` で server 側ログにのみ残し（`./supabase-select.ts`
+ * `./row-mapping.ts` 参照）、この `message` は kind ごとに固定された
+ * safe な文字列にする。
+ *
+ * ただしこの `message` 自体も UI の表示文言として直接使うことは想定しない
+ * （画面ごとの文言は screen 層が variant を見て自分で書く -
+ * `@/app/_lib/read-state.ts` の `ReadState`/`BlockState` は意図的に
+ * `message` を持たない）。ここでの固定文字列は、`ReadError` を直接扱う
+ * 呼び出し元（`@/app/_lib/require-authenticated-user-id.ts` 等）向けの
+ * 汎用フォールバックに過ぎない。
+ */
+const READ_ERROR_MESSAGES: Readonly<Record<ReadErrorKind, string>> = {
+  unauthenticated: "サインインが必要です。",
+  "permission-denied": "この情報を見る権限がありません。",
+  failure: "情報の取得に失敗しました。",
+};
+
+export function readError(kind: ReadErrorKind): ReadError {
+  return { kind, message: READ_ERROR_MESSAGES[kind] };
 }

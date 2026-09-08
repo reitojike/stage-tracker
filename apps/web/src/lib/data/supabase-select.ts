@@ -25,12 +25,23 @@ export function classifyPostgrestError(
   status: number,
 ): ReadError {
   if (status === 401) {
-    return readError("unauthenticated", error.message);
+    return readError("unauthenticated");
   }
   if (status === 403 || PERMISSION_DENIED_POSTGRES_CODES.has(error.code)) {
-    return readError("permission-denied", error.message);
+    return readError("permission-denied");
   }
-  return readError("failure", error.message);
+  // Unclassified PostgREST failure - same shape as
+  // `@/lib/safe-action.ts`'s `toActionErrorShape`: log the raw detail
+  // (table/constraint names, SQL error text) for server-side forensics only,
+  // never fold it into the `ReadError` returned to the caller (review
+  // finding 2 on PR #381 - `readError()` no longer even accepts a message
+  // parameter, see `./read-error.ts`).
+  console.error("[read] unclassified PostgREST error", {
+    status,
+    code: error.code,
+    message: error.message,
+  });
+  return readError("failure");
 }
 
 /**
@@ -50,12 +61,11 @@ export async function runSupabaseSelect<Row>(
   try {
     response = await query;
   } catch (thrown) {
-    return err(
-      readError(
-        "failure",
-        thrown instanceof Error ? thrown.message : String(thrown),
-      ),
-    );
+    // Network exception (fetch reject等) - the thrown value's own message
+    // is runtime/network-specific and must not reach the client (review
+    // finding 2 on PR #381); log it server-side only.
+    console.error("[read] unexpected exception during SELECT", thrown);
+    return err(readError("failure"));
   }
 
   if (response.error !== null) {
@@ -65,12 +75,10 @@ export async function runSupabaseSelect<Row>(
   // `data` は実質 non-null。この null チェックは型を満たすためと、
   // 想定外の client/runtime 異常に対する防御でしかない。
   if (response.data === null) {
-    return err(
-      readError(
-        "failure",
-        "Supabase returned no error but no data for a SELECT query.",
-      ),
+    console.error(
+      "[read] Supabase returned no error but no data for a SELECT query.",
     );
+    return err(readError("failure"));
   }
   return ok(response.data);
 }

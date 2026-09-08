@@ -83,7 +83,7 @@ describe("CatalogView", () => {
     render(
       <CatalogView
         month={MONTH}
-        eventsState={{ variant: "error", message: "boom" }}
+        eventsState={{ variant: "error" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
       />,
     );
@@ -98,7 +98,7 @@ describe("CatalogView", () => {
     render(
       <CatalogView
         month={MONTH}
-        eventsState={{ variant: "unavailable", message: "denied" }}
+        eventsState={{ variant: "unavailable" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
       />,
     );
@@ -113,7 +113,7 @@ describe("CatalogView", () => {
       <CatalogView
         month={MONTH}
         eventsState={{ variant: "populated", data: entries }}
-        filterOptionsResult={{ ok: false, variant: "error", message: "boom" }}
+        filterOptionsResult={{ ok: false, variant: "error" }}
       />,
     );
 

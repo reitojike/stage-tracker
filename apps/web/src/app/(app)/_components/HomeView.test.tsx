@@ -122,7 +122,7 @@ describe("HomeView", () => {
   it("renders each block's own error/unavailable panel independently when only one fails (P4)", () => {
     render(
       <HomeView
-        ticketState={{ variant: "error", message: "boom" }}
+        ticketState={{ variant: "error" }}
         scheduleState={POPULATED_SCHEDULE}
       />,
     );
@@ -138,7 +138,7 @@ describe("HomeView", () => {
   it("renders the unavailable variant distinctly from error", () => {
     render(
       <HomeView
-        ticketState={{ variant: "unavailable", message: "denied" }}
+        ticketState={{ variant: "unavailable" }}
         scheduleState={EMPTY_SCHEDULE}
       />,
     );

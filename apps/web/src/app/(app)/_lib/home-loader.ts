@@ -21,7 +21,11 @@ import {
   listVisiblePersonalSchedule,
   type ParticipationWithOccurrence,
 } from "@/lib/data";
-import { classifyBlock2, type BlockState } from "@/app/_lib/read-state";
+import {
+  classifyBlock2Optional,
+  classifyMergedListBlock2,
+  type BlockState,
+} from "@/app/_lib/read-state";
 import type { ScreenNow } from "@/app/_lib/now";
 
 /**
@@ -33,6 +37,15 @@ import type { ScreenNow } from "@/app/_lib/now";
  * A failure in one must never hide or degrade the other - this is why each
  * block below is its own exported function returning its own `BlockState`,
  * rather than one function returning a single combined page state.
+ *
+ * P4 also applies *within* each block, at read granularity (PR #381 review
+ * finding 1): both blocks below are themselves backed by 2 independent
+ * reads, and neither uses a strict "both must succeed" combinator anymore -
+ * see `loadHomeTicketDeadlines`'s `classifyBlock2Optional` (shared catalog
+ * is required, personal state is optional) and
+ * `loadHomeUpcomingSchedule`'s `classifyMergedListBlock2` (both reads are
+ * independent list contributors) for how each block's specific shape
+ * decides which combinator applies.
  */
 
 const HOME_TICKET_DEADLINE_LIMIT = 5;
@@ -52,6 +65,15 @@ export interface HomeTicketDeadlineRow {
  * the oracle at this granularity) and capped to
  * `HOME_TICKET_DEADLINE_LIMIT` rows (also an AGENT decision - the oracle
  * does not specify a home-page row limit; see this Task's report).
+ *
+ * `listTicketOpportunities` is the **required** read here and
+ * `listMyTicketOpportunityStates` is **optional**
+ * (`classifyBlock2Optional`, PR #381 review finding 1): if only the
+ * personal-state read fails, this still renders every opportunity with no
+ * `myState` badge (identical to a caller with 0 rows in that table -
+ * `buildTicketOpportunityAggregates`'s own docstring), rather than hiding
+ * the whole block. If the shared catalog read itself fails, there is no
+ * opportunity data to show at all, so the block reports that failure.
  */
 export async function loadHomeTicketDeadlines(
   supabase: SupabaseClient,
@@ -63,9 +85,10 @@ export async function loadHomeTicketDeadlines(
     listMyTicketOpportunityStates(supabase, userId),
   ]);
 
-  return classifyBlock2(
+  return classifyBlock2Optional(
     opportunitiesResult,
     statesResult,
+    [],
     (opportunities, states) => {
       const aggregates = buildTicketOpportunityAggregates(
         opportunities,
@@ -141,6 +164,13 @@ function compareUpcomingItems(
  * to the caller), capped to `HOME_UPCOMING_SCHEDULE_LIMIT` rows (AGENT
  * decision, see `loadHomeTicketDeadlines`'s docstring for the same kind of
  * decision on the other block).
+ *
+ * Unlike `loadHomeTicketDeadlines`, neither read here is "the backbone" of
+ * the other - both independently contribute their own items to the merged
+ * list. `classifyMergedListBlock2` (PR #381 review finding 1) therefore
+ * degrades per-read: if either `listMyParticipations` or
+ * `listVisiblePersonalSchedule` fails alone, this still renders the
+ * surviving read's upcoming items rather than hiding the whole block.
  */
 export async function loadHomeUpcomingSchedule(
   supabase: SupabaseClient,
@@ -152,7 +182,7 @@ export async function loadHomeUpcomingSchedule(
     listVisiblePersonalSchedule(supabase),
   ]);
 
-  return classifyBlock2(
+  return classifyMergedListBlock2(
     participationsResult,
     scheduleResult,
     (participations, scheduleEntries) => {

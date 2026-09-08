@@ -78,7 +78,7 @@ describe("CalendarView", () => {
         month={MONTH}
         today={TODAY}
         selectedDate={null}
-        occurrenceState={{ variant: "error", message: "boom" }}
+        occurrenceState={{ variant: "error" }}
         scheduleState={EMPTY_SCHEDULE}
       />,
     );
@@ -95,7 +95,7 @@ describe("CalendarView", () => {
         month={MONTH}
         today={TODAY}
         selectedDate={null}
-        occurrenceState={{ variant: "unavailable", message: "denied" }}
+        occurrenceState={{ variant: "unavailable" }}
         scheduleState={EMPTY_SCHEDULE}
       />,
     );

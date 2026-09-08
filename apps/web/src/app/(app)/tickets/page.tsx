@@ -2,6 +2,7 @@ import { StatePanel } from "@stage-tracker/ui";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAuthenticatedUserId } from "@/app/_lib/require-authenticated-user-id";
 import { resolveScreenNow } from "@/app/_lib/now";
+import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { loadTicketsTimeline } from "./_lib/tickets-loader";
 import { TicketsView } from "./_components/TicketsView";
 
@@ -22,7 +23,7 @@ export default async function TicketsPage() {
       <StatePanel
         variant="error"
         title="チケット情報を読み込めませんでした"
-        description={userResult.error.message}
+        description={READ_FAILURE_RETRY_HINT_JA}
       />
     );
   }

@@ -50,9 +50,15 @@ describe("requireAuthenticatedUserId", () => {
     }
   });
 
-  it("classifies a thrown/rejected getUser() call as failure, not unauthenticated", async () => {
+  it("classifies a thrown/rejected getUser() call as failure, not unauthenticated, without leaking the raw exception message", async () => {
+    // PR #381 review finding 2: the raw exception message is server-log-only
+    // (`console.error`); `ReadError.message` is always the fixed, safe
+    // string `readError()` derives from `kind` (`@/lib/data/read-error.ts`).
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // swallow the expected log for this test
+    });
     const supabase = stubSupabaseClient(
-      vi.fn().mockRejectedValue(new Error("network down")),
+      vi.fn().mockRejectedValue(new Error("network down: 10.0.0.5:5432")),
     );
 
     const result = await requireAuthenticatedUserId(supabase);
@@ -60,10 +66,17 @@ describe("requireAuthenticatedUserId", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+      expect(result.error.message).not.toContain("10.0.0.5");
     }
+    expect(consoleError).toHaveBeenCalled();
+
+    consoleError.mockRestore();
   });
 
-  it("classifies an unexpected user id shape as failure", async () => {
+  it("classifies an unexpected user id shape as failure, without leaking the raw shape/zod detail", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // swallow the expected log for this test
+    });
     const supabase = stubSupabaseClient(
       vi.fn().mockResolvedValue({
         data: { user: { id: "not-a-uuid" } },
@@ -76,6 +89,10 @@ describe("requireAuthenticatedUserId", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+      expect(result.error.message).not.toContain("not-a-uuid");
     }
+    expect(consoleError).toHaveBeenCalled();
+
+    consoleError.mockRestore();
   });
 });

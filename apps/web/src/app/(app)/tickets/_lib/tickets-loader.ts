@@ -11,7 +11,7 @@ import {
   listMyTicketOpportunityStates,
   listTicketOpportunities,
 } from "@/lib/data";
-import { classifyBlock2, type BlockState } from "@/app/_lib/read-state";
+import { classifyBlock2Optional, type BlockState } from "@/app/_lib/read-state";
 import type { ScreenNow } from "@/app/_lib/now";
 
 /**
@@ -24,6 +24,13 @@ import type { ScreenNow } from "@/app/_lib/now";
  * `isPostFinalRetainedHistory` rows are kept here, not filtered out), grouped
  * into month buckets for display (oracle §2 「チケット一覧」's month-grouped
  * timeline).
+ *
+ * Same read-granularity P4 shape as home's "申し込み期限" block (PR #381
+ * review finding 1): `listTicketOpportunities` is required,
+ * `listMyTicketOpportunityStates` is optional and degrades to "no personal
+ * state" (`[]`) rather than hiding the shared timeline -
+ * `classifyBlock2Optional`'s own docstring in `@/app/_lib/read-state.ts`
+ * has the full reasoning.
  *
  * Known gap (documented in this Task's report, not fabricated around): the
  * oracle's badge priority for this screen names 5 tiers, the highest being
@@ -50,9 +57,10 @@ export async function loadTicketsTimeline(
     listMyTicketOpportunityStates(supabase, userId),
   ]);
 
-  return classifyBlock2(
+  return classifyBlock2Optional(
     opportunitiesResult,
     statesResult,
+    [],
     (opportunities, states) => {
       const aggregates = buildTicketOpportunityAggregates(
         opportunities,

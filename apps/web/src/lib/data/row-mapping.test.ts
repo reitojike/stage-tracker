@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { err, ok, type Result } from "@stage-tracker/domain";
 import { mapRows } from "./row-mapping";
 
@@ -37,6 +37,15 @@ describe("mapRows", () => {
   });
 
   it("fails the entire batch when exactly one row is invalid, rather than silently dropping it", () => {
+    // PR #381 review finding 2: the mapper's own failure detail (which row,
+    // which column) is genuinely useful for debugging a data-layer bug, but
+    // must never reach the client - `mapRows` logs it via `console.error`
+    // and returns a fixed, safe `ReadError.message` instead of embedding
+    // the raw detail in the object callers/screens see.
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
+      // swallow the expected log for this test
+    });
+
     const result = mapRows(
       [
         { id: "a", valid: true },
@@ -45,11 +54,18 @@ describe("mapRows", () => {
       ],
       mapRow,
     );
+
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
-      expect(result.error.message).toContain("invalid row b");
+      expect(result.error.message).not.toContain("invalid row b");
     }
+    expect(consoleError).toHaveBeenCalledWith(
+      "[read] row mapping failed",
+      "invalid row b",
+    );
+
+    consoleError.mockRestore();
   });
 
   it("fails the entire batch when every row is invalid (must not be reported as 0 successes / empty)", () => {

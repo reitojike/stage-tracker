@@ -40,7 +40,13 @@ export function mapRows<Row, T>(
   for (const row of rows) {
     const result = mapRow(row);
     if (!result.ok) {
-      return err(readError("failure", result.error));
+      // The mapper's own failure string names the offending row/column
+      // shape (schema drift, unexpected null, ...) - genuinely useful for
+      // debugging a data-layer bug, but not something to hand to the UI
+      // (PR #381 review finding 2; `readError()` no longer accepts a
+      // message parameter at all - see `./read-error.ts`).
+      console.error("[read] row mapping failed", result.error);
+      return err(readError("failure"));
     }
     mapped.push(result.value);
   }

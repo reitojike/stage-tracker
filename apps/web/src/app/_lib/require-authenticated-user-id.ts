@@ -23,26 +23,23 @@ export async function requireAuthenticatedUserId(
   try {
     userResponse = await supabase.auth.getUser();
   } catch (thrown) {
-    return err(
-      readError(
-        "failure",
-        thrown instanceof Error ? thrown.message : String(thrown),
-      ),
-    );
+    // Raw exception detail (network/runtime specific) is server-log-only,
+    // never surfaced to the UI (PR #381 review finding 2).
+    console.error("[read] unexpected exception during auth.getUser()", thrown);
+    return err(readError("failure"));
   }
 
   if (userResponse.error !== null || userResponse.data.user === null) {
-    return err(readError("unauthenticated", "ログインが必要です。"));
+    return err(readError("unauthenticated"));
   }
 
   const parsedUserId = userIdSchema.safeParse(userResponse.data.user.id);
   if (!parsedUserId.success) {
-    return err(
-      readError(
-        "failure",
-        `Unexpected auth user id shape: ${parsedUserId.error.message}`,
-      ),
+    console.error(
+      "[read] unexpected auth user id shape",
+      parsedUserId.error.message,
     );
+    return err(readError("failure"));
   }
 
   return ok(parsedUserId.data);
