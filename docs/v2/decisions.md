@@ -680,3 +680,38 @@ Branching は **CI と Preview の実行環境の話**であり、アプリの�
 
 **M6 の Preview では書き込みを伴う操作を実行しない。** 画面の表示確認までに留める。
 書き込みの検証はローカルの Supabase と CI の `Verify / Database` で行う。
+
+---
+
+## P3 の実装可否: decline の undo は現行スキーマでは実現できない（2026-09-08）
+
+M6d の実装時に実測で判明。**PO 判断により、undo は Issue #382 で別途対応する。**
+
+### 判明した事実
+
+**invitee には invitation を作る手段が存在しない。**
+
+| 確認項目                                               | 結果                                                                   |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `occurrence_invitations` への `authenticated` の grant | **SELECT のみ**（INSERT 無し）                                         |
+| `invite_to_occurrence` / `_by_email`                   | `inviter_id := auth.uid()` で束縛。invitee が呼ぶと self-invite で拒否 |
+| invitee が呼べる復元 RPC                               | 存在しない                                                             |
+
+decline のページを見られるのは invitee 本人だけなので、既存経路では構造的に復元できない。
+`env.ts` が app runtime の service-role key 保持を禁じているため、その回避も不可。
+
+### PO 判断
+
+**M6d では decline のみ実装する。** undo は Issue #382 で復元 RPC を追加して対応する。
+
+M6d の `undoDeclineInvitationAction` は配線済みだが、**成功を装わず分類済みの
+`failure` を返す**状態にしてある。動かないものを動くように見せない。
+
+### この判断の含意
+
+**「押し間違いを直後に取り消せる仕組みはほしい」という PO の要望は、
+Issue #382 が完了するまで満たされない。** cutover 前に対応すること。
+
+P3 で決めた「decline は即座に確定させる」部分は M6d で実装済みであり、
+現行の「8 秒タイマーで確定（タブを閉じると pending が残り得る）」という
+バグは解消されている。undo が無い状態は、現行より悪くはならない。
