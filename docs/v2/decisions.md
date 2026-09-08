@@ -922,6 +922,13 @@ Preview origin を導出する方式**（リクエストの `Host` / `X-Forwarde
 読まない。クライアントが指定できるため、攻撃者のドメインを載せたサインインリンクを
 他人へ送らせる経路になる）を再採用候補とする。
 
+### この方針をどう実現するか
+
+**app code では実現しない。** PR #386 で 4 ラウンド試みて失敗した経緯と、
+採用する方式（Preview deployment に Production Supabase の接続情報を
+渡さない）は A24 に記録した。**実現は M7（release / deployment contract）
+で行い、cutover の前提条件とする。**
+
 ### Preview の射程についての確認
 
 `apps/web` は default-deny であり、未認証では全パスが `/sign-in` へ redirect される
@@ -937,56 +944,74 @@ cutover 後の Preview で未認証のまま確認できるのは、**ビルド�
 
 ---
 
-## A24: Preview の遮断は消費側ではなく client factory で保証する（2026-09-08）
+## A24: Preview の隔離は app code ではなく deployment 境界に置く（2026-09-08）
 
-**決定: 「Preview は Production Supabase へ authenticated 接続しない」という
-保証は、`createSupabaseServerClient()` が preview では session cookie を
-Supabase へ渡さないことで与える。**
+**決定: 「Vercel Preview は Production Supabase へ authenticated 接続しない」
+という保証を、アプリのコードで実現しようとするのをやめる。Preview
+deployment に Production Supabase の接続情報を渡さないことで実現し、
+M7（release / deployment contract）で扱う。**
 
-### 消費側を 1 つずつ守る方式は破綻した
+### 経緯: app code で塞ごうとして 4 ラウンド失敗した
 
-当初は `proxy.ts` / `/auth/confirm` / sign-in action の 3 箇所で拒否し、
-その後 review 指摘を受けて `authActionClient` と
-`requireAuthenticatedUserId` を足した。**それでもまだ穴があった。**
+PR #386 で、Preview の authenticated flow を app code で拒否しようとした。
+毎ラウンド「guard を通らない新しい経路」が見つかった。
 
-| round | 見つかった穴                                                                                            |
-| ----- | ------------------------------------------------------------------------------------------------------- |
-| 1     | `emailRedirectTo` を消すだけでは、残存 cookie と `/auth/confirm` 経由で authenticated になれる          |
-| 2     | `proxy.ts` の判定は pathname ベースなので、Server Action を公開 pathname 宛に POST すれば迂回できる     |
-| 3     | `sign-out/actions.ts` は `authActionClient` を経由せず `auth.signOut()` を直接呼ぶため guard を通らない |
+| round | 見つかった穴                                                                                        |
+| ----- | --------------------------------------------------------------------------------------------------- |
+| 1     | `emailRedirectTo` を消すだけでは、残存 cookie と `/auth/confirm` で authenticated になれる          |
+| 2     | `proxy.ts` の判定は pathname ベースなので、Server Action を公開 pathname 宛に POST すれば迂回できる |
+| 3     | `sign-out/actions.ts` は `authActionClient` を経由せず `auth.signOut()` を直接呼ぶ                  |
+| 4     | `proxy.ts` 自身が cookie を渡したまま `getUser()` を実行し、refresh 時には cookie を発行していた    |
 
-3 回とも「guard を通らない新しい経路」だった。**消費側を列挙して守る限り、
-経路が増えるたびに同じ穴が開く。**
+4 ラウンド目の修正時に「session cookie を Supabase へ渡す構成箇所は 2 つ
+だけ」と主張したが、**これは偽だった**。実際には 4 ファイル 5 箇所ある。
 
-### 唯一の choke point
+- `apps/web/src/lib/supabase/server.ts`（2 箇所）
+- `apps/web/src/proxy.ts`
+- `apps/web/src/lib/actions/passkeys.ts`
+- `apps/web/src/app/(app)/mypage/_data/passkeySupabaseClient.ts`
 
-server 側で session cookie を Supabase へ渡す経路は
-`createSupabaseServerClient()` 一つだけである。ここで preview のとき
-cookie を渡さない（読みも書きもしない）ようにすると:
+Passkey 系 2 箇所は guard を持たない。現時点で直接 exploit できる経路が
+見つからないのは、**それぞれの caller が別の guard の後ろにいるから**で
+あって、まさにやめようとしていた「消費側の正しさに依存する」状態だった。
 
-- `getUser()` はどこから呼ばれても `null` を返す
-- `signOut()` は session を持たない client 上の no-op になる
-- **新しい authenticated 経路を足すときに guard を思い出す必要が無い**
+### なぜ app code では無理なのか
 
-消費側に残っている preview チェックは fail-fast（ネットワーク往復の前に
-止める・明確な `unauthenticated` を返す）であって、correctness を担って
-いるのはこの factory である。この層の違いはコード上のコメントにも書く。
+**Production の接続情報が Preview deployment に存在する限り、「どこで
+遮断するか」を列挙し続ける問題に戻る。** Server Action / Route Handler /
+browser client / Passkey client が増えるたびに、guard の置き忘れが
+Production への authenticated 接続になる。
 
-`proxy.ts` は `@supabase/ssr` の `createServerClient` を自前で構成するため
-この factory を通らない。**そちらにも同じ遮断を入れる。**
+### 採る方式
 
-当初 proxy 側は `getUser()` の結果を後から `authenticated = false` にする
-だけだったが、**それでは接続そのものは起きている** —— cookie を渡した状態で
-`getUser()` を実行し、refresh 時には `setAll()` で新しい cookie まで発行して
-しまう（PR #386 review で指摘。自分で「2 箇所」と書きながら片方しか同じ機構に
-していなかった）。判定を変えるのではなく cookie を渡さない。
+Preview deployment に Production Supabase の接続情報を渡さない。
 
-**session cookie を Supabase へ渡す構成箇所は 2 つだけ**であり、消費側の数とは
-無関係に一定。この 2 つが同じ機構であることが、この設計が成立する条件である。
+```
+Vercel Production   -> 実 SUPABASE_URL / ANON_KEY -> Production Supabase
+Vercel Preview      -> placeholder URL / dummy key -> 到達不能
+```
+
+Preview では、protected route は Supabase へ問い合わせられず default-deny
+で `/sign-in` へ、sign-in はメールを送れず、`/auth/confirm` は検証できず、
+Passkey も browser client も同様に到達できない。**新しい経路が増えても、
+Production credential 自体が存在しないので置き忘れが事故にならない。**
+
+CI の `Verify / Build` が既に `https://placeholder.invalid` と dummy anon
+key でビルドを通す方式を採っており、この考え方と整合する。
+
+### この判断の帰結
+
+- **PR #386 からは app code の Preview 遮断を撤去した。** 部分的な guard を
+  残すと「守られている」という誤った前提を招く。`apps/web` は現時点で
+  どこにもデプロイされていない（Vercel の Root Directory は
+  `apps/legacy-web`）ため、撤去による露出の増加は無い
+- **M7 へ引き継ぐ**: Preview 環境へ Production credential を渡さない設定、
+  および Preview で public / default-deny の smoke が成立することの確認
+- **cutover の前提条件**: この隔離が成立していない状態で Root Directory を
+  `apps/web` へ切り替えてはならない
 
 ### 教訓
 
-構造を作った PR は、その構造を使う側への規約も同時に書く——という以前の
-教訓（`(app)` route group）と同じ形だが、今回はさらに一段強い。
-**規約で守れるものは、規約が守られなかったときに静かに壊れる。**
-構造で守れるなら構造で守る。
+**アプリのコードで「環境の性質」を再現しようとしない。** 環境の違いは
+環境の設定で表す。app code で表そうとすると、その表現を参照し忘れた
+経路が静かに穴になる。今回は 4 ラウンドかけてそれを実証した。

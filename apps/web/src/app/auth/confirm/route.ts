@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeRedirectPath } from "@/lib/auth/redirect-safety";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isPreviewDeployment } from "@/lib/auth/vercel-environment";
 
 // このプロダクトが発行する唯一の OTP type。`type` はクエリ文字列由来で、
 // GoTrue の `EmailOtpType` は任意の文字列を受け付けるため、無検証で通すと
@@ -33,14 +32,6 @@ function redirectWithoutCaching(target: string): NextResponse {
  * Magic Link コールバック（`docs/v2/oracle-routes-ui.md` §1
  * `/auth/confirm`）。`token_hash` を `verifyOtp` で検証し、セッションを
  * 確立する。`next` は `safeRedirectPath`（同一オリジンのみ許可）を通す。
- *
- * Preview（`isPreviewDeployment`、`src/lib/auth/vercel-environment.ts`）
- * では `verifyOtp` を呼ぶ前に拒否する。Production 向けメールの
- * `token_hash` を Preview の公開 `/auth/confirm` に渡され、検証が通って
- * Preview host に新しい session cookie が発行されてしまう経路
- * （Codex P1、`docs/v2/decisions.md`）を塞ぐ。preview 固有の error
- * vocabulary は増やさず、既存の `link_expired` にそのまま合流させる
- * （拒否理由を外部から区別可能にしないため）。
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -48,11 +39,7 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type");
   const next = safeRedirectPath(searchParams.get("next"));
 
-  if (
-    !isPreviewDeployment() &&
-    tokenHash !== null &&
-    type === SUPPORTED_OTP_TYPE
-  ) {
+  if (tokenHash !== null && type === SUPPORTED_OTP_TYPE) {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRequestMagicLink = vi.fn();
 const mockCreateClient = vi.fn();
@@ -27,33 +27,18 @@ function formDataWithEmail(email: string): FormData {
 }
 
 /**
- * Codex P1 (docs/v2/decisions.md): Preview must not send magic links at
- * all. `requestSignInLink`'s enumeration-resistance contract (identical
- * response regardless of account existence / send success) must survive
- * this change - the redirect target must stay exactly `ACKNOWLEDGEMENT`.
+ * `requestSignInLink` の enumeration 対策は「account の有無・送信成否の
+ * いずれによっても応答を変えない」こと。redirect 先が常に同一であることが
+ * その観測面なので、そこを固定する。
  */
-describe("requestSignInLink - Preview environment authenticated-flow rejection", () => {
+describe("requestSignInLink", () => {
   beforeEach(() => {
     mockRequestMagicLink.mockReset();
     mockCreateClient.mockReset();
     mockCreateClient.mockResolvedValue({});
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("does not send a magic link in preview, but redirects to the same acknowledgement as usual", async () => {
-    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "preview");
-
-    await expect(
-      requestSignInLink(formDataWithEmail("known@example.test")),
-    ).rejects.toThrow("REDIRECT:/sign-in?requested=1");
-
-    expect(mockRequestMagicLink).not.toHaveBeenCalled();
-  });
-
-  it("still sends a magic link outside preview (baseline unaffected)", async () => {
+  it("magic link を送り、常に同じ acknowledgement へ redirect する", async () => {
     await expect(
       requestSignInLink(formDataWithEmail("known@example.test")),
     ).rejects.toThrow("REDIRECT:/sign-in?requested=1");
@@ -61,9 +46,8 @@ describe("requestSignInLink - Preview environment authenticated-flow rejection",
     expect(mockRequestMagicLink).toHaveBeenCalledTimes(1);
   });
 
-  it("still rejects a missing email the same way in preview (local input error, unrelated to preview)", async () => {
-    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "preview");
-
+  it("email 未入力はローカルな入力エラーとして別扱いにする", async () => {
+    // アカウントの有無とは無関係なので、これを表示しても何も漏れない。
     await expect(requestSignInLink(formDataWithEmail(""))).rejects.toThrow(
       "REDIRECT:/sign-in?error=missing_email",
     );

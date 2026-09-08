@@ -2,7 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { isPublicPath } from "@/lib/auth/public-paths";
-import { isPreviewDeployment } from "@/lib/auth/vercel-environment";
 
 function copyCookies(from: NextResponse, to: NextResponse): void {
   for (const cookie of from.cookies.getAll()) {
@@ -27,23 +26,9 @@ function copyCookies(from: NextResponse, to: NextResponse): void {
  * 内の `createSupabaseServerClient`（`src/lib/supabase/server.ts`）が
  * cookie 書き込みに失敗しても安全なのは、この層が毎リクエストで refresh
  * を担保しているため。
- *
- * ## Preview では session cookie を Supabase へ渡さない
- *
- * `src/lib/supabase/server.ts` と同じ機構（`docs/v2/decisions.md` A24）。
- * server 側で session cookie を Supabase へ渡す構成箇所は、その factory と
- * **この proxy の 2 つだけ**であり、両方で同じ遮断を行って初めて
- * 「Preview は Production Supabase へ authenticated 接続しない」が成立する。
- *
- * 当初ここは `getUser()` の結果を後から `authenticated = false` にする
- * だけだった。それでは**接続そのものは起きている** —— cookie を渡した状態で
- * `getUser()` を実行し、refresh 時には `setAll()` で新しい cookie まで
- * 発行してしまう（PR #386 review, Codex）。判定を変えるのではなく、
- * cookie を渡さない。
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
-  const previewDeployment = isPreviewDeployment();
 
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -51,14 +36,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     {
       cookies: {
         getAll() {
-          // preview では session を一切渡さない（上記コメント参照）。
-          return previewDeployment ? [] : request.cookies.getAll();
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet, headers) {
-          if (previewDeployment) {
-            // preview では session cookie を発行しない。
-            return;
-          }
           for (const { name, value } of cookiesToSet) {
             request.cookies.set(name, value);
           }
@@ -77,9 +57,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  // preview では上の cookie adapter が session を渡さないため `user` は
-  // 常に null になる。`previewDeployment` を再度見ないのは、判定を
-  // 二重化して「片方だけ古い」状態を作らないため。
   const authenticated = user !== null;
   const { pathname } = request.nextUrl;
 

@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { err, ok, userIdSchema, type UserId } from "@stage-tracker/domain";
-import { isPreviewDeployment } from "@/lib/auth/vercel-environment";
 import { readError, type ReadResult } from "@/lib/data";
 
 /**
@@ -20,14 +19,6 @@ import { readError, type ReadResult } from "@/lib/data";
 export async function requireAuthenticatedUserId(
   supabase: SupabaseClient,
 ): Promise<ReadResult<UserId>> {
-  // Preview では常に未認証として扱う（PR #386 review, Codex P1）。
-  // これらの page は `proxy.ts` に守られており通常ここへ到達しないが、
-  // 認証を解決する経路すべてで preview 判定が一致していないと、
-  // 「どこか 1 箇所だけ古い」状態が静かに生まれる。
-  if (isPreviewDeployment()) {
-    return err(readError("unauthenticated"));
-  }
-
   let userResponse: Awaited<ReturnType<SupabaseClient["auth"]["getUser"]>>;
   try {
     userResponse = await supabase.auth.getUser();

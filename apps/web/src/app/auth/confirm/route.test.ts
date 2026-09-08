@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockVerifyOtp = vi.fn();
 const mockCreateSupabaseServerClient = vi.fn();
@@ -12,14 +12,12 @@ vi.mock("@/lib/supabase/server", () => ({
 const { GET } = await import("./route");
 
 /**
- * Codex P1 (docs/v2/decisions.md): forwarding a Production-issued
- * `token_hash` to Preview's public `/auth/confirm` must not establish a
- * Preview session. `verifyOtp` is the only call in this route capable of
- * creating a session cookie (it drives the `@supabase/ssr` cookie adapter
- * internally) - asserting it is never invoked is definitionally sufficient
- * to assert no session cookie is issued.
+ * `/auth/confirm` は session cookie を発行する唯一の Route Handler であり、
+ * `verifyOtp` がその発行を駆動する（`@supabase/ssr` の cookie adapter を
+ * 内部で動かす）。したがって「`verifyOtp` が呼ばれたか」を見ることは、
+ * session が成立したかを見ることと等価。
  */
-describe("/auth/confirm - Preview environment authenticated-flow rejection", () => {
+describe("/auth/confirm", () => {
   beforeEach(() => {
     mockVerifyOtp.mockReset();
     mockCreateSupabaseServerClient.mockReset();
@@ -28,27 +26,7 @@ describe("/auth/confirm - Preview environment authenticated-flow rejection", () 
     });
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("rejects a valid token_hash without calling verifyOtp when VERCEL_ENV=preview", async () => {
-    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "preview");
-
-    const request = new NextRequest(
-      "https://branch.vercel.app/auth/confirm?token_hash=abc123&type=email",
-    );
-
-    const response = await GET(request);
-
-    expect(mockVerifyOtp).not.toHaveBeenCalled();
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "/sign-in?error=link_expired",
-    );
-  });
-
-  it("still verifies a valid token_hash and redirects on success outside preview (baseline unaffected)", async () => {
+  it("有効な token_hash を検証し、成功時は next へ redirect する", async () => {
     mockVerifyOtp.mockResolvedValue({ error: null });
 
     const request = new NextRequest(
@@ -61,7 +39,7 @@ describe("/auth/confirm - Preview environment authenticated-flow rejection", () 
     expect(response.headers.get("location")).toBe("/");
   });
 
-  it("still rejects a missing token_hash outside preview (baseline unaffected)", async () => {
+  it("token_hash が無ければ verifyOtp を呼ばずに拒否する", async () => {
     const request = new NextRequest(
       "https://stage-tracker.com/auth/confirm?type=email",
     );

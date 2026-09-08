@@ -1,6 +1,5 @@
 import { createSafeActionClient } from "next-safe-action";
 import { ActionError, type ActionErrorShape } from "@/lib/action-error";
-import { isPreviewDeployment } from "@/lib/auth/vercel-environment";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function toActionErrorShape(error: Error): ActionErrorShape {
@@ -42,20 +41,6 @@ export const actionClient = createSafeActionClient({
  * 位置づけ）。
  */
 export const authActionClient = actionClient.use(async ({ next }) => {
-  // Preview では authenticated action を実行しない（PR #386 review, Codex P1）。
-  //
-  // `proxy.ts` の preview 判定は **pathname ベース**なので、ここを塞がないと
-  // 迂回できる: Next.js の Server Action は action ID を持つ POST であり、
-  // 公開 pathname の `/sign-in` 宛に送れる。proxy は `isPublicPath()` で
-  // 素通しし、その後この boundary が Production の session cookie を有効な
-  // user として受理してしまう。結果として Preview から Production Supabase
-  // への create/delete に到達できる。
-  //
-  // 認証境界そのもので拒否するため、pathname に依存しない。
-  if (isPreviewDeployment()) {
-    throw new ActionError("unauthenticated", "サインインが必要です。");
-  }
-
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },

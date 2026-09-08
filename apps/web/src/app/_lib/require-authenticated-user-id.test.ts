@@ -96,36 +96,3 @@ describe("requireAuthenticatedUserId", () => {
     consoleError.mockRestore();
   });
 });
-
-/**
- * PR #386 review（Codex P1）への回帰テスト。preview では認証を解決する
- * 経路すべてが一致して未認証扱いにする必要がある。ここだけ古いと、
- * `proxy.ts` を通り抜けた先で Production の session が有効に見える。
- */
-describe("requireAuthenticatedUserId: Preview deployment", () => {
-  it("preview では有効な user が返っても unauthenticated にする", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/auth/vercel-environment", () => ({
-      isPreviewDeployment: () => true,
-    }));
-    const { requireAuthenticatedUserId: guarded } =
-      await import("./require-authenticated-user-id.js");
-
-    const getUser = vi.fn().mockResolvedValue({
-      data: { user: { id: USER_ID } },
-      error: null,
-    });
-    const result = await guarded({
-      auth: { getUser },
-    } as unknown as SupabaseClient);
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.kind).toBe("unauthenticated");
-    }
-    // Supabase へ問い合わせる前に止まる。
-    expect(getUser).not.toHaveBeenCalled();
-    vi.doUnmock("@/lib/auth/vercel-environment");
-    vi.resetModules();
-  });
-});
