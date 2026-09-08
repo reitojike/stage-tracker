@@ -1015,3 +1015,86 @@ key でビルドを通す方式を採っており、この考え方と整合す�
 **アプリのコードで「環境の性質」を再現しようとしない。** 環境の違いは
 環境の設定で表す。app code で表そうとすると、その表現を参照し忘れた
 経路が静かに穴になる。今回は 4 ラウンドかけてそれを実証した。
+
+---
+
+## PO 判断: release authority は GitHub Actions が持つ（2026-09-08）
+
+**決定: D1 = 案 C。merge 後の一本の workflow が
+`migration → drift 確認 → deploy` を順に実行する。**
+
+### 判断の根拠
+
+> D1→C の場合でも Supabase の credential はあなたに渡すわけではなく GitHub
+> 管理ですよね、であればいきなり C でいいのではと思いました
+
+そのとおり。当初 agent 側は「Production 認証情報を CI へ置かない」という
+既存の security boundary（`docs/architecture/runtime-stack.md`）を理由に
+案 B（operator が apply → pipeline が続行）を第一候補として提案したが、
+**B は ordering の人間依存を残す**。
+
+Issue #121 / #124 / #125 は、`schema-first-required` という判断自体は
+正しく認識されていたのに **3 件連続で Production migration の適用が Vercel
+デプロイより後回しになった**実例である。human memory に依存した手順は
+recurring failure になることが実証済みで、B はその依存を移動させるだけ。
+
+credential は GitHub の secret として管理され、agent へ渡されるわけではない。
+
+### 案の比較（記録）
+
+| 案    | migration                           | deploy               | 評価                                       |
+| ----- | ----------------------------------- | -------------------- | ------------------------------------------ |
+| A     | operator                            | Vercel auto          | 現状。ordering が人間依存                  |
+| B     | operator が apply → pipeline が続行 | Actions / Vercel     | secret boundary は維持するが人間依存が残る |
+| **C** | **GitHub Actions**                  | **Actions / Vercel** | **採用。ordering が機械で保証される**      |
+
+### C を安全にする条件
+
+- **GitHub Environment `production` の Deployment branches を `main` のみに
+  限定する。** environment の secret は指定 branch の job からしか読めない。
+  **この repository は agent が workflow ファイルを書く**ため、PR の branch
+  から secret を読めないことが実質的な保護になる
+- **Vercel の Production auto-deploy を止める。** 止めないと migration 適用中に
+  Vercel が先に deploy し、race する。案 B / C のいずれでも残せない
+- **deploy の起動は Deploy Hook を使う。** Vercel の API token（project 設定の
+  変更や他 project の操作ができる）より権限が小さい
+- **service-role key は CI へ置かない。** migration の適用に必要なのは
+  access token / project ref / DB password だけ
+
+手順は `docs/runbooks/v2-release-pipeline-setup.md`（operator 作業）。
+
+---
+
+## D2: apps/web の実 Vercel 検証をいつ行うか（2026-09-08）
+
+**問題: `apps/web` は Vercel にデプロイされていない**（Root Directory は
+`apps/legacy-web`。PR #386 の Vercel bot metadata で実データ確認）。
+そのため「Preview で v2 の default-deny を確認する」は M7 の時点で実行不能。
+
+### placeholder 方式の runtime 検証は Vercel 抜きで完了している
+
+`apps/web` を `NEXT_PUBLIC_SUPABASE_URL=https://placeholder.invalid` で
+ビルド・起動し、到達不能な Supabase に対して protected route が 307 →
+`/sign-in`、`/auth/confirm` が 307 → `link_expired`、sign-in フォームが
+例外にならないことを実測した（詳細は runbook）。**挙動の疑問は解消済み**
+であり、実 Vercel での確認は「設定が意図どおり効いているか」の確認に縮む。
+
+### 決定
+
+- **M7**: Preview scope に Production credential が存在しないことを
+  **設定の evidence** で確定する。新しい Vercel project は作らない
+- **M8 / cutover preflight**: `apps/web` の実 Vercel 検証を行う
+
+### M8 で扱う、より大きな論点
+
+migration 戦略の柱は**並走比較**である（「cutover 前に `apps/legacy-web` と
+`apps/web` を同じデータに対して動かし、主要な操作の結果を比較する」）。
+
+**これは「Preview は authenticated 接続しない」と衝突する。** 並走比較には
+`apps/web` が本番データに対して authenticated で動く必要がある。
+
+したがって M8 では、v2 の並走環境を **Preview ではなく Production 相当の
+deployment として扱う**か（実 credential を持たせ、アクセスを制限する）、
+並走比較を operator の手元で行うか、を決める必要がある。**この判断を
+M7 に前倒ししない** —— M7 は release authority と Preview の設定分離までを
+scope とする。
