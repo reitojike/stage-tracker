@@ -934,3 +934,51 @@ cutover 後の Preview で未認証のまま確認できるのは、**ビルド�
 「M6 の Preview では書き込みを伴う操作を実行しない」という暫定運用は、この判断に
 包含されて恒久化した（Preview では authenticated にならないため、書き込み操作に
 到達しない）。
+
+---
+
+## A24: Preview の遮断は消費側ではなく client factory で保証する（2026-09-08）
+
+**決定: 「Preview は Production Supabase へ authenticated 接続しない」という
+保証は、`createSupabaseServerClient()` が preview では session cookie を
+Supabase へ渡さないことで与える。**
+
+### 消費側を 1 つずつ守る方式は破綻した
+
+当初は `proxy.ts` / `/auth/confirm` / sign-in action の 3 箇所で拒否し、
+その後 review 指摘を受けて `authActionClient` と
+`requireAuthenticatedUserId` を足した。**それでもまだ穴があった。**
+
+| round | 見つかった穴                                                                                            |
+| ----- | ------------------------------------------------------------------------------------------------------- |
+| 1     | `emailRedirectTo` を消すだけでは、残存 cookie と `/auth/confirm` 経由で authenticated になれる          |
+| 2     | `proxy.ts` の判定は pathname ベースなので、Server Action を公開 pathname 宛に POST すれば迂回できる     |
+| 3     | `sign-out/actions.ts` は `authActionClient` を経由せず `auth.signOut()` を直接呼ぶため guard を通らない |
+
+3 回とも「guard を通らない新しい経路」だった。**消費側を列挙して守る限り、
+経路が増えるたびに同じ穴が開く。**
+
+### 唯一の choke point
+
+server 側で session cookie を Supabase へ渡す経路は
+`createSupabaseServerClient()` 一つだけである。ここで preview のとき
+cookie を渡さない（読みも書きもしない）ようにすると:
+
+- `getUser()` はどこから呼ばれても `null` を返す
+- `signOut()` は session を持たない client 上の no-op になる
+- **新しい authenticated 経路を足すときに guard を思い出す必要が無い**
+
+消費側に残っている preview チェックは fail-fast（ネットワーク往復の前に
+止める・明確な `unauthenticated` を返す）であって、correctness を担って
+いるのはこの factory である。この層の違いはコード上のコメントにも書く。
+
+`proxy.ts` は `@supabase/ssr` の `createServerClient` を自前で構成するため
+この factory を通らない。そちらは引き続き明示の判定を持つ。**session cookie
+を Supabase へ渡す構成箇所は 2 つだけ**であり、消費側の数とは無関係に一定。
+
+### 教訓
+
+構造を作った PR は、その構造を使う側への規約も同時に書く——という以前の
+教訓（`(app)` route group）と同じ形だが、今回はさらに一段強い。
+**規約で守れるものは、規約が守られなかったときに静かに壊れる。**
+構造で守れるなら構造で守る。

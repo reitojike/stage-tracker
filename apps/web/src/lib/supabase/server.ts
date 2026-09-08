@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isPreviewDeployment } from "@/lib/auth/vercel-environment";
 import { env } from "@/env";
 
 /**
@@ -22,9 +23,31 @@ import { env } from "@/env";
  * Database 型は Supabase 生成型がまだ無いため未指定（生成された後は
  * `createServerClient<Database>(...)` のように型引数を渡すだけで
  * 差し込める）。
+ *
+ * ## Preview では session cookie を Supabase へ渡さない
+ *
+ * PO 判断（`docs/v2/decisions.md`「PO 判断: Preview 環境の位置づけ」）に
+ * より、Vercel Preview は Production Supabase へ authenticated 接続しない。
+ *
+ * **この保証はここで構造的に与える。** 当初は消費側（`authActionClient` /
+ * `requireAuthenticatedUserId`）を 1 つずつ守っていたが、その方式では
+ * 「guard を通らない新しい authenticated 経路」が生まれるたびに穴が開く。
+ * 実際 PR #386 review で `sign-out/actions.ts` がその穴として見つかった
+ * （`authActionClient` を経由せず `auth.signOut()` を直接呼ぶため、
+ * Production の session を無効化できてしまう）。
+ *
+ * この factory は、server 側で session cookie を Supabase へ渡す唯一の
+ * 経路である。preview では cookie を渡さない（読みも書きもしない）ため、
+ * `getUser()` はどこから呼ばれても null になり、`signOut()` は
+ * session を持たない client 上の no-op になる。**新しい authenticated
+ * 経路を足すときに guard を思い出す必要が無い。**
+ *
+ * 消費側に残っている preview チェックは fail-fast（ネットワーク往復の前に
+ * 止める）であって、correctness を担っているのはこの factory である。
  */
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
+  const previewDeployment = isPreviewDeployment();
 
   return createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -32,9 +55,14 @@ export async function createSupabaseServerClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          // preview では session を一切渡さない（上記コメント参照）。
+          return previewDeployment ? [] : cookieStore.getAll();
         },
         setAll(cookiesToSet) {
+          if (previewDeployment) {
+            // preview では session cookie を発行しない。
+            return;
+          }
           try {
             for (const { name, value, options } of cookiesToSet) {
               cookieStore.set(name, value, options);
