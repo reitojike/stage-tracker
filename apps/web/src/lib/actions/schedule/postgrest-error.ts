@@ -108,9 +108,23 @@ export function classifyWritePostgrestError(
  * （product-rules.md「Authenticated-user targeting」節）、Invitation は
  * invitee の状態を inviter へ開示してはいけない。opacity boundary が違うため、
  * 同じ code を使うと handler を共有した瞬間に Invitation 側の opacity が壊れる。
+ *
+ * **この module が、この write 層で使う SQLSTATE 語彙の唯一の正本。**
+ * 呼び出し元は literal を再定義せず、ここから import する。片方だけ変更すると
+ * 「gate は通るのに resolver が一致せず汎用文言へ退行する」あるいは
+ * 「resolver の分岐が到達不能になる」という、test では気付きにくい壊れ方を
+ * するため（PR #392 review finding）。
  */
-const SHARE_UNREGISTERED_RECIPIENT_CODE = "90010";
-const SHARE_SELF_SHARE_CODE = "90011";
+export const SHARE_UNREGISTERED_RECIPIENT_CODE = "90010";
+export const SHARE_SELF_SHARE_CODE = "90011";
+
+/**
+ * `raise exception` が errcode を指定しなかった場合の PL/pgSQL 既定 SQLSTATE。
+ *
+ * **PR C で消す対象。** 移行期間中だけ、custom SQLSTATE と併せて業務ルール
+ * 違反として受け付ける。
+ */
+export const LEGACY_DEFAULT_BUSINESS_RULE_CODE = "P0001";
 
 /**
  * この write 層が業務ルール違反（business rule rejection）として扱う SQLSTATE。
@@ -136,7 +150,7 @@ const SHARE_SELF_SHARE_CODE = "90011";
  * 新しい 2 つの分岐に到達せず、挙動は一切変わらない。
  */
 const BUSINESS_RULE_POSTGRES_CODES: ReadonlySet<string> = new Set([
-  "P0001",
+  LEGACY_DEFAULT_BUSINESS_RULE_CODE,
   SHARE_UNREGISTERED_RECIPIENT_CODE,
   SHARE_SELF_SHARE_CODE,
 ]);

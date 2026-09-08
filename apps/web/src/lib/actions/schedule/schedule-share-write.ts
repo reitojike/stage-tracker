@@ -8,6 +8,8 @@ import { ActionError } from "@/lib/action-error";
 import {
   classifyRpcError,
   classifyWritePostgrestError,
+  LEGACY_DEFAULT_BUSINESS_RULE_CODE,
+  SHARE_UNREGISTERED_RECIPIENT_CODE,
 } from "./postgrest-error";
 
 /**
@@ -31,10 +33,11 @@ import {
  * ではない」場合に返す、2 通りの形。
  *
  * **移行期間中なので両方を受け付ける。** 詳細は `postgrest-error.ts` の
- * `BUSINESS_RULE_POSTGRES_CODES` の doc comment 参照。
+ * `BUSINESS_RULE_POSTGRES_CODES` の doc comment 参照。SQLSTATE の literal は
+ * ここで再定義せず、正本（`./postgrest-error`）から import する。
  *
- * - **新**: SQLSTATE `90010`（構造化された判定。これが本来あるべき形）
- * - **旧**: `P0001` + 生メッセージの完全一致（PR #389 の migration が
+ * - **新**: `SHARE_UNREGISTERED_RECIPIENT_CODE`（構造化された判定。本来あるべき形）
+ * - **旧**: `LEGACY_DEFAULT_BUSINESS_RULE_CODE` + 生メッセージの完全一致（PR #389 の migration が
  *   Production へ適用されるまでの現行 DB の形）
  *
  * 旧形式の完全一致比較は、`docs/v2/decisions.md` A8 が禁止する「エラー種別
@@ -51,7 +54,6 @@ import {
  * **PR C（contract）でこの関数から旧形式の分岐を落とす。** その時点で
  * message 一致は完全に無くなり、A8 の負債が解消する。
  */
-const UNREGISTERED_RECIPIENT_EMAIL_CODE = "90010";
 const UNREGISTERED_RECIPIENT_EMAIL_RAW_MESSAGE =
   "recipient email is not a registered account";
 const UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA =
@@ -61,11 +63,11 @@ function resolveShareByEmailBusinessRuleMessage(rejection: {
   readonly code: string;
   readonly rawMessage: string;
 }): string | undefined {
-  if (rejection.code === UNREGISTERED_RECIPIENT_EMAIL_CODE) {
+  if (rejection.code === SHARE_UNREGISTERED_RECIPIENT_CODE) {
     return UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA;
   }
   if (
-    rejection.code === "P0001" &&
+    rejection.code === LEGACY_DEFAULT_BUSINESS_RULE_CODE &&
     rejection.rawMessage === UNREGISTERED_RECIPIENT_EMAIL_RAW_MESSAGE
   ) {
     return UNREGISTERED_RECIPIENT_EMAIL_MESSAGE_JA;
