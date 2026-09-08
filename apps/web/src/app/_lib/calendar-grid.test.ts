@@ -178,17 +178,36 @@ describe("境界年の月（PR #381 review）", () => {
     ).toEqual({ month: fallback, selectedDate: null });
   });
 
-  it("同じ月を month param で渡しても fallback する", () => {
-    expect(parseMonthParam("9999-12", fallback)).toEqual(fallback);
+  it("同じ月を month param で渡してもカレンダーの解決では fallback する", () => {
+    expect(resolveCalendarMonthAndDate("9999-12", undefined, fallback)).toEqual(
+      {
+        month: fallback,
+        selectedDate: null,
+      },
+    );
   });
 
-  it("0-99 年を 1900+year に写さない", () => {
+  // /catalog は firstDayOfMonth / lastDayOfMonth しか使わず grid を作らない。
+  // grid 制約を parseMonthParam に置くと、その月の Event が参照不能になる。
+  it("parseMonthParam 自体は grid 制約で有効な月を拒否しない", () => {
+    expect(parseMonthParam("9999-12", fallback)).toEqual({
+      year: 9999,
+      month: 12,
+    });
+    expect(firstDayOfMonth({ year: 9999, month: 12 })).toBe("9999-12-01");
+    expect(lastDayOfMonth({ year: 9999, month: 12 })).toBe("9999-12-31");
+  });
+
+  it("0-99 年を 1900+year に写さない（曜日計算を含む）", () => {
     // Date.UTC(1, 0, 1) は 1901-01-01。以前はこの写像により
     // ?date=0001-01-01 が 1900-12-30 起点のグリッドを描いていた。
     expect(isRenderableMonth({ year: 1, month: 1 })).toBe(true);
-    expect(buildMonthGridDays({ year: 1, month: 1 })[0]?.slice(0, 4)).toBe(
-      "0000",
-    );
+
+    // 0001-01-01 は月曜。したがってグリッドは前日の日曜 0000-12-31 から
+    // 始まる。dayOfWeek が Date.UTC のままだと 1901 年の曜日で計算され、
+    // 0000-12-30 起点になって 1 月 1 日が火曜列へずれる。
+    expect(dayOfWeek("0001-01-01" as never)).toBe(1);
+    expect(buildMonthGridDays({ year: 1, month: 1 })[0]).toBe("0000-12-31");
   });
 
   it("グリッド開始が負の年になる月は表現不能とみなす", () => {

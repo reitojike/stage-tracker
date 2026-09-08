@@ -41,8 +41,7 @@ export function parseMonthParam(
   if (month < 1 || month > 12) {
     return fallback;
   }
-  const parsed = { year, month };
-  return isRenderableMonth(parsed) ? parsed : fallback;
+  return { year, month };
 }
 
 export function formatMonthParam(yearMonth: TokyoYearMonth): string {
@@ -95,7 +94,16 @@ export function resolveCalendarMonthAndDate(
       return { month, selectedDate };
     }
   }
-  return { month: parseMonthParam(rawMonth, fallback), selectedDate: null };
+  // The grid constraint belongs here, not in `parseMonthParam`: `/catalog`
+  // shares that parser but only ever needs `firstDayOfMonth`/`lastDayOfMonth`,
+  // which stay representable for a month whose *grid* would overflow. Applying
+  // it there made `/catalog?month=9999-12` silently fall back to the current
+  // month and hid that month's events (PR #381 review).
+  const fromParam = parseMonthParam(rawMonth, fallback);
+  return {
+    month: isRenderableMonth(fromParam) ? fromParam : fallback,
+    selectedDate: null,
+  };
 }
 
 /**
@@ -191,10 +199,14 @@ export function addDays(
   return dateFromYmd(year, month, day + delta);
 }
 
-/** 0 = Sunday, matching `Date.prototype.getUTCDay()`. */
+/** 0 = Sunday, matching `Date.prototype.getUTCDay()`.
+ *
+ * Uses `utcFromYmd` for the same reason `dateFromYmd` does: `Date.UTC` maps
+ * years 0-99 to 1900+year, so year 0001 would be given 1901's weekday and the
+ * grid would start one column off (PR #381 review). */
 export function dayOfWeek(date: TokyoCalendarDate): number {
   const [year, month, day] = splitYmd(date);
-  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return utcFromYmd(year, month, day).getUTCDay();
 }
 
 /**
