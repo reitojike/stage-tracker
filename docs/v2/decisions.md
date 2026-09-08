@@ -1025,7 +1025,7 @@ orchestrator）を PR #388 で実装したが、**4 ラウンド連続で P1 が
 
 閉じられなかったのは TOCTOU である。
 
-```
+```text
 main == A を確認  ->  （main は動き得る）  ->  Production DB へ A を書く
 ```
 
@@ -1040,7 +1040,7 @@ check をどこに足しても閉じない。`release.yml` は 330 行に達し�
 変わるのは、**その順序を orchestrator で保証するのをやめ、PR / artifact の
 構造そのものに埋め込む**ことである。
 
-```
+```text
 PR A — migration + DB tests だけ
 PR B — deploy に届く artifact だけ
 ```
@@ -1076,7 +1076,7 @@ lockfile / build config は素通り**する。
 
 許可しているのは次だけである。
 
-```
+```text
 supabase/**                          migration 本体、pgTAP、seed、config
 docs/**                              文書
 apps/legacy-web/test/rls/**          DB/RLS integration test

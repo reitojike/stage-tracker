@@ -33,9 +33,19 @@ if (typeof headSha !== 'string' || headSha.length === 0) {
 // 先頭の `"` のせいで allowlist の正規表現に一致せず、**その file が黙って
 // 素通りする**（fail open）。この fence は「漏れは過剰拒否の側にしか倒れない」
 // ことを設計の要点にしているので、ここで閉じる。`-z` は NUL 区切り・quote 無し。
-const diff = spawnSync('git', ['diff', '--name-only', '-z', `${baseSha}...${headSha}`], {
-  encoding: 'utf8',
-});
+// `--no-renames` を付ける理由: git は既定で rename を検出し、`--name-only` は
+// **新しい path しか出さない**。そのため
+//
+//     supabase/migrations/a.sql  ->  somewhere/a.sql
+//
+// と移動しながら runtime を変更する PR では、古い path が見えず
+// `No migration files in this PR.` で素通りする（実測済み）。
+// `--no-renames` なら delete + add として両方の path が出る。
+const diff = spawnSync(
+  'git',
+  ['diff', '--name-only', '-z', '--no-renames', `${baseSha}...${headSha}`],
+  { encoding: 'utf8' },
+);
 if (diff.error || diff.status !== 0) {
   console.error('Failed to diff the pull request range.');
   if (diff.error) console.error(diff.error.message);

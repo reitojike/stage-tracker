@@ -62,19 +62,26 @@ const MIGRATION_PATTERN = /^supabase\/migrations\/.+\.sql$/;
 // **「ついでに直したくなる」ものを足していくと fence の意味が無くなる。**
 // 追加は理由とともに 1 件ずつ足す。
 const ALLOWED_ALONGSIDE_PATTERNS = [
-  // migration 本体、pgTAP、seed、Supabase の config。deploy されない。
+  // migration 本体と pgTAP。**`supabase/` を丸ごとは許可しない。**
   //
-  // **`supabase/functions/` は除く。** Edge Function は `supabase functions deploy`
-  // で実際に deploy されるため、migration と同居すればこの fence が防ぐはずの
-  // schema race をそのまま再現できる。現時点でこの directory は存在しないが、
-  // 既定で許可される側に置かない（PR #396 review finding）。
-  /^supabase\/(?!functions\/)/,
+  // 以前は `/^supabase\/(?!functions\/)/` としていた。これは
+  // 「supabase 配下の未知 path は全部安全。ただし functions だけ例外」という
+  // **negative exception** で、この fence が捨てたはずの方式が supabase/ の
+  // 中にだけ残っていた（PR #396 review finding）。deployable な Supabase
+  // artifact が増えるたびに例外を足し続けることになる。
+  /^supabase\/migrations\//,
+  /^supabase\/tests\//,
+
   // 文書。deploy されない
   /^docs\//,
+
   // DB/RLS integration test。`docs/v2/decisions.md` が
   // 「PR A — Expand: migration + DB tests だけ」と定めているので、
   // migration の回帰テストは同居できなければならない
   /^apps\/legacy-web\/test\/rls\//,
+
+  // `supabase/config.toml` / `supabase/seed.sql` は意図的に入れていない。
+  // 実需が出た時点で exact path を理由付きで足す。
 ];
 
 // migration から生成される artifact。手で書き写すと drift するため

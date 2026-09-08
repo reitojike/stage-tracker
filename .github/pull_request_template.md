@@ -19,10 +19,15 @@ literalに読み取ります。2行とも残っている場合はambiguousとし
 migration を含む PR で同居してよいのは次だけです。それ以外は既定で拒否されます
 （root の package.json / lockfile / build config も含む）。
 
-  supabase/**                          migration 本体、pgTAP、seed、config
+  supabase/migrations/**               migration 本体
+  supabase/tests/**                    pgTAP
   docs/**                              文書
   apps/legacy-web/test/rls/**          DB/RLS integration test
   生成された database.types.ts 2 file  exact path のみ
+
+supabase/ を丸ごと許可はしません。supabase/functions/** は
+`supabase functions deploy` で実際に deploy されるため、また
+config.toml / seed.sql も実需が出るまで許可しないためです。
 
 Issue #121/#124/#125 の事故は、同居していたために「migration がまだ
 Production に無いのに新 schema 必須の app が先に deploy される」状態を

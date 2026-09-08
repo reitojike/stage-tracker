@@ -76,23 +76,47 @@ describe('deploy に届く artifact は既定で拒否する', () => {
   });
 
   // 誤りが安全側に落ちること。列挙方式に戻すとこれが通ってしまう。
-  // Edge Function は `supabase functions deploy` で実際に deploy される。
-  // `^supabase/` を丸ごと許可すると、migration と同居してこの fence が防ぐはずの
-  // schema race を再現できてしまう。現時点でこの directory は存在しない。
-  it('supabase/functions は deploy されるので拒否する', () => {
-    const r = evaluateArtifactSequencingFence([MIGRATION, 'supabase/functions/hello/index.ts']);
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.blocked, ['supabase/functions/hello/index.ts']);
-  });
-
-  it('supabase 配下の他の path は引き続き許可する', () => {
-    const r = evaluateArtifactSequencingFence([
-      MIGRATION,
-      'supabase/tests/11_x_test.sql',
+  // `supabase/` を丸ごと許可すると、そこだけ negative exception（未知は安全、
+  // 例外だけ列挙）に戻ってしまう。deployable な Supabase artifact が増えるたびに
+  // 例外を足す羽目になるので、positive な exact set にしてある。
+  it('supabase 配下でも許可するのは migrations と tests だけ', () => {
+    for (const p of [
+      'supabase/functions/hello/index.ts', // supabase functions deploy で deploy される
       'supabase/config.toml',
       'supabase/seed.sql',
+      'supabase/whatever-comes-next/x.ts',
+    ]) {
+      assert.equal(evaluateArtifactSequencingFence([MIGRATION, p]).ok, false, p);
+    }
+  });
+
+  it('supabase/migrations と supabase/tests は同居できる', () => {
+    const r = evaluateArtifactSequencingFence([
+      MIGRATION,
+      'supabase/migrations/20260908020000_y.sql',
+      'supabase/tests/11_x_test.sql',
     ]);
     assert.equal(r.ok, true);
+    assert.deepEqual(r.blocked, []);
+  });
+
+  // ## rename-out
+  //
+  // git は既定で rename を検出し、`--name-only` は新しい path しか出さない。
+  // CLI 側に `--no-renames` を付けて delete + add にしてある。その出力
+  // （旧 path と新 path の両方）を与えたときに拒否できることを固定する。
+  //
+  // `--no-renames` を外すと CLI からは旧 path が消え、この関数は
+  // 「migration が無い PR」として素通しする（実測済み）。
+  it('migration を supabase/migrations の外へ移した PR を拒否する', () => {
+    const r = evaluateArtifactSequencingFence([
+      'supabase/migrations/20260101000000_a.sql', // --no-renames が出す旧 path
+      'somewhere/20260101000000_a.sql', // 新 path
+      'apps/web/src/a.ts',
+    ]);
+    assert.equal(r.ok, false);
+    assert.deepEqual(r.migrations, ['supabase/migrations/20260101000000_a.sql']);
+    assert.deepEqual(r.blocked, ['somewhere/20260101000000_a.sql', 'apps/web/src/a.ts']);
   });
 
   it('未知の path は既定で拒否する（fail closed）', () => {

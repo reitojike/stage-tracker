@@ -44,6 +44,9 @@ const diffResult = spawnSync(
     'diff',
     '--name-only',
     '-z',
+    // rename 検出が効いていると、migration を別 directory へ移した PR で
+    // 追加が観測されない。delete + add として扱う（PR #396 で実測）。
+    '--no-renames',
     '--diff-filter=A',
     `${baseSha}...${headSha}`,
     '--',
