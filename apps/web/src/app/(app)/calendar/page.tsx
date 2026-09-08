@@ -5,8 +5,7 @@ import { resolveScreenNow } from "@/app/_lib/now";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import {
   buildMonthGridDays,
-  parseDateParam,
-  parseMonthParam,
+  resolveCalendarMonthAndDate,
   tokyoYearMonthOf,
 } from "@/app/_lib/calendar-grid";
 import {
@@ -47,11 +46,11 @@ export default async function CalendarPage({
 
   const now = resolveScreenNow();
   const params = await searchParams;
-  const month = parseMonthParam(
+  const { month, selectedDate } = resolveCalendarMonthAndDate(
     firstValue(params.month),
+    firstValue(params.date),
     tokyoYearMonthOf(now.todayTokyoDate),
   );
-  const selectedDate = parseDateParam(firstValue(params.date));
 
   const gridDays = buildMonthGridDays(month);
   const gridStart = gridDays[0];

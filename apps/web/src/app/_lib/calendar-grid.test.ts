@@ -9,6 +9,7 @@ import {
   lastDayOfMonth,
   parseDateParam,
   parseMonthParam,
+  resolveCalendarMonthAndDate,
   tokyoYearMonthOf,
 } from "./calendar-grid";
 
@@ -50,6 +51,52 @@ describe("parseDateParam", () => {
   it("returns null for a missing/malformed value", () => {
     expect(parseDateParam(undefined)).toBeNull();
     expect(parseDateParam("2026-02-30")).toBeNull();
+  });
+});
+
+describe("resolveCalendarMonthAndDate", () => {
+  const fallback = { year: 2026, month: 1 };
+
+  it("derives the displayed month from `date` alone (no `month` given)", () => {
+    expect(
+      resolveCalendarMonthAndDate(undefined, "2026-05-10", fallback),
+    ).toEqual({
+      month: { year: 2026, month: 5 },
+      selectedDate: "2026-05-10",
+    });
+  });
+
+  it("lets a valid `date` win over a disagreeing `month`", () => {
+    expect(
+      resolveCalendarMonthAndDate("2026-01", "2026-05-10", fallback),
+    ).toEqual({
+      month: { year: 2026, month: 5 },
+      selectedDate: "2026-05-10",
+    });
+  });
+
+  it("falls back to `month` with no selected day when `date` is invalid", () => {
+    expect(
+      resolveCalendarMonthAndDate("2026-05", "2026-02-30", fallback),
+    ).toEqual({
+      month: { year: 2026, month: 5 },
+      selectedDate: null,
+    });
+  });
+
+  it("falls back to `fallback` with no selected day when both are missing/invalid", () => {
+    expect(resolveCalendarMonthAndDate(undefined, undefined, fallback)).toEqual(
+      {
+        month: fallback,
+        selectedDate: null,
+      },
+    );
+    expect(
+      resolveCalendarMonthAndDate("not-a-month", "not-a-date", fallback),
+    ).toEqual({
+      month: fallback,
+      selectedDate: null,
+    });
   });
 });
 
