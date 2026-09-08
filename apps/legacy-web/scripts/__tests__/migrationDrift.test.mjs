@@ -77,3 +77,49 @@ void test('classifyMigrationDrift can report both pending and remote-only in one
   assert.deepEqual(pendingLocal, ['20260826000200']);
   assert.deepEqual(remoteOnly, ['20260826999999']);
 });
+
+// --- fail closed の regression ---
+//
+// `supabase:migrations:drift -- --linked` の結果は、D contract の
+// 「Production apply -> drift=0 -> merge」で **merge の evidence** に使われる。
+// 判定できない状態を synced / drift として返すと、その evidence が嘘になる。
+
+void test('classifyMigrationDrift reports unknown when a paired entry has mismatched versions', () => {
+  const result = classifyMigrationDrift({
+    migrations: [{ local: '20260908000000', remote: '20260908000001' }],
+  });
+  assert.equal(result.status, 'unknown');
+});
+
+void test('classifyMigrationDrift reports unknown when an entry has neither local nor remote', () => {
+  assert.equal(classifyMigrationDrift({ migrations: [{}] }).status, 'unknown');
+  assert.equal(
+    classifyMigrationDrift({ migrations: [{ local: '', remote: '' }] }).status,
+    'unknown',
+  );
+});
+
+// 一番効くのはここ。pending があると drift の early return に先に当たり、
+// 呼び出し側は pendingLocal だけを見て「適用すれば揃う」と読んでしまう。
+void test('classifyMigrationDrift reports unknown when an invalid entry accompanies a real pending one', () => {
+  const result = classifyMigrationDrift({
+    migrations: [
+      { local: '20260908000000', remote: null },
+      { local: '20260101000000', remote: '20260101000009' },
+    ],
+  });
+  assert.equal(result.status, 'unknown');
+  // 読み取れた範囲は operator の手がかりとして残す（sync の主張ではない）。
+  assert.deepEqual(result.pendingLocal, ['20260908000000']);
+});
+
+void test('classifyMigrationDrift still reports drift for a genuinely pending-only state', () => {
+  const result = classifyMigrationDrift({
+    migrations: [
+      { local: '20260101000000', remote: '20260101000000' },
+      { local: '20260908000000', remote: null },
+    ],
+  });
+  assert.equal(result.status, 'drift');
+  assert.deepEqual(result.pendingLocal, ['20260908000000']);
+});

@@ -75,6 +75,14 @@ const { status, pendingLocal, remoteOnly, reason } = classifyMigrationDrift(pars
 
 if (status === 'unknown') {
   console.error(`UNKNOWN: ${reason}`);
+  // 判定できなかった場合でも、読み取れた範囲は operator へ見せる。
+  // これらは exit code の根拠ではなく、調査の手がかり。
+  if (pendingLocal.length > 0) {
+    console.error(`  Looked pending (not a sync claim): ${pendingLocal.join(', ')}`);
+  }
+  if (remoteOnly.length > 0) {
+    console.error(`  Looked remote-only (not a sync claim): ${remoteOnly.join(', ')}`);
+  }
   process.exitCode = 2;
   process.exit();
 }
