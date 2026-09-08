@@ -24,13 +24,25 @@ import { planReleaseMigrations } from './lib/releaseMigrationPlan.mjs';
 //   1 - 止めるべき状態（remote-only drift）
 //   2 - unknown（CLI 失敗・auth 失敗・parse 失敗）。**green に潰さない**
 
-const result = spawnSync('supabase', ['migration', 'list', '--linked', '--output-format', 'json'], {
-  encoding: 'utf8',
-  shell: process.platform === 'win32',
-});
+// **account 全体に効く access token を使わない。**
+// Supabase の Personal Access Token には scope 設定が無く、アカウント配下の
+// 全 project を操作できる。`--db-url` なら到達範囲がその 1 データベースに
+// 限られる（PR #388、PO からの質問を受けて判明）。
+const dbUrl = process.env.SUPABASE_DB_URL;
+if (dbUrl === undefined || dbUrl.length === 0) {
+  console.error('UNKNOWN: SUPABASE_DB_URL is not set.');
+  console.error('This is not evidence that there is nothing to apply - the release must stop.');
+  process.exit(2);
+}
+
+const result = spawnSync(
+  'supabase',
+  ['migration', 'list', '--db-url', dbUrl, '--output-format', 'json'],
+  { encoding: 'utf8', shell: process.platform === 'win32' },
+);
 
 if (result.error || result.status !== 0) {
-  console.error('UNKNOWN: failed to list migrations for the linked Production project.');
+  console.error('UNKNOWN: failed to list migrations for the Production database.');
   if (result.error) console.error(result.error.message);
   if (result.stderr) console.error(result.stderr);
   console.error('This is not evidence that there is nothing to apply - the release must stop.');
@@ -55,7 +67,9 @@ if (plan.action === 'stop') {
   );
   // classification が unknown だった場合と remote-only drift だった場合を
   // 呼び出し側が区別できるよう、exit code を分ける。
-  process.exit(plan.reason.includes('no matching file') ? 1 : 2);
+  // remote-only drift（1）と unknown（2）を exit code で分ける。
+  // message の文字列一致では判断しない（PR #388 review）。
+  process.exit(plan.cause === 'remote-only' ? 1 : 2);
 }
 
 console.log(`PLAN: ${plan.action}. ${plan.reason}`);

@@ -49,7 +49,7 @@
     "test:e2e": "pnpm --filter @stage-tracker/web run test:e2e",
     "verify:e2e": "pnpm run verify:database:start && supabase db reset && pnpm run test:e2e",
     "release:migration-plan": "node scripts/release-migration-plan.mjs",
-    "supabase:migrations:apply": "supabase db push --linked",
+    "supabase:migrations:apply": "supabase db push --db-url \"$SUPABASE_DB_URL\"",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\""
   },
   "devDependencies": {

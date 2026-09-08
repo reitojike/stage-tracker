@@ -88,17 +88,13 @@ jobs:
       - name: Check release configuration
         id: config
         env:
-          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           missing=""
-          [ -z "$PROJECT_REF" ] && missing="$missing SUPABASE_PROJECT_REF"
-          [ -z "$ACCESS_TOKEN" ] && missing="$missing SUPABASE_ACCESS_TOKEN"
-          [ -z "$DB_PASSWORD" ] && missing="$missing SUPABASE_DB_PASSWORD"
+          [ -z "$DB_URL" ] && missing="$missing SUPABASE_DB_URL"
           [ -z "$VERCEL_TOKEN" ] && missing="$missing VERCEL_TOKEN"
           [ -z "$VERCEL_ORG_ID" ] && missing="$missing VERCEL_ORG_ID"
           [ -z "$VERCEL_PROJECT_ID" ] && missing="$missing VERCEL_PROJECT_ID"
@@ -131,15 +127,6 @@ jobs:
         if: steps.config.outputs.configured == 'true'
         run: pnpm install --frozen-lockfile
 
-      # `supabase` は devDependency なので、素の run: では PATH に入らず
-      # exit 127 になる（Verify / E2E で実際に踏んだ）。pnpm exec 経由で呼ぶ。
-      - name: Link Supabase project
-        if: steps.config.outputs.configured == 'true'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: pnpm exec supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
-
       # pending（適用してよい）と remote-only（止めるべき）を区別する。
       # remote-only は repository に対応するファイルが無い migration が
       # Production にある状態で、その上に local を重ねてはいけない。
@@ -147,8 +134,7 @@ jobs:
         if: steps.config.outputs.configured == 'true'
         id: plan
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: pnpm run release:migration-plan
 
       - name: Apply migrations
@@ -157,8 +143,7 @@ jobs:
           steps.plan.outputs.plan == 'apply' &&
           !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: pnpm run supabase:migrations:apply
 
       - name: Report skipped apply (dry-run)
@@ -171,14 +156,23 @@ jobs:
 
       # 適用後に drift 0 を確認してから deploy する。dry-run では pending が
       # 残ったままなので drift が出るのが正しく、ここは実行しない。
-      - name: Verify no drift
+      # 適用後にもう一度 plan を取り、`skip`（pending も remote-only も無い）
+      # であることを確認する。別のチェッカーを使わず同じコード経路で確認する
+      # ので、判定の食い違いが生まれない。
+      - name: Verify nothing left to apply
+        id: verify_plan
         if: >-
           steps.config.outputs.configured == 'true' &&
           !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: pnpm run supabase:migrations:drift -- --linked
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          pnpm run release:migration-plan
+          plan=$(grep '^plan=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)
+          if [ "$plan" != "skip" ]; then
+            echo "::error::migrations still pending after apply (plan=$plan)"
+            exit 1
+          fi
 
       # **古い target で deploy しない。**
       #
@@ -205,8 +199,17 @@ jobs:
           if [ "$tip" = "$TARGET_SHA" ]; then
             echo "current=true" >> "$GITHUB_OUTPUT"
           else
-            echo "current=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::main has moved past this target. Skipping deploy - a newer Release will deploy the tip."
+            # **skip して success で終えない。**
+            # GitHub Actions の concurrency は pending を 1 つしか保持せず、
+            # 新しい run が既存の pending run を置き換える。したがって
+            # 「より新しい Release が tip を deploy してくれる」という前提が
+            # 成り立たず、Production が古いまま残り得る（PR #388 review）。
+            #
+            # 失敗させて可視化する。復旧は Actions から Release を
+            # workflow_dispatch（dry_run=false）で再実行するだけでよい
+            # —— その場合 target は main の tip になる。
+            echo "::error::main has moved past this target ($TARGET_SHA -> $tip). Production was NOT deployed. Re-run Release via workflow_dispatch (dry_run=false) to deploy the current tip."
+            exit 1
           fi
 
       # ここまでが success のときだけ deploy が走る。migration が失敗しても

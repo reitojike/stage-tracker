@@ -63,20 +63,47 @@ recurring failure になる、という実績がある。
 
 ### Secrets
 
-| 名前                    | 用途                      | 取得元                                            |
-| ----------------------- | ------------------------- | ------------------------------------------------- |
-| `SUPABASE_ACCESS_TOKEN` | Supabase CLI の認証       | Supabase Dashboard → Account → Access Tokens      |
-| `SUPABASE_PROJECT_REF`  | 対象 project の識別       | Dashboard の URL、または `supabase projects list` |
-| `SUPABASE_DB_PASSWORD`  | `supabase db push` の接続 | project 作成時に設定した DB password              |
-| `VERCEL_TOKEN`          | Vercel CLI の認証         | Vercel → Account Settings → Tokens                |
-| `VERCEL_ORG_ID`         | deploy 先の識別           | `vercel link` 後の `.vercel/project.json`         |
-| `VERCEL_PROJECT_ID`     | deploy 先の識別           | 同上                                              |
+| 名前                | 用途                   | 取得元                                                             |
+| ------------------- | ---------------------- | ------------------------------------------------------------------ |
+| `SUPABASE_DB_URL`   | migration の適用と確認 | Dashboard → Project Settings → Database → Connection string（URI） |
+| `VERCEL_TOKEN`      | Vercel CLI の認証      | Vercel → Account Settings → Tokens（**scope を最小に**）           |
+| `VERCEL_ORG_ID`     | deploy 先の識別        | `vercel link` 後の `.vercel/project.json`                          |
+| `VERCEL_PROJECT_ID` | deploy 先の識別        | 同上                                                               |
 
-> **6 つすべてが揃うまで Release workflow は no-op**（notice を出して skip）。
+> **4 つすべてが揃うまで Release workflow は no-op**（notice を出して skip）。
 > 途中で止めても Production には影響しない。
 
-> **service-role key は置かない。** migration の適用に必要なのは上記だけで、
-> service-role key は別物（application runtime も持たない方針）。
+#### `SUPABASE_DB_URL` について
+
+**Supabase の Personal Access Token は使わない。**
+
+Supabase の access token には **scope 設定が無く、アカウント配下の全 project を
+操作できる**。一方 `supabase db push` / `migration list` はどちらも
+`--db-url`（Postgres の接続文字列）を受け付けるため、**到達範囲をその 1 つの
+データベースに限定できる**。
+
+| 方式       | CI に置くもの                            | 到達範囲                       |
+| ---------- | ---------------------------------------- | ------------------------------ |
+| `--linked` | access token + project ref + DB password | アカウント配下の**全 project** |
+| `--db-url` | 接続文字列 1 つ                          | **そのデータベースのみ**       |
+
+取得手順:
+
+1. Supabase Dashboard → 対象 project → **Project Settings → Database**
+2. **Connection string** の **URI** をコピーする
+3. `[YOUR-PASSWORD]` の部分を実際の DB password に置き換える
+4. **password に記号が含まれる場合は percent-encode する**
+   （CLI が「must be percent-encoded」と要求する。例: `@` → `%40`、
+   `#` → `%23`、`/` → `%2F`）
+
+> **service-role key は置かない。** migration の適用に必要なのはこの接続文字列
+> だけで、service-role key は別物（application runtime も持たない方針）。
+
+> **`VERCEL_TOKEN` の scope は最小にする。** token 作成時に team / project を
+> 選べる場合は、この project だけに絞る。当初は Deploy Hook（「この branch を
+> deploy せよ」以外の権限を持たない）を使う設計だったが、Deploy Hook では
+> 検証した commit を deploy できないことが判明して CLI へ変更した
+> （`docs/v2/decisions.md`）。権限が広がるぶん、scope で blast radius を抑える。
 
 ## 手順 2: Git による自動 deploy を止める
 
@@ -160,6 +187,15 @@ placeholder でビルドを通しており整合する。
 - [ ] Preview deployment の環境変数が placeholder になっている
 - [ ] `production` environment の secret が `main` の job からのみ読める
       （PR の branch で走る job からは読めない）
+
+### Release が「main has moved past this target」で失敗した場合
+
+これは異常ではなく、**設計どおりの停止**。A の後に B が merge され、A の
+Verify が遅れて完了した場合に起きる。**Production は古いままで、巻き戻っては
+いない。**
+
+復旧は Actions → Release → **Run workflow**（`dry_run` のチェックを外す）
+だけでよい。その場合 target は main の tip になる。
 
 ## 手順 5: release workflow の dry-run
 
