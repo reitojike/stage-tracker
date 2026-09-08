@@ -70,18 +70,34 @@ jobs:
       # 手動実行時に、対象 SHA の Verify が成功しているかを確認するため。
       actions: read
     steps:
+      # **target は常に main の tip。**
+      #
+      # 当初は `workflow_run.head_sha`（CI が通った commit）を target に
+      # していたが、Verify は SHA ごとに並行完了するため「古い run が後から
+      # 完了する」経路が構造的に残り、review で 3 ラウンド連続して別々の
+      # 事故が見つかった（PR #388）。
+      #
+      #   - 古い commit を deploy して巻き戻す
+      #   - 古い commit の migration を Production へ書いてしまう
+      #   - 取りこぼして Production が古いまま残る
+      #
+      # いずれも「CI を通った各 commit に release を対応させる」という形から
+      # 出ている。**tip だけを release 対象にすればこの種類ごと消える。**
+      # 古い run は tip を見て「自分の出番ではない」と分かるだけで、
+      # 書き込みも deploy もしない。
+      #
+      # 取りこぼしも起きない。tip の Verify が完了すれば、その完了自身が
+      # 新しい run を起動する。
       - name: Resolve target commit
         id: target
-        env:
-          # workflow_run では、CI が通った commit を明示的に使う。
-          # 「main の最新」ではない —— その間に別の merge が入っている可能性がある。
-          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [ -n "$WORKFLOW_RUN_SHA" ]; then
-            echo "sha=$WORKFLOW_RUN_SHA" >> "$GITHUB_OUTPUT"
-          else
-            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          tip=$(git ls-remote "https://github.com/${{ github.repository }}.git" refs/heads/main | cut -f1)
+          if [ -z "$tip" ]; then
+            echo "::error::could not resolve the tip of main"
+            exit 1
           fi
+          echo "target (tip of main): $tip"
+          echo "sha=$tip" >> "$GITHUB_OUTPUT"
 
       # operator の dashboard 作業（docs/runbooks/v2-release-pipeline-setup.md）
       # が完了するまで secret は存在しない。その間このワークフローは main への
@@ -107,60 +123,71 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # **手動実行でも Verify 成功を必須にする。**
+      # **trigger の種別に依らず、tip の Verify 成功を必須にする。**
+      # workflow_run の `conclusion == 'success'` はその run の commit に
+      # ついての情報でしかなく、tip を release する以上あてにできない。
       #
-      # `main has moved past this target` の復旧手順として
-      # workflow_dispatch を案内しているが、そのままでは
-      # `workflow_run.conclusion` を確認せずに現在の main を deploy して
-      # しまう。新しい commit の Verify がまだ実行中／失敗している状況で
-      # operator が再実行すると、**未検証の commit が Production へ出る**
-      # （PR #388 review, Codex P1。この穴は前 round で追加した復旧手順
-      # 自身が作ったもの）。
-      #
-      # workflow_run 経由の場合は job の `if` で既に success を確認済み。
-      - name: Require a successful Verify for this commit
-        if: >-
-          steps.config.outputs.configured == 'true' &&
-          github.event_name == 'workflow_dispatch' &&
-          !inputs.dry_run
+      # tip の Verify がまだ完了していない場合は **no-op で正常終了**する。
+      # 失敗にしないのは、これが正常な並行状態だから —— その Verify が
+      # 完了した時点で、それ自身が新しい run を起動する。
+      - name: Require a successful Verify for the tip
+        id: verified
+        if: steps.config.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ steps.target.outputs.sha }}
         run: |
           conclusion=$(gh api             "repos/${{ github.repository }}/actions/workflows/verify.yml/runs?head_sha=$TARGET_SHA&status=completed"             --jq '[.workflow_runs[] | select(.event == "push")] | first | .conclusion // "none"')
           echo "Verify conclusion for $TARGET_SHA: $conclusion"
-          if [ "$conclusion" != "success" ]; then
-            echo "::error::No successful push-triggered Verify run for $TARGET_SHA (got: $conclusion). Refusing to deploy an unverified commit."
-            exit 1
+          if [ "$conclusion" = "success" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No completed successful Verify for the tip yet (got: $conclusion). Nothing to release - the tip's own Verify will trigger a run when it finishes."
           fi
 
       - name: Checkout stage-tracker
-        if: steps.config.outputs.configured == 'true'
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
+          steps.verified.outputs.ok == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ steps.target.outputs.sha }}
           persist-credentials: false
 
       - name: Setup pnpm
-        if: steps.config.outputs.configured == 'true'
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
+          steps.verified.outputs.ok == 'true'
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node.js
-        if: steps.config.outputs.configured == 'true'
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
+          steps.verified.outputs.ok == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.config.outputs.configured == 'true'
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
+          steps.verified.outputs.ok == 'true'
         run: pnpm install --frozen-lockfile
 
       # pending（適用してよい）と remote-only（止めるべき）を区別する。
       # remote-only は repository に対応するファイルが無い migration が
       # Production にある状態で、その上に local を重ねてはいけない。
       - name: Plan migrations
-        if: steps.config.outputs.configured == 'true'
+        if: >-
+          steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
+          steps.verified.outputs.ok == 'true'
         id: plan
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -169,6 +196,7 @@ jobs:
       - name: Apply migrations
         if: >-
           steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
           steps.plan.outputs.plan == 'apply' &&
           !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
@@ -178,6 +206,7 @@ jobs:
       - name: Report skipped apply (dry-run)
         if: >-
           steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
           steps.plan.outputs.plan == 'apply' &&
           github.event_name == 'workflow_dispatch' && inputs.dry_run
         run: |
@@ -192,6 +221,7 @@ jobs:
         id: verify_plan
         if: >-
           steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
           !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -218,6 +248,7 @@ jobs:
         id: tip
         if: >-
           steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
           !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
           TARGET_SHA: ${{ steps.target.outputs.sha }}
@@ -228,17 +259,12 @@ jobs:
           if [ "$tip" = "$TARGET_SHA" ]; then
             echo "current=true" >> "$GITHUB_OUTPUT"
           else
-            # **skip して success で終えない。**
-            # GitHub Actions の concurrency は pending を 1 つしか保持せず、
-            # 新しい run が既存の pending run を置き換える。したがって
-            # 「より新しい Release が tip を deploy してくれる」という前提が
-            # 成り立たず、Production が古いまま残り得る（PR #388 review）。
-            #
-            # 失敗させて可視化する。復旧は Actions から Release を
-            # workflow_dispatch（dry_run=false）で再実行するだけでよい
-            # —— その場合 target は main の tip になる。
-            echo "::error::main has moved past this target ($TARGET_SHA -> $tip). Production was NOT deployed. Re-run Release via workflow_dispatch (dry_run=false) to deploy the current tip."
-            exit 1
+            # target を解決してから deploy までの間に main が動いた場合。
+            # **この run はもう自分の出番ではない**ので no-op で終える。
+            # 新しい tip の Verify が完了すれば、それ自身が新しい run を
+            # 起動するので取りこぼさない。
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main moved while this run was in flight ($TARGET_SHA -> $tip). Skipping deploy - the new tip's own Verify will trigger a run."
           fi
 
       # ここまでが success のときだけ deploy が走る。migration が失敗しても
@@ -262,6 +288,7 @@ jobs:
       - name: Deploy the verified commit to production
         if: >-
           steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
           steps.tip.outputs.current == 'true' &&
           !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
@@ -285,6 +312,7 @@ jobs:
       - name: Report skipped deploy (dry-run)
         if: >-
           steps.config.outputs.configured == 'true' &&
+          steps.verified.outputs.ok == 'true' &&
           github.event_name == 'workflow_dispatch' && inputs.dry_run
         run: |
           echo "DRY-RUN: would POST the Vercel deploy hook."

@@ -188,19 +188,23 @@ placeholder でビルドを通しており整合する。
 - [ ] `production` environment の secret が `main` の job からのみ読める
       （PR の branch で走る job からは読めない）
 
-### Release が「main has moved past this target」で失敗した場合
+### Release が「Nothing to release」や「main moved」で終了した場合
 
-これは異常ではなく、**設計どおりの停止**。A の後に B が merge され、A の
-Verify が遅れて完了した場合に起きる。**Production は古いままで、巻き戻っては
-いない。**
+どちらも**異常ではなく設計どおり**。Release は常に **main の tip** を対象に
+する。
 
-復旧は Actions → Release → **Run workflow**（`dry_run` のチェックを外す）
-だけでよい。その場合 target は main の tip になる。
+- `No completed successful Verify for the tip yet`: tip の Verify がまだ
+  完了していない。その Verify が完了した時点で、それ自身が新しい Release を
+  起動する。**待てばよい**
+- `main moved while this run was in flight`: 実行中に main が進んだ。この run
+  はもう出番ではない。新しい tip の Verify が完了すれば新しい run が走る
 
-> **手動実行でも未検証の commit は deploy されない。** workflow は対象 SHA に
-> 対する push 由来の Verify が success であることを確認してから進む。tip の
-> Verify がまだ実行中／失敗している場合は、その旨を表示して停止する
-> （待ってから再実行する）。
+いずれも Production は変更されていない。手動での復旧操作は不要。
+
+**手動で release したい場合**は Actions → Release → **Run workflow**
+（`dry_run` のチェックを外す）。この場合も対象は main の tip で、その tip の
+Verify が success でなければ何もせずに終了する。**未検証の commit が
+Production へ出る経路は無い。**
 
 ## 手順 5: release workflow の dry-run
 
