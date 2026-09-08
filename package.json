@@ -44,7 +44,10 @@
     "verify:database:checks": "pnpm run verify:database:db-checks && pnpm run verify:database:auth-checks",
     "verify:database": "pnpm run verify:database:start && supabase db reset && pnpm run verify:database:checks",
     "verify:profile": "pnpm run agent-rules:check && pnpm run supabase:migrations:check && pnpm run verify:database",
-    "verify": "pnpm run verify:code && pnpm run verify:build && pnpm run verify:database"
+    "verify": "pnpm run verify:code && pnpm run verify:build && pnpm run verify:database",
+    "e2e:install-browsers": "pnpm --filter @stage-tracker/web exec playwright install --with-deps chromium",
+    "test:e2e": "pnpm --filter @stage-tracker/web run test:e2e",
+    "verify:e2e": "pnpm run verify:database:start && supabase db reset && pnpm run test:e2e"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",

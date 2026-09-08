@@ -228,6 +228,72 @@ jobs:
             echo "::endgroup::"
           done
 
+  # Issue #380: Playwright journeys against a real local Supabase stack +
+  # a production-equivalent `next build && next start` (see
+  # apps/web/playwright.config.ts). Deliberately its own job rather than
+  # folded into `Verify / Database` above: a DB/RLS/Auth-build failure and
+  # a UI journey failure must never collapse into one red check - each has
+  # to point at its own responsibility. Startup mirrors `Verify /
+  # Database`'s own (`verify:database:start` + `supabase db reset`), just
+  # against this job's own fresh Supabase stack on this job's own runner,
+  # never sharing state with that job.
+  e2e:
+    name: Verify / E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout stage-tracker
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Chromium only (this suite's single project, apps/web/playwright.config.ts)
+      # - installing every browser Playwright supports would just cost cold-start
+      # time this job never uses.
+      - name: Install Playwright Chromium
+        run: pnpm run e2e:install-browsers
+
+      - name: Start local Supabase
+        run: pnpm run verify:database:start
+
+      # Always a fresh runner (same reasoning as `Verify / Database`'s own
+      # `supabase start`), but explicit here rather than assumed, so this
+      # job's migrations are never silently stale if that assumption ever
+      # stops holding for either job independently.
+      # `pnpm run` 経由で呼ぶこと。`supabase` は devDependency なので、素の
+      # run: では node_modules/.bin が PATH に無く exit 127
+      # (command not found) になる。この job の他のステップと、Verify /
+      # Database の全ステップも同じ理由で pnpm script を経由している。
+      - name: Reset local Supabase
+        run: pnpm run db:reset
+
+      - name: Verify / E2E
+        run: pnpm run test:e2e
+
+      # Local Supabase only ever runs with its published local demo
+      # keys/JWT secret (never real credentials, same note as `Verify /
+      # Database` diagnostics below), so this report carries nothing
+      # sensitive.
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
   # Pre-merge fence for Issue #131 (root cause: #121/#124/#125 each merged a
   # migration-bearing PR without recording whether Production needed the
   # migration applied before merge, and it didn't happen before Vercel

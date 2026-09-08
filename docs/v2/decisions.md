@@ -83,9 +83,9 @@ oracle が「実際に踏んだ失敗」として記録している事項。単�
 
 ## PO / owner 作業が必要（dashboard 操作）
 
-| #   | 作業                                                                 | 理由                                                                                                                                                                                                                                         | 状態   |
-| --- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| O1  | Vercel project の **Root Directory を `apps/legacy-web` に設定する** | monorepo 化で root から Next.js アプリが無くなり、Vercel の Next.js ビルダーが Root Directory の `package.json` に `next` を見つけられずデプロイが失敗する。Root Directory は dashboard 設定であり、リポジトリ内のファイルからは変更できない | 未対応 |
+| #   | 作業                                                                 | 理由                                                                                                                                                                                                                                         | 状態                                                                                                          |
+| --- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| O1  | Vercel project の **Root Directory を `apps/legacy-web` に設定する** | monorepo 化で root から Next.js アプリが無くなり、Vercel の Next.js ビルダーが Root Directory の `package.json` に `next` を見つけられずデプロイが失敗する。Root Directory は dashboard 設定であり、リポジトリ内のファイルからは変更できない | **対応済み**（2026-09-08 実測。main の `52e0e6d` の Production デプロイが success、`/sign-in` が 200 を返す） |
 
 補足:
 
@@ -290,9 +290,9 @@ Claude と Codex の独立レビューで 5 件の指摘。4 件を修正し、1
 
 ### 申し送り（修正しない）
 
-| #   | 内容                                                                                                                                                                                                                                                                                                                                                                                            |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F4b | **Preview origin を Magic Link に渡していない。** `emailRedirectTo` 未指定のため、Vercel Preview でサインインするとメール内リンクが Production の `/auth/confirm` へ向かう。ただし `apps/web` は現在どこにもデプロイされておらず（Vercel の Root Directory は `apps/legacy-web`）、Preview サインインを実行する経路が存在しないため今は直せない・検証できない。**cutover 前に必ず対応すること** |
+| #   | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F4b | ~~**Preview origin を Magic Link に渡していない。**~~ **撤回（2026-09-08、PO 判断）。** 下記「PO 判断: Preview 環境の位置づけ」により、Free 運用中は remote Preview Supabase を持たず、Vercel Preview で authenticated flow を提供しない。したがって Preview へ戻る redirect 先そのものが不要になった。将来 remote Preview 環境を持つ場合は、trusted な Vercel framework 値からのみ Preview origin を導出する方式を再採用候補とする |
 
 ### レビュアーからの補足（対応不要だが記録）
 
@@ -640,6 +640,9 @@ workflow がそれをイベントペイロードから渡している。**GitHub
 
 ## M7 の検討事項: Preview 環境の DB 隔離（2026-09-08）
 
+> **解決済み。** 下記「PO 判断: Preview 環境の位置づけ（2026-09-08）」を参照。
+> 選択肢の比較は判断の経緯として残すが、**結論はそちらが正本**。
+
 **当初のアーキテクチャ案にあった Supabase Branching が、Milestone へ落とし込む段階で
 抜け落ちていた。** `packages/ui` や Spec Kit と同じ抜け方をしている。PO の指摘で判明した。
 
@@ -685,7 +688,8 @@ Branching は **CI と Preview の実行環境の話**であり、アプリの�
 
 ## P3 の実装可否: decline の undo は現行スキーマでは実現できない（2026-09-08）
 
-M6d の実装時に実測で判明。**PO 判断により、undo は Issue #382 で別途対応する。**
+M6d の実装時に実測で判明。**PO 判断により undo は作らないことで確定した**
+（Issue #382 は close 済み。下記「PO 判断: undo は作らない」節）。
 
 ### 判明した事実
 
@@ -702,7 +706,7 @@ decline のページを見られるのは invitee 本人だけなので、既存
 
 ### PO 判断
 
-**M6d では decline のみ実装し、undo は Issue #382 で復元 RPC を追加して対応する。**
+**M6d では decline のみ実装する。undo は作らない**（PO 判断で確定。下記）。
 
 M6d は undo action/UI を持たない（動かないものを動くように見せない）。decline は
 取り消せないため、client は実行前に一段階の確認を挟む（押し間違い対策）。
@@ -710,10 +714,42 @@ M6d は undo action/UI を持たない（動かないものを動くように見
 実装状況の正本は `docs/prd.md` と `docs/roadmap.md`。この節は決定の記録であって
 実装完了の記録ではない。
 
-### この判断の含意
+### PO 判断: undo は作らない（2026-09-08、Issue #382 を close）
 
-**「押し間違いを直後に取り消せる仕組みはほしい」という PO の要望は、
-Issue #382 が完了するまで満たされない。** cutover 前に対応すること。
+> 確認ダイアログがあれば押し間違いによってレコードの不可逆な物理削除が発生して
+> しまうことも抑止できると思うので、undo を作らず close で OK です
+
+**確認ダイアログは M6d でマージ済み**（`InvitationList.tsx` の
+`confirm-decline` フェーズ）。押し間違いによる不可逆な hard delete は
+この一段階で抑止される。
+
+P3 が反転させようとしていた元のバグ —「8 秒タイマーで確定するため、タブを
+閉じると pending が残り得る」— は、**decline を即時確定にした時点で既に
+解消**している。undo が無いことによる実害は「確認ダイアログで OK を押し間違えた
+場合のみ」に縮んでいた。
+
+### undo を実装しようとすると要件が両立しない
+
+Issue #382 の Decisions / Invariants は、次の 3 つが同時に成立しない。
+
+| #   | 要件                                                           |
+| --- | -------------------------------------------------------------- |
+| A   | 復元は通常の invite 判定を通す（inviter が `attending` 等）    |
+| B   | 復元の成否から inviter の状態が invitee へ漏れない             |
+| C   | 猶予時間を過ぎた復元が拒否される／サーバ側に中間状態を持たない |
+
+**A と B が両立しない。** 復元 RPC を invite と同じく無条件 `void` にして
+呼び出し元へ何も返さなくても、**invitee は招待一覧の再描画で結果を観測できる**。
+invitation が戻らなければ「inviter はもう `attending` ではない」と分かる。
+invite 操作の opacity は返り値を潰せば成立するが、こちらは**画面そのものが
+観測面**なので閉じられない。
+
+**A を外すと C が閉じない。** eligibility を再確認せず「元に戻すだけ」にすれば
+B は保てるが、invitee が任意のタイミングで自分宛の invitation を作れることに
+なる。これを猶予時間で縛るには「いつ decline したか」をサーバが知る必要があり、
+pending-only という Invitation の設計（Issue #225/#230）と衝突する。
+
+将来 undo が必要になった場合は、この矛盾から設計をやり直すこと。
 
 P3 で決めた「decline は即座に確定させる」部分は、未マージの M6d ブランチで
 実装する予定の範囲に含まれる。それがマージされれば、現行 legacy の
@@ -798,3 +834,184 @@ migration との乖離は typecheck でも CI でも検出されない。**
 
 legacy-web を cutover で削除した時点でこの複製は消える。それまでの
 暫定として、複製そのものではなく**複製が機械的であること**を担保する。
+
+---
+
+## A23: v2 E2E は Playwright + 実 magic-link で組む（2026-09-08）
+
+**決定: `apps/web` の E2E は Playwright で書き、認証は Supabase SDK の
+ショートカットではなく実際の magic-link フロー（Mailpit 経由）を通す。**
+
+Issue #380 の受け入れ条件「Playwright の E2E が主要 journey をカバーし、
+**CI で実行される**」に対する実装方針。
+
+### 認証をショートカットしない
+
+legacy の `test/auth` は `signInWithOtp` -> Mailpit から token_hash 取得 ->
+アプリ自身の `/auth/confirm` を叩く、という実経路を通している。session を
+SDK で直接作らないのは、**cookie の発行経路そのものが検証対象**だから。
+v2 の `/auth/confirm` も session cookie を発行する Route Handler なので
+同じ性質を持つ。
+
+legacy のコードは import していない。経路の設計だけを踏襲して書き直した。
+
+### service-role の接続先を構造的に縛る
+
+E2E はアカウントの provision / 削除に service-role key を使う。接続先は
+`supabase status -o json`（`--linked` なし、env フォールバックなし）からのみ
+得るが、**それに暗黙に頼らず `assertLocalApiUrl` で明示的に検査する**。
+将来 env フォールバックを足す変更が入っても、この検査が先に落ちる。
+
+「そうならないはず」ではなく「そうなったら止まる」形にしている。
+検査自体の発火は unit test で固定した。
+
+### CI ジョブを分ける
+
+`Verify / E2E` を `Verify / Database` とは別ジョブにする。同じジョブに
+入れると、DB 検証が落ちたのか journey が落ちたのかを区別できなくなる。
+
+### 対象 journey
+
+網羅率を目標にしない。**read boundary の 3 状態分類や P4 の独立劣化は
+unit test の担当**で、E2E で二重化しない。
+
+1. magic-link サインイン（送信 -> Mailpit -> `/auth/confirm` -> 認証済みホーム）
+2. participation の登録と取り消し
+3. personal schedule の作成 -> 閲覧 -> 編集 -> 削除
+4. designated catalog creator による event の作成と編集
+5. invitation（attending の user が招待し、招待先が受諾する）
+
+各 journey が自分でアカウントと catalog 行を用意し、自分で片付ける。
+journey 間で共有 fixture に依存しない。
+
+---
+
+## PO 判断: Preview 環境の位置づけ（2026-09-08）
+
+**「M7 の検討事項: Preview 環境の DB 隔離」の未決事項は、この判断で解決した。**
+
+### 決定
+
+- **stage-tracker は Free Plan で運用しており、remote Preview Supabase を持たない。**
+- **PR 単位の DB / Auth / RLS / full-stack の隔離は、ephemeral な local Supabase + CI が担う。**
+  `Verify / Database` と `Verify / E2E` が、それぞれ自分の runner 上に自分の
+  スタックを立てて検証する（A23）。
+- **Vercel Preview は Production Supabase へ authenticated 接続しない。**
+  deployment / runtime の smoke environment として扱い、
+  「authenticated UI 確認環境」とは位置づけない。
+- **authenticated UI と user journey の検証は local Supabase + Playwright / Storybook で行う。**
+- **hosted な authenticated Preview が実際に必要だと感じた時点で、独自の代替基盤を
+  構築せず Supabase Pro / Branching を再評価する。**
+
+### 直接の帰結
+
+**F4b（Preview origin を Magic Link へ渡す）を撤回した。**
+
+F4b は当初、hosted な authenticated Preview を成立させるための要件だった。
+この判断により Preview で authenticated flow を提供しないため、Preview へ戻る
+redirect 先そのものが不要になる。
+
+**むしろ実装すると方針に反する。** `emailRedirectTo` を渡さなければ、Preview で
+サインインを試みてもメール内リンクは Production の `/auth/confirm` へ向かい、
+**Preview 自体は authenticated にならない**。F4b を入れると Preview が
+Production Supabase に対する authenticated セッションを持つことになり、
+この判断が禁じている状態を作る。
+
+将来 remote Preview 環境を持つ場合は、**trusted な Vercel framework 値からのみ
+Preview origin を導出する方式**（リクエストの `Host` / `X-Forwarded-Host` は
+読まない。クライアントが指定できるため、攻撃者のドメインを載せたサインインリンクを
+他人へ送らせる経路になる）を再採用候補とする。
+
+### この方針をどう実現するか
+
+**app code では実現しない。** PR #386 で 4 ラウンド試みて失敗した経緯と、
+採用する方式（Preview deployment に Production Supabase の接続情報を
+渡さない）は A24 に記録した。**実現は M7（release / deployment contract）
+で行い、cutover の前提条件とする。**
+
+### Preview の射程についての確認
+
+`apps/web` は default-deny であり、未認証では全パスが `/sign-in` へ redirect される
+（公開は `/sign-in` / `/auth/confirm` / manifest・icon のみ）。したがって
+cutover 後の Preview で未認証のまま確認できるのは、**ビルドが通ること・middleware が
+効くこと・サインイン画面の表示**までである。これで足りるという判断。
+
+### 撤回しないもの
+
+「M6 の Preview では書き込みを伴う操作を実行しない」という暫定運用は、この判断に
+包含されて恒久化した（Preview では authenticated にならないため、書き込み操作に
+到達しない）。
+
+---
+
+## A24: Preview の隔離は app code ではなく deployment 境界に置く（2026-09-08）
+
+**決定: 「Vercel Preview は Production Supabase へ authenticated 接続しない」
+という保証を、アプリのコードで実現しようとするのをやめる。Preview
+deployment に Production Supabase の接続情報を渡さないことで実現し、
+M7（release / deployment contract）で扱う。**
+
+### 経緯: app code で塞ごうとして 4 ラウンド失敗した
+
+PR #386 で、Preview の authenticated flow を app code で拒否しようとした。
+毎ラウンド「guard を通らない新しい経路」が見つかった。
+
+| round | 見つかった穴                                                                                        |
+| ----- | --------------------------------------------------------------------------------------------------- |
+| 1     | `emailRedirectTo` を消すだけでは、残存 cookie と `/auth/confirm` で authenticated になれる          |
+| 2     | `proxy.ts` の判定は pathname ベースなので、Server Action を公開 pathname 宛に POST すれば迂回できる |
+| 3     | `sign-out/actions.ts` は `authActionClient` を経由せず `auth.signOut()` を直接呼ぶ                  |
+| 4     | `proxy.ts` 自身が cookie を渡したまま `getUser()` を実行し、refresh 時には cookie を発行していた    |
+
+4 ラウンド目の修正時に「session cookie を Supabase へ渡す構成箇所は 2 つ
+だけ」と主張したが、**これは偽だった**。実際には 4 ファイル 5 箇所ある。
+
+- `apps/web/src/lib/supabase/server.ts`（2 箇所）
+- `apps/web/src/proxy.ts`
+- `apps/web/src/lib/actions/passkeys.ts`
+- `apps/web/src/app/(app)/mypage/_data/passkeySupabaseClient.ts`
+
+Passkey 系 2 箇所は guard を持たない。現時点で直接 exploit できる経路が
+見つからないのは、**それぞれの caller が別の guard の後ろにいるから**で
+あって、まさにやめようとしていた「消費側の正しさに依存する」状態だった。
+
+### なぜ app code では無理なのか
+
+**Production の接続情報が Preview deployment に存在する限り、「どこで
+遮断するか」を列挙し続ける問題に戻る。** Server Action / Route Handler /
+browser client / Passkey client が増えるたびに、guard の置き忘れが
+Production への authenticated 接続になる。
+
+### 採る方式
+
+Preview deployment に Production Supabase の接続情報を渡さない。
+
+```
+Vercel Production   -> 実 SUPABASE_URL / ANON_KEY -> Production Supabase
+Vercel Preview      -> placeholder URL / dummy key -> 到達不能
+```
+
+Preview では、protected route は Supabase へ問い合わせられず default-deny
+で `/sign-in` へ、sign-in はメールを送れず、`/auth/confirm` は検証できず、
+Passkey も browser client も同様に到達できない。**新しい経路が増えても、
+Production credential 自体が存在しないので置き忘れが事故にならない。**
+
+CI の `Verify / Build` が既に `https://placeholder.invalid` と dummy anon
+key でビルドを通す方式を採っており、この考え方と整合する。
+
+### この判断の帰結
+
+- **PR #386 からは app code の Preview 遮断を撤去した。** 部分的な guard を
+  残すと「守られている」という誤った前提を招く。`apps/web` は現時点で
+  どこにもデプロイされていない（Vercel の Root Directory は
+  `apps/legacy-web`）ため、撤去による露出の増加は無い
+- **M7 へ引き継ぐ**: Preview 環境へ Production credential を渡さない設定、
+  および Preview で public / default-deny の smoke が成立することの確認
+- **cutover の前提条件**: この隔離が成立していない状態で Root Directory を
+  `apps/web` へ切り替えてはならない
+
+### 教訓
+
+**アプリのコードで「環境の性質」を再現しようとしない。** 環境の違いは
+環境の設定で表す。app code で表そうとすると、その表現を参照し忘れた
+経路が静かに穴になる。今回は 4 ラウンドかけてそれを実証した。
