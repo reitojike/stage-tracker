@@ -714,3 +714,42 @@ Issue #382 が完了するまで満たされない。** cutover 前に対応す�
 P3 で決めた「decline は即座に確定させる」部分は M6d で実装済みであり、
 現行の「8 秒タイマーで確定（タブを閉じると pending が残り得る）」という
 バグは解消されている。undo が無い状態は、現行より悪くはならない。
+
+---
+
+## 規約: authenticated route は `(app)` route group 配下に置く（2026-09-08）
+
+**M6a が確立した構造を、M6b / M6c / M6d の 3 本すべてが踏み外した。** 原因は
+この規約が明文化されておらず、後続への指示にも含めなかったこと。
+
+### 規約
+
+**認証を要する画面は `apps/web/src/app/(app)/` 配下に置く。**
+`(app)/layout.tsx` が `AppShell`（AppBar + PrimaryNav）と identity 解決を担う。
+
+- **画面ごとに `layout.tsx` を作って `AppShell` を当てない。** 重複になる
+- **identity 解決を feature-local に再実装しない。** `(app)/_lib/app-bar-identity.ts` を使う
+- route group なので **URL には現れない**。`(app)/schedule/new` の URL は `/schedule/new`
+
+`(app)` の外に置くのは、**認証を要しない画面だけ**。
+`/sign-in` `/sign-out` `/auth/confirm` は素の layout を使うため group の外に置く。
+
+### 何が起きたか
+
+| PR  | 状態                                                                     |
+| --- | ------------------------------------------------------------------------ |
+| M6b | `(app)` の外。**`AppShell` を持たない**（AppBar も PrimaryNav も出ない） |
+| M6c | `(app)` の外。独自 `schedule/layout.tsx` + 独自 `appBarIdentity`         |
+| M6d | `(app)` の外。`mypage` だけ独自 layout、他 3 画面は `AppShell` なし      |
+
+**同じ問題に 3 者が別々の解を出した。** 「規約が無ければ、各自がその場で妥当な解を作る」
+という当然の結果であり、実装者の問題ではない。
+
+### 教訓
+
+**構造を作った PR は、その構造を使う側への規約も同時に書く。**
+M6a は `(app)` route group を作ったが、「以降の authenticated route はここへ置く」
+という規約を残さなかった。基盤を作る PR ほど、**使い方の明文化が成果物の一部**である。
+
+同種の抜けが `packages/ui` の shadcn 生成先でも起きかけた（あちらは
+「共有すべきと分かった時点で手動昇格」と運用を明記して回避した）。
