@@ -187,10 +187,27 @@ export function isTicketOpportunityPostFinalRetained(
 /** One Opportunity's full milestone set plus the caller's own personal
  * planning state for it - the minimal input `buildTicketOpportunityTimelineRows`
  * needs. A missing milestone (one the source never gave) is represented by
- * its absence from `milestones`, never a placeholder entry. */
+ * its absence from `milestones`, never a placeholder entry.
+ *
+ * `displayName` (PR #381 review finding 2) is carried through so a caller
+ * rendering a flattened timeline row can still tell which Opportunity it
+ * belongs to - without it, two rows for the same `milestoneType` on the
+ * same day (e.g. two different Opportunities' own `application_close`) are
+ * indistinguishable once reduced to "milestone type + date". It is not used
+ * by this module's own ordering/retention logic; it is pure passenger data.
+ *
+ * The parent Event's own title is a further, still-missing disambiguator
+ * for the case where two *different* Events each have an Opportunity of
+ * the same `displayName` due on the same day - this Task's read boundary
+ * (`apps/web/src/lib/data/reads/tickets.ts`) does not join it in (see this
+ * Task's report: doing so would require an additional `events` embed that
+ * the concurrently-edited `apps/web/src/app/(app)/tickets/_lib/
+ * tickets-loader.test.ts` fixtures do not carry). A caller can still reach
+ * the specific Event via `eventId`. */
 export interface TicketOpportunityAggregate {
   readonly opportunityId: TicketOpportunityId;
   readonly eventId: EventId;
+  readonly displayName: string;
   readonly milestones: readonly TicketOpportunityMilestone[];
   readonly myState: UserTicketOpportunityStatus | null;
 }
@@ -198,6 +215,10 @@ export interface TicketOpportunityAggregate {
 export interface TicketOpportunityTimelineRow {
   readonly opportunityId: TicketOpportunityId;
   readonly eventId: EventId;
+  /** The source Opportunity's own display name (e.g. "FC先行") - see
+   * `TicketOpportunityAggregate`'s own header for why this is carried (and
+   * why the parent Event's title is not, yet). */
+  readonly displayName: string;
   readonly milestone: TicketOpportunityMilestone;
   readonly sortInstant: Instant;
   /** The caller's own planning state for this row's Opportunity - identical
@@ -259,6 +280,7 @@ export function buildTicketOpportunityTimelineRows(
       unsorted.push({
         opportunityId: aggregate.opportunityId,
         eventId: aggregate.eventId,
+        displayName: aggregate.displayName,
         milestone,
         sortInstant: ticketOpportunityMilestoneSortInstant(milestone),
         myState: aggregate.myState,

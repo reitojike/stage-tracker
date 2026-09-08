@@ -67,6 +67,29 @@ export function parseDateParam(
   return parsed.success ? parsed.data : null;
 }
 
+/** The month/selected-day pair `/calendar` renders, resolved from a
+ * possibly missing/malformed `month`/`date` search param pair (contract:
+ * legacy `resolveCatalogParams`/`resolveMyCalendarParams` in
+ * `apps/legacy-web/src/domain/catalogNavigation.ts`, reused verbatim by
+ * `/calendar` there). A valid `date` always wins for the displayed month -
+ * a `month` param that disagreed with it would otherwise let the grid and
+ * the selected-day section drift onto different months. Only when `date`
+ * is missing/invalid does `month` (or, failing that, `fallback`) apply, and
+ * the selected day is `null`. Malformed values are ignored rather than
+ * surfaced as an error: this is client-supplied navigation state, not
+ * domain data. */
+export function resolveCalendarMonthAndDate(
+  rawMonth: string | undefined,
+  rawDate: string | undefined,
+  fallback: TokyoYearMonth,
+): { month: TokyoYearMonth; selectedDate: TokyoCalendarDate | null } {
+  const selectedDate = parseDateParam(rawDate);
+  if (selectedDate !== null) {
+    return { month: tokyoYearMonthOf(selectedDate), selectedDate };
+  }
+  return { month: parseMonthParam(rawMonth, fallback), selectedDate: null };
+}
+
 function dateFromYmd(
   year: number,
   month: number,

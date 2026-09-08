@@ -11,7 +11,10 @@ import {
   listMyTicketOpportunityStates,
   listTicketOpportunities,
 } from "@/lib/data";
-import { classifyBlock2Optional, type BlockState } from "@/app/_lib/read-state";
+import {
+  classifyBlock2Optional,
+  type OptionalPartBlockState,
+} from "@/app/_lib/read-state";
 import type { ScreenNow } from "@/app/_lib/now";
 
 /**
@@ -27,10 +30,15 @@ import type { ScreenNow } from "@/app/_lib/now";
  *
  * Same read-granularity P4 shape as home's "申し込み期限" block (PR #381
  * review finding 1): `listTicketOpportunities` is required,
- * `listMyTicketOpportunityStates` is optional and degrades to "no personal
- * state" (`[]`) rather than hiding the shared timeline -
+ * `listMyTicketOpportunityStates` is optional and degrades `block`'s data to
+ * "no personal state" (`[]`) rather than hiding the shared timeline -
  * `classifyBlock2Optional`'s own docstring in `@/app/_lib/read-state.ts`
- * has the full reasoning.
+ * has the full reasoning. The returned `optional` field (PR #381 P4
+ * follow-up review finding 2) always carries the personal-state read's own
+ * status, so `../_components/TicketsView.tsx` can render its `myState`
+ * badge as "不明" - not silently omitted - when `optional.ok` is `false`,
+ * instead of that failure being indistinguishable from every row genuinely
+ * having no personal state.
  *
  * Known gap (documented in this Task's report, not fabricated around): the
  * oracle's badge priority for this screen names 5 tiers, the highest being
@@ -51,7 +59,7 @@ export async function loadTicketsTimeline(
   supabase: SupabaseClient,
   userId: UserId,
   now: ScreenNow,
-): Promise<BlockState<TicketsTimelineState>> {
+): Promise<OptionalPartBlockState<TicketsTimelineState>> {
   const [opportunitiesResult, statesResult] = await Promise.all([
     listTicketOpportunities(supabase),
     listMyTicketOpportunityStates(supabase, userId),

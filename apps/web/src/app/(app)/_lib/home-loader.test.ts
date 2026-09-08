@@ -106,10 +106,11 @@ describe("loadHomeTicketDeadlines", () => {
       NOW,
     );
 
-    expect(state.variant).toBe("populated");
-    if (state.variant === "populated") {
-      expect(state.data).toHaveLength(1);
-      expect(state.data[0]?.row.opportunityId).toBe(OPPORTUNITY_ID);
+    expect(state.block.variant).toBe("populated");
+    expect(state.optional).toEqual({ ok: true });
+    if (state.block.variant === "populated") {
+      expect(state.block.data).toHaveLength(1);
+      expect(state.block.data[0]?.row.opportunityId).toBe(OPPORTUNITY_ID);
     }
   });
 
@@ -127,7 +128,10 @@ describe("loadHomeTicketDeadlines", () => {
       NOW,
     );
 
-    expect(state).toEqual({ variant: "empty" });
+    expect(state).toEqual({
+      block: { variant: "empty" },
+      optional: { ok: true },
+    });
   });
 
   it("is unavailable when the shared catalog read is permission-denied, independent of the personal-state read", async () => {
@@ -149,15 +153,21 @@ describe("loadHomeTicketDeadlines", () => {
       NOW,
     );
 
-    expect(state.variant).toBe("unavailable");
+    expect(state.block.variant).toBe("unavailable");
   });
 
-  it("stays populated from the shared catalog even when the personal-state read fails (P4 read-level degradation)", async () => {
+  it("stays populated from the shared catalog even when the personal-state read fails, and reports the personal-state read's own failure separately (P4 read-level degradation)", async () => {
     // PR #381 review finding 1: `listTicketOpportunities` is required,
     // `listMyTicketOpportunityStates` is optional
     // (`classifyBlock2Optional`) - a failure fetching the caller's own
     // planning state must not hide the shared opportunity itself, only the
     // `myState` badge on it.
+    //
+    // PR #381 P4 follow-up review finding 2: `state.optional` must report
+    // the personal-state read's real failure - `state.block.data[0].myState`
+    // alone is `null`, indistinguishable from "no personal state exists for
+    // this opportunity", so a caller relying only on `block` would silently
+    // render this exactly like a real 0-row personal-state read.
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
         HttpResponse.json([
@@ -203,12 +213,13 @@ describe("loadHomeTicketDeadlines", () => {
       NOW,
     );
 
-    expect(state.variant).toBe("populated");
-    if (state.variant === "populated") {
-      expect(state.data).toHaveLength(1);
-      expect(state.data[0]?.row.opportunityId).toBe(OPPORTUNITY_ID);
-      expect(state.data[0]?.row.myState).toBeNull();
+    expect(state.block.variant).toBe("populated");
+    if (state.block.variant === "populated") {
+      expect(state.block.data).toHaveLength(1);
+      expect(state.block.data[0]?.row.opportunityId).toBe(OPPORTUNITY_ID);
+      expect(state.block.data[0]?.row.myState).toBeNull();
     }
+    expect(state.optional).toEqual({ ok: false, variant: "error" });
   });
 });
 
@@ -247,15 +258,20 @@ describe("loadHomeUpcomingSchedule", () => {
     }
   });
 
-  it("stays populated from personal schedule even when the participations read fails (P4 read-level degradation)", async () => {
+  it("reports partial (not populated, not empty) with personal schedule's real data when the participations read fails (P4 read-level degradation)", async () => {
     // PR #381 review finding 1: this test's own name previously asserted
     // the opposite of what it verified (`variant` was checked as
     // `"unavailable"`, i.e. the whole block hidden). `classifyMergedListBlock2`
     // fixes that: `listMyParticipations` failing alone must not hide the
     // items `listVisiblePersonalSchedule` still returns - the fixture below
     // uses a real (non-empty), not-yet-past schedule entry so this actually
-    // exercises the "populated from the surviving read" path, not just an
-    // empty coincidence.
+    // exercises the "surviving read's data is kept" path, not just an empty
+    // coincidence.
+    //
+    // PR #381 P4 follow-up review finding 1: the result is `"partial"`, not
+    // `"populated"` - `populated`/`empty` are reserved for "both reads
+    // actually succeeded"; a failed sibling read must remain visible via the
+    // `a`/`b` `PartState`s even while the surviving data renders.
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
         HttpResponse.json(
@@ -289,14 +305,50 @@ describe("loadHomeUpcomingSchedule", () => {
       NOW,
     );
 
-    expect(state.variant).toBe("populated");
-    if (state.variant === "populated") {
+    expect(state.variant).toBe("partial");
+    if (state.variant === "partial") {
       expect(state.data).toHaveLength(1);
       expect(state.data[0]?.kind).toBe("schedule");
       if (state.data[0]?.kind === "schedule") {
         expect(state.data[0].entry.title).toBe("旅行");
       }
+      expect(state.a).toEqual({ ok: false, variant: "unavailable" });
+      expect(state.b).toEqual({ ok: true });
     }
+  });
+
+  /**
+   * PR #381 P4 follow-up review finding 1 (this Task's core fix): "1 read
+   * fails + the surviving read succeeds with 0 rows" must not be reported as
+   * `"empty"` - that would be indistinguishable from "both reads genuinely
+   * returned 0 rows", silently hiding a real, unresolved failure.
+   */
+  it("is partial, never empty, when participations fails and personal schedule alone succeeds with 0 rows", async () => {
+    server.use(
+      http.get(`${REST_URL}/occurrence_participations`, () =>
+        HttpResponse.json(
+          { message: "denied", details: "", hint: "", code: "42501" },
+          { status: 403 },
+        ),
+      ),
+      http.get(`${REST_URL}/personal_schedule_entries`, () =>
+        HttpResponse.json([]),
+      ),
+    );
+
+    const state = await loadHomeUpcomingSchedule(
+      createTestClient(),
+      USER_ID,
+      NOW,
+    );
+
+    expect(state.variant).not.toBe("empty");
+    expect(state).toEqual({
+      variant: "partial",
+      data: [],
+      a: { ok: false, variant: "unavailable" },
+      b: { ok: true },
+    });
   });
 
   it("is unavailable when both participations and personal schedule fail", async () => {
@@ -397,7 +449,7 @@ describe("home's 2 blocks are independent (P4)", () => {
       loadHomeUpcomingSchedule(client, USER_ID, NOW),
     ]);
 
-    expect(ticketState.variant).toBe("error");
+    expect(ticketState.block.variant).toBe("error");
     expect(scheduleState.variant).toBe("populated");
   });
 });

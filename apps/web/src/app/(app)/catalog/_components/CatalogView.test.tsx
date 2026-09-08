@@ -1,9 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EventCatalogEntry } from "@/lib/data";
 import type { CatalogFilterOptionsResult } from "../_lib/catalog-loader";
-import { CatalogView } from "./CatalogView";
+import { CatalogView, type CatalogViewProps } from "./CatalogView";
 
 const MONTH = { year: 2026, month: 3 };
 
@@ -204,5 +206,70 @@ describe("CatalogView", () => {
     expect(JSON.parse(stored ?? "{}")).toMatchObject({
       genreKey: "takarazuka",
     });
+  });
+
+  it("hydrates without a mismatch when a non-default filter selection is already stored, then restores it post-mount", () => {
+    window.localStorage.setItem(
+      "stage-tracker:catalog-filter:v1",
+      JSON.stringify({ genreKey: "takarazuka", groupIds: [], venues: [] }),
+    );
+
+    const props: CatalogViewProps = {
+      month: MONTH,
+      eventsState: {
+        variant: "populated",
+        data: [entry({ title: "宝塚公演", genreKey: "takarazuka" })],
+      },
+      filterOptionsResult: OK_FILTER_OPTIONS,
+    };
+    const element = <CatalogView {...props} />;
+
+    // Simulate the real server render: it never has `window`, so the
+    // initial state must ignore the stored (browser-only) selection even
+    // though it is already sitting in `localStorage` in this test. Without
+    // this, `renderToString` here would run inside jsdom - where `window`
+    // is always defined - and would silently "see" the same stored value
+    // the real server never can, hiding exactly the bug this test targets.
+    const originalWindow = globalThis.window;
+    // @ts-expect-error -- deliberately simulating a Node SSR environment
+    delete globalThis.window;
+    const serverHtml = renderToString(element);
+    globalThis.window = originalWindow;
+
+    expect(serverHtml).not.toContain("絞り込み中");
+
+    const container = document.createElement("div");
+    container.innerHTML = serverHtml;
+    document.body.appendChild(container);
+
+    // React reports a hydration mismatch through `onRecoverableError`, not
+    // through a `console.error` a spy would catch synchronously here: with
+    // the pre-fix initializer the mismatch surfaced as an *unhandled* error
+    // escaping the test, so the test itself passed. Collecting the
+    // recoverable errors makes the detection deterministic.
+    const recoverableErrors: string[] = [];
+
+    act(() => {
+      hydrateRoot(container, element, {
+        onRecoverableError: (error) => {
+          recoverableErrors.push(
+            error instanceof Error ? error.message : String(error),
+          );
+        },
+      });
+    });
+
+    // The initial client (hydration) render must match `serverHtml`
+    // exactly. If the old lazy `useState(() => readStoredSelection() ?? ...)`
+    // initializer were still in place, this first client render would read
+    // the stored selection directly (unlike the server pass above) and
+    // React would report a hydration mismatch here.
+    expect(recoverableErrors).toEqual([]);
+
+    // The stored selection is still restored - just after mount, via the
+    // effect, not during the initial render.
+    expect(container.textContent).toContain("絞り込み中");
+
+    document.body.removeChild(container);
   });
 });

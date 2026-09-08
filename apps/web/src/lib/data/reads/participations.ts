@@ -8,6 +8,7 @@ import {
   type Result,
   type UserId,
 } from "@stage-tracker/domain";
+import type { Database } from "../database.types";
 import {
   mapEventRow,
   mapOccurrenceRow,
@@ -88,14 +89,13 @@ function mapParticipationWithOccurrenceRow(
  * しやすい pure 関数側へ寄せる技術判断（このタスクの報告に記録する）。
  */
 export async function listMyParticipations(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly ParticipationWithOccurrence[]>> {
   const query = client
     .from("occurrence_participations")
     .select("*, event_occurrences!inner(*, events!inner(*))")
-    .eq("user_id", userId)
-    .overrideTypes<ParticipationWithOccurrenceRow[]>();
+    .eq("user_id", userId);
 
   const rowsResult = await runSupabaseSelect(query);
   if (!rowsResult.ok) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Badge, Button, StatePanel } from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
@@ -78,6 +78,47 @@ function storeSelection(selection: CatalogFilterSelection): void {
   }
 }
 
+/**
+ * `useSyncExternalStore` の client snapshot。React は render のたびに
+ * `getSnapshot` を呼ぶため、保存値が変わっていないのに毎回新しい object を
+ * 返すと無限ループとして扱われる。raw 文字列をキーに cache して同一参照を返す。
+ */
+let cachedRaw: string | null | undefined;
+let cachedSelection: CatalogFilterSelection = DEFAULT_CATALOG_FILTER_SELECTION;
+
+function getStoredSelectionSnapshot(): CatalogFilterSelection {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(FILTER_STORAGE_KEY);
+  } catch {
+    raw = null;
+  }
+  if (raw !== cachedRaw) {
+    cachedRaw = raw;
+    cachedSelection = readStoredSelection() ?? DEFAULT_CATALOG_FILTER_SELECTION;
+  }
+  return cachedSelection;
+}
+
+/**
+ * server snapshot。React は hydration の初回 render でも**こちら**を使い、
+ * hydration 完了後に `getStoredSelectionSnapshot` へ切り替える。これが
+ * `useSyncExternalStore` を使う理由そのもので、初回 client render は必ず
+ * server render と一致する。
+ */
+function getServerStoredSelectionSnapshot(): CatalogFilterSelection {
+  return DEFAULT_CATALOG_FILTER_SELECTION;
+}
+
+function subscribeStoredSelection(onStoreChange: () => void): () => void {
+  // 他タブでの変更のみを購読する。同一タブの変更は storeSelection を呼ぶ側が
+  // そのまま state を更新するので、ここで再通知する必要はない。
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+  };
+}
+
 export interface CatalogViewProps {
   readonly month: TokyoYearMonth;
   readonly eventsState: BlockState<readonly EventCatalogEntry[]>;
@@ -105,21 +146,33 @@ export function CatalogView({
   eventsState,
   filterOptionsResult,
 }: CatalogViewProps) {
-  // Lazy initializers (not a `useEffect`) so `localStorage` is read exactly
-  // once, on mount, with no synchronous `setState`-in-effect call (this is
-  // a plain client-only preference read, not "synchronizing with an
-  // external system" that changes over the component's lifetime -
-  // `readStoredSelection()` itself is a no-op on the server, where
-  // `window` is undefined, so SSR always renders the default selection;
-  // a returning visitor with a saved selection may see a 1-frame hydration
-  // adjustment to their stored filter, an accepted trade-off for a
-  // browser-local convenience feature per AGENTS.md "Filter persistence").
-  const [applied, setApplied] = useState<CatalogFilterSelection>(
-    () => readStoredSelection() ?? DEFAULT_CATALOG_FILTER_SELECTION,
+  // 保存済みフィルタは `useSyncExternalStore` で読む。以前は lazy な
+  // `useState(() => readStoredSelection() ?? ...)` だったが、これは server
+  // pass（`window` 無し -> default）と client の**初回** render pass
+  // （`window` 有り -> 保存値）で結果が変わる。初回 client render は
+  // hydration そのもので effect より前に走るため、保存値を持つ再訪ユーザーには
+  // 1 フレームの見た目調整ではなく本当の hydration mismatch が起きていた
+  // （React が server/client の markup 不一致を検出して subtree を作り直す）。
+  //
+  // `useSyncExternalStore` は hydration 中は server snapshot を使い、完了後に
+  // client snapshot へ切り替えるので、この不一致が構造的に起きない。
+  // effect 内での同期 setState（cascading render を招く）も避けられる。
+  const storedSelection = useSyncExternalStore(
+    subscribeStoredSelection,
+    getStoredSelectionSnapshot,
+    getServerStoredSelectionSnapshot,
   );
-  const [draft, setDraft] = useState<CatalogFilterSelection>(
-    () => readStoredSelection() ?? DEFAULT_CATALOG_FILTER_SELECTION,
+
+  // ユーザーがこの画面で操作するまでは保存値（hydration 前は default）を使う。
+  // null = 「まだこの画面で操作していない」。
+  const [userApplied, setUserApplied] = useState<CatalogFilterSelection | null>(
+    null,
   );
+  const [userDraft, setUserDraft] = useState<CatalogFilterSelection | null>(
+    null,
+  );
+  const applied = userApplied ?? storedSelection;
+  const draft = userDraft ?? storedSelection;
   const [panelOpen, setPanelOpen] = useState(false);
 
   const filteredEntries = useMemo(() => {
@@ -136,14 +189,14 @@ export function CatalogView({
   }, [eventsState, applied, filterOptionsResult]);
 
   function applyDraft() {
-    setApplied(draft);
+    setUserApplied(draft);
     storeSelection(draft);
     setPanelOpen(false);
   }
 
   function resetFilter() {
-    setApplied(DEFAULT_CATALOG_FILTER_SELECTION);
-    setDraft(DEFAULT_CATALOG_FILTER_SELECTION);
+    setUserApplied(DEFAULT_CATALOG_FILTER_SELECTION);
+    setUserDraft(DEFAULT_CATALOG_FILTER_SELECTION);
     storeSelection(DEFAULT_CATALOG_FILTER_SELECTION);
     setPanelOpen(false);
   }
@@ -232,7 +285,7 @@ export function CatalogView({
             <FilterPanel
               options={filterOptionsResult.options}
               draft={draft}
-              onChange={setDraft}
+              onChange={setUserDraft}
               onApply={applyDraft}
             />
           ) : null}
