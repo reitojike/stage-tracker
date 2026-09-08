@@ -56,10 +56,10 @@ export default async function EventDetailPage({
   const parsedEventId = eventIdSchema.safeParse(rawEventId);
   if (!parsedEventId.success) {
     return (
-      <main className={CONTENT_CLASS}>
+      <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
         <StatePanel variant="empty" title="指定された公演が見つかりません" />
-      </main>
+      </div>
     );
   }
   const eventId = parsedEventId.data;
@@ -71,10 +71,10 @@ export default async function EventDetailPage({
 
   if (user === null) {
     return (
-      <main className={CONTENT_CLASS}>
+      <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
         <StatePanel variant="unavailable" title="ログインが必要です" />
-      </main>
+      </div>
     );
   }
   const userId = userIdSchema.parse(user.id);
@@ -88,7 +88,7 @@ export default async function EventDetailPage({
 
   if (eventState.variant !== "populated") {
     return (
-      <main className={CONTENT_CLASS}>
+      <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
         <StatePanel
           variant={eventState.variant}
@@ -103,7 +103,7 @@ export default async function EventDetailPage({
             ? { description: READ_FAILURE_RETRY_HINT_JA }
             : {})}
         />
-      </main>
+      </div>
     );
   }
 
@@ -113,10 +113,10 @@ export default async function EventDetailPage({
     // never returns `populated` with an empty array), but
     // `noUncheckedIndexedAccess` requires this to be narrowed explicitly.
     return (
-      <main className={CONTENT_CLASS}>
+      <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
         <StatePanel variant="empty" title="指定された公演が見つかりません" />
-      </main>
+      </div>
     );
   }
 
@@ -136,7 +136,7 @@ export default async function EventDetailPage({
   );
 
   return (
-    <main className={CONTENT_CLASS}>
+    <div className={CONTENT_CLASS}>
       <ScrollToFocusedOccurrence occurrenceId={focusOccurrenceId} />
       <BackLink href={backHref} />
 
@@ -233,7 +233,7 @@ export default async function EventDetailPage({
           })}
         </ul>
       )}
-    </main>
+    </div>
   );
 }
 

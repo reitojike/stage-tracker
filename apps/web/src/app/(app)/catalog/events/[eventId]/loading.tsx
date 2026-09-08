@@ -22,7 +22,7 @@ export default function EventDetailLoading() {
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-lg p-md">
+    <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-lg p-md">
       <Link
         href={backHref}
         className="w-fit text-body-sm text-muted-foreground underline-offset-4 hover:underline"
@@ -32,6 +32,6 @@ export default function EventDetailLoading() {
       <p role="status" className="text-body-sm text-muted-foreground">
         読み込み中…
       </p>
-    </main>
+    </div>
   );
 }
