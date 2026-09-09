@@ -1,0 +1,260 @@
+# M8 主要 journey 並走比較
+
+Canonical Task Contract: Issue #391 の Acceptance Criteria 3〜6（主要 user
+journey の並走比較、観測した差分の分類、分類2/3 の記録）。`docs/v2/
+m8-difference-inventory.md`（Issue #391 着手できる単位 1、PR #401）とは
+別の作業単位で、こちらは実際に両アプリを起動して journey ごとに実データで
+比較した記録です。
+
+## 方法
+
+- operator 環境の Docker 上で `apps/legacy-web`（port 3000）と `apps/web`
+  （port 3001）を同一 local Supabase に対して同時起動（`docs/runbooks/
+v2-parallel-verification.md`）。
+- 2 名の test user（m8-userA@example.com が catalog creator、
+  m8-userB@example.com は非 creator）と、両アプリ共有の test event/
+  occurrence/ticket opportunity を作成し、同一データに対して両アプリの
+  実際の応答（HTTP レスポンス、DB 状態）を比較した。
+- Next.js Server Action は plain curl で直接 POST できないため、書き込み
+  検証の一部は各アプリのアクションが実際に呼ぶ RPC/table を、ユーザー本人の
+  access token で直接呼び出す方法（PostgREST 経由、RLS はそのまま有効）で
+  行った。これは「そのユーザー権限で見た DB 側の真の挙動」を検証するもので
+  あり、各アプリの UI コード自体は別途ソースを読んで確認した。
+- 判定は `docs/v2/oracle-*.md` と `docs/v2/decisions.md` を正とする。
+
+## 判定ルール
+
+- legacy = v2 = oracle → **parity確認済み**
+- legacy = oracle, v2 ≠ oracle → **分類2**（v2 の不具合）
+- legacy ≠ oracle, v2 = oracle → **分類3**（legacy の不具合を v2 が正した）
+- legacy ≠ v2 だが v2 の差分が `decisions.md` で意図済み → **分類1**（意図した差分）
+- legacy = v2 でも両者が oracle と異なる → **分類2**（legacy との一致は免罪符にしない）
+
+---
+
+## Journey: Catalog 閲覧
+
+| 項目 | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| genre/group/venue 分類表示 | AGENTS.md「Catalog classification / venue boundary」: event の genre/group/venue を catalog 一覧に表示する | 表示される | 表示される | なし | parity確認済み | 同一 test event（id `6f7a5dce-...`, genre=takarazuka, group=星組, venue=東京宝塚劇場）を両アプリの `/catalog?month=2026-09` で取得し、いずれも `M8並走比較_宝塚公演`／`宝塚`／`星組`／`東京宝塚劇場` を含むことを確認（`curl -b userA-cookies http://localhost:3000\|3001/catalog?month=2026-09`） |
+| group/venue filter option の genre スコープ | AGENTS.md「Group」: 「この genre に関連する group は、その genre の Event に実際に associate されている group から動的に導出する」 | 常に genre スコープ実装済み（`catalogFilterData.ts` の `listCatalogGroupOptions(client, genre.id)`） | **修正前は genre 非依存の flat list**（`listCatalogGroups`/`listCatalogVenues` が genre 引数を取らなかった） | legacy ≠ v2（修正前）、v2 は oracle 未達 | 分類2（**修正済み、PR #402 で対応**。genre スコープの `event_groups` join + pagination 対応済み） | `docs/v2/m8-difference-inventory.md`（PR #401）item 4 で確定 → PR #402 で修正・merge 済み（`apps/web/src/lib/data/reads/catalog.ts` の `listCatalogGroups`/`listCatalogVenues`） |
+| Calendar（`/calendar`）の read 失敗時の劣化粒度 | `docs/v2/decisions.md` P4: 「read ごとに独立して劣化」へ統一し、「複数 read の失敗を単一の汎用エラーへ縮退させる」挙動は**採用しない**と明記 | **不採用と明記された挙動のまま**: `participationsResult`/`scheduleResult` のどちらかが失敗すると `firstError` へ縮退し、単一の error panel を返す | P4 どおり `classifyBlock1` で participation/schedule を独立した `BlockState` として扱う（コード comment も P4 を直接引用） | legacy ≠ oracle(P4)、v2 = oracle(P4) | **分類3**（legacy の不具合を v2 が正した。旧 #401 inventory では「分類1（意図した差分）」としていたが、P4 の文言「不採用」は legacy の挙動を明示的に is-now-incorrect と位置づけているため、本比較ではより正確な分類3へ訂正する） | `docs/v2/decisions.md` P4 全文、`apps/legacy-web/src/app/calendar/page.tsx:94-112`（`firstError` への縮退を実装するコード）、`apps/web/src/app/(app)/calendar/_lib/calendar-loader.ts:13-129`（`classifyBlock1` を participation/schedule それぞれに独立適用、コード comment が P4 を引用） |
+| 0-occurrence event の Event range 表示（Issue #87） | AGENTS.md「Event 開催期間（Event range）」: 0件の公演回を持つ event も、開催期間が catalog 期間と重なれば表示する | 表示される | 表示される | なし | parity確認済み | 公演回0件・genre未分類の test event（id `717bcbd2-...`, starts_on=2026-09-12, ends_on=2026-09-14）を作成し、`curl -b userA-cookies http://localhost:3000\|3001/catalog?month=2026-09` の両方で `M8並走比較_0occurrence` を確認 |
+| Ticket opportunity の write UI (`/tickets`) | `docs/v2/oracle-routes-ui.md`「`/tickets`」行: `updateTicketOpportunityStateAction` で planning state 変更 | 実装済み（`TicketOpportunityStateControls.tsx`） | **修正前は read-only badge のみ、write UI 自体が未実装** | legacy ≠ v2（修正前）、v2 は oracle 未達 | 分類2（**修正済み、PR #403 で対応**） | `docs/v2/m8-difference-inventory.md`（PR #401）item 3 で確定 → PR #403 で実装・merge 済み。本比較でも live 確認: test ticket opportunity（`FC先行`, sale_start milestone）を作成し、`curl -b userA-cookies http://localhost:3000\|3001/tickets` で両アプリとも `FC先行`／`販売開始`／`申し込む予定にする` を表示することを確認 |
+
+## Journey: Ticket Opportunity（Planning state）
+
+Catalog 節の最終行と重複するため、ここでは write の実際の遷移のみ補足する。
+
+| 項目 | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| planned/applied/remove の 3 状態遷移 | oracle-routes-ui.md「`/tickets`」: `intent`: `planned`\|`applied`\|`remove`、常に `user_id=caller` で scope | `setMyTicketOpportunityState`/`removeMyTicketOpportunityState`（update→insert フォールバック、真の upsert 不使用） | 同一 pattern（PR #403 で `participation.ts` の `setParticipationChoice` に倣って実装） | なし | parity確認済み | `apps/legacy-web/src/infrastructure/supabase/ticketOpportunity.ts:220-309`、`apps/web/src/lib/actions/ticketOpportunityState.ts`（実装は本セッションの PR #403 で作成、review で P2 findings 2件を修正済み: post-final 行の非表示、成功時 WriteNotice） |
+| 成功時の通知 (`WriteNotice`) | oracle-routes-ui.md「成功時 `WriteNotice` で通知」 | 実装済み | 実装済み（PR #403 review finding で修正、`tickets/_components/WriteNotice.tsx` を新設） | なし（修正後） | parity確認済み | PR #403 review finding 2 → 修正コミット、`TicketOpportunityStateControls.test.tsx` |
+| post-final 行でのコントロール非表示 | oracle-routes-ui.md「post-final（受付終了確定後）行はコントロール自体を非表示」 | 実装済み | 実装済み（PR #403 review finding で修正、`!row.isPostFinalRetainedHistory` 条件を追加） | なし（修正後） | parity確認済み | PR #403 review finding 1 → 修正コミット |
+
+## Journey: Participation
+
+| 項目 (facet) | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| 書き込み方式（select→update-if-exists else insert、真の upsert 不使用） | AGENTS.md「Participation」+ RLS grant が `occurrence_id`/`user_id` を INSERT-only にする都合上、真の upsert は使えない | 同一 pattern | 同一 pattern + `existing.status === choice` の no-op short-circuit（UPDATE をスキップ、`updated_at` を更新しない） | v2 のみ no-op short-circuit を持つ | 分類1（意図した差分） — 実装上の技術判断であり、no-op 時の `updated_at` 挙動を規定する oracle 文言は無い | `apps/legacy-web/src/infrastructure/supabase/participation.ts:197-269`、`apps/web/src/lib/actions/participation.ts:140-146` |
+| considering→attending→withdraw の実際の書き込み+読み取り | 両アプリの `/catalog/events/{id}` GET が行為者本人の現在状態を反映する | 反映される | 反映される | なし | parity確認済み | live: insert `considering` → PATCH `attending`、両ポートの GET で状態遷移を確認（legacy: RSC payload の `status` 変化、v2: `aria-pressed` の移動） |
+| insert 時の default visibility | AGENTS.md「Participation」: 既定は `private` | 明示せず insert → `visibility:"private"` | 同一（v2 も `visibility` を一切送信せず column default に依存） | なし | parity確認済み | `\d occurrence_participations` の column default 確認、insert 応答で `"visibility":"private"` |
+| `not_attending` の永続化禁止 | AGENTS.md: MVP status は `considering`/`attending` のみ | 到達不能（TS 型で表現不可） | 同一 | なし | parity確認済み | DB enum level で強制: `insert ... status='not_attending'` → `ERROR: invalid input value for enum participation_status`、`enum_range` → `{considering,attending}` |
+| 中止済み occurrence への新規 participation 作成拒否（状態を問わず） | `oracle-domain.md` の文面は "新規 attending のみ" と読めるが、`decisions.md`「PO判断: 中止時のparticipation新規作成(2026-09-07)」（235-259行目）がこの自己矛盾を明示的に解消し「INSERT は状態に関わらず一律拒否」と確定 | 新規 `considering`/`attending` とも拒否 | 同一（domain gate `participationCancellationGate.ts` も「create は常にブロック」を実装） | なし（decisions.md で解決済みの oracle と一致） | parity確認済み（この Task 冒頭で引用した AGENTS.md の素朴な文言は decisions.md が明示的に「誤解を招く」と指摘している古い表現） | live: 中止済み occurrence への新規 `considering`/`attending` 双方で SQLSTATE 90002 |
+| 既存 `considering→attending` 昇格（中止済み時） | 拒否（両 oracle 文書が一致） | 拒否 | 拒否 | なし | parity確認済み | live: PATCH `considering→attending`（中止済み）→ 90002 |
+| 既存 `attending→considering` 降格（中止済み時、write boundary） | 許可（decisions.md「既存行の withdraw と降格は引き続き許可する」） | write boundary は許可（DB trigger 以外の追加 gate 無し） | 同一。`isParticipationWriteBlockedByCancellation` がこの遷移には `false` を返す | write boundary レベルではなし | parity確認済み | live: PATCH `attending→considering`（中止済み）→ 200 |
+| 既存 `attending→considering` 降格の **UI 導線**（中止済み時） | 明文の oracle 規定は無いが、decisions.md の「降格は引き続き許可する」は、その能力が実際に UI から到達可能であることを含意する | **`ParticipationSheet` が降格選択肢自体を出さない**: 中止時は行が既存でも `choices` が `['withdraw']` のみ（新規なら `[]`）、検討中への降格を `attending` user へ一切提示しない | `ParticipationControls` の「検討中」ボタンは有効のまま（`consideringBlocked` が `attending→considering` の遷移には `false` を返す） | legacy の UI は backend（と legacy 自身の infra 層）が許可する書き込みを隠している。v2 は UI からも到達可能 | **分類3（legacy の不具合を v2 が正した）** — legacy は decisions.md/domain が許可すると定める能力を under-deliver している。v2 は cancellation gate 関数によりこれを正しく回復している | `apps/legacy-web/.../ParticipationSheet.tsx:24-29,86-92`（コメントが「新規コミットメントを作る選択肢を出してはならない」と「降格」を混同）、`apps/web/.../ParticipationControls.tsx:103-114` |
+| withdraw（削除）（中止済み時） | 直前の状態を問わず常に許可 | 許可 | 許可 | なし | parity確認済み | live: 中止済みのまま `considering` 行を DELETE → 200、対象テーブルに DELETE trigger 自体が存在しないことも確認 |
+| SQLSTATE 90002 の分類方法 | decisions.md A8: message 文字列一致ではなく custom SQLSTATE で分類 | `error.code` で 90002 を判定 | 同一 | なし | parity確認済み | `apps/legacy-web/.../planningError.ts:69`、`apps/web/.../participation.ts:28,39-52` |
+| 他 user の `public` participation の可視化 UI | AGENTS.md: `public` はデータ概念として存在するが、MVP scope が「他者の public participation を見る UI」を要求するとは明記していない | `listVisibleParticipationsForOccurrence`（RLS 上「自分の行 + 他者の public 行」を読める）は定義されているが**どの route からも呼ばれていない**（event 詳細ページは `getMyParticipationsForOccurrences` のみ使用） | 同種の「自分以外も見える」read boundary 自体が存在しない。`visibility` を `public` へ設定する write path も無い | なし — 両アプリとも `public` 概念を同程度に under-deliver している | parity確認済み（AGENTS.md が「他者の public participation を見る UI」を MVP scope に含めていないため、不具合として扱わない） | `apps/legacy-web/.../participation.ts:151-173`（未使用、grep で呼び出し元 0件）、`apps/web/.../reads/participations.ts:91-105`（`user_id` 一致のみ） |
+
+**このエージェントの自己申告（未確認事項）**: 共有 fixture の occurrence/event は本比較中に他の並列エージェントの操作（`canceled_at` の一時的な設定・解除、participation row の消失）を受けており、都度 state を再確認して復元したが、完全に排他制御されていたわけではない。「降格 UI 導線」の finding はコード読みに基づく確度の高い発見だが、深刻度についてはある程度の判断が入っている（backend 自体は legacy でも降格を許可するため、data-integrity の欠陥ではなく UI-completeness の欠落）。
+
+## Journey: Invitation
+
+Oracle は、両アプリが共有する DB migration
+`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`
+（`invite_to_occurrence`/`invite_to_occurrence_by_email` RPC、
+`decline_occurrence_invitation` RPC、trigger
+`resolve_pending_invitations_on_attending`、RLS policy
+`occurrence_invitations_select_invitee`）を一次 citation とする。AGENTS.md
+「Invitation」節はこれと同じ内容の product-rule 再掲。
+
+| 項目 (facet) | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| Inviter eligibility（invite できるのは対象 occurrence で `attending` の user のみ） | RPC 内で強制。owner であることは関係ない | 同一 RPC 呼び出し | 同一 RPC 呼び出し | なし | parity確認済み | `supabase/migrations/20260830000000_simplify_invitation_pending_only.sql:217-225`。live: userA を `considering` にした状態で invite → `{"code":"P0001","message":"only a user attending this occurrence can invite others to it"}`（HTTP 400） |
+| Invite dispatch — invitee が participation 行を持たない | pending invitation 作成、invitee の participation は不変 | `invite_to_occurrence_by_email` 呼び出し | 同一 RPC・同一 params | なし | parity確認済み | `apps/legacy-web/src/app/catalog/_actions/participationWrite.ts:69`、`apps/web/src/lib/actions/invitation.actions.ts:41-56`。live: invitation row 作成、userB の participation count は 0 のまま |
+| Invite dispatch — invitee `considering` | invitation 作成、`considering` は変更しない | 同一 RPC | 同一 RPC | なし | parity確認済み | live: invite 後も userB の participation row の `updated_at` が `created_at` と不変（`considering` のまま）、新規 invitation row 作成 |
+| Invite dispatch — invitee `attending` | invitation は作成されない、既存 `attending` は不変 | 同一 RPC | 同一 RPC | なし | parity確認済み | live: userB を `attending` にした状態で invite → HTTP 204 だが `occurrence_invitations` は 0 行 |
+| Invite の inviter への opacity（3分岐が inviter から区別不能） | RPC は常に `void`/204 を返す | `inviteToOccurrenceByEmail` wrapper が3分岐すべてで同じ `PlanningResult<void>` を返す（コード comment に明記） | `inviteToOccurrenceByEmail` が単一の `InviteOutcome`/`'invite-sent'` を返す（invitee 由来のデータを一切含まない） | なし | parity確認済み | `apps/legacy-web/src/infrastructure/supabase/invitation.ts:76-91`、`apps/web/src/lib/actions/invitation.ts:15-34,146-199` |
+| Inviter による invitee の invitation row 読み取り（opacity via RLS） | `occurrence_invitations_select_invitee` policy: `invitee_id = auth.uid()` のみ | 同一 DB、legacy はこの読み取りを意図的に発行しない（module header に明記） | 同じく invitee 本人の invitation のみ読む（`listMyReceivedInvitations.ts`） | なし | parity確認済み | `supabase/migrations/20260822010100_create_occurrence_invitations.sql:128-132`。live: userA が（filter 有無問わず）`occurrence_invitations` を read → `[]`（HTTP 200）、userB は自分の行を取得できる |
+| Decline の挙動 | `decline_occurrence_invitation` RPC が hard delete（`declined_at` は設定しない）、冪等（未マッチなら `null`）、`not_attending` 等の participation row は作らない | `finalizeDeclineInvitationAction` → 同一 RPC | `declineInvitationAction` → 同一 RPC | RPC 層ではなし | parity確認済み（RPC 層） | `supabase/migrations/…:142-172`、`apps/legacy-web/src/infrastructure/supabase/invitation.ts:194-223`、`apps/web/src/lib/actions/invitations.ts:80-118`。live: decline 後 `select count(*) where id=...` → 0、userB の participation table は 0 行のまま |
+| Decline 後の re-invite | 永久ブロックではない。同じ (occurrence, inviter, invitee) で再度 invite すれば新しい pending row が作られる | 同一 RPC（「既に declined 済み」という例外は migration 後は存在しない） | 同一 RPC | なし | parity確認済み | `supabase/migrations/…:35-40`（migration header point 4）。live: decline 後に再度 invite → HTTP 204、新規 invitation row 作成 |
+| **Decline UI の timing/undo model** | N/A（client-side UX の話であり、DB 上の単一の正解値は無い） | **8秒の client-local timer + component-unmount finalize。** クリック時点では server call 無し（optimistic `declining` phase）。`DECLINE_UNDO_WINDOW_MS=8000` のタイマー、または画面離脱（unmount）が実際の hard-delete RPC (`finalizeDeclineInvitationAction`) を発火させる。真の undo は「タイマー発火前にクライアント側でキャンセルする」だけ（まだ何も書き込んでいない）。既知のバグ: タブを閉じる/リロード（unmount が発火しない離脱）では invitation が pending のまま server に残り得る | **即時 hard delete**、1段階の確認ダイアログ（`confirm-decline` phase）を経てから RPC 呼び出し。undo 機構なし（`declineInvitationAction` のコメントに scope 外と明記） | legacy の挙動を意図的に、PO 承認のうえで反転させたもの | 分類1（意図した差分） | AGENTS.md には UI timing の記述は無い（UX であり product semantics ではない） — `docs/v2/decisions.md` の P3 最終決定（117行目付近: 「decline は即座に hard delete して確定させ、undo は『作り直し』で実現する」）と、その後の「P3 の実装可否」節（689-757行目付近、PO 判断 2026-09-08 / Issue #382 close: 「M6d では decline のみ実装する。undo は作らない」）。現行コードはこの決定と一致することを確認済み: `apps/legacy-web/src/app/catalog/_components/InvitationCard.tsx:17-19,174-207`（8秒 timer + unmount effect は132-148行目）、`apps/web/src/app/(app)/catalog/invitations/_components/InvitationList.tsx:15,37-42,121`（confirm-decline phase）+ `apps/web/src/lib/actions/invitations.ts:80-139`（即時 delete、undo は Issue #382 で明示的に defer） |
+| Invitee 指定方法 | exact 登録 email のみ、`invite_to_occurrence_by_email` | UI は `inviteToOccurrenceByEmail` のみを呼ぶ（by-id 版 `invite_to_occurrence` は infra module/test 以外に呼び出し元が無いことを grep で確認） | UI は `inviteToOccurrenceByEmail` のみを呼ぶ（`apps/web` に by-id action は存在しない） | なし | parity確認済み | `apps/legacy-web/src/app/catalog/_actions/participationWrite.ts:69`、`apps/web/src/lib/actions/invitation.actions.ts`（email ベースの action のみ定義） |
+
+**旧 #401 inventory との整合性の注記**: `m8-difference-inventory.md` item 1
+は、この decline UX 差分について「意図した差分であると同時に、legacy 側の
+実バグ（タブを閉じた場合に pending が残り得る）を v2 が正した項目でもある」
+という二重の性質を指摘していた。本 journey 比較で実際に legacy 側のタイマー
+実装を確認した結果、**タブを閉じる/リロードという unmount 非発火の離脱の
+場合のみ** legacy 側の bug（pending 残留）が理論上再現し得るが、これは
+本比較の live test（curl ベース、実ブラウザでの tab-close 相当の操作は
+できない）では再現確認していない。したがってこの一点（tab-close 時の
+legacy 側 bug）は分類3の追加候補として残すが、**未確認（unconfirmed）**
+とし、確定分類は decision に明記された意図的差分としての分類1のみとする。
+
+## Journey: 認証（Authentication）
+
+| 項目 (facet) | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| 未認証アクセスの default-deny（`/`） | `PUBLIC_PATHS` 完全一致以外は `/sign-in` へ redirect | `curl http://localhost:3000/` → 307, `location: /sign-in` | `curl http://localhost:3001/` → 307, `location: /sign-in` | なし | parity確認済み | `docs/v2/oracle-routes-ui.md:13-16`、live curl（両方 307/location 一致） |
+| PUBLIC_PATHS の集合 | `{'/sign-in','/auth/confirm'}` 完全一致のみ | `apps/legacy-web/src/proxy.ts:8` | `apps/web/src/lib/auth/public-paths.ts:15-18` 同じ Set | なし | parity確認済み | 両ファイル該当行 |
+| 認証済みで `/sign-in` 訪問時の挙動 | `/` へ redirect | `proxy.ts:61-67` | `proxy.ts:72-79` | なし | parity確認済み | 両 `proxy.ts` 該当行 |
+| 未認証 redirect 時の query string 保持 | oracle 文書に言及なし | `redirectUrl.clone()` のみで pathname 書換 → 元の query string がそのまま `/sign-in` へ持ち越される（例: `/mypage?error=link_expired&requested=1` → `/sign-in?error=link_expired&requested=1`、偽の「リンク無効」パネルが表示され得る） | `redirectUrl.search = ""` で明示的にクリア → 常に `/sign-in` のみ | v2 は query を常に消す。legacy は素通し（spoofable） | **要確認**（oracle 未記載のため確定分類保留） | live curl: `curl http://localhost:3000/mypage?error=link_expired&requested=1` → `location: /sign-in?error=link_expired&requested=1`／同 v2 → `location: /sign-in`。`apps/legacy-web/src/proxy.ts:54-56` vs `apps/web/src/proxy.ts:64-66` |
+| `/auth/confirm` 受理する `type` | `email` のみ、他は拒否 | `SUPPORTED_OTP_TYPE = 'email'` | 同一 | なし | parity確認済み | live curl `type=recovery` → 両方 `/sign-in?error=link_expired` |
+| `/auth/confirm` 無効 token_hash の挙動 | throw せず `/sign-in?error=link_expired` へ redirect | 同上 | 同上 | なし | parity確認済み | live curl: 両ポート `token_hash=bogus&type=email` → 307 |
+| `/auth/confirm` no-cache ヘッダ | `Cache-Control`/`Expires`/`Pragma` 一式 | 同一ヘッダ一式 | 同一ヘッダ一式 | なし | parity確認済み | live curl `-D -`（両ポート完全一致） |
+| Magic link 要求後の受付文言（enumeration 対策） | アカウント有無・送信成否を示唆しない中立文言 | 「リクエストを受け付けました。…」 | 文字列完全一致 | なし | parity確認済み | `apps/legacy-web/src/app/sign-in/page.tsx:54-56`、`apps/web/src/app/sign-in/page.tsx:59-63` |
+| Magic link 要求の cookieless client / 分岐排除 | account 有無・送信成否によらず常に同一 response | cookieless client、無条件 redirect | 同一実装 | なし | parity確認済み | 両 `actions.ts` |
+| `emailRedirectTo`（Preview 対応） | — | `readPreviewOrigin()` を渡す | 渡さない（GoTrue の `site_url` へ fallback） | あり（意図的） | 分類1（意図した差分） | `docs/v2/decisions.md` A24「Preview の隔離は app code ではなく deployment 境界に置く」。`apps/web/src/app/sign-in/actions.ts:50-53` のコメントが同 decision を直接引用 |
+| バリデーションエラー copy（`missing_email`/`link_expired`） | 2種のみ既知キー、他は無視 | 同一実装・同一文言 | 同一実装・同一文言 | なし | parity確認済み | 両 `sign-in/page.tsx` |
+| サインイン画面: Passkey ボタンの併記 | 「初期表示: Passkey ボタン＋区切り線「または」＋Magic Link フォーム（常に両方併記）」 | `<PasskeySignInButton />` + 区切り線 + Magic Link フォーム | **PasskeySignInButton が存在しない。Magic Link フォームのみ。** `signInWithPasskey()` 呼び出しが v2 コードベース全体に0件 | v2 は Passkey サインイン導線が丸ごと欠落 | **分類2（v2 bug）** | `docs/v2/oracle-routes-ui.md:49,255-256`、`apps/legacy-web/src/app/sign-in/page.tsx:59-68`、`apps/web/src/app/sign-in/page.tsx` 全体（該当コンポーネントなし）、`grep -rn signInWithPasskey apps/web/src` → 0件 |
+| Passkey 登録ボタンのエラー種別分類 | cancelled/unsupported/duplicate/too-many/failure で個別文言 | `classifyCeremonyError`/`REGISTER_FEEDBACK` で分類 | **エラー種別を分類せず、常に同一の汎用メッセージ**「Passkeyを登録できませんでした。もう一度お試しください。」 | v2 はエラー種別を握りつぶして一律メッセージ | **分類2（v2 bug）** | `apps/legacy-web/.../RegisterPasskeyButton.tsx:26-44`+`domain/passkey.ts:201-227`、`apps/web/.../RegisterPasskeyButton.tsx:36-49` |
+| Passkey 一覧（0件表示） | 「登録済みのPasskeyはありません。」 | 同一文言 | 同一文言 | なし | parity確認済み | 両 `PasskeySection.tsx` |
+| Passkey 削除: 確認ダイアログ省略 | 行内即時ボタン、確認ダイアログなし（意図的） | `confirm()` なし | `confirm()` なし | なし | parity確認済み | `docs/v2/oracle-routes-ui.md:243-247` |
+| Passkey 削除ボタンの accessible name 一意性（WCAG） | `docs/ux-ui.md:933` の WCAG 2.2 AA baseline: 複数「削除」ボタンが並ぶ場合 screen reader が区別できる必要 | 行ごとに `aria-label={${passkeyLabel}を削除}` を付与（PR #129 の Codex finding で修正済み） | **`aria-label` なし。** 全行が可視テキスト「削除」のみで、複数登録時に accessible name が重複 | v2 は複数 Passkey 登録時に screen reader で区別不能 | **分類2（v2 bug、WCAG baseline 未達）** | `apps/legacy-web/.../DeletePasskeyForm.tsx:12-21,52`、`apps/web/.../DeletePasskeyForm.tsx:11-32`（aria-label なし）、`docs/ux-ui.md:933` |
+| Passkey 削除の scope | session-scoped、`auth.passkey.delete()`、service_role 不使用 | 実装済み | 同一 API を呼ぶ | なし | parity確認済み | `docs/v2/oracle-domain.md:627` |
+| サインアウト実装 | `signOut()` → `/sign-in` へ redirect | scope 未指定（デフォルト global scope） | 同一（scope 未指定） | なし | parity確認済み（source確認のみ、下記注記参照） | 両 `sign-out/actions.ts` |
+| Cross-port session 共有（既存確認の再々確認） | localhost cookie、port 非依存 | `sb-127-auth-token`、domain=localhost | 同一 cookie で port 3001 も 200 OK | なし | parity確認済み | live curl（AC2 で既出、この journey でも再確認） |
+
+**注記（このエージェントの自己申告）**: サインアウトは POST-only の Server Action で、Next.js の React Server Action wire protocol を正確に curl 再現できず、live 実行は断念して source 比較のみに留めた（`supabase.auth.signOut()` を scope 指定なしで呼ぶ点は両アプリ一致）。Passkey はブラウザ WebAuthn ceremony が必須のため、指示どおり live 実行せず source 読みのみ。query string 保持/クリアの差分は oracle 文書に明記が無いため確定分類を保留した。
+
+## Journey: Event・Occurrence 管理
+
+| 項目 (facet) | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| `create_event` を非 catalog-creator が呼ぶ | oracle-routes-ui.md:41「真の権限境界は RPC 側」 | 拒否 | 拒否 | なし（共有 RPC） | parity確認済み | `curl POST rpc/create_event` as userB → `{"code":"42501","message":"event creation is restricted to designated catalog creators"}` HTTP 403 |
+| `reschedule_event` の owner-only 強制 | oracle-domain.md:56-58 | 非 owner 拒否・owner 成功 | 同一 | なし（共有 RPC） | parity確認済み | userB → 42501 HTTP 403、userA → 200 |
+| `events`/`event_occurrences` の非 owner UPDATE | RLS `USING` で silent filter、`data===null` を permission-denied として扱う（両アプリのコード comment が明記） | 実装済み | 同一パターン（v2 のコード comment が legacy をモデルとして明記） | なし | parity確認済み | `curl PATCH events` as userB → `200 []`（0行）、DB 側は unchanged |
+| `event_occurrences` の非 owner INSERT | insert denial は real error（silent ではない、両アプリのコード comment が明記） | 42501 | 42501 | なし | parity確認済み | `curl POST event_occurrences` as userB → 42501 HTTP 403 |
+| 2件目の occurrence 追加後の event 詳細表示 | oracle-routes-ui.md:42 `getEventWithOccurrences` | 両方表示 | 両方表示 | 表示形式のみ差あり（次行） | parity確認済み | `GET /catalog/events/<id>` 両ポートとも2occurrence表示 |
+| occurrence 日時の表示形式（曜日の有無） | 未規定 | 「2026年9月15日 18:00〜」（曜日なし） | 「2026年9月15日(火) 18:00」（曜日あり） | 見た目のみ | **要確認**（oracle 未規定、低優先） | 両詳細ページの HTML grep |
+| 0-occurrence Event 作成 | AGENTS.md「Event と公演回」/「Event 開催期間」 | 許可（`m8-difference-inventory.md`「検討したが含めなかった」既存確認済み） | 許可 | なし | parity確認済み | `create_event`（全 occurrence param null）→ 200 |
+| 0-occurrence Event の `/catalog` Event range 表示 | AGENTS.md「Catalog の日程参照要件」 | 表示される | 表示される | なし | parity確認済み | 両ポートの `/catalog?month=2026-11` で該当タイトル1件ずつ |
+| Event 中止（`events.canceled_at`）の表示 | AGENTS.md「Cancellation」: UI に「中止」表示、`oracle-routes-ui.md:44` `cancelEventAction` | 「中止」バッジ + 平文の追加文言 | 「中止」バッジのみ | legacy に平文追加あり、v2 はバッジのみ | parity確認済み（AGENTS.md が求める唯一の要件「『中止』として表示」は両者とも満たす） | `curl PATCH events canceled_at=now()` as owner、両詳細ページで「中止」バッジ確認 |
+| downstream participation による occurrence delete 拒否 | oracle-domain.md:89-91、AGENTS.md「Deletion」: SQLSTATE `90001` | 拒否・`delete-blocked` kind | 拒否・`delete-blocked` kind | なし | parity確認済み | `rpc/delete_event_occurrence`（participation あり）→ 90001 HTTP 400 |
+| 中止済み occurrence への新規 participation INSERT 拒否 | `oracle-domain.md` 文面は "attending への新規のみ" と読めるが、`decisions.md`「PO判断: 中止時のparticipation新規作成(2026-09-07)」がこの自己矛盾を解消し「INSERT は状態に関わらず一律拒否」と確定 | 拒否（共有 DB trigger） | 拒否（共有 DB trigger） | なし（decisions.md で解決済みの oracle と一致） | parity確認済み | `curl POST occurrence_participations` status=`considering` on 中止済み occurrence → SQLSTATE 90002。trigger 定義: `supabase/migrations/20260826000200_create_event_occurrence_cancellation.sql:143-186`（INSERT trigger は無条件、UPDATE trigger は `status='attending'` のみ guard） |
+| `/catalog/events/[id]/edit` 非 owner の permission-denied パネル文言 | oracle-routes-ui.md:43「permission-denied パネル」（正確な文言は規定なし） | 「このイベントを編集する権限がありません」 | 「編集する権限がありません」（主語「このイベントを」欠落） | 文言差 | **要確認**（oracle が正確な文言を規定していないため確定分類保留） | 両ポートの edit ページ HTML grep |
+| Event 系 Server Action の permission-denied エラー文言の粒度 | oracle 未規定。`decisions.md` A9 は kind の**型**統一のみを求め、operation ごとの文言統一までは求めていない | operation ごとに個別の title+description（例: create は「イベントを作成する権限がありません」+「…管理者に連絡してください」） | **全 operation で単一の汎用メッセージ**「対象が見つからないか、操作する権限がありません。」（create の場合、"対象が見つからないか" は本来「対象が存在しない」ケースの文言であり、「creator でない」ケースには意味的に不整合） | v2 は operation 固有の丁寧な文言を単一の汎用文言へ collapse した | **分類2（v2 bug、要 PO 確認）** — 追加の裏付けとなる decisions.md の項目は見つからず | source のみ（Server Action は curl で直接 POST できないため live 未検証。ただし row 1 で確認したとおり、根底の RPC 自体は 42501 を返すことは確認済み） |
+
+**このエージェントの自己申告（未確認事項）**: 上記2つの「permission-denied」関連行は source 読みのみで、実際にブラウザから submit した最終レンダリングは未確認。`delete_event`（全体削除）・`cancelEventOccurrence`/`uncancelEventOccurrence` は source 比較のみで live 実行はしていない（同じ RPC/column を両アプリが呼ぶことは確認済み、確信度は中程度）。`doors_at <= starts_at <= ends_at` 等の DB invariant も live 未検証。
+
+## Journey: Event-independent personal schedule
+
+| 項目 (facet) | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| all-day/time-bounded + free-form title | AGENTS.md「Event-independent personal schedule」（Issue #121、旧 closed category vocab を supersede） | `title`+`blocking` を保持、`schedule_type` は存在しない | 同一 | なし | parity確認済み | `POST personal_schedule_entries` title=「推し活遠征」→ 正常作成、psql で `title/blocking/is_all_day` 確認 |
+| `blocking` は entry 固有の独立 boolean、per-recipient override なし | AGENTS.md: `blocking` は entry の属性であり全 recipient に同一値で伝播 | owner/recipient を区別せず `entry.blocking` をそのまま描画 | 同一（`personalScheduleEntryBlockingForViewer` は viewer 引数を取らない） | なし | parity確認済み | recipient(userB) の REST read で owner と同一の `blocking:true` |
+| default visibility = private（owner-only） | AGENTS.md: 既定は private | RLS で owner/shared 以外は不可視 | 同一 RLS（共有 DB、両アプリとも同じ table read） | なし | parity確認済み | share 前の userB read → `[]`（200、エラーではなく filter） |
+| exact 登録 email での共有、即時反映、冪等 | AGENTS.md「Authenticated-user targeting」+「Event-independent personal schedule」 | `share_schedule_entry_by_email` RPC | 同一 RPC | なし（RPC 完全一致） | parity確認済み | `POST rpc/share_schedule_entry_by_email` → 200 + share row 作成 |
+| 共有先は通常表示（busy-only ではない） | AGENTS.md「MVP では共有先user に busy-only ではなく、schedule の通常表示内容を見せる」 | owner/recipient で同一 row mapper を使用 | 同一（busy-only 射影は存在しない） | なし | parity確認済み | share 後の userB read が owner と同一の full row（title/memo/is_all_day/starts_on/ends_on/blocking）を返す |
+| recipient の self-leave（entry 削除とは独立） | AGENTS.md: recipient は自分だけを外せる、entry 自体は影響を受けない | `LeaveShareForm` → shareId 指定で削除 | `LeaveShareButton` → entryId から server 側で自分の shareId を解決して削除 | 実装形状は異なるが product behavior は同一 | parity確認済み（実装形状の違いのみ） | userB が自分の share を delete → 以降 userB は不可視、userA は引き続き可視 |
+| owner による recipient 削除（自分以外） | AGENTS.md: owner が recipient 管理を行う | 即時削除（確認なし） | 即時削除（確認なし） | なし | parity確認済み | userA が userB の share を削除 → userB 不可視に |
+| hard delete が share へ cascade | AGENTS.md「Deletion」/「Entry deletion semantics」（Issue #121）: owner-only hard delete、`ON DELETE CASCADE` | owner-only、FK cascade 依存 | 同一 | なし | parity確認済み | `DELETE personal_schedule_entries` → entry・share 行とも削除、両アプリの `/calendar` から消失を確認 |
+| 未登録 email への共有は owner へ開示 | AGENTS.md「Authenticated-user targeting」: Invitation の opacity とは異なり、未登録であることを owner へ知らせてよい | `SHARE_BY_EMAIL_ERROR_RULES` で `validation` として表面化 | SQLSTATE `90010` を「このメールアドレスは、Stage Trackerに登録されていません。」へ mapping | 実装手段は異なるが、両者とも成功時と明確に区別可能な形で開示する | parity確認済み | `supabase/migrations/20260908010000_add_share_by_email_sqlstates.sql`（`90010` を Invitation の opaque case 用と混同しないよう明記）。live: 未登録 email → HTTP 400 + `90010` |
+| self-leave 後の再共有がブロックされない | Invitation の re-invite 相当（sharing には opt-out 概念自体が無い） | 冪等な RPC、永久ブロック無し | 同一 RPC | なし | parity確認済み | self-leave 後、同一 entry を同一 email へ再共有 → 成功 |
+| 削除確認 UI の実装手段 | oracle-routes-ui.md §2: owner の「削除」は確認ステップ必須 | 共有 `Sheet`（native `<dialog>`） | inline 2-step `role="alertdialog"`（`packages/ui` に `Sheet` が未実装なため） | widget は異なるが、両者とも削除確定前に明示的な追加操作を要求する（oracle が求める「確認必須」自体は両者満たす） | **要確認**（v2 側コード comment は理由を説明するが `decisions.md` に該当記述が見つからず、分類1と断定はしない。挙動としては実質 parity） | `apps/web/.../DeleteEntryButton.tsx:13-23` のコメント。live 未検証（DB 非観測、UI レンダリングの問題） |
+| 非 owner の write（見えるが owner ではない行）に対する error kind | oracle/AGENTS.md はこの粒度を規定していない | 0行 UPDATE/DELETE → `permission-denied`（「行は存在するが書けない」を開示） | 0行 UPDATE/DELETE → `not-found`（存在／不可視を意図的に区別不能にする） | legacy は開示、v2 は read 側の opacity 原則を write 側にも拡張 | **未分類**（比較対象となる oracle が無い。両アプリの正規 UI からは到達不能な経路のため live 未検証） | `apps/legacy-web/.../personalSchedule.ts:37-69`、`apps/web/.../postgrest-error.ts:22-33` |
+
+## `m8-difference-inventory.md`（PR #401）から引き継ぐ既存 parity 確認事項
+
+以下は `docs/v2/m8-difference-inventory.md`「検討したが inventory に含めなかったもの」節（実ソース比較済み、codex review 済み・merge 済み）を本比較の記録へ引き継ぐもの。再導出はせず、既存の evidence をそのまま採用する。
+
+| 項目 | Oracle | Legacy (observed) | v2 (observed) | Difference | Classification | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| Catalog facet 切り替え・filter semantics（genre→facet 対応、facet 内 OR/facet 間 AND、localStorage persistence） | AGENTS.md「Facet model」「Filter semantics」 | 同一 | 同一（見た目は native `<dialog>` ではなく inline panel だが presentational な差のみ） | なし | parity確認済み | `m8-difference-inventory.md`（PR #401）該当節 |
+| Ticket model（acquired-ticket inventory 撤去済み、TicketOpportunity MVP モデルのみ） | AGENTS.md「Ticket model removal」 | 同一 | 同一 | なし | parity確認済み | 同上 |
+| Cancellation vs Deletion split（Event/Occurrence 独立 `canceled_at` + OR 合成） | AGENTS.md「Cancellation」 | 同一 | 同一 | なし | parity確認済み | 同上 |
+| Personal Schedule の free-form `title` + `blocking`（Issue #121、旧 `schedule_type` enum 廃止） | AGENTS.md「Event-independent personal schedule」 | 同一 | 同一 | なし | parity確認済み | 同上（Personal Schedule journey 節でも別途 live 確認、後述） |
+| 通知ベル（非活性） | 対象外（Post-MVP defer） | 非活性 | 非活性 | なし | parity確認済み | 同上 |
+| グローバルナビの4項目固定（`/schedule`・`/mypage` を含めない） | 対象外 | 同一 | 同一 | なし | parity確認済み | 同上 |
+| 中止時の新規 participation 作成拒否の DB trigger 挙動 | AGENTS.md「Cancellation」 | 同一 | 同一 | なし（ドキュメント上の曖昧さのみ解消、コード変更なしと明記済み） | parity確認済み | 同上 |
+| `--color-primary` 未定義参照の CSS bug | 対象外（visual issue、機能挙動に影響なし） | 該当 | 該当 | なし | 対象外（product behavior ではない） | 同上 |
+
+---
+
+## 総括: 分類ごとの一覧（Issue #391 AC4〜6）
+
+### 分類2（v2 の不具合）
+
+明確な oracle citation（`docs/v2/oracle-routes-ui.md` の当該行、または
+`docs/ux-ui.md`「Accessibility baseline」の WCAG 2.2 AA baseline）を持つ
+項目のみを分類2として確定する。exact wording/粒度まで oracle が規定して
+いない項目（当初「要 PO 確認」としていたエラー文言粒度2件）は、下記
+「要確認」節へ move した（分類2の判定基準「legacy = oracle, v2 ≠
+oracle」を厳密に適用した結果、oracle 側の具体的規定が無い項目を機械的に
+分類2へ倒さないため）。
+
+| # | 項目 | journey | oracle citation | 対応状況 |
+| --- | --- | --- | --- | --- |
+| 1 | Catalog filter の group/venue option が genre 非依存 | catalog | AGENTS.md「Group」 | **修正済み**（PR #402, merge 済み） |
+| 2 | Ticket opportunity の planning state 書き込み UI が未実装 | ticket opportunity | `oracle-routes-ui.md`「/tickets」行 | **修正済み**（PR #403, merge 済み） |
+| 3 | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ） | 認証 | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **未修正**（本比較で新規発見。規模が大きいため要スコープ判断 — 詳細下記） |
+| 4 | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落） | 認証 | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み | **本セッションで修正済み**（詳細下記） |
+
+残存する分類2（項目3）は次の「対応方針」節を参照。AC5 が求める「0件、
+または残存分についてcutoverを妨げない理由」との関係は、項目3について
+「対応方針」節で escalate 済み。
+
+### 分類3（legacy の不具合を v2 が正したもの）
+
+| # | 項目 | journey | 内容 |
+| --- | --- | --- | --- |
+| 1 | Calendar の read 失敗時、legacy は単一の集約エラーへ縮退させるが、`decisions.md` P4 はこれを明示的に「不採用」と決定済み。v2 は独立した劣化を実装しており oracle(P4) と一致する | catalog（calendar） | 旧 `m8-difference-inventory.md` では分類1としていたが、本比較で分類3へ訂正（P4 の文言精査による） |
+| 2 | 中止済み occurrence での `attending→considering` 降格を、legacy の `ParticipationSheet` は UI から一切提示しない（backend/decisions.md は許可）。v2 の `ParticipationControls` は正しく到達可能にしている | participation | 新規発見。UI-completeness の欠落であり data-integrity の欠陥ではない |
+
+### 分類1（意図した差分）
+
+| # | 項目 | journey | citation |
+| --- | --- | --- | --- |
+| 1 | Invitation の decline UX（8秒 timer+undo → 確認ダイアログ+即時 hard delete、undo 無し） | invitation | `decisions.md` P3（117, 122, 689-757行目付近）、Issue #382 close |
+| 2 | Magic link の `emailRedirectTo` を v2 は一切渡さない（Preview 環境の隔離を app code ではなく deployment 境界に置く） | 認証 | `decisions.md` A24 |
+| 3 | Participation 書き込みの no-op short-circuit（v2 のみ） | participation | oracle 未規定の技術判断だが product behavior に影響しないため分類1相当として記録 |
+
+### 要確認（oracle が規定しておらず、確定分類を保留）
+
+これらは cutover を妨げるとは考えにくい presentational/wording の差分だが、
+oracle 文書に明記が無いため機械的に分類2/3へ倒さず、PO確認待ちとして残す。
+
+- 未認証 redirect 時の query string 保持/クリア（legacy は素通し、v2 はクリア） — 認証
+- occurrence 日時表示の曜日有無 — event/occurrence
+- `/catalog/events/[id]/edit` の permission-denied パネル文言の細部 — event/occurrence
+- Event 系 Server Action の permission-denied エラー文言が全 operation で単一の汎用メッセージへ collapse（create の場合「対象が見つからないか」という文言が意味的にやや不整合） — event/occurrence（`docs/v2/decisions.md` A9 は kind の**型**統一のみを求め、operation ごとの文言統一までは要求していないため、oracle 未規定として分類2にはしない）
+- Passkey 登録失敗時のエラー種別分類が v2 では一律の汎用メッセージへ degrade — 認証（`docs/ux-ui.md`「Common states」は StatePanel の variant レベルの区別を求めるが、WebAuthn ceremony の5種類の失敗理由（cancelled/unsupported/duplicate/too-many/failure）をその粒度で区別することまでは明記していないため、oracle 未規定として分類2にはしない）
+- Personal Schedule 削除確認 UI の実装手段（Sheet vs inline alertdialog） — personal schedule
+- Personal Schedule 非 owner write の error kind（`not-found` vs `permission-denied`） — personal schedule
+
+## 対応方針（Escalate — PO 判断が必要）
+
+**Passkey サインイン導線の欠落（分類2 #3）**: WebAuthn assertion ceremony
+の実装（client-side ceremony trigger、`supabase.auth.signInWithPasskey()`
+呼び出し、`docs/v2/oracle-routes-ui.md:49` が明記する「Passkey優先＋Magic
+Linkフォールバック」UI）を要する、単純なバグ修正の規模を超える機能追加で
+ある。この場を借りた即時修正ではなく、別 bounded Task として起票し、
+cutover 前に必須とするか post-cutover の追従で良いかを PO が判断すべき
+事項として escalate する。
+
+上記「要確認」節の各項目は、cutover を妨げるような correctness 上の欠陥
+ではなく、oracle が明示していない粒度の UX/wording judgment call である
+ため、この時点では修正を強制しない。PO が「oracle 側に規定を追加すべき」
+と判断した場合は `docs/v2/oracle-routes-ui.md`/`docs/ux-ui.md` を先に
+更新し、その後にこの表を再評価する。
+
+## この文書の運用上の注意
+
+本文書も `m8-difference-inventory.md` と同様、**時点のスナップショット**
+である。上記「未修正」の分類2項目が解消された場合、該当行の「対応状況」を
+更新すること。テスト環境（Docker、port shift、test user/event）の詳細は
+本文書冒頭「方法」節を参照。
+
