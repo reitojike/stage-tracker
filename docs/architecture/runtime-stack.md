@@ -81,28 +81,50 @@ flowchart LR
    `supabase db push` を自動実行し、Supabase 側へ migration を適用します。
    operator が手元で `supabase login` / `supabase link` / `db push` を実行する
    運用は不要になりました（旧運用は「Local / CI / Remote 環境との差分」参照）。
-   - migration が後方互換（新規 nullable column 等、既存コードが未参照）で
-     あれば、Vercel デプロイ後に適用されても安全です。下記の ordering fence
-     ではこれを `post-deploy-safe` と呼びます。
-   - 新しいビルドが直ちに参照する migration の場合でも、この workflow は
-     デプロイの前後を保証しません（deploy には一切関与しないため）。この
-     ordering fence ではこれを `schema-first-required` と呼び、そのケースは
-     引き続き migration PR と app code PR を分離し、migration PR を先に
-     merge・適用してから app code PR を merge する運用で担保します。
-     Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
-     migration と app code の同一 PR 同居を拒否しているのはこのためです。
+   Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
+   migration と app code の**同一 PR 同居**を拒否しているため、「この PR
+   自身のコードが、まだ Production に無い schema を必要とする」状態は
+   単一 PR の中ではもう作れません。**ただし PR をまたぐ merge 順序までは
+   保証しません**（docs/v2/decisions.md「D が保証しないこと（残存
+   リスク）」）。新しい build が直ちに参照する migration を分離した場合、
+   その migration PR が app code PR より先に merge・適用済みであることを、
+   app code PR の reviewer が確認する運用は引き続き必要です
+   （Issue #121/#124/#125 の事故と同じ code → schema 方向）。
+   - 逆方向（schema → code）は ordering fence が問います。**この
+     migration 自体が、既に deploy されているコードの挙動を変えるか。**
+     変えないなら（新規 nullable column の追加等）、適用が deploy の
+     前後どちらでも安全です。下記の ordering fence ではこれを `additive`
+     と呼びます。
+   - 変えるなら（DB が出す値の変更・既存 reader が読む列や制約の変更等）、
+     その値を理解できる runtime 変更が **Production へ deploy 済み**で
+     なければなりません。**merge だけでは不十分です** — Vercel の deploy
+     は非同期で、merge 直後は build 中・待機中・失敗のいずれもあり得ます。
+     下記の ordering fence ではこれを `runtime-first-required` と呼びます
+     （Issue #393、docs/v2/decisions.md「A8 追補」）。
 
 `docs/runbooks/gate-a-remote-environment.md` の「Deploy / update」節が、この
 判断基準の canonical な記述です。
 
-### migration pre-merge ordering fence（Issue #131）
+### migration pre-merge ordering fence（Issue #131、語彙は #393 で改訂）
 
-Issue #121 / #124 / #125 は、上記の判断（`schema-first-required` /
-`post-deploy-safe`）自体は正しく認識されていたにもかかわらず、3 件連続で
+Issue #121 / #124 / #125 は、当時の判断（`schema-first-required` /
+`post-deploy-safe`。code → schema 方向: この PR のコードが新しい schema を
+必要とするか）自体は正しく認識されていたにもかかわらず、3 件連続で
 Production migration 適用が Vercel デプロイより後回しになった（詳細は
 Issue #131 の Context 参照）。human memory だけに依存した手順では
 recurring failure になったため、次の 2 段構えの deterministic fence を
 追加した。
+
+その後 Issue #387（PO 判断 D1 = D）で Artifact Sequencing Fence が
+migration と app code の**同一 PR** 同居を拒否するようになった。これは
+code → schema 方向の事故を単一 PR 内では防ぐが、**PR をまたぐ merge 順序は
+保証しない**（docs/v2/decisions.md「D が保証しないこと（残存リスク）」。
+PO 判断 D 自身が、この機械的な gate を作らないという判断である）。
+一方 PR #389 は逆方向（schema → code: migration 自体が既存 deploy 済み
+コードを壊す）で実際に P1 を出した（docs/v2/decisions.md「A8 追補」）。
+**当時の語彙にこの方向を表す言葉が無かった**ため、Issue #393 で語彙を
+schema → code 方向へ置き換えた。code → schema 方向の判断は、この fence の
+marker ではなく、依然として reviewer の運用規律が担う。
 
 1. **CI merge-fence（`Verify / Migration Ordering Fence` job、
    `.github/workflows/verify.yml`）**:
@@ -110,29 +132,30 @@ recurring failure になったため、次の 2 段構えの deterministic fence
    を追加する PR は、PR 本文に次のどちらかの marker が無ければ fail する。
 
    ```text
-   Migration ordering: schema-first-required
-   Migration ordering: post-deploy-safe
+   Migration ordering: additive
+   Migration ordering: runtime-first-required
    ```
 
-   `schema-first-required` の場合はさらに次の marker も必須とする（テンプ
-   レートは `.github/pull_request_template.md` を参照）。
+   `additive` は「既存の deploy 済みコードの挙動を変えない」宣言（新規
+   nullable column 等）。`runtime-first-required` は「DB が出す値・既存
+   reader が読む列や制約を変える」宣言で、さらに次の marker も必須とする
+   （テンプレートは `.github/pull_request_template.md` を参照）。
 
    ```text
-   Production migration applied: <evidence>
+   Runtime dependency deployed: <evidence>
    ```
 
-   この job は Production 認証情報を一切必要としない（PR 本文と `git
-diff` だけを見る）。そのため、実際に Production へ migration が適用
-   されたかどうかは検証できない — 検証できるのは「その判断が PR
-   evidence として記録されているか」だけである。**Issue #131 当時は、この
-   repository の Secret boundary に従い Production 認証情報を CI secret として
-   追加することを意図的に避けていた。** Issue #387（PO 判断 D1 = D）でこの
-   前提を明示的に変更し、`SUPABASE_DB_URL`（`--db-url` 用の接続文字列に限定、
-   Personal Access Token や service-role key ではない）を下記 3 の workflow
-   専用の CI secret として追加した。この job（`Verify / Migration Ordering
-Fence`）自体は変更しておらず、`schema-first-required` の運用（migration PR
-   と app code PR を分離し、migration PR を先に merge する）は依然として
-   このマーカーと Artifact Sequencing Fence が担う。
+   このマーカーは「merge した」ではなく「**Production への deploy が完了
+   した**」ことの evidence を要求します。Vercel の deploy は merge に対し
+   非同期であり、merge 直後は build 中・待機中・失敗のいずれもあり得ます。
+   この job は Production 認証情報を一切必要とせず（PR 本文と `git diff`
+   だけを見る）、宣言した runtime 依存が実際に deploy 済みかを検証
+   できない — 検証できるのは「その判断が PR evidence として記録されて
+   いるか」だけである。判断の正しさは reviewer が担う
+   （docs/v2/decisions.md「fence が判定すること / しないこと」）。
+   `SUPABASE_DB_URL` を下記 3 の workflow 専用の CI secret として追加した
+   Issue #387 の判断は、この job（`Verify / Migration Ordering Fence`）
+   自体には影響しない。
 
 2. **operator-facing read-only drift check
    （`scripts/check-migration-drift.mjs`）**: `supabase migration list

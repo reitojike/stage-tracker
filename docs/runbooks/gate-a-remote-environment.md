@@ -210,43 +210,44 @@ local dev stack 向けの設定であり、上記の理由で `config push` を�
 
 Vercel は project が接続済み（上記手順 1）であれば、push のたびに `main`
 を auto-deploy します。個別の manual deploy ステップはありません。
-migration の適用順序は、その変更が既に deploy 済みの build と
-backward-compatible かどうかで決まります。
 
-- **新しい migration がない、または backward-compatible な migration**
-  （新規 nullable column、まだ何も参照していない新規 table/RPC 等、
-  `post-deploy-safe`）: merge して Vercel に deploy させ、その後 hosted
-  project に対して schema migration の手順を実行します。既に deploy 済み
-  の build は新しい shape に依存しないため、一時的に古い schema に対して
-  serve しても安全です。
-- **新しい build が即座に必要とする migration**（新しいコードが実行直後に
-  read/write する column/table/RPC、`schema-first-required`）: schema
-  migration の手順を merge / deploy の**前**に hosted project へ適用しま
-  す。先に新しい build を deploy すると、まだ必要なものが揃っていない
-  schema を参照することになり、そのパスに触れるすべての request が
-  migration が着地するまで失敗します。Issue #121 / #124 / #125 は、この
-  判断自体は正しく認識されていたにもかかわらず、実際の Production 適用が
-  3 件連続で漏れたまま Vercel デプロイが先行した実例です。
+**migration の適用はもう手動ではありません。** `main` へ merge された
+migration は `.github/workflows/apply-migrations.yml`（Issue #387、PO 判断
+D1 = D）が自動で hosted project へ適用します。下記「Schema migration to
+the hosted project」の手動手順は、この自動 workflow が使えない場合
+（`SUPABASE_DB_URL` 未設定時など）の fallback として残します。
 
-`schema-first-required` の PR は次の順序を守ります（Issue #131）。
+**Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
+migration と app code の同一 PR 同居を拒否する**ため、migration PR 自身に
+app code が同居することはありません。ただし**これは PR をまたぐ merge
+順序までは保証しません**（docs/v2/decisions.md「D が保証しないこと
+（残存リスク）」）。新しいビルドが直ちに参照する migration を別 PR に
+分離した場合、その migration PR が app code PR より先に merge・適用済み
+であることを、app code PR の reviewer が確認してください。これを怠ると
+Issue #121 / #124 / #125 と同じ事故（code → schema: 新しい build がまだ
+Production に無い schema を参照する）が別 PR 間の順序違いとして再現します。
 
-1. migration をこの repository で review する。
-2. **PR を merge する前に**、operator が hosted project へ必要な
-   migration を適用する（下記「Schema migration to the hosted project」）。
-3. `pnpm run supabase:migrations:drift -- --linked`（下記参照）で
-   Production の migration state を確認し、pending がないことを確かめる。
-4. PR 本文に `Migration ordering: schema-first-required` と
-   `Production migration applied: <evidence>` を記録する
-   （`.github/pull_request_template.md` 参照。`Verify / Migration
-Ordering Fence` CI job がこの記録の有無を強制する — 実際に適用された
-   かどうかまでは CI からは検証できない）。
-5. PR を merge する。
-6. Vercel deployment が成功し production URL が新しい build を serve して
-   いることを確認する。
+migration PR 自身については、逆方向（schema → code）を判断します。
+**この migration 自体が、既に deploy されているコードの挙動を変えるか。**
 
-`post-deploy-safe` の PR は、PR 本文に `Migration ordering:
-post-deploy-safe` を記録した上で通常どおり merge し、Vercel deployment の
-成功を確認してから hosted project へ migration を適用します。
+- 変えない（新規 nullable column、まだ何も参照していない新規 table/RPC
+  等）: `additive`。適用順序は問いません。
+- 変える（DB が出す値の変更・既存 reader が読む列や制約の変更等）:
+  `runtime-first-required`。その値を理解できる runtime 変更が、この
+  migration の PR より**先に Production へ deploy 済み**でなければ
+  なりません。**merge しただけでは不十分です** — Vercel の deploy は
+  非同期で、merge 直後は build 中・待機中・失敗のいずれもあり得ます
+  （PR #389 は当時この判断を誤り、後から runtime 側の PR #392 を先に
+  merge・deploy して是正した実例です。詳細は docs/v2/decisions.md
+  「A8 追補」）。
+
+PR 本文には `Migration ordering: additive` または `Migration ordering:
+runtime-first-required` を記録します（`.github/pull_request_template.md`
+参照。`Verify / Migration Ordering Fence` CI job がこの記録の有無を
+強制します — 判断の正しさまでは CI から検証できません。判断は reviewer が
+担います）。`runtime-first-required` の場合はさらに、実際の Production
+deployment 完了を示す `Runtime dependency deployed: <evidence>` も
+必須です（Issue #393）。
 
 ## Account provisioning（2 dogfood accounts）
 

@@ -4,16 +4,20 @@ import {
   evaluateMigrationOrderingFence,
 } from './lib/migrationOrderingFence.mjs';
 
-// CI-only pre-merge gate (Issue #131): for any PR that adds a
-// supabase/migrations/**.sql file, the PR body must explicitly record
-// whether Production needs the migration applied before merge
-// ("schema-first-required") or whether it's safe to merge/deploy first
-// ("post-deploy-safe"), per docs/architecture/runtime-stack.md "デプロイ・
-// 実行経路". This cannot verify that Production was actually migrated - CI
-// has no Production credentials by design (see runtime-stack.md
+// CI-only pre-merge gate (Issue #131, vocabulary revised by #393): for any
+// PR that adds a supabase/migrations/**.sql file, the PR body must
+// explicitly record whether the migration only adds/relaxes ("additive") or
+// changes a value/shape that already-deployed code reads
+// ("runtime-first-required" - which also requires a "Runtime dependency
+// deployed: <evidence>" line - merging the dependency is not enough, since
+// Vercel's deploy is asynchronous), per docs/architecture/runtime-stack.md
+// "デプロイ・実行経路" and docs/v2/decisions.md "A8 追補". This cannot verify
+// that the declared runtime dependency was actually deployed first - this
+// job has no Production credentials by design (see runtime-stack.md
 // "Environment Variables の所有境界") - it only prevents the ordering
 // judgment from being silently skipped, which is what let #121/#124/#125
-// ship without it.
+// ship without it, and what let #389 declare the wrong (now-retired)
+// direction.
 //
 // Requires BASE_SHA / HEAD_SHA / PR_BODY in the environment (wired from the
 // pull_request event in .github/workflows/verify.yml) and a full-history
