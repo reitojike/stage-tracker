@@ -16,11 +16,12 @@
 // separate PRs (docs/v2/decisions.md "D が保証しないこと（残存リスク）") -
 // an app-code-only PR can still be merged before the migration PR it
 // depends on, reproducing the same failure. That residual risk is still a
-// reviewer-discipline concern for the *migration* PR's reviewer (confirm
-// the dependent code PR, if any, lands after this migration is merged and
-// applied); this fence does not attempt to gate it mechanically (Issue #393
-// Out of Scope: no cross-PR merge-order gate, per PR #388's 4-round
-// failure).
+// reviewer-discipline concern - but for the *dependent* app-code PR's
+// reviewer (docs/v2/decisions.md: "依存する側の PR をレビューする際に相手側
+// が既に land / 適用済みかを確認する"), confirming the migration it needs
+// has already landed and applied, not the other way around; this fence does
+// not attempt to gate it mechanically (Issue #393 Out of Scope: no cross-PR
+// merge-order gate, per PR #388's 4-round failure).
 //
 // PR #389 (docs/v2/decisions.md "A8 追補") showed the second, opposite
 // direction: **schema → code**. The migration itself changed a value that

@@ -9,10 +9,11 @@ import {
 // explicitly record whether the migration only adds/relaxes ("additive") or
 // changes a value/shape that already-deployed code reads
 // ("runtime-first-required" - which also requires a "Runtime dependency
-// merged: <evidence>" line), per docs/architecture/runtime-stack.md
+// deployed: <evidence>" line - merging the dependency is not enough, since
+// Vercel's deploy is asynchronous), per docs/architecture/runtime-stack.md
 // "デプロイ・実行経路" and docs/v2/decisions.md "A8 追補". This cannot verify
-// that the declared runtime dependency was actually merged/deployed first -
-// this job has no Production credentials by design (see runtime-stack.md
+// that the declared runtime dependency was actually deployed first - this
+// job has no Production credentials by design (see runtime-stack.md
 // "Environment Variables の所有境界") - it only prevents the ordering
 // judgment from being silently skipped, which is what let #121/#124/#125
 // ship without it, and what let #389 declare the wrong (now-retired)
