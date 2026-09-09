@@ -59,6 +59,10 @@ describe("TicketOpportunityStateControls", () => {
     expect(
       screen.getByRole("button", { name: "登録を解除" }),
     ).toBeInTheDocument();
+    // oracle 要件（review finding）: 成功時は WriteNotice で通知する。
+    expect(
+      screen.getByText("「申し込む予定」に設定しました。"),
+    ).toBeInTheDocument();
   });
 
   it("shows 申し込む予定に戻す when already applied, and calls intent 'remove' on 登録を解除", async () => {
@@ -87,6 +91,7 @@ describe("TicketOpportunityStateControls", () => {
         screen.getByRole("button", { name: "申し込む予定にする" }),
       ).toBeInTheDocument(),
     );
+    expect(screen.getByText("登録を解除しました。")).toBeInTheDocument();
   });
 
   it("shows the server error message inline when the action reports a failure", async () => {

@@ -277,6 +277,40 @@ describe("TicketsView", () => {
       screen.queryByRole("button", { name: "登録を解除" }),
     ).not.toBeInTheDocument();
   });
+
+  // oracle 要件（review finding）: post-final（受付終了確定後）行は
+  // personal-state read が成功していてもコントロール自体を非表示にする。
+  it("does not render the planning-state controls on a post-final (受付終了) row", () => {
+    render(
+      <TicketsView
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [
+                    row({
+                      myState: "applied",
+                      isPostFinalRetainedHistory: true,
+                    }),
+                  ],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "申し込む予定に戻す" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "登録を解除" }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("販売機会名の表示（PR #381 review）", () => {

@@ -179,8 +179,13 @@ function TicketTimelineRow({
           `<Link>`(=<a>) の子にすると invalid HTML かつクリックがリンクの
           遷移と衝突するため、兄弟要素として置く。personalStateUnknown の
           場合は現在の状態が分からないまま操作させない（M8 で確定した v2 の
-          不具合の修正）。 */}
-      {row.isFirstRowForOpportunity && !personalStateUnknown ? (
+          不具合の修正）。post-final（受付終了確定後）行はコントロール自体を
+          非表示にする（`docs/v2/oracle-routes-ui.md`「チケット一覧」;
+          review finding: 受付終了後に planning state を変更・解除できて
+          しまっていた）。 */}
+      {row.isFirstRowForOpportunity &&
+      !personalStateUnknown &&
+      !row.isPostFinalRetainedHistory ? (
         <TicketOpportunityStateControls
           opportunityId={row.opportunityId}
           initialState={row.myState}
