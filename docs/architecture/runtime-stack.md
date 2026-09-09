@@ -122,14 +122,18 @@ Issue #394。Preview scope の値を `https://preview-disabled.invalid` へ修�
 済み — A24 を維持したまま到達不能な有効 URL にする形）。main は Production
 env で build するため、この事故は Production の実害にはならなかった。
 
-`apps/web` を変更する PR を merge する前は、`Verify/*` の green だけで
-deploy の健全性を確認したことにせず、次のいずれかで Vercel の commit status
-を確認する。
+Vercel は Root Directory（`apps/legacy-web`）に基づき、**apps/web を変更しない
+PR も含めて全ての PR**に Preview deployment を作る（PR #399 自身が docs-only
+にもかかわらず Preview deployment を持つことで確認済み）。したがって「`apps/web`
+を変更する PR だけ確認する」という限定はしない。PR を merge する前は、
+`Verify/*` の green だけで deploy の健全性を確認したことにせず、次のいずれかで
+Vercel の commit status を確認する。
 
 ```bash
-gh api repos/:owner/:repo/commits/<sha>/status
-# または
 gh pr checks <PR番号>
+# または（owner/repo を実際の値に置き換える。gh api は `:owner` 形式の
+# placeholder を展開しないため、{owner}/{repo} の中括弧形式を使う）
+gh api repos/{owner}/{repo}/commits/<sha>/status
 ```
 
 `failure` / `pending` のままの Vercel status を、`Verify/*` green を根拠に
