@@ -196,12 +196,12 @@ legacy 側 bug）は分類3の追加候補として残すが、**未確認（unc
 oracle」を厳密に適用した結果、oracle 側の具体的規定が無い項目を機械的に
 分類2へ倒さないため）。
 
-| #   | 項目                                                                                 | journey            | oracle citation                                                                                                                                       | 対応状況                                                                  |
-| --- | ------------------------------------------------------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| 1   | Catalog filter の group/venue option が genre 非依存                                 | catalog            | AGENTS.md「Group」                                                                                                                                    | **修正済み**（PR #402, merge 済み）                                       |
-| 2   | Ticket opportunity の planning state 書き込み UI が未実装                            | ticket opportunity | `oracle-routes-ui.md`「/tickets」行                                                                                                                   | **修正済み**（PR #403, merge 済み）                                       |
-| 3   | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ）                 | 認証               | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **未修正**（本比較で新規発見。規模が大きいため要スコープ判断 — 詳細下記） |
-| 4   | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落） | 認証               | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み                              | **本セッションで修正済み**（詳細下記）                                    |
+| #   | 項目                                                                                 | journey            | oracle citation                                                                                                                                       | 対応状況                                                                                             |
+| --- | ------------------------------------------------------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1   | Catalog filter の group/venue option が genre 非依存                                 | catalog            | AGENTS.md「Group」                                                                                                                                    | **修正済み**（PR #402, merge 済み）                                                                  |
+| 2   | Ticket opportunity の planning state 書き込み UI が未実装                            | ticket opportunity | `oracle-routes-ui.md`「/tickets」行                                                                                                                   | **修正済み**（PR #403, merge 済み）                                                                  |
+| 3   | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ）                 | 認証               | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **未修正**（本比較で新規発見。Issue #406 として起票済み、規模が大きいため要スコープ判断 — 詳細下記） |
+| 4   | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落） | 認証               | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み                              | **本セッションで修正済み**（詳細下記）                                                               |
 
 残存する分類2（項目3）は次の「対応方針」節を参照。AC5 が求める「0件、
 または残存分についてcutoverを妨げない理由」との関係は、項目3について
@@ -241,9 +241,9 @@ oracle 文書に明記が無いため機械的に分類2/3へ倒さず、PO確�
 の実装（client-side ceremony trigger、`supabase.auth.signInWithPasskey()`
 呼び出し、`docs/v2/oracle-routes-ui.md:49` が明記する「Passkey優先＋Magic
 Linkフォールバック」UI）を要する、単純なバグ修正の規模を超える機能追加で
-ある。この場を借りた即時修正ではなく、別 bounded Task として起票し、
-cutover 前に必須とするか post-cutover の追従で良いかを PO が判断すべき
-事項として escalate する。
+ある。この場を借りた即時修正ではなく、別 bounded Task（Issue #406）として
+起票し、cutover 前に必須とするか post-cutover の追従で良いかを PO が
+判断すべき事項として escalate する。
 
 上記「要確認」節の各項目は、cutover を妨げるような correctness 上の欠陥
 ではなく、oracle が明示していない粒度の UX/wording judgment call である
