@@ -29,6 +29,7 @@ import { mapRows } from "../row-mapping";
 import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
 import { runSupabaseSelect } from "../supabase-select";
+import { runPagedSupabaseSelect } from "../paged-select";
 
 /**
  * PR #381 review finding 1: 各 read はここで `client` を
@@ -175,17 +176,25 @@ interface EventGroupGroupRow {
  * 不具合の修正 - 旧実装は genre を無視して全 group を返していた）。
  * catalog 全体が対象で、表示中の月には限定しない
  * （AGENTS.md「Filter option universe」）。
+ *
+ * `event_groups` の該当行数（group 数ではなく Event-group 関連の延べ数）が
+ * `supabase/config.toml` の `api.max_rows` を超えると PostgREST は silently
+ * truncate するため、`runPagedSupabaseSelect` で全件読む（レビュー指摘:
+ * group 数自体より先にこの延べ数が上限へ達し得る）。
  */
 export async function listCatalogGroups(
   client: SupabaseClient<Database>,
   genreId: string,
 ): Promise<ReadResult<readonly Group[]>> {
-  const query = client
-    .from("event_groups")
-    .select("groups(*), events!inner(genre_id)")
-    .eq("events.genre_id", genreId);
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("event_groups")
+      .select("groups(*), events!inner(genre_id)", { count: "exact" })
+      .eq("events.genre_id", genreId)
+      .order("event_id", { ascending: true })
+      .order("group_id", { ascending: true })
+      .range(from, to),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }
@@ -214,19 +223,22 @@ export async function listCatalogGroups(
  * を返していた）。PostgREST に `DISTINCT` を直接指定する手段が無いため、
  * 非 null な venue を全件読んでから JS 側で de-duplicate する（catalog
  * 全体の event 数が M6a 時点で大きくない想定 - 将来 event 数が増えた場合は
- * RPC 化を検討する、AGENT-level 技術判断）。
+ * RPC 化を検討する、AGENT-level 技術判断）。`listCatalogGroups` と同じ
+ * truncation hazard があるため `runPagedSupabaseSelect` で全件読む。
  */
 export async function listCatalogVenues(
   client: SupabaseClient<Database>,
   genreId: string,
 ): Promise<ReadResult<readonly string[]>> {
-  const query = client
-    .from("events")
-    .select("venue")
-    .eq("genre_id", genreId)
-    .not("venue", "is", null);
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("events")
+      .select("venue", { count: "exact" })
+      .eq("genre_id", genreId)
+      .not("venue", "is", null)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }

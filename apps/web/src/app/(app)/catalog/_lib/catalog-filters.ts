@@ -56,17 +56,29 @@ export function activeFacetForGenre(genreKey: string | null): CatalogFacet {
 /**
  * Selecting every known option in a facet means "don't filter by this facet"
  * (AGENTS.md "Filter semantics": "何も選択していない場合と...全選択している
- * 場合は、どちらも「その facet では絞り込まない」と解釈"). This assumes
- * `selectedIds` is always a subset of `knownIds` (true for any selection the
- * UI itself can produce, since it only ever toggles from the known option
- * list) - `>=` therefore back-stops the well-formed "size" comparison
- * without needing a full set-equality check.
+ * 場合は、どちらも「その facet では絞り込まない」と解釈").
+ *
+ * `selectedIds` may contain ids that are not in `knownIds` - most commonly a
+ * stale `localStorage`-persisted selection saved before the known-option set
+ * for this genre existed in its current (genre-scoped) shape (M8 review
+ * finding on this same fix: a pre-fix build's flat, genre-independent
+ * option list let a user's saved selection carry ids belonging to a
+ * *different* genre). Such a stale id must not count as "still actively
+ * narrowing this facet" - it can never match a real entry's classification
+ * either way, but if left uncorrected it silently inflates the numerator in
+ * the "is every known option selected" comparison below, incorrectly
+ * treating a real, intentional partial selection (e.g. 2 of this genre's 3
+ * known groups) as if every known option were selected (falsely disabling
+ * the filter). Only ids that are still known are counted, both for this
+ * "is the facet active" decision and for the actual match below.
  */
-function isFacetFilterActive(
+function activeKnownSelection(
   selectedIds: readonly string[],
   knownIds: readonly string[],
-): boolean {
-  return selectedIds.length > 0 && selectedIds.length < knownIds.length;
+): { readonly ids: readonly string[]; readonly isActive: boolean } {
+  const known = new Set(knownIds);
+  const ids = selectedIds.filter((id) => known.has(id));
+  return { ids, isActive: ids.length > 0 && ids.length < knownIds.length };
 }
 
 export function matchesCatalogFilter(
@@ -89,8 +101,9 @@ export function matchesCatalogFilter(
     const knownGroupIds = (
       options.groupsByGenreKey[selection.genreKey] ?? []
     ).map((group) => group.id);
-    if (isFacetFilterActive(selection.groupIds, knownGroupIds)) {
-      const selected = new Set(selection.groupIds);
+    const active = activeKnownSelection(selection.groupIds, knownGroupIds);
+    if (active.isActive) {
+      const selected = new Set(active.ids);
       if (!entry.classification.groupIds.some((id) => selected.has(id))) {
         return false;
       }
@@ -99,10 +112,11 @@ export function matchesCatalogFilter(
 
   if (facet === "venue" && selection.genreKey !== null) {
     const knownVenues = options.venuesByGenreKey[selection.genreKey] ?? [];
-    if (isFacetFilterActive(selection.venues, knownVenues)) {
+    const active = activeKnownSelection(selection.venues, knownVenues);
+    if (active.isActive) {
       if (
         entry.event.venue === null ||
-        !selection.venues.includes(entry.event.venue)
+        !active.ids.includes(entry.event.venue)
       ) {
         return false;
       }

@@ -153,6 +153,32 @@ describe("filterCatalogEntries", () => {
     expect(result).toHaveLength(2);
   });
 
+  it("does not let a stale (e.g. localStorage-persisted, cross-genre) selected id count toward 'every known option selected'", () => {
+    // PR #402 review finding 2 の regression test: pre-fix build が保存した
+    // localStorage の選択には、別 genre 由来の group id が混ざり得る
+    // (`group-d` は OPTIONS 上 idol の group)。宝塚の既知3件中2件だけを
+    // 選んでいるのに、この無関係な id が同じ配列に残っていると、素朴な
+    // 「選択数 >= 既知数」比較では 3 >= 3 となり誤って「全選択 (=絞り込み
+    // 解除)」と判定されてしまう。stale id を除いた実際の選択数 (2) で
+    // 判定しなければならない。
+    const entries = [
+      entry({ genreKey: "takarazuka", groupIds: ["group-a"] }),
+      entry({ genreKey: "takarazuka", groupIds: ["group-c"] }),
+    ];
+    const result = filterCatalogEntries(
+      entries,
+      {
+        genreKey: "takarazuka",
+        groupIds: ["group-a" as never, "group-d" as never],
+        venues: [],
+      },
+      OPTIONS,
+    );
+    // 絞り込みは有効なままのはず: group-a を持つ event だけがヒットする。
+    expect(result).toHaveLength(1);
+    expect(result[0]?.classification.groupIds).toEqual(["group-a"]);
+  });
+
   it("applies the venue facet only for the genre whose active facet is venue", () => {
     const entries = [
       entry({ genreKey: "kabuki", venue: "南座" }),

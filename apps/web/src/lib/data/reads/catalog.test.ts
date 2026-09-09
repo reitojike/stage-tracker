@@ -206,7 +206,11 @@ describe("listCatalogGenres / listCatalogGroups / listCatalogVenues", () => {
               events: { genre_id: TAKARAZUKA_GENRE_ID },
             },
           ],
-          { status: 200 },
+          // `content-range` は `runPagedSupabaseSelect` が全ページ読み切った
+          // ことを判定するために必須（`count: "exact"` を要求する query の
+          // 応答は、この header が無いと supabase-js 側で `count: null` に
+          // なる）。
+          { status: 200, headers: { "content-range": "0-0/1" } },
         );
       }),
     );
@@ -236,7 +240,7 @@ describe("listCatalogGenres / listCatalogGroups / listCatalogVenues", () => {
             { venue: "東京宝塚劇場" },
             { venue: "南座" },
           ],
-          { status: 200 },
+          { status: 200, headers: { "content-range": "0-2/3" } },
         );
       }),
     );
@@ -273,6 +277,69 @@ describe("listCatalogGenres / listCatalogGroups / listCatalogVenues", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+    }
+  });
+
+  /**
+   * PR #402 review finding 1 の regression test: `event_groups` の該当行数が
+   * PostgREST の `api.max_rows`（既定 1000、`PAGE_SIZE` の 500 と別軸）を
+   * 超えると、`.range()` によるページングが無ければ後続 group が黙って
+   * 欠落する。500 行ちょうどの1ページ目 + 1行の2ページ目、という実際の
+   * HTTP request 2 回を経由させて、末尾の group が失われないことを確認する
+   * （`paged-select.test.ts` は helper 自体の loop ロジックを検証済みだが、
+   * ここでは実際の query の wiring - `Range` header・`content-range`
+   * 応答の解釈まで含めて確認する）。
+   */
+  it("pages through more than PAGE_SIZE (500) event_groups rows without dropping the last group", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/event_groups`, ({ request }) => {
+        requestCount += 1;
+        const url = new URL(request.url);
+        const offset = url.searchParams.get("offset");
+        if (offset === "0") {
+          const rows = Array.from({ length: 500 }, (_, i) => ({
+            groups: {
+              id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+              key: `group-${i}`,
+              display_name: `Group ${i}`,
+            },
+            events: { genre_id: TAKARAZUKA_GENRE_ID },
+          }));
+          return HttpResponse.json(rows, {
+            status: 200,
+            headers: { "content-range": "0-499/501" },
+          });
+        }
+        // 2ページ目 (500-999): 末尾の1行だけが残っている。
+        return HttpResponse.json(
+          [
+            {
+              groups: {
+                id: "11111111-1111-4111-8111-111111111111",
+                key: "last-group",
+                display_name: "最後の組",
+              },
+              events: { genre_id: TAKARAZUKA_GENRE_ID },
+            },
+          ],
+          { status: 200, headers: { "content-range": "500-500/501" } },
+        );
+      }),
+    );
+
+    const result = await listCatalogGroups(
+      createTestClient(),
+      TAKARAZUKA_GENRE_ID,
+    );
+
+    expect(requestCount).toBe(2);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(501);
+      expect(result.value.some((group) => group.key === "last-group")).toBe(
+        true,
+      );
     }
   });
 });

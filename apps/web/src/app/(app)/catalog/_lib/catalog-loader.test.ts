@@ -67,9 +67,22 @@ describe("loadCatalogFilterOptions", () => {
           },
         ]),
       ),
-      // takarazuka's facet is group (event_groups), kabuki's is venue (events).
-      http.get(`${REST_URL}/event_groups`, () => HttpResponse.json([])),
-      http.get(`${REST_URL}/events`, () => HttpResponse.json([])),
+      // takarazuka's facet is group (event_groups), kabuki's is venue
+      // (events). `content-range` is required for `runPagedSupabaseSelect`
+      // (used by both `listCatalogGroups`/`listCatalogVenues`) to see a
+      // reported count and stop after 1 page.
+      http.get(`${REST_URL}/event_groups`, () =>
+        HttpResponse.json([], {
+          status: 200,
+          headers: { "content-range": "*/0" },
+        }),
+      ),
+      http.get(`${REST_URL}/events`, () =>
+        HttpResponse.json([], {
+          status: 200,
+          headers: { "content-range": "*/0" },
+        }),
+      ),
     );
 
     const result = await loadCatalogFilterOptions(createTestClient());
