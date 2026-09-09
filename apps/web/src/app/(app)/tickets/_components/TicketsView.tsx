@@ -12,6 +12,7 @@ import {
 } from "@/app/_lib/read-state";
 import type { TicketOpportunityTimelineRow } from "@stage-tracker/domain";
 import type { TicketsTimelineState } from "../_lib/tickets-loader";
+import { TicketOpportunityStateControls } from "./TicketOpportunityStateControls";
 
 export interface TicketsViewProps {
   readonly state: OptionalPartBlockState<TicketsTimelineState>;
@@ -33,12 +34,14 @@ export interface TicketsViewProps {
  * this fix closes), and a small inline note says so next to the still-
  * rendered shared timeline.
  *
- * No planning-state controls are rendered (the oracle's "planning state
- *変更" per-row buttons) - this Task's instructions are explicit that write
- * operations are out of scope ("書き込み操作は実装しないこと"), and those
- * controls exist only to trigger `updateTicketOpportunityStateAction`, a
- * Server Action this Task does not implement. The current planning state is
- * still shown, as a badge, since that is read-only display.
+ * Planning-state controls (`TicketOpportunityStateControls`, the oracle's
+ * "planning state 変更" per-row buttons) are now rendered too (M8 で確定した
+ * v2 の不具合の修正 - この write UI 自体が過去のタスクで意図的に scope 外に
+ * されていた）. Rendered once per Opportunity via
+ * `row.isFirstRowForOpportunity`, and only when the personal-state read
+ * itself succeeded (`!personalStateUnknown`) - offering a state toggle while
+ * the caller's actual current state is unknown could silently overwrite it
+ * incorrectly.
  */
 export function TicketsView({ state }: TicketsViewProps) {
   const { block, optional } = state;
@@ -154,22 +157,40 @@ function TicketTimelineRow({
   readonly personalStateUnknown: boolean;
 }) {
   return (
-    <Link
-      href={`/catalog/events/${row.eventId}`}
-      className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
-    >
-      <span className="flex items-center gap-xs text-body-sm text-muted-foreground">
-        {formatMilestoneTypeJa(row.milestone.milestoneType)}
-        {badgeForRow(row, personalStateUnknown)}
-      </span>
-      <span className="text-title font-medium text-foreground">
-        {formatMilestoneWhenJa(row.milestone)}
-      </span>
-      {/* 販売機会名。同日に複数の同種 milestone があると、種別と日時だけでは
-          どの Event / 販売機会の行か判別できない（PR #381 review）。 */}
-      <span className="text-body-sm text-muted-foreground">
-        {row.displayName}
-      </span>
-    </Link>
+    <div className="flex flex-col gap-xs rounded-control border border-border bg-card p-md">
+      <Link
+        href={`/catalog/events/${row.eventId}`}
+        className="flex flex-col gap-2xs hover:opacity-80"
+      >
+        <span className="flex items-center gap-xs text-body-sm text-muted-foreground">
+          {formatMilestoneTypeJa(row.milestone.milestoneType)}
+          {badgeForRow(row, personalStateUnknown)}
+        </span>
+        <span className="text-title font-medium text-foreground">
+          {formatMilestoneWhenJa(row.milestone)}
+        </span>
+        {/* 販売機会名。同日に複数の同種 milestone があると、種別と日時だけでは
+            どの Event / 販売機会の行か判別できない（PR #381 review）。 */}
+        <span className="text-body-sm text-muted-foreground">
+          {row.displayName}
+        </span>
+      </Link>
+      {/* Opportunity につき1回だけ（`isFirstRowForOpportunity`）。ボタンを
+          `<Link>`(=<a>) の子にすると invalid HTML かつクリックがリンクの
+          遷移と衝突するため、兄弟要素として置く。personalStateUnknown の
+          場合は現在の状態が分からないまま操作させない（M8 で確定した v2 の
+          不具合の修正）。post-final（受付終了確定後）行はコントロール自体を
+          非表示にする（`docs/v2/oracle-routes-ui.md`「チケット一覧」;
+          review finding: 受付終了後に planning state を変更・解除できて
+          しまっていた）。 */}
+      {row.isFirstRowForOpportunity &&
+      !personalStateUnknown &&
+      !row.isPostFinalRetainedHistory ? (
+        <TicketOpportunityStateControls
+          opportunityId={row.opportunityId}
+          initialState={row.myState}
+        />
+      ) : null}
+    </div>
   );
 }
