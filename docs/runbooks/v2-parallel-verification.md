@@ -33,16 +33,23 @@ Supabase インスタンスを用意する必要はありません。
 
 `supabase/config.toml` の `additional_redirect_urls` と
 `[auth.webauthn] rp_origins` に `http://localhost:3001` を追加済みです。
-これが無いと、v2 側（port 3001）から開始した Magic Link / passkey 認証が
-`site_url`（port 3000）にしか redirect を許可されず失敗します。
+passkey は実際のリクエストの Origin を `rp_origins` と照合するため、これで
+port 3001 からの passkey 認証も許可されます。Magic Link は下記「Auth
+session の扱い」節の制約が別途あります。
 
 ## Env の用意
 
-各アプリは別々の env file を読みます（前提: 単一の local Supabase から
-`supabase status -o json` で得た**同じ値**を両方へ書き込みます）。
+各アプリは**別々の** env file を読みます。`next dev` は起動時の cwd
+（= turbo/pnpm がそのパッケージを実行するディレクトリ）を基準に
+`.env.local` を探すため、repository root の `.env.local` は
+`apps/legacy-web` からは読まれません（実測で確認済み: root にのみ置いた
+場合 `next dev` の起動ログに `- Environments: .env.local` が出ず、
+`apps/legacy-web/.env.local` に置いた場合だけ出る）。前提: 単一の local
+Supabase から `supabase status -o json` で得た**同じ値**を両方へ書き込みます。
 
-- `apps/legacy-web` → repository root の `.env.local`
-  （`.env.local.example` を複製）
+- `apps/legacy-web` → `apps/legacy-web/.env.local`（新規作成。repository
+  root の `.env.local.example` は `next dev` 自体が読む場所ではないため、
+  その中身と同じ 2 変数を `apps/legacy-web/.env.local` として作成する）
 - `apps/web` → `apps/web/.env.local`（`apps/web/.env.example` を複製）
 
 ```bash
@@ -76,7 +83,20 @@ Supabase Auth の session cookie は `localhost` を domain とし、port を
 区別しません。そのため port 3000 で sign-in すれば、同じブラウザで
 port 3001 を開いた時点で既に同じ session が有効です（同一 project /
 同一 cookie のため）。これは並走比較が前提とする「同一 Auth identity」を
-自然に満たします。別々に sign-in し直す必要はありません。
+自然に満たします。**sign-in は legacy（port 3000）側で行ってください。**
+別々に sign-in し直す必要はありません。
+
+v2（`apps/web`）側の Magic Link 送信 UI からも sign-in を試すこと自体は
+できますが、**local 環境ではリンクの着地先が port 3001 にはなりません。**
+v2 の `requestMagicLink` は Vercel Preview 環境
+（`NEXT_PUBLIC_VERCEL_ENV === "preview"`）でのみ明示的な
+`emailRedirectTo` を渡す設計で、local 実行時は渡さないため、GoTrue は
+`site_url`（`http://localhost:3000`、legacy 側）へ fallback します
+（`docs/architecture/runtime-stack.md`「Vercel Preview Auth runtime
+contract」参照）。つまり v2 から送った Magic Link を踏んでも legacy 側の
+`/auth/confirm` へ着地します。session 自体は cookie 経由で両 port に共有
+されるため並走比較は成立しますが、「v2 自身の sign-in 画面〜callback まで」
+を local で検証したい場合はこの制約を踏まえてください。
 
 ## この runbook が検証済みのこと / 未検証のこと
 
