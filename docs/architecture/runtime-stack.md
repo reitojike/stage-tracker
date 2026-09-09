@@ -105,6 +105,36 @@ flowchart LR
 `docs/runbooks/gate-a-remote-environment.md` の「Deploy / update」節が、この
 判断基準の canonical な記述です。
 
+### merge-ready fence が見ない外部 status（Vercel、Issue #394）
+
+merge-ready fence（`.ai-dev-foundation/tooling/merge-ready-fence.mjs`）が
+評価するのは Foundation Review Protocol の review contract（Selection /
+Execution / Acquisition & Validity / Resolution）だけであり、Vercel の
+deployment status のような外部 commit status は見ない。`Verify /*`（Code /
+Build / Database / E2E / Migration Ordering Fence）が全て green でも、Vercel
+Preview deployment は独立に failure になり得る。
+
+PR #392 は `apps/web/src/env.ts` の `NEXT_PUBLIC_SUPABASE_URL` が URL 形式を
+要求するのに対し、当時の Vercel Preview scope の placeholder が URL として
+不正だったため、`Verify/*` と merge-ready fence が pass したまま Vercel
+Preview だけ failure（2 revision とも）の状態で merge された（原因と対処は
+Issue #394。Preview scope の値を `https://preview-disabled.invalid` へ修正
+済み — A24 を維持したまま到達不能な有効 URL にする形）。main は Production
+env で build するため、この事故は Production の実害にはならなかった。
+
+`apps/web` を変更する PR を merge する前は、`Verify/*` の green だけで
+deploy の健全性を確認したことにせず、次のいずれかで Vercel の commit status
+を確認する。
+
+```bash
+gh api repos/:owner/:repo/commits/<sha>/status
+# または
+gh pr checks <PR番号>
+```
+
+`failure` / `pending` のままの Vercel status を、`Verify/*` green を根拠に
+無視して merge しない。
+
 ### migration pre-merge ordering fence（Issue #131、語彙は #393 で改訂）
 
 Issue #121 / #124 / #125 は、当時の判断（`schema-first-required` /
