@@ -51,7 +51,10 @@ export async function PasskeySection() {
               <span className="text-body-sm text-foreground">
                 {passkeyDisplayLabel(passkey)}
               </span>
-              <DeletePasskeyForm passkeyId={passkey.id} />
+              <DeletePasskeyForm
+                passkeyId={passkey.id}
+                passkeyLabel={passkeyDisplayLabel(passkey)}
+              />
             </li>
           ))}
         </ul>
