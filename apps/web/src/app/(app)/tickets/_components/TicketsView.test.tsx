@@ -1,8 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { OptionalPartBlockState } from "@/app/_lib/read-state";
 import type { TicketsTimelineState } from "../_lib/tickets-loader";
 import { TicketsView } from "./TicketsView";
+
+// `TicketOpportunityStateControls` (rendered per row) imports the
+// `"use server"` action, which transitively pulls in `src/env.ts` - not
+// available/valid in this unit test's environment. Mock it out the same way
+// `ParticipationControls.test.tsx` mocks `participation.actions`.
+vi.mock("@/lib/actions/ticketOpportunityState.actions", () => ({
+  updateTicketOpportunityStateAction: vi.fn(),
+}));
 
 function row(
   overrides: Partial<{
@@ -11,6 +19,7 @@ function row(
     displayName: string;
     opportunityId: string;
     milestoneId: string;
+    isFirstRowForOpportunity: boolean;
   }> = {},
 ) {
   const {
@@ -19,6 +28,7 @@ function row(
     displayName = "一般発売",
     opportunityId = "44444444-4444-4444-8444-444444444444",
     milestoneId = "55555555-5555-4555-8555-555555555555",
+    isFirstRowForOpportunity = true,
   } = overrides;
   return {
     opportunityId,
@@ -35,7 +45,7 @@ function row(
     },
     sortInstant: "2026-03-10T10:00:00.000Z",
     myState,
-    isFirstRowForOpportunity: true,
+    isFirstRowForOpportunity,
     isPostFinalRetainedHistory,
   } as never;
 }
@@ -198,6 +208,70 @@ describe("TicketsView", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText("申し込み状態を確認できません"),
+    ).not.toBeInTheDocument();
+  });
+
+  // M8 で確定した v2 の不具合（この write UI 自体が未実装だった）の修正。
+  it("renders the planning-state controls once, for the opportunity's first row, when the personal-state read succeeds", () => {
+    render(<TicketsView state={POPULATED} />);
+    expect(
+      screen.getByRole("button", { name: "申し込む予定に戻す" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "登録を解除" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render the planning-state controls on a non-first row of the same Opportunity", () => {
+    render(
+      <TicketsView
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [
+                    row({ myState: "applied", isFirstRowForOpportunity: false }),
+                  ],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "申し込む予定に戻す" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "登録を解除" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render the planning-state controls when the personal-state read failed (state unknown)", () => {
+    render(
+      <TicketsView
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                { monthKey: "2026-03", rows: [row({ myState: "applied" })] },
+              ],
+            },
+          },
+          optional: { ok: false, variant: "error" },
+        }}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "申し込む予定に戻す" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "登録を解除" }),
     ).not.toBeInTheDocument();
   });
 });
