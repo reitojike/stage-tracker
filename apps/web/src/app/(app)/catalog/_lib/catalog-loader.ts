@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Group } from "@stage-tracker/domain";
 import {
   listCatalogGenres,
   listCatalogGroups,
@@ -9,7 +10,7 @@ import {
   type TokyoCalendarDateRange,
 } from "@/lib/data";
 import { classifyBlock1, type BlockState } from "@/app/_lib/read-state";
-import type { CatalogFilterOptions } from "./catalog-filters";
+import { activeFacetForGenre, type CatalogFilterOptions } from "./catalog-filters";
 
 /**
  * `/catalog`'s data layer (`docs/v2/oracle-routes-ui.md` §1 `/catalog`).
@@ -58,32 +59,64 @@ export type CatalogFilterOptionsResult =
  * PostgREST/network detail never leaves `@/lib/data`'s read boundary in the
  * first place (`readError()` no longer even accepts one), and the screen
  * (`CatalogView`) owns its own display copy per `variant`.
+ *
+ * group/venue はそれぞれの genre にスコープして読む（M8 で確定した v2 の
+ * 不具合の修正、`catalog-filters.ts`「CatalogFilterOptions」参照）。genre
+ * 一覧を先に読み、`activeFacetForGenre` が返す facet（宝塚/アイドル=group、
+ * 歌舞伎=venue）に応じて genre ごとに 1 回だけ group か venue のどちらかを
+ * 読む。facet を持たない genre は追加の読み取りを発生させない。
  */
 export async function loadCatalogFilterOptions(
   supabase: SupabaseClient,
 ): Promise<CatalogFilterOptionsResult> {
-  const [genresResult, groupsResult, venuesResult] = await Promise.all([
-    listCatalogGenres(supabase),
-    listCatalogGroups(supabase),
-    listCatalogVenues(supabase),
-  ]);
-
+  const genresResult = await listCatalogGenres(supabase);
   if (!genresResult.ok) {
     return { ok: false, variant: toReadErrorVariant(genresResult.error.kind) };
   }
-  if (!groupsResult.ok) {
-    return { ok: false, variant: toReadErrorVariant(groupsResult.error.kind) };
-  }
-  if (!venuesResult.ok) {
-    return { ok: false, variant: toReadErrorVariant(venuesResult.error.kind) };
+  const genres = genresResult.value;
+
+  const facetResults = await Promise.all(
+    genres.map(async (genre) => {
+      const facet = activeFacetForGenre(genre.key);
+      if (facet === "group") {
+        return {
+          genre,
+          kind: "group" as const,
+          result: await listCatalogGroups(supabase, genre.id),
+        };
+      }
+      if (facet === "venue") {
+        return {
+          genre,
+          kind: "venue" as const,
+          result: await listCatalogVenues(supabase, genre.id),
+        };
+      }
+      return { genre, kind: null };
+    }),
+  );
+
+  const groupsByGenreKey: Record<string, Group[]> = {};
+  const venuesByGenreKey: Record<string, string[]> = {};
+  for (const facetResult of facetResults) {
+    if (facetResult.kind === null) {
+      continue;
+    }
+    if (!facetResult.result.ok) {
+      return {
+        ok: false,
+        variant: toReadErrorVariant(facetResult.result.error.kind),
+      };
+    }
+    if (facetResult.kind === "group") {
+      groupsByGenreKey[facetResult.genre.key] = [...facetResult.result.value];
+    } else {
+      venuesByGenreKey[facetResult.genre.key] = [...facetResult.result.value];
+    }
   }
 
   return {
     ok: true,
-    options: {
-      genres: genresResult.value,
-      groups: groupsResult.value,
-      venues: venuesResult.value,
-    },
+    options: { genres, groupsByGenreKey, venuesByGenreKey },
   };
 }

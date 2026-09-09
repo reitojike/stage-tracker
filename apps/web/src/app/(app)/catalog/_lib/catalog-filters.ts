@@ -21,10 +21,18 @@ export const DEFAULT_CATALOG_FILTER_SELECTION: CatalogFilterSelection = {
   venues: [],
 };
 
+/**
+ * group/venue option は genre ごとにスコープする（AGENTS.md「Group」:
+ * 「この genre に関連する group」は、その genre の Event に実際に
+ * associate されている group から動的に導出する）。genre の `key` を index
+ * にする（M8 で確定した v2 の不具合の修正 - 旧実装は genre 非依存の flat
+ * list を全 genre で共有しており、例えば宝塚選択時にアイドルの group まで
+ * 選択肢に混ざっていた）。
+ */
 export interface CatalogFilterOptions {
   readonly genres: readonly Genre[];
-  readonly groups: readonly Group[];
-  readonly venues: readonly string[];
+  readonly groupsByGenreKey: Readonly<Record<string, readonly Group[]>>;
+  readonly venuesByGenreKey: Readonly<Record<string, readonly string[]>>;
 }
 
 /** The 1 secondary facet active for a given genre (AGENTS.md "Facet model
@@ -77,8 +85,10 @@ export function matchesCatalogFilter(
 
   const facet = activeFacetForGenre(selection.genreKey);
 
-  if (facet === "group") {
-    const knownGroupIds = options.groups.map((group) => group.id);
+  if (facet === "group" && selection.genreKey !== null) {
+    const knownGroupIds = (
+      options.groupsByGenreKey[selection.genreKey] ?? []
+    ).map((group) => group.id);
     if (isFacetFilterActive(selection.groupIds, knownGroupIds)) {
       const selected = new Set(selection.groupIds);
       if (!entry.classification.groupIds.some((id) => selected.has(id))) {
@@ -87,8 +97,9 @@ export function matchesCatalogFilter(
     }
   }
 
-  if (facet === "venue") {
-    if (isFacetFilterActive(selection.venues, options.venues)) {
+  if (facet === "venue" && selection.genreKey !== null) {
+    const knownVenues = options.venuesByGenreKey[selection.genreKey] ?? [];
+    if (isFacetFilterActive(selection.venues, knownVenues)) {
       if (
         entry.event.venue === null ||
         !selection.venues.includes(entry.event.venue)

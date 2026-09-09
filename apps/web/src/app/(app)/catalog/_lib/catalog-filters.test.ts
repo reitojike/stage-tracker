@@ -48,12 +48,19 @@ function entry(
 
 const OPTIONS: CatalogFilterOptions = {
   genres: [],
-  groups: [
-    { id: "group-a" as never, key: "a", displayName: "星組" },
-    { id: "group-b" as never, key: "b", displayName: "月組" },
-    { id: "group-c" as never, key: "c", displayName: "花組" },
-  ],
-  venues: ["東京宝塚劇場", "南座"],
+  groupsByGenreKey: {
+    takarazuka: [
+      { id: "group-a" as never, key: "a", displayName: "星組" },
+      { id: "group-b" as never, key: "b", displayName: "月組" },
+      { id: "group-c" as never, key: "c", displayName: "花組" },
+    ],
+    // 別 genre (アイドル) の group. 宝塚選択時の option universe に混ざって
+    // はならない (下記「genre ごとに group をスコープする」テスト参照)。
+    idol: [{ id: "group-d" as never, key: "d", displayName: "テストグループ" }],
+  },
+  venuesByGenreKey: {
+    kabuki: ["東京宝塚劇場", "南座"],
+  },
 };
 
 describe("activeFacetForGenre", () => {
@@ -121,6 +128,28 @@ describe("filterCatalogEntries", () => {
     );
     // group-a, group-b, and group-c (= every known group) all selected ->
     // group facet does not filter, so the group-less event still matches.
+    expect(result).toHaveLength(2);
+  });
+
+  it("scopes group options to the selected genre (does not count another genre's groups as still-unselected)", () => {
+    // M8 で確定した v2 の不具合の regression test: 宝塚の3 group 全部を
+    // 選択した場合、アイドルの group が別に存在していても「宝塚 facet では
+    // 絞り込まない」(= 全選択) と判定されなければならない。旧実装は全
+    // genre の group を1つの flat list として数えていたため、宝塚の3件を
+    // 選んでも idol の1件が未選択のままとなり、誤って絞り込みが継続した。
+    const entries = [
+      entry({ genreKey: "takarazuka", groupIds: ["group-a"] }),
+      entry({ genreKey: "takarazuka", groupIds: [] }),
+    ];
+    const result = filterCatalogEntries(
+      entries,
+      {
+        genreKey: "takarazuka",
+        groupIds: ["group-a" as never, "group-b" as never, "group-c" as never],
+        venues: [],
+      },
+      OPTIONS,
+    );
     expect(result).toHaveLength(2);
   });
 

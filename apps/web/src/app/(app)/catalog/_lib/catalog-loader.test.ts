@@ -49,10 +49,16 @@ describe("loadCatalogEvents", () => {
 });
 
 describe("loadCatalogFilterOptions", () => {
-  it("succeeds when all 3 lookups succeed", async () => {
+  it("succeeds when the genre lookup and every genre's own facet lookup succeed", async () => {
     server.use(
-      http.get(`${REST_URL}/genres`, () => HttpResponse.json([])),
-      http.get(`${REST_URL}/groups`, () => HttpResponse.json([])),
+      http.get(`${REST_URL}/genres`, () =>
+        HttpResponse.json([
+          { id: "11111111-1111-4111-8111-111111111111", key: "takarazuka", display_name: "宝塚", sort_order: 1 },
+          { id: "22222222-2222-4222-8222-222222222222", key: "kabuki", display_name: "歌舞伎", sort_order: 2 },
+        ]),
+      ),
+      // takarazuka's facet is group (event_groups), kabuki's is venue (events).
+      http.get(`${REST_URL}/event_groups`, () => HttpResponse.json([])),
       http.get(`${REST_URL}/events`, () => HttpResponse.json([])),
     );
 
@@ -61,7 +67,7 @@ describe("loadCatalogFilterOptions", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("fails when any one of the 3 lookups fails", async () => {
+  it("fails when the genre lookup itself fails", async () => {
     server.use(
       http.get(`${REST_URL}/genres`, () =>
         HttpResponse.json(
@@ -69,8 +75,29 @@ describe("loadCatalogFilterOptions", () => {
           { status: 500 },
         ),
       ),
-      http.get(`${REST_URL}/groups`, () => HttpResponse.json([])),
-      http.get(`${REST_URL}/events`, () => HttpResponse.json([])),
+    );
+
+    const result = await loadCatalogFilterOptions(createTestClient());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.variant).toBe("error");
+    }
+  });
+
+  it("fails when a genre's own facet lookup fails (M8 fix: facet reads are now genre-scoped, not a single flat lookup)", async () => {
+    server.use(
+      http.get(`${REST_URL}/genres`, () =>
+        HttpResponse.json([
+          { id: "22222222-2222-4222-8222-222222222222", key: "kabuki", display_name: "歌舞伎", sort_order: 1 },
+        ]),
+      ),
+      http.get(`${REST_URL}/events`, () =>
+        HttpResponse.json(
+          { message: "boom", details: "", hint: "", code: "XX000" },
+          { status: 500 },
+        ),
+      ),
     );
 
     const result = await loadCatalogFilterOptions(createTestClient());
@@ -87,8 +114,9 @@ describe("catalog's list and filter reads degrade independently", () => {
     server.use(
       http.get(`${REST_URL}/events`, ({ request }) => {
         const url = new URL(request.url);
-        // `listCatalogVenues` also queries `events` (just `venue`), so
-        // distinguish it from `listEventCatalogInRange`'s richer select.
+        // `listCatalogVenues` also queries `events` (just `venue`, scoped by
+        // `genre_id`), so distinguish it from `listEventCatalogInRange`'s
+        // richer select.
         if (url.searchParams.get("select")?.includes("event_occurrences")) {
           return HttpResponse.json([
             {
@@ -114,8 +142,13 @@ describe("catalog's list and filter reads degrade independently", () => {
           { status: 500 },
         );
       }),
-      http.get(`${REST_URL}/genres`, () => HttpResponse.json([])),
-      http.get(`${REST_URL}/groups`, () => HttpResponse.json([])),
+      // kabuki's active facet is venue, so this exercises the failing
+      // `events` (venue) branch above, not the group (event_groups) one.
+      http.get(`${REST_URL}/genres`, () =>
+        HttpResponse.json([
+          { id: "22222222-2222-4222-8222-222222222222", key: "kabuki", display_name: "歌舞伎", sort_order: 1 },
+        ]),
+      ),
     );
 
     const client = createTestClient();

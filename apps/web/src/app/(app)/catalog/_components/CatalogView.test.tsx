@@ -54,7 +54,7 @@ function entry(
 
 const OK_FILTER_OPTIONS: CatalogFilterOptionsResult = {
   ok: true,
-  options: { genres: [], groups: [], venues: [] },
+  options: { genres: [], groupsByGenreKey: {}, venuesByGenreKey: {} },
 };
 
 beforeEach(() => {
@@ -141,8 +141,8 @@ describe("CatalogView", () => {
                 sortOrder: 1,
               },
             ],
-            groups: [],
-            venues: [],
+            groupsByGenreKey: {},
+            venuesByGenreKey: {},
           },
         }}
       />,
@@ -186,8 +186,8 @@ describe("CatalogView", () => {
                 sortOrder: 1,
               },
             ],
-            groups: [],
-            venues: [],
+            groupsByGenreKey: {},
+            venuesByGenreKey: {},
           },
         }}
       />,

@@ -183,45 +183,68 @@ describe("listCatalogGenres / listCatalogGroups / listCatalogVenues", () => {
     }
   });
 
-  it("reads the catalog-wide group lookup", async () => {
+  const TAKARAZUKA_GENRE_ID = "99999999-9999-4999-8999-999999999999";
+
+  it("reads only the groups associated (via event_groups) with the given genre's events", async () => {
     server.use(
-      http.get(`${REST_URL}/groups`, () =>
-        HttpResponse.json(
+      http.get(`${REST_URL}/event_groups`, ({ request }) => {
+        const url = new URL(request.url);
+        // M8 で確定した v2 の不具合の regression test: genre でスコープした
+        // query であることを確認する（旧実装は `groups` を genre 抜きで
+        // 全件読んでいた）。
+        expect(url.searchParams.get("events.genre_id")).toBe(
+          `eq.${TAKARAZUKA_GENRE_ID}`,
+        );
+        return HttpResponse.json(
           [
             {
-              id: "11111111-1111-4111-8111-111111111111",
-              key: "hoshigumi",
-              display_name: "星組",
+              groups: {
+                id: "11111111-1111-4111-8111-111111111111",
+                key: "hoshigumi",
+                display_name: "星組",
+              },
+              events: { genre_id: TAKARAZUKA_GENRE_ID },
             },
           ],
           { status: 200 },
-        ),
-      ),
+        );
+      }),
     );
 
-    const result = await listCatalogGroups(createTestClient());
+    const result = await listCatalogGroups(
+      createTestClient(),
+      TAKARAZUKA_GENRE_ID,
+    );
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toHaveLength(1);
+      expect(result.value[0]?.key).toBe("hoshigumi");
     }
   });
 
-  it("de-duplicates venue values client-side (no DISTINCT in PostgREST)", async () => {
+  it("de-duplicates venue values client-side, scoped to the given genre (no DISTINCT in PostgREST)", async () => {
     server.use(
-      http.get(`${REST_URL}/events`, () =>
-        HttpResponse.json(
+      http.get(`${REST_URL}/events`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("genre_id")).toBe(
+          `eq.${TAKARAZUKA_GENRE_ID}`,
+        );
+        return HttpResponse.json(
           [
             { venue: "東京宝塚劇場" },
             { venue: "東京宝塚劇場" },
             { venue: "南座" },
           ],
           { status: 200 },
-        ),
-      ),
+        );
+      }),
     );
 
-    const result = await listCatalogVenues(createTestClient());
+    const result = await listCatalogVenues(
+      createTestClient(),
+      TAKARAZUKA_GENRE_ID,
+    );
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -242,7 +265,10 @@ describe("listCatalogGenres / listCatalogGroups / listCatalogVenues", () => {
       ),
     );
 
-    const result = await listCatalogVenues(createTestClient());
+    const result = await listCatalogVenues(
+      createTestClient(),
+      TAKARAZUKA_GENRE_ID,
+    );
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
