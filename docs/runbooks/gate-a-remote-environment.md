@@ -217,29 +217,37 @@ D1 = D）が自動で hosted project へ適用します。下記「Schema migrat
 the hosted project」の手動手順は、この自動 workflow が使えない場合
 （`SUPABASE_DB_URL` 未設定時など）の fallback として残します。
 
-**「この PR のコードが、まだ Production に無い schema を必要とする」状態
-（Issue #121 / #124 / #125 の事故）はもう起こり得ません。** Artifact
-Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が migration
-と app code の同一 PR 同居を拒否するため、migration PR には app code が
-同居せず、その migration を直ちに参照する新しい build も存在しません。
+**Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
+migration と app code の同一 PR 同居を拒否する**ため、migration PR 自身に
+app code が同居することはありません。ただし**これは PR をまたぐ merge
+順序までは保証しません**（docs/v2/decisions.md「D が保証しないこと
+（残存リスク）」）。新しいビルドが直ちに参照する migration を別 PR に
+分離した場合、その migration PR が app code PR より先に merge・適用済み
+であることを、app code PR の reviewer が確認してください。これを怠ると
+Issue #121 / #124 / #125 と同じ事故（code → schema: 新しい build がまだ
+Production に無い schema を参照する）が別 PR 間の順序違いとして再現します。
 
-残る判断は逆方向です。**この migration 自体が、既に deploy されている
-コードの挙動を変えるか。**
+migration PR 自身については、逆方向（schema → code）を判断します。
+**この migration 自体が、既に deploy されているコードの挙動を変えるか。**
 
 - 変えない（新規 nullable column、まだ何も参照していない新規 table/RPC
   等）: `additive`。適用順序は問いません。
 - 変える（DB が出す値の変更・既存 reader が読む列や制約の変更等）:
-  `runtime-first-required`。その値を理解できる runtime 変更を、この
-  migration の PR より**先に** merge・deploy してください（PR #389 は
-  当時この判断を誤り、後から runtime 側の PR #392 を先に merge して
-  是正した実例です。詳細は docs/v2/decisions.md「A8 追補」）。
+  `runtime-first-required`。その値を理解できる runtime 変更が、この
+  migration の PR より**先に Production へ deploy 済み**でなければ
+  なりません。**merge しただけでは不十分です** — Vercel の deploy は
+  非同期で、merge 直後は build 中・待機中・失敗のいずれもあり得ます
+  （PR #389 は当時この判断を誤り、後から runtime 側の PR #392 を先に
+  merge・deploy して是正した実例です。詳細は docs/v2/decisions.md
+  「A8 追補」）。
 
 PR 本文には `Migration ordering: additive` または `Migration ordering:
 runtime-first-required` を記録します（`.github/pull_request_template.md`
 参照。`Verify / Migration Ordering Fence` CI job がこの記録の有無を
 強制します — 判断の正しさまでは CI から検証できません。判断は reviewer が
-担います）。`runtime-first-required` の場合はさらに `Runtime dependency
-merged: <evidence>` も必須です（Issue #393）。
+担います）。`runtime-first-required` の場合はさらに、実際の Production
+deployment 完了を示す `Runtime dependency deployed: <evidence>` も
+必須です（Issue #393）。
 
 ## Account provisioning（2 dogfood accounts）
 

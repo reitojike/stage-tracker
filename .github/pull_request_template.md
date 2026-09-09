@@ -30,22 +30,28 @@ supabase/ を丸ごと許可はしません。supabase/functions/** は
 config.toml / seed.sql も実需が出るまで許可しないためです。
 
 Issue #121/#124/#125 の事故（code → schema: PR のコードが新しい schema を
-必要とする）は、artifact sequencing fence がこの同居を拒否するため
-構造的に起きなくなりました。下の marker が問うのは**逆方向**（schema →
-code: この migration が、既に deploy されているコードを壊すか）です。
+必要とする）は、artifact sequencing fence が**同一 PR 内**の同居を拒否
+するため単一 PR の中ではもう起きません。ただし **PR をまたぐ merge 順序
+までは保証しません**（docs/v2/decisions.md「D が保証しないこと（残存
+リスク）」）。新しい build が直ちに参照する migration を別 PR に分離した
+場合、migration PR が app code PR より先に merge・適用済みであることを、
+app code PR の reviewer が確認してください。
+
+下の marker が問うのは**逆方向**（schema → code: この migration が、既に
+deploy されているコードを壊すか）です。
 
 **checker が判断しないこと** —— reviewer が判断してください。
 
   - この migration は本当に additive か（既存 reader の挙動を一切変えないか）
   - runtime-first-required の場合、依存する runtime PR は実際に
-    merge・deploy 済みか
+    **Production へ deploy 済み**か（merge 済みだけでは不十分）
 
 column を足すだけの変更は大抵 additive です。**DB が出す値を変える変更
 （error code 等）は additive ではありません。** `raise ... using errcode`
 は 1 つの値しか持てず、「新旧どちらの code も出す」という DB 側だけの
 expand が原理的にできないため、読む側（runtime）を先に広げる必要が
-あります（PR #389 は当時この判断を誤り、後から #392 を先に merge して
-是正しました）。
+あります（PR #389 は当時この判断を誤り、後から #392 を先に merge・deploy
+して是正しました）。
 -->
 
 <!-- どちらか一方だけを残し、他方は削除してください。 -->
@@ -55,11 +61,14 @@ Migration ordering: runtime-first-required
 
 <!--
 "runtime-first-required" の場合: このPRをmergeする前に、その新しい値を
-理解・許容できる runtime 変更を **先に** merge してください（Vercel の
-Git auto-deploy により、merge すればそのまま deploy されます）。
-下の行を実際の内容に書き換えてから残してください（このコメント内の
-例示テキストのままでは evidence として扱われません）。
+理解・許容できる runtime 変更を merge し、**その Vercel deployment が
+実際に成功したことを確認してから**このPRをmergeしてください。merge した
+だけでは deploy 完了を意味しません（Vercel の deploy は非同期で、merge
+直後は build 中・待機中・失敗のいずれもあり得ます）。下の行を実際の内容に
+書き換えてから残してください（このコメント内の例示テキストのままでは
+evidence として扱われません）。
 
-Runtime dependency merged: <その runtime 変更を含む PR 番号と、
-merge/deploy 済みであることの具体的な evidence>
+Runtime dependency deployed: <その runtime 変更を含む PR 番号と、
+Vercel deployment が succeeded したことを示す具体的な evidence
+（deployment URL、確認した日時等）>
 -->

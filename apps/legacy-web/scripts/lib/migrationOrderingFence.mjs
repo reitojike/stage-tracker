@@ -9,28 +9,40 @@
 // #121/#124/#125 were the first direction: **code → schema**. The merged
 // frontend code referenced a column/RPC immediately, but Production
 // Supabase migration apply lagged the Vercel auto-deploy, so the new code
-// ran against a schema that didn't have it yet. That direction is now
-// closed structurally: the Artifact Sequencing Fence
-// (scripts/lib/artifactSequencingFence.mjs, Issue #387 PO 判断 D1 = D)
-// rejects any PR that puts a migration and deployable app code in the same
-// PR, so "this PR's code needs a schema that isn't there yet" can no longer
-// happen. The original "schema-first-required" / "post-deploy-safe" vocab
-// asked exactly that question, and asking it is now moot.
+// ran against a schema that didn't have it yet. The Artifact Sequencing
+// Fence (scripts/lib/artifactSequencingFence.mjs, Issue #387 PO 判断
+// D1 = D) rejects any *single* PR that puts a migration and deployable app
+// code together, but it does **not** guarantee merge order *across* two
+// separate PRs (docs/v2/decisions.md "D が保証しないこと（残存リスク）") -
+// an app-code-only PR can still be merged before the migration PR it
+// depends on, reproducing the same failure. That residual risk is still a
+// reviewer-discipline concern for the *migration* PR's reviewer (confirm
+// the dependent code PR, if any, lands after this migration is merged and
+// applied); this fence does not attempt to gate it mechanically (Issue #393
+// Out of Scope: no cross-PR merge-order gate, per PR #388's 4-round
+// failure).
 //
 // PR #389 (docs/v2/decisions.md "A8 追補") showed the second, opposite
 // direction: **schema → code**. The migration itself changed a value that
 // *already-deployed* code reads (an `error.code` emitted by a RPC), and the
 // already-deployed reader (`apps/web`'s `classifyRpcError`) gated on the old
 // value before looking at anything else - so the new value silently fell
-// through to a generic path. This fence targets that direction now.
+// through to a generic path. This fence's marker vocabulary targets this
+// direction: it asks whether *this* migration is safe regardless of when a
+// dependent runtime change ships (`additive`), or requires that dependent
+// runtime change to already be live in Production first
+// (`runtime-first-required`). "Live in Production" means the Vercel
+// deployment has *completed*, not merely that the runtime PR was merged -
+// Vercel's build/deploy is asynchronous, so a PR can be merged while the
+// old code is still serving traffic (Codex review, PR #398).
 //
-// As before, this fence cannot verify that a dependency PR was actually
-// merged/deployed (CI has no Production credentials for this job by design;
-// see docs/architecture/runtime-stack.md "Environment Variables の所有
-// 境界"), only that the judgment and its evidence were recorded. Judgment
-// *correctness* is the reviewer's job (docs/v2/decisions.md "fence が判定
-// すること / しないこと"); this fence only prevents the judgment from being
-// silently skipped.
+// As before, this fence cannot verify that the declared runtime dependency
+// was actually deployed (CI has no Production credentials for this job by
+// design; see docs/architecture/runtime-stack.md "Environment Variables の
+// 所有境界"), only that the judgment and its evidence were recorded.
+// Judgment *correctness* is the reviewer's job (docs/v2/decisions.md "fence
+// が判定すること / しないこと"); this fence only prevents the judgment from
+// being silently skipped.
 
 const MIGRATION_DIR = 'supabase/migrations/';
 const MIGRATION_SUFFIX = '.sql';
@@ -61,10 +73,12 @@ function isMigrationFile(file) {
 //   an already-deployed reader consults (an emitted error code, an enum's
 //   semantics, a constraint an existing writer could violate, a column a
 //   deployed reader still reads, ...). The runtime change that already
-//   tolerates/produces the new value must be merged - and therefore, given
-//   Vercel's Git auto-deploy, already live - before this migration merges.
+//   tolerates/produces the new value must already be **deployed** to
+//   Production - not merely merged - before this migration merges (a
+//   merged PR's Vercel deployment can still be building, queued, or
+//   failed).
 const ORDERING_PATTERN = /migration ordering:[\s*_`]*(additive|runtime-first-required)[\s*_`]*/gi;
-const RUNTIME_DEPENDENCY_PATTERN = /runtime dependency merged:\s*(.+)/i;
+const RUNTIME_DEPENDENCY_PATTERN = /runtime dependency deployed:\s*(.+)/i;
 const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
 
 // NUL 区切り（`git diff -z`）と改行区切りの両方を受ける。呼び出し側が `-z` を
@@ -89,7 +103,7 @@ export function extractMigrationOrdering(prBody) {
   // Strip HTML comments first: .github/pull_request_template.md's own
   // instructional text (inside an HTML comment, invisible in the rendered
   // PR) contains example "Migration ordering:" / "Runtime dependency
-  // merged:" text that must never be mistaken for an author's real marker.
+  // deployed:" text that must never be mistaken for an author's real marker.
   const body = (typeof prBody === 'string' ? prBody : '').replace(HTML_COMMENT_PATTERN, '');
 
   const orderingMatches = [...body.matchAll(ORDERING_PATTERN)];
@@ -149,10 +163,10 @@ export function evaluateMigrationOrderingFence({ addedMigrationFiles, prBody }) 
       ok: false,
       reason:
         'This PR is marked "Migration ordering: runtime-first-required" but is missing a ' +
-        '"Runtime dependency merged: <evidence>" line in the PR body. Merge (and, given Vercel\'s ' +
-        'Git auto-deploy, thereby deploy) the runtime change that already tolerates/produces the ' +
-        'new value first, then record that evidence (e.g. the runtime PR number) before merging ' +
-        'this migration.',
+        '"Runtime dependency deployed: <evidence>" line in the PR body. Merging the runtime PR is ' +
+        "not enough - Vercel's deploy is asynchronous, so confirm its Production deployment has " +
+        'actually completed (e.g. the Vercel deployment URL/timestamp) before merging this ' +
+        'migration, then record that evidence.',
     };
   }
 

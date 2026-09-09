@@ -28,7 +28,7 @@ void test('extractMigrationOrdering reads the classification and runtime depende
     '## Migration ordering',
     '',
     'Migration ordering: runtime-first-required',
-    'Runtime dependency merged: PR #392 merged 2026-09-08, classifyRpcError accepts 90010/90011',
+    'Runtime dependency deployed: PR #392, Vercel deployment succeeded 2026-09-08, classifyRpcError accepts 90010/90011',
   ].join('\n');
   const result = extractMigrationOrdering(body);
   assert.equal(result.classification, 'runtime-first-required');
@@ -75,14 +75,14 @@ void test('evaluateMigrationOrderingFence fails for runtime-first-required witho
     prBody: 'Migration ordering: runtime-first-required',
   });
   assert.equal(ok, false);
-  assert.match(reason, /Runtime dependency merged/);
+  assert.match(reason, /Runtime dependency deployed/);
 });
 
 void test('evaluateMigrationOrderingFence passes for runtime-first-required with runtime dependency evidence', () => {
   const { ok } = evaluateMigrationOrderingFence({
     addedMigrationFiles: ['supabase/migrations/20260827000000_add_thing.sql'],
     prBody:
-      'Migration ordering: runtime-first-required\nRuntime dependency merged: PR #392 merged and deployed',
+      'Migration ordering: runtime-first-required\nRuntime dependency deployed: PR #392 merged and deployed',
   });
   assert.equal(ok, true);
 });
@@ -108,7 +108,7 @@ void test('extractMigrationOrdering ignores marker-like text inside an HTML comm
   const body = [
     'Migration ordering: runtime-first-required',
     '<!--',
-    'Runtime dependency merged: <short evidence, e.g. the runtime PR number>',
+    'Runtime dependency deployed: <short evidence, e.g. the runtime PR number>',
     '-->',
   ].join('\n');
   const result = extractMigrationOrdering(body);
@@ -137,7 +137,7 @@ void test('evaluateMigrationOrderingFence rejects placeholder evidence left insi
   const body = [
     'Migration ordering: runtime-first-required',
     '<!--',
-    'Runtime dependency merged: <short evidence, e.g. the runtime PR number>',
+    'Runtime dependency deployed: <short evidence, e.g. the runtime PR number>',
     '-->',
   ].join('\n');
   const { ok, reason } = evaluateMigrationOrderingFence({
@@ -145,7 +145,7 @@ void test('evaluateMigrationOrderingFence rejects placeholder evidence left insi
     prBody: body,
   });
   assert.equal(ok, false);
-  assert.match(reason, /Runtime dependency merged/);
+  assert.match(reason, /Runtime dependency deployed/);
 });
 
 // --- path 解析の fail open regression（PR #396） ---

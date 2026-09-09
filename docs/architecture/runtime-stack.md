@@ -82,18 +82,25 @@ flowchart LR
    operator が手元で `supabase login` / `supabase link` / `db push` を実行する
    運用は不要になりました（旧運用は「Local / CI / Remote 環境との差分」参照）。
    Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
-   migration と app code の同一 PR 同居を拒否しているため、「この PR の
-   コードが、まだ Production に無い schema を必要とする」状態（code →
-   schema 方向、Issue #121/#124/#125 の事故）はもう作れません。
-   - 残るのは逆方向（schema → code）です。**この migration 自体が、既に
-     deploy されているコードの挙動を変えるか。** 変えないなら（新規
-     nullable column の追加等）、適用が deploy の前後どちらでも安全です。
-     下記の ordering fence ではこれを `additive` と呼びます。
+   migration と app code の**同一 PR 同居**を拒否しているため、「この PR
+   自身のコードが、まだ Production に無い schema を必要とする」状態は
+   単一 PR の中ではもう作れません。**ただし PR をまたぐ merge 順序までは
+   保証しません**（docs/v2/decisions.md「D が保証しないこと（残存
+   リスク）」）。新しい build が直ちに参照する migration を分離した場合、
+   その migration PR が app code PR より先に merge・適用済みであることを、
+   app code PR の reviewer が確認する運用は引き続き必要です
+   （Issue #121/#124/#125 の事故と同じ code → schema 方向）。
+   - 逆方向（schema → code）は ordering fence が問います。**この
+     migration 自体が、既に deploy されているコードの挙動を変えるか。**
+     変えないなら（新規 nullable column の追加等）、適用が deploy の
+     前後どちらでも安全です。下記の ordering fence ではこれを `additive`
+     と呼びます。
    - 変えるなら（DB が出す値の変更・既存 reader が読む列や制約の変更等）、
-     その値を理解できる runtime 変更が **先に** merge・deploy 済みで
-     なければなりません。下記の ordering fence ではこれを
-     `runtime-first-required` と呼びます（Issue #393、docs/v2/decisions.md
-     「A8 追補」）。
+     その値を理解できる runtime 変更が **Production へ deploy 済み**で
+     なければなりません。**merge だけでは不十分です** — Vercel の deploy
+     は非同期で、merge 直後は build 中・待機中・失敗のいずれもあり得ます。
+     下記の ordering fence ではこれを `runtime-first-required` と呼びます
+     （Issue #393、docs/v2/decisions.md「A8 追補」）。
 
 `docs/runbooks/gate-a-remote-environment.md` の「Deploy / update」節が、この
 判断基準の canonical な記述です。
@@ -109,11 +116,15 @@ recurring failure になったため、次の 2 段構えの deterministic fence
 追加した。
 
 その後 Issue #387（PO 判断 D1 = D）で Artifact Sequencing Fence が
-migration と app code の同一 PR 同居を拒否するようになり、code → schema
-方向は構造的に発生しなくなった。一方 PR #389 は逆方向（schema → code:
-migration 自体が既存 deploy 済みコードを壊す）で実際に P1 を出した
-（docs/v2/decisions.md「A8 追補」）。**当時の語彙にこの方向を表す言葉が
-無かった**ため、Issue #393 で語彙を schema → code 方向へ置き換えた。
+migration と app code の**同一 PR** 同居を拒否するようになった。これは
+code → schema 方向の事故を単一 PR 内では防ぐが、**PR をまたぐ merge 順序は
+保証しない**（docs/v2/decisions.md「D が保証しないこと（残存リスク）」。
+PO 判断 D 自身が、この機械的な gate を作らないという判断である）。
+一方 PR #389 は逆方向（schema → code: migration 自体が既存 deploy 済み
+コードを壊す）で実際に P1 を出した（docs/v2/decisions.md「A8 追補」）。
+**当時の語彙にこの方向を表す言葉が無かった**ため、Issue #393 で語彙を
+schema → code 方向へ置き換えた。code → schema 方向の判断は、この fence の
+marker ではなく、依然として reviewer の運用規律が担う。
 
 1. **CI merge-fence（`Verify / Migration Ordering Fence` job、
    `.github/workflows/verify.yml`）**:
@@ -131,11 +142,14 @@ migration 自体が既存 deploy 済みコードを壊す）で実際に P1 を�
    （テンプレートは `.github/pull_request_template.md` を参照）。
 
    ```text
-   Runtime dependency merged: <evidence>
+   Runtime dependency deployed: <evidence>
    ```
 
+   このマーカーは「merge した」ではなく「**Production への deploy が完了
+   した**」ことの evidence を要求します。Vercel の deploy は merge に対し
+   非同期であり、merge 直後は build 中・待機中・失敗のいずれもあり得ます。
    この job は Production 認証情報を一切必要とせず（PR 本文と `git diff`
-   だけを見る）、宣言した runtime 依存が実際に merge・deploy 済みかを検証
+   だけを見る）、宣言した runtime 依存が実際に deploy 済みかを検証
    できない — 検証できるのは「その判断が PR evidence として記録されて
    いるか」だけである。判断の正しさは reviewer が担う
    （docs/v2/decisions.md「fence が判定すること / しないこと」）。
