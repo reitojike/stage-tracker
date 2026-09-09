@@ -57,9 +57,12 @@ Issue #391 の Acceptance Criteria は「各項目が `docs/v2/decisions.md` の
 InvitationCard.tsx` が `DECLINE_UNDO_WINDOW_MS = 8000` の client-local
   `declining` phase（`CardPhase = 'pending' | 'busy' | 'declining'`）を持つ。
   「参加しない」を押すと 8 秒間の optimistic UI へ入り、`setTimeout` で
-  確定、unmount 時は cancel する。タイマー完了前に unmount が発火しない
-  離脱（タブを閉じる等）をすると、削除されないまま invitation が
-  `pending` に残り得る。
+  確定する。**通常のページ遷移（React の unmount が発火するケース）では、
+  mount-only cleanup が `declining` phase を検知して即座に
+  `finalizeDeclineOnce()` を呼び、確定（削除）する** — これは正しい挙動で
+  バグではない。バグが起きるのは、タブを閉じる／ブラウザを閉じる等
+  **unmount 自体が発火しない離脱**の場合のみで、この場合だけ削除されずに
+  invitation が `pending` のまま残り得る。
 - **v2（現状）**: `apps/web/src/app/(app)/catalog/invitations/_components/
 InvitationList.tsx` は `{ kind: "confirm-decline" }` phase を持つ。
   「参加しない」を押すと確認ダイアログ（押し間違い対策）を経て、確定操作で
@@ -102,25 +105,46 @@ InvitationList.tsx` は `{ kind: "confirm-decline" }` phase を持つ。
 
 ---
 
-## 既知の未実装ギャップ（意図的差分でも不具合でもない）
+## 既知の v2 不具合（並走比較を待たず分類 2 として先に記録するもの）
+
+以下は「意図した差分」ではなく、oracle が要求する挙動から v2 が外れている
+ことを実コードで確認済みの項目。Issue #391 の分類定義（「2. v2 の不具合 —
+本 inventory に無い、oracle からも外れた差分」）に従い、並走比較で改めて
+発見されるのを待たず、この時点で分類 2 として記録する。
 
 ### 3. Ticket opportunity の planning state 書き込み UI が v2 にまだ無い
 
 - **legacy（現状）**: `apps/legacy-web/src/app/tickets/_components/
-TicketOpportunityStateControls.tsx` により `planned`/`applied`/削除の
+TicketOpportunityStateControls.tsx` により `planned`/`applied`/解除の
   書き込みができる。
 - **v2（現状）**: `apps/web/src/app/(app)/tickets/_components/
 TicketsView.tsx` は同じデータモデル（`TicketOpportunityTimelineRow`、
-  `planned`/`applied` の 2 値）を読み取り表示するが、書き込み操作は
-  意図的にこの screen の scope 外として実装されていない（コード上に
-  「書き込み操作は実装しないこと」という明示コメントがある）。
-- **分類のヒント**: これは product semantics の決定による差分ではなく、
-  **v2 の画面実装が完了していないことによる一時的なギャップ**である。
-  並走比較でこれを観測しても、分類 1（意図した差分）にも分類 2（v2 の
-  不具合）にも当てはめず、「v2 の書き込み機能が未実装」という進捗の
-  問題として扱うこと。cutover 判断（M9）までにこの screen が実装される
-  前提であれば、この項目は inventory から消える想定である。
+  `planned`/`applied` の 2 値）を読み取り表示するが、
+  `updateTicketOpportunityStateAction` 相当の書き込み操作が実装されて
+  いない。`docs/v2/oracle-routes-ui.md`「チケット一覧」節はこの書き込み
+  controls を要求しているため、これは意図的な設計判断ではなく **oracle
+  から外れた v2 の不具合（分類 2）**である。
 - **journey**: ticket opportunity。
+- **今後**: この screen が実装されれば本項目は inventory から消える。
+
+### 4. Catalog filter の group/venue option が v2 では genre 非依存になっている
+
+- **legacy（現状）**: `apps/legacy-web/src/app/catalog/_lib/
+catalogFilterData.ts` は genre ごとに
+  `listCatalogGroupOptions(client, genre.id)` /
+  `listCatalogVenueOptions(client, genre.id)` を呼び、その genre に
+  associate された group/venue だけを option として返す。
+- **v2（現状）**: `apps/web/src/app/(app)/catalog/_lib/catalog-loader.ts`
+  は genre を引数に取らない `listCatalogGroups(supabase)` /
+  `listCatalogVenues(supabase)` を呼び、catalog 全体（全 genre 横断）の
+  group/venue を option として返す。複数 genre のデータが存在する場合、
+  宝塚の facet にアイドルの group、歌舞伎の facet に他 genre の venue まで
+  option として現れ、無関係な option を選択すると意図せず結果が空になり
+  得る。`AGENTS.md`「Facet model」節が定める genre ごとの facet 分離semantics
+  から外れているため、これは presentational な差ではなく **v2 の不具合
+  （分類 2）**である。
+- **journey**: catalog。
+- **今後**: この不具合が修正されれば本項目は inventory から消える。
 
 ---
 
@@ -135,16 +159,19 @@ TicketsView.tsx` は同じデータモデル（`TicketOpportunityTimelineRow`、
   `EventCreateForm.tsx` / `EventLevelFallbackList.tsx` は既に 0-occurrence
   Event の作成・表示を許可している。v2 の `NewEventForm.tsx` /
   `CatalogView.tsx` と同じ挙動。
-- **Catalog classification（genre/group/venue filter）**（Issue #158/#167）:
-  legacy の `FilterSheet.tsx` と v2 の `CatalogView.tsx` の `FilterPanel` は
-  同じ facet 切り替え・OR/AND semantics・localStorage persistence を持つ。
-  v2 側は `packages/ui` に `Sheet` primitive が無いため native `<dialog>`
-  ではなく inline panel を使っているが、これは presentational な差であり
-  semantics は同じ。
+- **Catalog classification の facet 切り替え・filter semantics 自体**
+  （Issue #158/#167）: legacy の `FilterSheet.tsx` と v2 の
+  `CatalogView.tsx` の `FilterPanel` は同じ genre→facet 切り替え・
+  facet 内 OR / facet 間 AND・localStorage persistence を持つ。v2 側は
+  `packages/ui` に `Sheet` primitive が無いため native `<dialog>` では
+  なく inline panel を使っているが、これは presentational な差。
+  **ただし option の取得範囲自体（genre 非依存になっている）は不具合として
+  上記「既知の v2 不具合」項目 4 で別途扱う** — facet 切り替えの仕組みが
+  同じであることと、option が正しく genre スコープされているかは別の話。
 - **Ticket model そのもの**（Issue #225/#234）: legacy には acquired-ticket
   inventory/assignment/transfer の UI は既に存在せず、
   `TicketOpportunityRow.tsx` 等の MVP モデルのみ。v2 も同じモデル
-  （書き込み UI の有無は上記「既知の未実装ギャップ」項目 3 を参照）。
+  （書き込み UI の有無は上記「既知の v2 不具合」項目 3 を参照）。
 - **Invitation pending-only semantics**（Issue #225/#230）: legacy の
   `invitation.ts` / `invitation.ts`（infrastructure 層）は既に
   DELETE ベースの `decline_occurrence_invitation` RPC を使い、accept 専用
@@ -189,6 +216,6 @@ offline scope、Web Push の product scope、MCP product scope）は、legacy・
 ## この inventory の運用上の注意
 
 本 inventory は**時点のスナップショット**である。並走比較を実施する時点で、
-上記「既知の未実装ギャップ」（項目 3）が解消されている可能性があるため、
+上記「既知の v2 不具合」（項目 3・4）が解消されている可能性があるため、
 実施直前に該当箇所のソースを再確認すること。同様に、legacy・v2 いずれかに
 新しい変更が入った場合、この inventory 自体の再検証が必要になる。
