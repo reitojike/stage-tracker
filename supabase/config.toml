@@ -160,7 +160,9 @@ site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://localhost:3000"]
+# localhost:3001 is apps/web (v2) when run alongside apps/legacy-web (localhost:3000)
+# for M8 parallel verification (Issue #391) - see docs/runbooks/v2-parallel-verification.md.
+additional_redirect_urls = ["http://localhost:3000", "http://localhost:3001"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -206,7 +208,9 @@ enabled = true
 [auth.webauthn]
 rp_display_name = "stage-tracker"
 rp_id = "localhost"
-rp_origins = ["http://localhost:3000"]
+# localhost:3001 (apps/web) added alongside :3000 (apps/legacy-web) for M8
+# parallel verification (Issue #391) - see docs/runbooks/v2-parallel-verification.md.
+rp_origins = ["http://localhost:3000", "http://localhost:3001"]
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.

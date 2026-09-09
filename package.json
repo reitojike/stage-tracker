@@ -19,6 +19,7 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
+    "dev:parallel": "turbo run dev --filter=@stage-tracker/web --filter=@stage-tracker/legacy-web",
     "supabase:types": "node apps/legacy-web/scripts/generate-supabase-types.mjs",
     "supabase:types:check": "node apps/legacy-web/scripts/check-supabase-types-drift.mjs",
     "supabase:migrations:check": "node .ai-dev-foundation/quality/check-migration-version-collision.mjs",
