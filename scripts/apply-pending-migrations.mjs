@@ -75,11 +75,24 @@ if (plan.action === 'skip') {
 console.log(`Applying ${String(plan.pending.length)} pending migration(s):`);
 for (const m of plan.pending) console.log(`  ${m}`);
 
-const push = spawnSync('supabase', ['db', 'push', '--db-url', dbUrl], {
-  encoding: 'utf8',
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
-});
+// --include-all: 並行 migration PR の merge 順序次第で、version の大きい
+// migration が先に適用され、後から merge された version の小さい migration
+// が remote history 上「未来」に取り残されることがある。デフォルトの
+// db push はそれを対象に含めないため、pendingLocal と分類した migration が
+// 実際には適用されない fail-open になる（#397 review, Codex P1）。
+// --skip-vault: config.toml の [db.vault] は現在コメントアウトだが、この
+// workflow の契約は「merged migration の適用」に閉じる。vault sync を
+// 明示的に対象外にする。
+// --yes: CI は non-TTY だが、それに暗黙で依存せず明示する。
+const push = spawnSync(
+  'supabase',
+  ['db', 'push', '--db-url', dbUrl, '--include-all', '--skip-vault', '--yes'],
+  {
+    encoding: 'utf8',
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  },
+);
 if (push.error || push.status !== 0) {
   console.error('Failed to apply migrations.');
   process.exit(1);

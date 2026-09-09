@@ -122,7 +122,7 @@ Environment secrets である点も重要で、これによって上の Deployme
 > **Supabase の Personal Access Token は使わない。** access token には
 > **scope 設定が無く、アカウント配下の全 project を操作できる**。
 > `--db-url` なら到達範囲がその 1 データベースに限られる。
-
+>
 > **service-role key も置かない。** migration の適用に必要なのはこの接続文字列
 > だけ。
 

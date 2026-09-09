@@ -1,5 +1,5 @@
 // Release workflow が「migration を適用するか」を決める純関数
-// （Issue #387、PO 判断 D1 = C）。
+// （Issue #387、PO 判断 D1 = D）。
 //
 // `classifyMigrationDrift` は「同期しているか」だけを答え、pending も
 // remote-only もまとめて drift とする。release ではこの 2 つを区別しな

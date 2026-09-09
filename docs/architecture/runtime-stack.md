@@ -62,6 +62,11 @@ flowchart LR
   deploy パイプラインには関与しません。Vercel が `main` への push を検知して
   auto-deploy する構成であり、CI は「PR の merge 前検証」の役割に閉じています
   （詳細は「デプロイ・実行経路」節）。
+- `.github/workflows/apply-migrations.yml`（Issue #387、PO 判断 D1 = D）は
+  `main` への push を検知して Production migration を自動適用しますが、これも
+  deploy パイプラインではありません。deploy を起動も抑止もせず、Vercel の
+  auto-deploy とは独立に動きます（詳細は「migration pre-merge ordering
+  fence」節）。
 
 ## デプロイ・実行経路
 
@@ -71,15 +76,21 @@ flowchart LR
    Vercel 側の deploy を起動する専用の GitHub Actions ステップは存在しません
    （`vercel.json` もリポジトリに存在せず、Vercel プロジェクト側の連携設定に
    委ねられています）。
-3. スキーマ変更を伴う PR の場合、`supabase db push` による Supabase 側への
-   migration 適用は **自動化されていません**。オペレーターが手動で実行する
-   運用です（理由は「Local / CI / Remote 環境との差分」を参照）。
+3. スキーマ変更を伴う PR の場合、`main` への push を検知した
+   `.github/workflows/apply-migrations.yml`（Issue #387、PO 判断 D1 = D）が
+   `supabase db push` を自動実行し、Supabase 側へ migration を適用します。
+   operator が手元で `supabase login` / `supabase link` / `db push` を実行する
+   運用は不要になりました（旧運用は「Local / CI / Remote 環境との差分」参照）。
    - migration が後方互換（新規 nullable column 等、既存コードが未参照）で
-     あれば、Vercel デプロイ後に migration を適用しても安全です。下記の
-     ordering fence ではこれを `post-deploy-safe` と呼びます。
-   - 新しいビルドが直ちに参照する migration であれば、デプロイより先に
-     migration を Supabase 側へ適用する必要があります。下記の ordering
-     fence ではこれを `schema-first-required` と呼びます。
+     あれば、Vercel デプロイ後に適用されても安全です。下記の ordering fence
+     ではこれを `post-deploy-safe` と呼びます。
+   - 新しいビルドが直ちに参照する migration の場合でも、この workflow は
+     デプロイの前後を保証しません（deploy には一切関与しないため）。この
+     ordering fence ではこれを `schema-first-required` と呼び、そのケースは
+     引き続き migration PR と app code PR を分離し、migration PR を先に
+     merge・適用してから app code PR を merge する運用で担保します。
+     Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
+     migration と app code の同一 PR 同居を拒否しているのはこのためです。
 
 `docs/runbooks/gate-a-remote-environment.md` の「Deploy / update」節が、この
 判断基準の canonical な記述です。
@@ -113,10 +124,15 @@ recurring failure になったため、次の 2 段構えの deterministic fence
    この job は Production 認証情報を一切必要としない（PR 本文と `git
 diff` だけを見る）。そのため、実際に Production へ migration が適用
    されたかどうかは検証できない — 検証できるのは「その判断が PR
-   evidence として記録されているか」だけである。この repository の
-   Secret boundary（下記「Environment Variables の所有境界」）に従い、
-   Production 認証情報を新たに CI secret として追加することは意図的に
-   避けている。
+   evidence として記録されているか」だけである。**Issue #131 当時は、この
+   repository の Secret boundary に従い Production 認証情報を CI secret として
+   追加することを意図的に避けていた。** Issue #387（PO 判断 D1 = D）でこの
+   前提を明示的に変更し、`SUPABASE_DB_URL`（`--db-url` 用の接続文字列に限定、
+   Personal Access Token や service-role key ではない）を下記 3 の workflow
+   専用の CI secret として追加した。この job（`Verify / Migration Ordering
+Fence`）自体は変更しておらず、`schema-first-required` の運用（migration PR
+   と app code PR を分離し、migration PR を先に merge する）は依然として
+   このマーカーと Artifact Sequencing Fence が担う。
 
 2. **operator-facing read-only drift check
    （`scripts/check-migration-drift.mjs`）**: `supabase migration list
@@ -130,20 +146,36 @@ diff` だけを見る）。そのため、実際に Production へ migration が
    pending（repository にはあるが Production 未適用）・unexpected
    remote-only（Production にはあるが repository に対応 file がない）の
    いずれかがあれば non-zero で fail する。認証・接続に失敗した場合も
-   synced とはみなさず、`UNKNOWN`（exit code 2）として fail する — CI
-   からは実行しない、operator が `supabase link --project-ref <ref>`
-   済みの shell から明示的に実行するコマンドである
-   （`docs/runbooks/gate-a-remote-environment.md` 「Deploy / update」
-   参照）。
+   synced とはみなさず、`UNKNOWN`（exit code 2）として fail する — この
+   スクリプト自体は CI からは実行しない、operator が
+   `supabase link --project-ref <ref>` 済みの shell から明示的に実行する
+   コマンドである（`docs/runbooks/gate-a-remote-environment.md`
+   「Deploy / update」参照）。下記 3 の自動適用 workflow は、この
+   operator-facing スクリプトを呼ばず、`scripts/lib/migrationDrift.mjs` を
+   共有しつつ別経路（`scripts/apply-pending-migrations.mjs`）で同じ
+   classify を行う。
+
+3. **Production migration の自動適用（`.github/workflows/apply-migrations.yml`、
+   Issue #387、PO 判断 D1 = D）**: `main` への push（および
+   `workflow_dispatch`）を検知し、`scripts/apply-pending-migrations.mjs` が
+   `supabase migration list --db-url` → 分類 → `supabase db push --db-url
+--include-all --skip-vault --yes` を実行する。`SUPABASE_DB_URL` は
+   `production` environment の Environment secret で、Deployment branches が
+   `main` に限定される（`docs/runbooks/v2-migration-apply-setup.md`）。
+   pending 以外（remote-only / unknown）を検知した場合は書き込まずに stop
+   し、適用後も同じ classify 経路で `skip` を再確認する（詳細は runbook と
+   `docs/v2/decisions.md` の A8 追補）。deploy の起動・抑止には一切関与せず、
+   Vercel の Git auto-deploy とは独立に動く。
 
 ## Environment Variables の所有境界
 
-| 変数                                                                          | 所有者 / 設定場所                                   | 用途                                                                                                                    |
-| ----------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables   | ブラウザ/サーバー双方で読まれる公開値（[src/infrastructure/supabase/env.ts](../../src/infrastructure/supabase/env.ts)） |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables   | 同上。anon key であり service role key ではない                                                                         |
-| Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                              |
-| `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）   | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない   |
+| 変数                                                                          | 所有者 / 設定場所                                                                         | 用途                                                                                                                                                                          |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[src/infrastructure/supabase/env.ts](../../src/infrastructure/supabase/env.ts)）                                                       |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables                                         | 同上。anon key であり service role key ではない                                                                                                                               |
+| Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings                                       | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                                                                                    |
+| `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）                                         | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない                                                         |
+| `SUPABASE_DB_URL`                                                             | GitHub `production` environment の Environment secret（Deployment branches: `main` のみ） | `.github/workflows/apply-migrations.yml` 専用。Postgres 接続文字列で `--db-url` の到達範囲はその 1 データベースに限られる。Personal Access Token や service-role key ではない |
 
 - `NEXT_PUBLIC_*` プレフィックスの 2 変数だけが、実際にデプロイされたアプリへ
   Supabase client 値として渡る変数です
@@ -198,14 +230,14 @@ diff` だけを見る）。そのため、実際に Production へ migration が
 
 ## Local / CI / Remote 環境との差分
 
-| 項目                | Local dev                                         | CI（`verify.yml`）                             | Production (Remote)                                         |
-| ------------------- | ------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------- |
-| Supabase            | ローカル Docker スタック（`supabase start`）      | ローカル Docker スタック（同上、CI 内で起動）  | 新規作成した hosted Supabase project                        |
-| `site_url`          | `http://localhost:3000`（`supabase/config.toml`） | 同左                                           | `https://stage-tracker.com`（Dashboard で個別設定）         |
-| SMTP                | `[local_smtp]`（実送信せず Web UI で確認のみ）    | 同左                                           | Resend（Supabase Dashboard の Auth SMTP 設定）              |
-| Auth 設定の適用方法 | `supabase/config.toml` を直接読む                 | 同左                                           | **`supabase config push` は使わない**。Dashboard へ手動反映 |
-| migration 適用      | `supabase db reset` / CLI が自動適用              | CI 内で自動適用                                | `supabase db push` をオペレーターが手動実行                 |
-| Env vars            | `.env.local`（`.env.local.example` を複製）       | 不要（ローカル Docker スタックの既定値を使用） | Vercel Production Environment Variables                     |
+| 項目                | Local dev                                         | CI（`verify.yml`）                             | Production (Remote)                                                    |
+| ------------------- | ------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------- |
+| Supabase            | ローカル Docker スタック（`supabase start`）      | ローカル Docker スタック（同上、CI 内で起動）  | 新規作成した hosted Supabase project                                   |
+| `site_url`          | `http://localhost:3000`（`supabase/config.toml`） | 同左                                           | `https://stage-tracker.com`（Dashboard で個別設定）                    |
+| SMTP                | `[local_smtp]`（実送信せず Web UI で確認のみ）    | 同左                                           | Resend（Supabase Dashboard の Auth SMTP 設定）                         |
+| Auth 設定の適用方法 | `supabase/config.toml` を直接読む                 | 同左                                           | **`supabase config push` は使わない**。Dashboard へ手動反映            |
+| migration 適用      | `supabase db reset` / CLI が自動適用              | CI 内で自動適用                                | `main` push を検知した `apply-migrations.yml` が自動適用（Issue #387） |
+| Env vars            | `.env.local`（`.env.local.example` を複製）       | 不要（ローカル Docker スタックの既定値を使用） | Vercel Production Environment Variables                                |
 
 ### なぜ `supabase config push` を remote へ使わないか
 
@@ -246,7 +278,10 @@ Issue #61 の docs consistency 対応で両方とも解消済みです。履歴�
 supabase:migrations:drift -- --linked` という operator-facing の
   on-demand deterministic command は追加したが（上記「migration
   pre-merge ordering fence」参照）、これは手動実行が前提であり、
-  スケジュール実行等による継続的な自動検知ではない。継続的自動化には
-  CI へ Production 認証情報を持たせる必要があり、この repository の
-  Secret boundary（実質的に Production 常時到達可能な新しい attack
-  surface を作ること）との trade-off を再評価してから決める。
+  スケジュール実行等による継続的な自動検知ではない。Issue #387（PO 判断
+  D1 = D）で「CI へ Production 認証情報を持たせるか」という trade-off 自体は
+  `main` push 契機の自動適用（上記「migration pre-merge ordering fence」3）
+  として決着し、`SUPABASE_DB_URL` を到達範囲の狭い（`--db-url` のみ、
+  Personal Access Token ではない）CI secret として導入した。ただしこれは
+  push 契機の apply であり、独立したスケジュール実行による continuous drift
+  detection ではない。両者を同一視しない。
