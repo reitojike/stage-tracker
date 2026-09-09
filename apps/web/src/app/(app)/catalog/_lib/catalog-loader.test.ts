@@ -53,8 +53,18 @@ describe("loadCatalogFilterOptions", () => {
     server.use(
       http.get(`${REST_URL}/genres`, () =>
         HttpResponse.json([
-          { id: "11111111-1111-4111-8111-111111111111", key: "takarazuka", display_name: "宝塚", sort_order: 1 },
-          { id: "22222222-2222-4222-8222-222222222222", key: "kabuki", display_name: "歌舞伎", sort_order: 2 },
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            key: "takarazuka",
+            display_name: "宝塚",
+            sort_order: 1,
+          },
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            key: "kabuki",
+            display_name: "歌舞伎",
+            sort_order: 2,
+          },
         ]),
       ),
       // takarazuka's facet is group (event_groups), kabuki's is venue (events).
@@ -89,7 +99,12 @@ describe("loadCatalogFilterOptions", () => {
     server.use(
       http.get(`${REST_URL}/genres`, () =>
         HttpResponse.json([
-          { id: "22222222-2222-4222-8222-222222222222", key: "kabuki", display_name: "歌舞伎", sort_order: 1 },
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            key: "kabuki",
+            display_name: "歌舞伎",
+            sort_order: 1,
+          },
         ]),
       ),
       http.get(`${REST_URL}/events`, () =>
@@ -146,7 +161,12 @@ describe("catalog's list and filter reads degrade independently", () => {
       // `events` (venue) branch above, not the group (event_groups) one.
       http.get(`${REST_URL}/genres`, () =>
         HttpResponse.json([
-          { id: "22222222-2222-4222-8222-222222222222", key: "kabuki", display_name: "歌舞伎", sort_order: 1 },
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            key: "kabuki",
+            display_name: "歌舞伎",
+            sort_order: 1,
+          },
         ]),
       ),
     );

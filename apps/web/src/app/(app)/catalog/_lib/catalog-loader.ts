@@ -10,7 +10,10 @@ import {
   type TokyoCalendarDateRange,
 } from "@/lib/data";
 import { classifyBlock1, type BlockState } from "@/app/_lib/read-state";
-import { activeFacetForGenre, type CatalogFilterOptions } from "./catalog-filters";
+import {
+  activeFacetForGenre,
+  type CatalogFilterOptions,
+} from "./catalog-filters";
 
 /**
  * `/catalog`'s data layer (`docs/v2/oracle-routes-ui.md` §1 `/catalog`).
