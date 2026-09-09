@@ -1,17 +1,36 @@
-// Pure logic for the pre-merge migration ordering fence (Issue #131). Kept
-// separate from scripts/check-migration-ordering-fence.mjs's git/env I/O so
-// the classification rules are unit-testable without a real PR or git repo.
+// Pure logic for the pre-merge migration ordering fence (Issue #131, revised
+// by #393). Kept separate from scripts/check-migration-ordering-fence.mjs's
+// git/env I/O so the classification rules are unit-testable without a real
+// PR or git repo.
 //
-// Root cause this fence targets: #121/#124/#125 each shipped a migration
-// that the merged frontend code referenced immediately, but Production
+// ## Two different dependency directions, and why this fence now asks the
+// ## second one
+//
+// #121/#124/#125 were the first direction: **code → schema**. The merged
+// frontend code referenced a column/RPC immediately, but Production
 // Supabase migration apply lagged the Vercel auto-deploy, so the new code
-// ran against a schema that didn't have the column/RPC yet
-// (docs/architecture/runtime-stack.md "デプロイ・実行経路"). This fence
-// forces the schema-first-required / post-deploy-safe judgment call to be
-// made explicitly, in the PR body, before merge - it cannot verify that
-// Production was actually migrated (CI has no Production credentials by
-// design; see docs/architecture/runtime-stack.md "Environment Variables の
-// 所有境界"), only that the judgment and its evidence were recorded.
+// ran against a schema that didn't have it yet. That direction is now
+// closed structurally: the Artifact Sequencing Fence
+// (scripts/lib/artifactSequencingFence.mjs, Issue #387 PO 判断 D1 = D)
+// rejects any PR that puts a migration and deployable app code in the same
+// PR, so "this PR's code needs a schema that isn't there yet" can no longer
+// happen. The original "schema-first-required" / "post-deploy-safe" vocab
+// asked exactly that question, and asking it is now moot.
+//
+// PR #389 (docs/v2/decisions.md "A8 追補") showed the second, opposite
+// direction: **schema → code**. The migration itself changed a value that
+// *already-deployed* code reads (an `error.code` emitted by a RPC), and the
+// already-deployed reader (`apps/web`'s `classifyRpcError`) gated on the old
+// value before looking at anything else - so the new value silently fell
+// through to a generic path. This fence targets that direction now.
+//
+// As before, this fence cannot verify that a dependency PR was actually
+// merged/deployed (CI has no Production credentials for this job by design;
+// see docs/architecture/runtime-stack.md "Environment Variables の所有
+// 境界"), only that the judgment and its evidence were recorded. Judgment
+// *correctness* is the reviewer's job (docs/v2/decisions.md "fence が判定
+// すること / しないこと"); this fence only prevents the judgment from being
+// silently skipped.
 
 const MIGRATION_DIR = 'supabase/migrations/';
 const MIGRATION_SUFFIX = '.sql';
@@ -34,9 +53,18 @@ function isMigrationFile(file) {
 // [\s*_`]* tolerates markdown emphasis/code-span punctuation (**bold**,
 // `code`, _italic_) between the "ordering:" label and the value, so authors
 // can format the marker line without breaking the match.
-const ORDERING_PATTERN =
-  /migration ordering:[\s*_`]*(schema-first-required|post-deploy-safe)[\s*_`]*/gi;
-const PRODUCTION_APPLY_PATTERN = /production migration applied:\s*(.+)/i;
+//
+// "additive": no already-deployed reader's observed behavior changes for
+//   any value it could previously produce/observe. Safe regardless of
+//   whether this migration is applied before or after any given deploy.
+// "runtime-first-required": this migration changes a value or shape that
+//   an already-deployed reader consults (an emitted error code, an enum's
+//   semantics, a constraint an existing writer could violate, a column a
+//   deployed reader still reads, ...). The runtime change that already
+//   tolerates/produces the new value must be merged - and therefore, given
+//   Vercel's Git auto-deploy, already live - before this migration merges.
+const ORDERING_PATTERN = /migration ordering:[\s*_`]*(additive|runtime-first-required)[\s*_`]*/gi;
+const RUNTIME_DEPENDENCY_PATTERN = /runtime dependency merged:\s*(.+)/i;
 const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
 
 // NUL 区切り（`git diff -z`）と改行区切りの両方を受ける。呼び出し側が `-z` を
@@ -60,8 +88,8 @@ export function parseAddedMigrationFiles(diffNameStatusOutput) {
 export function extractMigrationOrdering(prBody) {
   // Strip HTML comments first: .github/pull_request_template.md's own
   // instructional text (inside an HTML comment, invisible in the rendered
-  // PR) contains example "Migration ordering:" / "Production migration
-  // applied:" text that must never be mistaken for an author's real marker.
+  // PR) contains example "Migration ordering:" / "Runtime dependency
+  // merged:" text that must never be mistaken for an author's real marker.
   const body = (typeof prBody === 'string' ? prBody : '').replace(HTML_COMMENT_PATTERN, '');
 
   const orderingMatches = [...body.matchAll(ORDERING_PATTERN)];
@@ -70,15 +98,17 @@ export function extractMigrationOrdering(prBody) {
   // either way, no single unambiguous judgment was recorded.
   const classification = orderingMatches.length === 1 ? orderingMatches[0][1].toLowerCase() : null;
 
-  const productionApplyMatch = PRODUCTION_APPLY_PATTERN.exec(body);
-  const productionApplyEvidence = productionApplyMatch ? productionApplyMatch[1].trim() : null;
+  const runtimeDependencyMatch = RUNTIME_DEPENDENCY_PATTERN.exec(body);
+  const runtimeDependencyEvidence = runtimeDependencyMatch
+    ? runtimeDependencyMatch[1].trim()
+    : null;
 
   return {
     classification,
     ambiguous: orderingMatches.length > 1,
-    productionApplyEvidence:
-      productionApplyEvidence && productionApplyEvidence.length > 0
-        ? productionApplyEvidence
+    runtimeDependencyEvidence:
+      runtimeDependencyEvidence && runtimeDependencyEvidence.length > 0
+        ? runtimeDependencyEvidence
         : null,
   };
 }
@@ -91,7 +121,7 @@ export function evaluateMigrationOrderingFence({ addedMigrationFiles, prBody }) 
     };
   }
 
-  const { classification, ambiguous, productionApplyEvidence } = extractMigrationOrdering(prBody);
+  const { classification, ambiguous, runtimeDependencyEvidence } = extractMigrationOrdering(prBody);
 
   if (ambiguous) {
     return {
@@ -108,27 +138,30 @@ export function evaluateMigrationOrderingFence({ addedMigrationFiles, prBody }) 
       ok: false,
       reason:
         `This PR adds ${addedMigrationFiles.length} migration file(s) but the PR body is missing ` +
-        'the required "Migration ordering: schema-first-required" or "Migration ordering: ' +
-        'post-deploy-safe" line. See docs/architecture/runtime-stack.md "デプロイ・実行経路" for ' +
-        'the criteria, and .github/pull_request_template.md for the exact format.',
+        'the required "Migration ordering: additive" or "Migration ordering: ' +
+        'runtime-first-required" line. See docs/architecture/runtime-stack.md "デプロイ・実行経路" ' +
+        'for the criteria, and .github/pull_request_template.md for the exact format.',
     };
   }
 
-  if (classification === 'schema-first-required' && productionApplyEvidence === null) {
+  if (classification === 'runtime-first-required' && runtimeDependencyEvidence === null) {
     return {
       ok: false,
       reason:
-        'This PR is marked "Migration ordering: schema-first-required" but is missing a ' +
-        '"Production migration applied: <evidence>" line in the PR body. Apply the migration to ' +
-        'Production (operator action; see docs/runbooks/gate-a-remote-environment.md "Schema ' +
-        'migration to the hosted project") and record the evidence before merge.',
+        'This PR is marked "Migration ordering: runtime-first-required" but is missing a ' +
+        '"Runtime dependency merged: <evidence>" line in the PR body. Merge (and, given Vercel\'s ' +
+        'Git auto-deploy, thereby deploy) the runtime change that already tolerates/produces the ' +
+        'new value first, then record that evidence (e.g. the runtime PR number) before merging ' +
+        'this migration.',
     };
   }
 
   return {
     ok: true,
     reason: `Migration ordering recorded as "${classification}"${
-      productionApplyEvidence ? ` with Production apply evidence: ${productionApplyEvidence}` : ''
+      runtimeDependencyEvidence
+        ? ` with runtime dependency evidence: ${runtimeDependencyEvidence}`
+        : ''
     }.`,
   };
 }

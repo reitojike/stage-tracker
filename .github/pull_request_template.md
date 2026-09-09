@@ -5,8 +5,8 @@
 （他方は削除）。`Verify / Migration Ordering Fence`
 （scripts/check-migration-ordering-fence.mjs）がこのPR本文のmarkerを
 literalに読み取ります。2行とも残っている場合はambiguousとしてfailします。
-判断基準は docs/architecture/runtime-stack.md「デプロイ・実行経路」を
-参照してください（Issue #131）。
+判断基準は docs/architecture/runtime-stack.md「デプロイ・実行経路」と
+docs/v2/decisions.md「A8 追補」を参照してください（Issue #131 / #393）。
 -->
 
 ## Migration ordering
@@ -29,39 +29,37 @@ supabase/ を丸ごと許可はしません。supabase/functions/** は
 `supabase functions deploy` で実際に deploy されるため、また
 config.toml / seed.sql も実需が出るまで許可しないためです。
 
-Issue #121/#124/#125 の事故は、同居していたために「migration がまだ
-Production に無いのに新 schema 必須の app が先に deploy される」状態を
-作れてしまったのが原因でした。その状態自体を作れなくします。
+Issue #121/#124/#125 の事故（code → schema: PR のコードが新しい schema を
+必要とする）は、artifact sequencing fence がこの同居を拒否するため
+構造的に起きなくなりました。下の marker が問うのは**逆方向**（schema →
+code: この migration が、既に deploy されているコードを壊すか）です。
 
-**checker が判断しないこと** —— どちらも reviewer が判断してください。
+**checker が判断しないこと** —— reviewer が判断してください。
 
-  - この migration は後方互換な expand か
-  - **どちらの PR を先に land させるか**
+  - この migration は本当に additive か（既存 reader の挙動を一切変えないか）
+  - runtime-first-required の場合、依存する runtime PR は実際に
+    merge・deploy 済みか
 
-順序は変更の種類で逆になります。column を足す変更は migration が先ですが、
-**DB が出す値を変える変更（error code 等）は runtime が先**です。
-`raise ... using errcode` は 1 つの値しか持てず、「新旧どちらの code も出す」
-という DB 側だけの expand が原理的にできないため、読む側を先に広げるしか
-ありません（PR #389 / #392 で実際に間違えました）。
+column を足すだけの変更は大抵 additive です。**DB が出す値を変える変更
+（error code 等）は additive ではありません。** `raise ... using errcode`
+は 1 つの値しか持てず、「新旧どちらの code も出す」という DB 側だけの
+expand が原理的にできないため、読む側（runtime）を先に広げる必要が
+あります（PR #389 は当時この判断を誤り、後から #392 を先に merge して
+是正しました）。
 -->
 
 <!-- どちらか一方だけを残し、他方は削除してください。 -->
 
-Migration ordering: post-deploy-safe
-Migration ordering: schema-first-required
+Migration ordering: additive
+Migration ordering: runtime-first-required
 
 <!--
-"schema-first-required" の場合: このPRをmergeする前に、operatorが
-Productionへ該当migrationを適用してください（docs/runbooks/
-gate-a-remote-environment.md「Schema migration to the hosted project」）。
-`pnpm run supabase:migrations:drift -- --linked` で確認した上で、
+"runtime-first-required" の場合: このPRをmergeする前に、その新しい値を
+理解・許容できる runtime 変更を **先に** merge してください（Vercel の
+Git auto-deploy により、merge すればそのまま deploy されます）。
 下の行を実際の内容に書き換えてから残してください（このコメント内の
 例示テキストのままでは evidence として扱われません）。
 
-Production migration applied: <supabase db push --linked を実行した
-日時、drift check結果等の具体的なevidence>
-
-Production credential・project ref等のsecretはここに貼り付けないで
-ください（docs/runbooks/gate-a-remote-environment.md「Secret boundary」
-参照）。
+Runtime dependency merged: <その runtime 変更を含む PR 番号と、
+merge/deploy 済みであることの具体的な evidence>
 -->
