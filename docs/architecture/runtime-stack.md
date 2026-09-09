@@ -137,7 +137,13 @@ gh api repos/{owner}/{repo}/commits/<sha>/status
 ```
 
 `failure` / `pending` のままの Vercel status を、`Verify/*` green を根拠に
-無視して merge しない。
+無視して merge しない。**Vercel の commit status 自体が付いていない場合も
+同様に blocker として扱う**（`unknown` を `success` とみなさない）。
+Vercel integration の停止や dashboard 設定変更で status が生成されなく
+なる可能性があり、その場合に「project に Vercel の項目が無いから確認不要」
+と読み替えると、今回防ごうとしている未検証 deploy のまま merge する事故が
+再現する。`context: "Vercel"` の状態が明示的に `success` であることを
+確認できて初めて merge してよい。
 
 ### migration pre-merge ordering fence（Issue #131、語彙は #393 で改訂）
 
