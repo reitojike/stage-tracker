@@ -335,3 +335,17 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: pnpm run supabase:migrations:ordering-fence
+
+      # PO 判断 D1 = D（docs/v2/decisions.md）: migration と、deploy に届く
+      # artifact を同一 PR に含めない。#121/#124/#125 の事故は、その同居が
+      # 「migration がまだ Production に無いのに新 schema 必須の app が先に
+      # deploy される」状態を作れてしまったことが原因だった。
+      #
+      # ここが判定するのは deterministic fact（同じ PR にあるか）だけ。
+      # 「後方互換な expand か」と「どちらを先に land させるか」はどちらも
+      # reviewer の判断（scripts/lib/artifactSequencingFence.mjs の doc comment）。
+      - name: Verify / Artifact Sequencing Fence
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm run supabase:migrations:artifact-fence

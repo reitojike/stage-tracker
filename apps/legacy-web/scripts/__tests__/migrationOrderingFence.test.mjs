@@ -130,3 +130,37 @@ void test('evaluateMigrationOrderingFence rejects placeholder evidence left insi
   assert.equal(ok, false);
   assert.match(reason, /Production migration applied/);
 });
+
+// --- path 解析の fail open regression（PR #396） ---
+//
+// この parser は scripts/lib/artifactSequencingFence.mjs と**別の copy**なので、
+// 向こうの test では守れない。同じ class の穴を両方で塞いだ以上、coverage も
+// 対称にしておく（片方だけ正規表現へ戻す refactor を検出できるように）。
+
+void test('parseAddedMigrationFiles accepts NUL-delimited input (git diff -z)', () => {
+  assert.deepEqual(
+    parseAddedMigrationFiles('supabase/migrations/20260827000000_a.sql\0src/domain/foo.ts\0'),
+    ['supabase/migrations/20260827000000_a.sql'],
+  );
+});
+
+// git は filename に LF を許す。NUL 区切りの record を LF でも分割すると path が
+// 割れ、その migration を「追加されていない」とみなす（fail open）。
+void test('parseAddedMigrationFiles does not split on an LF inside a path', () => {
+  const files = parseAddedMigrationFiles(
+    'supabase/migrations/20260827000000_a\nb.sql\0src/domain/foo.ts\0',
+  );
+  assert.deepEqual(files, ['supabase/migrations/20260827000000_a\nb.sql']);
+});
+
+// NUL 入力では trim しない —— path の前後の空白は path の一部。
+void test('parseAddedMigrationFiles does not trim NUL-delimited records', () => {
+  assert.deepEqual(parseAddedMigrationFiles('supabase/migrations/20260827000000_a.sql \0'), []);
+});
+
+// 改行区切り（手で動かした場合・素の文字列）は従来どおり trim する。
+void test('parseAddedMigrationFiles still trims newline-delimited input', () => {
+  assert.deepEqual(parseAddedMigrationFiles('  supabase/migrations/20260827000000_a.sql  \n'), [
+    'supabase/migrations/20260827000000_a.sql',
+  ]);
+});

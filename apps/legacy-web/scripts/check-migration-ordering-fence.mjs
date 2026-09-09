@@ -36,12 +36,27 @@ if (typeof headSha !== 'string' || headSha.length === 0) {
 
 const diffResult = spawnSync(
   'git',
-  ['diff', '--name-only', '--diff-filter=A', baseSha, headSha, '--', 'supabase/migrations'],
+  // **three-dot（merge-base 起点）で取る。** two-dot だと branch を切ってから
+  // main 側が進んだぶんが混ざる。実測では、main が既にその migration を
+  // 持っている場合に two-dot が **追加を 1 件も検出せず**、この fence 自体が
+  // 「該当なし」で素通りした（PR #396 で artifact fence 側を直したのと同じ原因）。
+  [
+    'diff',
+    '--name-only',
+    '-z',
+    // rename 検出が効いていると、migration を別 directory へ移した PR で
+    // 追加が観測されない。delete + add として扱う（PR #396 で実測）。
+    '--no-renames',
+    '--diff-filter=A',
+    `${baseSha}...${headSha}`,
+    '--',
+    'supabase/migrations',
+  ],
   { encoding: 'utf8' },
 );
 
 if (diffResult.status !== 0) {
-  console.error(`Failed to diff ${baseSha}..${headSha} for supabase/migrations.`);
+  console.error(`Failed to diff ${baseSha}...${headSha} for supabase/migrations.`);
   console.error(diffResult.stderr);
   process.exitCode = 1;
   process.exit();
