@@ -1,0 +1,89 @@
+name: Apply Migrations
+
+# main へ merge された migration を Production へ適用する（PO 判断 D1 = D、
+# docs/v2/decisions.md）。**operator が手元で supabase login / db push する
+# 手間を無くすため。**
+#
+# ## deploy には一切関与しない
+#
+# Vercel の Git auto-deploy はそのまま。この workflow は deploy を起動も抑止も
+# しない。PR #388（案 C）は「commit A の schema を用意してから commit A を
+# deploy する」を保証しようとして TOCTOU に阻まれた（4 ラウンド連続で P1、
+# 330 行）。
+#
+# **Verify / Artifact Sequencing Fence が migration と app code の同居を
+# 拒否している**ので、適用と deploy の順序を合わせる必要が無い。expand
+# migration は current production app と後方互換であることが条件であり、
+# 適用が deploy の前後どちらでも壊れない。
+#
+# ## secret
+#
+# SUPABASE_DB_URL のみ。GitHub Environment `production` が持ち、Deployment
+# branches を main に限定する。**この repository は agent が workflow ファイルを
+# 書く**ため、PR の branch から secret を読めないことが実質的な保護になる。
+#
+# Supabase の Personal Access Token は使わない（scope 設定が無くアカウント
+# 配下の全 project に届く）。--db-url なら到達範囲がその 1 データベースに限られる。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 同時に 1 本だけ。適用中の job を途中で切ると Production が中途半端な状態に
+# なり得るため cancel-in-progress にしない。
+concurrency:
+  group: apply-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply Migrations / Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      # secret が未登録の間は失敗させない。赤い CI を常態化させると本当の
+      # 失敗が埋もれる。設定が入った時点で自動的に本来の動作になる。
+      - name: Check configuration
+        id: config
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SUPABASE_DB_URL is not set. Skipping. See docs/runbooks/v2-migration-apply-setup.md"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout stage-tracker
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        if: steps.config.outputs.configured == 'true'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node.js
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.config.outputs.configured == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # `supabase` は devDependency なので pnpm 経由で呼ぶ。素の run: では
+      # node_modules/.bin が PATH に無く exit 127 になる。
+      - name: Apply pending migrations
+        if: steps.config.outputs.configured == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: pnpm run supabase:migrations:apply
