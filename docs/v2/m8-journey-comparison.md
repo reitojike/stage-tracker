@@ -198,12 +198,17 @@ baseline」の WCAG 2.2 AA baseline）を持つ項目を分類2として確定�
 | 2   | Ticket opportunity の planning state 書き込み UI が未実装                                              | ticket opportunity | `oracle-routes-ui.md`「/tickets」行                                                                                                                   | **修正済み**（PR #403, merge 済み）                                                            |
 | 3   | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ）                                   | 認証               | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **未修正**（Issue #406 として起票済み、規模が大きいため要スコープ判断 — 詳細は「対応方針」節） |
 | 4   | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落）                   | 認証               | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み                              | **修正済み**（PR #405, merge 済み。本 PR 自体はこの修正 commit を含まない）                    |
-| 5   | Passkey 登録失敗時のエラー種別分類が v2 に無い（一律の汎用メッセージ）                                 | 認証               | `oracle-routes-ui.md:245`「失敗時はエラー種別分類→パネル表示」と明記                                                                                  | **未修正**（詳細は「対応方針」節）                                                             |
+| 5   | Passkey 登録失敗時のエラー種別分類が v2 に無い（一律の汎用メッセージ）                                 | 認証               | `oracle-routes-ui.md:245`「失敗時はエラー種別分類→パネル表示」と明記                                                                                  | **未修正**（PR #407 で修正 commit を提出、review 中。詳細は「対応方針」節）                    |
 | 6   | Event 系 Server Action の permission-denied エラー文言が全 operation で単一の汎用メッセージへ collapse | event/occurrence   | `oracle-domain.md:576-580`「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と明記                                        | **未修正**（詳細は「対応方針」節）                                                             |
 
-残存する分類2（項目3・5・6）は下記「対応方針」節を参照。AC5 が求める
-「0件、または残存分についてcutoverを妨げない理由」は、この3件について
-「対応方針」節で理由と対応予定を記録することで満たす。
+**AC5 は現時点では未達である。** codex review の指摘（本 PR #404 review）
+の通り、「対応方針」節に対応予定を記録すること自体は AC5 が求める
+「cutover を妨げない理由」の充足にはならない。項目5・6 は実際に修正 PR が
+merge されるまで、項目3（Passkey サインイン導線）は PO が明示的に
+「cutover blocker としない」と判断するまで、それぞれ oracle 違反が
+残ったままである。残存する分類2（項目3・5・6）の現在の対応状況は下記
+「対応方針」節を参照し、AC5 の達成は各項目の実際の解決（修正 merge、
+または PO 判断の記録）をもって確認すること。
 
 ### 分類3（legacy の不具合を v2 が正したもの）
 
@@ -275,32 +280,35 @@ Escalate 条件（「差分が product semantics の未決事項に由来する�
    product 判断を PO に委ねる。
    - Evidence: `apps/legacy-web/.../ParticipationSheet.tsx:24-29,86-92`、`apps/web/.../ParticipationControls.tsx:103-114`
 
-## 対応方針（残存する分類2、Escalate — PO 判断が必要）
+## 対応方針（残存する分類2、AC5 は未達 — 進捗を正直に記録する）
 
-以下 3 件が本比較で確定した未修正の分類2。AC5 が求める「0件、または
-残存分について cutover を妨げない理由が記録されている」に対応する。
+以下 3 件が本比較で確定した分類2。**この節に記録すること自体は AC5 の
+充足を意味しない**（codex review 指摘、PR #404）。AC5 は各項目が実際に
+解決される（修正が merge される、または PO が明示的に non-blocker と
+判断する）まで未達として扱う。
 
-1. **Passkey サインイン導線の欠落**（Issue #406）: WebAuthn assertion
-   ceremony の実装（client-side ceremony trigger、
+1. **Passkey サインイン導線の欠落**（Issue #406、**未修正**）: WebAuthn
+   assertion ceremony の実装（client-side ceremony trigger、
    `supabase.auth.signInWithPasskey()` 呼び出し、`docs/v2/
 oracle-routes-ui.md:49` が明記する「Passkey優先＋Magic Linkフォールバック」
    UI）を要する、単純なバグ修正の規模を超える機能追加である。別 bounded
    Task（Issue #406）として起票済み。**oracle が「Passkey優先」を主要な
-   認証経路として明記している**ため、cutover blocker として扱うか
-   post-cutover 追従で良いかは PO 判断が必要だが、Issue 作成者としては
-   前者（cutover blocker）を推奨する。
-2. **Passkey 登録失敗時のエラー種別分類の欠如**: `oracle-routes-ui.md:245`
-   が明記する「エラー種別分類→パネル表示」を v2 は満たしていない
-   （常に単一の汎用メッセージ）。局所的な修正（legacy の
-   `classifyCeremonyError` 相当のロジックを `RegisterPasskeyButton.tsx`
-   へ移植）で完結する見込みが高く、別途 bounded Task として次のセッションで
-   対応する。
-3. **Event 系 Server Action の permission-denied エラー文言の粒度**:
-   `oracle-domain.md:576-580` が「legacy の `eventWriteFeedback.ts` の
-   直積構造をそのまま持ち込むのが最小変更」と明記しているにもかかわらず、
-   v2 は単一の汎用メッセージへ collapse している。`apps/web/src/lib/
-actions/events.ts` の 11 箇所の呼び出し元すべてに影響するため中程度の
-   規模。別途 bounded Task として次のセッションで対応する。
+   認証経路として明記している**ため、これを cutover blocker として扱う
+   ことを推奨する（= non-blocker とする根拠は無い）。**Issue #391 自身は、
+   この項目が解決される（Issue #406 が完了する、または PO が明示的に
+   post-cutover 追従で良いと判断する）まで close しないこと。**
+2. **Passkey 登録失敗時のエラー種別分類の欠如**（**修正 PR 提出済み、
+   review 中**）: `oracle-routes-ui.md:245` が明記する「エラー種別分類→
+   パネル表示」を v2 は満たしていなかった（常に単一の汎用メッセージ）。
+   legacy の `classifyCeremonyError`/`REGISTER_FEEDBACK` と同じ分類を
+   `apps/web/src/lib/passkey-ceremony-error.ts` へ移植する PR #407 を
+   提出済み。merge され次第この項目を「修正済み」へ更新する。
+3. **Event 系 Server Action の permission-denied エラー文言の粒度**
+   （**未修正**）: `oracle-domain.md:576-580` が「legacy の
+   `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と
+   明記しているにもかかわらず、v2 は単一の汎用メッセージへ collapse
+   している。`apps/web/src/lib/actions/events.ts` の 11 箇所の呼び出し元
+   すべてに影響するため中程度の規模。別途 bounded Task として対応する。
 
 ## この文書の運用上の注意
 
