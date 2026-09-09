@@ -1,18 +1,22 @@
 import { spawnSync } from 'node:child_process';
-import { classifyMigrationDrift } from './lib/migrationDrift.mjs';
+import { classifyMigrationDrift } from '../../../scripts/lib/migrationDrift.mjs';
 
 // Operator-only, read-only drift check against the linked Production
-// Supabase project (Issue #131). Not wired into CI: CI has no Production
-// credentials (see docs/architecture/runtime-stack.md "Environment
-// Variables の所有境界"), and this repository's established pattern is
-// that remote/Production access is always an explicit, session-local
-// operator action (scripts/lib/adminTarget.mjs, docs/runbooks/
-// gate-a-remote-environment.md), never CI automation. This script performs
-// no writes - it only reads applied-migration state via the Supabase CLI's
-// own linked-project auth (`supabase login` + `supabase link
-// --project-ref <ref>`, per docs/runbooks/catalog-import.md "3a"), the
-// same mechanism already used for other Production read-only queries in
-// this repository. No service-role key is required or used here.
+// Supabase project (Issue #131). This script itself is not wired into CI:
+// it is always an explicit, session-local operator action
+// (scripts/lib/adminTarget.mjs, docs/runbooks/gate-a-remote-environment.md),
+// authenticated via the Supabase CLI's own linked-project auth
+// (`supabase login` + `supabase link --project-ref <ref>`, per
+// docs/runbooks/catalog-import.md "3a"). It performs no writes and no
+// service-role key is required or used here.
+//
+// Separately, `.github/workflows/apply-migrations.yml` (Issue #387, PO 判断
+// D1 = D) does hold a scoped, write-capable `SUPABASE_DB_URL` connection
+// string as a GitHub Environment secret to auto-apply merged migrations.
+// That workflow uses its own classify/plan path
+// (scripts/apply-pending-migrations.mjs) and does not call this script; see
+// docs/architecture/runtime-stack.md "Environment Variables の所有境界" for
+// the current CI credential boundary.
 //
 // Usage (after `supabase link --project-ref <ref>` in this shell session):
 //   node scripts/check-migration-drift.mjs --linked

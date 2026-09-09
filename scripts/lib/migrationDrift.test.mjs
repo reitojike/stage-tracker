@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { classifyMigrationDrift } from '../lib/migrationDrift.mjs';
+import { classifyMigrationDrift } from './migrationDrift.mjs';
 
 void test('classifyMigrationDrift reports unknown for null input', () => {
   const { status } = classifyMigrationDrift(null);

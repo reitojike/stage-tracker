@@ -49,7 +49,8 @@
     "test:e2e": "pnpm --filter @stage-tracker/web run test:e2e",
     "verify:e2e": "pnpm run verify:database:start && supabase db reset && pnpm run test:e2e",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
-    "supabase:migrations:artifact-fence": "node scripts/check-artifact-sequencing-fence.mjs"
+    "supabase:migrations:artifact-fence": "node scripts/check-artifact-sequencing-fence.mjs",
+    "supabase:migrations:apply": "node scripts/apply-pending-migrations.mjs"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
