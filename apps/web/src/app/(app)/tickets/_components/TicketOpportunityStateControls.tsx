@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { TicketOpportunityId, UserTicketOpportunityStatus } from "@stage-tracker/domain";
+import type {
+  TicketOpportunityId,
+  UserTicketOpportunityStatus,
+} from "@stage-tracker/domain";
 import { Button } from "@stage-tracker/ui";
 import { updateTicketOpportunityStateAction } from "@/lib/actions/ticketOpportunityState.actions";
 

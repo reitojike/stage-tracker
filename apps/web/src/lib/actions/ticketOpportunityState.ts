@@ -73,8 +73,7 @@ async function updateStatusByUserAndOpportunity(
   return ok(data !== null);
 }
 
-export interface SetTicketOpportunityStateParams
-  extends TicketOpportunityStateTarget {
+export interface SetTicketOpportunityStateParams extends TicketOpportunityStateTarget {
   readonly status: UserTicketOpportunityStatus;
 }
 

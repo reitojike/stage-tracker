@@ -91,7 +91,10 @@ describe("TicketOpportunityStateControls", () => {
 
   it("shows the server error message inline when the action reports a failure", async () => {
     mockedAction.mockResolvedValueOnce({
-      serverError: { kind: "failure", message: "申し込み状況を更新できませんでした。" },
+      serverError: {
+        kind: "failure",
+        message: "申し込み状況を更新できませんでした。",
+      },
     });
     const user = userEvent.setup();
 

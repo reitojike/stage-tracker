@@ -233,7 +233,10 @@ describe("TicketsView", () => {
                 {
                   monthKey: "2026-03",
                   rows: [
-                    row({ myState: "applied", isFirstRowForOpportunity: false }),
+                    row({
+                      myState: "applied",
+                      isFirstRowForOpportunity: false,
+                    }),
                   ],
                 },
               ],

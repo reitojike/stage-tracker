@@ -14,7 +14,11 @@ import {
   setMyTicketOpportunityState,
 } from "./ticketOpportunityState";
 
-const TICKET_OPPORTUNITY_STATE_INTENTS = ["planned", "applied", "remove"] as const;
+const TICKET_OPPORTUNITY_STATE_INTENTS = [
+  "planned",
+  "applied",
+  "remove",
+] as const;
 
 const updateTicketOpportunityStateInputSchema = z.object({
   opportunityId: ticketOpportunityIdSchema,
