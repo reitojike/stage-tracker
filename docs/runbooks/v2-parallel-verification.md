@@ -88,12 +88,12 @@ port 3001 を開いた時点で既に同じ session が有効です（同一 pro
 
 v2（`apps/web`）側の Magic Link 送信 UI からも sign-in を試すこと自体は
 できますが、**local 環境ではリンクの着地先が port 3001 にはなりません。**
-v2 の `requestMagicLink` は Vercel Preview 環境
-（`NEXT_PUBLIC_VERCEL_ENV === "preview"`）でのみ明示的な
-`emailRedirectTo` を渡す設計で、local 実行時は渡さないため、GoTrue は
-`site_url`（`http://localhost:3000`、legacy 側）へ fallback します
-（`docs/architecture/runtime-stack.md`「Vercel Preview Auth runtime
-contract」参照）。つまり v2 から送った Magic Link を踏んでも legacy 側の
+`apps/web/src/app/sign-in/actions.ts` の `requestSignInLink` は、環境を
+問わず（Preview も含め）`emailRedirectTo` を一切渡さない実装です
+（PO 判断: Free 運用中は remote Preview Supabase を持たず、Vercel Preview
+で authenticated flow を提供しない。同 file のコメント参照）。そのため
+GoTrue は常に `site_url`（`http://localhost:3000`、legacy 側）へ
+fallback します。つまり v2 から送った Magic Link を踏んでも legacy 側の
 `/auth/confirm` へ着地します。session 自体は cookie 経由で両 port に共有
 されるため並走比較は成立しますが、「v2 自身の sign-in 画面〜callback まで」
 を local で検証したい場合はこの制約を踏まえてください。
