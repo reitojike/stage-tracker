@@ -48,12 +48,19 @@ function entry(
 
 const OPTIONS: CatalogFilterOptions = {
   genres: [],
-  groups: [
-    { id: "group-a" as never, key: "a", displayName: "星組" },
-    { id: "group-b" as never, key: "b", displayName: "月組" },
-    { id: "group-c" as never, key: "c", displayName: "花組" },
-  ],
-  venues: ["東京宝塚劇場", "南座"],
+  groupsByGenreKey: {
+    takarazuka: [
+      { id: "group-a" as never, key: "a", displayName: "星組" },
+      { id: "group-b" as never, key: "b", displayName: "月組" },
+      { id: "group-c" as never, key: "c", displayName: "花組" },
+    ],
+    // 別 genre (アイドル) の group. 宝塚選択時の option universe に混ざって
+    // はならない (下記「genre ごとに group をスコープする」テスト参照)。
+    idol: [{ id: "group-d" as never, key: "d", displayName: "テストグループ" }],
+  },
+  venuesByGenreKey: {
+    kabuki: ["東京宝塚劇場", "南座"],
+  },
 };
 
 describe("activeFacetForGenre", () => {
@@ -122,6 +129,54 @@ describe("filterCatalogEntries", () => {
     // group-a, group-b, and group-c (= every known group) all selected ->
     // group facet does not filter, so the group-less event still matches.
     expect(result).toHaveLength(2);
+  });
+
+  it("scopes group options to the selected genre (does not count another genre's groups as still-unselected)", () => {
+    // M8 で確定した v2 の不具合の regression test: 宝塚の3 group 全部を
+    // 選択した場合、アイドルの group が別に存在していても「宝塚 facet では
+    // 絞り込まない」(= 全選択) と判定されなければならない。旧実装は全
+    // genre の group を1つの flat list として数えていたため、宝塚の3件を
+    // 選んでも idol の1件が未選択のままとなり、誤って絞り込みが継続した。
+    const entries = [
+      entry({ genreKey: "takarazuka", groupIds: ["group-a"] }),
+      entry({ genreKey: "takarazuka", groupIds: [] }),
+    ];
+    const result = filterCatalogEntries(
+      entries,
+      {
+        genreKey: "takarazuka",
+        groupIds: ["group-a" as never, "group-b" as never, "group-c" as never],
+        venues: [],
+      },
+      OPTIONS,
+    );
+    expect(result).toHaveLength(2);
+  });
+
+  it("does not let a stale (e.g. localStorage-persisted, cross-genre) selected id count toward 'every known option selected'", () => {
+    // PR #402 review finding 2 の regression test: pre-fix build が保存した
+    // localStorage の選択には、別 genre 由来の group id が混ざり得る
+    // (`group-d` は OPTIONS 上 idol の group)。宝塚の既知3件中2件だけを
+    // 選んでいるのに、この無関係な id が同じ配列に残っていると、素朴な
+    // 「選択数 >= 既知数」比較では 3 >= 3 となり誤って「全選択 (=絞り込み
+    // 解除)」と判定されてしまう。stale id を除いた実際の選択数 (2) で
+    // 判定しなければならない。
+    const entries = [
+      entry({ genreKey: "takarazuka", groupIds: ["group-a"] }),
+      entry({ genreKey: "takarazuka", groupIds: ["group-c"] }),
+    ];
+    const result = filterCatalogEntries(
+      entries,
+      {
+        genreKey: "takarazuka",
+        groupIds: ["group-a" as never, "group-d" as never],
+        venues: [],
+      },
+      OPTIONS,
+    );
+    // 絞り込みは有効なままのはず: group-a を持つ event だけがヒットする。
+    expect(result).toHaveLength(1);
+    expect(result[0]?.classification.groupIds).toEqual(["group-a"]);
   });
 
   it("applies the venue facet only for the genre whose active facet is venue", () => {

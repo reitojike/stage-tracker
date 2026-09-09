@@ -368,6 +368,14 @@ function FilterPanel({
   const knownGenreKeys = Object.keys(GENRE_LABELS_JA).filter((key) =>
     options.genres.some((genre) => genre.key === key),
   );
+  const groupOptions =
+    draft.genreKey !== null
+      ? (options.groupsByGenreKey[draft.genreKey] ?? [])
+      : [];
+  const venueOptions =
+    draft.genreKey !== null
+      ? (options.venuesByGenreKey[draft.genreKey] ?? [])
+      : [];
 
   function setGenre(genreKey: string | null) {
     onChange({ genreKey, groupIds: [], venues: [] });
@@ -429,7 +437,7 @@ function FilterPanel({
             {draft.genreKey === "idol" ? "グループ" : "組"}
           </legend>
           <div className="flex flex-wrap gap-xs">
-            {options.groups.map((group) => (
+            {groupOptions.map((group) => (
               <label
                 key={group.id}
                 className="flex items-center gap-2xs text-body-sm"
@@ -452,7 +460,7 @@ function FilterPanel({
             会場
           </legend>
           <div className="flex flex-wrap gap-xs">
-            {options.venues.map((venue) => (
+            {venueOptions.map((venue) => (
               <label
                 key={venue}
                 className="flex items-center gap-2xs text-body-sm"

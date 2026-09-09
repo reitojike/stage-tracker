@@ -23,10 +23,13 @@ import {
   mapGenreRow,
   mapGroupRow,
   type GenreRow,
+  type GroupRow,
 } from "../mappers/classificationRow";
 import { mapRows } from "../row-mapping";
+import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
 import { runSupabaseSelect } from "../supabase-select";
+import { runPagedSupabaseSelect } from "../paged-select";
 
 /**
  * PR #381 review finding 1: 各 read はここで `client` を
@@ -160,37 +163,82 @@ export async function listCatalogGenres(
   return mapRows(rowsResult.value, mapGenreRow);
 }
 
-/** `/catalog` のフィルタ option chain（group）。genre に紐づかない汎用
- * lookup 全件（AGENTS.md「Group」）。 */
-export async function listCatalogGroups(
-  client: SupabaseClient<Database>,
-): Promise<ReadResult<readonly Group[]>> {
-  const query = client
-    .from("groups")
-    .select("*")
-    .order("display_name", { ascending: true });
-
-  const rowsResult = await runSupabaseSelect(query);
-  if (!rowsResult.ok) {
-    return rowsResult;
-  }
-  return mapRows(rowsResult.value, mapGroupRow);
+interface EventGroupGroupRow {
+  readonly groups: GroupRow;
 }
 
 /**
- * `/catalog` のフィルタ option chain（venue）。`events.venue` は canonical
- * master を持たない生 text（AGENTS.md「Venue」）なので、catalog 全体の
- * 既存 venue 値を distinct に列挙する。PostgREST に `DISTINCT` を直接
- * 指定する手段が無いため、非 null な venue を全件読んでから JS 側で
- * de-duplicate する（catalog 全体の event 数が M6a 時点で大きくない想定 -
- * 将来 event 数が増えた場合は RPC 化を検討する、AGENT-level 技術判断）。
+ * `/catalog` のフィルタ option chain（genre ごとの group）。group の
+ * canonical identity は genre へ hard-bind されないが（AGENTS.md
+ * 「Group」）、「この genre に関連する group」は、その genre の Event に
+ * 実際に associate されている group から動的に導出する、と同じ節が定める
+ * とおり、この読み方は `genreId` にスコープする（M8 で確定した v2 の
+ * 不具合の修正 - 旧実装は genre を無視して全 group を返していた）。
+ * catalog 全体が対象で、表示中の月には限定しない
+ * （AGENTS.md「Filter option universe」）。
+ *
+ * `event_groups` の該当行数（group 数ではなく Event-group 関連の延べ数）が
+ * `supabase/config.toml` の `api.max_rows` を超えると PostgREST は silently
+ * truncate するため、`runPagedSupabaseSelect` で全件読む（レビュー指摘:
+ * group 数自体より先にこの延べ数が上限へ達し得る）。
+ */
+export async function listCatalogGroups(
+  client: SupabaseClient<Database>,
+  genreId: string,
+): Promise<ReadResult<readonly Group[]>> {
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("event_groups")
+      .select("groups(*), events!inner(genre_id)", { count: "exact" })
+      .eq("events.genre_id", genreId)
+      .order("event_id", { ascending: true })
+      .order("group_id", { ascending: true })
+      .range(from, to),
+  );
+  if (!rowsResult.ok) {
+    return rowsResult;
+  }
+
+  const byId = new Map<string, Group>();
+  for (const row of rowsResult.value as readonly EventGroupGroupRow[]) {
+    const groupResult = mapGroupRow(row.groups);
+    if (!groupResult.ok) {
+      console.error("[read] row mapping failed", groupResult.error);
+      return err(readError("failure"));
+    }
+    byId.set(groupResult.value.id, groupResult.value);
+  }
+  return ok(
+    [...byId.values()].sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, "ja"),
+    ),
+  );
+}
+
+/**
+ * `/catalog` のフィルタ option chain（genre ごとの venue）。`events.venue`
+ * は canonical master を持たない生 text（AGENTS.md「Venue」）なので、
+ * `genreId` の Event が持つ既存 venue 値を distinct に列挙する（M8 で確定
+ * した v2 の不具合の修正 - 旧実装は genre を無視して catalog 全体の venue
+ * を返していた）。PostgREST に `DISTINCT` を直接指定する手段が無いため、
+ * 非 null な venue を全件読んでから JS 側で de-duplicate する（catalog
+ * 全体の event 数が M6a 時点で大きくない想定 - 将来 event 数が増えた場合は
+ * RPC 化を検討する、AGENT-level 技術判断）。`listCatalogGroups` と同じ
+ * truncation hazard があるため `runPagedSupabaseSelect` で全件読む。
  */
 export async function listCatalogVenues(
   client: SupabaseClient<Database>,
+  genreId: string,
 ): Promise<ReadResult<readonly string[]>> {
-  const query = client.from("events").select("venue").not("venue", "is", null);
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("events")
+      .select("venue", { count: "exact" })
+      .eq("genre_id", genreId)
+      .not("venue", "is", null)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }
