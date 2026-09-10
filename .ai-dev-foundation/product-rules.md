@@ -677,6 +677,26 @@ AND venue IN (東京宝塚劇場)` のように拡張することを、この fa
 - 上記 verification status 等の schema を、将来可能性だけを理由に MVP へ
   先行追加しません。
 
+## 認証: サインイン redirect の query string 境界
+
+- 未認証 user を protected route から `/sign-in` へ default-deny redirect
+  する際、元 URL の query string を無条件に転送しません（PO 判断、
+  2026-09-10）。
+- `error` / `requested` 等の Auth UI state は、それを発生させた Auth flow
+  自身だけが明示的に付与します（例: 無効な magic link を検出した
+  `/auth/confirm` 自身がその redirect で `error=link_expired` を付与する）。
+  default-deny redirect が任意の外部 query を無条件で透過させる経路は
+  持ちません。
+- 将来 return-to（サインイン後に元のページへ戻す）を実装する場合も、
+  「元 URL の query を丸ごとコピーする」実装は禁止します。導入するなら、
+  許可された内部パスのみを受理する allowlist 検証付きの専用 parameter
+  （例: 検証済み `return_to`）として個別に設計します。
+- この境界が対象とするのは「protected route 経由の default-deny redirect
+  が任意の query を forward すること」だけです。`/sign-in` 自体は未認証
+  到達可能な public path であり、`/sign-in?error=...` を外部から直接
+  踏ませるケースまでは対象にしません（`/sign-in` を到達不能にはできない
+  ため、この経路は別の課題として残ります）。
+
 ## 時刻・タイムゾーン
 
 - product 上の日付境界は `Asia/Tokyo` です。
