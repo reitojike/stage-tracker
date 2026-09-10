@@ -83,8 +83,9 @@ describe("throwEventWriteError", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const messages = WRITE_OPERATIONS.map(
       (operation) =>
-        catchActionError(() => throwEventWriteError(operation, rawError("42501")))
-          .message,
+        catchActionError(() =>
+          throwEventWriteError(operation, rawError("42501")),
+        ).message,
     );
     expect(new Set(messages).size).toBe(WRITE_OPERATIONS.length);
   });
@@ -159,8 +160,9 @@ describe("throwEventDeleteError", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const messages = DELETE_OPERATIONS.map(
       (operation) =>
-        catchActionError(() => throwEventDeleteError(operation, rawError("42501")))
-          .message,
+        catchActionError(() =>
+          throwEventDeleteError(operation, rawError("42501")),
+        ).message,
     );
     expect(new Set(messages).size).toBe(DELETE_OPERATIONS.length);
   });
@@ -181,8 +183,9 @@ describe("throwEventDeleteError", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const messages = DELETE_OPERATIONS.map(
       (operation) =>
-        catchActionError(() => throwEventDeleteError(operation, rawError("90001")))
-          .message,
+        catchActionError(() =>
+          throwEventDeleteError(operation, rawError("90001")),
+        ).message,
     );
     expect(new Set(messages).size).toBe(DELETE_OPERATIONS.length);
   });
@@ -220,8 +223,9 @@ describe("throwEventCancellationError / throwEventCancellationPermissionDenied",
     );
     const viaDirect = CANCELLATION_OPERATIONS.map(
       (operation) =>
-        catchActionError(() => throwEventCancellationPermissionDenied(operation))
-          .message,
+        catchActionError(() =>
+          throwEventCancellationPermissionDenied(operation),
+        ).message,
     );
     expect(new Set(viaError).size).toBe(CANCELLATION_OPERATIONS.length);
     expect(viaDirect).toEqual(viaError);

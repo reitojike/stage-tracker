@@ -37,10 +37,7 @@ function toMessage(feedback: EventWriteFeedback): string {
 }
 
 export type EventWriteOperation =
-  | "create-event"
-  | "update-event"
-  | "add-occurrence"
-  | "update-occurrence";
+  "create-event" | "update-event" | "add-occurrence" | "update-occurrence";
 
 const WRITE_PERMISSION_DENIED: Record<EventWriteOperation, EventWriteFeedback> =
   {
@@ -56,17 +53,20 @@ const WRITE_PERMISSION_DENIED: Record<EventWriteOperation, EventWriteFeedback> =
     },
     "add-occurrence": {
       title: "この公演回を追加する権限がありません",
-      description: "公演回を追加できるのは、そのイベントを登録したユーザーだけです。",
+      description:
+        "公演回を追加できるのは、そのイベントを登録したユーザーだけです。",
     },
     "update-occurrence": {
       title: "この公演回を編集する権限がありません",
-      description: "公演回を編集できるのは、そのイベントを登録したユーザーだけです。",
+      description:
+        "公演回を編集できるのは、そのイベントを登録したユーザーだけです。",
     },
   };
 
 const WRITE_VALIDATION: EventWriteFeedback = {
   title: "入力内容を保存できませんでした",
-  description: "入力内容に問題があります。各項目の内容を確認して、もう一度お試しください。",
+  description:
+    "入力内容に問題があります。各項目の内容を確認して、もう一度お試しください。",
 };
 
 const WRITE_EFFECTIVELY_CANCELED: EventWriteFeedback = {
@@ -129,7 +129,10 @@ export function throwEventWriteError(
     code: error.code,
     message: error.message,
   });
-  throw new ActionError<EventWriteExtraKind>("failure", toMessage(WRITE_FAILURE));
+  throw new ActionError<EventWriteExtraKind>(
+    "failure",
+    toMessage(WRITE_FAILURE),
+  );
 }
 
 /** plain UPDATE が RLS `USING` に除外されて 0 行成功になったケース
@@ -146,29 +149,36 @@ export function throwEventWritePermissionDenied(
 
 export type EventDeleteOperation = "delete-event" | "delete-occurrence";
 
-const DELETE_PERMISSION_DENIED: Record<EventDeleteOperation, EventWriteFeedback> =
-  {
-    "delete-event": {
-      title: "このイベントを削除する権限がありません",
-      description: "イベントを削除できるのは、そのイベントを登録したユーザーだけです。",
-    },
-    "delete-occurrence": {
-      title: "この公演回を削除する権限がありません",
-      description: "公演回を削除できるのは、そのイベントを登録したユーザーだけです。",
-    },
-  };
+const DELETE_PERMISSION_DENIED: Record<
+  EventDeleteOperation,
+  EventWriteFeedback
+> = {
+  "delete-event": {
+    title: "このイベントを削除する権限がありません",
+    description:
+      "イベントを削除できるのは、そのイベントを登録したユーザーだけです。",
+  },
+  "delete-occurrence": {
+    title: "この公演回を削除する権限がありません",
+    description:
+      "公演回を削除できるのは、そのイベントを登録したユーザーだけです。",
+  },
+};
 
-const DELETE_BLOCKED_FEEDBACK: Record<EventDeleteOperation, EventWriteFeedback> =
-  {
-    "delete-event": {
-      title: "このイベントは削除できません",
-      description: "関連する参加・招待がある公演回が含まれているため削除できません。",
-    },
-    "delete-occurrence": {
-      title: "この公演回は削除できません",
-      description: "関連する参加・招待があるため削除できません。",
-    },
-  };
+const DELETE_BLOCKED_FEEDBACK: Record<
+  EventDeleteOperation,
+  EventWriteFeedback
+> = {
+  "delete-event": {
+    title: "このイベントは削除できません",
+    description:
+      "関連する参加・招待がある公演回が含まれているため削除できません。",
+  },
+  "delete-occurrence": {
+    title: "この公演回は削除できません",
+    description: "関連する参加・招待があるため削除できません。",
+  },
+};
 
 const DELETE_FAILURE: EventWriteFeedback = {
   title: "削除に失敗しました",
@@ -203,7 +213,10 @@ export function throwEventDeleteError(
     code: error.code,
     message: error.message,
   });
-  throw new ActionError<EventWriteExtraKind>("failure", toMessage(DELETE_FAILURE));
+  throw new ActionError<EventWriteExtraKind>(
+    "failure",
+    toMessage(DELETE_FAILURE),
+  );
 }
 
 export type EventCancellationOperation =
@@ -218,19 +231,23 @@ const CANCELLATION_PERMISSION_DENIED: Record<
 > = {
   "cancel-event": {
     title: "このイベントを中止にする権限がありません",
-    description: "イベントの中止操作は、そのイベントを登録したユーザーだけが行えます。",
+    description:
+      "イベントの中止操作は、そのイベントを登録したユーザーだけが行えます。",
   },
   "uncancel-event": {
     title: "このイベントの中止を解除する権限がありません",
-    description: "イベントの中止解除は、そのイベントを登録したユーザーだけが行えます。",
+    description:
+      "イベントの中止解除は、そのイベントを登録したユーザーだけが行えます。",
   },
   "cancel-occurrence": {
     title: "この公演回を中止にする権限がありません",
-    description: "公演回の中止操作は、そのイベントを登録したユーザーだけが行えます。",
+    description:
+      "公演回の中止操作は、そのイベントを登録したユーザーだけが行えます。",
   },
   "uncancel-occurrence": {
     title: "この公演回の中止を解除する権限がありません",
-    description: "公演回の中止解除は、そのイベントを登録したユーザーだけが行えます。",
+    description:
+      "公演回の中止解除は、そのイベントを登録したユーザーだけが行えます。",
   },
 };
 
