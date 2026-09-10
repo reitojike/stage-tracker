@@ -88,10 +88,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 // path は末尾に関わらず default-deny のままにする。
 //
 // PWA の manifest / icon（`docs/v2/oracle-routes-ui.md` §0、legacy の
-// `PWA_PUBLIC_ASSET_PATHS`）は同種の明示例外だが、apps/web にはまだ
-// それらの route/asset 自体が存在しないため、ここには追加しない。
-// 追加する場合は exact-path のみを対象にし（`$` で終端し、descendant を
-// 含めない）、対応する asset 一覧との同期を検証するテストを併設すること。
+// `PWA_PUBLIC_ASSET_PATHS`）は、サインイン前の installability 評価に必要な
+// 明示例外。exact-path のみを対象にし（`$` で終端し、descendant を含めない）、
+// 対応する asset 一覧との同期をテストで検証する。
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico$|manifest\\.webmanifest$|pwa/icon-192\\.png$|pwa/icon-512\\.png$|pwa/maskable-icon-512\\.png$|pwa/apple-touch-icon\\.png$).*)",
+  ],
 };

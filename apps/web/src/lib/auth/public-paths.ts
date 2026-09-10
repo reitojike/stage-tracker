@@ -6,11 +6,10 @@
  * 拒否する（新しい route を追加しても、この一覧へ明示的に足さない限り
  * 自動的には公開されない）。
  *
- * PWA の manifest / icon は現行では同じ default-deny 境界の例外だが、
- * `config.matcher`（静的解析が必要な Next.js の制約）側の除外として
- * 扱われ、この allowlist には含まれない。apps/web にはまだ PWA の
- * manifest route / icon asset 自体が存在しないため、ここでは追加しない
- * （実装され次第、`src/proxy.ts` の matcher 側で改めて確認すること）。
+ * PWA の manifest / icon は同じ default-deny 境界の例外として実装済みだが、
+ * `config.matcher`（静的解析が必要な Next.js の制約）側の exact-path 除外として
+ * 扱われ、この allowlist には含まれない。対応する例外は `src/proxy.ts` の
+ * matcher と v2 PWA 回帰テストで管理する。
  */
 export const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   "/sign-in",
