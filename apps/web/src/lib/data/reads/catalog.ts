@@ -233,6 +233,15 @@ export async function listCatalogGroups(
  * を超えると PostgREST は silently truncate するため、`listCatalogGroups`
  * / `listCatalogVenues` と同じく `runPagedSupabaseSelect` で全件読む
  * （codex review 指摘）。
+ *
+ * `groupIds` はここでは呼び出し元が集めた **unique な canonical group
+ * identity 数**（表示中の1ヶ月分に登場する Event の延べ group 関連数では
+ * ない）で、Gate A の canonical group 数自体が小規模（宝塚の組・アイドル
+ * グループとも数十件規模、AGENTS.md「Catalog classification / venue
+ * boundary」）なため、`.in("id", groupIds)` の URL 長で問題になる規模には
+ * 現状達しない - `listCatalogVenues` の「catalog 全体の event 数が M6a
+ * 時点で大きくない想定」と同じ技術判断（codex review 指摘: ID 自体の
+ * chunk 化。将来 group 数が現実的にこの規模を超えた場合に対応する）。
  */
 export async function listGroupsByIds(
   client: SupabaseClient<Database>,
