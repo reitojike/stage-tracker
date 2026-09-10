@@ -1,13 +1,15 @@
 /**
  * `docs/v2/oracle-routes-ui.md:245`（`/mypage` Passkey 登録）「失敗時は
- * エラー種別分類→パネル表示」。M8 journey 比較（`docs/v2/
- * m8-journey-comparison.md`）で確定した分類2の不具合の修正 - v2 は
- * これまで WebAuthn ceremony の失敗理由を分類せず、常に単一の汎用
- * メッセージを表示していた。
+ * エラー種別分類→パネル表示」、および `docs/v2/oracle-routes-ui.md:49`
+ * （`/sign-in`）「サインイン（Passkey優先＋Magic Linkフォールバック）」。
+ * M8 journey 比較（`docs/v2/m8-journey-comparison.md`）で確定した分類2の
+ * 不具合の修正（register 側は PR #407 で修正済み、sign-in 側は Issue
+ * #406） - v2 はこれまで WebAuthn ceremony の失敗理由を分類せず、常に
+ * 単一の汎用メッセージを表示していた。
  *
  * `apps/legacy-web/src/domain/passkey.ts` の `classifyCeremonyError`/
- * `REGISTER_FEEDBACK` と同じ SQLSTATE 集合・同じ文言を、v2 側で
- * （legacy import 禁止のため）再実装したもの
+ * `REGISTER_FEEDBACK`/`SIGN_IN_FEEDBACK` と同じ SQLSTATE 集合・同じ文言を、
+ * v2 側で（legacy import 禁止のため）再実装したもの
  * （`apps/web/src/app/(app)/mypage/_data/passkeyDisplay.ts` と同じ理由）。
  *
  * `AuthError`/`WebAuthnError` は構造的にこの interface を満たすため、
@@ -102,4 +104,44 @@ export function resolveRegisterPasskeyFeedback(
   kind: PasskeyCeremonyErrorKind,
 ): PasskeyCeremonyFeedback {
   return REGISTER_FEEDBACK[kind];
+}
+
+/**
+ * Issue #406（`docs/v2/oracle-routes-ui.md:49`「サインイン（Passkey優先＋
+ * Magic Linkフォールバック）」）。sign-in 失敗時は、legacy の
+ * `SIGN_IN_FEEDBACK` と同じく常に Magic Link フォームへの案内を添える
+ * （register 失敗時とは異なり、その場に代替手段が無いため）。
+ */
+const SIGN_IN_FEEDBACK: Record<
+  PasskeyCeremonyErrorKind,
+  PasskeyCeremonyFeedback
+> = {
+  cancelled: {
+    title: "Passkeyサインインをキャンセルしました",
+    description:
+      "もう一度お試しいただくか、下のメールアドレスからサインインしてください。",
+  },
+  unsupported: {
+    title: "この端末・ブラウザではPasskeyサインインを利用できません",
+    description: "下のメールアドレスからサインインしてください。",
+  },
+  duplicate: {
+    title: "Passkeyサインインに失敗しました",
+    description: "下のメールアドレスからサインインしてください。",
+  },
+  "too-many": {
+    title: "Passkeyサインインに失敗しました",
+    description: "下のメールアドレスからサインインしてください。",
+  },
+  failure: {
+    title: "Passkeyサインインに失敗しました",
+    description:
+      "通信状況を確認してもう一度お試しいただくか、下のメールアドレスからサインインしてください。",
+  },
+};
+
+export function resolveSignInPasskeyFeedback(
+  kind: PasskeyCeremonyErrorKind,
+): PasskeyCeremonyFeedback {
+  return SIGN_IN_FEEDBACK[kind];
 }

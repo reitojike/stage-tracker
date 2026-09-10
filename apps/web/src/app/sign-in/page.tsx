@@ -1,5 +1,6 @@
 import { Button } from "@stage-tracker/ui";
 import { requestSignInLink } from "./actions";
+import { PasskeySignInButton } from "./_components/PasskeySignInButton";
 
 interface SignInPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -62,23 +63,46 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           リクエストを受け付けました。登録済みのメールアドレスで、メール送信が利用可能な場合はサインインリンクが届きます。届かない場合は時間をおいて再試行するか、管理者に連絡してください。
         </p>
       ) : (
-        <form
-          action={requestSignInLink}
-          className="flex w-full max-w-sm flex-col gap-3"
-        >
-          <label htmlFor="email" className="text-sm font-medium">
-            メールアドレス
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-          <Button type="submit">リンクをリクエスト</Button>
-        </form>
+        <div className="flex w-full max-w-sm flex-col gap-6">
+          {/* Passkey登録済みuserの日常sign-in path（Issue #106/#406）。
+              discoverable credentialなのでメールアドレス入力は不要 -
+              下のMagic Link formは未登録user向けのfallbackとして常に
+              併記する（docs/v2/oracle-routes-ui.md:49「Passkey優先＋
+              Magic Linkフォールバック」）。 */}
+          <PasskeySignInButton />
+          <div
+            role="separator"
+            aria-label="または"
+            className="flex items-center gap-3"
+          >
+            <span
+              aria-hidden="true"
+              className="h-px flex-1 border-t border-border"
+            />
+            <p className="text-sm text-muted-foreground">または</p>
+            <span
+              aria-hidden="true"
+              className="h-px flex-1 border-t border-border"
+            />
+          </div>
+          <form
+            action={requestSignInLink}
+            className="flex w-full flex-col gap-3"
+          >
+            <label htmlFor="email" className="text-sm font-medium">
+              メールアドレス
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+            <Button type="submit">リンクをリクエスト</Button>
+          </form>
+        </div>
       )}
     </main>
   );
