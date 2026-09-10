@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type {
   EventClassification,
-  GroupId,
   TokyoCalendarDate,
 } from "@stage-tracker/domain";
 import { Button, StatePanel } from "@stage-tracker/ui";
@@ -27,7 +26,10 @@ import {
   type CatalogFilterOptions,
   type CatalogFilterSelection,
 } from "../_lib/catalog-filters";
-import type { CatalogFilterOptionsResult } from "../_lib/catalog-loader";
+import type {
+  CatalogFilterOptionsResult,
+  CatalogGroupNamesResult,
+} from "../_lib/catalog-loader";
 import {
   buildCatalogMonthViewModel,
   selectDayOccurrences,
@@ -142,8 +144,10 @@ export interface CatalogViewProps {
   /** `page.tsx`'s `loadCatalogEntryGroupNames` - genre に一切スコープせず
    * `eventsState`が実際に持つ `classification.groupIds` から直接解決した
    * もの（codex review 指摘の修正: facet 非対象 genre の group が
-   * `filterOptionsResult` 経由では欠落する問題）。 */
-  readonly groupNameById: ReadonlyMap<GroupId, string>;
+   * `filterOptionsResult` 経由では欠落する問題）。読み取り失敗時は
+   * `filterOptionsResult` と同じく `ok: false` を返し、空 Map へ潰さない
+   * （codex review 指摘: 「group なし」と読み取り失敗の区別）。 */
+  readonly groupNamesResult: CatalogGroupNamesResult;
 }
 
 /**
@@ -175,7 +179,7 @@ export function CatalogView({
   selectedDate,
   eventsState,
   filterOptionsResult,
-  groupNameById,
+  groupNamesResult,
 }: CatalogViewProps) {
   // 保存済みフィルタは `useSyncExternalStore` で読む。以前は lazy な
   // `useState(() => readStoredSelection() ?? ...)` だったが、これは server
@@ -384,17 +388,33 @@ export function CatalogView({
           ) : null}
 
           {selectedDate !== null && !isFilteredZero ? (
-            <SelectedDayList
-              date={selectedDate}
-              month={month}
-              occurrences={selectDayOccurrences(filteredEntries, selectedDate)}
-              fallbackEntries={selectEventLevelFallback(
-                filteredEntries,
-                selectedDate,
-              )}
-              classificationByEventId={classificationByEventId}
-              groupNameById={groupNameById}
-            />
+            <>
+              {!groupNamesResult.ok ? (
+                <StatePanel
+                  variant={groupNamesResult.variant}
+                  title="組・グループの表示名を取得できませんでした"
+                  {...(groupNamesResult.variant === "error"
+                    ? { description: READ_FAILURE_RETRY_HINT_JA }
+                    : {})}
+                />
+              ) : null}
+              <SelectedDayList
+                date={selectedDate}
+                month={month}
+                occurrences={selectDayOccurrences(
+                  filteredEntries,
+                  selectedDate,
+                )}
+                fallbackEntries={selectEventLevelFallback(
+                  filteredEntries,
+                  selectedDate,
+                )}
+                classificationByEventId={classificationByEventId}
+                groupNameById={
+                  groupNamesResult.ok ? groupNamesResult.byId : new Map()
+                }
+              />
+            </>
           ) : null}
         </>
       )}

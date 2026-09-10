@@ -38,30 +38,44 @@ export async function loadCatalogEvents(
   );
 }
 
+export interface CatalogGroupNamesFailure {
+  readonly ok: false;
+  readonly variant: "unavailable" | "error";
+}
+
+export type CatalogGroupNamesResult =
+  | { readonly ok: true; readonly byId: ReadonlyMap<GroupId, string> }
+  | CatalogGroupNamesFailure;
+
 /**
  * カード上の group バッジ表示専用の読み取り（codex review 指摘、M8 分類2
  * 修正）。`loadCatalogFilterOptions` の `groupsByGenreKey` は facet が
  * active な genre（宝塚/アイドル）にしかスコープしないため、venue facet の
  * genre（歌舞伎）に属す Event が group を持っていても解決できない。ここでは
  * 実際にロード済みの `entries` から `classification.groupIds` を集め、
- * genre に一切スコープせず `listGroupsByIds` で直接引く。表示専用の
- * best-effort な補助データのため、`BlockState` ではなく読み取り失敗時は
- * 空 Map へ潰す（badge が消えるだけで、oracle が「read 失敗をblockする」と
- * 定める対象ではないカードの一部飾り情報のため）。
+ * genre に一切スコープせず `listGroupsByIds` で直接引く。
+ *
+ * 読み取り失敗を空 Map へ潰さず `loadCatalogFilterOptions` と同じ
+ * `ok: false` variant を返す（codex review 指摘: 空 Map へ潰すと、実際には
+ * group が関連付いている Event でも通信/権限エラー時に badge が黙って
+ * 消え、「group なし」と読み取り失敗を呼び出し元が区別できなくなる -
+ * `docs/ux-ui.md`「読み込み失敗をデータなしにしない」）。
  */
 export async function loadCatalogEntryGroupNames(
   supabase: SupabaseClient,
   entries: readonly EventCatalogEntry[],
-): Promise<ReadonlyMap<GroupId, string>> {
+): Promise<CatalogGroupNamesResult> {
   const ids = [
     ...new Set(entries.flatMap((entry) => entry.classification.groupIds)),
   ];
   const result = await listGroupsByIds(supabase, ids);
   if (!result.ok) {
-    console.error("[read] catalog entry group names failed", result.error);
-    return new Map();
+    return { ok: false, variant: toReadErrorVariant(result.error.kind) };
   }
-  return new Map(result.value.map((group) => [group.id, group.displayName]));
+  return {
+    ok: true,
+    byId: new Map(result.value.map((group) => [group.id, group.displayName])),
+  };
 }
 
 export interface CatalogFilterOptionsFailure {

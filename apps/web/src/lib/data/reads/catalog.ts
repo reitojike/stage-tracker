@@ -227,6 +227,12 @@ export async function listCatalogGroups(
  * 一切スコープせず、呼び出し元が実際にロード済みの Event 群から集めた
  * `groupIds` をそのまま `id IN (...)` で引く - catalog 全体を舐めるより
  * 安価かつ、facet の有無に依存しない。
+ *
+ * `groupIds` の件数（1 event に associate される group 数の上限が無い -
+ * AGENTS.md「Group」の 0..N）が `supabase/config.toml` の `api.max_rows`
+ * を超えると PostgREST は silently truncate するため、`listCatalogGroups`
+ * / `listCatalogVenues` と同じく `runPagedSupabaseSelect` で全件読む
+ * （codex review 指摘）。
  */
 export async function listGroupsByIds(
   client: SupabaseClient<Database>,
@@ -235,8 +241,14 @@ export async function listGroupsByIds(
   if (groupIds.length === 0) {
     return ok([]);
   }
-  const query = client.from("groups").select("*").in("id", groupIds);
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("groups")
+      .select("*", { count: "exact" })
+      .in("id", groupIds)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }

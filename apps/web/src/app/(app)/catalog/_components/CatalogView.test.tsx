@@ -95,7 +95,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "empty" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -118,7 +118,7 @@ describe("CatalogView", () => {
         selectedDate={"2026-03-10" as never}
         eventsState={{ variant: "empty" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -141,7 +141,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "error" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -159,12 +159,43 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "unavailable" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
     expect(screen.getByText("カタログを確認できません")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a distinct failure panel (not a silently empty group badge) when group name resolution fails (codex review 指摘)", () => {
+    const entries = [
+      entry({
+        title: "単日公演（花組）",
+        startsOn: "2026-03-10",
+        endsOn: "2026-03-10",
+        genreKey: "takarazuka",
+        groupIds: ["group-hana"],
+        occurrences: [{ id: "occ-1", startsAt: "2026-03-10T10:00:00.000Z" }],
+      }),
+    ];
+    render(
+      <CatalogView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={"2026-03-10" as never}
+        eventsState={{ variant: "populated", data: entries }}
+        filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNamesResult={{ ok: false, variant: "error" }}
+      />,
+    );
+
+    expect(
+      screen.getByText("組・グループの表示名を取得できませんでした"),
+    ).toBeInTheDocument();
+    // The event/occurrence itself still renders - only the group badge is
+    // affected, matching `filterOptionsResult`'s own partial-degradation
+    // contract (the list is never blocked by this failure).
+    expect(screen.getByText("単日公演（花組）")).toBeInTheDocument();
   });
 
   it("renders the month calendar (a multi-day Event as a band) and still shows it when the filter option chain fails (partial degradation)", () => {
@@ -176,7 +207,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={{ ok: false, variant: "error" }}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -218,7 +249,7 @@ describe("CatalogView", () => {
             venuesByGenreKey: {},
           },
         }}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -266,7 +297,7 @@ describe("CatalogView", () => {
             venuesByGenreKey: {},
           },
         }}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -300,7 +331,7 @@ describe("CatalogView", () => {
         data: [entry({ title: "宝塚公演", genreKey: "takarazuka" })],
       },
       filterOptionsResult: OK_FILTER_OPTIONS,
-      groupNameById: new Map(),
+      groupNamesResult: { ok: true, byId: new Map() },
     };
     const element = <CatalogView {...props} />;
 
@@ -368,7 +399,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={OK_FILTER_OPTIONS}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -421,7 +452,10 @@ describe("CatalogView", () => {
             venuesByGenreKey: {},
           },
         }}
-        groupNameById={new Map([["group-hana" as never, "花組"]])}
+        groupNamesResult={{
+          ok: true,
+          byId: new Map([["group-hana" as never, "花組"]]),
+        }}
       />,
     );
 
@@ -438,7 +472,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "empty" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 
@@ -459,7 +493,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={OK_FILTER_OPTIONS}
-        groupNameById={new Map()}
+        groupNamesResult={{ ok: true, byId: new Map() }}
       />,
     );
 

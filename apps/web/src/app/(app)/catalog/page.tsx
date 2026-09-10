@@ -93,11 +93,12 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
   // genre facet の有無に関わらず group バッジを解決するため、event 一覧が
   // 読めた場合のみ別読み取りを行う（`loadCatalogEntryGroupNames` のコメント
-  // 参照）。events 自体が読めていない場合は groupIds も存在しないので空。
-  const groupNameById =
+  // 参照）。events 自体が読めていない場合は groupIds も存在しないので、
+  // 失敗ではなく正当な空として扱う。
+  const groupNamesResult =
     eventsState.variant === "populated"
       ? await loadCatalogEntryGroupNames(supabase, eventsState.data)
-      : new Map();
+      : { ok: true as const, byId: new Map() };
 
   return (
     <CatalogView
@@ -106,7 +107,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
       selectedDate={selectedDate}
       eventsState={eventsState}
       filterOptionsResult={filterOptionsResult}
-      groupNameById={groupNameById}
+      groupNamesResult={groupNamesResult}
     />
   );
 }
