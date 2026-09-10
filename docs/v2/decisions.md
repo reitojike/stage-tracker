@@ -1145,3 +1145,89 @@ artifact sequencing fence は「同じ PR にあるか」しか判定せず、**
 出すかは判定しない**。fence の説明が「migration が常に先」と読めると次も同じ
 間違いが起きるため、fence の doc comment・失敗メッセージ・PR template の
 いずれにも順序を書かない。
+
+---
+
+## PO 判断: 未認証 redirect 時の query string は引き継がない（v2 の挙動を正とする）（2026-09-10）
+
+`docs/v2/m8-journey-comparison.md`（Issue #391 の M8 journey 比較）で、認証
+journey の PO 判断待ち事項として起票。legacy は default-deny redirect（`proxy.ts`
+相当）で元 URL の query string をそのまま `/sign-in` へ持ち越すが、v2 は redirect
+時に常に query をクリアする。oracle 文書（`oracle-routes-ui.md` 等）はこの挙動を
+規定していなかった。
+
+### 判明していた事実
+
+- legacy: `curl http://localhost:3000/mypage?error=link_expired&requested=1` →
+  `location: /sign-in?error=link_expired&requested=1`（`apps/legacy-web/src/
+proxy.ts:54-56`）。外部から `?error=link_expired` 等を付与した URL を踏ませることで、
+  実際にはリンク切れが起きていないのに偽の「リンク無効」パネルを表示させる余地がある
+  （enumeration/UI spoofing 目的の悪用余地）。
+- v2: 同条件で `redirectUrl.search = ""` により常にクリアし、`location: /sign-in`
+  のみを返す（`apps/web/src/proxy.ts:64-66`）。
+
+### PO 判断
+
+> 未認証ユーザーをprotected routeから`/sign-in`へredirectする際は、元URLのquery
+> stringを引き継がないv2の挙動を採用する。`error` / `requested` 等のAuth UI
+> stateは、それを発生させたAuth flow自身だけが明示的に付与する。将来return-toが
+> 必要になった場合も、元queryの一括コピーではなく専用のvalidated parameterで
+> 扱う。
+
+**v2 の挙動（query string を一括で持ち越さない）を正とする。** `error` /
+`requested` のような Auth UI state は、それを発生させた Auth flow 自身（例:
+`/auth/confirm` が `link_expired` を検出した場合はその redirect 自身が付与する）
+だけが明示的に付与するものとし、default-deny redirect が任意の外部 query を
+無条件で透過させる経路を持たない。
+
+将来 return-to（サインイン後に元のページへ戻す）が必要になった場合も、この
+決定は「元 URL の query を丸ごとコピーする」実装を禁止する。導入するなら
+専用の validated parameter（例: 許可された内部パスのみを受理する allowlist 検証
+付きの `return_to`）として個別に設計すること。
+
+この決定により、`docs/v2/m8-journey-comparison.md` の当該項目は「PO 判断が
+必要な事項」から**分類1（意図した差分）**へ確定する。legacy 側のこの挙動は
+oracle 違反として修正対象にはしない（legacy は近く廃止されるため）。
+
+---
+
+## PO 判断: 中止済み occurrence でも既存 participation の降格・辞退は UI から許可する（v2 の挙動を正とする）（2026-09-10）
+
+`docs/v2/m8-journey-comparison.md`（Issue #391 の M8 journey 比較）で、
+participation journey の PO 判断待ち事項として起票。legacy の
+`ParticipationSheet` は中止済み occurrence で `attending -> considering` の
+降格選択肢自体を UI から出さないが、v2 の `ParticipationControls` は UI からも
+到達可能にしている。write boundary（DB 側の許可）は両アプリとも元々この降格を
+許可しており、`oracle-routes-ui.md` は中止時の UI 要件として「中止」表示のみを
+明記し、降格 UI の到達可能性までは規定していなかった。
+
+### 判明していた事実
+
+- effective cancellation（Event-level または Occurrence-level の中止）の下でも、
+  新規 participation 作成および `considering -> attending` は禁止されたままである
+  （`event_occurrence_is_effectively_canceled` を見る trigger、custom SQLSTATE
+  `90002`）。
+- 既存の `attending -> considering` 降格および withdraw（辞退）は、中止状態でも
+  product rules（本ファイル上位の Consumer product rules「Cancellation」節）が
+  明示的に許可し続けている。
+- legacy: `ParticipationSheet.tsx:24-29,86-92` が UI レベルで降格選択肢を出さない
+  （write boundary 上は許可されているにもかかわらず）。
+- v2: `ParticipationControls.tsx:103-114` が降格選択肢を出す。write boundary の
+  許可と UI 導線が一致している。
+
+### PO 判断
+
+> effectively canceledなoccurrenceでは、新規participation作成および
+> `considering→attending`は禁止する一方、既存`attending→considering`の降格と
+> withdrawはUIからも操作可能とするv2の挙動を採用する。既存commitmentを弱める・
+> 訂正する操作としてdomain/write boundaryの許可とUIを一致させる。
+
+**v2 の挙動（既存 commitment を弱める・訂正する操作は UI からも常に到達可能）を
+正とする。** 中止済み occurrence に対する制約は「新規の active action（新規
+participation の attending 化）を防ぐ」ことが目的であり、既に `attending` の
+user が事後的に予定を下方修正する操作まで塞ぐ理由にはならない。domain の
+write boundary が既に許可している操作を UI だけが隠す状態は、v2 では解消する。
+
+この決定により、`docs/v2/m8-journey-comparison.md` の当該項目は「PO 判断が
+必要な事項」から**分類1（意図した差分）**へ確定する。legacy 側のこの UI 制限は
+oracle 違反として修正対象にはしない（legacy は近く廃止されるため）。
