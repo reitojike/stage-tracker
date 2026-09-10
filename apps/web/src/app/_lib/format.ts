@@ -4,7 +4,7 @@ import {
   type Instant,
   type TokyoCalendarDate,
 } from "@stage-tracker/domain";
-import { weekdayLabelJa } from "./calendar-grid";
+import { addDays, weekdayLabelJa } from "./calendar-grid";
 
 /** `HH:MM` in Asia/Tokyo wall-clock time - never a raw `Instant`/`Date`
  * formatting shortcut, so every display site goes through the same fixed
@@ -30,6 +30,14 @@ const NEXT_DAY_SUFFIX = "（翌日）";
  * calendar date に及ぶ場合（23:00 開演 → 日付をまたいで終演等）、終了
  * 時刻だけを見ると開始時刻より小さい数字になり逆転して見えるため、
  * 「（翌日）」を付けて区別する。
+ *
+ * `starts_at <= ends_at` はDB level のproduct invariant（AGENTS.md「開場 /
+ * 開演 / 終演」）だが、24時間以内という上限は無い - 開始日の2日以上後に
+ * 終演する公演回もDB上は正当（codex review 指摘: legacy由来の実装が
+ * 「終了日 ≠ 開始日」だけで一律「（翌日）」と表示しており、開始日の翌日
+ * ではない場合に実際より早い終演と誤読させていた）。翌日ちょうどの場合の
+ * みlegacy同様「（翌日）」の短い表記を使い、それより後は実際の終演日を
+ * 明示する。
  */
 export function occurrenceTimeRangeLabel(
   startsAt: Instant,
@@ -40,11 +48,15 @@ export function occurrenceTimeRangeLabel(
     return `${start}〜（${UNKNOWN_END_TIME_LABEL}）`;
   }
   const end = formatTokyoTime(endsAt);
-  const spansToNextDay =
-    instantToTokyoCalendarDate(endsAt) !== instantToTokyoCalendarDate(startsAt);
-  return spansToNextDay
-    ? `${start}〜${end}${NEXT_DAY_SUFFIX}`
-    : `${start}〜${end}`;
+  const startDate = instantToTokyoCalendarDate(startsAt);
+  const endDate = instantToTokyoCalendarDate(endsAt);
+  if (endDate === startDate) {
+    return `${start}〜${end}`;
+  }
+  if (endDate === addDays(startDate, 1)) {
+    return `${start}〜${end}${NEXT_DAY_SUFFIX}`;
+  }
+  return `${start}〜${formatTokyoCalendarDateJa(endDate)} ${end}`;
 }
 
 /** `M月D日(曜)` display for a `TokyoCalendarDate`. */
