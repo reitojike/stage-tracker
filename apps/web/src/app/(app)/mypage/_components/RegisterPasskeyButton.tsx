@@ -3,8 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { Button } from "@stage-tracker/ui";
+import { Button, StatePanel } from "@stage-tracker/ui";
 import { env } from "@/env";
+import {
+  classifyPasskeyCeremonyError,
+  resolveRegisterPasskeyFeedback,
+  type PasskeyCeremonyFeedback,
+} from "@/lib/passkey-ceremony-error";
 
 /**
  * `docs/v2/oracle-routes-ui.md` §1 `/mypage`: 登録は Server Action ではなく
@@ -27,7 +32,7 @@ function createPasskeyBrowserClient() {
 type RegisterState =
   | { readonly status: "idle" }
   | { readonly status: "busy" }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly feedback: PasskeyCeremonyFeedback };
 
 export function RegisterPasskeyButton() {
   const router = useRouter();
@@ -38,9 +43,10 @@ export function RegisterPasskeyButton() {
     const client = createPasskeyBrowserClient();
     const { error } = await client.auth.registerPasskey();
     if (error) {
+      const kind = classifyPasskeyCeremonyError(error);
       setState({
         status: "error",
-        message: "Passkeyを登録できませんでした。もう一度お試しください。",
+        feedback: resolveRegisterPasskeyFeedback(kind),
       });
       return;
     }
@@ -61,9 +67,11 @@ export function RegisterPasskeyButton() {
         {state.status === "busy" ? "登録中…" : "この端末にPasskeyを登録"}
       </Button>
       {state.status === "error" ? (
-        <p role="alert" className="text-body-sm text-destructive">
-          {state.message}
-        </p>
+        <StatePanel
+          variant="error"
+          title={state.feedback.title}
+          description={state.feedback.description}
+        />
       ) : null}
     </div>
   );
