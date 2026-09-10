@@ -145,3 +145,40 @@ export function isCatalogFilterSelectionActive(
     selection.venues.length > 0
   );
 }
+
+/**
+ * Flattens `CatalogFilterOptions.groupsByGenreKey` into a single
+ * `GroupId -> displayName` lookup, for displaying an entry's own
+ * `classification.groupIds` on its card (this Task's confirmed-gap fix -
+ * `EventCatalogEntry.classification` only carries `groupIds` (plain ids,
+ * 0..N), not resolved `Group` rows, matching `@stage-tracker/domain`'s
+ * `EventClassification` doc comment: "the caller joins against a
+ * separately-read catalog-wide Group lookup...to get display names,
+ * mirroring how the Group lookup itself is genre-independent").
+ *
+ * A `Group`'s canonical identity is genre-independent (AGENTS.md "Group":
+ * "group は特定 genre へ hard-bind されません"), so flattening across every
+ * genre key and de-duplicating by id is correct - the same group can only
+ * ever resolve to the same displayName regardless of which genre's option
+ * chain it was reached through.
+ *
+ * Coverage caveat (documented, not fixed here - out of this Task's scope):
+ * `groupsByGenreKey` is itself derived from `listCatalogGroups(genreId)`,
+ * which only returns groups actually associated with an Event of that
+ * genre (`../../_lib`'s own "Filter option universe" contract). An Event
+ * with a group but *no* genre (classification-wise possible per AGENTS.md
+ * "Group", even if the current operator-import flow does not produce this
+ * combination) would not resolve here - the same limitation the existing
+ * genre-scoped filter option chain already has.
+ */
+export function groupDisplayNameById(
+  options: CatalogFilterOptions,
+): ReadonlyMap<GroupId, string> {
+  const byId = new Map<GroupId, string>();
+  for (const groups of Object.values(options.groupsByGenreKey)) {
+    for (const group of groups) {
+      byId.set(group.id, group.displayName);
+    }
+  }
+  return byId;
+}

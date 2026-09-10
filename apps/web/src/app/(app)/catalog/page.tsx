@@ -4,9 +4,8 @@ import { requireAuthenticatedUserId } from "@/app/_lib/require-authenticated-use
 import { resolveScreenNow } from "@/app/_lib/now";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import {
-  firstDayOfMonth,
-  lastDayOfMonth,
-  parseMonthParam,
+  buildMonthGridDays,
+  resolveCalendarMonthAndDate,
   tokyoYearMonthOf,
 } from "@/app/_lib/calendar-grid";
 import {
@@ -24,12 +23,17 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 }
 
 /**
- * `/catalog` (`docs/v2/oracle-routes-ui.md` §1 `/catalog`). Read-only - no
- * Server Action/mutation on this screen (this Task's scope). The `date`
- * search param the oracle's route inventory lists for this path has no
- * described UI behavior in oracle §2 「イベントカタログ一覧」 (unlike
- * `/calendar`'s explicit selected-day feature) - this Task therefore does
- * not wire up day-level selection here (see this Task's report).
+ * `/catalog` (`docs/v2/oracle-routes-ui.md` §1 `/catalog`,
+ * `docs/v2/oracle-domain.md` §2.10 "Catalog navigation"). Read-only - no
+ * Server Action/mutation on this screen (this Task's scope).
+ *
+ * `month`/`date` resolution reuses `/calendar`'s own
+ * `resolveCalendarMonthAndDate` (`@/app/_lib/calendar-grid.ts`) rather than
+ * re-deriving it: the oracle's malformed-value fallback and
+ * "date が勝つ" precedence rule are identical for both screens (both port
+ * the same legacy `resolveCatalogParams`/`resolveMyCalendarParams`
+ * contract), and `/catalog` previously ignored `date` entirely (a confirmed
+ * gap this Task fixes - see this Task's report).
  */
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const supabase = await createSupabaseServerClient();
@@ -49,14 +53,37 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
   const now = resolveScreenNow();
   const params = await searchParams;
-  const month = parseMonthParam(
+  const { month, selectedDate } = resolveCalendarMonthAndDate(
     firstValue(params.month),
+    firstValue(params.date),
     tokyoYearMonthOf(now.todayTokyoDate),
   );
-  const range = {
-    startsOn: firstDayOfMonth(month),
-    endsOn: lastDayOfMonth(month),
-  };
+
+  // The read covers the whole *displayed grid* (including lead/trail days
+  // from adjacent months the month calendar renders - `MonthCalendar.tsx`),
+  // not just the calendar month itself - matching legacy's own
+  // `tokyoCalendarDateRangeUtc(grid.gridFirstDate, grid.gridLastDate)`
+  // (`apps/legacy-web/src/app/catalog/page.tsx`) and this app's own
+  // `/calendar` (`(app)/calendar/page.tsx`'s `gridStart`/`gridEnd`). Without
+  // this, a lead/trail cell's band/dot would always render empty even when
+  // an adjacent-month Event's range actually covers that date.
+  const gridDays = buildMonthGridDays(month);
+  const gridStart = gridDays[0];
+  const gridEnd = gridDays[gridDays.length - 1];
+  if (gridStart === undefined || gridEnd === undefined) {
+    // Unreachable: `buildMonthGridDays` always returns a non-empty (multiple
+    // of 7) array for a month `resolveCalendarMonthAndDate` already
+    // constrained to `isRenderableMonth`. Guarded only to satisfy
+    // `noUncheckedIndexedAccess` (mirrors `/calendar/page.tsx`'s same guard).
+    return (
+      <StatePanel
+        variant="error"
+        title="カタログを読み込めませんでした"
+        description={READ_FAILURE_RETRY_HINT_JA}
+      />
+    );
+  }
+  const range = { startsOn: gridStart, endsOn: gridEnd };
 
   const [eventsState, filterOptionsResult] = await Promise.all([
     loadCatalogEvents(supabase, range),
@@ -66,6 +93,8 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   return (
     <CatalogView
       month={month}
+      today={now.todayTokyoDate}
+      selectedDate={selectedDate}
       eventsState={eventsState}
       filterOptionsResult={filterOptionsResult}
     />
