@@ -11,11 +11,7 @@ import {
 } from "@stage-tracker/domain";
 import { listMyParticipations, listVisiblePersonalSchedule } from "@/lib/data";
 import { classifyBlock1, type BlockState } from "@/app/_lib/read-state";
-import {
-  enumerateTokyoCalendarDates,
-  maxTokyoCalendarDate,
-  minTokyoCalendarDate,
-} from "@/app/_lib/calendar-grid";
+import { scheduleEntryDatesInRange } from "./calendar-view-model";
 
 /**
  * `/calendar`'s data layer (`docs/v2/oracle-routes-ui.md` §1 `/calendar`).
@@ -99,26 +95,12 @@ export interface CalendarScheduleItem {
   readonly entry: PersonalScheduleEntry;
 }
 
-function scheduleEntryTouchedDates(
-  entry: PersonalScheduleEntry,
-  gridStart: TokyoCalendarDate,
-  gridEnd: TokyoCalendarDate,
-): readonly TokyoCalendarDate[] {
-  if (entry.temporal.kind === "all-day") {
-    const start = maxTokyoCalendarDate(entry.temporal.startsOn, gridStart);
-    const end = minTokyoCalendarDate(entry.temporal.endsOn, gridEnd);
-    return enumerateTokyoCalendarDates(start, end);
-  }
-  const date = instantToTokyoCalendarDate(entry.temporal.startsAt);
-  return date >= gridStart && date <= gridEnd ? [date] : [];
-}
-
 /**
  * "個人の予定" block: personal schedule entries visible to the caller
  * (owner or shared-with), indexed by every Asia/Tokyo calendar date the
- * entry touches within `[gridStart, gridEnd]` - a multi-day all-day entry
- * appears on each of its days, matching AGENTS.md's multi-day all-day
- * schedule support.
+ * entry touches within `[gridStart, gridEnd]`. Both multi-day all-day and
+ * known-end time-bounded entries appear on every touched date; an unknown
+ * time-bounded end is limited to the start date.
  */
 export async function loadCalendarSchedule(
   supabase: SupabaseClient,
@@ -133,7 +115,7 @@ export async function loadCalendarSchedule(
         (entry) =>
           [
             entry,
-            scheduleEntryTouchedDates(entry, gridStart, gridEnd),
+            scheduleEntryDatesInRange(entry, gridStart, gridEnd),
           ] as const,
       );
       const items: CalendarScheduleItem[] = touchedByEntry
@@ -159,16 +141,10 @@ export async function loadCalendarSchedule(
 
 /** Sorts occurrence items chronologically by their occurrence's `startsAt`
  * (stable tie-break by participation id). Used when rendering a single
- * day's or month's agenda. */
-export function compareCalendarOccurrenceItems(
-  a: CalendarOccurrenceItem,
-  b: CalendarOccurrenceItem,
-): number {
-  if (a.occurrence.startsAt === b.occurrence.startsAt) {
-    return a.participation.id < b.participation.id ? -1 : 1;
-  }
-  return a.occurrence.startsAt < b.occurrence.startsAt ? -1 : 1;
-}
+ * day's or month's agenda. The pure implementation lives with the calendar
+ * view-model so the loader can reuse its pure schedule date-range helper
+ * without a runtime module cycle. */
+export { compareCalendarOccurrenceItems } from "./calendar-view-model";
 
 /** Re-exported for callers that only have 2 `TokyoCalendarDate`s and want
  * the oracle's own chronological ordering guarantee, without importing

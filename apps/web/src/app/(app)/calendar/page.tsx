@@ -73,6 +73,7 @@ export default async function CalendarPage({
       month={month}
       today={now.todayTokyoDate}
       selectedDate={selectedDate}
+      userId={userResult.value}
       occurrenceState={occurrenceState}
       scheduleState={scheduleState}
     />
