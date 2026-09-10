@@ -3,15 +3,29 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import manifest from "@/app/manifest";
 import {
+  PWA_BACKGROUND_COLOR,
   PWA_ICON_ASSETS,
   PWA_MANIFEST_PATH,
   PWA_PUBLIC_ASSET_PATHS,
+  PWA_THEME_COLOR,
 } from "./app-identity";
 
 const proxySource = readFileSync(join(process.cwd(), "src/proxy.ts"), "utf8");
+const globalsSource = readFileSync(
+  join(process.cwd(), "src/app/globals.css"),
+  "utf8",
+);
 const matcherLiteral = /matcher:\s*\[\s*(["'])([\s\S]*?)\1/
   .exec(proxySource)?.[2]
   ?.replaceAll("\\\\", "\\");
+
+function readHexToken(name: string): string {
+  const match = new RegExp(`^\\s*${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`, "m").exec(
+    globalsSource,
+  );
+  expect(match, `${name} must be a six-digit hex token`).toBeTruthy();
+  return match?.[1]?.toLowerCase() ?? "";
+}
 
 function isProxied(pathname: string): boolean {
   expect(matcherLiteral).toBeDefined();
@@ -95,6 +109,11 @@ describe("v2 PWA installability contract", () => {
     );
     expect(result.icons?.every((icon) => icon.type === "image/png")).toBe(true);
     expect(PWA_MANIFEST_PATH).toBe("/manifest.webmanifest");
+  });
+
+  it("keeps manifest colors aligned with the design tokens", () => {
+    expect(PWA_THEME_COLOR).toBe(readHexToken("--primary"));
+    expect(PWA_BACKGROUND_COLOR).toBe(readHexToken("--background"));
   });
 
   it("ships every declared icon as a PNG at its advertised square size", () => {
