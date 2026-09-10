@@ -8,6 +8,7 @@ import {
   listCatalogGroups,
   listCatalogVenues,
   listEventCatalogInRange,
+  listGroupsByIds,
 } from "./catalog";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
@@ -332,6 +333,99 @@ describe("listCatalogGenres / listCatalogGroups / listCatalogVenues", () => {
       createTestClient(),
       TAKARAZUKA_GENRE_ID,
     );
+
+    expect(requestCount).toBe(2);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(501);
+      expect(result.value.some((group) => group.key === "last-group")).toBe(
+        true,
+      );
+    }
+  });
+});
+
+describe("listGroupsByIds", () => {
+  it("returns an empty result without a request when given no ids", async () => {
+    server.use(
+      http.get(`${REST_URL}/groups`, () => {
+        throw new Error("should not be called");
+      }),
+    );
+
+    const result = await listGroupsByIds(createTestClient(), []);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
+    }
+  });
+
+  it("classifies a failure response as failure", async () => {
+    server.use(
+      http.get(`${REST_URL}/groups`, () =>
+        HttpResponse.json(
+          { message: "internal error", details: "", hint: "", code: "XX000" },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    const result = await listGroupsByIds(createTestClient(), [
+      "11111111-1111-4111-8111-111111111111" as never,
+    ]);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("failure");
+    }
+  });
+
+  /**
+   * codex review 指摘の regression test: `groupIds` の件数（1 event に
+   * associate される group 数の上限が無い - AGENTS.md「Group」）が
+   * `api.max_rows` を超えると、`.range()` によるページングが無ければ
+   * 後続 group が黙って欠落する。500 行ちょうどの1ページ目 + 1行の2ページ
+   * 目、という実際の HTTP request 2 回を経由させて末尾の group が失われ
+   * ないことを確認する（`listCatalogGroups`の同名テストと同じ手法）。
+   */
+  it("pages through more than PAGE_SIZE (500) groups without dropping the last one", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/groups`, ({ request }) => {
+        requestCount += 1;
+        const url = new URL(request.url);
+        const offset = url.searchParams.get("offset");
+        if (offset === "0") {
+          const rows = Array.from({ length: 500 }, (_, i) => ({
+            id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+            key: `group-${i}`,
+            display_name: `Group ${i}`,
+          }));
+          return HttpResponse.json(rows, {
+            status: 200,
+            headers: { "content-range": "0-499/501" },
+          });
+        }
+        return HttpResponse.json(
+          [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              key: "last-group",
+              display_name: "最後の組",
+            },
+          ],
+          { status: 200, headers: { "content-range": "500-500/501" } },
+        );
+      }),
+    );
+
+    const groupIds = Array.from(
+      { length: 501 },
+      (_, i) =>
+        `00000000-0000-4000-8000-${String(i).padStart(12, "0")}` as never,
+    );
+    const result = await listGroupsByIds(createTestClient(), groupIds);
 
     expect(requestCount).toBe(2);
     expect(result.ok).toBe(true);

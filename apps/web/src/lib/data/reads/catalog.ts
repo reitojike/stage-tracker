@@ -216,6 +216,55 @@ export async function listCatalogGroups(
 }
 
 /**
+ * カード上の group バッジ表示用（`listCatalogGroups` とは別の目的 - M8
+ * journey 比較で確定した分類2の修正、codex review 指摘）。
+ * `listCatalogGroups` は genre の group facet が active な genre だけを
+ * 対象にスコープするため（Gate A facet 表: 宝塚/アイドルのみ）、venue
+ * facet の genre（歌舞伎）に属しつつ `group` association も持つ Event が
+ * あった場合、その group はフィルタ option chain 経由では一切解決されず
+ * バッジが黙って欠落する。group の canonical identity は genre へ
+ * hard-bind されない（AGENTS.md「Group」）ため、この読み方は genre に
+ * 一切スコープせず、呼び出し元が実際にロード済みの Event 群から集めた
+ * `groupIds` をそのまま `id IN (...)` で引く - catalog 全体を舐めるより
+ * 安価かつ、facet の有無に依存しない。
+ *
+ * `groupIds` の件数（1 event に associate される group 数の上限が無い -
+ * AGENTS.md「Group」の 0..N）が `supabase/config.toml` の `api.max_rows`
+ * を超えると PostgREST は silently truncate するため、`listCatalogGroups`
+ * / `listCatalogVenues` と同じく `runPagedSupabaseSelect` で全件読む
+ * （codex review 指摘）。
+ *
+ * `groupIds` はここでは呼び出し元が集めた **unique な canonical group
+ * identity 数**（表示中の1ヶ月分に登場する Event の延べ group 関連数では
+ * ない）で、Gate A の canonical group 数自体が小規模（宝塚の組・アイドル
+ * グループとも数十件規模、AGENTS.md「Catalog classification / venue
+ * boundary」）なため、`.in("id", groupIds)` の URL 長で問題になる規模には
+ * 現状達しない - `listCatalogVenues` の「catalog 全体の event 数が M6a
+ * 時点で大きくない想定」と同じ技術判断（codex review 指摘: ID 自体の
+ * chunk 化。将来 group 数が現実的にこの規模を超えた場合に対応する）。
+ */
+export async function listGroupsByIds(
+  client: SupabaseClient<Database>,
+  groupIds: readonly GroupId[],
+): Promise<ReadResult<readonly Group[]>> {
+  if (groupIds.length === 0) {
+    return ok([]);
+  }
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("groups")
+      .select("*", { count: "exact" })
+      .in("id", groupIds)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  if (!rowsResult.ok) {
+    return rowsResult;
+  }
+  return mapRows(rowsResult.value as readonly GroupRow[], mapGroupRow);
+}
+
+/**
  * `/catalog` のフィルタ option chain（genre ごとの venue）。`events.venue`
  * は canonical master を持たない生 text（AGENTS.md「Venue」）なので、
  * `genreId` の Event が持つ既存 venue 値を distinct に列挙する（M8 で確定

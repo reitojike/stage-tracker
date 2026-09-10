@@ -3,7 +3,12 @@ import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
 import { server } from "@/test/msw/server";
-import { loadCatalogEvents, loadCatalogFilterOptions } from "./catalog-loader";
+import {
+  loadCatalogEntryGroupNames,
+  loadCatalogEvents,
+  loadCatalogFilterOptions,
+} from "./catalog-loader";
+import type { EventCatalogEntry } from "@/lib/data";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
@@ -129,6 +134,68 @@ describe("loadCatalogFilterOptions", () => {
     );
 
     const result = await loadCatalogFilterOptions(createTestClient());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.variant).toBe("error");
+    }
+  });
+});
+
+describe("loadCatalogEntryGroupNames", () => {
+  function entryWithGroupId(groupId: string): EventCatalogEntry {
+    return {
+      event: { id: "event-1" } as never,
+      occurrences: [],
+      classification: {
+        eventId: "event-1" as never,
+        genre: null,
+        groupIds: [groupId] as never,
+      },
+    };
+  }
+
+  it("resolves group display names for the entries' own groupIds", async () => {
+    server.use(
+      http.get(`${REST_URL}/groups`, () =>
+        HttpResponse.json(
+          [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              key: "hana",
+              display_name: "花組",
+            },
+          ],
+          { status: 200, headers: { "content-range": "0-0/1" } },
+        ),
+      ),
+    );
+
+    const result = await loadCatalogEntryGroupNames(createTestClient(), [
+      entryWithGroupId("11111111-1111-4111-8111-111111111111"),
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(
+        result.byId.get("11111111-1111-4111-8111-111111111111" as never),
+      ).toBe("花組");
+    }
+  });
+
+  it("returns ok: false instead of a silently empty Map when the group read fails (codex review 指摘: 読み込み失敗をデータなしにしない)", async () => {
+    server.use(
+      http.get(`${REST_URL}/groups`, () =>
+        HttpResponse.json(
+          { message: "boom", details: "", hint: "", code: "XX000" },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    const result = await loadCatalogEntryGroupNames(createTestClient(), [
+      entryWithGroupId("11111111-1111-4111-8111-111111111111"),
+    ]);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

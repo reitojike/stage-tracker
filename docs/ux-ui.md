@@ -837,8 +837,10 @@ screenのcalendar marker semantics（date dot / run period band等）とは
 - weekday headerを表示します。Saturday / Sundayは列位置、weekday header、
   accessible nameを組み合わせて非色cueを成立させ、per-cellの`土` / `日`は
   使いません。
-- 実際の祝日は列位置から導出できないため、per-cellの`祝` cueを残します
-  （`src/ui/DayRoleText.tsx`）。
+- 実際の祝日は列位置から導出できませんが、per-cellの可視`祝`グリフは
+  持ちません（Issue #142「祝グリフは廃止」）。日付の色+太字と、day cell
+  の accessible name（例:「3月20日、祝日」）の組み合わせで判別できるように
+  します。
 - 前後月の日付は`text-secondary`で表示します。色だけを唯一の意味表現にせず、
   accessible name等のsemantic cueを併用します。
 - Event rangeのcalendar bandのradiusは `--radius-band` で、Badgeと同じ段を

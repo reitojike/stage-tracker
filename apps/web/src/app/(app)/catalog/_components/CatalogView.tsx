@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { Badge, Button, StatePanel } from "@stage-tracker/ui";
+import type {
+  EventClassification,
+  TokyoCalendarDate,
+} from "@stage-tracker/domain";
+import { Button, StatePanel } from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   addMonths,
@@ -22,7 +26,18 @@ import {
   type CatalogFilterOptions,
   type CatalogFilterSelection,
 } from "../_lib/catalog-filters";
-import type { CatalogFilterOptionsResult } from "../_lib/catalog-loader";
+import type {
+  CatalogFilterOptionsResult,
+  CatalogGroupNamesResult,
+} from "../_lib/catalog-loader";
+import {
+  buildCatalogMonthViewModel,
+  selectDayOccurrences,
+  selectEventLevelFallback,
+} from "../_lib/calendar-view-model";
+import { catalogMonthHref } from "../_lib/catalog-links";
+import { MonthCalendar } from "./MonthCalendar";
+import { SelectedDayList } from "./SelectedDayList";
 
 const FILTER_STORAGE_KEY = "stage-tracker:catalog-filter:v1";
 
@@ -121,30 +136,50 @@ function subscribeStoredSelection(onStoreChange: () => void): () => void {
 
 export interface CatalogViewProps {
   readonly month: TokyoYearMonth;
+  readonly today: TokyoCalendarDate;
+  /** `null` = 月ランディング（未選択）。`docs/v2/oracle-domain.md` §2.10。 */
+  readonly selectedDate: TokyoCalendarDate | null;
   readonly eventsState: BlockState<readonly EventCatalogEntry[]>;
   readonly filterOptionsResult: CatalogFilterOptionsResult;
+  /** `page.tsx`'s `loadCatalogEntryGroupNames` - genre に一切スコープせず
+   * `eventsState`が実際に持つ `classification.groupIds` から直接解決した
+   * もの（codex review 指摘の修正: facet 非対象 genre の group が
+   * `filterOptionsResult` 経由では欠落する問題）。読み取り失敗時は
+   * `filterOptionsResult` と同じく `ok: false` を返し、空 Map へ潰さない
+   * （codex review 指摘: 「group なし」と読み取り失敗の区別）。 */
+  readonly groupNamesResult: CatalogGroupNamesResult;
 }
 
 /**
  * `/catalog`'s presentational + interactive layer
- * (`docs/v2/oracle-routes-ui.md` §2 「イベントカタログ一覧」). A Client
- * Component because filter selection is held client-local and persisted to
- * `localStorage` (AGENTS.md "Filter persistence": "browser-local
- * persistenceで十分" - no server round-trip, no user preference row).
+ * (`docs/v2/oracle-routes-ui.md` §2 「イベントカタログ一覧」,
+ * `docs/v2/oracle-domain.md` §2.9/§2.10). A Client Component because filter
+ * selection is held client-local and persisted to `localStorage`
+ * (AGENTS.md "Filter persistence": "browser-local persistenceで十分" - no
+ * server round-trip, no user preference row).
  *
- * Simplification versus the oracle's legacy `FilterSheet` (documented in
- * this Task's report): this renders the filter controls as an inline
- * expand/collapse panel rather than a native `<dialog>` bottom sheet -
- * `packages/ui` does not yet have a `Sheet` primitive (only `StatePanel`/
- * `AppShell`/`AppBar`/`PrimaryNav`/`Badge`/`Button` are implemented so far),
- * and adding one is out of this Task's scope. The applied/draft distinction
- * and localStorage persistence are preserved; only the modal presentation
- * is simplified.
+ * Renders the month calendar grid (`MonthCalendar`) + selected-day list
+ * (`SelectedDayList`) - this Task's confirmed-gap fix, replacing this
+ * component's previous flat `<ul>` of every event in the raw range. Legacy's
+ * own `CatalogView.tsx` (the oracle) never renders such a flat landing list
+ * either: full per-event detail (genre/group/venue/cancellation badges) is
+ * reached by selecting a day, exactly mirrored here - see this Task's report
+ * for why the flat list is removed rather than kept alongside the calendar.
+ *
+ * Simplification versus the oracle's legacy `FilterSheet` (documented in a
+ * prior Task's report, unchanged by this Task): this renders the filter
+ * controls as an inline expand/collapse panel rather than a native
+ * `<dialog>` bottom sheet - `packages/ui` does not yet have a `Sheet`
+ * primitive. The applied/draft distinction and localStorage persistence are
+ * preserved; only the modal presentation is simplified.
  */
 export function CatalogView({
   month,
+  today,
+  selectedDate,
   eventsState,
   filterOptionsResult,
+  groupNamesResult,
 }: CatalogViewProps) {
   // 保存済みフィルタは `useSyncExternalStore` で読む。以前は lazy な
   // `useState(() => readStoredSelection() ?? ...)` だったが、これは server
@@ -188,6 +223,27 @@ export function CatalogView({
     );
   }, [eventsState, applied, filterOptionsResult]);
 
+  // event id -> classification, for MonthCalendar/SelectedDayList's badges -
+  // derived from the same `filteredEntries` every rendered surface shares,
+  // so a filtered-out event's classification never leaks into a still-visible
+  // one's lookup.
+  const classificationByEventId = useMemo(
+    () =>
+      new Map<string, EventClassification>(
+        filteredEntries.map((entry) => [entry.event.id, entry.classification]),
+      ),
+    [filteredEntries],
+  );
+
+  // group id -> displayName は `page.tsx` から prop で渡される
+  // (`loadCatalogEntryGroupNames` - genre facet の有無に依存しない解決に
+  // codex review 指摘で変更済み)。
+
+  const viewModel = useMemo(
+    () => buildCatalogMonthViewModel(month, filteredEntries),
+    [month, filteredEntries],
+  );
+
   function applyDraft() {
     setUserApplied(draft);
     storeSelection(draft);
@@ -201,6 +257,23 @@ export function CatalogView({
     setPanelOpen(false);
   }
 
+  // `empty`（raw range に Event が0件）は legacy と同じく「一覧は正常に
+  // 空」という正当な状態として扱い、`unavailable`/`error` とは区別する
+  // （codex/ChatGPT review 指摘: 従来は3つとも同じ StatePanel-only 分岐へ
+  // 潰しており、空月ではカレンダー自体・絞り込みUI・選択日一覧まで消えて
+  // いた。legacy の `CatalogView.tsx` は `isEmptyRange` を「カレンダーは
+  // 描画するが月レベルの空メッセージを追加する」フラグとしてのみ使う -
+  // `apps/legacy-web/src/app/catalog/page.tsx`「A failed catalog read
+  // leaves nothing to filter」コメント参照）。
+  const isRawEmpty = eventsState.variant === "empty";
+  // legacy の `isFilteredZero` 定義そのまま: raw range が既に空の場合は
+  // （上の月レベル空メッセージと二重にならないよう）除外し、絞り込みが
+  // 実際に適用されている場合のみ「条件に合うイベントがありません」を出す。
+  const isFilteredZero =
+    !isRawEmpty &&
+    isCatalogFilterSelectionActive(applied) &&
+    filteredEntries.length === 0;
+
   return (
     <div className="flex flex-col gap-section">
       <h1 className="text-heading font-semibold text-foreground">
@@ -209,7 +282,7 @@ export function CatalogView({
 
       <div className="flex items-center justify-between">
         <Link
-          href={`/catalog?month=${formatMonthParam(addMonths(month, -1))}`}
+          href={catalogMonthHref(addMonths(month, -1))}
           className="text-body-sm text-primary"
         >
           ‹ 前の月
@@ -218,22 +291,21 @@ export function CatalogView({
           {formatMonthJa(formatMonthParam(month))}
         </span>
         <Link
-          href={`/catalog?month=${formatMonthParam(addMonths(month, 1))}`}
+          href={catalogMonthHref(addMonths(month, 1))}
           className="text-body-sm text-primary"
         >
           次の月 ›
         </Link>
       </div>
 
-      {eventsState.variant !== "populated" ? (
+      {eventsState.variant === "unavailable" ||
+      eventsState.variant === "error" ? (
         <StatePanel
           variant={eventsState.variant}
           title={
-            eventsState.variant === "empty"
-              ? "この月に登録されているイベントはありません"
-              : eventsState.variant === "unavailable"
-                ? "カタログを確認できません"
-                : "カタログを読み込めませんでした"
+            eventsState.variant === "unavailable"
+              ? "カタログを確認できません"
+              : "カタログを読み込めませんでした"
           }
           {...(eventsState.variant === "error"
             ? { description: READ_FAILURE_RETRY_HINT_JA }
@@ -290,66 +362,63 @@ export function CatalogView({
             />
           ) : null}
 
-          {filteredEntries.length === 0 ? (
+          <MonthCalendar
+            viewModel={viewModel}
+            selectedDate={selectedDate}
+            today={today}
+          />
+
+          {isRawEmpty && selectedDate === null ? (
+            <StatePanel
+              variant="empty"
+              title="この月に登録されているイベントはありません"
+            />
+          ) : null}
+
+          {isFilteredZero ? (
             <StatePanel
               variant="empty"
               title="条件に合うイベントがありません"
               action={
-                <button
-                  type="button"
-                  onClick={resetFilter}
-                  className="text-body-sm font-medium text-primary"
-                >
+                <Button type="button" variant="secondary" onClick={resetFilter}>
                   条件を解除する
-                </button>
+                </Button>
               }
             />
-          ) : (
-            <ul className="flex flex-col gap-sm">
-              {filteredEntries.map((entry) => (
-                <li key={entry.event.id}>
-                  <EventCatalogRow entry={entry} />
-                </li>
-              ))}
-            </ul>
-          )}
+          ) : null}
+
+          {selectedDate !== null && !isFilteredZero ? (
+            <>
+              {!groupNamesResult.ok ? (
+                <StatePanel
+                  variant={groupNamesResult.variant}
+                  title="組・グループの表示名を取得できませんでした"
+                  {...(groupNamesResult.variant === "error"
+                    ? { description: READ_FAILURE_RETRY_HINT_JA }
+                    : {})}
+                />
+              ) : null}
+              <SelectedDayList
+                date={selectedDate}
+                month={month}
+                occurrences={selectDayOccurrences(
+                  filteredEntries,
+                  selectedDate,
+                )}
+                fallbackEntries={selectEventLevelFallback(
+                  filteredEntries,
+                  selectedDate,
+                )}
+                classificationByEventId={classificationByEventId}
+                groupNameById={
+                  groupNamesResult.ok ? groupNamesResult.byId : new Map()
+                }
+              />
+            </>
+          ) : null}
         </>
       )}
     </div>
-  );
-}
-
-function EventCatalogRow({ entry }: { readonly entry: EventCatalogEntry }) {
-  return (
-    <Link
-      href={`/catalog/events/${entry.event.id}`}
-      className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
-    >
-      <span className="flex items-center gap-xs">
-        {entry.classification.genre !== null ? (
-          <Badge variant="outline">
-            {entry.classification.genre.displayName}
-          </Badge>
-        ) : null}
-        {entry.event.canceledAt !== null ? (
-          <Badge variant="terminal">中止</Badge>
-        ) : null}
-      </span>
-      <span className="text-title font-medium text-foreground">
-        {entry.event.title}
-      </span>
-      <span className="text-body-sm text-muted-foreground">
-        {entry.event.startsOn === entry.event.endsOn
-          ? entry.event.startsOn
-          : `${entry.event.startsOn} 〜 ${entry.event.endsOn}`}
-        {entry.event.venue !== null ? ` ・ ${entry.event.venue}` : ""}
-      </span>
-      {entry.occurrences.length === 0 ? (
-        <span className="text-caption text-muted-foreground">
-          公演回はまだ発表されていません
-        </span>
-      ) : null}
-    </Link>
   );
 }
 
