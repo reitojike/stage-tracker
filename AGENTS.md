@@ -1013,8 +1013,14 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
   active action（新規 participation の attending 化、新規 invitation、
   新規 invitation 等）を拒否します。
 - 既存 participation の withdraw（辞退）は、中止状態でも引き続き許可
-  します。
-- UI では中止状態が「中止」として表示されます。
+  します。既存 `attending` participation の `considering` への降格も同様に、
+  中止状態でも引き続き許可します（PO 判断、2026-09-10）。いずれも既存
+  commitment を弱める・訂正する操作であり、新規の active action ではない
+  ためです。
+- UI では中止状態が「中止」として表示されます。上記の降格・withdraw は、
+  write boundary の許可と一致させ、中止状態でも UI から常に到達可能に
+  します（UI だけが write boundary の許可を隠す状態にはしません。PO 判断、
+  2026-09-10）。
 - 実装（Issue #125）は次のとおりです。
   - `events.canceled_at` / `event_occurrences.canceled_at`（nullable
     `timestamptz`、null = active）を cancellation state として持ちます。
@@ -1458,6 +1464,26 @@ AND venue IN (東京宝塚劇場)` のように拡張することを、この fa
   exact workflow は、その拡大を扱う Post-MVP product checkpoint で決めます。
 - 上記 verification status 等の schema を、将来可能性だけを理由に MVP へ
   先行追加しません。
+
+## 認証: サインイン redirect の query string 境界
+
+- 未認証 user を protected route から `/sign-in` へ default-deny redirect
+  する際、元 URL の query string を無条件に転送しません（PO 判断、
+  2026-09-10）。
+- `error` / `requested` 等の Auth UI state は、それを発生させた Auth flow
+  自身だけが明示的に付与します（例: 無効な magic link を検出した
+  `/auth/confirm` 自身がその redirect で `error=link_expired` を付与する）。
+  default-deny redirect が任意の外部 query を無条件で透過させる経路は
+  持ちません。
+- 将来 return-to（サインイン後に元のページへ戻す）を実装する場合も、
+  「元 URL の query を丸ごとコピーする」実装は禁止します。導入するなら、
+  許可された内部パスのみを受理する allowlist 検証付きの専用 parameter
+  （例: 検証済み `return_to`）として個別に設計します。
+- この境界が対象とするのは「protected route 経由の default-deny redirect
+  が任意の query を forward すること」だけです。`/sign-in` 自体は未認証
+  到達可能な public path であり、`/sign-in?error=...` を外部から直接
+  踏ませるケースまでは対象にしません（`/sign-in` を到達不能にはできない
+  ため、この経路は別の課題として残ります）。
 
 ## 時刻・タイムゾーン
 
