@@ -225,8 +225,14 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
   active action（新規 participation の attending 化、新規 invitation、
   新規 invitation 等）を拒否します。
 - 既存 participation の withdraw（辞退）は、中止状態でも引き続き許可
-  します。
-- UI では中止状態が「中止」として表示されます。
+  します。既存 `attending` participation の `considering` への降格も同様に、
+  中止状態でも引き続き許可します（PO 判断、2026-09-10）。いずれも既存
+  commitment を弱める・訂正する操作であり、新規の active action ではない
+  ためです。
+- UI では中止状態が「中止」として表示されます。上記の降格・withdraw は、
+  write boundary の許可と一致させ、中止状態でも UI から常に到達可能に
+  します（UI だけが write boundary の許可を隠す状態にはしません。PO 判断、
+  2026-09-10）。
 - 実装（Issue #125）は次のとおりです。
   - `events.canceled_at` / `event_occurrences.canceled_at`（nullable
     `timestamptz`、null = active）を cancellation state として持ちます。

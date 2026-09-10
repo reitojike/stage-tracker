@@ -1185,6 +1185,29 @@ proxy.ts:54-56`）。外部から `?error=link_expired` 等を付与した URL �
 専用の validated parameter（例: 許可された内部パスのみを受理する allowlist 検証
 付きの `return_to`）として個別に設計すること。
 
+### この決定が閉じる範囲（codex review 指摘への回答）
+
+**この決定が閉じるのは「protected route から `/sign-in` への default-deny
+redirect が、元ページの任意の query string を無条件で forward する」という
+経路だけである。** `/sign-in?error=link_expired&requested=1` を攻撃者が
+直接 URL として踏ませるケース（redirect を経由しない直接アクセス）は、
+`/sign-in` 自体が両アプリとも `PUBLIC_PATHS` に属する未認証到達可能な
+public path であるため、この決定の前後を問わず、legacy・v2 の両方で
+常に可能である（未認証で `/sign-in` へ到達できること自体が正しい仕様の
+ため、`/sign-in` を到達不能にはできない）。
+
+したがって「偽のリンク無効パネルを外部から表示させる余地」自体は、
+legacy と v2 の**差分ではなく両アプリ共通の既存の性質**であり、この PO
+判断はそれを新たに解消するものではない。この決定が実際に変えるのは
+「protected route 経由の redirect で、`error`/`requested` 以外も含む
+**任意の** query を forward してしまう」という、より広い attack surface
+（legacy にのみ存在し v2 には無い）を閉じることだけである。
+
+`error`/`requested` の provenance を検証する仕組み（例: 署名付き
+one-time token）を持たない直接アクセス経由の spoofing 自体への対処は、
+この決定の scope 外の別課題として残る。必要になった場合は別途 Task として
+起票すること。
+
 この決定により、`docs/v2/m8-journey-comparison.md` の当該項目は「PO 判断が
 必要な事項」から**分類1（意図した差分）**へ確定する。legacy 側のこの挙動は
 oracle 違反として修正対象にはしない（legacy は近く廃止されるため）。
@@ -1231,3 +1254,25 @@ write boundary が既に許可している操作を UI だけが隠す状態は�
 この決定により、`docs/v2/m8-journey-comparison.md` の当該項目は「PO 判断が
 必要な事項」から**分類1（意図した差分）**へ確定する。legacy 側のこの UI 制限は
 oracle 違反として修正対象にはしない（legacy は近く廃止されるため）。
+
+---
+
+## PO 判断: Issue #406（Passkey サインイン導線）は v2 cutover 前の修正必須（2026-09-10）
+
+`docs/v2/m8-journey-comparison.md`（Issue #391 の M8 journey 比較）で確定した
+分類2の残存項目。v2 の `/sign-in` に Passkey サインイン導線
+（`supabase.auth.signInWithPasskey()` を使ったブラウザ直接 WebAuthn
+ceremony）が丸ごと欠落しており、`oracle-routes-ui.md:49` が明記する
+「サインイン（**Passkey優先**＋Magic Linkフォールバック）」を満たしていない
+（Issue #406 として起票済み）。
+
+### PO 判断
+
+> #406もv2 cutover前に修正を必須とします
+
+**Issue #406 は non-blocker 化せず、v2 cutover 前に実際に修正を merge する
+ことを必須とする。** Issue #391 は、Issue #406 が完了するまで close しない。
+
+理由: oracle が Passkey を主要な認証経路として明記しているため、これを
+欠いたまま cutover することは、legacy で既に確立している「登録済み端末なら
+Passkey だけでサインインできる」という日常的な認証体験を v2 で失わせる。

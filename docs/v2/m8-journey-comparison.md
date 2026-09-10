@@ -192,22 +192,23 @@ legacy 側 bug）は分類3の追加候補として残すが、**未確認（unc
 oracle-domain.md` の当該行、または `docs/ux-ui.md`「Accessibility
 baseline」の WCAG 2.2 AA baseline）を持つ項目を分類2として確定する。
 
-| #   | 項目                                                                                                   | journey            | oracle citation                                                                                                                                       | 対応状況                                                                                       |
-| --- | ------------------------------------------------------------------------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 1   | Catalog filter の group/venue option が genre 非依存                                                   | catalog            | AGENTS.md「Group」                                                                                                                                    | **修正済み**（PR #402, merge 済み）                                                            |
-| 2   | Ticket opportunity の planning state 書き込み UI が未実装                                              | ticket opportunity | `oracle-routes-ui.md`「/tickets」行                                                                                                                   | **修正済み**（PR #403, merge 済み）                                                            |
-| 3   | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ）                                   | 認証               | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **未修正**（Issue #406 として起票済み、規模が大きいため要スコープ判断 — 詳細は「対応方針」節） |
-| 4   | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落）                   | 認証               | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み                              | **修正済み**（PR #405, merge 済み。本 PR 自体はこの修正 commit を含まない）                    |
-| 5   | Passkey 登録失敗時のエラー種別分類が v2 に無い（一律の汎用メッセージ）                                 | 認証               | `oracle-routes-ui.md:245`「失敗時はエラー種別分類→パネル表示」と明記                                                                                  | **修正済み**（PR #407, merge 済み）                                                            |
-| 6   | Event 系 Server Action の permission-denied エラー文言が全 operation で単一の汎用メッセージへ collapse | event/occurrence   | `oracle-domain.md:576-580`「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と明記                                        | **修正済み**（PR #408, merge 済み）                                                            |
+| #   | 項目                                                                                                   | journey            | oracle citation                                                                                                                                       | 対応状況                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1   | Catalog filter の group/venue option が genre 非依存                                                   | catalog            | AGENTS.md「Group」                                                                                                                                    | **修正済み**（PR #402, merge 済み）                                                    |
+| 2   | Ticket opportunity の planning state 書き込み UI が未実装                                              | ticket opportunity | `oracle-routes-ui.md`「/tickets」行                                                                                                                   | **修正済み**（PR #403, merge 済み）                                                    |
+| 3   | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ）                                   | 認証               | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **未修正、PO 確定で cutover blocker（Issue #406、2026-09-10）** — 詳細は「対応方針」節 |
+| 4   | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落）                   | 認証               | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み                              | **修正済み**（PR #405, merge 済み。本 PR 自体はこの修正 commit を含まない）            |
+| 5   | Passkey 登録失敗時のエラー種別分類が v2 に無い（一律の汎用メッセージ）                                 | 認証               | `oracle-routes-ui.md:245`「失敗時はエラー種別分類→パネル表示」と明記                                                                                  | **修正済み**（PR #407, merge 済み）                                                    |
+| 6   | Event 系 Server Action の permission-denied エラー文言が全 operation で単一の汎用メッセージへ collapse | event/occurrence   | `oracle-domain.md:576-580`「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と明記                                        | **修正済み**（PR #408, merge 済み）                                                    |
 
 **AC5 は現時点では未達である。** codex review の指摘（本 PR #404 review）
 の通り、「対応方針」節に対応予定を記録すること自体は AC5 が求める
 「cutover を妨げない理由」の充足にはならない。項目3（Passkey サインイン
-導線）は PO が明示的に「cutover blocker としない」と判断するまで oracle
-違反が残ったままである。残存する分類2（項目3）の現在の対応状況は下記
-「対応方針」節を参照し、AC5 の達成は各項目の実際の解決（修正 merge、
-または PO 判断の記録）をもって確認すること。
+導線）は、**PO 判断（2026-09-10）により「v2 cutover 前の修正を必須とする」
+ことが確定した**（`docs/v2/decisions.md`「PO 判断: Issue #406（Passkey
+サインイン導線）は v2 cutover 前の修正必須（2026-09-10）」）。Issue #406
+の実装が merge されるまで AC5 は未達のままであり、これは non-blocker 化に
+よってではなく、実際の修正によってのみ解消する。
 
 ### 分類3（legacy の不具合を v2 が正したもの）
 
@@ -277,16 +278,16 @@ AC4 の「観測した差分」の対象外として扱う。
 解決される（修正が merge される、または PO が明示的に non-blocker と
 判断する）まで未達として扱う。
 
-1. **Passkey サインイン導線の欠落**（Issue #406、**未修正**）: WebAuthn
-   assertion ceremony の実装（client-side ceremony trigger、
-   `supabase.auth.signInWithPasskey()` 呼び出し、`docs/v2/
-oracle-routes-ui.md:49` が明記する「Passkey優先＋Magic Linkフォールバック」
-   UI）を要する、単純なバグ修正の規模を超える機能追加である。別 bounded
-   Task（Issue #406）として起票済み。**oracle が「Passkey優先」を主要な
-   認証経路として明記している**ため、これを cutover blocker として扱う
-   ことを推奨する（= non-blocker とする根拠は無い）。**Issue #391 自身は、
-   この項目が解決される（Issue #406 が完了する、または PO が明示的に
-   post-cutover 追従で良いと判断する）まで close しないこと。**
+1. **Passkey サインイン導線の欠落**（Issue #406、**未修正、PO 確定で
+   cutover blocker**）: WebAuthn assertion ceremony の実装（client-side
+   ceremony trigger、`supabase.auth.signInWithPasskey()` 呼び出し、
+   `docs/v2/oracle-routes-ui.md:49` が明記する「Passkey優先＋Magic Link
+   フォールバック」UI）を要する、単純なバグ修正の規模を超える機能追加
+   である。別 bounded Task（Issue #406）として起票済み。**PO 判断
+   （2026-09-10、`docs/v2/decisions.md`「PO 判断: Issue #406（Passkey
+   サインイン導線）は v2 cutover 前の修正必須（2026-09-10）」）により、
+   v2 cutover 前の修正が必須と確定した。** **Issue #391 自身は、Issue
+   #406 が完了し実際に修正が merge されるまで close しないこと。**
 2. **Passkey 登録失敗時のエラー種別分類の欠如**（**修正済み、PR #407
    merge 済み**）: `oracle-routes-ui.md:245` が明記する「エラー種別分類→
    パネル表示」を v2 は満たしていなかった（常に単一の汎用メッセージ）。
