@@ -9,6 +9,7 @@ import {
   tokyoYearMonthOf,
 } from "@/app/_lib/calendar-grid";
 import {
+  loadCatalogEntryGroupNames,
   loadCatalogEvents,
   loadCatalogFilterOptions,
 } from "./_lib/catalog-loader";
@@ -90,6 +91,14 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
     loadCatalogFilterOptions(supabase),
   ]);
 
+  // genre facet の有無に関わらず group バッジを解決するため、event 一覧が
+  // 読めた場合のみ別読み取りを行う（`loadCatalogEntryGroupNames` のコメント
+  // 参照）。events 自体が読めていない場合は groupIds も存在しないので空。
+  const groupNameById =
+    eventsState.variant === "populated"
+      ? await loadCatalogEntryGroupNames(supabase, eventsState.data)
+      : new Map();
+
   return (
     <CatalogView
       month={month}
@@ -97,6 +106,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
       selectedDate={selectedDate}
       eventsState={eventsState}
       filterOptionsResult={filterOptionsResult}
+      groupNameById={groupNameById}
     />
   );
 }

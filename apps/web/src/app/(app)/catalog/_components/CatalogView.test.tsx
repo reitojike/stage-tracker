@@ -87,7 +87,7 @@ afterEach(() => {
 });
 
 describe("CatalogView", () => {
-  it("renders the raw-empty panel and does not mount filter controls", () => {
+  it("still mounts the month calendar and filter controls when the raw range is empty (ChatGPT review 指摘: legacy's isEmptyRange only adds a month-level notice, it never hides the body)", () => {
     render(
       <CatalogView
         month={MONTH}
@@ -95,13 +95,42 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "empty" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNameById={new Map()}
       />,
     );
 
     expect(
       screen.getByText("この月に登録されているイベントはありません"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/絞り込み/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /絞り込み/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "2026年3月のイベントカレンダー" }),
+    ).toBeInTheDocument();
+  });
+
+  it("still reaches the empty-day panel via SelectedDayList when a date is selected on a raw-empty range", () => {
+    render(
+      <CatalogView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={"2026-03-10" as never}
+        eventsState={{ variant: "empty" }}
+        filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNameById={new Map()}
+      />,
+    );
+
+    // The month-level raw-empty notice only applies to the unselected
+    // landing view (`selectedDate === null`) - once a date is selected, the
+    // day-level empty message from `SelectedDayList` takes over instead.
+    expect(
+      screen.queryByText("この月に登録されているイベントはありません"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("この日に登録されている公演はありません"),
+    ).toBeInTheDocument();
   });
 
   it("renders the error panel and does not mount filter controls (error blocks everything)", () => {
@@ -112,6 +141,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "error" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNameById={new Map()}
       />,
     );
 
@@ -129,6 +159,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "unavailable" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNameById={new Map()}
       />,
     );
 
@@ -145,6 +176,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={{ ok: false, variant: "error" }}
+        groupNameById={new Map()}
       />,
     );
 
@@ -153,8 +185,12 @@ describe("CatalogView", () => {
     // title text can legitimately appear more than once - assert presence,
     // not uniqueness.
     expect(screen.getAllByText("宝塚公演").length).toBeGreaterThan(0);
+    // The day grid itself carries no ARIA grid/row/gridcell roles (codex
+    // review 指摘 - see MonthCalendar.tsx's own comment); the calendar
+    // section is instead identified by its own `aria-label` (implicit
+    // `region` role via `<section>`).
     expect(
-      screen.getByRole("grid", { name: "月間カレンダー" }),
+      screen.getByRole("region", { name: "2026年3月のイベントカレンダー" }),
     ).toBeInTheDocument();
   });
 
@@ -182,6 +218,7 @@ describe("CatalogView", () => {
             venuesByGenreKey: {},
           },
         }}
+        groupNameById={new Map()}
       />,
     );
 
@@ -229,6 +266,7 @@ describe("CatalogView", () => {
             venuesByGenreKey: {},
           },
         }}
+        groupNameById={new Map()}
       />,
     );
 
@@ -262,6 +300,7 @@ describe("CatalogView", () => {
         data: [entry({ title: "宝塚公演", genreKey: "takarazuka" })],
       },
       filterOptionsResult: OK_FILTER_OPTIONS,
+      groupNameById: new Map(),
     };
     const element = <CatalogView {...props} />;
 
@@ -329,6 +368,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNameById={new Map()}
       />,
     );
 
@@ -381,6 +421,7 @@ describe("CatalogView", () => {
             venuesByGenreKey: {},
           },
         }}
+        groupNameById={new Map([["group-hana" as never, "花組"]])}
       />,
     );
 
@@ -397,6 +438,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "empty" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNameById={new Map()}
       />,
     );
 
@@ -417,6 +459,7 @@ describe("CatalogView", () => {
         selectedDate={null}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={OK_FILTER_OPTIONS}
+        groupNameById={new Map()}
       />,
     );
 

@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Group } from "@stage-tracker/domain";
+import type { Group, GroupId } from "@stage-tracker/domain";
 import {
   listCatalogGenres,
   listCatalogGroups,
   listCatalogVenues,
   listEventCatalogInRange,
+  listGroupsByIds,
   toReadErrorVariant,
   type EventCatalogEntry,
   type TokyoCalendarDateRange,
@@ -35,6 +36,32 @@ export async function loadCatalogEvents(
     (entries) => entries,
     (entries) => entries.length === 0,
   );
+}
+
+/**
+ * カード上の group バッジ表示専用の読み取り（codex review 指摘、M8 分類2
+ * 修正）。`loadCatalogFilterOptions` の `groupsByGenreKey` は facet が
+ * active な genre（宝塚/アイドル）にしかスコープしないため、venue facet の
+ * genre（歌舞伎）に属す Event が group を持っていても解決できない。ここでは
+ * 実際にロード済みの `entries` から `classification.groupIds` を集め、
+ * genre に一切スコープせず `listGroupsByIds` で直接引く。表示専用の
+ * best-effort な補助データのため、`BlockState` ではなく読み取り失敗時は
+ * 空 Map へ潰す（badge が消えるだけで、oracle が「read 失敗をblockする」と
+ * 定める対象ではないカードの一部飾り情報のため）。
+ */
+export async function loadCatalogEntryGroupNames(
+  supabase: SupabaseClient,
+  entries: readonly EventCatalogEntry[],
+): Promise<ReadonlyMap<GroupId, string>> {
+  const ids = [
+    ...new Set(entries.flatMap((entry) => entry.classification.groupIds)),
+  ];
+  const result = await listGroupsByIds(supabase, ids);
+  if (!result.ok) {
+    console.error("[read] catalog entry group names failed", result.error);
+    return new Map();
+  }
+  return new Map(result.value.map((group) => [group.id, group.displayName]));
 }
 
 export interface CatalogFilterOptionsFailure {

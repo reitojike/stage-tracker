@@ -109,11 +109,15 @@ export function MonthCalendar({
         </p>
       ) : null}
 
-      <div
-        className="flex flex-col gap-2xs"
-        role="grid"
-        aria-label="月間カレンダー"
-      >
+      {/* No ARIA grid/row/gridcell roles (codex review 指摘, ported from
+          legacy's own MonthCalendar.tsx comment): those require a
+          grid-rooted ancestor plus roving-tabindex arrow-key navigation to
+          be valid, neither of which this bounded-tap-target month view
+          implements. Each day is instead a plain, fully-labelled Link (see
+          labelParts above) - the accessible detail path for a day's full
+          content is the selected-day list this link navigates to, not the
+          visual month grid itself. */}
+      <div className="flex flex-col gap-2xs">
         {viewModel.weeks.map((week, weekIndex) => {
           const overflowEvents = week.bandLayout.overflowEvents;
 
@@ -171,7 +175,20 @@ export function MonthCalendar({
                     key={day.date}
                     href={catalogDayHref(day.date)}
                     aria-label={labelParts.join("、")}
-                    aria-current={isSelected ? "date" : undefined}
+                    // `aria-current="date"` marks *today* within a
+                    // collection of dates (WAI-ARIA `aria-current` value
+                    // "date"'s own definition) - it is not a "selected"
+                    // indicator. The visual/selected state below
+                    // (`isSelected` -> `border-primary bg-muted`) is a
+                    // separate, non-ARIA-current concern, matching legacy's
+                    // own MonthCalendar.tsx (`aria-current` on `todayDate`)
+                    // and My Calendar's oracle (`docs/v2/oracle-domain.md`
+                    // §2.9). A prior revision of this file matched v2's
+                    // existing `/calendar` `CalendarView.tsx` instead (which
+                    // puts `aria-current` on the selected day) - that is
+                    // itself the same misuse, tracked separately for the My
+                    // Calendar parity fix rather than repeated here.
+                    aria-current={isToday ? "date" : undefined}
                     data-date={day.date}
                     style={{ gridColumn: colIndex + 1, gridRow: 1 }}
                     className={cn(

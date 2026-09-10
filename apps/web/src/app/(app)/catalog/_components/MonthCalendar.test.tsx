@@ -42,7 +42,7 @@ function entry(
 const MONTH = { year: 2026, month: 3 };
 
 describe("MonthCalendar", () => {
-  it("renders a 7-day weekday header and the accessible grid landmark", () => {
+  it("renders a 7-day weekday header and the accessible calendar landmark", () => {
     render(
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, [])}
@@ -50,8 +50,11 @@ describe("MonthCalendar", () => {
         today={"2026-03-01" as never}
       />,
     );
+    // No ARIA grid/row/gridcell roles on the day grid itself (codex review
+    // 指摘 - see this component's own comment): the section landmark is
+    // identified by its `aria-label` instead (implicit `region` role).
     expect(
-      screen.getByRole("grid", { name: "月間カレンダー" }),
+      screen.getByRole("region", { name: "2026年3月のイベントカレンダー" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("日")[0]).toBeInTheDocument();
     expect(screen.getByText("土")).toBeInTheDocument();
@@ -96,7 +99,7 @@ describe("MonthCalendar", () => {
     expect(screen.getByText("中止公演（中止）")).toBeInTheDocument();
   });
 
-  it("marks the today cell with aria-current and a selected day distinctly", () => {
+  it('marks only the today cell with aria-current="date" (WAI-ARIA semantics: not the selected day - ChatGPT review 指摘)', () => {
     render(
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, [])}
@@ -104,10 +107,10 @@ describe("MonthCalendar", () => {
         today={"2026-03-10" as never}
       />,
     );
-    const selectedLink = screen.getByRole("link", { name: /3月20日/ });
-    expect(selectedLink).toHaveAttribute("aria-current", "date");
     const todayLink = screen.getByRole("link", { name: /3月10日、今日/ });
-    expect(todayLink).not.toHaveAttribute("aria-current", "date");
+    expect(todayLink).toHaveAttribute("aria-current", "date");
+    const selectedLink = screen.getByRole("link", { name: /3月20日/ });
+    expect(selectedLink).not.toHaveAttribute("aria-current", "date");
   });
 
   it("shows a week-overflow summary linking to every Event pushed past the 2-band lane cap", () => {

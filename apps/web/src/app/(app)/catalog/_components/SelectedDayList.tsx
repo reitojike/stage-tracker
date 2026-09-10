@@ -8,7 +8,10 @@ import {
 } from "@stage-tracker/domain";
 import { StatePanel } from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
-import { formatTokyoCalendarDateJa, formatTokyoTime } from "@/app/_lib/format";
+import {
+  formatTokyoCalendarDateJa,
+  occurrenceTimeRangeLabel,
+} from "@/app/_lib/format";
 import type { TokyoYearMonth } from "@/app/_lib/calendar-grid";
 import type { SelectedDayOccurrence } from "../_lib/calendar-view-model";
 import { catalogEventHref } from "../_lib/catalog-links";
@@ -121,7 +124,10 @@ export function SelectedDayList({
                     className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
                   >
                     <span className="text-body-sm text-muted-foreground">
-                      {formatTokyoTime(occurrence.startsAt)}
+                      {occurrenceTimeRangeLabel(
+                        occurrence.startsAt,
+                        occurrence.endsAt,
+                      )}
                     </span>
                     <span className="text-title font-medium text-foreground">
                       {event.title}

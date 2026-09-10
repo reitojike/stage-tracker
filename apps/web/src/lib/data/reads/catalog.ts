@@ -216,6 +216,34 @@ export async function listCatalogGroups(
 }
 
 /**
+ * カード上の group バッジ表示用（`listCatalogGroups` とは別の目的 - M8
+ * journey 比較で確定した分類2の修正、codex review 指摘）。
+ * `listCatalogGroups` は genre の group facet が active な genre だけを
+ * 対象にスコープするため（Gate A facet 表: 宝塚/アイドルのみ）、venue
+ * facet の genre（歌舞伎）に属しつつ `group` association も持つ Event が
+ * あった場合、その group はフィルタ option chain 経由では一切解決されず
+ * バッジが黙って欠落する。group の canonical identity は genre へ
+ * hard-bind されない（AGENTS.md「Group」）ため、この読み方は genre に
+ * 一切スコープせず、呼び出し元が実際にロード済みの Event 群から集めた
+ * `groupIds` をそのまま `id IN (...)` で引く - catalog 全体を舐めるより
+ * 安価かつ、facet の有無に依存しない。
+ */
+export async function listGroupsByIds(
+  client: SupabaseClient<Database>,
+  groupIds: readonly GroupId[],
+): Promise<ReadResult<readonly Group[]>> {
+  if (groupIds.length === 0) {
+    return ok([]);
+  }
+  const query = client.from("groups").select("*").in("id", groupIds);
+  const rowsResult = await runSupabaseSelect(query);
+  if (!rowsResult.ok) {
+    return rowsResult;
+  }
+  return mapRows(rowsResult.value as readonly GroupRow[], mapGroupRow);
+}
+
+/**
  * `/catalog` のフィルタ option chain（genre ごとの venue）。`events.venue`
  * は canonical master を持たない生 text（AGENTS.md「Venue」）なので、
  * `genreId` の Event が持つ既存 venue 値を distinct に列挙する（M8 で確定
