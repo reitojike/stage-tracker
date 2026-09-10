@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyPasskeyCeremonyError,
   resolveRegisterPasskeyFeedback,
+  resolveSignInPasskeyFeedback,
 } from "./passkey-ceremony-error";
 
 describe("classifyPasskeyCeremonyError", () => {
@@ -76,6 +77,58 @@ describe("resolveRegisterPasskeyFeedback", () => {
     expect(resolveRegisterPasskeyFeedback("failure")).toEqual({
       title: "Passkeyを登録できませんでした",
       description: "通信状況を確認し、もう一度お試しください。",
+    });
+  });
+});
+
+describe("resolveSignInPasskeyFeedback", () => {
+  // Issue #406（M8 journey 比較で確定した分類2の regression test）:
+  // oracle-routes-ui.md:49「サインイン（Passkey優先＋Magic Linkフォール
+  // バック）」を満たすには、失敗時に単一の汎用メッセージへ collapse せず、
+  // かつ常に Magic Link への案内を含める必要がある。legacy の
+  // `SIGN_IN_FEEDBACK` は duplicate/too-many を意図的に同一文言へ寄せる
+  // （原因を問わずサインイン不可という意味では同じ結果のため）ので、
+  // register 側とは異なり「5種類すべてが異なる」ことは要求しない。
+  it("does not collapse every kind into a single universal message", () => {
+    const kinds = [
+      "cancelled",
+      "unsupported",
+      "duplicate",
+      "too-many",
+      "failure",
+    ] as const;
+    const messages = kinds.map((kind) =>
+      JSON.stringify(resolveSignInPasskeyFeedback(kind)),
+    );
+    expect(new Set(messages).size).toBeGreaterThan(1);
+  });
+
+  it("intentionally gives duplicate and too-many the same message (both mean 'use Magic Link instead')", () => {
+    expect(resolveSignInPasskeyFeedback("duplicate")).toEqual(
+      resolveSignInPasskeyFeedback("too-many"),
+    );
+  });
+
+  it("always guides the user to the Magic Link fallback", () => {
+    const kinds = [
+      "cancelled",
+      "unsupported",
+      "duplicate",
+      "too-many",
+      "failure",
+    ] as const;
+    for (const kind of kinds) {
+      expect(resolveSignInPasskeyFeedback(kind).description).toContain(
+        "メールアドレスからサインインしてください",
+      );
+    }
+  });
+
+  it("gives the failure kind a generic retry-then-fallback message", () => {
+    expect(resolveSignInPasskeyFeedback("failure")).toEqual({
+      title: "Passkeyサインインに失敗しました",
+      description:
+        "通信状況を確認してもう一度お試しいただくか、下のメールアドレスからサインインしてください。",
     });
   });
 });
