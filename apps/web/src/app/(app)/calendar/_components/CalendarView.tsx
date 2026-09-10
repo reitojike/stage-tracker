@@ -97,6 +97,43 @@ function bandDisplayTitle(eventTitle: string, isCanceled: boolean): string {
   return isCanceled ? `${eventTitle}（中止）` : eventTitle;
 }
 
+function selectOccurrenceGroupsForScope(
+  index: TokyoDateIndex<CalendarOccurrenceItem>,
+  month: TokyoYearMonth,
+  selectedDate: TokyoCalendarDate | null,
+): readonly CalendarOccurrenceDateGroup[] {
+  if (selectedDate === null) {
+    return selectCalendarMonthOccurrenceGroups(index, month);
+  }
+
+  const items = selectCalendarOccurrenceItems(index, selectedDate);
+  return items.length === 0 ? [] : [{ date: selectedDate, items }];
+}
+
+function selectScheduleGroupsForScope(
+  index: TokyoDateIndex<CalendarScheduleItem>,
+  month: TokyoYearMonth,
+  selectedDate: TokyoCalendarDate | null,
+  userId: UserId,
+): readonly CalendarScheduleDateGroup[] {
+  if (selectedDate === null) {
+    return selectCalendarMonthScheduleGroups(index, month, userId);
+  }
+
+  const items = selectCalendarScheduleItems(index, userId, selectedDate);
+  return items.length === 0 ? [] : [{ date: selectedDate, items }];
+}
+
+function isConfirmedEmptyAtScope<T>(
+  state: BlockState<T>,
+  scopedGroupCount: number,
+): boolean {
+  return (
+    state.variant === "empty" ||
+    (state.variant === "populated" && scopedGroupCount === 0)
+  );
+}
+
 /**
  * `/calendar`'s presentational layer. Read classification stays at the two
  * independent `BlockState`s owned by the loader; this component only projects
@@ -119,8 +156,17 @@ export function CalendarView({
     scheduleState.variant === "populated"
       ? scheduleState.data
       : EMPTY_SCHEDULE_INDEX;
+  const occurrenceGroups =
+    occurrenceState.variant === "populated"
+      ? selectOccurrenceGroupsForScope(occurrenceIndex, month, selectedDate)
+      : [];
+  const scheduleGroups =
+    scheduleState.variant === "populated"
+      ? selectScheduleGroupsForScope(scheduleIndex, month, selectedDate, userId)
+      : [];
   const bothTrulyEmpty =
-    occurrenceState.variant === "empty" && scheduleState.variant === "empty";
+    isConfirmedEmptyAtScope(occurrenceState, occurrenceGroups.length) &&
+    isConfirmedEmptyAtScope(scheduleState, scheduleGroups.length);
 
   return (
     <div className="flex flex-col gap-section">
@@ -155,12 +201,13 @@ export function CalendarView({
             state={occurrenceState}
             month={month}
             selectedDate={selectedDate}
+            groups={occurrenceGroups}
           />
           <ScheduleSection
             state={scheduleState}
             month={month}
             selectedDate={selectedDate}
-            userId={userId}
+            groups={scheduleGroups}
           />
           {selectedDate !== null ? (
             <ScheduleAddLink selectedDate={selectedDate} />
@@ -460,10 +507,12 @@ function OccurrenceSection({
   state,
   month,
   selectedDate,
+  groups,
 }: {
   readonly state: BlockState<TokyoDateIndex<CalendarOccurrenceItem>>;
   readonly month: TokyoYearMonth;
   readonly selectedDate: TokyoCalendarDate | null;
+  readonly groups: readonly CalendarOccurrenceDateGroup[];
 }) {
   return (
     <section
@@ -478,9 +527,9 @@ function OccurrenceSection({
       </h2>
       {state.variant === "populated" ? (
         <OccurrenceList
-          index={state.data}
           month={month}
           selectedDate={selectedDate}
+          groups={groups}
         />
       ) : (
         <StatePanel
@@ -501,22 +550,14 @@ function OccurrenceSection({
 }
 
 function OccurrenceList({
-  index,
   month,
   selectedDate,
+  groups,
 }: {
-  readonly index: TokyoDateIndex<CalendarOccurrenceItem>;
   readonly month: TokyoYearMonth;
   readonly selectedDate: TokyoCalendarDate | null;
+  readonly groups: readonly CalendarOccurrenceDateGroup[];
 }) {
-  const groups: readonly CalendarOccurrenceDateGroup[] =
-    selectedDate === null
-      ? selectCalendarMonthOccurrenceGroups(index, month)
-      : (() => {
-          const items = selectCalendarOccurrenceItems(index, selectedDate);
-          return items.length === 0 ? [] : [{ date: selectedDate, items }];
-        })();
-
   if (groups.length === 0) {
     return (
       <p className="text-body-sm text-muted-foreground">
@@ -599,12 +640,12 @@ function ScheduleSection({
   state,
   month,
   selectedDate,
-  userId,
+  groups,
 }: {
   readonly state: BlockState<TokyoDateIndex<CalendarScheduleItem>>;
   readonly month: TokyoYearMonth;
   readonly selectedDate: TokyoCalendarDate | null;
-  readonly userId: UserId;
+  readonly groups: readonly CalendarScheduleDateGroup[];
 }) {
   return (
     <section
@@ -619,10 +660,9 @@ function ScheduleSection({
       </h2>
       {state.variant === "populated" ? (
         <ScheduleList
-          index={state.data}
           month={month}
           selectedDate={selectedDate}
-          userId={userId}
+          groups={groups}
         />
       ) : (
         <StatePanel
@@ -643,28 +683,14 @@ function ScheduleSection({
 }
 
 function ScheduleList({
-  index,
   month,
   selectedDate,
-  userId,
+  groups,
 }: {
-  readonly index: TokyoDateIndex<CalendarScheduleItem>;
   readonly month: TokyoYearMonth;
   readonly selectedDate: TokyoCalendarDate | null;
-  readonly userId: UserId;
+  readonly groups: readonly CalendarScheduleDateGroup[];
 }) {
-  const groups: readonly CalendarScheduleDateGroup[] =
-    selectedDate === null
-      ? selectCalendarMonthScheduleGroups(index, month, userId)
-      : (() => {
-          const items = selectCalendarScheduleItems(
-            index,
-            userId,
-            selectedDate,
-          );
-          return items.length === 0 ? [] : [{ date: selectedDate, items }];
-        })();
-
   if (groups.length === 0) {
     return (
       <p className="text-body-sm text-muted-foreground">

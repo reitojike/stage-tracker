@@ -177,7 +177,7 @@ describe("CalendarView", () => {
     expect(screen.getByText("3月15日(日)")).toBeInTheDocument();
   });
 
-  it("restricts the day-detail view to the selected date only", () => {
+  it("merges an empty selected day even when another day has data", () => {
     render(
       <CalendarView
         month={MONTH}
@@ -193,9 +193,42 @@ describe("CalendarView", () => {
     );
 
     expect(
-      screen.getByText("この日の参加予定はありません"),
+      screen.getByText("この日の予定はまだありません"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "3月16日に予定を追加" }),
+    ).toHaveAttribute("href", "/schedule/new?date=2026-03-16");
+    expect(
+      screen.queryByText("この日の参加予定はありません"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("この日の個人の予定はありません"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("テスト公演")).not.toBeInTheDocument();
+  });
+
+  it("scopes the month empty state to the actual month, not adjacent grid days", () => {
+    render(
+      <CalendarView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={null}
+        userId={USER_ID}
+        occurrenceState={{
+          variant: "populated",
+          data: occurrenceIndex("2026-04-01"),
+        }}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(screen.getByText("この月の予定はありません")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "+ 予定を追加" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("この月の参加予定はありません"),
+    ).not.toBeInTheDocument();
   });
 
   it("uses aria-current only for today and avoids incomplete grid roles", () => {
