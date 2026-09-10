@@ -64,11 +64,15 @@ function monthLabel(month: TokyoYearMonth): string {
  *
  * A day that is both "今日" and a weekday/holiday role: this component
  * gives the existing "今日" filled-circle treatment (already shipped for My
- * Calendar's own month grid, `CalendarView.tsx`) visual precedence over the
- * role's text color, since a day cell's aria-label always states the role
- * as text regardless (see labelParts below) - the accessibility baseline
- * ("色のみで判断させない") is satisfied by that non-color channel, not by
- * the visual color itself.
+ * Calendar's own month grid, `CalendarView.tsx`) precedence over the role's
+ * *text color* (legacy's own `MonthCalendar.module.css` composes both onto
+ * the day-number element too, and its higher-specificity `.day.roleHoliday
+ * .dayNumber` selector already wins the color there for the same reason:
+ * avoiding a low-contrast holiday-red-on-primary-background combination) -
+ * but the role's *font weight* is still composed in (codex review 指摘: a
+ * prior revision let `isToday` fully replace `roleTextClassName`, silently
+ * dropping the holiday's visible bold weight too, leaving only the
+ * aria-label as a non-color cue for a today-and-holiday cell).
  */
 export function MonthCalendar({
   viewModel,
@@ -203,7 +207,26 @@ export function MonthCalendar({
                       className={cn(
                         "flex size-6 items-center justify-center rounded-pill",
                         isToday
-                          ? "bg-primary font-medium text-primary-foreground"
+                          ? cn(
+                              "bg-primary text-primary-foreground",
+                              // 今日かつ祝日の場合、legacy は「今日」の
+                              // 塗り背景と「祝日」の文字色/太字を別要素
+                              // （cell 全体 vs day number）に分離すること
+                              // で両方を共存させる（codex review 指摘:
+                              // 従来はここが排他的な三項演算子で、祝日の
+                              // 色/太字が今日の треatment に完全に上書き
+                              // されていた）。ここは day number 1 要素に
+                              // 両方を乗せる構造上、祝日の赤系文字色を
+                              // そのまま乗せると `bg-primary` との
+                              // contrast が悪化し得るため、色は今日の
+                              // ものを維持しつつ太さだけ祝日を継承する -
+                              // 「色のみで判断させない」baseline は
+                              // aria-label の「祝日」テキストに加え、この
+                              // 太字という非色 channel でも満たされる。
+                              day.role === "holiday"
+                                ? "font-semibold"
+                                : "font-medium",
+                            )
                           : roleTextClassName(day.role),
                       )}
                     >

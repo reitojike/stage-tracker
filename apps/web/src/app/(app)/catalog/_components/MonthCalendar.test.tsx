@@ -113,6 +113,23 @@ describe("MonthCalendar", () => {
     expect(selectedLink).not.toHaveAttribute("aria-current", "date");
   });
 
+  it("still applies the holiday's bold weight when today itself is a holiday (codex review 指摘: a prior revision let the today treatment fully replace the holiday's visible cue)", () => {
+    // 2026-01-01 (元日) is a fixed national holiday in the snapshot.
+    render(
+      <MonthCalendar
+        viewModel={buildCatalogMonthViewModel({ year: 2026, month: 1 }, [])}
+        selectedDate={null}
+        today={"2026-01-01" as never}
+      />,
+    );
+    const todayHolidayLink = screen.getByRole("link", {
+      name: /1月1日、今日、祝日/,
+    });
+    const dayNumberSpan = todayHolidayLink.querySelector("span");
+    expect(dayNumberSpan?.className).toContain("font-semibold");
+    expect(dayNumberSpan?.className).toContain("bg-primary");
+  });
+
   it("shows a week-overflow summary linking to every Event pushed past the 2-band lane cap", () => {
     const entries = [
       entry({
