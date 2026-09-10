@@ -6,7 +6,13 @@ import { z } from "zod";
 import { eventIdSchema } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
-import { classifyPostgrestLikeError } from "./postgrest-error";
+import {
+  throwEventCancellationError,
+  throwEventCancellationPermissionDenied,
+  throwEventDeleteError,
+  throwEventWriteError,
+  throwEventWritePermissionDenied,
+} from "./event-write-feedback";
 import {
   addOccurrenceInputSchema,
   createEventInputSchema,
@@ -33,14 +39,11 @@ import {
  * `permission-denied` として扱う。この判定基準は
  * `apps/legacy-web/src/infrastructure/supabase/eventCatalogWrite.ts` の
  * `deniedUpdate` と同じ（legacy は oracle として読み、ゼロから書き直した）。
+ * エラーの文言粒度は `apps/legacy-web/src/domain/eventWriteFeedback.ts` を
+ * 移植した `./event-write-feedback.ts` の operation 別 thrower へ委譲する
+ * （M8 journey 比較で確定した分類2の不具合修正 -
+ * `docs/v2/m8-journey-comparison.md` 参照）。
  */
-
-function deniedUpdate(): never {
-  throw new ActionError(
-    "permission-denied",
-    "対象が見つからないか、操作する権限がありません。",
-  );
-}
 
 const createEventRpcRowSchema = z.object({ id: eventIdSchema });
 
@@ -61,7 +64,7 @@ export const createEventAction = authActionClient
       p_doors_at: occurrence?.doorsAt ?? null,
     });
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventWriteError("create-event", error);
     }
 
     const parsed = createEventRpcRowSchema.safeParse(data);
@@ -92,10 +95,10 @@ export const updateEventDetailsAction = authActionClient
       .select("id")
       .maybeSingle();
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventWriteError("update-event", error);
     }
     if (data === null) {
-      deniedUpdate();
+      throwEventWritePermissionDenied("update-event");
     }
 
     revalidatePath(`/catalog/events/${eventId}/edit`);
@@ -125,7 +128,7 @@ export const updateEventRangeAction = authActionClient
       p_occurrences: [],
     });
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventWriteError("update-event", error);
     }
 
     revalidatePath(`/catalog/events/${eventId}/edit`);
@@ -152,7 +155,7 @@ export const addOccurrenceAction = authActionClient
       doors_at: occurrence.doorsAt,
     });
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventWriteError("add-occurrence", error);
     }
 
     revalidatePath(`/catalog/events/${eventId}/edit`);
@@ -178,10 +181,10 @@ export const updateOccurrenceAction = authActionClient
       .select("id, event_id")
       .maybeSingle();
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventWriteError("update-occurrence", error);
     }
     if (data === null) {
-      deniedUpdate();
+      throwEventWritePermissionDenied("update-occurrence");
     }
 
     revalidatePath(`/catalog/events/${data.event_id}/edit`);
@@ -198,7 +201,7 @@ export const deleteEventOccurrenceAction = authActionClient
       p_occurrence_id: parsedInput.occurrenceId,
     });
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventDeleteError("delete-occurrence", error);
     }
     revalidatePath(`/catalog/events/${parsedInput.eventId}/edit`);
     revalidatePath(`/catalog/events/${parsedInput.eventId}`);
@@ -214,7 +217,7 @@ export const deleteEventAction = authActionClient
       p_event_id: parsedInput.eventId,
     });
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventDeleteError("delete-event", error);
     }
     redirect("/catalog");
   });
@@ -229,10 +232,10 @@ export const cancelEventAction = authActionClient
       .select("id")
       .maybeSingle();
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventCancellationError("cancel-event", error);
     }
     if (data === null) {
-      deniedUpdate();
+      throwEventCancellationPermissionDenied("cancel-event");
     }
     revalidatePath(`/catalog/events/${parsedInput.eventId}/edit`);
     revalidatePath(`/catalog/events/${parsedInput.eventId}`);
@@ -251,10 +254,10 @@ export const uncancelEventAction = authActionClient
       .select("id")
       .maybeSingle();
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventCancellationError("uncancel-event", error);
     }
     if (data === null) {
-      deniedUpdate();
+      throwEventCancellationPermissionDenied("uncancel-event");
     }
     revalidatePath(`/catalog/events/${parsedInput.eventId}/edit`);
     revalidatePath(`/catalog/events/${parsedInput.eventId}`);
@@ -273,10 +276,10 @@ export const cancelEventOccurrenceAction = authActionClient
       .select("id, event_id")
       .maybeSingle();
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventCancellationError("cancel-occurrence", error);
     }
     if (data === null) {
-      deniedUpdate();
+      throwEventCancellationPermissionDenied("cancel-occurrence");
     }
     revalidatePath(`/catalog/events/${data.event_id}/edit`);
     revalidatePath(`/catalog/events/${data.event_id}`);
@@ -295,10 +298,10 @@ export const uncancelEventOccurrenceAction = authActionClient
       .select("id, event_id")
       .maybeSingle();
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      throwEventCancellationError("uncancel-occurrence", error);
     }
     if (data === null) {
-      deniedUpdate();
+      throwEventCancellationPermissionDenied("uncancel-occurrence");
     }
     revalidatePath(`/catalog/events/${data.event_id}/edit`);
     revalidatePath(`/catalog/events/${data.event_id}`);
