@@ -30,12 +30,14 @@ import { ActionError } from "@/lib/action-error";
  */
 export type EventWriteExtraKind = "duplicate-occurrence" | "delete-blocked";
 
-const INSUFFICIENT_PRIVILEGE = "42501";
+/** `./event-write-feedback.ts` が operation 別の文言解決に再利用する
+ * ため export する（SQLSTATE 集合自体は write boundary 全体で共有）。 */
+export const INSUFFICIENT_PRIVILEGE = "42501";
 
 /** NOT NULL / FK / CHECK / 不正な日時・数値表現、加えて
  * `create_event`/`import_event_with_occurrences` 系が使う `22004`
  * （invalid_parameter_value 相当のカスタム用途）。 */
-const VALIDATION_CODES = new Set([
+export const VALIDATION_CODES = new Set([
   "23502",
   "23503",
   "23514",
@@ -48,15 +50,15 @@ const VALIDATION_CODES = new Set([
 /** unique_violation。この write boundary 内で authenticated が到達し得る
  * 唯一の unique 制約は `event_occurrences_event_id_starts_at_key`
  * （Issue #79）。 */
-const UNIQUE_VIOLATION = "23505";
+export const UNIQUE_VIOLATION = "23505";
 
 /** delete-blocked（Issue #124）: 参加/招待データが存在するための削除拒否。 */
-const DELETE_BLOCKED = "90001";
+export const DELETE_BLOCKED = "90001";
 
 /** 実質的に中止済みの occurrence への新規 active action 拒否（Issue #125）。
  * 送信内容自体は不正ではなく対象の現在状態が理由なので `validation` に
  * 分類する（legacy `planningError.ts` の分類方針を踏襲）。 */
-const EFFECTIVELY_CANCELED = "90002";
+export const EFFECTIVELY_CANCELED = "90002";
 
 const PERMISSION_DENIED_MESSAGE_JA =
   "対象が見つからないか、操作する権限がありません。";
