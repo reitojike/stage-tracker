@@ -198,15 +198,15 @@ baseline」の WCAG 2.2 AA baseline）を持つ項目を分類2として確定�
 | 2   | Ticket opportunity の planning state 書き込み UI が未実装                                              | ticket opportunity | `oracle-routes-ui.md`「/tickets」行                                                                                                                   | **修正済み**（PR #403, merge 済み）                                                            |
 | 3   | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ）                                   | 認証               | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **未修正**（Issue #406 として起票済み、規模が大きいため要スコープ判断 — 詳細は「対応方針」節） |
 | 4   | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落）                   | 認証               | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み                              | **修正済み**（PR #405, merge 済み。本 PR 自体はこの修正 commit を含まない）                    |
-| 5   | Passkey 登録失敗時のエラー種別分類が v2 に無い（一律の汎用メッセージ）                                 | 認証               | `oracle-routes-ui.md:245`「失敗時はエラー種別分類→パネル表示」と明記                                                                                  | **未修正**（PR #407 で修正 commit を提出、review 中。詳細は「対応方針」節）                    |
-| 6   | Event 系 Server Action の permission-denied エラー文言が全 operation で単一の汎用メッセージへ collapse | event/occurrence   | `oracle-domain.md:576-580`「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と明記                                        | **未修正**（詳細は「対応方針」節）                                                             |
+| 5   | Passkey 登録失敗時のエラー種別分類が v2 に無い（一律の汎用メッセージ）                                 | 認証               | `oracle-routes-ui.md:245`「失敗時はエラー種別分類→パネル表示」と明記                                                                                  | **修正済み**（PR #407, merge 済み）                                                            |
+| 6   | Event 系 Server Action の permission-denied エラー文言が全 operation で単一の汎用メッセージへ collapse | event/occurrence   | `oracle-domain.md:576-580`「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と明記                                        | **未修正**（PR #408 で修正 commit を提出、review 中。詳細は「対応方針」節）                    |
 
 **AC5 は現時点では未達である。** codex review の指摘（本 PR #404 review）
 の通り、「対応方針」節に対応予定を記録すること自体は AC5 が求める
-「cutover を妨げない理由」の充足にはならない。項目5・6 は実際に修正 PR が
+「cutover を妨げない理由」の充足にはならない。項目6 は修正 PR（#408）が
 merge されるまで、項目3（Passkey サインイン導線）は PO が明示的に
 「cutover blocker としない」と判断するまで、それぞれ oracle 違反が
-残ったままである。残存する分類2（項目3・5・6）の現在の対応状況は下記
+残ったままである。残存する分類2（項目3・6）の現在の対応状況は下記
 「対応方針」節を参照し、AC5 の達成は各項目の実際の解決（修正 merge、
 または PO 判断の記録）をもって確認すること。
 
@@ -282,7 +282,7 @@ Escalate 条件（「差分が product semantics の未決事項に由来する�
 
 ## 対応方針（残存する分類2、AC5 は未達 — 進捗を正直に記録する）
 
-以下 3 件が本比較で確定した分類2。**この節に記録すること自体は AC5 の
+本比較で確定した分類2は当初3件。**この節に記録すること自体は AC5 の
 充足を意味しない**（codex review 指摘、PR #404）。AC5 は各項目が実際に
 解決される（修正が merge される、または PO が明示的に non-blocker と
 判断する）まで未達として扱う。
@@ -297,18 +297,21 @@ oracle-routes-ui.md:49` が明記する「Passkey優先＋Magic Linkフォール
    ことを推奨する（= non-blocker とする根拠は無い）。**Issue #391 自身は、
    この項目が解決される（Issue #406 が完了する、または PO が明示的に
    post-cutover 追従で良いと判断する）まで close しないこと。**
-2. **Passkey 登録失敗時のエラー種別分類の欠如**（**修正 PR 提出済み、
-   review 中**）: `oracle-routes-ui.md:245` が明記する「エラー種別分類→
+2. **Passkey 登録失敗時のエラー種別分類の欠如**（**修正済み、PR #407
+   merge 済み**）: `oracle-routes-ui.md:245` が明記する「エラー種別分類→
    パネル表示」を v2 は満たしていなかった（常に単一の汎用メッセージ）。
    legacy の `classifyCeremonyError`/`REGISTER_FEEDBACK` と同じ分類を
-   `apps/web/src/lib/passkey-ceremony-error.ts` へ移植する PR #407 を
-   提出済み。merge され次第この項目を「修正済み」へ更新する。
+   `apps/web/src/lib/passkey-ceremony-error.ts` へ移植する PR #407 が
+   merge され、この項目は解決済み。
 3. **Event 系 Server Action の permission-denied エラー文言の粒度**
-   （**未修正**）: `oracle-domain.md:576-580` が「legacy の
-   `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と
-   明記しているにもかかわらず、v2 は単一の汎用メッセージへ collapse
-   している。`apps/web/src/lib/actions/events.ts` の 11 箇所の呼び出し元
-   すべてに影響するため中程度の規模。別途 bounded Task として対応する。
+   （**修正 PR #408 提出済み、review 中**）: `oracle-domain.md:576-580`
+   が「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが
+   最小変更」と明記しているにもかかわらず、v2 は単一の汎用メッセージへ
+   collapse していた。legacy の title+description を移植した
+   `apps/web/src/lib/actions/event-write-feedback.ts` を新設し、
+   `apps/web/src/lib/actions/events.ts` の 11 箇所の呼び出し元すべてを
+   operation 別の thrower へ差し替える PR #408 を提出済み。merge され
+   次第この項目を「修正済み」へ更新する。
 
 ## この文書の運用上の注意
 
