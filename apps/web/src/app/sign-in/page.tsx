@@ -34,6 +34,14 @@ const AUTH_ERRORS = new Map<string, { title: string; description: string }>([
  *
  * enumeration 対策として、送信後（`requested=1`）はアカウントの有無を
  * 一切示唆しない中立文言のみを表示する（`requestSignInLink` 参照）。
+ *
+ * `max-w-[24rem]`（`max-w-sm` ではなく）: `globals.css` の `@theme inline`
+ * が spacing scale を t-shirt サイズ命名（`--spacing-sm` 等）で再定義して
+ * おり、Tailwind v4 の `max-w-sm`/`w-sm` 等はこの `--spacing-sm` を
+ * `--container-sm`（本来の既定値 `24rem`）より優先して解決してしまう
+ * （実ブラウザ検証で発見: `.max-w-sm { max-width: 8px }` に化ける）。
+ * この collision は `globals.css` 側の共有 theme 問題であり本 Task の
+ * scope 外のため、この画面内の該当箇所のみ arbitrary value で回避する。
  */
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
@@ -49,7 +57,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       {authError ? (
         <div
           role="alert"
-          className="w-full max-w-sm rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          className="w-full max-w-[24rem] rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
         >
           <p className="font-medium">{authError.title}</p>
           <p>{authError.description}</p>
@@ -57,13 +65,13 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       ) : null}
 
       {requested ? (
-        <p className="w-full max-w-sm text-sm text-muted-foreground">
+        <p className="w-full max-w-[24rem] text-sm text-muted-foreground">
           {/* アカウントの有無・メール送信成否のいずれも示唆しない
               (docs/v2/oracle-routes-ui.md §1 / §2 サインイン)。 */}
           リクエストを受け付けました。登録済みのメールアドレスで、メール送信が利用可能な場合はサインインリンクが届きます。届かない場合は時間をおいて再試行するか、管理者に連絡してください。
         </p>
       ) : (
-        <div className="flex w-full max-w-sm flex-col gap-6">
+        <div className="flex w-full max-w-[24rem] flex-col gap-6">
           {/* Passkey登録済みuserの日常sign-in path（Issue #106/#406）。
               discoverable credentialなのでメールアドレス入力は不要 -
               下のMagic Link formは未登録user向けのfallbackとして常に
