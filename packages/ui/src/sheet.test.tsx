@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
+import { describe, expect, it } from 'vitest';
 import {
   Sheet,
   SheetContent,
@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "./components/sheet";
+} from './components/sheet';
 
 function SheetHarness() {
   const [open, setOpen] = useState(false);
@@ -29,36 +29,28 @@ function SheetHarness() {
   );
 }
 
-describe("Sheet", () => {
-  it("supports controlled open/close, modal focus, Escape, and backdrop", async () => {
+describe('Sheet', () => {
+  it('supports controlled open/close, modal focus, Escape, and backdrop', async () => {
     const user = userEvent.setup();
     render(<SheetHarness />);
-    const trigger = screen.getByRole("button", { name: "Open sheet" });
+    const trigger = screen.getByRole('button', { name: 'Open sheet' });
     await user.click(trigger);
-    expect(
-      screen.getByRole("heading", { name: "Test sheet" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Test sheet' })).toBeInTheDocument();
     const activeElement =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    expect(screen.getByRole("dialog")).toContainElement(activeElement);
-    await user.keyboard("{Escape}");
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    expect(screen.getByRole('dialog')).toContainElement(activeElement);
+    await user.keyboard('{Escape}');
     await waitFor(() =>
-      expect(
-        screen.queryByRole("heading", { name: "Test sheet" }),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByRole('heading', { name: 'Test sheet' })).not.toBeInTheDocument(),
     );
     await user.click(trigger);
-    await user.click(screen.getByTestId("sheet-backdrop"));
+    await user.click(screen.getByTestId('sheet-backdrop'));
     await waitFor(() =>
-      expect(
-        screen.queryByRole("heading", { name: "Test sheet" }),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByRole('heading', { name: 'Test sheet' })).not.toBeInTheDocument(),
     );
   });
 
-  it("keeps footer outside the scrollable body", () => {
+  it('keeps footer outside the scrollable body', () => {
     render(
       <Sheet open onOpenChange={() => undefined}>
         <SheetContent side="bottom">
@@ -75,9 +67,7 @@ describe("Sheet", () => {
         </SheetContent>
       </Sheet>,
     );
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
-    expect(screen.getByText("Body").parentElement).toHaveClass(
-      "overflow-y-auto",
-    );
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.getByText('Body').parentElement).toHaveClass('overflow-y-auto');
   });
 });

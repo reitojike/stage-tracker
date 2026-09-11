@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { useState } from "react";
+import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { useState } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -8,12 +8,12 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "./components/sheet";
+} from './components/sheet';
 
 const meta = {
-  title: "UI/Sheet",
+  title: 'UI/Sheet',
   parameters: {
-    layout: "fullscreen",
+    layout: 'fullscreen',
   },
 } satisfies Meta<typeof Sheet>;
 
@@ -28,10 +28,7 @@ function InteractiveSheet() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger
           render={
-            <button
-              type="button"
-              className="rounded-control border border-input px-md py-sm"
-            >
+            <button type="button" className="rounded-control border border-input px-md py-sm">
               Open sheet
             </button>
           }
