@@ -10,6 +10,7 @@ import { StatePanel } from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   formatTokyoCalendarDateJa,
+  formatTokyoCalendarDateRangeJa,
   occurrenceTimeRangeLabel,
 } from "@/app/_lib/format";
 import type { TokyoYearMonth } from "@/app/_lib/calendar-grid";
@@ -76,9 +77,10 @@ export function SelectedDayList({
                     {entry.event.title}
                   </span>
                   <span className="text-body-sm text-muted-foreground">
-                    {entry.event.startsOn === entry.event.endsOn
-                      ? entry.event.startsOn
-                      : `${entry.event.startsOn} 〜 ${entry.event.endsOn}`}
+                    {formatTokyoCalendarDateRangeJa(
+                      entry.event.startsOn,
+                      entry.event.endsOn,
+                    )}
                     {entry.event.venue !== null
                       ? ` ・ ${entry.event.venue}`
                       : ""}

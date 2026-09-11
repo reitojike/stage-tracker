@@ -325,7 +325,7 @@ function MonthGrid({
               }
               if (day.sharedScheduleCount > 0) {
                 labelParts.push(
-                  `共有された予定${String(day.sharedScheduleCount)}件`,
+                  `共有されている予定${String(day.sharedScheduleCount)}件`,
                 );
               }
               if (bandsThisDay.length > 0) {

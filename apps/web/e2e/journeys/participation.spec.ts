@@ -62,7 +62,7 @@ test("participation: register attending for an occurrence, then withdraw", async
     await attendButton.click();
     await expect(attendButton).toHaveAttribute("aria-pressed", "true");
     await expect(
-      occurrenceRow.getByRole("button", { name: "取り消す" }),
+      occurrenceRow.getByRole("button", { name: "参加をやめる" }),
     ).toBeVisible();
 
     // Persisted, not just optimistic client state: reload and re-read from
@@ -73,15 +73,15 @@ test("participation: register attending for an occurrence, then withdraw", async
       reloadedRow.getByRole("button", { name: "参加する" }),
     ).toHaveAttribute("aria-pressed", "true");
 
-    await reloadedRow.getByRole("button", { name: "取り消す" }).click();
+    await reloadedRow.getByRole("button", { name: "参加をやめる" }).click();
     await expect(
-      reloadedRow.getByRole("button", { name: "取り消す" }),
+      reloadedRow.getByRole("button", { name: "参加をやめる" }),
     ).toHaveCount(0);
 
     await page.reload();
     const afterWithdrawRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
     await expect(
-      afterWithdrawRow.getByRole("button", { name: "取り消す" }),
+      afterWithdrawRow.getByRole("button", { name: "参加をやめる" }),
     ).toHaveCount(0);
     await expect(
       afterWithdrawRow.getByRole("button", { name: "参加する" }),

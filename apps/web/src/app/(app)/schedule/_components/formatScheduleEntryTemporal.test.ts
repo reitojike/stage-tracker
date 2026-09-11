@@ -9,7 +9,7 @@ describe("formatScheduleEntryTemporal", () => {
         startsOn: "2026-03-05",
         endsOn: "2026-03-05",
       } as never),
-    ).toBe("2026-03-05（終日）");
+    ).toBe("3月5日(木)（終日）");
   });
 
   it("formats a multi-day all-day temporal as a range", () => {
@@ -19,7 +19,7 @@ describe("formatScheduleEntryTemporal", () => {
         startsOn: "2026-03-05",
         endsOn: "2026-03-06",
       } as never),
-    ).toBe("2026-03-05 〜 2026-03-06（終日）");
+    ).toBe("3月5日(木) 〜 3月6日(金)（終日）");
   });
 
   it("formats a time-bounded temporal with a same-day end as HH:mm only", () => {
@@ -29,7 +29,7 @@ describe("formatScheduleEntryTemporal", () => {
         startsAt: "2026-03-10T00:00:00.000Z",
         endsAt: "2026-03-10T09:00:00.000Z",
       } as never),
-    ).toBe("2026-03-10 09:00 〜 18:00");
+    ).toBe("3月10日(火) 09:00 〜 18:00");
   });
 
   it("formats a time-bounded temporal with a null endsAt as an open end", () => {
@@ -39,6 +39,17 @@ describe("formatScheduleEntryTemporal", () => {
         startsAt: "2026-03-10T00:00:00.000Z",
         endsAt: null,
       } as never),
-    ).toBe("2026-03-10 09:00 〜（終了時刻未定）");
+    ).toBe("3月10日(火) 09:00 〜（終了時刻未定）");
+  });
+  it("formats a cross-day time-bounded temporal with both Tokyo dates", () => {
+    expect(
+      formatScheduleEntryTemporal({
+        kind: "time-bounded",
+        startsAt: "2026-03-10T14:00:00.000Z",
+        endsAt: "2026-03-11T00:30:00.000Z",
+      } as never),
+    ).toBe(
+      "3月10日(火) 23:00 〜 3月11日(水) 09:30",
+    );
   });
 });

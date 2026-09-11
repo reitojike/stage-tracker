@@ -1,11 +1,12 @@
 import {
-  instantToTokyoWallClock,
+  instantToTokyoCalendarDate,
   type PersonalScheduleEntryTemporal,
 } from "@stage-tracker/domain";
-
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
+import {
+  formatTokyoCalendarDateJa,
+  formatTokyoCalendarDateRangeJa,
+  formatTokyoTime,
+} from "@/app/_lib/format";
 
 /**
  * `/schedule/[entryId]` の詳細表示用、entry の `temporal` を人間可読な
@@ -16,27 +17,21 @@ export function formatScheduleEntryTemporal(
   temporal: PersonalScheduleEntryTemporal,
 ): string {
   if (temporal.kind === "all-day") {
-    if (temporal.startsOn === temporal.endsOn) {
-      return `${temporal.startsOn}（終日）`;
-    }
-    return `${temporal.startsOn} 〜 ${temporal.endsOn}（終日）`;
+    return `${formatTokyoCalendarDateRangeJa(temporal.startsOn, temporal.endsOn)}（終日）`;
   }
 
-  const starts = instantToTokyoWallClock(temporal.startsAt);
-  const startsLabel = `${starts.year}-${pad2(starts.month)}-${pad2(starts.day)} ${pad2(starts.hour)}:${pad2(starts.minute)}`;
+  const startsDate = instantToTokyoCalendarDate(temporal.startsAt);
+  const startsLabel = `${formatTokyoCalendarDateJa(startsDate)} ${formatTokyoTime(temporal.startsAt)}`;
 
   if (temporal.endsAt === null) {
     return `${startsLabel} 〜（終了時刻未定）`;
   }
 
-  const ends = instantToTokyoWallClock(temporal.endsAt);
-  const sameDay =
-    starts.year === ends.year &&
-    starts.month === ends.month &&
-    starts.day === ends.day;
+  const endsDate = instantToTokyoCalendarDate(temporal.endsAt);
+  const sameDay = startsDate === endsDate;
   const endsLabel = sameDay
-    ? `${pad2(ends.hour)}:${pad2(ends.minute)}`
-    : `${ends.year}-${pad2(ends.month)}-${pad2(ends.day)} ${pad2(ends.hour)}:${pad2(ends.minute)}`;
+    ? formatTokyoTime(temporal.endsAt)
+    : `${formatTokyoCalendarDateJa(endsDate)} ${formatTokyoTime(temporal.endsAt)}`;
 
   return `${startsLabel} 〜 ${endsLabel}`;
 }

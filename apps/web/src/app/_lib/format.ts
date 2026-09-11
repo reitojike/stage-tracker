@@ -65,7 +65,18 @@ export function formatTokyoCalendarDateJa(date: TokyoCalendarDate): string {
   return `${Number(monthStr)}月${Number(dayStr)}日(${weekdayLabelJa(date)})`;
 }
 
+/** M月D日(曜) display for a calendar-date range. */
 /** `YYYY年M月` display for a month key ("YYYY-MM"). */
+export function formatTokyoCalendarDateRangeJa(
+  startsOn: TokyoCalendarDate,
+  endsOn: TokyoCalendarDate,
+): string {
+  const start = formatTokyoCalendarDateJa(startsOn);
+  return startsOn === endsOn
+    ? start
+    : `${start} 〜 ${formatTokyoCalendarDateJa(endsOn)}`;
+}
+
 export function formatMonthJa(monthKey: string): string {
   const [yearStr, monthStr] = monthKey.split("-");
   return `${yearStr}年${Number(monthStr)}月`;

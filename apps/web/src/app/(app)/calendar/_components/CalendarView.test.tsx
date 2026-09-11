@@ -326,12 +326,13 @@ describe("CalendarView", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("中止")).toBeInTheDocument();
     expect(screen.getByText("共有されている予定")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /2026年3月15日.*共有されている予定1件/ })).toBeInTheDocument();
     expect(
       screen.getByText("予定を確保しない", {
         selector: '[data-slot="badge"]',
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("2026-03-15（終日）")).toBeInTheDocument();
+    expect(screen.getByText("3月15日(日)（終日）")).toBeInTheDocument();
     expect(screen.getByText("共有メモ")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /テスト公演/ })).toHaveAttribute(
       "href",
