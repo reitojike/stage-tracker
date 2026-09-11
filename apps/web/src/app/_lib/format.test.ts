@@ -45,10 +45,16 @@ describe("occurrenceTimeRangeLabel", () => {
 describe("Tokyo date formatting", () => {
   it("formats a single-day and multi-day date range without raw ISO dates", () => {
     expect(
-      formatTokyoCalendarDateRangeJa(\n        "2026-03-05" as never,\n        "2026-03-05" as never,\n      ),
+      formatTokyoCalendarDateRangeJa(
+        "2026-03-05" as never,
+        "2026-03-05" as never,
+      ),
     ).toBe("3月5日(木)");
     expect(
-      formatTokyoCalendarDateRangeJa(\n        "2026-03-05" as never,\n        "2026-03-06" as never,\n      ),
+      formatTokyoCalendarDateRangeJa(
+        "2026-03-05" as never,
+        "2026-03-06" as never,
+      ),
     ).toBe("3月5日(木) 〜 3月6日(金)");
   });
 
