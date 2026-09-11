@@ -81,7 +81,7 @@ describe("ParticipationControls", () => {
     mockedAction.mockResolvedValueOnce({
       serverError: {
         kind: "occurrence-canceled",
-        message: "この公演は中止されているため、この操作はできません。",
+        message: "この公演回は中止されているため、この操作はできません。",
       },
     } as unknown as Awaited<ReturnType<typeof setParticipationChoiceAction>>);
     const user = userEvent.setup();
@@ -99,7 +99,7 @@ describe("ParticipationControls", () => {
     await user.click(screen.getByRole("button", { name: "参加する" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "この公演は中止されているため、この操作はできません。",
+      "この公演回は中止されているため、この操作はできません。",
     );
   });
 
