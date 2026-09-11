@@ -129,7 +129,7 @@ describe("CatalogView", () => {
       screen.queryByText("この月に登録されているイベントはありません"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText("この日に登録されている公演はありません"),
+      screen.getByText("この日に登録されている公演回はありません"),
     ).toBeInTheDocument();
   });
 
