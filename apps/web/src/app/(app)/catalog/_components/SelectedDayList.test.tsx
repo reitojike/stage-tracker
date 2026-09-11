@@ -183,6 +183,7 @@ describe("SelectedDayList", () => {
       screen.getByText("この日に登録されている公演はありません"),
     ).toBeInTheDocument();
   });
+
   it("formats a single-day fallback Event with its venue", () => {
     const fallbackEntry: EventCatalogEntry = {
       event: event({
@@ -213,5 +214,4 @@ describe("SelectedDayList", () => {
 
     expect(screen.getByText("3月10日(火) ・ 東京会場")).toBeInTheDocument();
   });
-
 });
