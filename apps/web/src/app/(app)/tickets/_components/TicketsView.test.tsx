@@ -20,6 +20,7 @@ function row(
     opportunityId: string;
     milestoneId: string;
     isFirstRowForOpportunity: boolean;
+    isEffectivelyCanceled: boolean;
   }> = {},
 ) {
   const {
@@ -29,6 +30,7 @@ function row(
     opportunityId = "44444444-4444-4444-8444-444444444444",
     milestoneId = "55555555-5555-4555-8555-555555555555",
     isFirstRowForOpportunity = true,
+    isEffectivelyCanceled = false,
   } = overrides;
   return {
     opportunityId,
@@ -47,6 +49,7 @@ function row(
     myState,
     isFirstRowForOpportunity,
     isPostFinalRetainedHistory,
+    isEffectivelyCanceled,
   } as never;
 }
 
@@ -131,6 +134,94 @@ describe("TicketsView", () => {
     );
     expect(screen.getByText("受付終了")).toBeInTheDocument();
     expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+  });
+
+  it("prioritizes 中止 over 受付終了, applied, and 不明", () => {
+    render(
+      <TicketsView
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [
+                    row({
+                      myState: "applied",
+                      isPostFinalRetainedHistory: true,
+                      isEffectivelyCanceled: true,
+                    }),
+                  ],
+                },
+              ],
+            },
+          },
+          optional: { ok: false, variant: "error" },
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("中止")).toHaveLength(1);
+    expect(screen.queryByText("受付終了")).not.toBeInTheDocument();
+    expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+    expect(screen.queryByText("不明")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("申し込み状態を取得できませんでした"),
+    ).toBeInTheDocument();
+  });
+
+  it("prioritizes 中止 over 申し込む予定", () => {
+    render(
+      <TicketsView
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [
+                    row({
+                      myState: "planned",
+                      isEffectivelyCanceled: true,
+                    }),
+                  ],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("中止")).toBeInTheDocument();
+    expect(screen.queryByText("申し込む予定")).not.toBeInTheDocument();
+  });
+
+  it("keeps the active planning-state badge when cancellation is false", () => {
+    render(
+      <TicketsView
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [row({ myState: "planned" })],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("申し込む予定")).toBeInTheDocument();
+    expect(screen.queryByText("中止")).not.toBeInTheDocument();
   });
 
   /**

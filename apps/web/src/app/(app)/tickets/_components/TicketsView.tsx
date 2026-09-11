@@ -10,8 +10,10 @@ import {
   READ_FAILURE_RETRY_HINT_JA,
   type OptionalPartBlockState,
 } from "@/app/_lib/read-state";
-import type { TicketOpportunityTimelineRow } from "@stage-tracker/domain";
-import type { TicketsTimelineState } from "../_lib/tickets-loader";
+import type {
+  TicketsTimelineRow,
+  TicketsTimelineState,
+} from "../_lib/tickets-loader";
 import { TicketOpportunityStateControls } from "./TicketOpportunityStateControls";
 
 export interface TicketsViewProps {
@@ -20,11 +22,9 @@ export interface TicketsViewProps {
 
 /**
  * `/tickets`'s presentational layer (`docs/v2/oracle-routes-ui.md` §2
- * 「チケット一覧」). Takes the already-classified state as a prop - see
- * `../_lib/tickets-loader.ts`'s own header for the known gap in the badge
- * priority (①中止 cannot be computed from the data this Task's frozen
- * `apps/web/src/lib/data/` read boundary provides for TicketOpportunity, so
- * `badgeForRow` below starts at tier ②).
+ * 「チケット一覧」). Takes the already-classified state as a prop. The
+ * shared read boundary supplies the canonical effective-cancellation result,
+ * while the component only applies the Oracle presentation priority.
  *
  * `state.optional` (PR #381 P4 follow-up review finding 2) is the personal
  * planning-state read's own status, kept separate from `state.block`'s data:
@@ -120,20 +120,18 @@ function PersonalStateFailureNote({
 }
 
 /**
- * Badge priority (oracle §2 「チケット一覧」, tiers ②-⑤ only - see this
- * component's own header for why tier ① 中止 is not implemented): 受付終了
- * (post-final retained history) takes priority over the personal planning
- * state - that fact comes from the milestone/opportunity data itself, not
- * from the personal-state read, so it is shown even when
- * `personalStateUnknown` is true. Below that, an unknown personal-state read
- * takes priority over any (necessarily null/fallback-derived) `myState`
- * value, which itself prioritizes 申し込み済み over 申し込む予定. At most 1
- * badge is ever shown, matching "1つだけ表示".
+ * Badge priority (oracle §2 「チケット一覧」): effective cancellation
+ * (中止) is the objective terminal fact and outranks retained post-final
+ * history (受付終了), personal-state degradation (不明), and planned/applied
+ * badges. At most 1 badge is ever shown, matching "1つだけ表示".
  */
 function badgeForRow(
-  row: TicketOpportunityTimelineRow,
+  row: TicketsTimelineRow,
   personalStateUnknown: boolean,
 ) {
+  if (row.isEffectivelyCanceled) {
+    return <Badge variant="terminal">中止</Badge>;
+  }
   if (row.isPostFinalRetainedHistory) {
     return <Badge variant="terminal">受付終了</Badge>;
   }

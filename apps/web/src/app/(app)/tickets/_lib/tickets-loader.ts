@@ -3,7 +3,7 @@ import {
   buildTicketOpportunityTimelineRows,
   groupTicketOpportunityTimelineRowsByMonth,
   selectTicketOpportunityPrimaryRows,
-  type TicketOpportunityTimelineMonthGroup,
+  type TicketOpportunityTimelineRow,
   type UserId,
 } from "@stage-tracker/domain";
 import {
@@ -40,19 +40,23 @@ import type { ScreenNow } from "@/app/_lib/now";
  * instead of that failure being indistinguishable from every row genuinely
  * having no personal state.
  *
- * Known gap (documented in this Task's report, not fabricated around): the
- * oracle's badge priority for this screen names 5 tiers, the highest being
- * "①中止". Computing that requires the parent Event's and (for
- * `selected_occurrences` Opportunities) the target Occurrences' cancellation
- * state, which `@stage-tracker/lib/data`'s ticket reads
- * (`listTicketOpportunities`) do not join in - only `ticket_opportunities`,
- * `ticket_opportunity_milestones`, and the *bare occurrence ids* of
- * `ticket_opportunity_target_occurrences` (no `canceled_at`). This loader
- * therefore cannot classify "中止" and the badge priority implemented here
- * starts at tier ② (see `../_components/TicketsView.tsx`).
+ * Cancellation is classified at the shared read boundary using the canonical
+ * `isTicketOpportunityEffectivelyCanceled` domain function. The resulting
+ * source-backed classification is carried onto each timeline row for the
+ * View; the timeline ordering/retention algorithm itself remains cancellation-
+ * agnostic.
  */
+export type TicketsTimelineRow = TicketOpportunityTimelineRow & {
+  readonly isEffectivelyCanceled: boolean;
+};
+
+export interface TicketsTimelineMonthGroup {
+  readonly monthKey: string;
+  readonly rows: readonly TicketsTimelineRow[];
+}
+
 export interface TicketsTimelineState {
-  readonly groups: readonly TicketOpportunityTimelineMonthGroup[];
+  readonly groups: readonly TicketsTimelineMonthGroup[];
 }
 
 export async function loadTicketsTimeline(
@@ -80,7 +84,23 @@ export async function loadTicketsTimeline(
         now.nowInstant,
         now.todayTokyoDate,
       );
-      return { groups: groupTicketOpportunityTimelineRowsByMonth(primaryRows) };
+      const canceledOpportunityIds = new Set(
+        opportunities
+          .filter((detail) => detail.isEffectivelyCanceled)
+          .map((detail) => detail.opportunityWithTargets.opportunity.id),
+      );
+      const groups = groupTicketOpportunityTimelineRowsByMonth(primaryRows);
+      return {
+        groups: groups.map((group) => ({
+          ...group,
+          rows: group.rows.map((row) => ({
+            ...row,
+            isEffectivelyCanceled: canceledOpportunityIds.has(
+              row.opportunityId,
+            ),
+          })),
+        })),
+      };
     },
     (data) => data.groups.length === 0,
   );

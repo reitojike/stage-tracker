@@ -1,11 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   err,
+  instantSchema,
+  isTicketOpportunityEffectivelyCanceled,
   occurrenceIdSchema,
   ok,
   ticketOpportunityWithTargetsSchema,
+  type Instant,
   type OccurrenceId,
   type Result,
+  type TicketOpportunityCancellationScope,
   type TicketOpportunityAggregate,
   type TicketOpportunityMilestone,
   type TicketOpportunityWithTargets,
@@ -25,8 +29,12 @@ import type { ReadResult } from "../read-result";
 import { runSupabaseSelect } from "../supabase-select";
 
 export interface TicketOpportunityListRow extends TicketOpportunityRow {
+  readonly events: { readonly canceled_at: string | null } | null;
   readonly ticket_opportunity_target_occurrences: readonly {
     readonly occurrence_id: string;
+    readonly event_occurrences: {
+      readonly canceled_at: string | null;
+    } | null;
   }[];
   readonly ticket_opportunity_milestones: readonly TicketOpportunityMilestoneRow[];
 }
@@ -34,6 +42,65 @@ export interface TicketOpportunityListRow extends TicketOpportunityRow {
 export interface TicketOpportunityDetail {
   readonly opportunityWithTargets: TicketOpportunityWithTargets;
   readonly milestones: readonly TicketOpportunityMilestone[];
+  readonly cancellationScope: TicketOpportunityCancellationScope;
+  readonly isEffectivelyCanceled: boolean;
+}
+
+function mapNullableCancellationInstant(
+  value: string | null,
+  context: string,
+): Result<Instant | null, string> {
+  if (value === null) {
+    return ok(null);
+  }
+  const parsed = instantSchema.safeParse(value);
+  if (!parsed.success) {
+    return err(`Invalid cancellation timestamp (${context}): ${parsed.error.message}`);
+  }
+  return ok(parsed.data);
+}
+
+function mapTicketOpportunityCancellationScope(
+  row: TicketOpportunityListRow,
+  targetScope: TicketOpportunityWithTargets["opportunity"]["targetScope"],
+): Result<TicketOpportunityCancellationScope, string> {
+  if (row.events === null) {
+    return err(
+      `Invalid ticket_opportunities row (id=${row.id}): parent events row missing while reading cancellation.`,
+    );
+  }
+
+  const eventCanceledAt = mapNullableCancellationInstant(
+    row.events.canceled_at,
+    `event_id=${row.event_id}`,
+  );
+  if (!eventCanceledAt.ok) {
+    return eventCanceledAt;
+  }
+
+  const resolvedTargetOccurrences: { readonly canceledAt: Instant | null }[] = [];
+  for (const target of row.ticket_opportunity_target_occurrences) {
+    // A missing nested occurrence is an unresolved target, not an active
+    // occurrence and never evidence that the whole selected set is canceled.
+    if (target.event_occurrences === null) {
+      continue;
+    }
+    const canceledAt = mapNullableCancellationInstant(
+      target.event_occurrences.canceled_at,
+      `opportunity_id=${row.id}, occurrence_id=${target.occurrence_id}`,
+    );
+    if (!canceledAt.ok) {
+      return canceledAt;
+    }
+    resolvedTargetOccurrences.push({ canceledAt: canceledAt.value });
+  }
+
+  return ok({
+    eventCanceled: eventCanceledAt.value !== null,
+    targetScope,
+    resolvedTargetOccurrences,
+    targetOccurrenceIdCount: row.ticket_opportunity_target_occurrences.length,
+  });
 }
 
 function mapTicketOpportunityListRow(
@@ -55,6 +122,14 @@ function mapTicketOpportunityListRow(
     targetOccurrenceIds.push(parsed.data);
   }
 
+  const cancellationScopeResult = mapTicketOpportunityCancellationScope(
+    row,
+    opportunityResult.value.targetScope,
+  );
+  if (!cancellationScopeResult.ok) {
+    return cancellationScopeResult;
+  }
+
   const withTargetsParsed = ticketOpportunityWithTargetsSchema.safeParse({
     opportunity: opportunityResult.value,
     targetOccurrenceIds,
@@ -74,7 +149,14 @@ function mapTicketOpportunityListRow(
     milestones.push(milestoneResult.value);
   }
 
-  return ok({ opportunityWithTargets: withTargetsParsed.data, milestones });
+  return ok({
+    opportunityWithTargets: withTargetsParsed.data,
+    milestones,
+    cancellationScope: cancellationScopeResult.value,
+    isEffectivelyCanceled: isTicketOpportunityEffectivelyCanceled(
+      cancellationScopeResult.value,
+    ),
+  });
 }
 
 /**
@@ -100,7 +182,7 @@ export async function listTicketOpportunities(
   const query = client
     .from("ticket_opportunities")
     .select(
-      "*, ticket_opportunity_target_occurrences(occurrence_id), ticket_opportunity_milestones(*)",
+      "*, events(canceled_at), ticket_opportunity_target_occurrences(occurrence_id, event_occurrences(canceled_at)), ticket_opportunity_milestones(*)",
     );
 
   const rowsResult = await runSupabaseSelect(query);
