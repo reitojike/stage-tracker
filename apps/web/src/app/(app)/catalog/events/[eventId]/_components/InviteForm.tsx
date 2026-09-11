@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useTransition, type FormEvent } from 'react';
-import type { OccurrenceId } from '@stage-tracker/domain';
-import { Button, Sheet } from '@stage-tracker/ui';
-import { inviteToOccurrenceAction } from '@/lib/actions/invitation.actions';
+import { useState, useTransition, type FormEvent } from "react";
+import type { OccurrenceId } from "@stage-tracker/domain";
+import { Button, Sheet } from "@stage-tracker/ui";
+import { inviteToOccurrenceAction } from "@/lib/actions/invitation.actions";
 
 export interface InviteFormProps {
   readonly occurrenceId: OccurrenceId;
 }
 
 type InviteMessage = {
-  readonly kind: 'error';
+  readonly kind: "error";
   readonly text: string;
 };
 
@@ -29,7 +29,7 @@ type InviteMessage = {
  */
 export function InviteForm({ occurrenceId }: InviteFormProps) {
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState<InviteMessage | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -40,19 +40,19 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
       const result = await inviteToOccurrenceAction({ occurrenceId, email });
 
       if (result?.serverError) {
-        setMessage({ kind: 'error', text: result.serverError.message });
+        setMessage({ kind: "error", text: result.serverError.message });
         return;
       }
       if (result?.validationErrors) {
         setMessage({
-          kind: 'error',
-          text: 'メールアドレスの形式を確認してください。',
+          kind: "error",
+          text: "メールアドレスの形式を確認してください。",
         });
         return;
       }
 
       // 成功: invitee 側の実際の分岐に関わらず、常に同じタイミングで閉じる。
-      setEmail('');
+      setEmail("");
       setMessage(null);
       setOpen(false);
     });
@@ -62,7 +62,12 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
 
   return (
     <>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => setOpen(true)}
+      >
         招待する
       </Button>
       <Sheet
@@ -75,7 +80,11 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
         }}
         title="招待する"
         footer={
-          <Button type="submit" form={`invite-form-${occurrenceId}`} disabled={isPending}>
+          <Button
+            type="submit"
+            form={`invite-form-${occurrenceId}`}
+            disabled={isPending}
+          >
             送信
           </Button>
         }
@@ -86,7 +95,10 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
           className="flex flex-col gap-xs"
           aria-busy={isPending}
         >
-          <label className="text-label font-medium text-foreground" htmlFor={fieldId}>
+          <label
+            className="text-label font-medium text-foreground"
+            htmlFor={fieldId}
+          >
             招待するメールアドレス
           </label>
           <input
@@ -101,7 +113,10 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
             className="h-9 rounded-control border border-input bg-background px-3 text-body-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           {message !== null ? (
-            <p role={message.kind === 'error' ? 'alert' : 'status'} className="text-body-sm">
+            <p
+              role={message.kind === "error" ? "alert" : "status"}
+              className="text-body-sm"
+            >
               {message.text}
             </p>
           ) : null}

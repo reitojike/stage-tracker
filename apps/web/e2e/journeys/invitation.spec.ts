@@ -1,11 +1,15 @@
-import { expect, test } from '@playwright/test';
-import { createE2eAdminClient, deleteActor, provisionActor } from '../support/adminClient';
+import { expect, test } from "@playwright/test";
+import {
+  createE2eAdminClient,
+  deleteActor,
+  provisionActor,
+} from "../support/adminClient";
 import {
   cleanupSeededEvent,
   seedEventWithOccurrence,
   tokyoTodayDateString,
-} from '../support/seedCatalog';
-import { completeMagicLinkSignIn } from '../support/signIn';
+} from "../support/seedCatalog";
+import { completeMagicLinkSignIn } from "../support/signIn";
 
 /**
  * Invitation journey (Issue #380 primary journey 5): an `attending` user
@@ -29,10 +33,12 @@ import { completeMagicLinkSignIn } from '../support/signIn';
  * journey's job is the invite -> accept path a real pair of users takes
  * most often.
  */
-test('invitation: an attending user invites another user, who accepts', async ({ browser }) => {
+test("invitation: an attending user invites another user, who accepts", async ({
+  browser,
+}) => {
   const admin = createE2eAdminClient();
-  const inviter = await provisionActor(admin, 'e2e-invite-from');
-  const invitee = await provisionActor(admin, 'e2e-invite-to');
+  const inviter = await provisionActor(admin, "e2e-invite-from");
+  const invitee = await provisionActor(admin, "e2e-invite-to");
   const tokyoDate = tokyoTodayDateString();
   const title = `E2E招待テスト公演-${Date.now()}`;
   const seeded = await seedEventWithOccurrence(admin, {
@@ -50,37 +56,44 @@ test('invitation: an attending user invites another user, who accepts', async ({
     await completeMagicLinkSignIn(inviterPage, inviter.email);
 
     await inviterPage.goto(`/catalog/events/${seeded.eventId}`);
-    const occurrenceRow = inviterPage.locator(`#occurrence-${seeded.occurrenceId}`);
-    await occurrenceRow.getByRole('button', { name: /参加の状態/ }).click();
+    const occurrenceRow = inviterPage.locator(
+      `#occurrence-${seeded.occurrenceId}`,
+    );
+    await occurrenceRow.getByRole("button", { name: /参加の状態/ }).click();
     await inviterPage
-      .getByRole('dialog', { name: '参加の状態' })
-      .getByRole('button', { name: '参加する' })
+      .getByRole("dialog", { name: "参加の状態" })
+      .getByRole("button", { name: "参加する" })
       .click();
-    await expect(inviterPage.getByRole('dialog', { name: '参加の状態' })).toBeHidden();
+    await expect(
+      inviterPage.getByRole("dialog", { name: "参加の状態" }),
+    ).toBeHidden();
 
-    await occurrenceRow.getByRole('button', { name: '招待する' }).click();
-    await inviterPage.getByLabel('招待するメールアドレス').fill(invitee.email);
-    await inviterPage.getByRole('button', { name: '送信' }).click();
-    await expect(inviterPage.getByRole('dialog', { name: '招待する' })).toBeHidden();
+    await occurrenceRow.getByRole("button", { name: "招待する" }).click();
+    await inviterPage.getByLabel("招待するメールアドレス").fill(invitee.email);
+    await inviterPage.getByRole("button", { name: "送信" }).click();
+    await expect(
+      inviterPage.getByRole("dialog", { name: "招待する" }),
+    ).toBeHidden();
 
     const inviteePage = await inviteeContext.newPage();
     await completeMagicLinkSignIn(inviteePage, invitee.email);
 
-    await inviteePage.goto('/catalog/invitations');
+    await inviteePage.goto("/catalog/invitations");
     await expect(inviteePage.getByText(title)).toBeVisible();
-    await inviteePage.getByRole('button', { name: '参加する' }).click();
-    await expect(inviteePage.getByText('招待はありません')).toBeVisible();
+    await inviteePage.getByRole("button", { name: "参加する" }).click();
+    await expect(inviteePage.getByText("招待はありません")).toBeVisible();
 
     // Persisted: the invitee's own participation is now `attending` on the
     // same occurrence, through the same write `participation.spec.ts`
     // exercises directly (invitation acceptance is that same operation -
     // product-rules.md "Invitation" "Accept").
     await inviteePage.goto(`/catalog/events/${seeded.eventId}`);
-    const inviteeOccurrenceRow = inviteePage.locator(`#occurrence-${seeded.occurrenceId}`);
-    await expect(inviteeOccurrenceRow.getByRole('button', { name: '参加する' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    const inviteeOccurrenceRow = inviteePage.locator(
+      `#occurrence-${seeded.occurrenceId}`,
     );
+    await expect(
+      inviteeOccurrenceRow.getByRole("button", { name: "参加する" }),
+    ).toHaveAttribute("aria-pressed", "true");
   } finally {
     await inviterContext.close();
     await inviteeContext.close();

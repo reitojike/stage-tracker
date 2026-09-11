@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition } from "react";
 import {
   isParticipationWriteBlockedByCancellation,
   type EventId,
   type OccurrenceId,
   type ParticipationStatus,
   type ParticipationWriteTransition,
-} from '@stage-tracker/domain';
-import { Button, Sheet } from '@stage-tracker/ui';
-import { setParticipationChoiceAction } from '@/lib/actions/participation.actions';
-import type { ParticipationChoice } from '@/lib/actions/participation';
+} from "@stage-tracker/domain";
+import { Button, Sheet } from "@stage-tracker/ui";
+import { setParticipationChoiceAction } from "@/lib/actions/participation.actions";
+import type { ParticipationChoice } from "@/lib/actions/participation";
 
 export interface ParticipationControlsProps {
   readonly eventId: EventId;
@@ -33,9 +33,9 @@ function transitionFor(
   target: ParticipationStatus,
 ): ParticipationWriteTransition {
   if (currentStatus === null) {
-    return { kind: 'create', status: target };
+    return { kind: "create", status: target };
   }
-  return { kind: 'update', from: currentStatus, to: target };
+  return { kind: "update", from: currentStatus, to: target };
 }
 
 /**
@@ -59,13 +59,19 @@ export function ParticipationControls({
   isEffectivelyCanceled,
   onStatusChange,
 }: ParticipationControlsProps) {
-  const [status, setStatus] = useState<ParticipationStatus | null>(initialStatus);
+  const [status, setStatus] = useState<ParticipationStatus | null>(
+    initialStatus,
+  );
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   if (participationUnavailable) {
-    return <p className="text-body-sm text-muted-foreground">参加状況を読み込めませんでした。</p>;
+    return (
+      <p className="text-body-sm text-muted-foreground">
+        参加状況を読み込めませんでした。
+      </p>
+    );
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -79,7 +85,7 @@ export function ParticipationControls({
     if (blocked) {
       return;
     }
-    if (choice !== 'withdraw' && choice === status) {
+    if (choice !== "withdraw" && choice === status) {
       handleOpenChange(false);
       return;
     }
@@ -97,11 +103,11 @@ export function ParticipationControls({
         return;
       }
       if (result?.validationErrors) {
-        setErrorMessage('入力内容を確認してください。');
+        setErrorMessage("入力内容を確認してください。");
         return;
       }
 
-      const nextStatus = choice === 'withdraw' ? null : choice;
+      const nextStatus = choice === "withdraw" ? null : choice;
       setStatus(nextStatus);
       onStatusChange?.(nextStatus);
       handleOpenChange(false);
@@ -109,20 +115,24 @@ export function ParticipationControls({
   }
 
   const attendingBlocked =
-    status !== 'attending' &&
+    status !== "attending" &&
     isParticipationWriteBlockedByCancellation(
-      transitionFor(status, 'attending'),
+      transitionFor(status, "attending"),
       isEffectivelyCanceled,
     );
   const consideringBlocked =
-    status !== 'considering' &&
+    status !== "considering" &&
     isParticipationWriteBlockedByCancellation(
-      transitionFor(status, 'considering'),
+      transitionFor(status, "considering"),
       isEffectivelyCanceled,
     );
 
   const currentStatusLabel =
-    status === 'attending' ? '参加する' : status === 'considering' ? '気になる' : '未選択';
+    status === "attending"
+      ? "参加する"
+      : status === "considering"
+        ? "気になる"
+        : "未選択";
 
   return (
     <>
@@ -151,25 +161,25 @@ export function ParticipationControls({
               type="button"
               size="lg"
               className="w-full justify-between"
-              variant={status === 'attending' ? 'default' : 'outline'}
+              variant={status === "attending" ? "default" : "outline"}
               disabled={isPending || attendingBlocked}
-              aria-pressed={status === 'attending'}
-              onClick={() => submit('attending', attendingBlocked)}
+              aria-pressed={status === "attending"}
+              onClick={() => submit("attending", attendingBlocked)}
             >
               参加する
-              {status === 'attending' ? '（選択中）' : null}
+              {status === "attending" ? "（選択中）" : null}
             </Button>
             <Button
               type="button"
               size="lg"
               className="w-full justify-between"
-              variant={status === 'considering' ? 'default' : 'outline'}
+              variant={status === "considering" ? "default" : "outline"}
               disabled={isPending || consideringBlocked}
-              aria-pressed={status === 'considering'}
-              onClick={() => submit('considering', consideringBlocked)}
+              aria-pressed={status === "considering"}
+              onClick={() => submit("considering", consideringBlocked)}
             >
               気になる
-              {status === 'considering' ? '（選択中）' : null}
+              {status === "considering" ? "（選択中）" : null}
             </Button>
             {status !== null ? (
               <Button
@@ -178,7 +188,7 @@ export function ParticipationControls({
                 className="w-full justify-start"
                 variant="ghost"
                 disabled={isPending}
-                onClick={() => submit('withdraw', false)}
+                onClick={() => submit("withdraw", false)}
               >
                 参加をやめる
               </Button>
