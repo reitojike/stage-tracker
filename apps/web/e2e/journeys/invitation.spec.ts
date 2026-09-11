@@ -91,9 +91,16 @@ test("invitation: an attending user invites another user, who accepts", async ({
     const inviteeOccurrenceRow = inviteePage.locator(
       `#occurrence-${seeded.occurrenceId}`,
     );
+    const inviteeStatusTrigger = inviteeOccurrenceRow.getByRole("button", {
+      name: /参加の状態/,
+    });
+    await expect(inviteeStatusTrigger).toHaveText(/参加する/);
+    await inviteeStatusTrigger.click();
     await expect(
-      inviteeOccurrenceRow.getByRole("button", { name: "参加する" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      inviteePage
+        .getByRole("dialog", { name: "参加の状態" })
+        .getByRole("button", { name: /^参加する（選択中）$/ }),
+    ).toBeVisible();
   } finally {
     await inviterContext.close();
     await inviteeContext.close();
