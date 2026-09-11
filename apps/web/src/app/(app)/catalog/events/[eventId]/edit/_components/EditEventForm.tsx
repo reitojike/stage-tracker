@@ -1,9 +1,21 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import type { Event, Occurrence } from "@stage-tracker/domain";
-import { Badge, Button } from "@stage-tracker/ui";
+import { Badge } from "@stage-tracker/ui";
+import { Button } from "@stage-tracker/ui/components/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@stage-tracker/ui/components/sheet";
+import { formatTokyoCalendarDateRangeJa } from "@/app/_lib/format";
 import {
   cancelEventAction,
   deleteEventAction,
@@ -12,19 +24,20 @@ import {
   updateEventRangeAction,
 } from "@/lib/actions/events";
 import { fieldErrorMessage } from "@/lib/actions/validationErrors";
-import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { OccurrenceList } from "./OccurrenceList";
 
 /**
  * `/catalog/events/[eventId]/edit` の owner 専用フォーム群
  * （`docs/v2/oracle-routes-ui.md` §2「Event 編集」）。
  *
- * - 詳細編集/期間編集: 成功時は画面に留まり、簡易な成功メッセージで通知
+ * - 詳細編集: 成功時は画面に留まり、簡易な成功メッセージで通知
  *   （`WriteNotice` 相当。専用 `aria-live` component は `packages/ui` に
  *   まだ無く、この Task の編集許可範囲にも含まれないため、role属性付きの
- *   plain text で代替する — このタスクの報告に discretion として記録する）。
+ *   plain text で代替する）。
+ * - 期間編集: Oracle に従い shared Sheet 内のフォームで編集し、成功時に
+ *   自動 close する。入力失敗時は Sheet を開いたままにする。
  * - 中止/解除: 確認ダイアログなし（可逆操作）。
- * - 削除: 確認 Sheet 相当（`ConfirmDeleteButton`）必須。成功時
+ * - 削除: shared Sheet による明示的な確認が必須。成功時
  *   `deleteEventAction` 自身が `/catalog` へ redirect する。
  */
 export function EditEventForm({
@@ -34,8 +47,16 @@ export function EditEventForm({
   event: Event;
   occurrences: readonly Occurrence[];
 }) {
+  const router = useRouter();
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const detailsAction = useAction(updateEventDetailsAction);
-  const rangeAction = useAction(updateEventRangeAction);
+  const rangeAction = useAction(updateEventRangeAction, {
+    onSuccess: () => {
+      setRangeOpen(false);
+      router.refresh();
+    },
+  });
   const cancelAction = useAction(cancelEventAction);
   const uncancelAction = useAction(uncancelEventAction);
   const deleteAction = useAction(deleteEventAction);
@@ -65,6 +86,20 @@ export function EditEventForm({
   const isCanceled = event.canceledAt !== null;
   const detailsErrors = detailsAction.result.validationErrors;
   const rangeErrors = rangeAction.result.validationErrors;
+
+  function handleRangeOpenChange(nextOpen: boolean) {
+    setRangeOpen(nextOpen);
+    if (!nextOpen) {
+      rangeAction.reset();
+    }
+  }
+
+  function handleDeleteOpenChange(nextOpen: boolean) {
+    setDeleteOpen(nextOpen);
+    if (!nextOpen) {
+      deleteAction.reset();
+    }
+  }
 
   return (
     <div className="flex flex-col gap-lg">
@@ -116,43 +151,70 @@ export function EditEventForm({
         </Button>
       </form>
 
-      <form
-        onSubmit={handleRangeSubmit}
-        className="flex flex-col gap-md border-b-2 border-border pb-lg"
-      >
+      <div className="flex flex-col gap-sm border-b-2 border-border pb-lg">
         <h2 className="text-title leading-title font-semibold text-foreground">
           開催期間
         </h2>
-        <EditField
-          label="開始日"
-          name="startsOn"
-          type="date"
-          defaultValue={event.startsOn}
-          required
-          error={fieldErrorMessage(rangeErrors, "startsOn")}
-        />
-        <EditField
-          label="終了日"
-          name="endsOn"
-          type="date"
-          defaultValue={event.endsOn}
-          required
-          error={fieldErrorMessage(rangeErrors, "endsOn")}
-        />
-        {rangeAction.result.serverError ? (
-          <p role="alert" className="text-body-sm text-destructive">
-            {rangeAction.result.serverError.message}
-          </p>
-        ) : null}
-        {rangeAction.hasSucceeded ? (
-          <p role="status" className="text-body-sm text-muted-foreground">
-            保存しました。
-          </p>
-        ) : null}
-        <Button type="submit" disabled={rangeAction.isExecuting}>
-          {rangeAction.isExecuting ? "保存中…" : "開催期間を保存"}
-        </Button>
-      </form>
+        <p className="text-body-sm text-muted-foreground">
+          {formatTokyoCalendarDateRangeJa(event.startsOn, event.endsOn)}
+        </p>
+        <Sheet open={rangeOpen} onOpenChange={handleRangeOpenChange}>
+          <SheetTrigger
+            render={
+              <Button type="button" variant="outline" aria-haspopup="dialog">
+                開催期間を変更
+              </Button>
+            }
+          />
+          <SheetContent side="bottom">
+            <SheetHeader>
+              <SheetTitle>開催期間を変更</SheetTitle>
+              <SheetDescription>
+                開催期間と公演回の日時を両方とも新しい期間へ移す場合は、先に開催期間を広げてください。
+              </SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+              <form
+                id={`event-range-form-${event.id}`}
+                onSubmit={handleRangeSubmit}
+                className="flex flex-col gap-md"
+                aria-busy={rangeAction.isExecuting}
+              >
+                <EditField
+                  label="開始日"
+                  name="startsOn"
+                  type="date"
+                  defaultValue={event.startsOn}
+                  required
+                  error={fieldErrorMessage(rangeErrors, "startsOn")}
+                />
+                <EditField
+                  label="終了日"
+                  name="endsOn"
+                  type="date"
+                  defaultValue={event.endsOn}
+                  required
+                  error={fieldErrorMessage(rangeErrors, "endsOn")}
+                />
+                {rangeAction.result.serverError ? (
+                  <p role="alert" className="text-body-sm text-destructive">
+                    {rangeAction.result.serverError.message}
+                  </p>
+                ) : null}
+              </form>
+            </div>
+            <SheetFooter>
+              <Button
+                type="submit"
+                form={`event-range-form-${event.id}`}
+                disabled={rangeAction.isExecuting}
+              >
+                {rangeAction.isExecuting ? "保存中…" : "開催期間を保存"}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      </div>
 
       <div className="flex flex-col gap-sm border-b-2 border-border pb-lg">
         <h2 className="text-title leading-title font-semibold text-foreground">
@@ -199,17 +261,52 @@ export function EditEventForm({
         <h2 className="text-title leading-title font-semibold text-foreground">
           削除
         </h2>
-        <ConfirmDeleteButton
-          label="このイベントを削除する"
-          confirmDescription="このイベントと、削除可能な公演回をまとめて削除します。この操作は取り消せません。"
-          isExecuting={deleteAction.isExecuting}
-          onConfirm={() => deleteAction.execute({ eventId: event.id })}
-        />
-        {deleteAction.result.serverError ? (
-          <p role="alert" className="text-body-sm text-destructive">
-            {deleteAction.result.serverError.message}
-          </p>
-        ) : null}
+        <Sheet open={deleteOpen} onOpenChange={handleDeleteOpenChange}>
+          <SheetTrigger
+            render={
+              <Button
+                type="button"
+                variant="destructive"
+                aria-haspopup="dialog"
+              >
+                このイベントを削除する
+              </Button>
+            }
+          />
+          <SheetContent side="bottom" showCloseButton={false}>
+            <SheetHeader>
+              <SheetTitle>このイベントを削除</SheetTitle>
+              <SheetDescription>
+                このイベントと、削除可能な公演回をまとめて削除します。この操作は取り消せません。よろしいですか？
+              </SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+              {deleteAction.result.serverError ? (
+                <p role="alert" className="text-body-sm text-destructive">
+                  {deleteAction.result.serverError.message}
+                </p>
+              ) : null}
+            </div>
+            <SheetFooter>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleteAction.isExecuting}
+                onClick={() => deleteAction.execute({ eventId: event.id })}
+              >
+                {deleteAction.isExecuting ? "削除中…" : "削除する"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleteAction.isExecuting}
+                onClick={() => setDeleteOpen(false)}
+              >
+                キャンセル
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
       </div>
     </div>
   );
@@ -230,8 +327,11 @@ function EditField({
   required?: boolean;
   error?: string | undefined;
 }) {
+  const inputId = `event-edit-${name}`;
+  const errorId = `${inputId}-error`;
+
   return (
-    <label className="flex flex-col gap-xs text-body-sm">
+    <label htmlFor={inputId} className="flex flex-col gap-xs text-body-sm">
       <span className="font-medium text-foreground">
         {label}
         {required ? (
@@ -242,16 +342,17 @@ function EditField({
         ) : null}
       </span>
       <input
+        id={inputId}
         name={name}
         type={type}
         required={required}
         defaultValue={defaultValue}
         aria-invalid={error !== undefined}
-        aria-describedby={error !== undefined ? `${name}-error` : undefined}
+        aria-describedby={error !== undefined ? errorId : undefined}
         className="h-9 rounded-control border border-input bg-background px-sm text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       />
       {error !== undefined ? (
-        <span id={`${name}-error`} role="alert" className="text-destructive">
+        <span id={errorId} role="alert" className="text-destructive">
           {error}
         </span>
       ) : null}
