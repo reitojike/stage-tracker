@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import {\n  formatTokyoCalendarDateRangeJa,\n  formatTokyoDateTimeJa,\n  occurrenceTimeRangeLabel,\n} from "./format";
+import {
+  formatTokyoCalendarDateRangeJa,
+  formatTokyoDateTimeJa,
+  occurrenceTimeRangeLabel,
+} from "./format";
 
 describe("occurrenceTimeRangeLabel", () => {
   it("shows a plain time range for a same-day occurrence", () => {
