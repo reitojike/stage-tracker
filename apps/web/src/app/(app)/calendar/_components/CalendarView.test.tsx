@@ -439,6 +439,7 @@ describe("CalendarView", () => {
     expect(screen.getByText("テスト公演")).toBeInTheDocument();
     expect(screen.getByText("個人の予定はありません")).toBeInTheDocument();
   });
+
   it("uses the canonical shared-schedule wording in day-link accessibility labels", () => {
     render(
       <CalendarView
@@ -462,5 +463,4 @@ describe("CalendarView", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("共有されている予定")).toBeInTheDocument();
   });
-
 });
