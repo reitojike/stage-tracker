@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
 import {
   createE2eAdminClient,
   deleteActor,
@@ -29,6 +29,7 @@ import { completeMagicLinkSignIn } from "../support/signIn";
  * exercises.
  */
 test("event management: a designated catalog creator creates and edits an event", async ({
+  browser,
   page,
 }) => {
   const admin = createE2eAdminClient();
@@ -38,6 +39,8 @@ test("event management: a designated catalog creator creates and edits an event"
   const title = `E2Eイベント作成テスト-${Date.now()}`;
   const editedTitle = `${title}-編集済み`;
   let eventId: string | null = null;
+  let viewerUserId: string | null = null;
+  let viewerContext: BrowserContext | null = null;
 
   try {
     await completeMagicLinkSignIn(page, actor.email);
@@ -72,11 +75,33 @@ test("event management: a designated catalog creator creates and edits an event"
     await page.getByRole("button", { name: "基本情報を保存" }).click();
     await expect(page.getByRole("status")).toHaveText("保存しました。");
 
-    await page.goto(`/catalog/events/${String(eventId)}`);
+    const catalogContext = "month=2026-09&date=2026-09-11";
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(`/catalog/events/${String(eventId)}?${catalogContext}`);
     await expect(
       page.getByRole("heading", { name: editedTitle }),
     ).toBeVisible();
+    await expect(page.getByRole("link", { name: "編集" })).toHaveAttribute(
+      "href",
+      `/catalog/events/${String(eventId)}/edit?${catalogContext}`,
+    );
+
+    const viewer = await provisionActor(admin, "e2e-event-viewer");
+    viewerUserId = viewer.userId;
+    viewerContext = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+    });
+    const viewerPage = await viewerContext.newPage();
+    await completeMagicLinkSignIn(viewerPage, viewer.email);
+    await viewerPage.goto(
+      `/catalog/events/${String(eventId)}?${catalogContext}`,
+    );
+    await expect(
+      viewerPage.getByRole("heading", { name: editedTitle }),
+    ).toBeVisible();
+    await expect(viewerPage.getByRole("link", { name: "編集" })).toHaveCount(0);
   } finally {
+    await viewerContext?.close();
     if (eventId !== null) {
       // No occurrence was ever created for this event, so a plain delete
       // (no participation/invitation rows to clear first) is enough -
@@ -88,6 +113,9 @@ test("event management: a designated catalog creator creates and edits an event"
           `[e2e cleanup] failed to delete event ${eventId}: ${error.message}`,
         );
       }
+    }
+    if (viewerUserId !== null) {
+      await deleteActor(admin, viewerUserId);
     }
     await deleteActor(admin, actor.userId);
   }

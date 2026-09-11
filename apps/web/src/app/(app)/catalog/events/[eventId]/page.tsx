@@ -17,6 +17,7 @@ import { ParticipationControls } from "./_components/ParticipationControls";
 import { ScrollToFocusedOccurrence } from "./_components/ScrollToFocusedOccurrence";
 import {
   buildCatalogBackHref,
+  buildCatalogEditHref,
   type CatalogSearchParams,
 } from "./_lib/backHref";
 import {
@@ -140,17 +141,25 @@ export default async function EventDetailPage({
       <ScrollToFocusedOccurrence occurrenceId={focusOccurrenceId} />
       <BackLink href={backHref} />
 
-      <header className="flex flex-col gap-xs">
-        <div className="flex items-center gap-sm">
-          <h1 className="text-heading font-semibold leading-heading text-foreground">
+      <header className="flex flex-wrap items-center justify-between gap-sm">
+        <div className="flex min-w-0 items-center gap-sm">
+          <h1 className="min-w-0 break-words text-heading font-semibold leading-heading text-foreground">
             {eventDetail.event.title}
           </h1>
           {isCanceled(eventDetail.event) ? (
             <Badge variant="terminal">中止</Badge>
           ) : null}
         </div>
+        {eventDetail.event.ownerId === user.id ? (
+          <Link
+            href={buildCatalogEditHref(eventId, search)}
+            className="inline-flex h-9 shrink-0 items-center rounded-control border border-input px-md text-body-sm font-medium text-foreground hover:bg-muted"
+          >
+            編集
+          </Link>
+        ) : null}
         {eventDetail.event.venue !== null ? (
-          <p className="text-body-sm text-muted-foreground">
+          <p className="basis-full text-body-sm text-muted-foreground">
             {eventDetail.event.venue}
           </p>
         ) : null}
