@@ -8,7 +8,15 @@ import {
   type ParticipationStatus,
   type ParticipationWriteTransition,
 } from "@stage-tracker/domain";
-import { Button, Sheet } from "@stage-tracker/ui";
+import { Button } from "@stage-tracker/ui/components/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@stage-tracker/ui/components/sheet";
 import { setParticipationChoiceAction } from "@/lib/actions/participation.actions";
 import type { ParticipationChoice } from "@/lib/actions/participation";
 
@@ -76,9 +84,7 @@ export function ParticipationControls({
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (!nextOpen) {
-      setErrorMessage(null);
-    }
+    setErrorMessage(null);
   }
 
   function submit(choice: ParticipationChoice, blocked: boolean) {
@@ -135,77 +141,84 @@ export function ParticipationControls({
         : null;
 
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-sm">
-        {currentStatusLabel !== null ? (
-          <span
-            data-testid="participation-status"
-            className="text-body-sm font-medium"
-          >
-            {currentStatusLabel}
-          </span>
-        ) : null}
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={() => {
-            setErrorMessage(null);
-            setOpen(true);
-          }}
+    <div className="flex flex-wrap items-center gap-sm">
+      {currentStatusLabel !== null ? (
+        <span
+          data-testid="participation-status"
+          className="text-body-sm font-medium"
         >
-          変更
-        </Button>
-      </div>
-      <Sheet open={open} onOpenChange={handleOpenChange} title="参加の状態">
-        <div className="flex flex-col gap-sm" aria-busy={isPending}>
-          {errorMessage !== null ? (
-            <p role="alert" className="text-body-sm text-destructive">
-              {errorMessage}
-            </p>
-          ) : null}
-          <div className="flex flex-col gap-xs">
+          {currentStatusLabel}
+        </span>
+      ) : null}
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetTrigger
+          render={
             <Button
               type="button"
-              size="lg"
-              className="w-full justify-between"
-              variant={status === "attending" ? "default" : "outline"}
-              disabled={isPending || attendingBlocked}
-              aria-pressed={status === "attending"}
-              onClick={() => submit("attending", attendingBlocked)}
+              size="sm"
+              variant="outline"
+              aria-haspopup="dialog"
             >
-              参加する
-              {status === "attending" ? "（選択中）" : null}
+              変更
             </Button>
-            <Button
-              type="button"
-              size="lg"
-              className="w-full justify-between"
-              variant={status === "considering" ? "default" : "outline"}
-              disabled={isPending || consideringBlocked}
-              aria-pressed={status === "considering"}
-              onClick={() => submit("considering", consideringBlocked)}
-            >
-              気になる
-              {status === "considering" ? "（選択中）" : null}
-            </Button>
-            {status !== null ? (
-              <Button
-                type="button"
-                size="lg"
-                className="w-full justify-start"
-                variant="ghost"
-                disabled={isPending}
-                onClick={() => submit("withdraw", false)}
-              >
-                参加をやめる
-              </Button>
-            ) : null}
+          }
+        />
+        <SheetContent side="bottom">
+          <SheetHeader>
+            <SheetTitle>参加の状態</SheetTitle>
+            <SheetDescription className="sr-only">
+              参加状態を変更します。
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+            <div className="flex flex-col gap-sm" aria-busy={isPending}>
+              {errorMessage !== null ? (
+                <p role="alert" className="text-body-sm text-destructive">
+                  {errorMessage}
+                </p>
+              ) : null}
+              <div className="flex flex-col gap-xs">
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full justify-between"
+                  variant={status === "attending" ? "default" : "outline"}
+                  disabled={isPending || attendingBlocked}
+                  aria-pressed={status === "attending"}
+                  onClick={() => submit("attending", attendingBlocked)}
+                >
+                  参加する
+                  {status === "attending" ? "（選択中）" : null}
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full justify-between"
+                  variant={status === "considering" ? "default" : "outline"}
+                  disabled={isPending || consideringBlocked}
+                  aria-pressed={status === "considering"}
+                  onClick={() => submit("considering", consideringBlocked)}
+                >
+                  気になる
+                  {status === "considering" ? "（選択中）" : null}
+                </Button>
+                {status !== null ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="w-full justify-start"
+                    variant="ghost"
+                    disabled={isPending}
+                    onClick={() => submit("withdraw", false)}
+                  >
+                    参加をやめる
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </div>
-        </div>
+        </SheetContent>
       </Sheet>
-    </>
+    </div>
   );
 }

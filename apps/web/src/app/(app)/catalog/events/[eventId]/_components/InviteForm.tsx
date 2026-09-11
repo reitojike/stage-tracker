@@ -2,7 +2,16 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import type { OccurrenceId } from "@stage-tracker/domain";
-import { Button, Sheet } from "@stage-tracker/ui";
+import { Button } from "@stage-tracker/ui/components/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@stage-tracker/ui/components/sheet";
 import { inviteToOccurrenceAction } from "@/lib/actions/invitation.actions";
 
 export interface InviteFormProps {
@@ -62,14 +71,6 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
 
   return (
     <>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={() => setOpen(true)}
-      >
-        招待する
-      </Button>
       <Sheet
         open={open}
         onOpenChange={(nextOpen) => {
@@ -78,49 +79,65 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
             setMessage(null);
           }
         }}
-        title="招待する"
-        footer={
-          <Button
-            type="submit"
-            form={`invite-form-${occurrenceId}`}
-            disabled={isPending}
-          >
-            送信
-          </Button>
-        }
       >
-        <form
-          id={`invite-form-${occurrenceId}`}
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-xs"
-          aria-busy={isPending}
-        >
-          <label
-            className="text-label font-medium text-foreground"
-            htmlFor={fieldId}
-          >
-            招待するメールアドレス
-          </label>
-          <input
-            id={fieldId}
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            disabled={isPending}
-            onChange={(event) => setEmail(event.target.value)}
-            className="h-9 rounded-control border border-input bg-background px-3 text-body-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-          {message !== null ? (
-            <p
-              role={message.kind === "error" ? "alert" : "status"}
-              className="text-body-sm"
+        <SheetTrigger
+          render={
+            <Button type="button" size="sm" variant="ghost">
+              招待する
+            </Button>
+          }
+        />
+        <SheetContent side="bottom">
+          <SheetHeader>
+            <SheetTitle>招待する</SheetTitle>
+            <SheetDescription className="sr-only">
+              公演回へ招待するメールアドレスを入力します。
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+            <form
+              id={`invite-form-${occurrenceId}`}
+              onSubmit={handleSubmit}
+              className="flex flex-col gap-xs"
+              aria-busy={isPending}
             >
-              {message.text}
-            </p>
-          ) : null}
-        </form>
+              <label
+                className="text-label font-medium text-foreground"
+                htmlFor={fieldId}
+              >
+                招待するメールアドレス
+              </label>
+              <input
+                id={fieldId}
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                disabled={isPending}
+                onChange={(event) => setEmail(event.target.value)}
+                className="h-9 rounded-control border border-input bg-background px-3 text-body-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+              {message !== null ? (
+                <p
+                  role={message.kind === "error" ? "alert" : "status"}
+                  className="text-body-sm"
+                >
+                  {message.text}
+                </p>
+              ) : null}
+            </form>
+          </div>
+          <SheetFooter>
+            <Button
+              type="submit"
+              form={`invite-form-${occurrenceId}`}
+              disabled={isPending}
+            >
+              送信
+            </Button>
+          </SheetFooter>
+        </SheetContent>
       </Sheet>
     </>
   );
