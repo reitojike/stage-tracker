@@ -55,7 +55,7 @@ function mapInviteRejection(
     case "occurrence-effectively-canceled":
       return {
         kind: "occurrence-canceled",
-        message: "この公演は中止されているため、招待できません。",
+        message: "この公演回は中止されているため、招待できません。",
       };
     case "inviter-not-attending":
       return {
@@ -71,7 +71,7 @@ function classifyInviteRpcError(
   if (error.code === OCCURRENCE_CANCELED_SQLSTATE) {
     return {
       kind: "occurrence-canceled",
-      message: "この公演は中止されているため、招待できません。",
+      message: "この公演回は中止されているため、招待できません。",
     };
   }
   // `docs/v2/decisions.md` A8: message match をしない。事前チェック
@@ -125,7 +125,7 @@ async function fetchIsEffectivelyCanceled(
   if (error) {
     return err({
       kind: "failure",
-      message: "公演の状態を確認できませんでした。",
+      message: "公演回の状態を確認できませんでした。",
     });
   }
   return ok(Boolean(data));
