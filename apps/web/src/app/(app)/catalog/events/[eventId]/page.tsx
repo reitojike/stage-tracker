@@ -59,7 +59,10 @@ export default async function EventDetailPage({
     return (
       <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
-        <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
+        <StatePanel
+          variant="empty"
+          title="指定されたイベントが見つかりません"
+        />
       </div>
     );
   }
@@ -116,7 +119,10 @@ export default async function EventDetailPage({
     return (
       <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
-        <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
+        <StatePanel
+          variant="empty"
+          title="指定されたイベントが見つかりません"
+        />
       </div>
     );
   }
