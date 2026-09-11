@@ -7,6 +7,7 @@ import {
   type Instant,
   type TokyoCalendarDate,
 } from "@stage-tracker/domain";
+import { formatTokyoCalendarDateRangeJa } from "@/app/_lib/format";
 import { parseTokyoDateTimeLocal } from "./tokyo-form";
 
 /**
@@ -262,5 +263,5 @@ export function occurrenceWithinRangeError(
   if (isOccurrenceStartWithinEventRange(startsAt, range)) {
     return null;
   }
-  return `開演日時は開催期間（${range.startsOn}〜${range.endsOn}）の範囲内で入力してください。`;
+  return `開演日時は開催期間（${formatTokyoCalendarDateRangeJa(range.startsOn, range.endsOn)}）の範囲内で入力してください。`;
 }

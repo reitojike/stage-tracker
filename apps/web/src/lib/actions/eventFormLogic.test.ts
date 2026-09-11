@@ -186,8 +186,13 @@ describe("occurrenceWithinRangeError", () => {
     if (range.kind !== "ok") {
       throw new Error("expected ok");
     }
-    expect(
-      occurrenceWithinRangeError(parsed.value.startsAt, range.value),
-    ).toContain("開催期間");
+    const error = occurrenceWithinRangeError(
+      parsed.value.startsAt,
+      range.value,
+    );
+    expect(error).toBe(
+      "開演日時は開催期間（5月1日(金) 〜 5月31日(日)）の範囲内で入力してください。",
+    );
+    expect(error).not.toContain("2026-05-01〜2026-05-31");
   });
 });
