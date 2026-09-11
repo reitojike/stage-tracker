@@ -125,10 +125,7 @@ function PersonalStateFailureNote({
  * history (受付終了), personal-state degradation (不明), and planned/applied
  * badges. At most 1 badge is ever shown, matching "1つだけ表示".
  */
-function badgeForRow(
-  row: TicketsTimelineRow,
-  personalStateUnknown: boolean,
-) {
+function badgeForRow(row: TicketsTimelineRow, personalStateUnknown: boolean) {
   if (row.isEffectivelyCanceled) {
     return <Badge variant="terminal">中止</Badge>;
   }
