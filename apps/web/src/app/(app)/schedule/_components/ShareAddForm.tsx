@@ -2,7 +2,17 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useAction } from "next-safe-action/hooks";
+import { useRouter } from "next/navigation";
 import { Button } from "@stage-tracker/ui";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@stage-tracker/ui/components/sheet";
 import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
 import { addScheduleShareByEmailAction } from "@/lib/actions/schedule/schedule-share-actions";
 import { TextField } from "./FormField";
@@ -15,9 +25,8 @@ interface ShareAddFormProps {
 /**
  * owner の共有追加（`docs/v2/oracle-routes-ui.md` §1
  * `addScheduleShareByEmailAction`、§2「予定詳細」: 「owner の『+ 追加』→
- * `ShareAddSheet`、成功で自動 close」）。ここでは専用 Sheet の代わりに
- * インラインフォームとして実装し、成功時はフォームをリセットして次の
- * 追加に備える（`DeleteEntryButton.tsx` と同じ簡略化理由）。
+ * `ShareAddSheet`、成功で自動 close」）。共有追加の action semantics は
+ * この consumer に残し、Sheet は presentation と lifecycle だけを担当する。
  *
  * email が未登録の場合、この operation は「知らせてよい」
  * （product-rules.md「Authenticated-user targeting」節・「Invitation
@@ -35,16 +44,28 @@ interface ShareAddFormProps {
  */
 export function ShareAddForm({ entryId }: ShareAddFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = `share-add-${entryId}`;
+  const [open, setOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const { execute, result, isExecuting } = useAction(
+  const router = useRouter();
+  const { execute, result, isExecuting, reset } = useAction(
     addScheduleShareByEmailAction,
     {
       onSuccess: () => {
         formRef.current?.reset();
         setAttempt((value) => value + 1);
+        setOpen(false);
+        router.refresh();
       },
     },
   );
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      reset();
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,30 +77,52 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
   }
 
   return (
-    <form
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-2"
-      noValidate
-    >
-      <TextField
-        id="recipientEmail"
-        name="recipientEmail"
-        type="email"
-        label="共有する相手のメールアドレス"
-        required
-        error={
-          result.serverError?.message ??
-          result.validationErrors?.recipientEmail?._errors?.[0]
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetTrigger
+        render={
+          <Button type="button" variant="ghost" aria-haspopup="dialog">
+            + 追加
+          </Button>
         }
       />
-      <Button type="submit" disabled={isExecuting}>
-        {isExecuting ? "追加中…" : "追加する"}
-      </Button>
-      <WriteNotice
-        notice={attempt > 0 ? "共有に追加しました。" : null}
-        attempt={attempt}
-      />
-    </form>
+      <SheetContent side="bottom">
+        <SheetHeader>
+          <SheetTitle>共有相手を追加</SheetTitle>
+          <SheetDescription className="sr-only">
+            予定を共有する相手のメールアドレスを入力します。
+          </SheetDescription>
+        </SheetHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+          <form
+            ref={formRef}
+            id={formId}
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-2"
+            noValidate
+          >
+            <TextField
+              id="recipientEmail"
+              name="recipientEmail"
+              type="email"
+              label="共有する相手のメールアドレス"
+              required
+              error={
+                result.serverError?.message ??
+                result.validationErrors?.recipientEmail?._errors?.[0]
+              }
+            />
+            <WriteNotice
+              notice={attempt > 0 ? "共有に追加しました。" : null}
+              attempt={attempt}
+            />
+          </form>
+        </div>
+        <SheetFooter>
+          <Button type="submit" form={formId} disabled={isExecuting}>
+            {isExecuting ? "追加中…" : "追加する"}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
