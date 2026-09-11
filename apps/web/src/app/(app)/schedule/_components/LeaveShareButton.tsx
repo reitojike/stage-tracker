@@ -20,18 +20,25 @@ interface LeaveShareButtonProps {
  * comment 参照）で、この区別を型レベルでも表現している。
  */
 export function LeaveShareButton({ entryId }: LeaveShareButtonProps) {
-  const { execute, isExecuting } = useAction(removeScheduleShareAction);
+  const { execute, isExecuting, result } = useAction(removeScheduleShareAction);
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      disabled={isExecuting}
-      onClick={() => {
-        execute({ entryId });
-      }}
-    >
-      {isExecuting ? "処理中…" : "共有から外れる"}
-    </Button>
+    <div className="flex flex-col gap-xs">
+      <Button
+        type="button"
+        variant="outline"
+        disabled={isExecuting}
+        onClick={() => {
+          execute({ entryId });
+        }}
+      >
+        {isExecuting ? "処理中…" : "共有から外れる"}
+      </Button>
+      {result.serverError ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          {result.serverError.message}
+        </p>
+      ) : null}
+    </div>
   );
 }

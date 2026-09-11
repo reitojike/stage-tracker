@@ -34,7 +34,12 @@ const INVITATION_ID = invitationIdSchema.parse(
 );
 const EVENT_ID = eventIdSchema.parse("55555555-5555-4555-8555-555555555555");
 
-function buildInvitation(): ReceivedInvitation {
+function buildInvitation(options?: {
+  readonly canceled?: boolean;
+}): ReceivedInvitation {
+  const canceledAt = options?.canceled
+    ? instantSchema.parse("2026-01-02T00:00:00Z")
+    : null;
   return {
     invitationId: INVITATION_ID,
     occurrenceId: OCCURRENCE_ID,
@@ -49,7 +54,7 @@ function buildInvitation(): ReceivedInvitation {
         memo: null,
         startsOn: tokyoCalendarDateSchema.parse("2026-05-01"),
         endsOn: tokyoCalendarDateSchema.parse("2026-05-31"),
-        canceledAt: null,
+        canceledAt,
         createdAt: instantSchema.parse("2026-01-01T00:00:00Z"),
         updatedAt: instantSchema.parse("2026-01-01T00:00:00Z"),
       },
@@ -59,7 +64,7 @@ function buildInvitation(): ReceivedInvitation {
         doorsAt: null,
         startsAt: instantSchema.parse("2026-05-10T09:00:00Z"),
         endsAt: null,
-        canceledAt: null,
+        canceledAt,
         createdAt: instantSchema.parse("2026-01-01T00:00:00Z"),
         updatedAt: instantSchema.parse("2026-01-01T00:00:00Z"),
       },
@@ -138,6 +143,44 @@ describe("InvitationList", () => {
     expect(
       await screen.findByRole("button", { name: "参加する" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "参加しないの操作に失敗しました。失敗しました。",
+    );
+  });
+
+  it("shows accept failure feedback and returns to actionable state", async () => {
+    const user = userEvent.setup();
+    mockAccept.mockResolvedValue({
+      serverError: { kind: "failure", message: "参加できません。" },
+    });
+
+    render(<InvitationList initialInvitations={[buildInvitation()]} />);
+    await user.click(screen.getByRole("button", { name: "参加する" }));
+
+    expect(
+      await screen.findByText("参加するの操作に失敗しました。参加できません。"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "参加する" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "参加しない" })).toBeEnabled();
+  });
+
+  it("shows close failure feedback for a canceled invitation", async () => {
+    const user = userEvent.setup();
+    mockDecline.mockResolvedValue({
+      serverError: { kind: "failure", message: "閉じられません。" },
+    });
+
+    render(
+      <InvitationList
+        initialInvitations={[buildInvitation({ canceled: true })]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+
+    expect(
+      await screen.findByText("閉じるの操作に失敗しました。閉じられません。"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "閉じる" })).toBeEnabled();
   });
 
   it("removes every card for the same occurrence when one is accepted", async () => {

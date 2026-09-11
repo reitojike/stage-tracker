@@ -23,7 +23,7 @@ interface DeleteEntryButtonProps {
  */
 export function DeleteEntryButton({ entryId }: DeleteEntryButtonProps) {
   const [confirming, setConfirming] = useState(false);
-  const { execute, isExecuting } = useAction(deleteScheduleEntryAction);
+  const { execute, isExecuting, result } = useAction(deleteScheduleEntryAction);
 
   if (!confirming) {
     return (
@@ -46,8 +46,13 @@ export function DeleteEntryButton({ entryId }: DeleteEntryButtonProps) {
       className="flex flex-col gap-2 rounded-control border border-destructive p-md"
     >
       <p className="text-body-sm text-foreground">
-        この予定を削除します。この操作は取り消せません。よろしいですか？
+        この予定を削除します。この操作は取り消せません。共有相手からもこの予定が見えなくなります。よろしいですか？
       </p>
+      {result.serverError ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          {result.serverError.message}
+        </p>
+      ) : null}
       <div className="flex gap-2">
         <Button
           type="button"
