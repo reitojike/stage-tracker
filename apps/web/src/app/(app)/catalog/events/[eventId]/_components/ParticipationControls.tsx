@@ -134,7 +134,7 @@ export function ParticipationControls({
           aria-pressed={status === "considering"}
           onClick={() => submit("considering")}
         >
-          検討中
+          気になる
         </Button>
         {status !== null ? (
           <Button
@@ -144,7 +144,7 @@ export function ParticipationControls({
             disabled={isPending}
             onClick={() => submit("withdraw")}
           >
-            取り消す
+            参加をやめる
           </Button>
         ) : null}
       </div>
