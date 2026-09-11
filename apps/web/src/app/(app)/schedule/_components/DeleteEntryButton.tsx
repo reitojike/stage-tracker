@@ -23,7 +23,9 @@ interface DeleteEntryButtonProps {
  */
 export function DeleteEntryButton({ entryId }: DeleteEntryButtonProps) {
   const [confirming, setConfirming] = useState(false);
-  const { execute, isExecuting, result } = useAction(deleteScheduleEntryAction);
+  const { execute, isExecuting, result, reset } = useAction(
+    deleteScheduleEntryAction,
+  );
 
   if (!confirming) {
     return (
@@ -69,6 +71,7 @@ export function DeleteEntryButton({ entryId }: DeleteEntryButtonProps) {
           variant="outline"
           disabled={isExecuting}
           onClick={() => {
+            reset();
             setConfirming(false);
           }}
         >

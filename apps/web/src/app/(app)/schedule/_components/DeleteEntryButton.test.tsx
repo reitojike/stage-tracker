@@ -6,6 +6,7 @@ import { DeleteEntryButton } from "./DeleteEntryButton";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
+  reset: vi.fn(),
   result: { serverError: undefined as { message: string } | undefined },
 }));
 
@@ -14,6 +15,7 @@ vi.mock("next-safe-action/hooks", () => ({
     execute: mocks.execute,
     isExecuting: false,
     result: mocks.result,
+    reset: mocks.reset,
   }),
 }));
 
@@ -28,6 +30,9 @@ describe("DeleteEntryButton", () => {
 
   beforeEach(() => {
     mocks.execute.mockReset();
+    mocks.reset.mockImplementation(() => {
+      mocks.result.serverError = undefined;
+    });
     mocks.result.serverError = undefined;
   });
 
@@ -57,5 +62,23 @@ describe("DeleteEntryButton", () => {
       "この予定を削除できません。",
     );
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  });
+
+  it("clears a previous delete failure when canceling and reopening confirmation", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<DeleteEntryButton entryId={entryId} />);
+
+    await user.click(screen.getByRole("button", { name: "削除する" }));
+    await user.click(screen.getByRole("button", { name: "削除する" }));
+    mocks.result.serverError = { message: "この予定を削除できません。" };
+    rerender(<DeleteEntryButton entryId={entryId} />);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(mocks.reset).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "削除する" }));
+
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
