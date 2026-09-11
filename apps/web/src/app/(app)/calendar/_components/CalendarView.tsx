@@ -313,7 +313,9 @@ function MonthGrid({
                 labelParts.push("日曜日");
               }
               if (day.attendingCount > 0) {
-                labelParts.push(`参加する公演回${String(day.attendingCount)}件`);
+                labelParts.push(
+                  `参加する公演回${String(day.attendingCount)}件`,
+                );
               }
               if (day.consideringCount > 0) {
                 labelParts.push(
