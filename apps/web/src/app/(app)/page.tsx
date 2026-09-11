@@ -23,7 +23,7 @@ export default async function HomePage() {
     // even resolve the session (oracle §2: "unauthenticated と failure を
     // 区別").
     return userResult.error.kind === "unauthenticated" ? (
-      <StatePanel variant="unavailable" title="ログインが必要です" />
+      <StatePanel variant="unavailable" title="サインインが必要です" />
     ) : (
       <StatePanel
         variant="error"
