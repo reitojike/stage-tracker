@@ -41,6 +41,7 @@ describe("formatScheduleEntryTemporal", () => {
       } as never),
     ).toBe("3月10日(火) 09:00 〜（終了時刻未定）");
   });
+
   it("formats a time-bounded temporal with a cross-day end using both Tokyo dates", () => {
     expect(
       formatScheduleEntryTemporal({
@@ -50,5 +51,4 @@ describe("formatScheduleEntryTemporal", () => {
       } as never),
     ).toBe("3月10日(火) 09:00 〜 3月11日(水) 09:00");
   });
-
 });
