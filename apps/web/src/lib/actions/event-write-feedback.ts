@@ -69,9 +69,26 @@ const WRITE_VALIDATION: EventWriteFeedback = {
     "入力内容に問題があります。各項目の内容を確認して、もう一度お試しください。",
 };
 
-const WRITE_EFFECTIVELY_CANCELED: EventWriteFeedback = {
-  title: "この公演は中止されています",
-  description: "中止された公演にはこの操作を行えません。",
+const WRITE_EFFECTIVELY_CANCELED: Record<
+  EventWriteOperation,
+  EventWriteFeedback
+> = {
+  "create-event": {
+    title: "このイベントは中止されています",
+    description: "中止されたイベントにはこの操作を行えません。",
+  },
+  "update-event": {
+    title: "このイベントは中止されています",
+    description: "中止されたイベントにはこの操作を行えません。",
+  },
+  "add-occurrence": {
+    title: "この公演回は中止されています",
+    description: "中止された公演回にはこの操作を行えません。",
+  },
+  "update-occurrence": {
+    title: "この公演回は中止されています",
+    description: "中止された公演回にはこの操作を行えません。",
+  },
 };
 
 const WRITE_FAILURE: EventWriteFeedback = {
@@ -112,7 +129,7 @@ export function throwEventWriteError(
   if (error.code === EFFECTIVELY_CANCELED) {
     throw new ActionError<EventWriteExtraKind>(
       "validation",
-      toMessage(WRITE_EFFECTIVELY_CANCELED),
+      toMessage(WRITE_EFFECTIVELY_CANCELED[operation]),
     );
   }
   if (VALIDATION_CODES.has(error.code)) {
