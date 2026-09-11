@@ -80,6 +80,9 @@ describe("SelectedDayList", () => {
     expect(
       screen.getByText("この日に登録されている公演回はありません"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "3月10日(火)の公演回一覧" }),
+    ).toBeInTheDocument();
   });
 
   it("renders an occurrence's time, title, venue, genre badge, and group badge", () => {
