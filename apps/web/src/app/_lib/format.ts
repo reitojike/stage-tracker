@@ -15,6 +15,28 @@ export function formatTokyoTime(instant: Instant): string {
   return `${String(wallClock.hour).padStart(2, "0")}:${String(wallClock.minute).padStart(2, "0")}`;
 }
 
+/** `M月D日(曜)` display for a `TokyoCalendarDate`. */
+export function formatTokyoCalendarDateJa(date: TokyoCalendarDate): string {
+  const [, monthStr, dayStr] = date.split("-");
+  return `${Number(monthStr)}月${Number(dayStr)}日(${weekdayLabelJa(date)})`;
+}
+
+/** Date-only range display for Tokyo calendar dates, preserving date precision. */
+export function formatTokyoCalendarDateRangeJa(
+  startsOn: TokyoCalendarDate,
+  endsOn: TokyoCalendarDate,
+): string {
+  const start = formatTokyoCalendarDateJa(startsOn);
+  return startsOn === endsOn
+    ? start
+    : `${start} 〜 ${formatTokyoCalendarDateJa(endsOn)}`;
+}
+
+/** Date and time display for an instant using the product's Tokyo calendar semantics. */
+export function formatTokyoDateTimeJa(instant: Instant): string {
+  return `${formatTokyoCalendarDateJa(instantToTokyoCalendarDate(instant))} ${formatTokyoTime(instant)}`;
+}
+
 const UNKNOWN_END_TIME_LABEL = "終了時刻未定";
 const NEXT_DAY_SUFFIX = "（翌日）";
 
@@ -57,12 +79,6 @@ export function occurrenceTimeRangeLabel(
     return `${start}〜${end}${NEXT_DAY_SUFFIX}`;
   }
   return `${start}〜${formatTokyoCalendarDateJa(endDate)} ${end}`;
-}
-
-/** `M月D日(曜)` display for a `TokyoCalendarDate`. */
-export function formatTokyoCalendarDateJa(date: TokyoCalendarDate): string {
-  const [, monthStr, dayStr] = date.split("-");
-  return `${Number(monthStr)}月${Number(dayStr)}日(${weekdayLabelJa(date)})`;
 }
 
 /** `YYYY年M月` display for a month key ("YYYY-MM"). */

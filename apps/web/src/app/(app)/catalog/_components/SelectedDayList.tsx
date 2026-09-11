@@ -10,6 +10,7 @@ import { StatePanel } from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   formatTokyoCalendarDateJa,
+  formatTokyoCalendarDateRangeJa,
   occurrenceTimeRangeLabel,
 } from "@/app/_lib/format";
 import type { TokyoYearMonth } from "@/app/_lib/calendar-grid";
@@ -36,9 +37,9 @@ export interface SelectedDayListProps {
  * The full-detail escape hatch for one selected day, ported from
  * `apps/legacy-web/src/app/catalog/_components/{SelectedDayList,
  * EventLevelFallbackList}.tsx` (`docs/v2/oracle-domain.md` §2.9). Combined
- * into a single component (rather than 2, like legacy) since both sections
- * are always about the same selected `date` and this Task's scope only
- * calls for "a selected-day list showing that day's events" as one surface.
+ * into a single component (rather than 2, like legacy) since both sections are
+ * always about the same selected `date` and this Task's scope only calls
+ * for "a selected-day list showing that day's events" as one surface.
  *
  * Renders the range-only fallback section first, then every actual
  * occurrence on `date` - the same order `CatalogView.tsx`'s legacy
@@ -76,9 +77,10 @@ export function SelectedDayList({
                     {entry.event.title}
                   </span>
                   <span className="text-body-sm text-muted-foreground">
-                    {entry.event.startsOn === entry.event.endsOn
-                      ? entry.event.startsOn
-                      : `${entry.event.startsOn} 〜 ${entry.event.endsOn}`}
+                    {formatTokyoCalendarDateRangeJa(
+                      entry.event.startsOn,
+                      entry.event.endsOn,
+                    )}
                     {entry.event.venue !== null
                       ? ` ・ ${entry.event.venue}`
                       : ""}

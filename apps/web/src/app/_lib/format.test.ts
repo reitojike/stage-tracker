@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { occurrenceTimeRangeLabel } from "./format";
+import {
+  formatTokyoCalendarDateRangeJa,
+  formatTokyoDateTimeJa,
+  occurrenceTimeRangeLabel,
+} from "./format";
 
 describe("occurrenceTimeRangeLabel", () => {
   it("shows a plain time range for a same-day occurrence", () => {
@@ -35,5 +39,28 @@ describe("occurrenceTimeRangeLabel", () => {
     expect(label).toContain("9月12日");
     expect(label).toContain("11:00");
     expect(label).not.toContain("翌日");
+  });
+});
+
+describe("Tokyo date formatting", () => {
+  it("formats a single-day and multi-day date range without raw ISO dates", () => {
+    expect(
+      formatTokyoCalendarDateRangeJa(
+        "2026-03-05" as never,
+        "2026-03-05" as never,
+      ),
+    ).toBe("3月5日(木)");
+    expect(
+      formatTokyoCalendarDateRangeJa(
+        "2026-03-05" as never,
+        "2026-03-06" as never,
+      ),
+    ).toBe("3月5日(木) 〜 3月6日(金)");
+  });
+
+  it("formats an instant using Asia/Tokyo date and time", () => {
+    expect(formatTokyoDateTimeJa("2026-03-10T00:00:00.000Z" as never)).toBe(
+      "3月10日(火) 09:00",
+    );
   });
 });

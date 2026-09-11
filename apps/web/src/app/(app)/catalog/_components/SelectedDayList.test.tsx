@@ -176,10 +176,42 @@ describe("SelectedDayList", () => {
       screen.getByRole("region", { name: "開催期間で該当するイベント" }),
     ).toBeInTheDocument();
     expect(screen.getByText("公演回未発表イベント")).toBeInTheDocument();
+    expect(screen.getByText("3月1日(日) 〜 3月20日(金)")).toBeInTheDocument();
     // The occurrence section still shows its own empty state, independent
     // of the fallback section rendering something.
     expect(
       screen.getByText("この日に登録されている公演はありません"),
     ).toBeInTheDocument();
+  });
+
+  it("formats a single-day fallback Event with its venue", () => {
+    const fallbackEntry: EventCatalogEntry = {
+      event: event({
+        id: "fallback-single-day",
+        title: "会場ありイベント",
+        startsOn: DATE,
+        endsOn: DATE,
+        venue: "東京会場",
+      }),
+      occurrences: [],
+      classification: {
+        eventId: "fallback-single-day" as never,
+        genre: null,
+        groupIds: [],
+      },
+    };
+
+    render(
+      <SelectedDayList
+        date={DATE}
+        month={MONTH}
+        occurrences={[]}
+        fallbackEntries={[fallbackEntry]}
+        classificationByEventId={new Map()}
+        groupNameById={new Map()}
+      />,
+    );
+
+    expect(screen.getByText("3月10日(火) ・ 東京会場")).toBeInTheDocument();
   });
 });

@@ -65,7 +65,7 @@ describe("ParticipationControls", () => {
     );
     // Now that a participation exists, withdraw becomes available.
     expect(
-      screen.getByRole("button", { name: "取り消す" }),
+      screen.getByRole("button", { name: "参加をやめる" }),
     ).toBeInTheDocument();
   });
 
@@ -115,7 +115,7 @@ describe("ParticipationControls", () => {
     );
 
     expect(screen.getByRole("button", { name: "参加する" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "検討中" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "気になる" })).toBeDisabled();
   });
 
   it("still allows downgrading attending -> considering and withdraw on a canceled occurrence", () => {
@@ -131,8 +131,10 @@ describe("ParticipationControls", () => {
 
     // Downgrade (attending -> considering) and withdraw are always allowed,
     // even while canceled (AGENTS.md "Cancellation").
-    expect(screen.getByRole("button", { name: "検討中" })).not.toBeDisabled();
-    expect(screen.getByRole("button", { name: "取り消す" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "気になる" })).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "参加をやめる" }),
+    ).not.toBeDisabled();
     // But re-affirming/staying at "attending" is not a *new* active
     // transition, so it must not be blocked either.
     expect(screen.getByRole("button", { name: "参加する" })).not.toBeDisabled();
