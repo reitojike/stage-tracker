@@ -59,7 +59,7 @@ test("invitation: an attending user invites another user, who accepts", async ({
     const occurrenceRow = inviterPage.locator(
       `#occurrence-${seeded.occurrenceId}`,
     );
-    await occurrenceRow.getByRole("button", { name: /参加の状態/ }).click();
+    await occurrenceRow.getByRole("button", { name: "変更" }).click();
     await inviterPage
       .getByRole("dialog", { name: "参加の状態" })
       .getByRole("button", { name: "参加する" })
@@ -91,11 +91,10 @@ test("invitation: an attending user invites another user, who accepts", async ({
     const inviteeOccurrenceRow = inviteePage.locator(
       `#occurrence-${seeded.occurrenceId}`,
     );
-    const inviteeStatusTrigger = inviteeOccurrenceRow.getByRole("button", {
-      name: /参加の状態/,
-    });
-    await expect(inviteeStatusTrigger).toHaveText(/参加する/);
-    await inviteeStatusTrigger.click();
+    await expect(
+      inviteeOccurrenceRow.getByTestId("participation-status"),
+    ).toHaveText("参加する");
+    await inviteeOccurrenceRow.getByRole("button", { name: "変更" }).click();
     await expect(
       inviteePage
         .getByRole("dialog", { name: "参加の状態" })

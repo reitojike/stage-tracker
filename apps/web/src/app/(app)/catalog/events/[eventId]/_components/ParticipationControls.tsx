@@ -132,23 +132,33 @@ export function ParticipationControls({
       ? "参加する"
       : status === "considering"
         ? "気になる"
-        : "未選択";
+        : null;
 
   return (
     <>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => {
-          setErrorMessage(null);
-          setOpen(true);
-        }}
-      >
-        参加の状態: {currentStatusLabel}
-      </Button>
+      <div className="flex flex-wrap items-center gap-sm">
+        {currentStatusLabel !== null ? (
+          <span
+            data-testid="participation-status"
+            className="text-body-sm font-medium"
+          >
+            {currentStatusLabel}
+          </span>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => {
+            setErrorMessage(null);
+            setOpen(true);
+          }}
+        >
+          変更
+        </Button>
+      </div>
       <Sheet open={open} onOpenChange={handleOpenChange} title="参加の状態">
         <div className="flex flex-col gap-sm" aria-busy={isPending}>
           {errorMessage !== null ? (

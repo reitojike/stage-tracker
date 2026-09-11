@@ -56,10 +56,8 @@ test("participation: register attending for an occurrence, then withdraw", async
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
 
     const occurrenceRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
-    const statusTrigger = occurrenceRow.getByRole("button", {
-      name: /参加の状態/,
-    });
-    await statusTrigger.click();
+    const changeButton = occurrenceRow.getByRole("button", { name: "変更" });
+    await changeButton.click();
     const participationSheet = page.getByRole("dialog", {
       name: "参加の状態",
     });
@@ -68,18 +66,19 @@ test("participation: register attending for an occurrence, then withdraw", async
     });
     await attendButton.click();
     await expect(participationSheet).toBeHidden();
-    await expect(statusTrigger).toHaveText(/参加する/);
+    await expect(occurrenceRow.getByTestId("participation-status")).toHaveText(
+      "参加する",
+    );
 
     // Persisted, not just optimistic client state: reload and re-read from
     // the server-rendered initial status.
     await page.reload();
     const reloadedRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
-    const reloadedStatusTrigger = reloadedRow.getByRole("button", {
-      name: /参加の状態/,
-    });
-    await expect(reloadedStatusTrigger).toHaveText(/参加する/);
+    await expect(reloadedRow.getByTestId("participation-status")).toHaveText(
+      "参加する",
+    );
 
-    await reloadedStatusTrigger.click();
+    await reloadedRow.getByRole("button", { name: "変更" }).click();
     await page
       .getByRole("dialog", { name: "参加の状態" })
       .getByRole("button", { name: "参加をやめる" })
@@ -89,8 +88,11 @@ test("participation: register attending for an occurrence, then withdraw", async
     await page.reload();
     const afterWithdrawRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
     await expect(
-      afterWithdrawRow.getByRole("button", { name: /参加の状態/ }),
-    ).toHaveText(/未選択/);
+      afterWithdrawRow.getByRole("button", { name: "変更" }),
+    ).toBeVisible();
+    await expect(
+      afterWithdrawRow.getByTestId("participation-status"),
+    ).not.toBeAttached();
   } finally {
     await cleanupSeededEvent(admin, seeded.eventId);
     await deleteActor(admin, actor.userId);

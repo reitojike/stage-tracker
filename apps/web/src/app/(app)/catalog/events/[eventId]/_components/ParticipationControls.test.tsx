@@ -32,8 +32,24 @@ describe("ParticipationControls", () => {
       screen.getByText("参加状況を読み込めませんでした。"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /参加の状態/ }),
+      screen.queryByRole("button", { name: "変更" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows only the change button when participation is absent", () => {
+    render(
+      <ParticipationControls
+        eventId={eventId}
+        occurrenceId={occurrenceId}
+        initialStatus={null}
+        participationUnavailable={false}
+        isEffectivelyCanceled={false}
+      />,
+    );
+    expect(
+      screen.queryByTestId("participation-status"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "変更" })).toBeInTheDocument();
   });
 
   it("opens the Sheet and closes it after a successful choice", async () => {
@@ -48,7 +64,7 @@ describe("ParticipationControls", () => {
         isEffectivelyCanceled={false}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /参加の状態/ }));
+    await user.click(screen.getByRole("button", { name: "変更" }));
     expect(
       screen.getByRole("heading", { name: "参加の状態" }),
     ).toBeInTheDocument();
@@ -63,9 +79,9 @@ describe("ParticipationControls", () => {
         screen.queryByRole("heading", { name: "参加の状態" }),
       ).not.toBeInTheDocument(),
     );
-    expect(
-      screen.getByRole("button", { name: /参加の状態.*参加する/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("participation-status")).toHaveTextContent(
+      "参加する",
+    );
   });
 
   it("keeps the Sheet open and shows a server error when saving fails", async () => {
@@ -85,7 +101,7 @@ describe("ParticipationControls", () => {
         isEffectivelyCanceled={false}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /参加の状態/ }));
+    await user.click(screen.getByRole("button", { name: "変更" }));
     await user.click(screen.getByRole("button", { name: "参加する" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "この公演回は中止されているため、この操作はできません。",
@@ -106,7 +122,7 @@ describe("ParticipationControls", () => {
         isEffectivelyCanceled
       />,
     );
-    await user.click(screen.getByRole("button", { name: /参加の状態/ }));
+    await user.click(screen.getByRole("button", { name: "変更" }));
     expect(screen.getByRole("button", { name: "参加する" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "気になる" })).toBeDisabled();
   });
@@ -122,7 +138,7 @@ describe("ParticipationControls", () => {
         isEffectivelyCanceled
       />,
     );
-    await user.click(screen.getByRole("button", { name: /参加の状態/ }));
+    await user.click(screen.getByRole("button", { name: "変更" }));
     expect(screen.getByRole("button", { name: "気になる" })).not.toBeDisabled();
     expect(
       screen.getByRole("button", { name: "参加をやめる" }),
