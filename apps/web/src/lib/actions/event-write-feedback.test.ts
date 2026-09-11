@@ -104,8 +104,23 @@ describe("throwEventWriteError", () => {
       throwEventWriteError("update-occurrence", rawError("90002")),
     );
     expect(result.kind).toBe("validation");
+    expect(result.message).toContain("公演回");
     expect(result.message).toContain("中止");
     expect(result.message).not.toContain(SECRET);
+  });
+
+  it("keeps canceled Event and Occurrence wording distinct", () => {
+    const messages = WRITE_OPERATIONS.map(
+      (operation) =>
+        catchActionError(() =>
+          throwEventWriteError(operation, rawError("90002")),
+        ).message,
+    );
+    expect(messages[0]).toContain("イベント");
+    expect(messages[1]).toContain("イベント");
+    expect(messages[2]).toContain("公演回");
+    expect(messages[3]).toContain("公演回");
+    expect(new Set(messages).size).toBe(2);
   });
 
   it.each(["23502", "23503", "23514", "22007", "22008", "22P02", "22004"])(
