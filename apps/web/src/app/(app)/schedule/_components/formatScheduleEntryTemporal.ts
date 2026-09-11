@@ -1,4 +1,5 @@
 import {
+  instantToTokyoCalendarDate,
   type PersonalScheduleEntryTemporal,
 } from "@stage-tracker/domain";
 import {
@@ -28,9 +29,10 @@ export function formatScheduleEntryTemporal(
     return `${startsLabel} 〜（終了時刻未定）`;
   }
 
+  const startsDate = instantToTokyoCalendarDate(temporal.startsAt);
+  const endsDate = instantToTokyoCalendarDate(temporal.endsAt);
   const endsLabel =
-    formatTokyoDateTimeJa(temporal.endsAt) ===
-    formatTokyoDateTimeJa(temporal.startsAt)
+    startsDate === endsDate
       ? formatTokyoTime(temporal.endsAt)
       : formatTokyoDateTimeJa(temporal.endsAt);
 
