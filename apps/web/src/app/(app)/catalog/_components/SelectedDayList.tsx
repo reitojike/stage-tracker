@@ -98,7 +98,7 @@ export function SelectedDayList({
       ) : null}
 
       <section
-        aria-label={`${formatTokyoCalendarDateJa(date)}の公演一覧`}
+        aria-label={`${formatTokyoCalendarDateJa(date)}の公演回一覧`}
         className="flex flex-col gap-sm"
       >
         <h2 className="text-title font-semibold text-foreground">
@@ -107,7 +107,7 @@ export function SelectedDayList({
         {occurrences.length === 0 ? (
           <StatePanel
             variant="empty"
-            title="この日に登録されている公演はありません"
+            title="この日に登録されている公演回はありません"
           />
         ) : (
           <ul className="flex flex-col gap-sm">
