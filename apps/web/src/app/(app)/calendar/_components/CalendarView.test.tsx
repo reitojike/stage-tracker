@@ -331,7 +331,7 @@ describe("CalendarView", () => {
         selector: '[data-slot="badge"]',
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("2026-03-15（終日）")).toBeInTheDocument();
+    expect(screen.getByText("3月15日(日)（終日）")).toBeInTheDocument();
     expect(screen.getByText("共有メモ")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /テスト公演/ })).toHaveAttribute(
       "href",
@@ -439,4 +439,28 @@ describe("CalendarView", () => {
     expect(screen.getByText("テスト公演")).toBeInTheDocument();
     expect(screen.getByText("個人の予定はありません")).toBeInTheDocument();
   });
+  it("uses the canonical shared-schedule wording in day-link accessibility labels", () => {
+    render(
+      <CalendarView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={null}
+        userId={USER_ID}
+        occurrenceState={EMPTY_OCCURRENCES}
+        scheduleState={{
+          variant: "populated",
+          data: scheduleIndex("2026-03-15", { ownerId: OTHER_USER_ID }),
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: /共有されている予定1件/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /共有された予定1件/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("共有されている予定")).toBeInTheDocument();
+  });
+
 });
