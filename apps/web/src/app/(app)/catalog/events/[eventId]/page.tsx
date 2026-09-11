@@ -59,7 +59,7 @@ export default async function EventDetailPage({
     return (
       <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
-        <StatePanel variant="empty" title="指定された公演が見つかりません" />
+        <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
       </div>
     );
   }
@@ -74,7 +74,7 @@ export default async function EventDetailPage({
     return (
       <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
-        <StatePanel variant="unavailable" title="ログインが必要です" />
+        <StatePanel variant="unavailable" title="サインインが必要です" />
       </div>
     );
   }
@@ -95,7 +95,7 @@ export default async function EventDetailPage({
           variant={eventState.variant}
           title={
             eventState.variant === "empty"
-              ? "指定された公演が見つかりません"
+              ? "指定されたイベントが見つかりません"
               : eventState.variant === "unavailable"
                 ? "イベントを確認できません"
                 : "イベントを読み込めませんでした"
@@ -116,7 +116,7 @@ export default async function EventDetailPage({
     return (
       <div className={CONTENT_CLASS}>
         <BackLink href={backHref} />
-        <StatePanel variant="empty" title="指定された公演が見つかりません" />
+        <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
       </div>
     );
   }
