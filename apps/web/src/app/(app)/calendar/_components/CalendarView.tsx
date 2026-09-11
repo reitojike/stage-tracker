@@ -313,11 +313,11 @@ function MonthGrid({
                 labelParts.push("日曜日");
               }
               if (day.attendingCount > 0) {
-                labelParts.push(`参加する公演${String(day.attendingCount)}件`);
+                labelParts.push(`参加する公演回${String(day.attendingCount)}件`);
               }
               if (day.consideringCount > 0) {
                 labelParts.push(
-                  `気になる公演${String(day.consideringCount)}件`,
+                  `気になる公演回${String(day.consideringCount)}件`,
                 );
               }
               if (day.ownScheduleCount > 0) {
