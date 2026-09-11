@@ -16,10 +16,18 @@ type CardPhase =
   | { readonly kind: "busy" }
   | { readonly kind: "removed" };
 
+type FailedAction = "参加する" | "参加しない" | "閉じる";
+
+interface CardError {
+  readonly action: FailedAction;
+  readonly message: string;
+}
+
 interface CardEntry {
   readonly key: string;
   readonly invitation: ReceivedInvitation;
   readonly phase: CardPhase;
+  readonly error: CardError | null;
 }
 
 export interface InvitationListProps {
@@ -51,12 +59,19 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
       key: invitation.invitationId,
       invitation,
       phase: { kind: "pending" },
+      error: null,
     })),
   );
 
-  function setPhase(key: string, phase: CardPhase) {
+  function setPhase(
+    key: string,
+    phase: CardPhase,
+    error: CardError | null = null,
+  ) {
     setEntries((prev) =>
-      prev.map((entry) => (entry.key === key ? { ...entry, phase } : entry)),
+      prev.map((entry) =>
+        entry.key === key ? { ...entry, phase, error } : entry,
+      ),
     );
   }
 
@@ -66,7 +81,11 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
       occurrenceId: entry.invitation.occurrenceId,
     });
     if (result?.serverError) {
-      setPhase(entry.key, { kind: "pending" });
+      setPhase(
+        entry.key,
+        { kind: "pending" },
+        { action: "参加する", message: result.serverError.message },
+      );
       return;
     }
     // 「参加する」は同一 occurrence への他の pending invitation も自動的に
@@ -81,13 +100,20 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
     router.refresh();
   }
 
-  async function handleDecline(entry: CardEntry) {
+  async function handleDecline(
+    entry: CardEntry,
+    action: Extract<FailedAction, "参加しない" | "閉じる">,
+  ) {
     setPhase(entry.key, { kind: "busy" });
     const result = await declineInvitationAction({
       invitationId: entry.invitation.invitationId,
     });
     if (result?.serverError) {
-      setPhase(entry.key, { kind: "pending" });
+      setPhase(
+        entry.key,
+        { kind: "pending" },
+        { action, message: result.serverError.message },
+      );
       return;
     }
     setPhase(entry.key, { kind: "removed" });
@@ -124,10 +150,10 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
               setPhase(entry.key, { kind: "pending" });
             }}
             onConfirmDecline={() => {
-              void handleDecline(entry);
+              void handleDecline(entry, "参加しない");
             }}
             onClose={() => {
-              void handleDecline(entry);
+              void handleDecline(entry, "閉じる");
             }}
           />
         ))}
@@ -178,6 +204,12 @@ function InvitationCard({
           ) : null}
         </div>
       )}
+
+      {entry.error !== null ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          「{entry.error.action}」: {entry.error.message}
+        </p>
+      ) : null}
 
       {phase.kind === "confirm-decline" ? (
         <div className="flex items-center gap-sm">

@@ -12,26 +12,40 @@ interface RecipientRowProps {
 }
 
 function RecipientRow({ entryId, recipient }: RecipientRowProps) {
-  const { execute, isExecuting } = useAction(removeScheduleShareAsOwnerAction);
+  const { execute, isExecuting, result } = useAction(
+    removeScheduleShareAsOwnerAction,
+  );
 
   return (
-    <li className="flex items-center justify-between gap-2 border-b border-border py-2">
-      <span className="text-body-sm text-foreground">
-        {recipient.recipientEmail}
-      </span>
-      {/* 「owner の recipient『解除』は確認なしの即時実行」
+    <li className="flex flex-col gap-xs border-b border-border py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-body-sm text-foreground">
+          {recipient.recipientEmail}
+        </span>
+        {/* 「owner の recipient『解除』は確認なしの即時実行」
           （oracle-routes-ui.md §2「予定詳細」）。 */}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={isExecuting}
-        onClick={() => {
-          execute({ entryId, shareId: recipient.shareId });
-        }}
-      >
-        {isExecuting ? "解除中…" : "解除"}
-      </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isExecuting}
+          aria-label={
+            isExecuting
+              ? `${recipient.recipientEmail}の共有を解除中…`
+              : `${recipient.recipientEmail}の共有を解除`
+          }
+          onClick={() => {
+            execute({ entryId, shareId: recipient.shareId });
+          }}
+        >
+          {isExecuting ? "解除中…" : "解除"}
+        </Button>
+      </div>
+      {result.serverError ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          {result.serverError.message}
+        </p>
+      ) : null}
     </li>
   );
 }
