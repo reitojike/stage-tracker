@@ -207,7 +207,7 @@ function InvitationCard({
 
       {entry.error !== null ? (
         <p role="alert" className="text-body-sm text-destructive">
-          {entry.error.action}の操作に失敗しました。{entry.error.message}
+          「{entry.error.action}」: {entry.error.message}
         </p>
       ) : null}
 

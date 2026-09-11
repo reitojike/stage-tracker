@@ -144,7 +144,7 @@ describe("InvitationList", () => {
       await screen.findByRole("button", { name: "参加する" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "参加しないの操作に失敗しました。失敗しました。",
+      "「参加しない」: 失敗しました。",
     );
   });
 
@@ -158,7 +158,7 @@ describe("InvitationList", () => {
     await user.click(screen.getByRole("button", { name: "参加する" }));
 
     expect(
-      await screen.findByText("参加するの操作に失敗しました。参加できません。"),
+      await screen.findByText("「参加する」: 参加できません。"),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "参加する" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "参加しない" })).toBeEnabled();
@@ -178,7 +178,7 @@ describe("InvitationList", () => {
     await user.click(screen.getByRole("button", { name: "閉じる" }));
 
     expect(
-      await screen.findByText("閉じるの操作に失敗しました。閉じられません。"),
+      await screen.findByText("「閉じる」: 閉じられません。"),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "閉じる" })).toBeEnabled();
   });
