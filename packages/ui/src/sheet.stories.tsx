@@ -1,11 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { useState } from "react";
-import { Sheet } from "./sheet";
+import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { useState } from 'react';
+import { Sheet } from './sheet';
 
 const meta = {
-  title: "UI/Sheet",
+  title: 'UI/Sheet',
   parameters: {
-    layout: "fullscreen",
+    layout: 'fullscreen',
   },
 } satisfies Meta<typeof Sheet>;
 

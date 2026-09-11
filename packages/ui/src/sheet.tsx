@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { Dialog } from "@base-ui/react/dialog";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { cn } from "./lib/utils";
+import { Dialog } from '@base-ui/react/dialog';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { cn } from './lib/utils';
 
 export interface SheetProps {
   readonly open: boolean;
@@ -29,8 +29,7 @@ export function Sheet({
   useLayoutEffect(() => {
     if (open && !wasOpenRef.current) {
       const activeElement = document.activeElement;
-      focusReturnRef.current =
-        activeElement instanceof HTMLElement ? activeElement : null;
+      focusReturnRef.current = activeElement instanceof HTMLElement ? activeElement : null;
     }
     if (!open && wasOpenRef.current) focusReturnRef.current?.focus();
     wasOpenRef.current = open;
@@ -39,10 +38,7 @@ export function Sheet({
   return (
     <Dialog.Root open={open} modal onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop
-          data-testid="sheet-backdrop"
-          className="fixed inset-0 z-50 bg-black/40"
-        />
+        <Dialog.Backdrop data-testid="sheet-backdrop" className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Viewport className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden">
           <Dialog.Popup
             finalFocus={focusReturnRef}
@@ -57,16 +53,11 @@ export function Sheet({
                   type="button"
                   className="inline-flex h-8 shrink-0 items-center justify-center rounded-control border border-transparent px-sm text-body-sm font-medium text-foreground outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
-                  {"閉じる"}
+                  {'閉じる'}
                 </Dialog.Close>
               ) : null}
             </div>
-            <div
-              className={cn(
-                "min-h-0 flex-1 overflow-y-auto px-md py-md",
-                bodyClassName,
-              )}
-            >
+            <div className={cn('min-h-0 flex-1 overflow-y-auto px-md py-md', bodyClassName)}>
               {children}
             </div>
             {footer !== undefined ? (
