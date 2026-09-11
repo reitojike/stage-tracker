@@ -1,15 +1,11 @@
-import { expect, test } from "@playwright/test";
-import {
-  createE2eAdminClient,
-  deleteActor,
-  provisionActor,
-} from "../support/adminClient";
+import { expect, test } from '@playwright/test';
+import { createE2eAdminClient, deleteActor, provisionActor } from '../support/adminClient';
 import {
   cleanupSeededEvent,
   seedEventWithOccurrence,
   tokyoTodayDateString,
-} from "../support/seedCatalog";
-import { completeMagicLinkSignIn } from "../support/signIn";
+} from '../support/seedCatalog';
+import { completeMagicLinkSignIn } from '../support/signIn';
 
 /**
  * Catalog -> event detail -> participation journey (Issue #380 primary
@@ -30,11 +26,9 @@ import { completeMagicLinkSignIn } from "../support/signIn";
  * journey's job is proving the read-through-UI -> write -> re-render loop
  * for the one status a user exercises most (attending), plus withdrawal.
  */
-test("participation: register attending for an occurrence, then withdraw", async ({
-  page,
-}) => {
+test('participation: register attending for an occurrence, then withdraw', async ({ page }) => {
   const admin = createE2eAdminClient();
-  const actor = await provisionActor(admin, "e2e-participation");
+  const actor = await provisionActor(admin, 'e2e-participation');
   const tokyoDate = tokyoTodayDateString();
   const title = `E2E参加テスト公演-${Date.now()}`;
   const seeded = await seedEventWithOccurrence(admin, {
@@ -52,40 +46,43 @@ test("participation: register attending for an occurrence, then withdraw", async
     // port removed it to match legacy's own CatalogView, which never had
     // one either) - the event link only appears once a day is selected.
     await page.goto(`/catalog?date=${tokyoDate}`);
-    await page.getByRole("link", { name: title }).click();
-    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await page.getByRole('link', { name: title }).click();
+    await expect(page.getByRole('heading', { name: title })).toBeVisible();
 
     const occurrenceRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
-    const attendButton = occurrenceRow.getByRole("button", {
-      name: "参加する",
+    const statusTrigger = occurrenceRow.getByRole('button', {
+      name: /参加の状態/,
+    });
+    await statusTrigger.click();
+    const participationSheet = page.getByRole('dialog', {
+      name: '参加の状態',
+    });
+    const attendButton = participationSheet.getByRole('button', {
+      name: '参加する',
     });
     await attendButton.click();
-    await expect(attendButton).toHaveAttribute("aria-pressed", "true");
-    await expect(
-      occurrenceRow.getByRole("button", { name: "参加をやめる" }),
-    ).toBeVisible();
+    await expect(participationSheet).toBeHidden();
+    await expect(statusTrigger).toHaveText(/参加する/);
 
     // Persisted, not just optimistic client state: reload and re-read from
     // the server-rendered initial status.
     await page.reload();
     const reloadedRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
-    await expect(
-      reloadedRow.getByRole("button", { name: "参加する" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    const reloadedStatusTrigger = reloadedRow.getByRole('button', {
+      name: /参加の状態/,
+    });
+    await expect(reloadedStatusTrigger).toHaveText(/参加する/);
 
-    await reloadedRow.getByRole("button", { name: "参加をやめる" }).click();
-    await expect(
-      reloadedRow.getByRole("button", { name: "参加をやめる" }),
-    ).toHaveCount(0);
+    await reloadedStatusTrigger.click();
+    await page
+      .getByRole('dialog', { name: '参加の状態' })
+      .getByRole('button', { name: '参加をやめる' })
+      .click();
+    await expect(page.getByRole('dialog', { name: '参加の状態' })).toBeHidden();
 
     await page.reload();
     const afterWithdrawRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
-    await expect(
-      afterWithdrawRow.getByRole("button", { name: "参加をやめる" }),
-    ).toHaveCount(0);
-    await expect(
-      afterWithdrawRow.getByRole("button", { name: "参加する" }),
-    ).toHaveAttribute("aria-pressed", "false");
+    await expect(afterWithdrawRow.getByRole('button', { name: /参加の状態/ })).toHaveText(/未選択/);
   } finally {
     await cleanupSeededEvent(admin, seeded.eventId);
     await deleteActor(admin, actor.userId);
