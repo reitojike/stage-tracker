@@ -55,7 +55,7 @@ async function EditScheduleEntryBody({
     return (
       <StatePanel
         variant="unavailable"
-        title="ログイン状態を確認できませんでした。"
+        title="サインイン状態を確認できませんでした。"
         description="再度サインインしてからお試しください。"
       />
     );
