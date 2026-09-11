@@ -41,7 +41,7 @@ export default async function NewEventPage({
     return (
       <StatePanel
         variant="unavailable"
-        title="ログインが必要です"
+        title="サインインが必要です"
         description="サインインしてからもう一度お試しください。"
       />
     );
