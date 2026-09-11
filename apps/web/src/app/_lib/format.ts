@@ -66,7 +66,6 @@ export function formatTokyoCalendarDateJa(date: TokyoCalendarDate): string {
 }
 
 /** M月D日(曜) display for a calendar-date range. */
-/** `YYYY年M月` display for a month key ("YYYY-MM"). */
 export function formatTokyoCalendarDateRangeJa(
   startsOn: TokyoCalendarDate,
   endsOn: TokyoCalendarDate,
@@ -77,6 +76,7 @@ export function formatTokyoCalendarDateRangeJa(
     : `${start} 〜 ${formatTokyoCalendarDateJa(endsOn)}`;
 }
 
+/** `YYYY年M月` display for a month key ("YYYY-MM"). */
 export function formatMonthJa(monthKey: string): string {
   const [yearStr, monthStr] = monthKey.split("-");
   return `${yearStr}年${Number(monthStr)}月`;
