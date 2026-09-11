@@ -179,6 +179,57 @@ describe("loadCalendarSchedule", () => {
     }
   });
 
+  it("indexes known-end time-bounded entries through every touched Tokyo date", async () => {
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_entries`, () =>
+        HttpResponse.json([
+          {
+            id: "77777777-7777-4777-8777-777777777777",
+            owner_id: USER_ID,
+            memo: null,
+            is_all_day: false,
+            starts_on: null,
+            ends_on: null,
+            starts_at: "2026-03-05T14:00:00Z",
+            ends_at: "2026-03-06T00:00:00Z",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+            title: "夜行予定",
+            blocking: false,
+          },
+          {
+            id: "88888888-8888-4888-8888-888888888888",
+            owner_id: USER_ID,
+            memo: null,
+            is_all_day: false,
+            starts_on: null,
+            ends_on: null,
+            starts_at: "2026-03-07T14:00:00Z",
+            ends_at: null,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+            title: "終了時刻未定",
+            blocking: true,
+          },
+        ]),
+      ),
+    );
+
+    const state = await loadCalendarSchedule(
+      createTestClient(),
+      GRID_START,
+      GRID_END,
+    );
+
+    expect(state.variant).toBe("populated");
+    if (state.variant === "populated") {
+      expect(state.data.byDate.get("2026-03-05" as never)).toHaveLength(1);
+      expect(state.data.byDate.get("2026-03-06" as never)).toHaveLength(1);
+      expect(state.data.byDate.get("2026-03-07" as never)).toHaveLength(1);
+      expect(state.data.items).toHaveLength(2);
+    }
+  });
+
   it("classifies a failure response as error", async () => {
     server.use(
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
