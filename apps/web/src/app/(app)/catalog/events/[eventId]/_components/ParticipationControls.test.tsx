@@ -115,9 +115,7 @@ describe("ParticipationControls", () => {
     );
 
     expect(screen.getByRole("button", { name: "参加する" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "気になる" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "気になる" })).toBeDisabled();
   });
 
   it("still allows downgrading attending -> considering and withdraw on a canceled occurrence", () => {
@@ -133,9 +131,7 @@ describe("ParticipationControls", () => {
 
     // Downgrade (attending -> considering) and withdraw are always allowed,
     // even while canceled (AGENTS.md "Cancellation").
-    expect(
-      screen.getByRole("button", { name: "気になる" }),
-    ).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "気になる" })).not.toBeDisabled();
     expect(
       screen.getByRole("button", { name: "参加をやめる" }),
     ).not.toBeDisabled();
