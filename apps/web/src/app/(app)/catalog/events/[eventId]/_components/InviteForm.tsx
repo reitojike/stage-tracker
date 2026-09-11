@@ -2,7 +2,16 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import type { OccurrenceId } from "@stage-tracker/domain";
-import { Button } from "@stage-tracker/ui";
+import { Button } from "@stage-tracker/ui/components/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@stage-tracker/ui/components/sheet";
 import { inviteToOccurrenceAction } from "@/lib/actions/invitation.actions";
 
 export interface InviteFormProps {
@@ -10,14 +19,14 @@ export interface InviteFormProps {
 }
 
 type InviteMessage = {
-  readonly kind: "success" | "error";
+  readonly kind: "error";
   readonly text: string;
 };
 
 /**
  * `docs/v2/oracle-routes-ui.md` §2 イベント詳細の招待フォーム
- * （legacy の `InviteSheet` 相当。`packages/ui` にまだ Sheet component が
- * 無いため `<details>` ベースの折り畳みで実装する — 見た目の実装詳細）。
+ * （legacy の `InviteSheet` 相当）。Sheet は presentation と lifecycle
+ * だけを担当し、招待 action と opacity semantics はこの consumer が持つ。
  *
  * **opacity（AGENTS.md「Invitation」、`docs/v2/decisions.md`「踏んでは
  * いけない地雷」）**: 成功時は invitee の3分岐（行なし/considering/
@@ -51,70 +60,85 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
         return;
       }
 
-      // 成功: invitee 側の実際の分岐に関わらず、常にこの1文だけを表示する。
-      setMessage({ kind: "success", text: "招待を送信しました。" });
+      // 成功: invitee 側の実際の分岐に関わらず、常に同じタイミングで閉じる。
       setEmail("");
+      setMessage(null);
+      setOpen(false);
     });
-  }
-
-  if (!open) {
-    return (
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={() => setOpen(true)}
-      >
-        招待する
-      </Button>
-    );
   }
 
   const fieldId = `invite-email-${occurrenceId}`;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-xs">
-      <label
-        className="text-label font-medium text-foreground"
-        htmlFor={fieldId}
-      >
-        招待するメールアドレス
-      </label>
-      <input
-        id={fieldId}
-        name="email"
-        type="email"
-        required
-        autoComplete="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        className="h-9 rounded-control border border-input bg-background px-3 text-body-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      <div className="flex gap-xs">
-        <Button type="submit" size="sm" disabled={isPending}>
-          送信
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={isPending}
-          onClick={() => {
-            setOpen(false);
+    <>
+      <Sheet
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) {
             setMessage(null);
-          }}
-        >
-          閉じる
-        </Button>
-      </div>
-      {message !== null ? (
-        <p
-          role={message.kind === "error" ? "alert" : "status"}
-          className="text-body-sm"
-        >
-          {message.text}
-        </p>
-      ) : null}
-    </form>
+          }
+        }}
+      >
+        <SheetTrigger
+          render={
+            <Button type="button" size="sm" variant="ghost">
+              招待する
+            </Button>
+          }
+        />
+        <SheetContent side="bottom">
+          <SheetHeader>
+            <SheetTitle>招待する</SheetTitle>
+            <SheetDescription className="sr-only">
+              公演回へ招待するメールアドレスを入力します。
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+            <form
+              id={`invite-form-${occurrenceId}`}
+              onSubmit={handleSubmit}
+              className="flex flex-col gap-xs"
+              aria-busy={isPending}
+            >
+              <label
+                className="text-label font-medium text-foreground"
+                htmlFor={fieldId}
+              >
+                招待するメールアドレス
+              </label>
+              <input
+                id={fieldId}
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                disabled={isPending}
+                onChange={(event) => setEmail(event.target.value)}
+                className="h-9 rounded-control border border-input bg-background px-3 text-body-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+              {message !== null ? (
+                <p
+                  role={message.kind === "error" ? "alert" : "status"}
+                  className="text-body-sm"
+                >
+                  {message.text}
+                </p>
+              ) : null}
+            </form>
+          </div>
+          <SheetFooter>
+            <Button
+              type="submit"
+              form={`invite-form-${occurrenceId}`}
+              disabled={isPending}
+            >
+              送信
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

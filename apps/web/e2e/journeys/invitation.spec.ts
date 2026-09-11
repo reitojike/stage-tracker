@@ -59,17 +59,21 @@ test("invitation: an attending user invites another user, who accepts", async ({
     const occurrenceRow = inviterPage.locator(
       `#occurrence-${seeded.occurrenceId}`,
     );
-    await occurrenceRow.getByRole("button", { name: "参加する" }).click();
+    await occurrenceRow.getByRole("button", { name: "変更" }).click();
+    await inviterPage
+      .getByRole("dialog", { name: "参加の状態" })
+      .getByRole("button", { name: "参加する" })
+      .click();
     await expect(
-      occurrenceRow.getByRole("button", { name: "参加する" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      inviterPage.getByRole("dialog", { name: "参加の状態" }),
+    ).toBeHidden();
 
     await occurrenceRow.getByRole("button", { name: "招待する" }).click();
-    await occurrenceRow
-      .getByLabel("招待するメールアドレス")
-      .fill(invitee.email);
-    await occurrenceRow.getByRole("button", { name: "送信" }).click();
-    await expect(occurrenceRow.getByText("招待を送信しました。")).toBeVisible();
+    await inviterPage.getByLabel("招待するメールアドレス").fill(invitee.email);
+    await inviterPage.getByRole("button", { name: "送信" }).click();
+    await expect(
+      inviterPage.getByRole("dialog", { name: "招待する" }),
+    ).toBeHidden();
 
     const inviteePage = await inviteeContext.newPage();
     await completeMagicLinkSignIn(inviteePage, invitee.email);
@@ -88,8 +92,14 @@ test("invitation: an attending user invites another user, who accepts", async ({
       `#occurrence-${seeded.occurrenceId}`,
     );
     await expect(
-      inviteeOccurrenceRow.getByRole("button", { name: "参加する" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      inviteeOccurrenceRow.getByTestId("participation-status"),
+    ).toHaveText("参加する");
+    await inviteeOccurrenceRow.getByRole("button", { name: "変更" }).click();
+    await expect(
+      inviteePage
+        .getByRole("dialog", { name: "参加の状態" })
+        .getByRole("button", { name: /^参加する（選択中）$/ }),
+    ).toBeVisible();
   } finally {
     await inviterContext.close();
     await inviteeContext.close();

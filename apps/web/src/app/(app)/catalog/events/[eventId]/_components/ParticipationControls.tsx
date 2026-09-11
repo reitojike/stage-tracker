@@ -8,7 +8,15 @@ import {
   type ParticipationStatus,
   type ParticipationWriteTransition,
 } from "@stage-tracker/domain";
-import { Button } from "@stage-tracker/ui";
+import { Button } from "@stage-tracker/ui/components/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@stage-tracker/ui/components/sheet";
 import { setParticipationChoiceAction } from "@/lib/actions/participation.actions";
 import type { ParticipationChoice } from "@/lib/actions/participation";
 
@@ -40,19 +48,16 @@ function transitionFor(
 
 /**
  * `docs/v2/oracle-routes-ui.md` §2 イベント詳細の participation 操作
- * （`attending`/`considering`/`withdraw`）。legacy の `ParticipationSheet`
- * （bottom sheet modal）に相当する Sheet component は `packages/ui` に
- * まだ無く、このタスクの scope はそこへの追加を含まないため、行内の
- * ボタン群として実装する（見た目の実装詳細であり、oracle が記録するのは
- * 「選択肢クリックで即座に保存」という挙動そのもの）。
+ * （`attending`/`considering`/`withdraw`）。Sheet は presentation と
+ * lifecycle だけを担当し、choice の即時保存と cancellation の判定は
+ * この consumer が担当する。
  *
  * 中止 (`isEffectivelyCanceled`) 状態での新規 active action の拒否
  * （AGENTS.md「Cancellation」、PO 判断: 新規 `considering` 作成も拒否
  * 対象）は、`@stage-tracker/domain` の
  * `isParticipationWriteBlockedByCancellation` を使って UI 側でも
- * 事前にボタンを disable する。真の enforcement は DB trigger
- * （custom SQLSTATE `90002`）であり、これはあくまで先回りの UX
- * （`docs/v2/oracle-domain.md` §4.2 の「先回りの分類」と同じ位置づけ）。
+ * 事前に choice を disable する。真の enforcement は DB trigger
+ * （custom SQLSTATE `90002`）であり、これはあくまで先回りの UX。
  */
 export function ParticipationControls({
   eventId,
@@ -65,6 +70,7 @@ export function ParticipationControls({
   const [status, setStatus] = useState<ParticipationStatus | null>(
     initialStatus,
   );
+  const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -76,7 +82,20 @@ export function ParticipationControls({
     );
   }
 
-  function submit(choice: ParticipationChoice) {
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    setErrorMessage(null);
+  }
+
+  function submit(choice: ParticipationChoice, blocked: boolean) {
+    if (blocked) {
+      return;
+    }
+    if (choice !== "withdraw" && choice === status) {
+      handleOpenChange(false);
+      return;
+    }
+
     setErrorMessage(null);
     startTransition(async () => {
       const result = await setParticipationChoiceAction({
@@ -97,6 +116,7 @@ export function ParticipationControls({
       const nextStatus = choice === "withdraw" ? null : choice;
       setStatus(nextStatus);
       onStatusChange?.(nextStatus);
+      handleOpenChange(false);
     });
   }
 
@@ -113,46 +133,92 @@ export function ParticipationControls({
       isEffectivelyCanceled,
     );
 
+  const currentStatusLabel =
+    status === "attending"
+      ? "参加する"
+      : status === "considering"
+        ? "気になる"
+        : null;
+
   return (
-    <div className="flex flex-col gap-xs">
-      <div className="flex flex-wrap gap-xs">
-        <Button
-          type="button"
-          size="sm"
-          variant={status === "attending" ? "default" : "outline"}
-          disabled={isPending || attendingBlocked}
-          aria-pressed={status === "attending"}
-          onClick={() => submit("attending")}
+    <div className="flex flex-wrap items-center gap-sm">
+      {currentStatusLabel !== null ? (
+        <span
+          data-testid="participation-status"
+          className="text-body-sm font-medium"
         >
-          参加する
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={status === "considering" ? "default" : "outline"}
-          disabled={isPending || consideringBlocked}
-          aria-pressed={status === "considering"}
-          onClick={() => submit("considering")}
-        >
-          気になる
-        </Button>
-        {status !== null ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={isPending}
-            onClick={() => submit("withdraw")}
-          >
-            参加をやめる
-          </Button>
-        ) : null}
-      </div>
-      {errorMessage !== null ? (
-        <p role="alert" className="text-body-sm text-destructive">
-          {errorMessage}
-        </p>
+          {currentStatusLabel}
+        </span>
       ) : null}
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetTrigger
+          render={
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-haspopup="dialog"
+            >
+              変更
+            </Button>
+          }
+        />
+        <SheetContent side="bottom">
+          <SheetHeader>
+            <SheetTitle>参加の状態</SheetTitle>
+            <SheetDescription className="sr-only">
+              参加状態を変更します。
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+            <div className="flex flex-col gap-sm" aria-busy={isPending}>
+              {errorMessage !== null ? (
+                <p role="alert" className="text-body-sm text-destructive">
+                  {errorMessage}
+                </p>
+              ) : null}
+              <div className="flex flex-col gap-xs">
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full justify-between"
+                  variant={status === "attending" ? "default" : "outline"}
+                  disabled={isPending || attendingBlocked}
+                  aria-pressed={status === "attending"}
+                  onClick={() => submit("attending", attendingBlocked)}
+                >
+                  参加する
+                  {status === "attending" ? "（選択中）" : null}
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full justify-between"
+                  variant={status === "considering" ? "default" : "outline"}
+                  disabled={isPending || consideringBlocked}
+                  aria-pressed={status === "considering"}
+                  onClick={() => submit("considering", consideringBlocked)}
+                >
+                  気になる
+                  {status === "considering" ? "（選択中）" : null}
+                </Button>
+                {status !== null ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="w-full justify-start"
+                    variant="ghost"
+                    disabled={isPending}
+                    onClick={() => submit("withdraw", false)}
+                  >
+                    参加をやめる
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

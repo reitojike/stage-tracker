@@ -56,36 +56,43 @@ test("participation: register attending for an occurrence, then withdraw", async
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
 
     const occurrenceRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
-    const attendButton = occurrenceRow.getByRole("button", {
+    const changeButton = occurrenceRow.getByRole("button", { name: "変更" });
+    await changeButton.click();
+    const participationSheet = page.getByRole("dialog", {
+      name: "参加の状態",
+    });
+    const attendButton = participationSheet.getByRole("button", {
       name: "参加する",
     });
     await attendButton.click();
-    await expect(attendButton).toHaveAttribute("aria-pressed", "true");
-    await expect(
-      occurrenceRow.getByRole("button", { name: "参加をやめる" }),
-    ).toBeVisible();
+    await expect(participationSheet).toBeHidden();
+    await expect(occurrenceRow.getByTestId("participation-status")).toHaveText(
+      "参加する",
+    );
 
     // Persisted, not just optimistic client state: reload and re-read from
     // the server-rendered initial status.
     await page.reload();
     const reloadedRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
-    await expect(
-      reloadedRow.getByRole("button", { name: "参加する" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    await expect(reloadedRow.getByTestId("participation-status")).toHaveText(
+      "参加する",
+    );
 
-    await reloadedRow.getByRole("button", { name: "参加をやめる" }).click();
-    await expect(
-      reloadedRow.getByRole("button", { name: "参加をやめる" }),
-    ).toHaveCount(0);
+    await reloadedRow.getByRole("button", { name: "変更" }).click();
+    await page
+      .getByRole("dialog", { name: "参加の状態" })
+      .getByRole("button", { name: "参加をやめる" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "参加の状態" })).toBeHidden();
 
     await page.reload();
     const afterWithdrawRow = page.locator(`#occurrence-${seeded.occurrenceId}`);
     await expect(
-      afterWithdrawRow.getByRole("button", { name: "参加をやめる" }),
-    ).toHaveCount(0);
+      afterWithdrawRow.getByRole("button", { name: "変更" }),
+    ).toBeVisible();
     await expect(
-      afterWithdrawRow.getByRole("button", { name: "参加する" }),
-    ).toHaveAttribute("aria-pressed", "false");
+      afterWithdrawRow.getByTestId("participation-status"),
+    ).not.toBeAttached();
   } finally {
     await cleanupSeededEvent(admin, seeded.eventId);
     await deleteActor(admin, actor.userId);
