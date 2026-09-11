@@ -96,7 +96,7 @@ describe("EditEventPage", () => {
     render(ui);
 
     expect(
-      screen.getByText("指定された公演が見つかりません"),
+      screen.getByText("指定されたイベントが見つかりません"),
     ).toBeInTheDocument();
   });
 });
