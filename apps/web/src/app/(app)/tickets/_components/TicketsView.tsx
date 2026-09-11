@@ -151,7 +151,7 @@ function TicketTimelineRow({
   row,
   personalStateUnknown,
 }: {
-  readonly row: TicketOpportunityTimelineRow;
+  readonly row: TicketsTimelineRow;
   readonly personalStateUnknown: boolean;
 }) {
   return (

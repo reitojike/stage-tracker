@@ -97,8 +97,7 @@ describe("listTicketOpportunities (shared catalog)", () => {
   });
 
   it("maps parent and selected-target cancellation facts through the canonical classification", async () => {
-    const canceledOccurrenceId =
-      "66666666-6666-4666-8666-666666666666";
+    const canceledOccurrenceId = "66666666-6666-4666-8666-666666666666";
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
         HttpResponse.json([
@@ -128,8 +127,7 @@ describe("listTicketOpportunities (shared catalog)", () => {
   it("does not classify a selected opportunity as canceled when target resolution is partial", async () => {
     const canceledOccurrenceId =
       "66666666-6666-4666-8666-666666666666";
-    const unresolvedOccurrenceId =
-      "77777777-7777-4777-8777-777777777777";
+    const unresolvedOccurrenceId = "77777777-7777-4777-8777-777777777777";
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
         HttpResponse.json([
@@ -157,7 +155,9 @@ describe("listTicketOpportunities (shared catalog)", () => {
       expect(result.value[0]?.isEffectivelyCanceled).toBe(false);
       expect(result.value[0]?.cancellationScope).toMatchObject({
         targetOccurrenceIdCount: 2,
-        resolvedTargetOccurrences: [{ canceledAt: "2026-01-01T00:00:00.000Z" }],
+        resolvedTargetOccurrences: [
+          { canceledAt: "2026-01-01T00:00:00.000Z" },
+        ],
       });
     }
   });

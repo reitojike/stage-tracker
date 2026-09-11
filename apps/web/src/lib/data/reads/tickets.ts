@@ -55,7 +55,9 @@ function mapNullableCancellationInstant(
   }
   const parsed = instantSchema.safeParse(value);
   if (!parsed.success) {
-    return err(`Invalid cancellation timestamp (${context}): ${parsed.error.message}`);
+    return err(
+      `Invalid cancellation timestamp (${context}): ${parsed.error.message}`,
+    );
   }
   return ok(parsed.data);
 }
@@ -78,7 +80,9 @@ function mapTicketOpportunityCancellationScope(
     return eventCanceledAt;
   }
 
-  const resolvedTargetOccurrences: { readonly canceledAt: Instant | null }[] = [];
+  const resolvedTargetOccurrences: {
+    readonly canceledAt: Instant | null;
+  }[] = [];
   for (const target of row.ticket_opportunity_target_occurrences) {
     // A missing nested occurrence is an unresolved target, not an active
     // occurrence and never evidence that the whole selected set is canceled.
