@@ -50,7 +50,9 @@ describe("classifyPostgrestLikeError", () => {
   it("classifies 90002 as validation with the fixed cancellation message", () => {
     const result = classifyPostgrestLikeError(rawError("90002"));
     expect(result.kind).toBe("validation");
-    expect(result.message).toBe("この公演は中止されているため操作できません。");
+    expect(result.message).toBe(
+      "この公演回は中止されているため操作できません。",
+    );
     expect(result.message).not.toContain(SECRET);
   });
 

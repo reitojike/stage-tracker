@@ -26,7 +26,7 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
   const parsedEventId = eventIdSchema.safeParse(eventId);
   if (!parsedEventId.success) {
     return (
-      <StatePanel variant="empty" title="指定された公演が見つかりません" />
+      <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
     );
   }
 
@@ -38,7 +38,7 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     return (
       <StatePanel
         variant="unavailable"
-        title="ログインが必要です"
+        title="サインインが必要です"
         description="サインインしてからもう一度お試しください。"
       />
     );
@@ -64,14 +64,14 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
   }
   if (state.variant === "empty") {
     return (
-      <StatePanel variant="empty" title="指定された公演が見つかりません" />
+      <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
     );
   }
 
   const [entry] = state.data;
   if (entry === undefined) {
     return (
-      <StatePanel variant="empty" title="指定された公演が見つかりません" />
+      <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
     );
   }
   const { event, occurrences } = entry;

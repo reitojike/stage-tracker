@@ -66,6 +66,6 @@ describe("NewEventPage", () => {
     const ui = await NewEventPage({ searchParams: Promise.resolve({}) });
     render(ui);
 
-    expect(screen.getByText("ログインが必要です")).toBeInTheDocument();
+    expect(screen.getByText("サインインが必要です")).toBeInTheDocument();
   });
 });

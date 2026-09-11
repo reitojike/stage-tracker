@@ -42,7 +42,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
   if (!userResult.ok) {
     return userResult.error.kind === "unauthenticated" ? (
-      <StatePanel variant="unavailable" title="ログインが必要です" />
+      <StatePanel variant="unavailable" title="サインインが必要です" />
     ) : (
       <StatePanel
         variant="error"

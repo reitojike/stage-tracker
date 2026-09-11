@@ -78,7 +78,10 @@ describe("SelectedDayList", () => {
       />,
     );
     expect(
-      screen.getByText("この日に登録されている公演はありません"),
+      screen.getByText("この日に登録されている公演回はありません"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "3月10日(火)の公演回一覧" }),
     ).toBeInTheDocument();
   });
 
@@ -180,7 +183,7 @@ describe("SelectedDayList", () => {
     // The occurrence section still shows its own empty state, independent
     // of the fallback section rendering something.
     expect(
-      screen.getByText("この日に登録されている公演はありません"),
+      screen.getByText("この日に登録されている公演回はありません"),
     ).toBeInTheDocument();
   });
 

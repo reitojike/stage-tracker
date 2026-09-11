@@ -67,7 +67,7 @@ const DUPLICATE_OCCURRENCE_MESSAGE_JA =
 const DELETE_BLOCKED_MESSAGE_JA =
   "参加・招待データが存在するため削除できませんでした。";
 const EFFECTIVELY_CANCELED_MESSAGE_JA =
-  "この公演は中止されているため操作できません。";
+  "この公演回は中止されているため操作できません。";
 const VALIDATION_MESSAGE_JA = "入力内容をご確認のうえ、再度お試しください。";
 const GENERIC_FAILURE_MESSAGE_JA =
   "処理に失敗しました。しばらくしてから再度お試しください。";

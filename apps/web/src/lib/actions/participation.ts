@@ -42,7 +42,7 @@ function classifyWriteError(
   if (error.code === OCCURRENCE_CANCELED_SQLSTATE) {
     return {
       kind: "occurrence-canceled",
-      message: "この公演は中止されているため、この操作はできません。",
+      message: "この公演回は中止されているため、この操作はできません。",
     };
   }
   // A8: 上記以外は message match をしない。self-invite 等と違い、この

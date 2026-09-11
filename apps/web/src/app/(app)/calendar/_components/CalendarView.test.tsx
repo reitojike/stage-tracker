@@ -175,6 +175,11 @@ describe("CalendarView", () => {
 
     expect(screen.getByText("テスト公演")).toBeInTheDocument();
     expect(screen.getByText("3月15日(日)")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: /2026年3月15日.*参加する公演回1件/,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("merges an empty selected day even when another day has data", () => {
