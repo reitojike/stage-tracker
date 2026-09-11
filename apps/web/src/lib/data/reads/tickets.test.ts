@@ -37,6 +37,7 @@ function opportunityRow(overrides: Record<string, unknown> = {}) {
     memo: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
+    events: { canceled_at: null },
     ticket_opportunity_target_occurrences: [],
     ticket_opportunity_milestones: [
       {
@@ -92,6 +93,69 @@ describe("listTicketOpportunities (shared catalog)", () => {
         result.value[0]?.opportunityWithTargets.opportunity.displayName,
       ).toBe("FC先行");
       expect(result.value[0]?.milestones).toHaveLength(1);
+    }
+  });
+
+  it("maps parent and selected-target cancellation facts through the canonical classification", async () => {
+    const canceledOccurrenceId = "66666666-6666-4666-8666-666666666666";
+    server.use(
+      http.get(`${REST_URL}/ticket_opportunities`, () =>
+        HttpResponse.json([
+          opportunityRow({
+            events: { canceled_at: "2026-01-01T00:00:00Z" },
+            target_scope: "selected_occurrences",
+            ticket_opportunity_target_occurrences: [
+              {
+                occurrence_id: canceledOccurrenceId,
+                event_occurrences: { canceled_at: null },
+              },
+            ],
+          }),
+        ]),
+      ),
+    );
+
+    const result = await listTicketOpportunities(createTestClient());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value[0]?.isEffectivelyCanceled).toBe(true);
+      expect(result.value[0]?.cancellationScope.eventCanceled).toBe(true);
+    }
+  });
+
+  it("does not classify a selected opportunity as canceled when target resolution is partial", async () => {
+    const canceledOccurrenceId = "66666666-6666-4666-8666-666666666666";
+    const unresolvedOccurrenceId = "77777777-7777-4777-8777-777777777777";
+    server.use(
+      http.get(`${REST_URL}/ticket_opportunities`, () =>
+        HttpResponse.json([
+          opportunityRow({
+            target_scope: "selected_occurrences",
+            ticket_opportunity_target_occurrences: [
+              {
+                occurrence_id: canceledOccurrenceId,
+                event_occurrences: { canceled_at: "2026-01-01T00:00:00Z" },
+              },
+              {
+                occurrence_id: unresolvedOccurrenceId,
+                event_occurrences: null,
+              },
+            ],
+          }),
+        ]),
+      ),
+    );
+
+    const result = await listTicketOpportunities(createTestClient());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value[0]?.isEffectivelyCanceled).toBe(false);
+      expect(result.value[0]?.cancellationScope).toMatchObject({
+        targetOccurrenceIdCount: 2,
+        resolvedTargetOccurrences: [{ canceledAt: "2026-01-01T00:00:00.000Z" }],
+      });
     }
   });
 
