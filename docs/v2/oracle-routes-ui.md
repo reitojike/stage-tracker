@@ -189,8 +189,10 @@ decline は pending row の hard delete なので、下記の確認フェーズ�
     で表示して再操作可能にする。
   - 効果的に中止済み（Event/Occurrence 側の cancellation）の招待は
     「閉じる」のみ（Undo なしの decline 相当）。
-  - 「未回答 {n}件」の件数表示は declining 中のカードを除外した
-    client-local state でリアルタイム更新。
+  - 「未回答 {n}件」は `phase.kind !== "removed"` の
+    `visibleEntries.length` を表示する。確認フェーズ中のカードは未回答のまま
+    件数に含め、accept / decline / canceled invitation の close が成功して
+    `removed` になった時点で件数が減る。
 - バリデーションの概念なし（選択操作のみ）。
 
 ### 予定作成（`/schedule/new`）
