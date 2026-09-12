@@ -7,6 +7,15 @@ import type {
   TokyoCalendarDate,
 } from "@stage-tracker/domain";
 import { Button, StatePanel } from "@stage-tracker/ui";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@stage-tracker/ui/components/sheet";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   addMonths,
@@ -166,12 +175,11 @@ export interface CatalogViewProps {
  * reached by selecting a day, exactly mirrored here - see this Task's report
  * for why the flat list is removed rather than kept alongside the calendar.
  *
- * Simplification versus the oracle's legacy `FilterSheet` (documented in a
- * prior Task's report, unchanged by this Task): this renders the filter
- * controls as an inline expand/collapse panel rather than a native
- * `<dialog>` bottom sheet - `packages/ui` does not yet have a `Sheet`
- * primitive. The applied/draft distinction and localStorage persistence are
- * preserved; only the modal presentation is simplified.
+ * The filter controls use the shared Sheet consumer described by
+ * `docs/v2/oracle-routes-ui.md`. The applied/draft distinction and
+ * localStorage persistence are kept in this consumer because they are
+ * Catalog-specific lifecycle state, while the Sheet owns modal presentation,
+ * dismiss, focus containment, and focus return.
  */
 export function CatalogView({
   month,
@@ -207,8 +215,8 @@ export function CatalogView({
     null,
   );
   const applied = userApplied ?? storedSelection;
-  const draft = userDraft ?? storedSelection;
-  const [panelOpen, setPanelOpen] = useState(false);
+  const draft = userDraft ?? applied;
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const filteredEntries = useMemo(() => {
     const rawEntries =
@@ -244,17 +252,29 @@ export function CatalogView({
     [month, filteredEntries],
   );
 
+  function handleSheetOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      // Every opening starts a new editing session from the current applied
+      // value. A draft abandoned by dismiss is deliberately not retained.
+      setUserDraft(applied);
+    } else {
+      setUserDraft(null);
+    }
+    setSheetOpen(nextOpen);
+  }
+
   function applyDraft() {
     setUserApplied(draft);
+    setUserDraft(null);
     storeSelection(draft);
-    setPanelOpen(false);
+    setSheetOpen(false);
   }
 
   function resetFilter() {
     setUserApplied(DEFAULT_CATALOG_FILTER_SELECTION);
-    setUserDraft(DEFAULT_CATALOG_FILTER_SELECTION);
+    setUserDraft(null);
     storeSelection(DEFAULT_CATALOG_FILTER_SELECTION);
-    setPanelOpen(false);
+    setSheetOpen(false);
   }
 
   // `empty`（raw range に Event が0件）は legacy と同じく「一覧は正常に
@@ -325,13 +345,61 @@ export function CatalogView({
       ) : (
         <>
           <div className="flex items-center justify-between gap-sm">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPanelOpen((open) => !open)}
-            >
-              絞り込み{isCatalogFilterSelectionActive(applied) ? "中" : ""}
-            </Button>
+            {filterOptionsResult.ok ? (
+              <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
+                <SheetTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-haspopup="dialog"
+                    >
+                      絞り込み
+                      {isCatalogFilterSelectionActive(applied) ? "中" : ""}
+                    </Button>
+                  }
+                />
+                <SheetContent side="bottom">
+                  <SheetHeader>
+                    <SheetTitle>絞り込み</SheetTitle>
+                    <SheetDescription className="sr-only">
+                      イベントカタログの表示条件を選択します。
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
+                    <FilterPanel
+                      options={filterOptionsResult.options}
+                      draft={draft}
+                      onChange={setUserDraft}
+                    />
+                  </div>
+                  <SheetFooter>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() =>
+                        setUserDraft(DEFAULT_CATALOG_FILTER_SELECTION)
+                      }
+                    >
+                      条件をクリア
+                    </Button>
+                    <Button type="button" onClick={applyDraft}>
+                      この条件で絞り込む
+                    </Button>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => undefined}
+              >
+                絞り込み{isCatalogFilterSelectionActive(applied) ? "中" : ""}
+              </Button>
+            )}
             {isCatalogFilterSelectionActive(applied) ? (
               <button
                 type="button"
@@ -350,15 +418,6 @@ export function CatalogView({
               {...(filterOptionsResult.variant === "error"
                 ? { description: READ_FAILURE_RETRY_HINT_JA }
                 : {})}
-            />
-          ) : null}
-
-          {panelOpen && filterOptionsResult.ok ? (
-            <FilterPanel
-              options={filterOptionsResult.options}
-              draft={draft}
-              onChange={setUserDraft}
-              onApply={applyDraft}
             />
           ) : null}
 
@@ -426,12 +485,10 @@ function FilterPanel({
   options,
   draft,
   onChange,
-  onApply,
 }: {
   readonly options: CatalogFilterOptions;
   readonly draft: CatalogFilterSelection;
   readonly onChange: (next: CatalogFilterSelection) => void;
-  readonly onApply: () => void;
 }) {
   const facet = activeFacetForGenre(draft.genreKey);
   const knownGenreKeys = Object.keys(GENRE_LABELS_JA).filter((key) =>
@@ -545,10 +602,6 @@ function FilterPanel({
           </div>
         </fieldset>
       ) : null}
-
-      <Button onClick={onApply} className="self-start">
-        この条件で絞り込む
-      </Button>
     </div>
   );
 }
