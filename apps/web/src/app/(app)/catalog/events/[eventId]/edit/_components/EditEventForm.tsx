@@ -300,7 +300,7 @@ export function EditEventForm({
                 type="button"
                 variant="outline"
                 disabled={deleteAction.isExecuting}
-                onClick={() => setDeleteOpen(false)}
+                onClick={() => handleDeleteOpenChange(false)}
               >
                 キャンセル
               </Button>

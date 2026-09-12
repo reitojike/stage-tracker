@@ -166,7 +166,7 @@ export function OccurrenceItem({
                 type="button"
                 variant="outline"
                 disabled={updateAction.isExecuting}
-                onClick={() => setUpdateOpen(false)}
+                onClick={() => handleUpdateOpenChange(false)}
               >
                 キャンセル
               </Button>
@@ -243,7 +243,7 @@ export function OccurrenceItem({
                 type="button"
                 variant="outline"
                 disabled={deleteAction.isExecuting}
-                onClick={() => setDeleteOpen(false)}
+                onClick={() => handleDeleteOpenChange(false)}
               >
                 キャンセル
               </Button>

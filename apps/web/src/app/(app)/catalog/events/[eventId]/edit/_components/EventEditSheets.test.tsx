@@ -264,6 +264,15 @@ describe("Event edit Sheets", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "公演回を保存できません。",
     );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "キャンセル",
+      }),
+    );
+    expect(updateAction.reset).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "変更" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("requires explicit occurrence-delete confirmation and keeps refusal visible", async () => {
@@ -307,6 +316,17 @@ describe("Event edit Sheets", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "公演回を削除できません。",
     );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "キャンセル",
+      }),
+    );
+    expect(deleteAction.reset).toHaveBeenCalledTimes(2);
+
+    await user.click(
+      screen.getByRole("button", { name: "この公演回を削除する" }),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("requires event-delete confirmation and keeps refusal visible", async () => {
@@ -341,6 +361,17 @@ describe("Event edit Sheets", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "イベントを削除できません。",
     );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "キャンセル",
+      }),
+    );
+    expect(deleteAction.reset).toHaveBeenCalledTimes(2);
+
+    await user.click(
+      screen.getByRole("button", { name: "このイベントを削除する" }),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("keeps cancel and uncancel as direct actions without confirmation Sheets", async () => {
