@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { BackLink as SharedBackLink } from "@stage-tracker/ui";
 
 /**
  * `docs/v2/oracle-routes-ui.md` §3 の `BackLink`（「文脈的な『戻る』
@@ -14,14 +14,7 @@ export function BackLink({
   readonly href: string;
   readonly children: ReactNode;
 }) {
-  return (
-    <Link
-      href={href}
-      className="text-body-sm text-primary underline-offset-4 hover:underline"
-    >
-      {children}
-    </Link>
-  );
+  return <SharedBackLink href={href}>{children}</SharedBackLink>;
 }
 
 export function PageHeading({ children }: { readonly children: ReactNode }) {

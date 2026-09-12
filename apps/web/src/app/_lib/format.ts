@@ -21,6 +21,14 @@ export function formatTokyoCalendarDateJa(date: TokyoCalendarDate): string {
   return `${Number(monthStr)}月${Number(dayStr)}日(${weekdayLabelJa(date)})`;
 }
 
+/** `YYYY年M月D日(曜)` display when the year is part of the screen's detail context. */
+export function formatTokyoCalendarDateWithYearJa(
+  date: TokyoCalendarDate,
+): string {
+  const [yearStr] = date.split("-");
+  return `${Number(yearStr)}年${formatTokyoCalendarDateJa(date)}`;
+}
+
 /** Date-only range display for Tokyo calendar dates, preserving date precision. */
 export function formatTokyoCalendarDateRangeJa(
   startsOn: TokyoCalendarDate,

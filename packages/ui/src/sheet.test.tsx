@@ -70,4 +70,16 @@ describe('Sheet', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     expect(screen.getByText('Body').parentElement).toHaveClass('overflow-y-auto');
   });
+
+  it('bounds a bottom sheet on desktop and carries slide lifecycle styles', async () => {
+    const user = userEvent.setup();
+    render(<SheetHarness />);
+
+    await user.click(screen.getByRole('button', { name: 'Open sheet' }));
+    expect(screen.getByRole('dialog', { name: 'Test sheet' })).toHaveClass(
+      'data-[side=bottom]:max-w-[480px]',
+      'data-[side=bottom]:data-starting-style:translate-y-full',
+      'data-[side=bottom]:data-ending-style:translate-y-full',
+    );
+  });
 });

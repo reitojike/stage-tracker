@@ -14,7 +14,7 @@ export default function EditScheduleEntryLoading() {
 
   return (
     <div className="flex flex-col gap-4">
-      <BackLink href={backHref}>← カレンダーへ戻る</BackLink>
+      <BackLink href={backHref}>カレンダーへ戻る</BackLink>
       <PageHeading>予定を編集</PageHeading>
     </div>
   );

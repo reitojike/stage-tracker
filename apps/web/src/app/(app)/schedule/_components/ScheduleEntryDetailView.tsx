@@ -1,9 +1,12 @@
 import type { PersonalScheduleEntry } from "@stage-tracker/domain";
 import { personalScheduleEntryBlockingForViewer } from "@stage-tracker/domain";
+import { Badge, LinkButton } from "@stage-tracker/ui";
 import { formatScheduleEntryTemporal } from "./formatScheduleEntryTemporal";
 
 interface ScheduleEntryDetailViewProps {
   readonly entry: PersonalScheduleEntry;
+  readonly isOwner: boolean;
+  readonly editHref?: string;
 }
 
 /**
@@ -20,25 +23,53 @@ interface ScheduleEntryDetailViewProps {
  */
 export function ScheduleEntryDetailView({
   entry,
+  isOwner,
+  editHref,
 }: ScheduleEntryDetailViewProps) {
   const blocking = personalScheduleEntryBlockingForViewer(entry);
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-body text-foreground">
-        {formatScheduleEntryTemporal(entry.temporal)}
-      </p>
-      {entry.memo ? (
-        <p className="text-body-sm text-muted-foreground">{entry.memo}</p>
-      ) : null}
-      <p
-        className="text-body-sm text-muted-foreground"
-        data-testid="blocking-indicator"
-      >
-        {blocking
-          ? "この時間は空き時間として扱いません（blocking）。"
-          : "この時間も空き時間として扱われます（non-blocking）。"}
-      </p>
+    <div className="flex flex-col gap-sm">
+      <header className="flex flex-col gap-xs">
+        <div className="flex flex-wrap gap-2xs">
+          <Badge variant="subtle">
+            {isOwner ? "自分の予定" : "共有されている予定"}
+          </Badge>
+          <span data-testid="blocking-indicator">
+            <Badge variant={blocking ? "subtle" : "outline"}>
+              {blocking ? "予定を確保する" : "予定を確保しない"}
+            </Badge>
+          </span>
+        </div>
+        <div className="flex items-start justify-between gap-sm border-b-2 border-foreground pb-card-block">
+          <h1 className="min-w-0 break-words text-heading font-semibold leading-heading text-foreground">
+            {entry.title}
+          </h1>
+          {editHref ? (
+            <LinkButton href={editHref} variant="ghost" size="sm">
+              編集
+            </LinkButton>
+          ) : null}
+        </div>
+      </header>
+      <dl className="flex flex-col gap-sm">
+        <div className="flex flex-col gap-2xs">
+          <dt className="text-caption text-muted-foreground">期間</dt>
+          <dd className="text-body text-foreground">
+            {formatScheduleEntryTemporal(entry.temporal, {
+              includeYear: true,
+            })}
+          </dd>
+        </div>
+        {entry.memo ? (
+          <div className="flex flex-col gap-2xs">
+            <dt className="text-caption text-muted-foreground">メモ</dt>
+            <dd className="whitespace-pre-wrap text-body-sm text-foreground">
+              {entry.memo}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
     </div>
   );
 }

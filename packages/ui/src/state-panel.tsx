@@ -52,7 +52,7 @@ export function StatePanel({ variant, title, description, action, className }: S
       data-variant={variant}
       role={variant === 'error' ? 'alert' : undefined}
       className={cn(
-        'flex flex-col items-start gap-sm rounded-control border border-border bg-card p-md text-body-sm text-foreground',
+        'flex flex-col items-start gap-sm border-y border-border py-lg text-body-sm text-foreground',
         className,
       )}
     >

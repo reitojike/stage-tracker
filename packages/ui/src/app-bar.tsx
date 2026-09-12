@@ -49,7 +49,7 @@ export function AppBar({
     <header
       data-slot="app-bar"
       className={cn(
-        'flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-md',
+        'flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-md',
         className,
       )}
     >
@@ -60,7 +60,7 @@ export function AppBar({
           aria-disabled={notificationsEnabled ? undefined : true}
           onClick={notificationsEnabled ? onNotificationsPress : undefined}
           className={cn(
-            'relative inline-flex size-10 items-center justify-center rounded-control-sm text-foreground',
+            'relative inline-flex size-11 touch-manipulation items-center justify-center rounded-control-sm text-foreground',
             notificationsEnabled
               ? 'hover:bg-muted active:bg-surface-active'
               : 'cursor-not-allowed opacity-(--opacity-disabled)',
@@ -75,21 +75,23 @@ export function AppBar({
           ) : null}
         </button>
       ) : (
-        <span aria-hidden className="size-10" />
+        <span aria-hidden className="size-11" />
       )}
 
-      <span className="text-label font-semibold tracking-wide text-foreground">stage-tracker</span>
+      <span className="text-label font-semibold tracking-widest text-foreground">
+        STAGE TRACKER
+      </span>
 
       {showActions ? (
         <Link
           href={myPageHref}
           aria-label="マイページ"
-          className="inline-flex size-10 items-center justify-center rounded-pill bg-muted text-label font-semibold text-foreground hover:bg-surface-active"
+          className="inline-flex size-11 touch-manipulation items-center justify-center rounded-pill border border-border bg-background text-label font-semibold text-foreground hover:bg-muted"
         >
           {myPageInitial}
         </Link>
       ) : (
-        <span aria-hidden className="size-10" />
+        <span aria-hidden className="size-11" />
       )}
     </header>
   );

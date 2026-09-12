@@ -1,12 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type {
   EventClassification,
   TokyoCalendarDate,
 } from "@stage-tracker/domain";
-import { Button, StatePanel } from "@stage-tracker/ui";
+import {
+  Button,
+  Checkbox,
+  ClearFilterButton,
+  FilterButton,
+  MonthNavigation,
+  RadioChip,
+  RadioGroup,
+  StatePanel,
+} from "@stage-tracker/ui";
 import {
   Sheet,
   SheetContent,
@@ -63,6 +71,22 @@ const GENRE_LABELS_JA: Readonly<Record<string, string>> = {
   kabuki: "歌舞伎",
   idol: "アイドル",
 };
+
+function filterSummaryLabel(
+  selection: CatalogFilterSelection,
+  options: CatalogFilterOptions,
+): string | null {
+  if (selection.genreKey === null) {
+    return null;
+  }
+  const parts = [GENRE_LABELS_JA[selection.genreKey] ?? selection.genreKey];
+  const groups = options.groupsByGenreKey[selection.genreKey] ?? [];
+  const groupLabels = selection.groupIds.map(
+    (id) => groups.find((group) => group.id === id)?.displayName ?? id,
+  );
+  parts.push(...groupLabels, ...selection.venues);
+  return parts.join(" / ");
+}
 
 function readStoredSelection(): CatalogFilterSelection | null {
   if (typeof window === "undefined") {
@@ -293,30 +317,84 @@ export function CatalogView({
     !isRawEmpty &&
     isCatalogFilterSelectionActive(applied) &&
     filteredEntries.length === 0;
+  const filterActive = isCatalogFilterSelectionActive(applied);
+  const filterSummary = filterOptionsResult.ok
+    ? filterSummaryLabel(applied, filterOptionsResult.options)
+    : null;
 
   return (
     <div className="flex flex-col gap-section">
-      <h1 className="text-heading font-semibold text-foreground">
-        イベントカタログ
-      </h1>
-
-      <div className="flex items-center justify-between">
-        <Link
-          href={catalogMonthHref(addMonths(month, -1))}
-          className="text-body-sm text-primary"
-        >
-          ‹ 前の月
-        </Link>
-        <span className="text-title font-semibold text-foreground">
-          {formatMonthJa(formatMonthParam(month))}
-        </span>
-        <Link
-          href={catalogMonthHref(addMonths(month, 1))}
-          className="text-body-sm text-primary"
-        >
-          次の月 ›
-        </Link>
+      <div className="flex min-h-11 items-start justify-between gap-sm">
+        <h1 className="min-w-0 flex-1 text-heading font-semibold text-foreground">
+          イベント
+        </h1>
+        {filterOptionsResult.ok ? (
+          <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
+            <SheetTrigger
+              render={
+                <FilterButton
+                  type="button"
+                  active={filterActive}
+                  aria-label={filterActive ? "絞り込み（適用中）" : "絞り込み"}
+                  aria-haspopup="dialog"
+                />
+              }
+            />
+            <SheetContent side="bottom">
+              <SheetHeader>
+                <SheetTitle>絞り込み</SheetTitle>
+                <SheetDescription className="sr-only">
+                  イベントの表示条件を選択します。
+                </SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto px-md py-sm">
+                <FilterPanel
+                  options={filterOptionsResult.options}
+                  draft={draft}
+                  onChange={setUserDraft}
+                />
+              </div>
+              <SheetFooter className="flex-row items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setUserDraft(DEFAULT_CATALOG_FILTER_SELECTION)}
+                >
+                  条件をクリア
+                </Button>
+                <Button type="button" className="flex-1" onClick={applyDraft}>
+                  この条件で絞り込む
+                </Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <FilterButton
+            type="button"
+            aria-label="絞り込み（利用不可）"
+            disabled
+          />
+        )}
       </div>
+
+      {filterActive && filterSummary !== null ? (
+        <div className="flex min-h-11 items-center gap-sm border-y border-border">
+          <p className="min-w-0 flex-1 truncate text-body-sm text-foreground">
+            絞り込み中: <span className="font-semibold">{filterSummary}</span>
+          </p>
+          <ClearFilterButton
+            type="button"
+            aria-label="絞り込みを解除"
+            onClick={resetFilter}
+          />
+        </div>
+      ) : null}
+
+      <MonthNavigation
+        label={formatMonthJa(formatMonthParam(month))}
+        previousHref={catalogMonthHref(addMonths(month, -1))}
+        nextHref={catalogMonthHref(addMonths(month, 1))}
+      />
 
       {eventsState.variant === "unavailable" ||
       eventsState.variant === "error" ? (
@@ -344,73 +422,6 @@ export function CatalogView({
         />
       ) : (
         <>
-          <div className="flex items-center justify-between gap-sm">
-            {filterOptionsResult.ok ? (
-              <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
-                <SheetTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      aria-haspopup="dialog"
-                    >
-                      絞り込み
-                      {isCatalogFilterSelectionActive(applied) ? "中" : ""}
-                    </Button>
-                  }
-                />
-                <SheetContent side="bottom">
-                  <SheetHeader>
-                    <SheetTitle>絞り込み</SheetTitle>
-                    <SheetDescription className="sr-only">
-                      イベントカタログの表示条件を選択します。
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
-                    <FilterPanel
-                      options={filterOptionsResult.options}
-                      draft={draft}
-                      onChange={setUserDraft}
-                    />
-                  </div>
-                  <SheetFooter>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        setUserDraft(DEFAULT_CATALOG_FILTER_SELECTION)
-                      }
-                    >
-                      条件をクリア
-                    </Button>
-                    <Button type="button" onClick={applyDraft}>
-                      この条件で絞り込む
-                    </Button>
-                  </SheetFooter>
-                </SheetContent>
-              </Sheet>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => undefined}
-              >
-                絞り込み{isCatalogFilterSelectionActive(applied) ? "中" : ""}
-              </Button>
-            )}
-            {isCatalogFilterSelectionActive(applied) ? (
-              <button
-                type="button"
-                onClick={resetFilter}
-                className="text-body-sm text-primary underline-offset-4 hover:underline"
-              >
-                条件を解除する
-              </button>
-            ) : null}
-          </div>
-
           {!filterOptionsResult.ok ? (
             <StatePanel
               variant={filterOptionsResult.variant}
@@ -528,50 +539,36 @@ function FilterPanel({
   }
 
   return (
-    <div className="flex flex-col gap-md rounded-control border border-border bg-card p-md">
-      <fieldset className="flex flex-col gap-xs">
-        <legend className="text-label font-semibold text-foreground">
-          ジャンル
-        </legend>
-        <div className="flex flex-wrap gap-xs">
-          <label className="flex items-center gap-2xs text-body-sm">
-            <input
-              type="radio"
-              name="catalog-genre"
-              checked={draft.genreKey === null}
-              onChange={() => setGenre(null)}
-            />
-            すべて
-          </label>
+    <div className="flex flex-col gap-sm">
+      <fieldset className="flex flex-col gap-sm py-sm">
+        <legend className="sr-only">ジャンル</legend>
+        <RadioGroup
+          value={draft.genreKey ?? "all"}
+          onValueChange={(value) => setGenre(value === "all" ? null : value)}
+        >
+          <RadioChip value="all">すべて</RadioChip>
           {knownGenreKeys.map((key) => (
-            <label key={key} className="flex items-center gap-2xs text-body-sm">
-              <input
-                type="radio"
-                name="catalog-genre"
-                checked={draft.genreKey === key}
-                onChange={() => setGenre(key)}
-              />
+            <RadioChip key={key} value={key}>
               {GENRE_LABELS_JA[key]}
-            </label>
+            </RadioChip>
           ))}
-        </div>
+        </RadioGroup>
       </fieldset>
 
       {facet === "group" ? (
-        <fieldset className="flex flex-col gap-xs">
+        <fieldset className="flex flex-col gap-2xs border-t border-border py-sm">
           <legend className="text-label font-semibold text-foreground">
-            {draft.genreKey === "idol" ? "グループ" : "組"}
+            {draft.genreKey === "idol" ? "グループ" : "組"}（複数選べます）
           </legend>
           <div className="flex flex-wrap gap-xs">
             {groupOptions.map((group) => (
               <label
                 key={group.id}
-                className="flex items-center gap-2xs text-body-sm"
+                className="flex min-h-11 items-center gap-sm text-body-sm"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={draft.groupIds.includes(group.id)}
-                  onChange={() => toggleGroup(group.id)}
+                  onCheckedChange={() => toggleGroup(group.id)}
                 />
                 {group.displayName}
               </label>
@@ -581,20 +578,19 @@ function FilterPanel({
       ) : null}
 
       {facet === "venue" ? (
-        <fieldset className="flex flex-col gap-xs">
+        <fieldset className="flex flex-col gap-2xs border-t border-border py-sm">
           <legend className="text-label font-semibold text-foreground">
-            会場
+            会場（複数選べます）
           </legend>
           <div className="flex flex-wrap gap-xs">
             {venueOptions.map((venue) => (
               <label
                 key={venue}
-                className="flex items-center gap-2xs text-body-sm"
+                className="flex min-h-11 items-center gap-sm text-body-sm"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={draft.venues.includes(venue)}
-                  onChange={() => toggleVenue(venue)}
+                  onCheckedChange={() => toggleVenue(venue)}
                 />
                 {venue}
               </label>

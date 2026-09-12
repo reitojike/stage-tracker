@@ -53,5 +53,7 @@ describe('AppShell', () => {
 
     const main = screen.getByRole('main');
     expect(main).toContainElement(screen.getByText('コンテンツ'));
+    expect(main).toHaveClass('p-md');
+    expect(main).not.toHaveClass('py-lg');
   });
 });

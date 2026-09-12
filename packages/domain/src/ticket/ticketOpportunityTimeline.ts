@@ -196,14 +196,10 @@ export function isTicketOpportunityPostFinalRetained(
  * indistinguishable once reduced to "milestone type + date". It is not used
  * by this module's own ordering/retention logic; it is pure passenger data.
  *
- * The parent Event's own title is a further, still-missing disambiguator
- * for the case where two *different* Events each have an Opportunity of
- * the same `displayName` due on the same day - this Task's read boundary
- * (`apps/web/src/lib/data/reads/tickets.ts`) does not join it in (see this
- * Task's report: doing so would require an additional `events` embed that
- * the concurrently-edited `apps/web/src/app/(app)/tickets/_lib/
- * tickets-loader.test.ts` fixtures do not carry). A caller can still reach
- * the specific Event via `eventId`. */
+ * Event title and venue remain read-model display context rather than
+ * timeline-calculation input. `apps/web/src/lib/data/reads/tickets.ts`
+ * joins them and its screen loaders pair that context back onto each row;
+ * this aggregate stays limited to fields used by the pure timeline. */
 export interface TicketOpportunityAggregate {
   readonly opportunityId: TicketOpportunityId;
   readonly eventId: EventId;

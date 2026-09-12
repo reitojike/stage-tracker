@@ -201,7 +201,7 @@ describe("CalendarView", () => {
       screen.getByText("この日の予定はまだありません"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "3月16日に予定を追加" }),
+      screen.getByRole("link", { name: "+ 3月16日に予定を追加" }),
     ).toHaveAttribute("href", "/schedule/new?date=2026-03-16");
     expect(
       screen.queryByText("この日の参加予定はありません"),
@@ -361,7 +361,7 @@ describe("CalendarView", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "3月16日に予定を追加" }),
+      screen.getByRole("link", { name: "+ 3月16日に予定を追加" }),
     ).toHaveAttribute("href", "/schedule/new?date=2026-03-16");
   });
 

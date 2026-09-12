@@ -1,13 +1,19 @@
-import Link from "next/link";
 import {
   canInviteToOccurrence,
   compareInstants,
   eventIdSchema,
   isCanceled,
   isEffectivelyCanceled,
+  isRenderableHttpUrl,
   userIdSchema,
 } from "@stage-tracker/domain";
-import { Badge, StatePanel } from "@stage-tracker/ui";
+import {
+  AnchorButton,
+  BackLink,
+  Badge,
+  LinkButton,
+  StatePanel,
+} from "@stage-tracker/ui";
 import { classifyListReadResult, listMyParticipations } from "@/lib/data";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -32,8 +38,7 @@ interface EventDetailPageProps {
   searchParams: Promise<CatalogSearchParams>;
 }
 
-const CONTENT_CLASS =
-  "mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-lg p-md";
+const CONTENT_CLASS = "flex w-full flex-col gap-md";
 
 /**
  * `/catalog/events/[eventId]`（`docs/v2/oracle-routes-ui.md` §1/§2
@@ -58,7 +63,7 @@ export default async function EventDetailPage({
   if (!parsedEventId.success) {
     return (
       <div className={CONTENT_CLASS}>
-        <BackLink href={backHref} />
+        <BackLink href={backHref}>一覧へ戻る</BackLink>
         <StatePanel
           variant="empty"
           title="指定されたイベントが見つかりません"
@@ -76,7 +81,7 @@ export default async function EventDetailPage({
   if (user === null) {
     return (
       <div className={CONTENT_CLASS}>
-        <BackLink href={backHref} />
+        <BackLink href={backHref}>一覧へ戻る</BackLink>
         <StatePanel variant="unavailable" title="サインインが必要です" />
       </div>
     );
@@ -93,7 +98,7 @@ export default async function EventDetailPage({
   if (eventState.variant !== "populated") {
     return (
       <div className={CONTENT_CLASS}>
-        <BackLink href={backHref} />
+        <BackLink href={backHref}>一覧へ戻る</BackLink>
         <StatePanel
           variant={eventState.variant}
           title={
@@ -118,7 +123,7 @@ export default async function EventDetailPage({
     // `noUncheckedIndexedAccess` requires this to be narrowed explicitly.
     return (
       <div className={CONTENT_CLASS}>
-        <BackLink href={backHref} />
+        <BackLink href={backHref}>一覧へ戻る</BackLink>
         <StatePanel
           variant="empty"
           title="指定されたイベントが見つかりません"
@@ -145,9 +150,9 @@ export default async function EventDetailPage({
   return (
     <div className={CONTENT_CLASS}>
       <ScrollToFocusedOccurrence occurrenceId={focusOccurrenceId} />
-      <BackLink href={backHref} />
+      <BackLink href={backHref}>一覧へ戻る</BackLink>
 
-      <header className="flex flex-wrap items-center justify-between gap-sm">
+      <header className="flex flex-wrap items-center justify-between gap-sm border-b-2 border-foreground pb-card-block">
         <div className="flex min-w-0 items-center gap-sm">
           <h1 className="min-w-0 break-words text-heading font-semibold leading-heading text-foreground">
             {eventDetail.event.title}
@@ -157,19 +162,56 @@ export default async function EventDetailPage({
           ) : null}
         </div>
         {eventDetail.event.ownerId === user.id ? (
-          <Link
+          <LinkButton
             href={buildCatalogEditHref(eventId, search)}
-            className="inline-flex h-9 shrink-0 items-center rounded-control border border-input px-md text-body-sm font-medium text-foreground hover:bg-muted"
+            variant="ghost"
+            size="sm"
           >
             編集
-          </Link>
-        ) : null}
-        {eventDetail.event.venue !== null ? (
-          <p className="basis-full text-body-sm text-muted-foreground">
-            {eventDetail.event.venue}
-          </p>
+          </LinkButton>
         ) : null}
       </header>
+
+      <dl className="flex flex-col gap-xs">
+        {eventDetail.event.venue !== null ? (
+          <div className="flex flex-col gap-2xs">
+            <dt className="text-caption text-muted-foreground">会場</dt>
+            <dd className="text-body-sm text-foreground">
+              {eventDetail.event.venue}
+            </dd>
+          </div>
+        ) : null}
+        {eventDetail.event.sourceUrl !== null ? (
+          <div className="flex flex-col gap-2xs">
+            <dt className="text-caption text-muted-foreground">参照URL</dt>
+            <dd className="min-w-0 text-body-sm [overflow-wrap:anywhere]">
+              {isRenderableHttpUrl(eventDetail.event.sourceUrl) ? (
+                <AnchorButton
+                  href={eventDetail.event.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  variant="link"
+                  size="sm"
+                  className="h-auto max-w-full justify-start px-0 whitespace-normal break-all"
+                >
+                  {eventDetail.event.sourceUrl}
+                </AnchorButton>
+              ) : (
+                eventDetail.event.sourceUrl
+              )}
+            </dd>
+          </div>
+        ) : null}
+        {eventDetail.event.memo !== null &&
+        eventDetail.event.memo.length > 0 ? (
+          <div className="flex flex-col gap-2xs">
+            <dt className="text-caption text-muted-foreground">メモ</dt>
+            <dd className="whitespace-pre-wrap text-body-sm text-foreground">
+              {eventDetail.event.memo}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
 
       {!participationLookup.ok ? (
         <StatePanel
@@ -185,80 +227,91 @@ export default async function EventDetailPage({
         />
       ) : null}
 
-      {occurrences.length === 0 ? (
-        <StatePanel
-          variant="empty"
-          title="公演回はまだ登録されていません"
-          description="開催期間は決まっていますが、具体的な公演回はまだ発表されていません。"
-        />
-      ) : (
-        <ul className="flex flex-col divide-y divide-border">
-          {occurrences.map((occurrence) => {
-            const myParticipation = participationLookup.ok
-              ? (participationLookup.byOccurrenceId.get(occurrence.id) ?? null)
-              : null;
-            const occurrenceCanceled = isEffectivelyCanceled(
-              eventDetail.event,
-              occurrence,
-            );
-            const doors = formatOccurrenceDoors(occurrence);
-            const ends = formatOccurrenceEnds(occurrence);
-            const canInvite = !participationLookup.ok
-              ? false
-              : canInviteToOccurrence(myParticipation?.status ?? null) &&
-                !occurrenceCanceled;
+      <section
+        aria-labelledby="event-occurrences-heading"
+        className="flex flex-col gap-sm"
+      >
+        <h2
+          id="event-occurrences-heading"
+          className="flex items-baseline justify-between border-b-2 border-foreground pb-card-block text-title font-semibold text-foreground"
+        >
+          公演回{" "}
+          <span className="font-normal text-muted-foreground">
+            {occurrences.length}件
+          </span>
+        </h2>
+        {occurrences.length === 0 ? (
+          <StatePanel
+            variant="empty"
+            title="公演回はまだ登録されていません"
+            description="開催期間は決まっていますが、具体的な公演回はまだ発表されていません。"
+          />
+        ) : (
+          <ul className="flex flex-col divide-y divide-border">
+            {occurrences.map((occurrence) => {
+              const myParticipation = participationLookup.ok
+                ? (participationLookup.byOccurrenceId.get(occurrence.id) ??
+                  null)
+                : null;
+              const occurrenceCanceled = isEffectivelyCanceled(
+                eventDetail.event,
+                occurrence,
+              );
+              const doors = formatOccurrenceDoors(occurrence);
+              const ends = formatOccurrenceEnds(occurrence);
+              const canInvite = !participationLookup.ok
+                ? false
+                : canInviteToOccurrence(myParticipation?.status ?? null) &&
+                  !occurrenceCanceled;
 
-            return (
-              <li
-                key={occurrence.id}
-                id={`occurrence-${occurrence.id}`}
-                className={
-                  focusOccurrenceId === occurrence.id
-                    ? "flex flex-col gap-sm bg-muted/60 py-md"
-                    : "flex flex-col gap-sm py-md"
-                }
-              >
-                <div className="flex flex-wrap items-center gap-sm">
-                  <p className="text-title font-medium leading-title text-foreground">
-                    {formatOccurrenceDateTime(occurrence)}
-                  </p>
-                  {occurrenceCanceled ? (
-                    <Badge variant="terminal">中止</Badge>
+              return (
+                <li
+                  key={occurrence.id}
+                  id={`occurrence-${occurrence.id}`}
+                  className={
+                    focusOccurrenceId === occurrence.id
+                      ? "flex flex-col gap-xs rounded-control-sm px-sm py-compact ring-1 ring-inset ring-primary"
+                      : "flex flex-col gap-xs py-compact"
+                  }
+                >
+                  <div className="flex flex-wrap items-center gap-sm">
+                    <p className="text-title font-medium leading-title text-foreground">
+                      {formatOccurrenceDateTime(occurrence)}
+                    </p>
+                    {occurrenceCanceled ? (
+                      <Badge variant="terminal">中止</Badge>
+                    ) : null}
+                    {focusOccurrenceId === occurrence.id ? (
+                      <Badge variant="outline">選択した公演回</Badge>
+                    ) : null}
+                  </div>
+                  {doors !== null || ends !== null ? (
+                    <p className="text-body-sm text-muted-foreground">
+                      {[doors, ends]
+                        .filter((value) => value !== null)
+                        .join(" / ")}
+                    </p>
                   ) : null}
-                </div>
-                {doors !== null || ends !== null ? (
-                  <p className="text-body-sm text-muted-foreground">
-                    {[doors, ends]
-                      .filter((value) => value !== null)
-                      .join(" / ")}
-                  </p>
-                ) : null}
 
-                <ParticipationControls
-                  eventId={eventId}
-                  occurrenceId={occurrence.id}
-                  initialStatus={myParticipation?.status ?? null}
-                  participationUnavailable={!participationLookup.ok}
-                  isEffectivelyCanceled={occurrenceCanceled}
-                />
+                  <div className="flex flex-wrap items-center justify-between gap-sm">
+                    <ParticipationControls
+                      eventId={eventId}
+                      occurrenceId={occurrence.id}
+                      initialStatus={myParticipation?.status ?? null}
+                      participationUnavailable={!participationLookup.ok}
+                      isEffectivelyCanceled={occurrenceCanceled}
+                    />
 
-                {canInvite ? <InviteForm occurrenceId={occurrence.id} /> : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                    {canInvite ? (
+                      <InviteForm occurrenceId={occurrence.id} />
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
-  );
-}
-
-function BackLink({ href }: { readonly href: string }) {
-  return (
-    <Link
-      href={href}
-      className="w-fit text-body-sm text-muted-foreground underline-offset-4 hover:underline"
-    >
-      ← 一覧へ戻る
-    </Link>
   );
 }

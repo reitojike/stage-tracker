@@ -53,8 +53,8 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          'fixed z-50 flex w-full flex-col overflow-hidden bg-background text-foreground outline-none transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0',
-          'data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:max-h-[min(80vh,640px)] data-[side=bottom]:rounded-t-[var(--radius-control)] data-[side=bottom]:border-t data-[side=bottom]:border-border data-[side=bottom]:shadow-lg',
+          'fixed z-50 flex w-full flex-col overflow-hidden bg-background text-foreground outline-none transition-[opacity,transform] duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0',
+          'data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:mx-auto data-[side=bottom]:max-h-[min(85vh,640px)] data-[side=bottom]:max-w-[480px] data-[side=bottom]:rounded-t-[var(--radius-control)] data-[side=bottom]:border-t data-[side=bottom]:border-border data-[side=bottom]:shadow-lg data-[side=bottom]:data-ending-style:translate-y-full data-[side=bottom]:data-starting-style:translate-y-full',
           'data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:max-h-[min(80vh,640px)] data-[side=top]:border-b data-[side=top]:border-border data-[side=top]:shadow-lg',
           'data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:max-w-sm data-[side=left]:border-r data-[side=left]:border-border data-[side=left]:shadow-lg',
           'data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:max-w-sm data-[side=right]:border-l data-[side=right]:border-border data-[side=right]:shadow-lg',

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   isCanceled,
   isEffectivelyCanceled,
@@ -6,7 +5,7 @@ import {
   type GroupId,
   type TokyoCalendarDate,
 } from "@stage-tracker/domain";
-import { StatePanel } from "@stage-tracker/ui";
+import { CompactList, ListRowLink, StatePanel } from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   formatTokyoCalendarDateJa,
@@ -66,34 +65,35 @@ export function SelectedDayList({
           <h2 className="text-title font-semibold text-foreground">
             開催期間で該当するイベント
           </h2>
-          <ul className="flex flex-col gap-sm">
+          <CompactList>
             {fallbackEntries.map((entry) => (
               <li key={entry.event.id}>
-                <Link
+                <ListRowLink
                   href={catalogEventHref(entry.event.id, month, date)}
-                  className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
                 >
-                  <span className="text-title font-medium text-foreground">
-                    {entry.event.title}
+                  <span className="flex flex-col gap-2xs">
+                    <span className="text-title font-medium text-foreground">
+                      {entry.event.title}
+                    </span>
+                    <span className="text-body-sm text-muted-foreground">
+                      {formatTokyoCalendarDateRangeJa(
+                        entry.event.startsOn,
+                        entry.event.endsOn,
+                      )}
+                      {entry.event.venue !== null
+                        ? ` ・ ${entry.event.venue}`
+                        : ""}
+                    </span>
+                    <ClassificationBadges
+                      classification={entry.classification}
+                      groupNameById={groupNameById}
+                      canceled={isCanceled(entry.event)}
+                    />
                   </span>
-                  <span className="text-body-sm text-muted-foreground">
-                    {formatTokyoCalendarDateRangeJa(
-                      entry.event.startsOn,
-                      entry.event.endsOn,
-                    )}
-                    {entry.event.venue !== null
-                      ? ` ・ ${entry.event.venue}`
-                      : ""}
-                  </span>
-                  <ClassificationBadges
-                    classification={entry.classification}
-                    groupNameById={groupNameById}
-                    canceled={isCanceled(entry.event)}
-                  />
-                </Link>
+                </ListRowLink>
               </li>
             ))}
-          </ul>
+          </CompactList>
         </section>
       ) : null}
 
@@ -110,45 +110,46 @@ export function SelectedDayList({
             title="この日に登録されている公演回はありません"
           />
         ) : (
-          <ul className="flex flex-col gap-sm">
+          <CompactList>
             {occurrences.map(({ event, occurrence }) => {
               const classification =
                 classificationByEventId.get(event.id) ?? null;
               return (
                 <li key={occurrence.id}>
-                  <Link
+                  <ListRowLink
                     href={catalogEventHref(
                       event.id,
                       month,
                       date,
                       occurrence.id,
                     )}
-                    className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
                   >
-                    <span className="text-body-sm text-muted-foreground">
-                      {occurrenceTimeRangeLabel(
-                        occurrence.startsAt,
-                        occurrence.endsAt,
-                      )}
-                    </span>
-                    <span className="text-title font-medium text-foreground">
-                      {event.title}
-                    </span>
-                    {event.venue !== null ? (
+                    <span className="flex flex-col gap-2xs">
                       <span className="text-body-sm text-muted-foreground">
-                        {event.venue}
+                        {occurrenceTimeRangeLabel(
+                          occurrence.startsAt,
+                          occurrence.endsAt,
+                        )}
                       </span>
-                    ) : null}
-                    <ClassificationBadges
-                      classification={classification}
-                      groupNameById={groupNameById}
-                      canceled={isEffectivelyCanceled(event, occurrence)}
-                    />
-                  </Link>
+                      <span className="text-title font-medium text-foreground">
+                        {event.title}
+                      </span>
+                      {event.venue !== null ? (
+                        <span className="text-body-sm text-muted-foreground">
+                          {event.venue}
+                        </span>
+                      ) : null}
+                      <ClassificationBadges
+                        classification={classification}
+                        groupNameById={groupNameById}
+                        canceled={isEffectivelyCanceled(event, occurrence)}
+                      />
+                    </span>
+                  </ListRowLink>
                 </li>
               );
             })}
-          </ul>
+          </CompactList>
         )}
       </section>
     </>

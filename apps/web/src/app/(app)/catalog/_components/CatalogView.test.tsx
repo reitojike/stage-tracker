@@ -376,7 +376,9 @@ describe("CatalogView", () => {
       screen.getByRole("button", { name: "この条件で絞り込む" }),
     );
 
-    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    await user.click(
+      screen.getByRole("button", { name: "絞り込み（適用中）" }),
+    );
     const sheet = screen.getByRole("dialog", { name: "絞り込み" });
     await user.click(within(sheet).getByRole("radio", { name: "すべて" }));
     expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
@@ -395,7 +397,9 @@ describe("CatalogView", () => {
     );
     expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    await user.click(
+      screen.getByRole("button", { name: "絞り込み（適用中）" }),
+    );
     expect(
       within(screen.getByRole("dialog", { name: "絞り込み" })).getByRole(
         "radio",
@@ -476,7 +480,9 @@ describe("CatalogView", () => {
       "stage-tracker:catalog-filter:v1",
     );
 
-    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    await user.click(
+      screen.getByRole("button", { name: "絞り込み（適用中）" }),
+    );
     const sheet = screen.getByRole("dialog", { name: "絞り込み" });
     await user.click(within(sheet).getByRole("radio", { name: "すべて" }));
     await user.click(
@@ -518,7 +524,7 @@ describe("CatalogView", () => {
     );
     expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "条件を解除する" }));
+    await user.click(screen.getByRole("button", { name: "絞り込みを解除" }));
     expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
     expect(
       JSON.parse(

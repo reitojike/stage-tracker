@@ -4,6 +4,8 @@ import type { OptionalPartBlockState } from "@/app/_lib/read-state";
 import type { TicketsTimelineState } from "../_lib/tickets-loader";
 import { TicketsView } from "./TicketsView";
 
+const TODAY = "2026-03-01" as never;
+
 // `TicketOpportunityStateControls` (rendered per row) imports the
 // `"use server"` action, which transitively pulls in `src/env.ts` - not
 // available/valid in this unit test's environment. Mock it out the same way
@@ -50,6 +52,11 @@ function row(
     isFirstRowForOpportunity,
     isPostFinalRetainedHistory,
     isEffectivelyCanceled,
+    eventTitle: "テスト公演",
+    eventVenue: "テスト劇場",
+    targetScope: "event_wide",
+    targetOccurrences: [],
+    sourceUrl: "https://example.com/tickets",
   } as never;
 }
 
@@ -67,6 +74,7 @@ describe("TicketsView", () => {
   it("renders the empty state with the oracle's exact copy", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{ block: { variant: "empty" }, optional: { ok: true } }}
       />,
     );
@@ -78,6 +86,7 @@ describe("TicketsView", () => {
   it("renders the error state as an alert with a generic retry hint (never a raw message)", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{ block: { variant: "error" }, optional: { ok: true } }}
       />,
     );
@@ -92,6 +101,7 @@ describe("TicketsView", () => {
   it("renders the unavailable state distinctly from error", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{ block: { variant: "unavailable" }, optional: { ok: true } }}
       />,
     );
@@ -102,7 +112,7 @@ describe("TicketsView", () => {
   });
 
   it("groups populated rows by month and shows the 申し込み済み badge", () => {
-    render(<TicketsView state={POPULATED} />);
+    render(<TicketsView today={TODAY} state={POPULATED} />);
     expect(screen.getByText("2026年3月")).toBeInTheDocument();
     expect(screen.getByText("申し込み済み")).toBeInTheDocument();
     expect(screen.getByText("販売開始")).toBeInTheDocument();
@@ -111,6 +121,7 @@ describe("TicketsView", () => {
   it("prioritizes 受付終了 over the personal planning-state badge", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -139,6 +150,7 @@ describe("TicketsView", () => {
   it("prioritizes 中止 over 受付終了, applied, and 不明", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -174,6 +186,7 @@ describe("TicketsView", () => {
   it("prioritizes 中止 over 申し込む予定", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -203,6 +216,7 @@ describe("TicketsView", () => {
   it("keeps the active planning-state badge when cancellation is false", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -234,6 +248,7 @@ describe("TicketsView", () => {
   it("renders every badge as 不明, not omitted, when the personal-state read fails, while the shared timeline still renders", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -263,6 +278,7 @@ describe("TicketsView", () => {
   it("still shows 受付終了 (not 不明) for post-final rows even when the personal-state read fails", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -293,7 +309,7 @@ describe("TicketsView", () => {
   });
 
   it("does not show the personal-state failure note when the optional read succeeds", () => {
-    render(<TicketsView state={POPULATED} />);
+    render(<TicketsView today={TODAY} state={POPULATED} />);
     expect(
       screen.queryByText("申し込み状態を取得できませんでした"),
     ).not.toBeInTheDocument();
@@ -304,7 +320,7 @@ describe("TicketsView", () => {
 
   // M8 で確定した v2 の不具合（この write UI 自体が未実装だった）の修正。
   it("renders the planning-state controls once, for the opportunity's first row, when the personal-state read succeeds", () => {
-    render(<TicketsView state={POPULATED} />);
+    render(<TicketsView today={TODAY} state={POPULATED} />);
     expect(
       screen.getByRole("button", { name: "申し込む予定に戻す" }),
     ).toBeInTheDocument();
@@ -316,6 +332,7 @@ describe("TicketsView", () => {
   it("does not render the planning-state controls on a non-first row of the same Opportunity", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -348,6 +365,7 @@ describe("TicketsView", () => {
   it("does not render the planning-state controls when the personal-state read failed (state unknown)", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -374,6 +392,7 @@ describe("TicketsView", () => {
   it("does not render the planning-state controls on a post-final (受付終了) row", () => {
     render(
       <TicketsView
+        today={TODAY}
         state={{
           block: {
             variant: "populated",
@@ -432,11 +451,11 @@ describe("販売機会名の表示（PR #381 review）", () => {
       optional: { ok: true },
     };
 
-    render(<TicketsView state={state} />);
+    render(<TicketsView today={TODAY} state={state} />);
 
     // 種別と日時だけでは 2 行が同一に見える。販売機会名がその唯一の
     // 判別材料なので、両方が実際に描画されていることを確認する。
-    expect(screen.getByText("FC先行")).toBeInTheDocument();
-    expect(screen.getByText("一般発売")).toBeInTheDocument();
+    expect(screen.getByText(/FC先行$/)).toBeInTheDocument();
+    expect(screen.getByText(/一般発売$/)).toBeInTheDocument();
   });
 });

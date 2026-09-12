@@ -69,5 +69,9 @@ describe("InvitationsPage", () => {
     render(ui);
 
     expect(screen.getByText("招待はありません")).toBeInTheDocument();
+    expect(screen.getByText("未回答 0件")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "カレンダーへ戻る" }),
+    ).toHaveAttribute("href", "/calendar");
   });
 });

@@ -11,6 +11,7 @@ import {
   type Participation,
   type PersonalScheduleEntry,
   type TicketOpportunityTimelineRow,
+  type TicketOpportunityTargetScope,
   type UserId,
 } from "@stage-tracker/domain";
 import {
@@ -54,6 +55,9 @@ const HOME_UPCOMING_SCHEDULE_LIMIT = 5;
 
 export interface HomeTicketDeadlineRow {
   readonly row: TicketOpportunityTimelineRow;
+  readonly eventTitle: string;
+  readonly isEffectivelyCanceled: boolean;
+  readonly targetScope: TicketOpportunityTargetScope;
 }
 
 /**
@@ -103,6 +107,12 @@ export async function loadHomeTicketDeadlines(
         states,
       );
       const timelineRows = buildTicketOpportunityTimelineRows(aggregates);
+      const detailByOpportunityId = new Map(
+        opportunities.map(
+          (detail) =>
+            [detail.opportunityWithTargets.opportunity.id, detail] as const,
+        ),
+      );
       const primaryRows = selectTicketOpportunityPrimaryRows(
         timelineRows,
         now.nowInstant,
@@ -111,7 +121,20 @@ export async function loadHomeTicketDeadlines(
       return primaryRows
         .filter((row) => !row.isPostFinalRetainedHistory)
         .slice(0, HOME_TICKET_DEADLINE_LIMIT)
-        .map((row) => ({ row }));
+        .map((row) => {
+          const detail = detailByOpportunityId.get(row.opportunityId);
+          if (detail === undefined) {
+            throw new Error(
+              `unreachable: timeline row has no source opportunity detail (${row.opportunityId})`,
+            );
+          }
+          return {
+            row,
+            eventTitle: detail.eventTitle,
+            isEffectivelyCanceled: detail.isEffectivelyCanceled,
+            targetScope: detail.opportunityWithTargets.opportunity.targetScope,
+          };
+        });
     },
     (data) => data.length === 0,
   );
@@ -129,6 +152,7 @@ export type HomeUpcomingItem =
       readonly kind: "schedule";
       readonly sortInstant: Instant;
       readonly entry: PersonalScheduleEntry;
+      readonly isOwner: boolean;
     };
 
 function isUpcomingParticipation(
@@ -218,6 +242,7 @@ export async function loadHomeUpcomingSchedule(
           kind: "schedule",
           sortInstant: scheduleEntrySortInstant(entry),
           entry,
+          isOwner: entry.ownerId === userId,
         }));
 
       return [...occurrenceItems, ...scheduleItems]

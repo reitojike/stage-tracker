@@ -4,6 +4,7 @@ import {
 } from "@stage-tracker/domain";
 import {
   formatTokyoCalendarDateRangeJa,
+  formatTokyoCalendarDateWithYearJa,
   formatTokyoDateTimeJa,
   formatTokyoTime,
 } from "@/app/_lib/format";
@@ -15,15 +16,24 @@ import {
  */
 export function formatScheduleEntryTemporal(
   temporal: PersonalScheduleEntryTemporal,
+  options: { readonly includeYear?: boolean } = {},
 ): string {
+  const formatDate = options.includeYear
+    ? formatTokyoCalendarDateWithYearJa
+    : (date: Parameters<typeof formatTokyoCalendarDateWithYearJa>[0]) =>
+        formatTokyoCalendarDateRangeJa(date, date);
+
   if (temporal.kind === "all-day") {
-    return `${formatTokyoCalendarDateRangeJa(
-      temporal.startsOn,
-      temporal.endsOn,
-    )}（終日）`;
+    const range =
+      temporal.startsOn === temporal.endsOn
+        ? formatDate(temporal.startsOn)
+        : `${formatDate(temporal.startsOn)} 〜 ${formatDate(temporal.endsOn)}`;
+    return `${range}（終日）`;
   }
 
-  const startsLabel = formatTokyoDateTimeJa(temporal.startsAt);
+  const startsLabel = options.includeYear
+    ? `${formatDate(instantToTokyoCalendarDate(temporal.startsAt))} ${formatTokyoTime(temporal.startsAt)}`
+    : formatTokyoDateTimeJa(temporal.startsAt);
 
   if (temporal.endsAt === null) {
     return `${startsLabel} 〜（終了時刻未定）`;
@@ -34,7 +44,9 @@ export function formatScheduleEntryTemporal(
   const endsLabel =
     startsDate === endsDate
       ? formatTokyoTime(temporal.endsAt)
-      : formatTokyoDateTimeJa(temporal.endsAt);
+      : options.includeYear
+        ? `${formatDate(endsDate)} ${formatTokyoTime(temporal.endsAt)}`
+        : formatTokyoDateTimeJa(temporal.endsAt);
 
   return `${startsLabel} 〜 ${endsLabel}`;
 }

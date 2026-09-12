@@ -37,6 +37,15 @@ describe('Button', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it('keeps every visible size on a 44px minimum pointer target', () => {
+    render(<Button size="xs">小さい操作</Button>);
+
+    expect(screen.getByRole('button', { name: '小さい操作' })).toHaveClass(
+      'before:h-[max(100%,2.75rem)]',
+      'before:w-[max(100%,2.75rem)]',
+    );
+  });
+
   // decisions.md A1: variant (meaning) and size (dimension) are independent
   // axes. These pin the specific legacy `danger`/`icon` mappings this task
   // decided on.
@@ -63,7 +72,7 @@ describe('Button', () => {
       );
       const button = screen.getByRole('button', { name: 'small' });
       expect(button).toHaveClass('border-border');
-      expect(button).toHaveClass('h-7');
+      expect(button).toHaveClass('h-8');
     });
   });
 });

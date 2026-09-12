@@ -1,12 +1,27 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
-import { instantToTokyoCalendarDate } from "@stage-tracker/domain";
-import { Badge, StatePanel } from "@stage-tracker/ui";
+import type { ReactNode } from "react";
+import {
+  instantToTokyoCalendarDate,
+  isEffectivelyCanceled,
+  type TokyoCalendarDate,
+} from "@stage-tracker/domain";
+import {
+  Badge,
+  LinkButton,
+  CompactList,
+  ListRowChevron,
+  ListRowLink,
+  StatePanel,
+} from "@stage-tracker/ui";
 import {
   formatMilestoneTypeJa,
   formatMilestoneWhenJa,
 } from "@/app/_lib/ticket-milestone-format";
-import { formatTokyoCalendarDateJa, formatTokyoTime } from "@/app/_lib/format";
+import {
+  formatTokyoCalendarDateJa,
+  occurrenceTimeRangeLabel,
+} from "@/app/_lib/format";
+import { ticketDeadlineBadgeDisplay } from "@/app/_lib/ticket-display";
 import {
   READ_FAILURE_RETRY_HINT_JA,
   type MergedListBlockState,
@@ -17,12 +32,14 @@ import type {
   HomeTicketDeadlineRow,
   HomeUpcomingItem,
 } from "../_lib/home-loader";
+import { formatScheduleEntryTemporal } from "../schedule/_components/formatScheduleEntryTemporal";
 
 export interface HomeViewProps {
   readonly ticketState: OptionalPartBlockState<
     readonly HomeTicketDeadlineRow[]
   >;
   readonly scheduleState: MergedListBlockState<readonly HomeUpcomingItem[]>;
+  readonly today: TokyoCalendarDate;
 }
 
 /**
@@ -51,7 +68,7 @@ export interface HomeViewProps {
  * silently collapsing into the same "no data"/"0 rows" shape a caller would
  * see with no failure at all.
  */
-export function HomeView({ ticketState, scheduleState }: HomeViewProps) {
+export function HomeView({ ticketState, scheduleState, today }: HomeViewProps) {
   const bothEmpty =
     ticketState.block.variant === "empty" && scheduleState.variant === "empty";
 
@@ -66,7 +83,7 @@ export function HomeView({ ticketState, scheduleState }: HomeViewProps) {
         />
       ) : (
         <>
-          <TicketDeadlineSection state={ticketState} />
+          <TicketDeadlineSection state={ticketState} today={today} />
           <UpcomingScheduleSection state={scheduleState} />
         </>
       )}
@@ -118,8 +135,10 @@ function badgeForTicketDeadlineRow(
 
 function TicketDeadlineSection({
   state,
+  today,
 }: {
   readonly state: OptionalPartBlockState<readonly HomeTicketDeadlineRow[]>;
+  readonly today: TokyoCalendarDate;
 }) {
   const { block, optional } = state;
 
@@ -135,9 +154,9 @@ function TicketDeadlineSection({
         >
           申し込み期限
         </h2>
-        <Link href="/tickets" className="text-body-sm text-primary">
-          すべて見る›
-        </Link>
+        <LinkButton href="/tickets" variant="link" size="sm">
+          すべて見る
+        </LinkButton>
       </div>
 
       {block.variant === "populated" ? (
@@ -149,27 +168,58 @@ function TicketDeadlineSection({
                 : "申し込み状態を取得できませんでした"}
             </PartFailureNote>
           ) : null}
-          <ul className="flex flex-col gap-sm">
-            {block.data.map(({ row }) => (
-              <li key={`${row.opportunityId}-${row.milestone.id}`}>
-                <Link
-                  href={`/catalog/events/${row.eventId}`}
-                  className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
+          <ul className="-mr-md flex w-[calc(100%+var(--spacing-md))] snap-x snap-proximity overflow-x-auto [scrollbar-width:thin] [&>li+li]:border-l [&>li+li]:border-border [&>li+li]:pl-compact">
+            {block.data.map((deadline) => {
+              const { row } = deadline;
+              const deadlineBadge = ticketDeadlineBadgeDisplay(
+                {
+                  ...row,
+                  isEffectivelyCanceled: deadline.isEffectivelyCanceled,
+                },
+                today,
+              );
+              const personalStateBadge = badgeForTicketDeadlineRow(
+                row,
+                optional.ok === false,
+              );
+              return (
+                <li
+                  key={`${row.opportunityId}-${row.milestone.id}`}
+                  className="w-[150px] shrink-0 snap-start py-xs pr-compact"
                 >
-                  <span className="flex items-center gap-xs text-body-sm text-muted-foreground">
-                    {formatMilestoneTypeJa(row.milestone.milestoneType)}
-                    {badgeForTicketDeadlineRow(row, optional.ok === false)}
-                  </span>
-                  <span className="text-title font-medium text-foreground">
-                    {formatMilestoneWhenJa(row.milestone)}
-                  </span>
-                  {/* 販売機会名。/tickets と同じ理由で必要（PR #381 review）。 */}
-                  <span className="text-body-sm text-muted-foreground">
-                    {row.displayName}
-                  </span>
-                </Link>
-              </li>
-            ))}
+                  <Link
+                    href={`/catalog/events/${row.eventId}`}
+                    className="flex h-full flex-col gap-2xs text-foreground hover:opacity-80 focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"
+                  >
+                    {deadlineBadge !== null || personalStateBadge !== null ? (
+                      <span className="flex flex-wrap items-center gap-2xs">
+                        {deadlineBadge !== null ? (
+                          <Badge variant={deadlineBadge.variant}>
+                            {deadlineBadge.label}
+                          </Badge>
+                        ) : null}
+                        {personalStateBadge}
+                      </span>
+                    ) : null}
+                    <span className="line-clamp-2 text-title font-semibold leading-title">
+                      {deadline.eventTitle}
+                    </span>
+                    <span className="truncate text-body-sm">
+                      {row.displayName}
+                    </span>
+                    <span className="mt-auto flex items-center gap-2xs text-body-sm text-muted-foreground">
+                      <span className="min-w-0 flex-1">
+                        {formatMilestoneTypeJa(row.milestone.milestoneType)}・
+                        {formatMilestoneWhenJa(row.milestone)}
+                      </span>
+                      {row.milestone.temporalPrecision === "date" ? null : (
+                        <ListRowChevron className="min-h-0" />
+                      )}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </>
       ) : (
@@ -244,7 +294,7 @@ function UpcomingScheduleSection({
             />
           ) : null}
           {state.data.length > 0 ? (
-            <ul className="flex flex-col gap-sm">
+            <CompactList>
               {state.data.map((item) => (
                 <li
                   key={
@@ -256,7 +306,7 @@ function UpcomingScheduleSection({
                   <UpcomingScheduleRow item={item} />
                 </li>
               ))}
-            </ul>
+            </CompactList>
           ) : null}
         </>
       ) : (
@@ -280,32 +330,58 @@ function UpcomingScheduleSection({
 
 function UpcomingScheduleRow({ item }: { readonly item: HomeUpcomingItem }) {
   if (item.kind === "occurrence") {
+    const canceled = isEffectivelyCanceled(item.event, item.occurrence);
     return (
-      <Link
+      <ListRowLink
         href={`/catalog/events/${item.event.id}?occurrence=${item.occurrence.id}`}
-        className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
       >
-        <span className="text-body-sm text-muted-foreground">
-          {formatTokyoCalendarDateJa(
-            instantToTokyoCalendarDate(item.occurrence.startsAt),
-          )}{" "}
-          {formatTokyoTime(item.occurrence.startsAt)}
+        <span className="flex flex-col gap-2xs">
+          <span className="flex flex-wrap items-center gap-2xs text-body-sm text-muted-foreground">
+            {formatTokyoCalendarDateJa(
+              instantToTokyoCalendarDate(item.occurrence.startsAt),
+            )}{" "}
+            {occurrenceTimeRangeLabel(
+              item.occurrence.startsAt,
+              item.occurrence.endsAt,
+            )}
+            <Badge variant="subtle">
+              {item.participation.status === "attending"
+                ? "参加する"
+                : "気になる"}
+            </Badge>
+            {canceled ? <Badge variant="terminal">中止</Badge> : null}
+          </span>
+          <span className="text-title font-medium text-foreground">
+            {item.event.title}
+          </span>
+          {item.event.venue !== null ? (
+            <span className="text-body-sm text-muted-foreground">
+              {item.event.venue}
+            </span>
+          ) : null}
         </span>
-        <span className="text-title font-medium text-foreground">
-          {item.event.title}
-        </span>
-      </Link>
+      </ListRowLink>
     );
   }
 
   return (
-    <Link
-      href={`/schedule/${item.entry.id}`}
-      className="flex flex-col gap-2xs rounded-control border border-border bg-card p-md hover:bg-muted"
-    >
-      <span className="text-title font-medium text-foreground">
-        {item.entry.title}
+    <ListRowLink href={`/schedule/${item.entry.id}`}>
+      <span className="flex flex-col gap-2xs">
+        <span className="flex flex-wrap gap-2xs">
+          <Badge variant="subtle">
+            {item.isOwner ? "自分の予定" : "共有されている予定"}
+          </Badge>
+          {!item.entry.blocking ? (
+            <Badge variant="outline">予定を確保しない</Badge>
+          ) : null}
+        </span>
+        <span className="text-title font-medium text-foreground">
+          {item.entry.title}
+        </span>
+        <span className="text-body-sm text-muted-foreground">
+          {formatScheduleEntryTemporal(item.entry.temporal)}
+        </span>
       </span>
-    </Link>
+    </ListRowLink>
   );
 }

@@ -10,6 +10,7 @@ import {
   participationSchema,
   ticketOpportunityIdSchema,
   ticketOpportunityMilestoneIdSchema,
+  tokyoCalendarDateSchema,
   userIdSchema,
 } from "@stage-tracker/domain";
 import type {
@@ -22,6 +23,8 @@ import type {
 } from "../_lib/home-loader";
 import { HomeView } from "./HomeView";
 
+const TODAY = tokyoCalendarDateSchema.parse("2026-03-01");
+
 const EMPTY_TICKET: OptionalPartBlockState<readonly HomeTicketDeadlineRow[]> = {
   block: { variant: "empty" },
   optional: { ok: true },
@@ -32,6 +35,9 @@ const EMPTY_SCHEDULE: MergedListBlockState<readonly HomeUpcomingItem[]> = {
 
 const POPULATED_TICKET_ROWS: readonly HomeTicketDeadlineRow[] = [
   {
+    eventTitle: "テスト公演",
+    isEffectivelyCanceled: false,
+    targetScope: "event_wide",
     row: {
       opportunityId: ticketOpportunityIdSchema.parse(
         "44444444-4444-4444-8444-444444444444",
@@ -117,7 +123,11 @@ const POPULATED_SCHEDULE: MergedListBlockState<readonly HomeUpcomingItem[]> = {
 describe("HomeView", () => {
   it("renders a single merged empty panel only when both blocks are empty", () => {
     render(
-      <HomeView ticketState={EMPTY_TICKET} scheduleState={EMPTY_SCHEDULE} />,
+      <HomeView
+        today={TODAY}
+        ticketState={EMPTY_TICKET}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
     );
 
     expect(
@@ -131,6 +141,7 @@ describe("HomeView", () => {
   it("renders each block's own error/unavailable panel independently when only one fails (P4)", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={{
           block: { variant: "error" },
           optional: { ok: true },
@@ -150,6 +161,7 @@ describe("HomeView", () => {
   it("renders the unavailable variant distinctly from error", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={{
           block: { variant: "unavailable" },
           optional: { ok: true },
@@ -168,18 +180,20 @@ describe("HomeView", () => {
   it("renders populated ticket rows with their planning-state badge", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={POPULATED_TICKET}
         scheduleState={EMPTY_SCHEDULE}
       />,
     );
 
-    expect(screen.getByText("販売開始")).toBeInTheDocument();
+    expect(screen.getByText(/^販売開始・/)).toBeInTheDocument();
     expect(screen.getByText("申し込む予定")).toBeInTheDocument();
   });
 
   it("keeps 直近の予定 empty-but-independent when 申し込み期限 is populated", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={POPULATED_TICKET}
         scheduleState={EMPTY_SCHEDULE}
       />,
@@ -196,6 +210,7 @@ describe("HomeView", () => {
   it("renders the ticket-state badge as 不明, not omitted, when the personal-state read fails", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={{
           block: { variant: "populated", data: POPULATED_TICKET_ROWS },
           optional: { ok: false, variant: "error" },
@@ -220,6 +235,7 @@ describe("HomeView", () => {
   it("does not show the personal-state failure note when the optional read succeeds", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={POPULATED_TICKET}
         scheduleState={EMPTY_SCHEDULE}
       />,
@@ -239,6 +255,7 @@ describe("HomeView", () => {
   it("renders the surviving schedule item and a failure note (not an empty panel) when participations fails and personal schedule alone is populated", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={EMPTY_TICKET}
         scheduleState={{
           variant: "partial",
@@ -271,6 +288,7 @@ describe("HomeView", () => {
   it("renders only the failure note (no empty panel) when participations fails and personal schedule alone succeeds with 0 rows", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={EMPTY_TICKET}
         scheduleState={{
           variant: "partial",
@@ -295,6 +313,7 @@ describe("HomeView", () => {
   it("申し込み期限の行に販売機会名を表示する", () => {
     render(
       <HomeView
+        today={TODAY}
         ticketState={POPULATED_TICKET}
         scheduleState={EMPTY_SCHEDULE}
       />,
