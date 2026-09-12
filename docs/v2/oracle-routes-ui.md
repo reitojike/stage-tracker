@@ -65,8 +65,10 @@ DB migration / RLS の SQL 本文（テーブル名・RPC 名のみ本書に登�
 全画面共通のポリシー: **auth failure / read failure（unavailable）と
 「0 件」は必ず別表示。** RLS 等による silent failure を empty UI に
 誤変換しない（`StatePanel` の `error`/`unavailable` と `empty` の 3-variant
-はこの区別のためにある）。破壊的操作（hard delete）のみ確認 Sheet を要求し、
-可逆操作（cancel/uncancel、招待の accept/decline 等）は確認なしの即時実行。
+はこの区別のためにある）。破壊的操作（hard delete）は実行前確認を要求し、
+surface に応じて確認 Sheet または inline の確認フェーズで扱う。可逆操作
+（cancel/uncancel、招待の accept 等）は確認なしの即時実行とする。Invitation の
+decline は pending row の hard delete なので、下記の確認フェーズを適用する。
 
 ### ホーム（`/`）
 
@@ -89,8 +91,11 @@ DB migration / RLS の SQL 本文（テーブル名・RPC 名のみ本書に登�
 - loading: `CalendarSkeleton`（URL の `date`/`month` から表示予定月を
   先読みし、本物と同じ形のグリッド骨組みを表示。月が特定できない場合の
   み plain な `LoadingIndicator`）。
-- 認証/読込失敗はページ全体を単一の error パネルに置換（ホームほど
-  ブロック単位に細分化されていない）。
+- 認証/セッション解決失敗はページ全体を単一の error パネルに置換する。
+  認証後の2つの read（参加予定 / 個人の予定）は P4 に従って独立した
+  `BlockState` として扱い、片方の失敗や unavailable がもう片方の表示を
+  ブロックせず、失敗を empty に変換しない。両方が確認済みの empty の場合
+  に限り、ページ下部の統合 empty 表示へまとめる。
 - 月ランディング（`selectedDate === null`）: 当月 agenda が 0 件なら
   empty パネル、非0件なら日付グループ化された agenda。
 - 選択日リスト（`selectedDate !== null`）: 0件なら「この日の予定はまだ
@@ -177,9 +182,11 @@ DB migration / RLS の SQL 本文（テーブル名・RPC 名のみ本書に登�
   - 「参加する」→即 `busy` phase→action 実行→成功でカードを
     client-local state から即時除去＋`router.refresh()`（サーバトリガーが
     同一 occurrence への他の pending invitation も自動解決するため）。
-  - 「参加しない」→即座に `declining` phase へ（8秒間のクライアント
-    ローカルな Undo 可能状態、まだサーバ呼び出しはしない）。8秒経過
-    または画面離脱（unmount）で確定。「取り消す」で `pending` に戻す。
+  - 「参加しない」→確認フェーズへ移り、確認後に action を実行する。成功時は
+    invitation を即時 hard delete してカードを除去し `router.refresh()`する。
+    実行を遅延させる client-side timer や、Undo / 「取り消す」導線は持たない。
+    失敗時はカードを残し、action 名と server error message を `role="alert"`
+    で表示して再操作可能にする。
   - 効果的に中止済み（Event/Occurrence 側の cancellation）の招待は
     「閉じる」のみ（Undo なしの decline 相当）。
   - 「未回答 {n}件」の件数表示は declining 中のカードを除外した
@@ -227,7 +234,9 @@ DB migration / RLS の SQL 本文（テーブル名・RPC 名のみ本書に登�
 - 空状態: 表示対象0件→「現在表示できる抽選・販売スケジュールはありません」。
 - error: 未認証は「サインインが必要です」、それ以外は一般失敗文言。
 - バッジ優先順位（重要な仕様）: ①中止 ②受付終了（履歴保持のpost-final）
-  ③申し込み済み ④申し込む予定 ⑤バッジなし、の順で1つだけ表示。
+  ③不明（personal planning-state read の失敗）④申し込み済み
+  ⑤申し込む予定 ⑥バッジなし、の順で1つだけ表示。不明の場合も共有
+  timeline は表示を継続し、planning-state の変更操作は表示しない。
 - planning state 変更（Opportunity ごとに1行のコントロール）:
   - 未登録→「申し込む予定にする」のみ
   - `planned`→「申し込み済みにする」+「登録を解除」
@@ -449,13 +458,11 @@ breakpoint/`@media`によるレスポンシブ切替も、`prefers-reduced-motio
   （`onNotificationsPress` 未設定時は `aria-disabled` の非活性ボタン）。
   v2 で実装するか、実装予定がないなら UI から一旦外すか、方針を決めた
   方がよい。
-- **Invitation の decline は client-side timer 前提の楽観的Undo。**
-  8秒のタイマーまたはコンポーネントの unmount（画面遷移）で確定する
-  実装で、ブラウザタブを閉じる／リロードするなど unmount が発火しない
-  離脱経路では、decline の確定（サーバ action 実行）が行われないまま
-  pending 状態が残り得る（未確認: 実際にそのケースでどう振る舞うかは
-  検証していない）。v2では server 主導のタイムアウト、またはページ
-  離脱時に何が起きるかを明示的に仕様化することを推奨。
+- **Invitation の decline は確認後に即時 hard delete して確定する。**
+  v2 では実行を遅延させる client-side timer、Undo / 「取り消す」導線、中間状態を
+  持たない。
+  実行前の確認で押し間違いを抑止し、確認後の失敗はカード内で表示して再操作
+  できる状態を維持する。詳細は `decisions.md` の P3 を参照する。
 - **`loading.tsx` の一部が Client Component 化してURLを再解決している。**
   `catalog/events/new`, `schedule/new`, `schedule/[entryId]`,
   `schedule/[entryId]/edit` 等の `loading.tsx` は、Next.js が

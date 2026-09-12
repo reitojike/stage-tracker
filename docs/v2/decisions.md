@@ -5,12 +5,12 @@ oracle 抽出中に見つかった、v2 で判断が必要な論点。
 
 ## PO 判断が必要
 
-| #   | 論点                                                                                                                                                                         | 現状                                                     | 出典                |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------- |
-| P1  | 通知ベルが未配線のまま UI に存在（Issue #141 以降）。v2 で実装するか、UI から外すか                                                                                          | `aria-disabled` の非活性ボタンとして表示され続けている   | oracle-routes-ui §5 |
-| P2  | `/schedule` と `/mypage` が PrimaryNav に無く、文脈的な入口からしか到達できない。個人予定管理の重要度次第で IA を再検討するか                                                | 意図的な設計（コード内コメントに明記）だが妥当性は未評価 | oracle-routes-ui §5 |
-| P3  | Invitation の decline が client-side 8秒タイマー + unmount 確定の楽観的 UI。タブを閉じる等の離脱で pending が残り得る。server 主導へ変えるか、現挙動を仕様として明文化するか | 実際の離脱時挙動は未検証                                 | oracle-routes-ui §5 |
-| P4  | エラー表示の粒度が画面間で不揃い。ホームは read ごとに独立劣化、カレンダーは単一エラーへ縮退。v2 で揃えるか、意図的な差として明文化するか                                    | 意図か未整理かが不明                                     | oracle-routes-ui §5 |
+| #   | 論点                                                                                                                          | 現状                                                                  | 出典                             |
+| --- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------- |
+| P1  | 通知ベルが未配線のまま UI に存在（Issue #141 以降）。v2 で実装するか、UI から外すか                                           | `aria-disabled` の非活性ボタンとして表示され続けている                | oracle-routes-ui §5              |
+| P2  | `/schedule` と `/mypage` が PrimaryNav に無く、文脈的な入口からしか到達できない。個人予定管理の重要度次第で IA を再検討するか | 意図的な設計（コード内コメントに明記）だが妥当性は未評価              | oracle-routes-ui §5              |
+| P3  | Invitation の decline の確定方法と undo の有無                                                                                | **解決済み**: v2 は事前確認後に即時 hard delete し、undo は提供しない | oracle-routes-ui §2 / Issue #424 |
+| P4  | エラー表示の粒度が画面間で不揃い                                                                                              | **解決済み**: カレンダーも read ごとに独立して劣化させる              | oracle-routes-ui §2 / Issue #424 |
 
 ## 実装側で決めてよい技術判断
 
@@ -114,29 +114,29 @@ P1–P6 はすべて PO 判断済み。以下が正本であり、上記の「PO
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1  | **通知ベルは残す。** お知らせ機能を今後実装する。それまで非活性のまま UI に置いておく                                                                                  |
 | P2  | **受信した招待はお知らせ機能に集約する。** グローバルナビは 4 項目のまま増やさない。`/schedule` はカレンダーからの入口を維持する（個人予定は本質的にカレンダーの一部） |
-| P3  | **decline は即座に hard delete して確定させ、undo は「作り直し」で実現する**（下記）                                                                                   |
+| P3  | **decline は事前確認の後、即座に hard delete して確定させる。undo は提供しない**（下記）                                                                               |
 | P4  | **エラー表示は「read ごとに独立して劣化」へ統一する**（下記）                                                                                                          |
 | P5  | **アカウント削除機能自体は将来。ただし FK の `ON DELETE` 方針は M4 で明示的に決める**（下記）                                                                          |
 | P6  | **venue は生 text のまま。会場マスタは作らない。import 時に正規化して表記揺れを減らす**                                                                                |
 
-### P3 — decline の確定と undo
+### P3 — decline の確定（undo なし）
 
-現行は「8 秒待ってから削除」のため、タブを閉じる等で unmount が発火しない離脱では
-削除されないまま pending が残り得る。v2 ではこれを反転する。
+現行 v2 は「参加しない」の実行前に確認を挟み、確認後は invitation を即座に
+hard delete して確定する。undo は提供しない。
 
 ```
 「参加しない」を押す
-  -> 即座に invitation を hard delete（サーバ確定）
-  -> 画面に「取り消す」を N 秒表示
-  -> 押されたら、同じ inviter からの pending invitation を作り直す
+  -> 確認フェーズを表示
+  -> 確認すると invitation を即座に hard delete（サーバ確定）
+  -> カードを一覧から除去して再読込
 ```
 
-- タブを閉じても押した通りに確定するため、現行のバグが構造的に消える
-- 作り直しに必要な情報（inviter / occurrence）は直前まで画面が保持しているので、
-  サーバ側に中間状態を持つ必要がない
-- product rules が「decline を永久 opt-out として扱わない、再 invite できる」と
-  定めているため、作り直しは既存の意味論と整合する
-- undo の猶予時間の具体値は実装 Task で決める
+- 事前確認により押し間違いを抑止する
+- 確認後はタブを閉じても押した通りに確定する
+- decline は過去の opt-out を保存しないため、invitee が attending でなければ
+  後日の re-invite を妨げない
+- undo を実現するための invitee 向け invitation 作成経路や、中間状態の保存は
+  pending-only の Invitation semantics に追加しない
 
 ### P4 — エラー粒度の統一
 
@@ -751,10 +751,11 @@ pending-only という Invitation の設計（Issue #225/#230）と衝突する�
 
 将来 undo が必要になった場合は、この矛盾から設計をやり直すこと。
 
-P3 で決めた「decline は即座に確定させる」部分は、未マージの M6d ブランチで
-実装する予定の範囲に含まれる。それがマージされれば、現行 legacy の
-「8 秒タイマーで確定（タブを閉じると pending が残り得る）」というバグは
-解消される。undo が無い状態は、現行より悪くはならない。
+P3 で決めた「decline は即座に確定させる」部分は M6d で実装済みであり、現行 v2
+の Oracle に反映されている。旧 legacy の「8 秒タイマーで確定（タブを閉じると
+pending が残り得る）」という問題は、decline を確認後に即時確定することで解消
+されている。undo を提供しない現在の状態は、pending-only の Invitation semantics
+と整合する。
 
 ---
 
@@ -1282,3 +1283,34 @@ ceremony）が丸ごと欠落しており、`oracle-routes-ui.md:49` が明記�
 理由: oracle が Passkey を主要な認証経路として明記しているため、これを
 欠いたまま cutover することは、legacy で既に確立している「登録済み端末なら
 Passkey だけでサインインできる」という日常的な認証体験を v2 で失わせる。
+
+---
+
+## PO 判断: Option A — bounded shared Sheet recovery（2026-09-12、Issue #424）
+
+M8 の Sheet recovery は **Option A（既存の product-specific Sheet interaction
+だけを bounded に復元する方式）**を採用する。#420 で導入した
+`packages/ui` の shared `Sheet` primitive を使い、#420〜#423 で確定した Oracle
+surface へ段階的に適用する方針である。全フォームを Sheet 化する判断ではない。
+
+### 採用理由
+
+- M8 の現行 v2 UI で確認された「Sheet として定義済みの interaction が inline
+  UI のまま残っている」という差分を、画面単位で閉じられる
+- modal、focus containment、Escape / backdrop dismissal、trigger への focus
+  return などの共通アクセシビリティ契約を shared primitive に集約できる
+- feature 固有の選択肢、入力、保存、確認、redirect は consumer 側に残し、
+  generic modal manager や nested-Sheet framework を先行導入しない
+
+### bounded scope
+
+| surface                  | current v2 contract                                                                                                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Event detail (#420)      | Occurrence の Participation は Sheet 内の選択で保存し、成功時に close。Invite は Sheet 内で email を送信し、成功時に auto-close。validation / server failure は remain-open。cancellation、eligibility、invitation opacity は変更しない                      |
+| Catalog (#421)           | Filter は `FilterSheet` で扱い、open 時に `applied -> draft`。dismiss は applied / `localStorage` を変更せず、「この条件で絞り込む」の確定時だけ applied を更新・永続化して close。Sheet 内の clear は draft-only                                            |
+| Event edit (#422)        | Event range、Occurrence add / update、Event / Occurrence hard delete confirmation を Sheet 化。basic-info form は inline のまま、cancel / uncancel は確認なし。成功時 close / redirect、失敗時 remain-open 等の既存 contract を維持                          |
+| Personal Schedule (#423) | owner の share add は `ShareAddSheet` で扱い、成功時 auto-close、validation / 未登録 email / server failure は remain-open。owner hard delete は共有相手からも消えることを確認文言に含む confirmation Sheet。recipient の解除と self-remove は即時操作のまま |
+
+この判断が許可するのは上表の bounded consumer と、それを支える shared
+`Sheet` primitive の実装だけである。DB / migration / RLS / domain semantics、
+既存の write boundary、M9 cutover、legacy の実装詳細は変更・新規要件化しない。
