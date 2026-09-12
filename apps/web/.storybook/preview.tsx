@@ -13,9 +13,17 @@ const preview: Preview = {
       },
     },
     a11y: {
-      // 'todo' = a11y violation を test UI にのみ表示する。QA aid として
-      // 使い、compliance 自体の証明にはしない。
-      test: "todo",
+      // Storybook 9 の標準 test-runner で全 story を検査し、violation を
+      // CLI / CI failure として扱う。
+      test: "error",
+      config: {
+        rules: [
+          // isolated component story は full document ではないため、page-level
+          // structure を要求する best-practice rule のみ無効化する。
+          { id: "landmark-one-main", enabled: false },
+          { id: "page-has-heading-one", enabled: false },
+        ],
+      },
     },
   },
 };
