@@ -5,7 +5,11 @@ import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EventCatalogEntry } from "@/lib/data";
 import type { CatalogFilterOptionsResult } from "../_lib/catalog-loader";
-import { CatalogView, type CatalogViewProps } from "./CatalogView";
+import {
+  CatalogView,
+  filterSummaryLabel,
+  type CatalogViewProps,
+} from "./CatalogView";
 
 const MONTH = { year: 2026, month: 3 };
 const TODAY = "2026-03-15" as never;
@@ -109,6 +113,29 @@ afterEach(() => {
 });
 
 describe("CatalogView", () => {
+  it("does not list every selected known facet option as an active narrowing condition", () => {
+    const options = {
+      genres: [],
+      groupsByGenreKey: {
+        takarazuka: [
+          { id: "group-a", displayName: "花組" },
+          { id: "group-b", displayName: "月組" },
+        ],
+      },
+      venuesByGenreKey: {},
+    } as never;
+    expect(
+      filterSummaryLabel(
+        {
+          genreKey: "takarazuka",
+          groupIds: ["group-a", "group-b"] as never,
+          venues: [],
+        },
+        options,
+      ),
+    ).toBe("宝塚");
+  });
+
   it("still mounts the month calendar and filter controls when the raw range is empty (ChatGPT review 指摘: legacy's isEmptyRange only adds a month-level notice, it never hides the body)", () => {
     render(
       <CatalogView
@@ -376,7 +403,9 @@ describe("CatalogView", () => {
       screen.getByRole("button", { name: "この条件で絞り込む" }),
     );
 
-    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    await user.click(
+      screen.getByRole("button", { name: "絞り込み（適用中）" }),
+    );
     const sheet = screen.getByRole("dialog", { name: "絞り込み" });
     await user.click(within(sheet).getByRole("radio", { name: "すべて" }));
     expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
@@ -395,7 +424,9 @@ describe("CatalogView", () => {
     );
     expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    await user.click(
+      screen.getByRole("button", { name: "絞り込み（適用中）" }),
+    );
     expect(
       within(screen.getByRole("dialog", { name: "絞り込み" })).getByRole(
         "radio",
@@ -476,7 +507,9 @@ describe("CatalogView", () => {
       "stage-tracker:catalog-filter:v1",
     );
 
-    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    await user.click(
+      screen.getByRole("button", { name: "絞り込み（適用中）" }),
+    );
     const sheet = screen.getByRole("dialog", { name: "絞り込み" });
     await user.click(within(sheet).getByRole("radio", { name: "すべて" }));
     await user.click(
@@ -518,7 +551,7 @@ describe("CatalogView", () => {
     );
     expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "条件を解除する" }));
+    await user.click(screen.getByRole("button", { name: "絞り込みを解除" }));
     expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
     expect(
       JSON.parse(

@@ -4,7 +4,14 @@ import {
   type TokyoCalendarDate,
   type UserId,
 } from "@stage-tracker/domain";
-import { Badge, StatePanel } from "@stage-tracker/ui";
+import {
+  Badge,
+  CompactList,
+  LinkButton,
+  ListRowLink,
+  MonthNavigation,
+  StatePanel,
+} from "@stage-tracker/ui";
 import { cn } from "cn";
 import {
   addMonths,
@@ -19,6 +26,8 @@ import {
   formatMonthJa,
   formatTokyoCalendarDateJa,
   occurrenceTimeRangeLabel,
+  participationStatusLabel,
+  scheduleBlockingLabel,
 } from "@/app/_lib/format";
 import {
   READ_FAILURE_RETRY_HINT_JA,
@@ -72,12 +81,6 @@ function dayHref(date: TokyoCalendarDate): string {
 function monthDayLabel(date: TokyoCalendarDate): string {
   const [, month, day] = date.split("-");
   return `${String(Number(month))}月${String(Number(day))}日`;
-}
-
-function participationStatusLabel(
-  status: CalendarOccurrenceItem["participation"]["status"],
-): string {
-  return status === "attending" ? "参加する" : "気になる";
 }
 
 function roleTextClassName(role: CalendarDayRole): string | undefined {
@@ -172,7 +175,11 @@ export function CalendarView({
     <div className="flex flex-col gap-section">
       <h1 className="text-heading font-semibold text-foreground">カレンダー</h1>
 
-      <MonthNav month={month} />
+      <MonthNavigation
+        label={formatMonthJa(formatMonthParam(month))}
+        previousHref={monthHref(addMonths(month, -1))}
+        nextHref={monthHref(addMonths(month, 1))}
+      />
 
       <MonthGrid
         viewModel={buildMyCalendarMonthViewModel(
@@ -184,6 +191,12 @@ export function CalendarView({
         today={today}
         selectedDate={selectedDate}
       />
+
+      {selectedDate !== null ? (
+        <h2 className="border-b-2 border-foreground pb-card-block text-title font-semibold text-primary">
+          {formatTokyoCalendarDateJa(selectedDate)}
+        </h2>
+      ) : null}
 
       {bothTrulyEmpty ? (
         <StatePanel
@@ -214,28 +227,6 @@ export function CalendarView({
           ) : null}
         </>
       )}
-    </div>
-  );
-}
-
-function MonthNav({ month }: { readonly month: TokyoYearMonth }) {
-  return (
-    <div className="flex items-center justify-between">
-      <Link
-        href={monthHref(addMonths(month, -1))}
-        className="text-body-sm text-primary"
-      >
-        ‹ 前の月
-      </Link>
-      <span className="text-title font-semibold text-foreground">
-        {formatMonthJa(formatMonthParam(month))}
-      </span>
-      <Link
-        href={monthHref(addMonths(month, 1))}
-        className="text-body-sm text-primary"
-      >
-        次の月 ›
-      </Link>
     </div>
   );
 }
@@ -579,13 +570,13 @@ function OccurrenceList({
               {formatTokyoCalendarDateJa(group.date)}
             </span>
           ) : null}
-          <ul className="flex flex-col gap-2xs">
+          <CompactList>
             {group.items.map((item) => (
               <li key={item.occurrence.id}>
                 <OccurrenceRow item={item} month={month} date={group.date} />
               </li>
             ))}
-          </ul>
+          </CompactList>
         </li>
       ))}
     </ul>
@@ -604,12 +595,11 @@ function OccurrenceRow({
   const canceled = isEffectivelyCanceled(item.event, item.occurrence);
 
   return (
-    <Link
+    <ListRowLink
       href={catalogEventHref(item.event.id, month, date, item.occurrence.id)}
       data-occurrence-id={item.occurrence.id}
-      className="flex items-center justify-between gap-sm rounded-control border border-border bg-card p-md hover:bg-muted"
     >
-      <span className="flex min-w-0 flex-col gap-2xs">
+      <span className="flex flex-col gap-2xs">
         <span className="text-body-sm text-muted-foreground">
           {occurrenceTimeRangeLabel(
             item.occurrence.startsAt,
@@ -631,10 +621,7 @@ function OccurrenceRow({
           {canceled ? <Badge variant="terminal">中止</Badge> : null}
         </span>
       </span>
-      <span aria-hidden="true" className="text-title text-muted-foreground">
-        ›
-      </span>
-    </Link>
+    </ListRowLink>
   );
 }
 
@@ -712,13 +699,13 @@ function ScheduleList({
               {formatTokyoCalendarDateJa(group.date)}
             </span>
           ) : null}
-          <ul className="flex flex-col gap-2xs">
+          <CompactList>
             {group.items.map((item) => (
               <li key={item.entry.id}>
                 <ScheduleRow item={item} month={month} />
               </li>
             ))}
-          </ul>
+          </CompactList>
         </li>
       ))}
     </ul>
@@ -733,18 +720,17 @@ function ScheduleRow({
   readonly month: TokyoYearMonth;
 }) {
   return (
-    <Link
+    <ListRowLink
       href={scheduleEntryHref(item.entry.id, month)}
       data-schedule-id={item.entry.id}
-      className="flex items-center justify-between gap-sm rounded-control border border-border bg-card p-md hover:bg-muted"
     >
-      <span className="flex min-w-0 flex-col gap-2xs">
+      <span className="flex flex-col gap-2xs">
         <span className="flex flex-wrap gap-2xs">
           <Badge variant="subtle">
             {item.isOwner ? "自分の予定" : "共有されている予定"}
           </Badge>
           <Badge variant={item.entry.blocking ? "subtle" : "outline"}>
-            {item.entry.blocking ? "予定を確保する" : "予定を確保しない"}
+            {scheduleBlockingLabel(item.entry.blocking)}
           </Badge>
         </span>
         <span className="text-title font-medium text-foreground">
@@ -759,10 +745,7 @@ function ScheduleRow({
           </span>
         ) : null}
       </span>
-      <span aria-hidden="true" className="text-title text-muted-foreground">
-        ›
-      </span>
-    </Link>
+    </ListRowLink>
   );
 }
 
@@ -776,17 +759,14 @@ function ScheduleAddLink({
   const label =
     selectedDate === null
       ? "+ 予定を追加"
-      : `${monthDayLabel(selectedDate)}に予定を追加`;
+      : `+ ${monthDayLabel(selectedDate)}に予定を追加`;
   return (
-    <Link
+    <LinkButton
       href={`/schedule/new${selectedDate !== null ? `?date=${selectedDate}` : ""}`}
-      className={cn(
-        primary
-          ? "inline-flex h-9 items-center rounded-control bg-primary px-md text-body-sm font-medium text-primary-foreground hover:bg-primary/80"
-          : "text-body-sm font-medium text-primary",
-      )}
+      variant={primary ? "default" : "link"}
+      size="sm"
     >
       {label}
-    </Link>
+    </LinkButton>
   );
 }

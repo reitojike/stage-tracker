@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Badge } from "@stage-tracker/ui";
+import { Badge, CompactList, ListRowLink } from "@stage-tracker/ui";
 
 /**
  * AGENTS.md「マイページ」: 「招待一覧」行は常時表示（0件でも消えない）、
@@ -24,23 +23,25 @@ export function ScheduleAndEventSection({
       >
         予定とイベント
       </h2>
-      <Link
-        href="/catalog/invitations"
-        className="flex items-center justify-between gap-sm py-sm text-body text-foreground hover:bg-muted"
-      >
-        <span>招待一覧</span>
-        {pendingInvitationCount > 0 ? (
-          <Badge variant="subtle">未回答 {pendingInvitationCount}件</Badge>
+      <CompactList>
+        <li>
+          <ListRowLink href="/catalog/invitations">
+            <span className="flex items-center justify-between gap-sm">
+              <span>招待一覧</span>
+              {pendingInvitationCount > 0 ? (
+                <Badge variant="subtle">
+                  未回答 {pendingInvitationCount}件
+                </Badge>
+              ) : null}
+            </span>
+          </ListRowLink>
+        </li>
+        {canCreateEvent ? (
+          <li>
+            <ListRowLink href="/catalog/events/new">イベントを追加</ListRowLink>
+          </li>
         ) : null}
-      </Link>
-      {canCreateEvent ? (
-        <Link
-          href="/catalog/events/new"
-          className="py-sm text-body text-foreground hover:bg-muted"
-        >
-          イベントを追加
-        </Link>
-      ) : null}
+      </CompactList>
     </section>
   );
 }

@@ -72,7 +72,7 @@ export function activeFacetForGenre(genreKey: string | null): CatalogFacet {
  * the filter). Only ids that are still known are counted, both for this
  * "is the facet active" decision and for the actual match below.
  */
-function activeKnownSelection(
+export function activeKnownSelection(
   selectedIds: readonly string[],
   knownIds: readonly string[],
 ): { readonly ids: readonly string[]; readonly isActive: boolean } {

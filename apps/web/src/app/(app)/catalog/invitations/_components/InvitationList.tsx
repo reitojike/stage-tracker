@@ -3,12 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@stage-tracker/ui";
+import { instantToTokyoCalendarDate } from "@stage-tracker/domain";
 import {
   acceptInvitationAction,
   declineInvitationAction,
 } from "@/lib/actions/invitations";
 import type { ReceivedInvitation } from "../_data/listMyReceivedInvitations";
-import { instantToDateTimeLocalValue } from "../_lib/instantFormat";
+import {
+  formatTokyoCalendarDateWithYearJa,
+  occurrenceTimeRangeLabel,
+} from "@/app/_lib/format";
 
 type CardPhase =
   | { readonly kind: "pending" }
@@ -132,9 +136,6 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
 
   return (
     <div className="flex flex-col gap-md">
-      <p className="text-body-sm text-muted-foreground">
-        未回答 {visibleEntries.length}件
-      </p>
       <ul className="flex flex-col gap-sm">
         {visibleEntries.map((entry) => (
           <InvitationCard
@@ -191,17 +192,24 @@ function InvitationCard({
           （イベント情報を読み込めませんでした）
         </p>
       ) : (
-        <div className="flex items-center gap-sm">
-          <span className="text-body text-foreground">
-            {context.event.title} —{" "}
-            {instantToDateTimeLocalValue(context.occurrence.startsAt).replace(
-              "T",
-              " ",
+        <div className="flex flex-col gap-2xs">
+          <div className="flex flex-wrap items-center gap-2xs">
+            <span className="text-title font-semibold text-foreground">
+              {context.event.title}
+            </span>
+            {isEffectivelyCanceled ? (
+              <Badge variant="terminal">中止</Badge>
+            ) : null}
+          </div>
+          <span className="text-body-sm text-muted-foreground">
+            {formatTokyoCalendarDateWithYearJa(
+              instantToTokyoCalendarDate(context.occurrence.startsAt),
+            )}{" "}
+            {occurrenceTimeRangeLabel(
+              context.occurrence.startsAt,
+              context.occurrence.endsAt,
             )}
           </span>
-          {isEffectivelyCanceled ? (
-            <Badge variant="terminal">中止</Badge>
-          ) : null}
         </div>
       )}
 

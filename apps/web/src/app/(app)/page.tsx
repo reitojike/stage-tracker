@@ -39,5 +39,11 @@ export default async function HomePage() {
     loadHomeUpcomingSchedule(supabase, userResult.value, now),
   ]);
 
-  return <HomeView ticketState={ticketState} scheduleState={scheduleState} />;
+  return (
+    <HomeView
+      ticketState={ticketState}
+      scheduleState={scheduleState}
+      today={now.todayTokyoDate}
+    />
+  );
 }

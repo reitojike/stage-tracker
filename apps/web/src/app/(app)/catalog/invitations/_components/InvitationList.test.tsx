@@ -92,7 +92,6 @@ describe("InvitationList", () => {
 
     render(<InvitationList initialInvitations={[buildInvitation()]} />);
 
-    expect(screen.getByText("未回答 1件")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "参加しない" }));
 
     // まだサーバへは何も送っていない - 確認待ちの状態。
@@ -124,7 +123,6 @@ describe("InvitationList", () => {
     expect(
       screen.getByRole("button", { name: "参加しない" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("未回答 1件")).toBeInTheDocument();
   });
 
   it("keeps the card visible when decline fails", async () => {

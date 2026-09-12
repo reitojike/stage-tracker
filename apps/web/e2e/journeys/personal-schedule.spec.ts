@@ -40,15 +40,13 @@ test("personal schedule: create, view, edit, then delete an entry", async ({
     // Detail (navigated to via the calendar's own entry link, not a
     // constructed URL).
     await page.getByRole("link", { name: title }).click();
-    await expect(
-      page.getByRole("heading", { name: "予定の詳細" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
     await expect(page.getByTestId("blocking-indicator")).toContainText(
-      "blocking",
+      "予定を確保する",
     );
 
     // Edit.
-    await page.getByRole("link", { name: "編集する" }).click();
+    await page.getByRole("link", { name: "編集" }).click();
     const titleField = page.getByLabel("件名");
     await titleField.fill(editedTitle);
     await page.getByRole("button", { name: "保存する" }).click();
@@ -57,7 +55,7 @@ test("personal schedule: create, view, edit, then delete an entry", async ({
     // Re-open detail to confirm the edit persisted, then delete.
     await page.getByRole("link", { name: editedTitle }).click();
     await expect(
-      page.getByRole("heading", { name: "予定の詳細" }),
+      page.getByRole("heading", { name: editedTitle }),
     ).toBeVisible();
     await page.getByRole("button", { name: "削除する" }).click();
     const deleteDialog = page.getByRole("alertdialog", {
@@ -176,7 +174,7 @@ test("personal schedule sharing: add through Sheet, then leave immediately", asy
     await recipientPage.goto("/calendar");
     await recipientPage.getByRole("link", { name: title }).click();
     await expect(
-      recipientPage.getByRole("heading", { name: "予定の詳細" }),
+      recipientPage.getByRole("heading", { name: title }),
     ).toBeVisible();
     await expect(
       recipientPage.getByRole("button", { name: "+ 追加" }),

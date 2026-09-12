@@ -1,7 +1,10 @@
-import { StatePanel } from "@stage-tracker/ui";
+import { BackLink, StatePanel } from "@stage-tracker/ui";
 import { classifyListReadResult } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
+import { resolveScreenNow } from "@/app/_lib/now";
+import { tokyoYearMonthOf } from "@/app/_lib/calendar-grid";
+import { catalogMonthHref } from "../_lib/catalog-links";
 import { listMyReceivedInvitations } from "./_data/listMyReceivedInvitations";
 import { InvitationList } from "./_components/InvitationList";
 
@@ -10,6 +13,9 @@ import { InvitationList } from "./_components/InvitationList";
  * `/catalog/invitations`）。
  */
 export default async function InvitationsPage() {
+  const backHref = catalogMonthHref(
+    tokyoYearMonthOf(resolveScreenNow().todayTokyoDate),
+  );
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -29,10 +35,18 @@ export default async function InvitationsPage() {
   const state = classifyListReadResult(result);
 
   return (
-    <>
-      <h1 className="text-heading leading-heading font-semibold text-foreground">
-        招待一覧
-      </h1>
+    <div className="flex flex-col gap-md">
+      <BackLink href={backHref}>イベントへ戻る</BackLink>
+      <header className="flex items-baseline justify-between gap-sm border-b-2 border-foreground pb-card-block">
+        <h1 className="text-heading leading-heading font-semibold text-foreground">
+          招待一覧
+        </h1>
+        {state.variant === "empty" || state.variant === "populated" ? (
+          <p className="text-body-sm text-muted-foreground">
+            未回答 {state.variant === "populated" ? state.data.length : 0}件
+          </p>
+        ) : null}
+      </header>
       {state.variant === "unavailable" || state.variant === "error" ? (
         <StatePanel
           variant={state.variant}
@@ -50,6 +64,6 @@ export default async function InvitationsPage() {
       ) : (
         <InvitationList initialInvitations={state.data} />
       )}
-    </>
+    </div>
   );
 }

@@ -51,4 +51,17 @@ describe("formatScheduleEntryTemporal", () => {
       } as never),
     ).toBe("3月10日(火) 09:00 〜 3月11日(水) 09:00");
   });
+
+  it("includes the year when a detail surface requests the complete date", () => {
+    expect(
+      formatScheduleEntryTemporal(
+        {
+          kind: "time-bounded",
+          startsAt: "2026-03-10T00:00:00.000Z",
+          endsAt: "2026-03-10T09:00:00.000Z",
+        } as never,
+        { includeYear: true },
+      ),
+    ).toBe("2026年3月10日(火) 09:00 〜 18:00");
+  });
 });

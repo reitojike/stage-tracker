@@ -29,7 +29,7 @@ export default async function EditScheduleEntryPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <BackLink href={backHref}>← カレンダーへ戻る</BackLink>
+      <BackLink href={backHref}>カレンダーへ戻る</BackLink>
       <PageHeading>予定を編集</PageHeading>
       {!entryIdResult.success ? (
         <StatePanel variant="empty" title="この予定は見つかりませんでした。" />

@@ -1,11 +1,28 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { Badge, StatePanel } from "@stage-tracker/ui";
+import {
+  isRenderableHttpUrl,
+  type TokyoCalendarDate,
+} from "@stage-tracker/domain";
+import {
+  AnchorButton,
+  Badge,
+  CompactList,
+  ListRow,
+  ListRowActions,
+  ListRowChevron,
+  ListRowOverlayLink,
+  StatePanel,
+} from "@stage-tracker/ui";
 import {
   formatMilestoneTypeJa,
   formatMilestoneWhenJa,
 } from "@/app/_lib/ticket-milestone-format";
 import { formatMonthJa } from "@/app/_lib/format";
+import {
+  ticketDeadlineBadgeDisplay,
+  ticketPersonalStateBadgeDisplay,
+  ticketTargetScopeLabel,
+} from "@/app/_lib/ticket-display";
 import {
   READ_FAILURE_RETRY_HINT_JA,
   type OptionalPartBlockState,
@@ -18,6 +35,7 @@ import { TicketOpportunityStateControls } from "./TicketOpportunityStateControls
 
 export interface TicketsViewProps {
   readonly state: OptionalPartBlockState<TicketsTimelineState>;
+  readonly today: TokyoCalendarDate;
 }
 
 /**
@@ -43,7 +61,7 @@ export interface TicketsViewProps {
  * the caller's actual current state is unknown could silently overwrite it
  * incorrectly.
  */
-export function TicketsView({ state }: TicketsViewProps) {
+export function TicketsView({ state, today }: TicketsViewProps) {
   const { block, optional } = state;
 
   return (
@@ -78,16 +96,17 @@ export function TicketsView({ state }: TicketsViewProps) {
               <h2 className="text-title font-semibold text-foreground">
                 {formatMonthJa(group.monthKey)}
               </h2>
-              <ul className="flex flex-col gap-sm">
+              <CompactList>
                 {group.rows.map((row) => (
                   <li key={`${row.opportunityId}-${row.milestone.id}`}>
                     <TicketTimelineRow
                       row={row}
                       personalStateUnknown={optional.ok === false}
+                      today={today}
                     />
                   </li>
                 ))}
-              </ul>
+              </CompactList>
             </section>
           ))}
         </div>
@@ -132,45 +151,62 @@ function badgeForRow(row: TicketsTimelineRow, personalStateUnknown: boolean) {
   if (row.isPostFinalRetainedHistory) {
     return <Badge variant="terminal">受付終了</Badge>;
   }
-  if (personalStateUnknown) {
-    return <Badge variant="outline">不明</Badge>;
-  }
-  if (row.myState === "applied") {
-    return <Badge variant="done">申し込み済み</Badge>;
-  }
-  if (row.myState === "planned") {
-    return <Badge variant="subtle">申し込む予定</Badge>;
-  }
-  return null;
+  const display = ticketPersonalStateBadgeDisplay(
+    row.myState,
+    personalStateUnknown,
+  );
+  return display === null ? null : (
+    <Badge variant={display.variant}>{display.label}</Badge>
+  );
 }
 
 function TicketTimelineRow({
   row,
   personalStateUnknown,
+  today,
 }: {
   readonly row: TicketsTimelineRow;
   readonly personalStateUnknown: boolean;
+  readonly today: TokyoCalendarDate;
 }) {
+  const deadlineBadge = ticketDeadlineBadgeDisplay(row, today);
+  const secondaryLine =
+    row.eventVenue === null
+      ? row.displayName
+      : `${row.eventVenue}・${row.displayName}`;
   return (
-    <div className="flex flex-col gap-xs rounded-control border border-border bg-card p-md">
-      <Link
+    <ListRow>
+      <ListRowOverlayLink
         href={`/catalog/events/${row.eventId}`}
-        className="flex flex-col gap-2xs hover:opacity-80"
-      >
-        <span className="flex items-center gap-xs text-body-sm text-muted-foreground">
-          {formatMilestoneTypeJa(row.milestone.milestoneType)}
-          {badgeForRow(row, personalStateUnknown)}
-        </span>
-        <span className="text-title font-medium text-foreground">
+        aria-label={`${row.eventTitle}の詳細を見る`}
+      />
+      <div className="pointer-events-none relative z-0 flex w-[7.25rem] shrink-0 flex-col gap-2xs text-body-sm text-muted-foreground">
+        <span>{formatMilestoneTypeJa(row.milestone.milestoneType)}</span>
+        <span className="font-medium text-foreground">
           {formatMilestoneWhenJa(row.milestone)}
         </span>
-        {/* 販売機会名。同日に複数の同種 milestone があると、種別と日時だけでは
-            どの Event / 販売機会の行か判別できない（PR #381 review）。 */}
-        <span className="text-body-sm text-muted-foreground">
-          {row.displayName}
-        </span>
-      </Link>
-      {/* Opportunity につき1回だけ（`isFirstRowForOpportunity`）。ボタンを
+        {deadlineBadge !== null ? (
+          <Badge variant={deadlineBadge.variant} className="w-fit">
+            {deadlineBadge.label}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="pointer-events-none relative z-0 flex flex-col gap-2xs">
+          {badgeForRow(row, personalStateUnknown)}
+          <span className="text-title font-semibold leading-title text-foreground">
+            {row.eventTitle}
+          </span>
+          <span className="text-body-sm text-muted-foreground">
+            {secondaryLine}
+          </span>
+          {row.targetScope === "selected_occurrences" ? (
+            <span className="text-caption text-muted-foreground">
+              {ticketTargetScopeLabel(row.targetScope, row.targetOccurrences)}
+            </span>
+          ) : null}
+        </div>
+        {/* Opportunity につき1回だけ（`isFirstRowForOpportunity`）。ボタンを
           `<Link>`(=<a>) の子にすると invalid HTML かつクリックがリンクの
           遷移と衝突するため、兄弟要素として置く。personalStateUnknown の
           場合は現在の状態が分からないまま操作させない（M8 で確定した v2 の
@@ -178,14 +214,29 @@ function TicketTimelineRow({
           非表示にする（`docs/v2/oracle-routes-ui.md`「チケット一覧」;
           review finding: 受付終了後に planning state を変更・解除できて
           しまっていた）。 */}
-      {row.isFirstRowForOpportunity &&
-      !personalStateUnknown &&
-      !row.isPostFinalRetainedHistory ? (
-        <TicketOpportunityStateControls
-          opportunityId={row.opportunityId}
-          initialState={row.myState}
-        />
-      ) : null}
-    </div>
+        <ListRowActions className="mt-xs">
+          {row.sourceUrl !== null && isRenderableHttpUrl(row.sourceUrl) ? (
+            <AnchorButton
+              href={row.sourceUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              variant="link"
+              size="xs"
+            >
+              公式情報
+            </AnchorButton>
+          ) : null}
+          {row.isFirstRowForOpportunity &&
+          !personalStateUnknown &&
+          !row.isPostFinalRetainedHistory ? (
+            <TicketOpportunityStateControls
+              opportunityId={row.opportunityId}
+              initialState={row.myState}
+            />
+          ) : null}
+        </ListRowActions>
+      </div>
+      <ListRowChevron />
+    </ListRow>
   );
 }

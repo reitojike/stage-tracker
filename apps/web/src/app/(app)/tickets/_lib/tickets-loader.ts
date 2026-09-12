@@ -4,6 +4,8 @@ import {
   groupTicketOpportunityTimelineRowsByMonth,
   selectTicketOpportunityPrimaryRows,
   type TicketOpportunityTimelineRow,
+  type Occurrence,
+  type TicketOpportunityTargetScope,
   type UserId,
 } from "@stage-tracker/domain";
 import {
@@ -48,6 +50,11 @@ import type { ScreenNow } from "@/app/_lib/now";
  */
 export type TicketsTimelineRow = TicketOpportunityTimelineRow & {
   readonly isEffectivelyCanceled: boolean;
+  readonly eventTitle: string;
+  readonly eventVenue: string | null;
+  readonly targetScope: TicketOpportunityTargetScope;
+  readonly targetOccurrences: readonly Occurrence[];
+  readonly sourceUrl: string | null;
 };
 
 export interface TicketsTimelineMonthGroup {
@@ -89,16 +96,36 @@ export async function loadTicketsTimeline(
           .filter((detail) => detail.isEffectivelyCanceled)
           .map((detail) => detail.opportunityWithTargets.opportunity.id),
       );
+      const detailByOpportunityId = new Map(
+        opportunities.map(
+          (detail) =>
+            [detail.opportunityWithTargets.opportunity.id, detail] as const,
+        ),
+      );
       const groups = groupTicketOpportunityTimelineRowsByMonth(primaryRows);
       return {
         groups: groups.map((group) => ({
           ...group,
-          rows: group.rows.map((row) => ({
-            ...row,
-            isEffectivelyCanceled: canceledOpportunityIds.has(
-              row.opportunityId,
-            ),
-          })),
+          rows: group.rows.map((row) => {
+            const detail = detailByOpportunityId.get(row.opportunityId);
+            if (detail === undefined) {
+              throw new Error(
+                `unreachable: timeline row has no source opportunity detail (${row.opportunityId})`,
+              );
+            }
+            return {
+              ...row,
+              isEffectivelyCanceled: canceledOpportunityIds.has(
+                row.opportunityId,
+              ),
+              eventTitle: detail.eventTitle,
+              eventVenue: detail.eventVenue,
+              targetScope:
+                detail.opportunityWithTargets.opportunity.targetScope,
+              targetOccurrences: detail.targetOccurrences,
+              sourceUrl: detail.opportunityWithTargets.opportunity.sourceUrl,
+            };
+          }),
         })),
       };
     },

@@ -49,4 +49,12 @@ describe('AppBar', () => {
 
     expect(screen.getByRole('button', { name: 'お知らせ（未読あり）' })).toBeInTheDocument();
   });
+
+  it('uses the canvas background and 44px header controls', () => {
+    render(<AppBar myPageHref="/mypage" myPageInitial="A" />);
+
+    expect(screen.getByRole('banner')).toHaveClass('bg-background');
+    expect(screen.getByRole('button', { name: 'お知らせ' })).toHaveClass('size-11');
+    expect(screen.getByRole('link', { name: 'マイページ' })).toHaveClass('size-11');
+  });
 });

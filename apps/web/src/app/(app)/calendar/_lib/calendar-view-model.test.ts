@@ -18,6 +18,8 @@ import {
   calendarScheduleDateRange,
   scheduleEntryDatesInRange,
   selectCalendarOccurrenceItems,
+  selectCalendarMonthScheduleGroups,
+  selectCalendarScheduleItems,
 } from "./calendar-view-model";
 
 const USER_ID = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
@@ -257,6 +259,41 @@ describe("My Calendar marker projection", () => {
 });
 
 describe("My Calendar schedule date projection", () => {
+  it("sorts schedule rows chronologically within the same date group", () => {
+    const later = scheduleItem({
+      id: "88888888-8888-4888-8888-888888888888",
+      temporal: {
+        kind: "time-bounded",
+        startsAt: INSTANT("2026-03-05T10:00:00.000Z"),
+        endsAt: null,
+      },
+    });
+    const earlier = scheduleItem({
+      id: "77777777-7777-4777-8777-777777777777",
+      temporal: {
+        kind: "time-bounded",
+        startsAt: INSTANT("2026-03-05T01:00:00.000Z"),
+        endsAt: null,
+      },
+    });
+    const groups = selectCalendarMonthScheduleGroups(
+      scheduleIndex([later, earlier]),
+      { year: 2026, month: 3 },
+      USER_ID,
+    );
+    expect(groups[0]?.items.map((item) => item.entry.id)).toEqual([
+      earlier.entry.id,
+      later.entry.id,
+    ]);
+    expect(
+      selectCalendarScheduleItems(
+        scheduleIndex([later, earlier]),
+        USER_ID,
+        DATE("2026-03-05"),
+      ).map((item) => item.entry.id),
+    ).toEqual([earlier.entry.id, later.entry.id]);
+  });
+
   it("keeps single-day and multi-day all-day ranges inclusive", () => {
     const single = scheduleItem({
       temporal: {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import {
   err,
   instantSchema,
@@ -8,6 +9,7 @@ import {
   ticketOpportunityWithTargetsSchema,
   type Instant,
   type OccurrenceId,
+  type Occurrence,
   type Result,
   type TicketOpportunityCancellationScope,
   type TicketOpportunityAggregate,
@@ -24,17 +26,20 @@ import {
   type TicketOpportunityMilestoneRow,
   type TicketOpportunityRow,
 } from "../mappers/ticketRow";
+import { mapOccurrenceRow, type OccurrenceRow } from "../mappers/eventRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
 import { runSupabaseSelect } from "../supabase-select";
 
 export interface TicketOpportunityListRow extends TicketOpportunityRow {
-  readonly events: { readonly canceled_at: string | null } | null;
+  readonly events: {
+    readonly title: string;
+    readonly venue: string | null;
+    readonly canceled_at: string | null;
+  } | null;
   readonly ticket_opportunity_target_occurrences: readonly {
     readonly occurrence_id: string;
-    readonly event_occurrences: {
-      readonly canceled_at: string | null;
-    } | null;
+    readonly event_occurrences: OccurrenceRow | null;
   }[];
   readonly ticket_opportunity_milestones: readonly TicketOpportunityMilestoneRow[];
 }
@@ -44,7 +49,15 @@ export interface TicketOpportunityDetail {
   readonly milestones: readonly TicketOpportunityMilestone[];
   readonly cancellationScope: TicketOpportunityCancellationScope;
   readonly isEffectivelyCanceled: boolean;
+  readonly eventTitle: string;
+  readonly eventVenue: string | null;
+  readonly targetOccurrences: readonly Occurrence[];
 }
+
+const eventDisplaySchema = z.object({
+  title: z.string().min(1),
+  venue: z.string().nullable(),
+});
 
 function mapNullableCancellationInstant(
   value: string | null,
@@ -116,6 +129,7 @@ function mapTicketOpportunityListRow(
   }
 
   const targetOccurrenceIds: OccurrenceId[] = [];
+  const targetOccurrences: Occurrence[] = [];
   for (const target of row.ticket_opportunity_target_occurrences) {
     const parsed = occurrenceIdSchema.safeParse(target.occurrence_id);
     if (!parsed.success) {
@@ -124,6 +138,13 @@ function mapTicketOpportunityListRow(
       );
     }
     targetOccurrenceIds.push(parsed.data);
+    if (target.event_occurrences !== null) {
+      const occurrenceResult = mapOccurrenceRow(target.event_occurrences);
+      if (!occurrenceResult.ok) {
+        return occurrenceResult;
+      }
+      targetOccurrences.push(occurrenceResult.value);
+    }
   }
 
   const cancellationScopeResult = mapTicketOpportunityCancellationScope(
@@ -144,6 +165,18 @@ function mapTicketOpportunityListRow(
     );
   }
 
+  if (row.events === null) {
+    return err(
+      `Invalid ticket_opportunities row (id=${row.id}): parent events row missing while reading display context.`,
+    );
+  }
+  const eventDisplay = eventDisplaySchema.safeParse(row.events);
+  if (!eventDisplay.success) {
+    return err(
+      `Invalid ticket_opportunities row (id=${row.id}) event display context: ${eventDisplay.error.message}`,
+    );
+  }
+
   const milestones: TicketOpportunityMilestone[] = [];
   for (const milestoneRow of row.ticket_opportunity_milestones) {
     const milestoneResult = mapTicketOpportunityMilestoneRow(milestoneRow);
@@ -160,6 +193,9 @@ function mapTicketOpportunityListRow(
     isEffectivelyCanceled: isTicketOpportunityEffectivelyCanceled(
       cancellationScopeResult.value,
     ),
+    eventTitle: eventDisplay.data.title,
+    eventVenue: eventDisplay.data.venue,
+    targetOccurrences,
   });
 }
 
@@ -186,7 +222,7 @@ export async function listTicketOpportunities(
   const query = client
     .from("ticket_opportunities")
     .select(
-      "*, events(canceled_at), ticket_opportunity_target_occurrences(occurrence_id, event_occurrences(canceled_at)), ticket_opportunity_milestones(*)",
+      "*, events(title, venue, canceled_at), ticket_opportunity_target_occurrences(occurrence_id, event_occurrences(*)), ticket_opportunity_milestones(*)",
     );
 
   const rowsResult = await runSupabaseSelect(query);
@@ -244,9 +280,8 @@ export function buildTicketOpportunityAggregates(
     // PR #381 review finding 2: displayName は timeline row まで運ばれ、
     // 同日に複数の同種 milestone（例: 複数 Opportunity の
     // application_close）があっても行を判別できるようにする
-    // (`TicketsView.tsx`/`home-loader.ts` 側で実際に表示するかどうかは
-    // 別 Task の scope - このタスクの報告に記載のとおり `eventTitle`
-    // 相当の追加 join は見送った)。
+    // (`TicketsView.tsx`/`home-loader.ts` では、この識別子に加えて
+    // `TicketOpportunityDetail.eventTitle` を表示文脈として使う)。
     displayName: detail.opportunityWithTargets.opportunity.displayName,
     milestones: detail.milestones,
     myState:

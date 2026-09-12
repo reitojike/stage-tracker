@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { StatePanel } from "@stage-tracker/ui";
 import {
@@ -54,8 +53,11 @@ async function OwnerShareManagement({
   );
 
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-title font-semibold text-foreground">共有相手</h2>
+    <section className="flex flex-col gap-sm border-t-2 border-border pt-card-block">
+      <div className="flex items-center justify-between gap-sm">
+        <h2 className="text-title font-semibold text-foreground">共有</h2>
+        <ShareAddForm entryId={entryId} />
+      </div>
       {result.ok ? (
         <RecipientList entryId={entryId} recipients={result.value} />
       ) : (
@@ -65,7 +67,6 @@ async function OwnerShareManagement({
           description={READ_FAILURE_RETRY_HINT_JA}
         />
       )}
-      <ShareAddForm entryId={entryId} />
     </section>
   );
 }
@@ -120,11 +121,16 @@ export default async function ScheduleEntryDetailPage({
   const entryIdResult = personalScheduleEntryIdSchema.safeParse(rawEntryId);
 
   return (
-    <div className="flex flex-col gap-4">
-      <BackLink href={backHref}>← カレンダーへ戻る</BackLink>
-      <PageHeading>予定の詳細</PageHeading>
+    <div className="flex flex-col gap-section">
+      <BackLink href={backHref}>カレンダーへ戻る</BackLink>
       {!entryIdResult.success ? (
-        <StatePanel variant="empty" title="この予定は見つかりませんでした。" />
+        <>
+          <PageHeading>予定の詳細</PageHeading>
+          <StatePanel
+            variant="empty"
+            title="この予定は見つかりませんでした。"
+          />
+        </>
       ) : (
         <ScheduleEntryDetailBody entryId={entryIdResult.data} />
       )}
@@ -138,43 +144,58 @@ async function ScheduleEntryDetailBody({
   readonly entryId: PersonalScheduleEntryId;
 }) {
   const supabase = await createSupabaseServerClient();
+  const [authResult, entryReadResult] = await Promise.all([
+    supabase.auth.getUser(),
+    findVisibleScheduleEntry(supabase, entryId),
+  ]);
   const {
     data: { user },
     error: authError,
-  } = await supabase.auth.getUser();
+  } = authResult;
 
   if (authError || !user) {
     return (
-      <StatePanel
-        variant="unavailable"
-        title="サインイン状態を確認できませんでした。"
-        description="再度サインインしてからお試しください。"
-      />
+      <>
+        <PageHeading>予定の詳細</PageHeading>
+        <StatePanel
+          variant="unavailable"
+          title="サインイン状態を確認できませんでした。"
+          description="再度サインインしてからお試しください。"
+        />
+      </>
     );
   }
 
-  const entryReadResult = await findVisibleScheduleEntry(supabase, entryId);
   const entryState = classifyScheduleEntryReadResult(entryReadResult);
 
   if (entryState.variant === "empty") {
     // 存在しない entry と非公開 entry は同一の empty 扱い（意図的。
     // `_lib/entryLookup.ts` の doc comment参照）。
     return (
-      <StatePanel variant="empty" title="この予定は見つかりませんでした。" />
+      <>
+        <PageHeading>予定の詳細</PageHeading>
+        <StatePanel variant="empty" title="この予定は見つかりませんでした。" />
+      </>
     );
   }
   if (entryState.variant === "unavailable") {
     return (
-      <StatePanel variant="unavailable" title="この予定を表示できません。" />
+      <>
+        <PageHeading>予定の詳細</PageHeading>
+        <StatePanel variant="unavailable" title="この予定を表示できません。" />
+      </>
     );
   }
   if (entryState.variant === "error") {
     return (
-      <StatePanel
-        variant="error"
-        title="予定を読み込めませんでした。"
-        description={READ_FAILURE_RETRY_HINT_JA}
-      />
+      <>
+        <PageHeading>予定の詳細</PageHeading>
+        <StatePanel
+          variant="error"
+          title="予定を読み込めませんでした。"
+          description={READ_FAILURE_RETRY_HINT_JA}
+        />
+      </>
     );
   }
 
@@ -182,20 +203,24 @@ async function ScheduleEntryDetailBody({
   const isOwner = entry.ownerId === user.id;
 
   return (
-    <div className="flex flex-col gap-4">
-      <ScheduleEntryDetailView entry={entry} />
+    <div className="flex flex-col gap-section">
+      <ScheduleEntryDetailView
+        entry={entry}
+        isOwner={isOwner}
+        {...(isOwner ? { editHref: `/schedule/${entryId}/edit` } : {})}
+      />
       {isOwner ? (
         <>
           <OwnerShareManagement supabase={supabase} entryId={entryId} />
-          <div className="flex flex-col gap-2">
-            <Link
-              href={`/schedule/${entryId}/edit`}
-              className="text-body-sm text-primary underline-offset-4 hover:underline"
-            >
-              編集する
-            </Link>
+          <section className="flex flex-col items-start gap-sm border-t-2 border-border pt-card-block">
+            <h2 className="w-full border-b border-destructive pb-card-block text-title font-semibold text-destructive">
+              この予定を削除
+            </h2>
+            <p className="text-body-sm text-muted-foreground">
+              元に戻せません。共有相手からも見えなくなります。
+            </p>
             <DeleteEntryButton entryId={entryId} />
-          </div>
+          </section>
         </>
       ) : (
         <NonOwnerShareStatus

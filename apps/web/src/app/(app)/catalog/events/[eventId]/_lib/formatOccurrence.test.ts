@@ -51,6 +51,21 @@ describe("formatOccurrenceDoors", () => {
     });
     expect(formatOccurrenceDoors(value)).toBe("開場 17:30");
   });
+
+  it("marks a previous-day opening instead of showing a misleading bare time", () => {
+    const value = occurrence({
+      doorsAt: "2026-03-09T14:30:00.000Z" as Occurrence["startsAt"],
+      startsAt: "2026-03-09T15:30:00.000Z" as Occurrence["startsAt"],
+    });
+    expect(formatOccurrenceDoors(value)).toBe("開場 23:30（前日）");
+  });
+
+  it("shows the actual date when opening is more than one Tokyo day earlier", () => {
+    const value = occurrence({
+      doorsAt: "2026-03-07T14:30:00.000Z" as Occurrence["startsAt"],
+    });
+    expect(formatOccurrenceDoors(value)).toBe("開場 3月7日(土) 23:30");
+  });
 });
 
 describe("formatOccurrenceEnds", () => {
@@ -63,5 +78,20 @@ describe("formatOccurrenceEnds", () => {
       endsAt: "2026-03-10T11:00:00.000Z" as Occurrence["startsAt"],
     });
     expect(formatOccurrenceEnds(value)).toBe("終演 20:00");
+  });
+
+  it("marks a next-day end instead of showing a misleading bare time", () => {
+    const value = occurrence({
+      startsAt: "2026-03-10T14:00:00.000Z" as Occurrence["startsAt"],
+      endsAt: "2026-03-10T16:00:00.000Z" as Occurrence["startsAt"],
+    });
+    expect(formatOccurrenceEnds(value)).toBe("終演 01:00（翌日）");
+  });
+
+  it("shows the actual date when an end is more than one Tokyo day later", () => {
+    const value = occurrence({
+      endsAt: "2026-03-12T15:30:00.000Z" as Occurrence["startsAt"],
+    });
+    expect(formatOccurrenceEnds(value)).toBe("終演 3月13日(金) 00:30");
   });
 });

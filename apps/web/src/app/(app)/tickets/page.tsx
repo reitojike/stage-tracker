@@ -31,5 +31,5 @@ export default async function TicketsPage() {
   const now = resolveScreenNow();
   const state = await loadTicketsTimeline(supabase, userResult.value, now);
 
-  return <TicketsView state={state} />;
+  return <TicketsView state={state} today={now.todayTokyoDate} />;
 }

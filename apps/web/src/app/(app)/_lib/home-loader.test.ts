@@ -77,7 +77,11 @@ describe("loadHomeTicketDeadlines", () => {
             memo: null,
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
-            events: { canceled_at: null },
+            events: {
+              title: "テスト公演",
+              venue: null,
+              canceled_at: null,
+            },
             ticket_opportunity_target_occurrences: [],
             ticket_opportunity_milestones: [
               {
@@ -182,7 +186,11 @@ describe("loadHomeTicketDeadlines", () => {
             memo: null,
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
-            events: { canceled_at: null },
+            events: {
+              title: "テスト公演",
+              venue: null,
+              canceled_at: null,
+            },
             ticket_opportunity_target_occurrences: [],
             ticket_opportunity_milestones: [
               {
@@ -378,7 +386,7 @@ describe("loadHomeUpcomingSchedule", () => {
     expect(state.variant).toBe("unavailable");
   });
 
-  it("excludes an occurrence whose startsAt has already passed", async () => {
+  it("excludes an occurrence whose relevant end has already passed", async () => {
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
         HttpResponse.json([
@@ -391,7 +399,10 @@ describe("loadHomeUpcomingSchedule", () => {
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
             event_occurrences: {
-              ...occurrenceRow({ starts_at: "2026-01-01T00:00:00Z" }),
+              ...occurrenceRow({
+                starts_at: "2026-01-01T00:00:00Z",
+                ends_at: "2026-01-01T02:00:00Z",
+              }),
               events: eventRow(),
             },
           },
@@ -409,6 +420,45 @@ describe("loadHomeUpcomingSchedule", () => {
     );
 
     expect(state).toEqual({ variant: "empty" });
+  });
+
+  it("keeps an in-progress occurrence until its known end", async () => {
+    server.use(
+      http.get(`${REST_URL}/occurrence_participations`, () =>
+        HttpResponse.json([
+          {
+            id: "66666666-6666-4666-8666-666666666666",
+            occurrence_id: OCCURRENCE_ID,
+            user_id: USER_ID,
+            status: "attending",
+            visibility: "private",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+            event_occurrences: {
+              ...occurrenceRow({
+                starts_at: "2026-02-28T23:00:00Z",
+                ends_at: "2026-03-01T01:00:00Z",
+              }),
+              events: eventRow(),
+            },
+          },
+        ]),
+      ),
+      http.get(`${REST_URL}/personal_schedule_entries`, () =>
+        HttpResponse.json([]),
+      ),
+    );
+
+    const state = await loadHomeUpcomingSchedule(
+      createTestClient(),
+      USER_ID,
+      NOW,
+    );
+
+    expect(state.variant).toBe("populated");
+    if (state.variant === "populated") {
+      expect(state.data[0]?.kind).toBe("occurrence");
+    }
   });
 });
 

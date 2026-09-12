@@ -62,6 +62,14 @@ describe('StatePanel', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('uses canonical hairlines without a filled card surface', () => {
+    render(<StatePanel variant="empty" title="空です" />);
+
+    const panel = screen.getByText('空です').closest("[data-slot='state-panel']");
+    expect(panel).toHaveClass('border-y');
+    expect(panel).not.toHaveClass('bg-card', 'rounded-control');
+  });
+
   // --- Compile-time regression tests -----------------------------------
   // `pnpm run typecheck` (tsc --noEmit) is what actually enforces these -
   // `expectTypeOf` assertions are no-ops at runtime and only fail the build

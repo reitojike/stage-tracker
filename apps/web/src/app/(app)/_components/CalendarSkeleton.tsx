@@ -72,14 +72,14 @@ function CalendarSkeletonContent({
       className="flex flex-col gap-sm"
     >
       <div
-        className="flex min-h-9 items-center justify-between"
+        className="flex min-h-11 items-center justify-between"
         aria-hidden="true"
       >
-        <span className="text-body-sm text-muted-foreground">‹ 前の月</span>
+        <span className="size-11 rounded-control-sm bg-muted/70" />
         <span className="text-title font-semibold text-muted-foreground">
           {monthLabel(month)}
         </span>
-        <span className="text-body-sm text-muted-foreground">次の月 ›</span>
+        <span className="size-11 rounded-control-sm bg-muted/70" />
       </div>
 
       <div

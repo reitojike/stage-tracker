@@ -26,6 +26,29 @@ afterEach(() => {
 const opportunityId = "22222222-2222-4222-8222-222222222222";
 const eventId = "33333333-3333-4333-8333-333333333333";
 
+function eventDisplay(overrides: Record<string, unknown> = {}) {
+  return {
+    title: "テスト公演",
+    venue: "テスト劇場",
+    canceled_at: null,
+    ...overrides,
+  };
+}
+
+function occurrenceRow(id: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    event_id: eventId,
+    doors_at: null,
+    starts_at: "2026-02-01T09:00:00Z",
+    ends_at: null,
+    canceled_at: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
 function opportunityRow(overrides: Record<string, unknown> = {}) {
   return {
     id: opportunityId,
@@ -37,7 +60,7 @@ function opportunityRow(overrides: Record<string, unknown> = {}) {
     memo: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
-    events: { canceled_at: null },
+    events: eventDisplay(),
     ticket_opportunity_target_occurrences: [],
     ticket_opportunity_milestones: [
       {
@@ -102,12 +125,14 @@ describe("listTicketOpportunities (shared catalog)", () => {
       http.get(`${REST_URL}/ticket_opportunities`, () =>
         HttpResponse.json([
           opportunityRow({
-            events: { canceled_at: "2026-01-01T00:00:00Z" },
+            events: eventDisplay({
+              canceled_at: "2026-01-01T00:00:00Z",
+            }),
             target_scope: "selected_occurrences",
             ticket_opportunity_target_occurrences: [
               {
                 occurrence_id: canceledOccurrenceId,
-                event_occurrences: { canceled_at: null },
+                event_occurrences: occurrenceRow(canceledOccurrenceId),
               },
             ],
           }),
@@ -135,7 +160,9 @@ describe("listTicketOpportunities (shared catalog)", () => {
             ticket_opportunity_target_occurrences: [
               {
                 occurrence_id: canceledOccurrenceId,
-                event_occurrences: { canceled_at: "2026-01-01T00:00:00Z" },
+                event_occurrences: occurrenceRow(canceledOccurrenceId, {
+                  canceled_at: "2026-01-01T00:00:00Z",
+                }),
               },
               {
                 occurrence_id: unresolvedOccurrenceId,

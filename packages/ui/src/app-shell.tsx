@@ -57,7 +57,7 @@ export function AppShell({
           `landmark-one-main` and `region` (page content not contained by
           any landmark). Individual route pages still own their own `<h1>`
           inside `{children}`, same division of responsibility as legacy. */}
-      <main className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-section px-md py-lg">
+      <main className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-section p-md">
         {children}
       </main>
       {showPrimaryNav ? <PrimaryNav /> : null}

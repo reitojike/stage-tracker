@@ -32,10 +32,8 @@ const updateTicketOpportunityStateInputSchema = z.object({
  * `user_id=caller` で scope）。M8 の difference inventory（#401）で確定した
  * v2 の不具合（この write UI 自体が未実装だった）の修正。
  *
- * revalidate 対象は `/tickets` のみ（`setParticipationChoiceAction` と違い、
- * この個人 planning state は他のどの画面の read にも現れない - Home の
- * 「申し込み期限」ブロックは共有 milestone データだけを読み、`myState` は
- * 表示しない）。
+ * `/tickets` と、同じ personal planning state を期限カードへ表示する `/`
+ * を再検証する。
  */
 export const updateTicketOpportunityStateAction = authActionClient
   .inputSchema(updateTicketOpportunityStateInputSchema)
@@ -51,6 +49,7 @@ export const updateTicketOpportunityStateAction = authActionClient
         throw new ActionError(result.error.kind, result.error.message);
       }
       revalidatePath("/tickets");
+      revalidatePath("/");
       return { status: null };
     }
 
@@ -66,5 +65,6 @@ export const updateTicketOpportunityStateAction = authActionClient
       throw new ActionError(result.error.kind, result.error.message);
     }
     revalidatePath("/tickets");
+    revalidatePath("/");
     return { status };
   });

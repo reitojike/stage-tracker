@@ -178,7 +178,7 @@ test("catalog filter Sheet: dismiss draft, confirm, reload, and reset", async ({
       page.getByRole("link", { name: fixture.unclassifiedTitle }),
     ).not.toBeVisible();
 
-    await page.getByRole("button", { name: "絞り込み中" }).click();
+    await page.getByRole("button", { name: "絞り込み（適用中）" }).click();
     await expect(sheet.getByRole("radio", { name: "宝塚" })).toBeChecked();
     await sheet.getByRole("radio", { name: "すべて" }).click();
     await sheet.getByRole("button", { name: "条件をクリア" }).click();
@@ -196,7 +196,7 @@ test("catalog filter Sheet: dismiss draft, confirm, reload, and reset", async ({
     );
 
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "条件を解除する" }).click();
+    await page.getByRole("button", { name: "絞り込みを解除" }).click();
     await expect(
       page.getByRole("link", { name: fixture.unclassifiedTitle }),
     ).toBeVisible();

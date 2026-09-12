@@ -53,7 +53,11 @@ describe("loadTicketsTimeline", () => {
             memo: null,
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
-            events: { canceled_at: null },
+            events: {
+              title: "テスト公演",
+              venue: "テスト劇場",
+              canceled_at: null,
+            },
             ticket_opportunity_target_occurrences: [],
             ticket_opportunity_milestones: [
               {
@@ -111,7 +115,11 @@ describe("loadTicketsTimeline", () => {
             memo: null,
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
-            events: { canceled_at: "2026-01-01T00:00:00Z" },
+            events: {
+              title: "テスト公演",
+              venue: "テスト劇場",
+              canceled_at: "2026-01-01T00:00:00Z",
+            },
             ticket_opportunity_target_occurrences: [],
             ticket_opportunity_milestones: [
               {
@@ -199,7 +207,11 @@ describe("loadTicketsTimeline", () => {
             memo: null,
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
-            events: { canceled_at: null },
+            events: {
+              title: "テスト公演",
+              venue: "テスト劇場",
+              canceled_at: null,
+            },
             ticket_opportunity_target_occurrences: [],
             ticket_opportunity_milestones: [
               {

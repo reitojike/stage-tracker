@@ -31,7 +31,7 @@ export async function PasskeySection() {
 
       <RegisterPasskeyButton />
 
-      {error ? (
+      {error || data === null ? (
         <StatePanel
           variant="error"
           title="Passkeyの一覧を取得できませんでした"
