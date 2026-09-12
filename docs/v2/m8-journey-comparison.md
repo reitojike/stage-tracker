@@ -241,12 +241,12 @@ Participation の中止時降格 UI（legacy が UI から降格選択肢を出�
 
 ### Class 1（意図した差分、最終4件）
 
-| #   | 項目                                                                                                                 | journey       | citation                                                                                                           |
-| --- | -------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 1   | Invitation の decline UX（8秒 timer+undo → 確認ダイアログ+即時 hard delete、undo 無し）                              | invitation    | `decisions.md` P3（117, 122, 689-757行目付近）、Issue #382 close                                                   |
-| 2   | Magic link の `emailRedirectTo` を v2 は一切渡さない（Preview 環境の隔離を app code ではなく deployment 境界に置く） | 認証          | `decisions.md` A24                                                                                                 |
-| 3   | 未認証 redirect 時の query string は v2 が常にクリアする（legacy は素通し）                                          | 認証          | `decisions.md`「PO 判断: 未認証 redirect 時の query string は引き継がない（2026-09-10）」                          |
-| 4   | 中止済み occurrence でも既存 `attending→considering` 降格・withdraw は v2 が UI から常に到達可能にする               | participation | `decisions.md`「PO 判断: 中止済み occurrence でも既存 participation の降格・辞退は UI から許可する（2026-09-10）」 |
+| #   | 項目                                                                                                                 | journey       | citation                                                                                                                                  |
+| --- | -------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Invitation の decline UX（8秒 timer+undo → 確認ダイアログ+即時 hard delete、undo 無し）                              | invitation    | `decisions.md` P3（117, 122, 689-757行目付近）、Issue #382 close                                                                          |
+| 2   | Magic link の `emailRedirectTo` を v2 は一切渡さない（Preview 環境の隔離を app code ではなく deployment 境界に置く） | 認証          | `decisions.md` A24                                                                                                                        |
+| 3   | 未認証 redirect 時の query string は v2 が常にクリアする（legacy は素通し）                                          | 認証          | `decisions.md`「PO 判断: 未認証 redirect 時の query string は引き継がない（v2 の挙動を正とする）（2026-09-10）」                          |
+| 4   | 中止済み occurrence でも既存 `attending→considering` 降格・withdraw は v2 が UI から常に到達可能にする               | participation | `decisions.md`「PO 判断: 中止済み occurrence でも既存 participation の降格・辞退は UI から許可する（v2 の挙動を正とする）（2026-09-10）」 |
 
 Participation 書き込みの no-op short-circuit（v2 のみ）は、decisions.md の
 citation を持たず Issue #391 の分類1の定義（「根拠を decisions.md から
@@ -278,12 +278,12 @@ AC4 の「観測した差分」の対象外として扱う。
 
 1. ~~未認証 redirect 時の query string 保持/クリア（認証）~~ →
    `docs/v2/decisions.md`「PO 判断: 未認証 redirect 時の query string は
-   引き継がない（2026-09-10）」により **分類1（意図した差分）** へ確定。
+   引き継がない（v2 の挙動を正とする）（2026-09-10）」により **分類1（意図した差分）** へ確定。
    v2 の挙動（query を常にクリアする）を正とする。詳細は上記「分類1」節
    および認証 journey の該当行を参照。
 2. ~~Participation の中止時降格 UI 導線（participation）~~ →
    `docs/v2/decisions.md`「PO 判断: 中止済み occurrence でも既存
-   participation の降格・辞退は UI から許可する（2026-09-10）」により
+   participation の降格・辞退は UI から許可する（v2 の挙動を正とする）（2026-09-10）」により
    **分類1（意図した差分）** へ確定。v2 の挙動（降格・辞退は UI から常に
    到達可能）を正とする。詳細は上記「分類1」節および participation
    journey の該当行を参照。
