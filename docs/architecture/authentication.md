@@ -67,6 +67,11 @@ sequenceDiagram
 - Server Action の応答は常に `/sign-in?requested=1` の一択です。アカウントの
   有無・メール送信の成否・SMTP/Resend 側の障害、いずれの場合も同一の
   status・Location・body・Cookie で応答します。
+- この observable parity は
+  [apps/web/e2e/journeys/sign-in.spec.ts](../../apps/web/e2e/journeys/sign-in.spec.ts)
+  が current Next.js の実 Server Action と local Supabase Auth を使い、known / unknown
+  email の status・header・redirect・rendered text を比較して検証します。unknown email が
+  user を作成しないことも同じ test で確認します。
 
 ### Vercel Preview の Magic Link origin
 
@@ -225,6 +230,12 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
    [apps/web/src/app/_lib/require-authenticated-user-id.ts](../../apps/web/src/app/_lib/require-authenticated-user-id.ts)
    の `requireAuthenticatedUserId()` がこの読み取りの主な呼び出し口です。
 
+実 HTTP の default-deny、public path / PWA resource の exact-match、Magic Link による
+session 確立、UI の sign-out 後に protected route が再び拒否されることは
+[apps/web/e2e/journeys/sign-in.spec.ts](../../apps/web/e2e/journeys/sign-in.spec.ts)
+が local Supabase と current Next.js server に対して検証します。pure な allowlist / redirect
+validation は `apps/web` の Auth unit suite が補完します。
+
 ### コメント上の呼称のずれ（解消済み・履歴記録）
 
 Issue #66 完了時点では `serverClient.ts` の 39 行目・57 行目のコメントが、
@@ -268,8 +279,8 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
 - Supabase Auth Passkey は 2026-05-28 公開の Beta（experimental）機能です。
   `auth.experimental.passkey: true` を client 初期化時に明示しないと全
   passkey method が reject されます
-  （[apps/web/src/lib/supabase/browser.ts](../../apps/web/src/lib/supabase/browser.ts)、
-  [apps/web/src/lib/supabase/server.ts](../../apps/web/src/lib/supabase/server.ts)）。
+  （Passkey 専用 browser/server client と
+  [apps/web/src/lib/actions/passkeys.ts](../../apps/web/src/lib/actions/passkeys.ts)）。
 - WebAuthn ceremony（`navigator.credentials.create()`/`get()`）は browser
   専用のため、`registerPasskey()` / `signInWithPasskey()` は client
   component からのみ呼び出します
@@ -291,8 +302,9 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
   本番 RP ID / Origins は Supabase Dashboard 側の operational step として
   別途設定が必要で、remote Supabase project の provisioning と同様この
   repository の merge gate には含めません。
-- WebAuthn ceremony 自体（実機の Face ID / Touch ID / Windows Hello 等）は
-  platform authenticator を要する browser 専用 API です。session/認可境界・
-  Magic Link fallback・public signup 非復活は `apps/web` の Auth unit suite と
+- Local Supabase の実 `auth.passkey.list()` / `.delete()` に対する anonymous rejection、
+  Magic Link session を持つ user の empty list、および `experimental.passkey` opt-in を
+  外した client の rejection は
   [apps/web/e2e/journeys/sign-in.spec.ts](../../apps/web/e2e/journeys/sign-in.spec.ts)
-  で検証し、実際の platform authenticator ceremony は manual smoke 対象です。
+  で検証します。WebAuthn ceremony 自体（実機の Face ID / Touch ID / Windows Hello 等）は
+  platform authenticator を要する browser 専用 API のため manual smoke 対象です。

@@ -30,7 +30,7 @@ import { parseTokyoDateTimeLocal } from "./tokyo-form";
  * 早期に分かりやすい field error を返すための UX 上の先出し検証に過ぎない**
  * （二重化したつもりの安全境界ではない）。
  *
- * `apps/legacy-web/src/domain/eventCatalogWrite.ts` の
+ * M8 oracle の
  * `parseEventDetails`/`parseEventRange`/`parseOccurrence`/
  * `validateOccurrenceWithinRange` と同じ判断を再実装したもの（legacy は
  * import 禁止のため、oracle として読み、ゼロから書き直した）。

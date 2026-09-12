@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regenerates src/domain/japaneseHolidaysData.ts from the official 内閣府
+// Regenerates apps/web/src/app/_lib/japanese-holidays-data.ts from the official 内閣府
 // (Cabinet Office) "国民の祝日について" CSV dataset (Issue #34).
 //
 // Holiday authority (docs/ux-ui.md "Calendar weekday / Japanese holiday
@@ -14,7 +14,7 @@
 // procedureがdurableに記録される"):
 //   1. Run `node scripts/update-japanese-holidays.mjs` from the repo root.
 //      It fetches the current CSV from the Cabinet Office and overwrites
-//      src/domain/japaneseHolidaysData.ts.
+//      apps/web/src/app/_lib/japanese-holidays-data.ts.
 //   2. Review the diff (in particular the trailing coverage date, which
 //      moves forward as the Cabinet Office publishes further years) and
 //      commit it as a normal source change.
@@ -36,12 +36,15 @@ import path from 'node:path';
 const SOURCE_URL = 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv';
 const SOURCE_PAGE = 'https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html';
 
-const OUTPUT_PATH = path.join(
+export const OUTPUT_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
+  'apps',
+  'web',
   'src',
-  'domain',
-  'japaneseHolidaysData.ts',
+  'app',
+  '_lib',
+  'japanese-holidays-data.ts',
 );
 
 function parseDate(raw) {
@@ -127,7 +130,9 @@ ${body}
   console.log(`Wrote ${rows.length} holiday rows (${firstDate} .. ${lastDate}) to ${OUTPUT_PATH}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

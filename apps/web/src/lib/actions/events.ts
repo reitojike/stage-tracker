@@ -36,10 +36,9 @@ import {
  * `using` 句が対象行を除外すると *エラーにならず* 0件成功を返す
  * （`event_occurrences_update_own`/`events_update_own` の性質）ため、
  * `.select().maybeSingle()` を必ず付け、`data === null` を
- * `permission-denied` として扱う。この判定基準は
- * `apps/legacy-web/src/infrastructure/supabase/eventCatalogWrite.ts` の
- * `deniedUpdate` と同じ（legacy は oracle として読み、ゼロから書き直した）。
- * エラーの文言粒度は `apps/legacy-web/src/domain/eventWriteFeedback.ts` を
+ * `permission-denied` として扱う。この判定基準は M8 oracle の
+ * `deniedUpdate` と同じ（oracle を読み、ゼロから書き直した）。
+ * エラーの文言粒度は同 oracle の Event write feedback を
  * 移植した `./event-write-feedback.ts` の operation 別 thrower へ委譲する
  * （M8 journey 比較で確定した分類2の不具合修正 -
  * `docs/v2/m8-journey-comparison.md` 参照）。

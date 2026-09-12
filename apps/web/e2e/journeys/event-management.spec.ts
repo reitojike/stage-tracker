@@ -15,8 +15,7 @@ import { completeMagicLinkSignIn } from "../support/signIn";
  * (the real `create_event` RPC), then edit its details through
  * `/catalog/events/[eventId]/edit`.
  *
- * `grantCatalogCreator` mirrors what
- * `apps/legacy-web/scripts/grant-catalog-creator.mjs` does operationally
+ * `grantCatalogCreator` uses the operational membership boundary
  * (an upsert into `public.catalog_creators`) - membership itself is
  * environment data, never a hard-coded user id, and this journey grants it
  * to its own throwaway actor rather than depending on a fixed "the admin

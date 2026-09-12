@@ -2,7 +2,7 @@ import { instantSchema, instantToTokyoWallClock } from "@stage-tracker/domain";
 
 /**
  * Passkey 一覧の表示ラベル（`<friendlyName> — <登録日時>`）。
- * `apps/legacy-web/src/domain/passkey.ts` の `passkeyDisplayLabel` と同じ
+ * M8 oracle の `passkeyDisplayLabel` と同じ
  * product 判断（PO 決定: 固定フォーマット、id は表示に含めない、
  * 衝突検出はしない）を、`@stage-tracker/domain` の Asia/Tokyo 変換のみで
  * 再実装したもの（legacy は import 禁止）。

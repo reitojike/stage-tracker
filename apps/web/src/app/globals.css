@@ -18,8 +18,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design tokens: stage-tracker's semantic tokens ported from the legacy
- * primitive -> semantic CSS variables (apps/legacy-web/src/ui/tokens.css)
+ * Design tokens: stage-tracker's semantic tokens ported from the M8
+ * primitive -> semantic CSS variables
  * onto Tailwind v4 `@theme`. Source of truth for the *values* and their
  * product meaning: docs/v2/oracle-routes-ui.md §4 "Design token" and
  * docs/v2/decisions.md (A2/A3/A4).
@@ -165,9 +165,8 @@
    * A4). The legacy file carries a full neutral 0-900 / accent 50-900
    * scale, but after Issue #137's "repin semantic tokens to literal
    * values" refresh, only these steps are still referenced by a semantic
-   * token that this migration keeps. The full scale remains available at
-   * apps/legacy-web/src/ui/tokens.css if a future token needs another
-   * step.
+   * token that this migration keeps. Historical values remain available in
+   * git history if a future token needs another step.
    */
   --color-neutral-0: #ffffff; /* legacy --color-neutral-0 - backs surface/card/popover */
   --color-neutral-500: #737b82; /* legacy --color-neutral-500 - backs icon-affordance */
@@ -348,7 +347,7 @@
   /*
    * Checkbox presentation value (Issue #358): visible box/glyph
    * dimensions shared as a value only, not a component API - see
-   * apps/legacy-web/src/ui/tokens.css for the full rationale.
+   * the M8 design-token rationale for the full context.
    */
   --size-checkbox-box: 18px;
   --size-checkbox-glyph: 12px;

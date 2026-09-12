@@ -1,8 +1,8 @@
 import type { TokyoCalendarDate } from "@stage-tracker/domain";
 
 /**
- * Generic multi-day "band" week-layout algorithm, ported from
- * `apps/legacy-web/src/domain/calendarMonth.ts`'s `layoutWeekBands`
+ * Generic multi-day "band" week-layout algorithm, ported from the M8
+ * `layoutWeekBands` oracle
  * (`docs/v2/oracle-domain.md` §2.9 "Personal schedule / My Calendar": "月表示
  * の band...1 週あたり同時表示できる band は最大 `MAX_BAND_LANES = 2`").
  *

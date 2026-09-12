@@ -12,7 +12,9 @@ test('legacy app directory and operational references are rejected', () => {
   writeFileSync(
     path.join(root, 'package.json'),
     JSON.stringify({
-      scripts: { dev: `pnpm --filter ${['@stage-tracker', 'legacy-web'].join('/')} dev` },
+      scripts: {
+        dev: `pnpm --filter ${['@stage-tracker', 'legacy-web'].join('/')} dev`,
+      },
     }),
   );
 
@@ -27,4 +29,24 @@ test('current app-only structure passes', () => {
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { dev: 'pnpm dev' } }));
 
   assert.deepEqual(findLegacyOperationalResidue(root), []);
+});
+
+test('current executable and E2E surfaces reject legacy authority references', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'stage-tracker-legacy-check-'));
+  const sourceDirectory = path.join(root, 'apps', 'web', 'src');
+  const e2eDirectory = path.join(root, 'apps', 'web', 'e2e');
+  mkdirSync(sourceDirectory, { recursive: true });
+  mkdirSync(e2eDirectory, { recursive: true });
+  writeFileSync(
+    path.join(sourceDirectory, 'authority.ts'),
+    `export const authority = '${['apps', 'legacy-web', 'test', 'auth'].join('/')}';`,
+  );
+  writeFileSync(
+    path.join(e2eDirectory, 'journey.spec.ts'),
+    `import '${['@stage-tracker', 'legacy-web'].join('/')}';`,
+  );
+
+  const findings = findLegacyOperationalResidue(root);
+  assert.ok(findings.some((finding) => finding.includes(path.join('apps', 'web', 'src'))));
+  assert.ok(findings.some((finding) => finding.includes(path.join('apps', 'web', 'e2e'))));
 });

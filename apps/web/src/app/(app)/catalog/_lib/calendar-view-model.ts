@@ -23,8 +23,8 @@ import {
 } from "@/app/_lib/calendar-band-layout";
 
 /**
- * `/catalog`'s month-calendar presentation derivation, ported from
- * `apps/legacy-web/src/domain/calendarMonth.ts` (`docs/v2/oracle-domain.md`
+ * `/catalog`'s month-calendar presentation derivation, ported from the M8
+ * oracle (`docs/v2/oracle-domain.md`
  * §2.9 "Personal schedule / My Calendar": the multi-day-band-only-for-
  * multi-day-Events rule is stated there for "Event Catalog" specifically,
  * distinct from My Calendar's own PersonalSchedule bands). Everything here

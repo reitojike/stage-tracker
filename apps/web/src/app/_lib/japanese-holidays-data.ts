@@ -1,5 +1,5 @@
 // PORTED SNAPSHOT - do not hand-edit.
-// Ported verbatim from apps/legacy-web/src/domain/japaneseHolidaysData.ts
+// Ported verbatim from the M8 holiday snapshot
 // (v2/m8-fix-catalog-calendar-parity), itself produced by
 // scripts/update-japanese-holidays.mjs from the official Cabinet Office
 // (内閣府) "国民の祝日について" CSV dataset:

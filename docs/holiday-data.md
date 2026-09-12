@@ -17,19 +17,19 @@ Saturdayより優先されること、色に加えてnon-color cueを併用す�
 
 未公表の将来の祝日は、ruleからの推測・計算（春分・秋分の計算、「第N月曜」等）
 を一切行いません。runtime lookup自体がこれをどう担保しているかは
-`src/domain/japaneseHolidays.ts`のheaderを参照してください。
+`apps/web/src/app/_lib/japanese-holidays.ts`のheaderを参照してください。
 
 ## データがrepoに入る仕組み
 
 `scripts/update-japanese-holidays.mjs`が上記CSVを取得し、デコード
-（Shift_JIS）・parseした上で、`src/domain/japaneseHolidaysData.ts`
+（Shift_JIS）・parseした上で、`apps/web/src/app/_lib/japanese-holidays-data.ts`
 （日付と祝日名のみを持つ、手編集しないplainなgenerated data file）を
 再生成します。generated fileは自身のfetch timestampと、そのsnapshotが
 実際に持っていた正確なcoverage range
 （`JAPANESE_HOLIDAY_DATA_COVERAGE_START` / `_END`）を記録するため、
 読み手はどれだけ最新かを推測する必要がありません。
 
-`src/domain/japaneseHolidays.ts`はそのsnapshotに対するruntime lookupで
+`apps/web/src/app/_lib/japanese-holidays.ts`はそのsnapshotに対するruntime lookupで
 あり、network accessを一切持たないpureなdomain logicです。
 
 ## 更新手順
@@ -40,7 +40,7 @@ Saturdayより優先されること、色に加えてnon-color cueを併用す�
    pnpm run holidays:update
    ```
 
-2. `src/domain/japaneseHolidaysData.ts`のdiff（特に新しいcoverage end
+2. `apps/web/src/app/_lib/japanese-holidays-data.ts`のdiff（特に新しいcoverage end
    date）を確認し、通常のsource changeとしてcommitします。この
    repositoryのReview Protocolに沿った独立したreviewを受けます
    （Executable artifact - `.ts` source）。
@@ -53,17 +53,17 @@ Saturdayより優先されること、色に加えてnon-color cueを併用す�
 
 snapshotが記録するcoverage range外の日付は、その区別を必要とするいかなる
 箇所からも「祝日ではないことが確認済み」とは扱われません。詳細は
-`src/domain/japaneseHolidays.ts`の`isWithinJapaneseHolidayDataCoverage`を
+`apps/web/src/app/_lib/japanese-holidays.ts`の`isWithinJapaneseHolidayDataCoverage`を
 参照してください。My Calendar / Event Catalogの通常のcalendar renderingは
-この区別に実際にbranchします。`src/domain/calendarDayRole.ts`の
+この区別に実際にbranchします。`apps/web/src/app/_lib/calendar-day-role.ts`の
 `calendarDayRole`はcoverage外の日付について`'holiday'`を一切報告しません
 （そのため確定した平日として黙って表示されることはありません）。
 
 この内部区別のuser向け presentationはmonth-level notice onlyです（Issue
 #97 PO adjudication。Issue #34で採用したper-cell marker/ARIA部分を明示的に
 上書き）。表示中の月にcoverage外の日付が1件でも含まれる場合、
-`src/app/calendar/_components/MyMonthCalendar.tsx`と
-`src/app/catalog/_components/MonthCalendar.tsx`はいずれもnon-colorな
+My Calendar と
+`apps/web/src/app/(app)/catalog/_components/MonthCalendar.tsx`はいずれもnon-colorな
 text noticeを月全体に1つだけ表示します。個々のcellへ`?`等のmarkerや、
 day単位のaria-labelへの「祝日未確認」追加は行いません -
 coverage外であること自体はdomain layer（`isWithinJapaneseHolidayDataCoverage`）

@@ -17,6 +17,8 @@ const SCAN_TARGETS = [
   'apps/web/package.json',
   'apps/web/eslint.config.mjs',
   'apps/web/playwright.config.ts',
+  'apps/web/src',
+  'apps/web/e2e',
   'apps/web/tsconfig.json',
   'packages/domain/package.json',
   'packages/ui/package.json',

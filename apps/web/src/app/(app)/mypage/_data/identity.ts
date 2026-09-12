@@ -58,8 +58,8 @@ export async function resolveCanCreateEvent(
 /**
  * pending invitation バッジ用の件数のみの read。件数表示は低優先度の
  * badge であり、このページの主要データ surface ではないため、読込失敗は
- * 0 件へ degrade する（`apps/legacy-web/src/app/mypage/page.tsx` の
- * 既存方針を踏襲。`/catalog/invitations` 本体は別途 unavailable/error を
+ * 0 件へ degrade する（M8 の既存方針を踏襲。
+ * `/catalog/invitations` 本体は別途 unavailable/error を
  * 正しく区別する - `../../catalog/invitations/_data/listMyReceivedInvitations.ts`
  * 参照）。
  */
