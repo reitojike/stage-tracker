@@ -118,7 +118,6 @@ void test('inviting a user with no participation creates only the invitation - I
   assert.equal(invitation.occurrence_id, occurrence);
   assert.equal(invitation.inviter_id, inviter.user.id);
   assert.equal(invitation.invitee_id, invitee.user.id);
-  assert.equal(invitation.declined_at, null);
 
   assert.equal(
     await readOwnParticipation(invitee, occurrence),
@@ -425,21 +424,19 @@ void test('an unrelated user cannot decline someone else’s invitation: matches
   assert.ok(await invitationReceived(invitee, occurrence));
 });
 
-// The row's own declined_at column still exists (this PR does not drop
-// schema) but nothing ever writes it again - decline resolves the row by
-// deleting it. This pins down that a direct table UPDATE remains unsupported
-// regardless.
-void test('declined_at is not writable through the table API', async () => {
+// A pending invitation is immutable through the table API. Decline resolves
+// the row through the bounded RPC, and no general UPDATE surface exists.
+void test('pending invitation fields are not writable through the table API', async () => {
   const occurrence = await invitableOccurrence();
   await inviteToOccurrenceOrThrow(inviter, occurrence, invitee.user.id);
   const invitation = await requireInvitation(occurrence);
 
   const { error: stampError } = await invitee.client
     .from('occurrence_invitations')
-    .update({ declined_at: new Date().toISOString() })
+    .update({ inviter_id: other.user.id })
     .eq('id', invitation.id);
-  assert.ok(stampError, 'expected a direct declined_at UPDATE to be unsupported');
-  assert.equal((await readInvitation(invitee, invitation.id))?.declined_at, null);
+  assert.ok(stampError, 'expected a direct invitation UPDATE to be unsupported');
+  assert.equal((await readInvitation(invitee, invitation.id))?.inviter_id, inviter.user.id);
 });
 
 // Repeating the same act, not a lifecycle change: a second decline call for
@@ -479,7 +476,6 @@ void test('re-inviting a declined invitee creates a new pending invitation (a pr
     firstInvitation.id,
     'the re-invite must be a fresh row, not a resurrected one',
   );
-  assert.equal(secondInvitation.declined_at, null);
 });
 
 // The re-invite still goes through the normal no-participation branch - it
@@ -536,7 +532,6 @@ void test('a decline does not block a different inviter from inviting, and only 
   const [remaining] = rows;
   assert.ok(remaining);
   assert.equal(remaining.inviter_id, other.user.id);
-  assert.equal(remaining.declined_at, null);
 });
 
 // --- Generic attending convergence (Issue #225/#230) ---
@@ -750,7 +745,7 @@ void test('anonymous cannot update invitations', async () => {
   const anon = createAnonymousClient();
   const { error } = await anon
     .from('occurrence_invitations')
-    .update({ declined_at: new Date().toISOString() })
+    .update({ inviter_id: other.user.id })
     .eq('id', invitation.id);
   assert.ok(error, 'expected a permission error for anonymous update');
 });

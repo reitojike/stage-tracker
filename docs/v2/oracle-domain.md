@@ -176,9 +176,8 @@ Issue #225/#230 で pending-only モデルへ収束済み（旧: auto-considerin
   state のみを表す。durable な accepted/declined history は持たない。
   resolve（accept/decline/generic attending convergence のいずれか）
   された行は削除される。
-- 属性: `id`、`occurrenceId`、`inviterId`、`inviteeId`、`declinedAt`
-  （schema 互換のため残存する column だが現行の write path はどれも
-  設定しない = 常に実質 pending）、`createdAt`、`updatedAt`。
+- 属性: `id`、`occurrenceId`、`inviterId`、`inviteeId`、`createdAt`、
+  `updatedAt`。decline state は row に保持せず、row の削除で解消を表す。
 - invite できる条件: 対象 occurrence で **inviter 自身が `attending`**
   であること。`considering` の user、および event owner であることは
   invite eligibility を与えない。

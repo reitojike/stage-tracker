@@ -248,15 +248,14 @@ Index: `occurrence_participations_user_id_idx (user_id)`
 
 ### 1.7 `occurrence_invitations` — 公演回への未回答招待（pending のみ）
 
-| column        | type        | nullable | default             | 意味                                           |
-| ------------- | ----------- | -------- | ------------------- | ---------------------------------------------- |
-| id            | uuid        | NOT NULL | `gen_random_uuid()` | PK                                             |
-| occurrence_id | uuid        | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION）      |
-| inviter_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）             |
-| invitee_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）             |
-| declined_at   | timestamptz | NULL     | —                   | **死んだ列**（後述）。書き込む経路が現存しない |
-| created_at    | timestamptz | NOT NULL | `now()`             |                                                |
-| updated_at    | timestamptz | NOT NULL | `now()`             | 実質発火機会が無い（後述）                     |
+| column        | type        | nullable | default             | 意味                                      |
+| ------------- | ----------- | -------- | ------------------- | ----------------------------------------- |
+| id            | uuid        | NOT NULL | `gen_random_uuid()` | PK                                        |
+| occurrence_id | uuid        | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION） |
+| inviter_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）        |
+| invitee_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）        |
+| created_at    | timestamptz | NOT NULL | `now()`             |                                           |
+| updated_at    | timestamptz | NOT NULL | `now()`             | 実質発火機会が無い（後述）                |
 
 CHECK:
 
@@ -273,10 +272,9 @@ accepted/declined history モデルは supersede 済み）:
 - 行の存在 = 「その occurrence へその招待が pending 中」を意味する
   唯一の表現。resolve（decline / invitee が attending に到達）される
   と行ごと削除される。durable な履歴は一切残らない。
-- `declined_at` は元々「辞退した事実のスタンプ」用だったが、現在の
-  `decline_occurrence_invitation` は行を DELETE するだけで、この列に
-  一切書き込まない。schema には残っているが v2 では持ち込む理由がない
-  （§7参照）。
+- `declined_at` は元々「辞退した事実のスタンプ」用だったが、pending-only
+  移行後は `decline_occurrence_invitation` が行を DELETE する。legacy app
+  削除後の contract cleanup で column 自体も削除済み（§7参照）。
 
 ### 1.8 `ticket_opportunities` — 販売機会（TicketOpportunity, shared）
 
@@ -987,7 +985,7 @@ attending` の拒否、`attending→considering`・visibility のみの更新・
 - decline: 該当なし/他人の invitation は行に一切影響を与えず
   no-op であること（inviter 自身も invitee の代わりに decline
   できない）。二重 decline が idempotent であること。
-  `declined_at` がテーブル API から一切書き込めないこと。
+  pending invitation の field がテーブル API から UPDATE できないこと。
 - 現行モデル: decline 後の再招待が新しい pending invitation を作れる
   こと（永久ブロックではない）、再招待は participation を作らない
   こと、decline 後も invitee 本人は直接 attending にできること、
@@ -1074,11 +1072,10 @@ false` で既存値を変更しないこと、`p_set_genre=true` かつ key な�
 
 ## 7. v2 で見直すべき点（提案）
 
-1. **`occurrence_invitations.declined_at` は死んだ列。** pending-only
+1. **`occurrence_invitations.declined_at` は削除済み。** pending-only
    モデルへの移行後、`decline_occurrence_invitation` は行を DELETE
-   するだけでこの列に一切書き込まない。v2 のスキーマにこの列を持ち
-   越す理由はない（存在するが誰も読み書きしない列を新設計に持ち込むと
-   「何かに使われている」という誤解を招く）。同様に、この移行後は
+   するだけでこの列に一切書き込まない。legacy app 削除後の contract
+   cleanup で v2 schema から削除した。同様に、この移行後は
    `occurrence_invitations` に対する実質的な UPDATE 経路が無いため、
    `occurrence_invitations_set_updated_at` トリガーもほぼ発火機会が
    ない。v2 では「pending invitation は不変レコード（INSERT/DELETE
