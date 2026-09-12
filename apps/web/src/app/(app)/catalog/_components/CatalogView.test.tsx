@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
@@ -76,6 +76,28 @@ function entry(
 const OK_FILTER_OPTIONS: CatalogFilterOptionsResult = {
   ok: true,
   options: { genres: [], groupsByGenreKey: {}, venuesByGenreKey: {} },
+};
+
+const FILTER_OPTIONS: CatalogFilterOptionsResult = {
+  ok: true,
+  options: {
+    genres: [
+      {
+        id: "genre-takarazuka" as never,
+        key: "takarazuka",
+        displayName: "宝塚",
+        sortOrder: 1,
+      },
+      {
+        id: "genre-kabuki" as never,
+        key: "kabuki",
+        displayName: "歌舞伎",
+        sortOrder: 2,
+      },
+    ],
+    groupsByGenreKey: {},
+    venuesByGenreKey: {},
+  },
 };
 
 beforeEach(() => {
@@ -271,6 +293,238 @@ describe("CatalogView", () => {
     );
 
     expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
+  });
+
+  it("opens a Sheet with a fresh draft, keeps draft changes unapplied, and confirms them only on submit", async () => {
+    const user = userEvent.setup();
+    const entries = [
+      entry({ title: "宝塚公演", genreKey: "takarazuka" }),
+      entry({
+        id: "33333333-3333-4333-8333-333333333333",
+        title: "歌舞伎公演",
+        genreKey: "kabuki",
+      }),
+    ];
+    render(
+      <CatalogView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={null}
+        eventsState={{ variant: "populated", data: entries }}
+        filterOptionsResult={FILTER_OPTIONS}
+        groupNamesResult={{ ok: true, byId: new Map() }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "絞り込み" });
+    await user.click(trigger);
+
+    const sheet = screen.getByRole("dialog", { name: "絞り込み" });
+    expect(sheet).toBeInTheDocument();
+    expect(within(sheet).getByRole("radio", { name: "すべて" })).toBeChecked();
+
+    await user.click(within(sheet).getByRole("radio", { name: "宝塚" }));
+
+    // Changing the draft does not change the applied list or persistence.
+    expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
+    expect(window.localStorage.getItem("stage-tracker:catalog-filter:v1")).toBe(
+      null,
+    );
+
+    await user.click(
+      within(sheet).getByRole("button", { name: "この条件で絞り込む" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "絞り込み" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("宝塚公演").length).toBeGreaterThan(0);
+    expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("stage-tracker:catalog-filter:v1") ?? "{}",
+      ),
+    ).toMatchObject({ genreKey: "takarazuka" });
+  });
+
+  it("dismisses an abandoned draft with Escape and starts the next open from applied", async () => {
+    const user = userEvent.setup();
+    const entries = [
+      entry({ title: "宝塚公演", genreKey: "takarazuka" }),
+      entry({
+        id: "33333333-3333-4333-8333-333333333333",
+        title: "歌舞伎公演",
+        genreKey: "kabuki",
+      }),
+    ];
+    render(
+      <CatalogView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={null}
+        eventsState={{ variant: "populated", data: entries }}
+        filterOptionsResult={FILTER_OPTIONS}
+        groupNamesResult={{ ok: true, byId: new Map() }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "絞り込み" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("radio", { name: "宝塚" }));
+    await user.click(
+      screen.getByRole("button", { name: "この条件で絞り込む" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    const sheet = screen.getByRole("dialog", { name: "絞り込み" });
+    await user.click(within(sheet).getByRole("radio", { name: "すべて" }));
+    expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
+    const persisted = window.localStorage.getItem(
+      "stage-tracker:catalog-filter:v1",
+    );
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "絞り込み" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(window.localStorage.getItem("stage-tracker:catalog-filter:v1")).toBe(
+      persisted,
+    );
+    expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    expect(
+      within(screen.getByRole("dialog", { name: "絞り込み" })).getByRole(
+        "radio",
+        { name: "宝塚" },
+      ),
+    ).toBeChecked();
+  });
+
+  it("dismisses an abandoned draft with the backdrop without changing applied state", async () => {
+    const user = userEvent.setup();
+    const entries = [
+      entry({ title: "宝塚公演", genreKey: "takarazuka" }),
+      entry({
+        id: "33333333-3333-4333-8333-333333333333",
+        title: "歌舞伎公演",
+        genreKey: "kabuki",
+      }),
+    ];
+    render(
+      <CatalogView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={null}
+        eventsState={{ variant: "populated", data: entries }}
+        filterOptionsResult={FILTER_OPTIONS}
+        groupNamesResult={{ ok: true, byId: new Map() }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "絞り込み" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("radio", { name: "宝塚" }));
+    expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
+    await user.click(screen.getByTestId("sheet-backdrop"));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "絞り込み" }),
+      ).not.toBeInTheDocument(),
+    );
+
+    expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
+    await user.click(trigger);
+    expect(
+      within(screen.getByRole("dialog", { name: "絞り込み" })).getByRole(
+        "radio",
+        { name: "すべて" },
+      ),
+    ).toBeChecked();
+  });
+
+  it("clears only the draft until confirmation", async () => {
+    const user = userEvent.setup();
+    const entries = [
+      entry({ title: "宝塚公演", genreKey: "takarazuka" }),
+      entry({
+        id: "33333333-3333-4333-8333-333333333333",
+        title: "歌舞伎公演",
+        genreKey: "kabuki",
+      }),
+    ];
+    render(
+      <CatalogView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={null}
+        eventsState={{ variant: "populated", data: entries }}
+        filterOptionsResult={FILTER_OPTIONS}
+        groupNamesResult={{ ok: true, byId: new Map() }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "絞り込み" }));
+    await user.click(screen.getByRole("radio", { name: "宝塚" }));
+    await user.click(
+      screen.getByRole("button", { name: "この条件で絞り込む" }),
+    );
+    const persisted = window.localStorage.getItem(
+      "stage-tracker:catalog-filter:v1",
+    );
+
+    await user.click(screen.getByRole("button", { name: "絞り込み中" }));
+    const sheet = screen.getByRole("dialog", { name: "絞り込み" });
+    await user.click(within(sheet).getByRole("radio", { name: "すべて" }));
+    await user.click(
+      within(sheet).getByRole("button", { name: "条件をクリア" }),
+    );
+
+    expect(within(sheet).getByRole("radio", { name: "すべて" })).toBeChecked();
+    expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("stage-tracker:catalog-filter:v1")).toBe(
+      persisted,
+    );
+  });
+
+  it("keeps the external reset immediate and persists the default selection", async () => {
+    const user = userEvent.setup();
+    const entries = [
+      entry({ title: "宝塚公演", genreKey: "takarazuka" }),
+      entry({
+        id: "33333333-3333-4333-8333-333333333333",
+        title: "歌舞伎公演",
+        genreKey: "kabuki",
+      }),
+    ];
+    render(
+      <CatalogView
+        month={MONTH}
+        today={TODAY}
+        selectedDate={null}
+        eventsState={{ variant: "populated", data: entries }}
+        filterOptionsResult={FILTER_OPTIONS}
+        groupNamesResult={{ ok: true, byId: new Map() }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "絞り込み" }));
+    await user.click(screen.getByRole("radio", { name: "宝塚" }));
+    await user.click(
+      screen.getByRole("button", { name: "この条件で絞り込む" }),
+    );
+    expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "条件を解除する" }));
+    expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("stage-tracker:catalog-filter:v1") ?? "{}",
+      ),
+    ).toEqual({ genreKey: null, groupIds: [], venues: [] });
   });
 
   it("persists the applied filter selection to localStorage", async () => {
