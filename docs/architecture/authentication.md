@@ -21,7 +21,7 @@ anonymous sign-in は使用していません（`supabase/config.toml` の
 サインアップは自己サービスでは行えません（`enable_signup = false`）。
 アカウントは `scripts/provision-user.mjs` によるオペレーターの事前作成のみで、
 `signInWithOtp` にも `shouldCreateUser: false` を明示しています
-（[src/infrastructure/supabase/magicLink.ts](../../src/infrastructure/supabase/magicLink.ts)）。
+（[apps/web/src/lib/auth/magic-link.ts](../../apps/web/src/lib/auth/magic-link.ts)）。
 
 ## Sequence diagram
 
@@ -48,16 +48,16 @@ sequenceDiagram
 
 ## サインイン要求（`/sign-in`）
 
-- [src/app/sign-in/actions.ts](../../src/app/sign-in/actions.ts) の
+- [apps/web/src/app/sign-in/actions.ts](../../apps/web/src/app/sign-in/actions.ts) の
   `requestSignInLink` Server Action がエントリポイントです。
 - `createSupabaseCookielessServerClient()`
-  （[src/infrastructure/supabase/serverClient.ts](../../src/infrastructure/supabase/serverClient.ts)）
+  （[apps/web/src/lib/supabase/server.ts](../../apps/web/src/lib/supabase/server.ts)）
   を意図的に使用します。通常の Server Client では、既存アカウントに対して
   supabase-js が PKCE code verifier を Cookie に書き込み、存在しないアカウント
   では Cookie をクリアするため、`Set-Cookie` の有無がアカウント存在を漏らす
   enumeration oracle になります。Cookie 書き込みを完全に破棄することで、この
   oracle を構造的に排除しています。
-- [src/infrastructure/supabase/magicLink.ts](../../src/infrastructure/supabase/magicLink.ts)
+- [apps/web/src/lib/auth/magic-link.ts](../../apps/web/src/lib/auth/magic-link.ts)
   の `requestMagicLink()` は結果を一切返しません。以前のリビジョンは分類済み
   の結果を返していましたが、redirect 先の分岐・4xx/5xx の分岐・
   `error.status` の有無による分岐のいずれも account-existence oracle になる
@@ -153,11 +153,11 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
 
 ## `/auth/confirm` と `verifyOtp(token_hash)`
 
-[src/app/auth/confirm/route.ts](../../src/app/auth/confirm/route.ts) が
+[apps/web/src/app/auth/confirm/route.ts](../../apps/web/src/app/auth/confirm/route.ts) が
 唯一の magic link 着地点です。
 
 - クエリパラメータ `token_hash` / `type` / `next` を読み取ります。`next` は
-  `safeRedirectPath()`（[src/domain/redirectSafety.ts](../../src/domain/redirectSafety.ts)）
+  `safeRedirectPath()`（[apps/web/src/lib/auth/redirect-safety.ts](../../apps/web/src/lib/auth/redirect-safety.ts)）
   でサニタイズされます。
 - `type` は `'email'` のみを受理します。GoTrue の `EmailOtpType` は
   `recovery` / `invite` / `email_change` など他の型も許容する文字列型で
@@ -182,7 +182,7 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
 1. `verifyOtp()` 成功時、`@supabase/ssr` の `createServerClient` が
    `setAll()` コールバック経由でセッション Cookie を Response へ書き込みます
    （`createSupabaseServerClient()` 内、通常の Cookie 書き込みパス）。
-2. 以降の全リクエストは、[src/proxy.ts](../../src/proxy.ts) の `proxy()` を
+2. 以降の全リクエストは、[apps/web/src/proxy.ts](../../apps/web/src/proxy.ts) の `proxy()` を
    経由します。Next.js 16.3 以降で `middleware.ts` に代わって使われる規約
    （`proxy()` エクスポート + `config.matcher`）で書かれた、この
    プロダクトにおける Middleware 相当の実体です。
@@ -190,7 +190,7 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
      PWA の public resource（Issue #304）以外のほぼ全パスを対象にします。
      PWA 側の除外対象は `/manifest.webmanifest` と
      `/pwa/` 配下の application icon 4 件で、いずれも
-     [src/pwa/appIdentity.ts](../../src/pwa/appIdentity.ts) の
+     [apps/web/src/lib/pwa/app-identity.ts](../../apps/web/src/lib/pwa/app-identity.ts) の
      `PWA_PUBLIC_ASSET_PATHS` が正本です。install prompt は sign-in より
      前に評価されるため、これらは未認証でも取得できる必要があります。
    - この PWA 除外は **exact-path** です。`$` で終端を固定しているため
@@ -203,8 +203,8 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
      `config.matcher` は Next.js が静的解析する必要があるため
      `PWA_PUBLIC_ASSET_PATHS` を import できず、literal として二重に
      書かれています。両者の一致は
-     `src/pwa/__tests__/appIdentity.test.ts` が、実 HTTP 上の挙動は
-     `test/auth/routeProtection.test.ts` が検証します。
+     `apps/web/src/lib/pwa/app-identity.test.ts` が、実 HTTP 上の挙動は
+     `apps/web/e2e/journeys/sign-in.spec.ts` が検証します。
    - 毎リクエストで `supabase.auth.getUser()` を呼び、`@supabase/ssr` の
      `setAll()` コールバック経由でリフレッシュ後のセッション Cookie を
      Response（および redirect 発生時はその redirect レスポンス）へ
@@ -222,8 +222,8 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
 3. Server Component / Route Handler / Server Action は、都度
    `createSupabaseServerClient()` を呼び、`proxy.ts` によって既にリフレッシュ
    済みの Cookie からセッションを読み取ります。
-   [src/infrastructure/supabase/session.ts](../../src/infrastructure/supabase/session.ts)
-   の `getAuthenticatedUser()` がこの読み取りの主な呼び出し口です。
+   [apps/web/src/app/_lib/require-authenticated-user-id.ts](../../apps/web/src/app/_lib/require-authenticated-user-id.ts)
+   の `requireAuthenticatedUserId()` がこの読み取りの主な呼び出し口です。
 
 ### コメント上の呼称のずれ（解消済み・履歴記録）
 
@@ -268,18 +268,18 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
 - Supabase Auth Passkey は 2026-05-28 公開の Beta（experimental）機能です。
   `auth.experimental.passkey: true` を client 初期化時に明示しないと全
   passkey method が reject されます
-  （[src/infrastructure/supabase/browserClient.ts](../../src/infrastructure/supabase/browserClient.ts)、
-  [src/infrastructure/supabase/serverClient.ts](../../src/infrastructure/supabase/serverClient.ts)）。
+  （[apps/web/src/lib/supabase/browser.ts](../../apps/web/src/lib/supabase/browser.ts)、
+  [apps/web/src/lib/supabase/server.ts](../../apps/web/src/lib/supabase/server.ts)）。
 - WebAuthn ceremony（`navigator.credentials.create()`/`get()`）は browser
   専用のため、`registerPasskey()` / `signInWithPasskey()` は client
   component からのみ呼び出します
-  （[src/app/sign-in/_components/PasskeySignInButton.tsx](../../src/app/sign-in/_components/PasskeySignInButton.tsx)、
-  [src/app/mypage/_components/RegisterPasskeyButton.tsx](../../src/app/mypage/_components/RegisterPasskeyButton.tsx)）。
+  （[apps/web/src/app/sign-in/_components/PasskeySignInButton.tsx](../../apps/web/src/app/sign-in/_components/PasskeySignInButton.tsx)、
+  [apps/web/src/app/(app)/mypage/_components/RegisterPasskeyButton.tsx](<../../apps/web/src/app/(app)/mypage/_components/RegisterPasskeyButton.tsx>)）。
 - credential 管理（一覧・削除）は `auth.passkey.list()` / `.delete()` を
   使い、`auth.admin.passkey.*`（service_role 必須）は使用しません。現在の
   signed-in userの session scopeに限定されるため、通常の Server
   Component / Server Action から安全に呼べます
-  （[src/infrastructure/supabase/passkey.ts](../../src/infrastructure/supabase/passkey.ts)）。
+  （[apps/web/src/lib/actions/passkeys.ts](../../apps/web/src/lib/actions/passkeys.ts)）。
 - Passkey 未登録 user は従来どおり Magic Link でサインインできます。
   Passkey 側の失敗・credential 喪失時も Magic Link へ fallback でき、
   account lockout は発生しません。
@@ -292,10 +292,7 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
   別途設定が必要で、remote Supabase project の provisioning と同様この
   repository の merge gate には含めません。
 - WebAuthn ceremony 自体（実機の Face ID / Touch ID / Windows Hello 等）は
-  platform authenticator を要する browser 専用の API であり、このリポジトリ
-  の `test:auth`（Node の `--test` ランナーで実 HTTP リクエストを送り、
-  必要な test だけ `playwright-core` 経由の headless system Chrome を使う
-  方式 - `test/auth/support/browserPage.ts`）では自動化していません。
-  session/認可境界・Magic Link fallback・public signup 非復活は
-  [test/auth/passkey.test.ts](../../test/auth/passkey.test.ts) で自動検証
-  し、実際の WebAuthn ceremony は manual smoke 対象です。
+  platform authenticator を要する browser 専用 API です。session/認可境界・
+  Magic Link fallback・public signup 非復活は `apps/web` の Auth unit suite と
+  [apps/web/e2e/journeys/sign-in.spec.ts](../../apps/web/e2e/journeys/sign-in.spec.ts)
+  で検証し、実際の platform authenticator ceremony は manual smoke 対象です。

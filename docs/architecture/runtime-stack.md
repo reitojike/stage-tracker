@@ -122,7 +122,7 @@ Issue #394。Preview scope の値を `https://preview-disabled.invalid` へ修�
 済み — A24 を維持したまま到達不能な有効 URL にする形）。main は Production
 env で build するため、この事故は Production の実害にはならなかった。
 
-Vercel は Root Directory（`apps/legacy-web`）に基づき、**apps/web を変更しない
+Vercel は Root Directory（`apps/web`）に基づき、**runtime code を変更しない
 PR も含めて全ての PR**に Preview deployment を作る（PR #399 自身が docs-only
 にもかかわらず Preview deployment を持つことで確認済み）。したがって「`apps/web`
 を変更する PR だけ確認する」という限定はしない。PR を merge する前は、
@@ -234,7 +234,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
 
 | 変数                                                                          | 所有者 / 設定場所                                                                         | 用途                                                                                                                                                                          |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[src/infrastructure/supabase/env.ts](../../src/infrastructure/supabase/env.ts)）                                                       |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[apps/web/src/env.ts](../../apps/web/src/env.ts)）                                                                                     |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables                                         | 同上。anon key であり service role key ではない                                                                                                                               |
 | Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings                                       | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                                                                                    |
 | `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）                                         | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない                                                         |
@@ -242,7 +242,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
 
 - `NEXT_PUBLIC_*` プレフィックスの 2 変数だけが、実際にデプロイされたアプリへ
   Supabase client 値として渡る変数です
-  （[src/infrastructure/supabase/env.ts](../../src/infrastructure/supabase/env.ts)）。
+  （[apps/web/src/env.ts](../../apps/web/src/env.ts)）。
   どちらも public であることを前提に設計されています。
 - Supabase の **service role key は Vercel には一切設定されません**。
   リポジトリにもコミットされません。管理系スクリプトを手元 shell から

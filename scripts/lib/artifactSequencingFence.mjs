@@ -94,7 +94,7 @@ const ALLOWED_ALONGSIDE_PATTERNS = [
   // DB/RLS integration test。`docs/v2/decisions.md` が
   // 「PR A — Expand: migration + DB tests だけ」と定めているので、
   // migration の回帰テストは同居できなければならない
-  /^apps\/legacy-web\/test\/rls\//,
+  /^test\/rls\//,
 
   // `supabase/config.toml` / `supabase/seed.sql` は意図的に入れていない。
   // 実需が出た時点で exact path を理由付きで足す。
@@ -105,11 +105,8 @@ const ALLOWED_ALONGSIDE_PATTERNS = [
 //
 // **exact path で持つ。** suffix 一致にすると、同じ名前の手書き module を
 // 置くだけで迂回できる（PR #390 round 2 の finding）。出力先は
-// `apps/legacy-web/scripts/generate-supabase-types.mjs` が知っている 2 箇所だけ。
-const ALLOWED_ALONGSIDE_PATHS = new Set([
-  'apps/web/src/lib/data/database.types.ts',
-  'apps/legacy-web/src/infrastructure/supabase/database.types.ts',
-]);
+// `scripts/generate-supabase-types.mjs` が生成する exact path だけ。
+const ALLOWED_ALONGSIDE_PATHS = new Set(['apps/web/src/lib/data/database.types.ts']);
 
 function isAllowedAlongsideMigration(file) {
   return (

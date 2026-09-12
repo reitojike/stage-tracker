@@ -10,7 +10,7 @@ name: Verify
 # source, not just against files already committed here. `Verify / Database`
 # starts a local Supabase stack (via the `supabase` npm devDependency, using
 # ubuntu-latest's preinstalled Docker) to run the generated-types drift check
-# and the DB/RLS/client-role checks before the Auth build/browser checks
+# and the DB/RLS/client-role checks before the apps/web Auth unit checks
 # against a real local Postgres - no remote Supabase project or credentials
 # are required.
 #
@@ -31,8 +31,8 @@ name: Verify
 # step's own comment below) and excludes Supabase services no Database/RLS/Auth check
 # uses (Studio, Realtime, Storage/imgproxy, Edge Runtime,
 # Analytics/Logflare/Vector, Supavisor - Mailpit and PostgREST/GoTrue/Kong
-# stay, since test/auth's magic-link flow and every RLS/Auth request need
-# them) to reduce cold-start image pulls and container registry exposure. The
+# stay because the RLS suite and apps/web E2E use them) to reduce cold-start
+# image pulls and container registry exposure. The
 # DB group runs before the Auth group, and both are called directly from the
 # corresponding named steps below so the local aggregate and CI check sets
 # remain structurally aligned.
@@ -181,7 +181,7 @@ jobs:
       # reset` explicitly. CI skips that redundant reset here. The named
       # check steps below are the exact grouped commands composed by
       # verify:database:checks, so CI keeps the same coverage while recording
-      # DB guardrails before any Auth browser work.
+      # DB guardrails before the Auth unit slice.
       - name: Start local Supabase
         run: pnpm run verify:database:start
 

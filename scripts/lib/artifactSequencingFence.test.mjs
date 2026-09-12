@@ -19,7 +19,7 @@ describe('evaluateArtifactSequencingFence', () => {
     const r = evaluateArtifactSequencingFence([
       MIGRATION,
       'supabase/tests/11_x_test.sql',
-      'apps/legacy-web/test/rls/personalSchedule.test.ts',
+      'test/rls/personalSchedule.test.ts',
       'docs/v2/decisions.md',
     ]);
     assert.equal(r.ok, true);
@@ -133,11 +133,10 @@ describe('deploy に届く artifact は既定で拒否する', () => {
 });
 
 describe('生成 DB 型の例外', () => {
-  it('生成される 2 つの exact path だけを許可する', () => {
+  it('生成される exact path だけを許可する', () => {
     const r = evaluateArtifactSequencingFence([
       MIGRATION,
       'apps/web/src/lib/data/database.types.ts',
-      'apps/legacy-web/src/infrastructure/supabase/database.types.ts',
     ]);
     assert.equal(r.ok, true);
     assert.deepEqual(r.blocked, []);

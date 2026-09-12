@@ -192,7 +192,8 @@ gh api repos/reitojike/stage-tracker/commits/<sha>/status --jq '.state'
 ### 壊れないことを実測済み
 
 到達不能な Supabase URL でビルド・起動して確認した（2026-09-08）。
-**現在 Preview がビルドしているのは legacy 側**なので、両方を確認してある。
+この表は M8 cutover 前の実測記録です。現在の Vercel Root Directory は
+`apps/web` であり、旧 application は M9 で削除済みです。
 
 | 経路                                 | legacy               | v2                   |
 | ------------------------------------ | -------------------- | -------------------- |

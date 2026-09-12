@@ -55,13 +55,9 @@ pnpm run db:stop     # 停止
 Shared UI primitiveの examples / states は Storybook で確認できます。
 
 ```bash
-# v2 (apps/web)
 pnpm --filter @stage-tracker/web run storybook         # http://localhost:6007
 
-# legacy (apps/legacy-web)
-pnpm --filter @stage-tracker/legacy-web run storybook  # http://localhost:6006
-
-# 両パッケージの static build
+# workspace の static build
 pnpm run build-storybook
 ```
 
@@ -84,7 +80,7 @@ Auth層のどちらが failed したかを個別に確認できます。
 
 - `pnpm run verify:code` — `format:check` / `lint` / `typecheck` /
   `test:unit` / `foundation:check` (generated adapter と Foundation-managed
-  quality profile のdrift 検知) / `agent-rules:check` /
+  quality profile のdrift 検知) / `agent-rules:check` / `legacy:check` /
   `supabase:migrations:check`。いずれも local Supabase runtimeを必要としない
   deterministic checkです。
 - `pnpm run verify:build` — `build` / `build-storybook`（component catalogの
@@ -93,21 +89,15 @@ Auth層のどちらが failed したかを個別に確認できます。
 - `pnpm run verify:database` — local Supabaseを起動・resetした上で、
   `verify:database:checks` を実行します。これは先に DB層の
   `supabase:types:check` / `test:rls` / `client-role-privileges:check` を
-  `verify:database:db-checks` として、続けて `build:auth-app` /
-  `test:auth` を `verify:database:auth-checks` として実行する構成です。
+  `verify:database:db-checks` として、続けて `apps/web` の Auth unit suite を
+  `verify:database:auth-checks` として実行する構成です。
   generated database typesのexact drift、DB/RLS test、および`anon` /
   `authenticated` / `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`
   残存privilegeを検知するclient-role table privilege guardrailを含みます。
   remote Supabase projectやremote credentialsは不要です。
-  Docker が起動していない場合、このステップで失敗します。`test:auth` の
-  browser test は `playwright-core`（devDependency）で **system Google
-  Chrome** を headless 起動します（Issue #277）。browser binary の
-  download（`npx playwright install`）は行わないため、local では Google
-  Chrome のインストール、または `CHROME_PATH` で明示した Chrome/Chromium
-  binary が必要です（GitHub Actions の ubuntu-latest には preinstalled）。
-  Chrome が見つからない場合のエラーには探索した path と上記の解決方法が
-  含まれます。起動は
-  `verify:database:start`（Database/RLS/Auth checksが使わないStudio/
+  Docker が起動していない場合、このステップで失敗します。real browser の
+  Auth / journey coverage は独立した `verify:e2e` が担います。
+  Supabase の起動は `verify:database:start`（Database/RLS/Auth checksが使わないStudio/
   Realtime/Storage等のservice - `supabase:start --exclude`の対象 - を
   除いたもの）です。checkは`verify:database:checks`が
   `verify:database:db-checks`と`verify:database:auth-checks`を合成しており、

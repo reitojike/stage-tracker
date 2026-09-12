@@ -16,11 +16,7 @@ const baseURL = `http://localhost:${PORT}`;
  * `NEXT_PUBLIC_*` values must be real at *build* time too, not only at
  * runtime: Next.js substitutes `NEXT_PUBLIC_*` into client bundles during
  * `next build` (server code reads them from `process.env` at request time
- * instead) - see
- * `apps/legacy-web/scripts/build-app-for-auth-tests.mjs`'s header comment,
- * read for this Task's design (not imported - `apps/legacy-web/**` is out
- * of scope for `apps/web` to depend on), which verified this against the
- * same Next.js line this repo runs. Reading the local stack's status once
+ * instead). Reading the local stack's status once
  * here and passing it into `webServer.env` covers both build and start,
  * since `next build && next start` runs as one process inheriting the same
  * env.

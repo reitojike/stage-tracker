@@ -1,16 +1,18 @@
-# stage-tracker v2
+# stage-tracker 再構築記録
 
-現行 stage-tracker を段階的に置き換える greenfield 実装の計画と決定記録。
+stage-tracker を greenfield 実装へ置き換えた計画と決定の記録です。M8 の
+Production cutover は 2026-09-12 に closure を確認し、M9 で旧アプリを削除しました。
+現在の application runtime は `apps/web` だけです。
 
 ## 方針
 
-同一リポジトリ内で v2 を新規構築し、現行実装を `apps/legacy-web` として
-移行期間だけ並走させる。product semantics / データ / Auth identity /
-GitHub history を引き継ぎ、implementation は白紙から作り直す。
+同一リポジトリ内で新実装を構築し、移行期間だけ旧実装と並走させました。
+product semantics / データ / Auth identity / GitHub history を引き継ぎ、
+implementation は白紙から作り直しています。
 
-現行コードは **移植元ではなく oracle**（正しい振る舞いを確認する対象）
-として扱う。`docs/v2/oracle-*.md` がその仕様化であり、v2 実装者は
-oracle ドキュメントだけを見て再実装する。
+旧コードは **移植元ではなく oracle**（正しい振る舞いを確認する対象）として
+扱いました。削除後も `docs/v2/oracle-*.md` と Issue / PR が移行判断の durable
+evidence です。これらは current runtime の仕様ではなく、再構築時の履歴です。
 
 ## 引き継ぐもの / 捨てるもの
 
@@ -52,8 +54,7 @@ Supabase を SQL migration + RLS + generated types のまま維持するのは�
 
 ```
 apps/
-  web/            v2 本体
-  legacy-web/     移行期間のみ。完了後に削除
+  web/            application 本体
 packages/
   domain/         Zod schema / pure logic
   ui/             design token + shadcn ベースの共有 UI
@@ -74,24 +75,25 @@ supabase/         migrations / pgTAP（共有）
 | 5   | UI 再構築                                                                           | Storybook + a11y                               |
 | 6   | 画面統合 + E2E                                                                      | Playwright green                               |
 | 7   | release contract（artifact sequencing fence / Preview 隔離）                        | fence が同居を拒否する                         |
-| 8   | 並行検証 → cutover 判断                                                             | 停止して報告                                   |
-| 9   | legacy 削除 + 構成の最終化                                                          | clean-repo equivalence check                   |
+| 8   | 並行検証 → cutover 判断                                                             | 完了（Issue #373 / #391）                      |
+| 9   | legacy 削除 + 構成の最終化                                                          | 完了（legacy dependency audit + Verify）       |
 
-## 不変ルール（Milestone 1 以降、機械で強制する）
+## 再構築時の不変ルール
 
-1. `apps/web` と `packages/*` は `apps/legacy-web` から **import してはならない**。
-   legacy は実行して結果を比較する対象であり、コードの参照先ではない。
-   ESLint / CI で強制する。
+1. 移行中、`apps/web` と `packages/*` は旧アプリから import しない。M9 では
+   directory の不存在と active tooling / config の legacy 非依存を
+   `pnpm run legacy:check` で強制する。
 2. oracle ドキュメントに記載のない振る舞いを推測で実装しない。
    不明点は oracle を更新してから実装する。
-3. Milestone 1 完了時点で、リポジトリ root に legacy 由来のファイルを残さない。
-4. Milestone 9 の受け入れ条件は、ゼロから組んだ scaffold とのファイルツリー比較で
-   legacy 由来の残骸がないこと。
+3. Operational asset は application package に所有させず、root の `scripts/` と
+   `test/rls/` に置く。
+4. 過去の path を引用する oracle / migration evidence は履歴として残せるが、
+   runtime / scripts / tests / config の依存先にはしない。
 
-## 未決事項
+## M9 の構成判断
 
-- `packages/*` が価値を出しているかを Milestone 8 で評価し、出していなければ
-  `apps/web` を root へ引き上げて単一 app 構成へ戻す（monorepo は手段であって目的ではない）
-- Supabase remote project は新規作成する。それまで CI/CD 層は未接続で実装のみ進める
-- 外部 SaaS（Sentry / PostHog / Trigger.dev / Resend）は配線コードのみ用意し、
-  key 未設定の状態で停止する
+`packages/domain` は I/O 非依存の product invariant と ticket timeline logic を、
+`packages/ui` は application shell / navigation 等の UI primitive と dependency
+direction を所有しており、いずれも `apps/web` から現に利用されています。単なる将来用の
+空 package ではないため維持します。legacy dependency の全 inventory と解消結果は
+`docs/v2/legacy-dependency-audit.md` を正本とします。
