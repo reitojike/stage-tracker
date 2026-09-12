@@ -1,7 +1,14 @@
-# v2 / legacy 意図的差分 inventory
+# v2 / legacy 意図的差分 inventory — preflight and final closure
 
 Canonical Task Contract: Issue #391（v2 M8: legacy と並走検証し、差分を分類しきる）
-の「着手できる単位」1 を対象とします。
+の「着手できる単位」1 を対象とする preflight inventory です。
+
+## 状態の分離
+
+この文書の上段は、並走比較前に作成した **preflight inventory** です。そこに
+記録された「既知の v2 不具合」や初期分類は、修正前の観測履歴として保持します。
+現在の判定は、末尾の **final closure state** と
+[`m8-journey-comparison.md`](./m8-journey-comparison.md) の final summary を正とします。
 
 ## 目的とスコープ
 
@@ -47,13 +54,14 @@ personalSchedule.ts` は既に `title`/`blocking` へ移行済みで、
 理由で inventory item にはしない。**両アプリの実ソースを読み、実際に現在
 挙動が異なると確認できたものだけ**を below に記載する。
 
-## 出典についての注記
+## Preflight 出典についての注記
 
 Issue #391 の Acceptance Criteria は「各項目が `docs/v2/decisions.md` の
 該当箇所を参照している」ことを求める。この AC が対象とする「意図的な
 v2/legacy 差分」は下記「意図した差分（実コードで確認済み）」節の項目
-（P3、P4）であり、これらはすべて `docs/v2/decisions.md` を直接 citation
-できる。
+（preflight 時点では P3、P4）であり、これらは `docs/v2/decisions.md` を
+直接 citation できる。P4 は final reverse audit で legacy の不具合を v2 が
+正した class 3 へ reconcile した。
 
 下記「既知の v2 不具合」節は AC が求める「意図的差分」ではなく（不具合は
 意図していない）、この AC の citation 要件の対象外である。その節の項目は
@@ -62,7 +70,7 @@ v2/legacy 差分」は下記「意図した差分（実コードで確認済み�
 
 ---
 
-## 意図した差分（実コードで確認済み）
+## Preflight: 意図した差分（実コードで確認済み）
 
 ### 1. Invitation の decline が「8 秒タイマーでの確定」から「確認ダイアログ + 即時 hard delete（undo 無し）」へ変わった
 
@@ -95,7 +103,7 @@ InvitationList.tsx` は `{ kind: "confirm-decline" }` phase を持つ。
   （legacyの不具合をv2が正したもの）としても記録すること。
 - **確信度**: CLEAR（両アプリの実装ファイルで確認済み）。
 
-### 2. Calendar（`/calendar`）のエラー表示が「単一の集約エラー」から「read ごとに独立した劣化」へ変わった
+### 2. Calendar（`/calendar`）のエラー表示が「単一の集約エラー」から「read ごとに独立した劣化」へ変わった（final class 3）
 
 - **legacy（現状）**: `apps/legacy-web/src/app/calendar/page.tsx`
   （94-111 行目付近）は participations の読み取りと personal schedule の
@@ -116,21 +124,25 @@ InvitationList.tsx` は `{ kind: "confirm-decline" }` phase を持つ。
 - **確信度**: CLEAR（両アプリの実装ファイルで確認済み、v2 側は該当箇所に
   この差分を明記するコメントを持つ）。
 
+- **Final reconciliation**: P4 は「複数 read の失敗を単一の汎用エラーへ縮退
+  させる」挙動を採用しないと明記しているため、これは意図した差分ではなく、
+  legacy の不具合を v2 が正した **class 3（最終1件）** として扱う。
+
 ---
 
-## 既知の v2 不具合（並走比較を待たず分類 2 として先に記録するもの）
+## Preflight: 既知の v2 不具合（並走比較を待たず分類 2 として先に記録するもの）
 
 以下は「意図した差分」ではなく、oracle が要求する挙動から v2 が外れている
 ことを実コードで確認済みの項目。Issue #391 の分類定義（「2. v2 の不具合 —
 本 inventory に無い、oracle からも外れた差分」）に従い、並走比較で改めて
 発見されるのを待たず、この時点で分類 2 として記録する。
 
-### 3. Ticket opportunity の planning state 書き込み UI が v2 にまだ無い
+### 3. Ticket opportunity の planning state 書き込み UI が v2 にまだ無い（historical class 2、#403 でfixed）
 
 - **legacy（現状）**: `apps/legacy-web/src/app/tickets/_components/
 TicketOpportunityStateControls.tsx` により `planned`/`applied`/解除の
   書き込みができる。
-- **v2（現状）**: `apps/web/src/app/(app)/tickets/_components/
+- **v2（preflight 時点）**: `apps/web/src/app/(app)/tickets/_components/
 TicketsView.tsx` は同じデータモデル（`TicketOpportunityTimelineRow`、
   `planned`/`applied` の 2 値）を読み取り表示するが、
   `updateTicketOpportunityStateAction` 相当の書き込み操作が実装されて
@@ -138,16 +150,17 @@ TicketsView.tsx` は同じデータモデル（`TicketOpportunityTimelineRow`、
   controls を要求しているため、これは意図的な設計判断ではなく **oracle
   から外れた v2 の不具合（分類 2）**である。
 - **journey**: ticket opportunity。
-- **今後**: この screen が実装されれば本項目は inventory から消える。
+- **Final status**: historical class 2。PR #403 で write UI、WriteNotice、post-final
+  suppression を実装し、current main へ merge 済み。
 
-### 4. Catalog filter の group/venue option が v2 では genre 非依存になっている
+### 4. Catalog filter の group/venue option が v2 では genre 非依存になっている（historical class 2、#402 でfixed）
 
 - **legacy（現状）**: `apps/legacy-web/src/app/catalog/_lib/
 catalogFilterData.ts` は genre ごとに
   `listCatalogGroupOptions(client, genre.id)` /
   `listCatalogVenueOptions(client, genre.id)` を呼び、その genre に
   associate された group/venue だけを option として返す。
-- **v2（現状）**: `apps/web/src/app/(app)/catalog/_lib/catalog-loader.ts`
+- **v2（preflight 時点）**: `apps/web/src/app/(app)/catalog/_lib/catalog-loader.ts`
   は genre を引数に取らない `listCatalogGroups(supabase)` /
   `listCatalogVenues(supabase)` を呼び、catalog 全体（全 genre 横断）の
   group/venue を option として返す。複数 genre のデータが存在する場合、
@@ -157,7 +170,8 @@ catalogFilterData.ts` は genre ごとに
   から外れているため、これは presentational な差ではなく **v2 の不具合
   （分類 2）**である。
 - **journey**: catalog。
-- **今後**: この不具合が修正されれば本項目は inventory から消える。
+- **Final status**: historical class 2。PR #402 で genre-scoped join、pagination、
+  stale selection guard を修正し、current main へ merge 済み。
 
 ---
 
@@ -226,9 +240,29 @@ offline scope、Web Push の product scope、MCP product scope）は、legacy・
 いずれにも実装が存在しないか、determination 自体が先送りされているため、
 並走比較の対象にならない。
 
-## この inventory の運用上の注意
+## Final closure state（current composed main）
 
-本 inventory は**時点のスナップショット**である。並走比較を実施する時点で、
-上記「既知の v2 不具合」（項目 3・4）が解消されている可能性があるため、
-実施直前に該当箇所のソースを再確認すること。同様に、legacy・v2 いずれかに
-新しい変更が入った場合、この inventory 自体の再検証が必要になる。
+final audited main は
+`0ff3359900c86a17fc518e26f6bca77ab5b2a49d`。preflight inventory の項目3・4は
+それぞれ #403 / #402 で fixed、Calendar / P4 は意図した差分から class 3 へ
+reconcile された。最終的な分類は次のとおり。
+
+| classification                       | count | state                                  |
+| ------------------------------------ | ----: | -------------------------------------- |
+| class 1 — intentional divergence     |     4 | final journey comparison に記録済み    |
+| class 3 — legacy bug corrected by v2 |     1 | Calendar の P4 independent degradation |
+| historical class 2 — v2 bug          |    13 | #402〜#413 で全件 fixed                |
+| unclassified                         |     0 | なし                                   |
+| unresolved class 2                   |     0 | なし                                   |
+
+Final journey comparison と reverse audit の詳細は
+[`m8-journey-comparison.md`](./m8-journey-comparison.md) および [Issue #391 final
+reverse audit comment 5629034406](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5629034406)
+を参照する。#420〜#424 の Sheet recovery 後も新規差分はなく、最新の targeted
+Sheet / interaction audit は [comment 5644265444](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5644265444)
+で **SHEET / INTERACTION CLEAR — GO FOR M8 CLOSURE DOC** と判定されている。
+
+この inventory は preflight の証跡を保持する。現在の closure 判定や後続の M9
+判断では、必ず上記 final closure state と journey comparison の final summary を
+使用する。M9 cutover、Vercel Root Directory、Production deployment、#391 AC の
+更新・close はこの文書の scope 外であり、実行していない。
