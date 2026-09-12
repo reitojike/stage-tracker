@@ -19,6 +19,7 @@ import {
   scheduleEntryDatesInRange,
   selectCalendarOccurrenceItems,
   selectCalendarMonthScheduleGroups,
+  selectCalendarScheduleItems,
 } from "./calendar-view-model";
 
 const USER_ID = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
@@ -284,6 +285,13 @@ describe("My Calendar schedule date projection", () => {
       earlier.entry.id,
       later.entry.id,
     ]);
+    expect(
+      selectCalendarScheduleItems(
+        scheduleIndex([later, earlier]),
+        USER_ID,
+        DATE("2026-03-05"),
+      ).map((item) => item.entry.id),
+    ).toEqual([earlier.entry.id, later.entry.id]);
   });
 
   it("keeps single-day and multi-day all-day ranges inclusive", () => {

@@ -215,10 +215,12 @@ export function selectCalendarScheduleItems(
   callerId: UserId,
   date: TokyoCalendarDate,
 ): readonly CalendarScheduleViewItem[] {
-  return uniqueScheduleItems(index.byDate.get(date) ?? []).map((item) => ({
-    entry: item.entry,
-    isOwner: item.entry.ownerId === callerId,
-  }));
+  return uniqueScheduleItems(index.byDate.get(date) ?? [])
+    .map((item) => ({
+      entry: item.entry,
+      isOwner: item.entry.ownerId === callerId,
+    }))
+    .sort(compareScheduleViewItems);
 }
 
 function activeOccurrenceItems(

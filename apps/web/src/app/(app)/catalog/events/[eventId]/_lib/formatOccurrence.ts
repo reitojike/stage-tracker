@@ -28,7 +28,16 @@ export function formatOccurrenceDoors(occurrence: Occurrence): string | null {
   if (occurrence.doorsAt === null) {
     return null;
   }
-  return `開場 ${formatTokyoTime(occurrence.doorsAt)}`;
+  const startDate = instantToTokyoCalendarDate(occurrence.startsAt);
+  const doorsDate = instantToTokyoCalendarDate(occurrence.doorsAt);
+  const time = formatTokyoTime(occurrence.doorsAt);
+  if (doorsDate === startDate) {
+    return `開場 ${time}`;
+  }
+  if (doorsDate === addDays(startDate, -1)) {
+    return `開場 ${time}（前日）`;
+  }
+  return `開場 ${formatTokyoCalendarDateJa(doorsDate)} ${time}`;
 }
 
 /** endsAt が null の場合は null（終演時刻不明を正当な状態として扱う）。 */
