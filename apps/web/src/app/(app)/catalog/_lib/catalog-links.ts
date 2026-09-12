@@ -10,7 +10,7 @@ import {
  * §2.10 "Catalog navigation"). Kept local to this feature (unlike
  * `@/app/_lib/calendar-grid.ts`'s date math) since the destination paths
  * (`/catalog`, `/catalog/events/[id]`) are `/catalog`-specific, mirroring
- * `apps/legacy-web/src/domain/catalogNavigation.ts`'s own href helpers.
+ * the M8 catalog-navigation oracle's href helpers.
  */
 
 export function catalogMonthHref(month: TokyoYearMonth): string {

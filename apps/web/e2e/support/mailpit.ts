@@ -5,9 +5,7 @@ import { readLocalSupabaseStatus } from "./localSupabase";
  * email the app's real `/sign-in` -> `signInWithOtp` path sends, and reads
  * the `token_hash`/`type` pair out of the `/auth/confirm` link it contains.
  *
- * Design mirrors `apps/legacy-web/test/auth/support/mailpit.ts` (read for
- * this Task, not imported - `apps/legacy-web/**` is out of scope for
- * `apps/web` to depend on): this repository's E2E auth journey must hit the
+ * This repository's E2E auth journey must hit the
  * app's own `/auth/confirm` route with a real token, never a Supabase SDK
  * session shortcut, because the cookie-issuing route itself is part of what
  * this suite verifies.

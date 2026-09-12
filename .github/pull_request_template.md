@@ -22,8 +22,8 @@ migration を含む PR で同居してよいのは次だけです。それ以外
   supabase/migrations/**               migration 本体
   supabase/tests/**                    pgTAP
   docs/**                              文書
-  apps/legacy-web/test/rls/**          DB/RLS integration test
-  生成された database.types.ts 2 file  exact path のみ
+  test/rls/**                          DB/RLS integration test
+  apps/web/src/lib/data/database.types.ts  生成された exact path
 
 supabase/ を丸ごと許可はしません。supabase/functions/** は
 `supabase functions deploy` で実際に deploy されるため、また

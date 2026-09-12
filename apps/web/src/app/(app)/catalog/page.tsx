@@ -64,7 +64,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   // from adjacent months the month calendar renders - `MonthCalendar.tsx`),
   // not just the calendar month itself - matching legacy's own
   // `tokyoCalendarDateRangeUtc(grid.gridFirstDate, grid.gridLastDate)`
-  // (`apps/legacy-web/src/app/catalog/page.tsx`) and this app's own
+  // from the M8 oracle and this app's own
   // `/calendar` (`(app)/calendar/page.tsx`'s `gridStart`/`gridEnd`). Without
   // this, a lead/trail cell's band/dot would always render empty even when
   // an adjacent-month Event's range actually covers that date.

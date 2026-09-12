@@ -33,9 +33,7 @@ function globToRegExp(glob) {
  * only visits `ImportDeclaration` / `ExportNamedDeclaration` /
  * `ExportAllDeclaration` - it never inspects `ImportExpression`, so
  * `import("../../../apps/web/src/...")` resolves fine at the TypeScript
- * level yet slips past the static boundary check entirely. Mirrors the
- * dynamic-import guard apps/legacy-web/eslint.config.mjs already carries
- * for its own (different) import boundary.
+ * level yet slips past the static boundary check entirely.
  */
 const noDynamicAppsWebImport = {
   meta: {

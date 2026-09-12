@@ -33,9 +33,8 @@ export interface SelectedDayListProps {
 }
 
 /**
- * The full-detail escape hatch for one selected day, ported from
- * `apps/legacy-web/src/app/catalog/_components/{SelectedDayList,
- * EventLevelFallbackList}.tsx` (`docs/v2/oracle-domain.md` §2.9). Combined
+ * The full-detail escape hatch for one selected day, ported from the M8
+ * oracle (`docs/v2/oracle-domain.md` §2.9). Combined
  * into a single component (rather than 2, like legacy) since both sections are
  * always about the same selected `date` and this Task's scope only calls
  * for "a selected-day list showing that day's events" as one surface.

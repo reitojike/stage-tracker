@@ -60,8 +60,8 @@ const UNKNOWN_END_TIME_LABEL = "終了時刻未定";
 const NEXT_DAY_SUFFIX = "（翌日）";
 
 /**
- * Ported from `apps/legacy-web/src/domain/catalogFormatting.ts`'s
- * `occurrenceTimeRangeLabel` (codex review 指摘: `/catalog` の選択日一覧が
+ * Ported from the M8 oracle's `occurrenceTimeRangeLabel` (codex review
+ * 指摘: `/catalog` の選択日一覧が
  * 開始時刻しか表示せず、終了時刻の有無・翌日終了を区別できなかった修正）。
  *
  * 終演時刻は不明な場合があり、未設定を正当な状態として扱う

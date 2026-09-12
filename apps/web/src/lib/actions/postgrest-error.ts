@@ -13,8 +13,7 @@ import { ActionError } from "@/lib/action-error";
  * 一切行わない**（AGENTS.md 制約「エラー分類は message 文字列マッチで
  * 行わない（A8）」）。
  *
- * `apps/legacy-web/src/domain/eventCatalogWrite.ts` の
- * `classifyWriteError` と同じ SQLSTATE 集合を採用するが、共通の
+ * M8 oracle の `classifyWriteError` と同じ SQLSTATE 集合を採用するが、共通の
  * `ActionErrorShape` 語彙（`@/lib/action-error.ts` の
  * `BaseActionErrorKind`）を基底にして拡張する（A9: 語彙の統一）。
  *

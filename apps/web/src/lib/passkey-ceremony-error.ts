@@ -7,9 +7,8 @@
  * #406） - v2 はこれまで WebAuthn ceremony の失敗理由を分類せず、常に
  * 単一の汎用メッセージを表示していた。
  *
- * `apps/legacy-web/src/domain/passkey.ts` の `classifyCeremonyError`/
- * `REGISTER_FEEDBACK`/`SIGN_IN_FEEDBACK` と同じ SQLSTATE 集合・同じ文言を、
- * v2 側で（legacy import 禁止のため）再実装したもの
+ * M8 oracle の `classifyCeremonyError` / `REGISTER_FEEDBACK` /
+ * `SIGN_IN_FEEDBACK` と同じ SQLSTATE 集合・同じ文言を再実装したもの
  * （`apps/web/src/app/(app)/mypage/_data/passkeyDisplay.ts` と同じ理由）。
  *
  * `AuthError`/`WebAuthnError` は構造的にこの interface を満たすため、

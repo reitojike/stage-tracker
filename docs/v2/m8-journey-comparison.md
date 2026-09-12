@@ -22,7 +22,7 @@ m8-difference-inventory.md`（Issue #391 着手できる単位 1、PR #401）と
 
 - operator 環境の Docker 上で `apps/legacy-web`（port 3000）と `apps/web`
   （port 3001）を同一 local Supabase に対して同時起動（`docs/runbooks/
-v2-parallel-verification.md`）。
+  Issue #391 の並走検証 evidence）。並走用 runbook は M9 で役割を終え、削除済みです。
 - 2 名の test user（m8-userA@example.com が catalog creator、
   m8-userB@example.com は非 creator）と、両アプリ共有の test event/
   occurrence/ticket opportunity を作成し、同一データに対して両アプリの

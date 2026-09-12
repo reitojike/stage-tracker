@@ -7,8 +7,8 @@ import {
 } from "./japanese-holidays";
 
 /**
- * Weekday / Japanese-holiday calendar presentation role, ported from
- * `apps/legacy-web/src/domain/calendarDayRole.ts`
+ * Weekday / Japanese-holiday calendar presentation role, ported from the
+ * M8 calendar-day-role oracle
  * (`docs/v2/oracle-domain.md` §2.11 "Calendar day role (曜日・祝日表示)").
  *
  * This is a *global* month-calendar rule, not `/catalog`-specific - kept in

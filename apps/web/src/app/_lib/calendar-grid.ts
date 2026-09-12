@@ -69,8 +69,7 @@ export function parseDateParam(
 
 /** The month/selected-day pair `/calendar` renders, resolved from a
  * possibly missing/malformed `month`/`date` search param pair (contract:
- * legacy `resolveCatalogParams`/`resolveMyCalendarParams` in
- * `apps/legacy-web/src/domain/catalogNavigation.ts`, reused verbatim by
+ * M8 `resolveCatalogParams`/`resolveMyCalendarParams`, reused verbatim by
  * `/calendar` there). A valid `date` always wins for the displayed month -
  * a `month` param that disagreed with it would otherwise let the grid and
  * the selected-day section drift onto different months. Only when `date`

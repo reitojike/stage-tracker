@@ -13,8 +13,8 @@ const PAGE_SIZE = 500;
  * 報告する総数に達するまで読み続ける。「返ってきたページが要求した
  * `PAGE_SIZE` より短かった = 最後のページ」という仮定は使わない - それは
  * `max_rows` が `PAGE_SIZE` 未満に設定された場合に破綻し、この関数が防ごう
- * としている truncation を静かに再導入する（`apps/legacy-web/src/
- * infrastructure/supabase/pagedFetch.ts` の `fetchAllRows` と同じ設計）。
+ * としている truncation を静かに再導入する（M8 oracle の
+ * `fetchAllRows` と同じ設計）。
  *
  * `queryPage` は毎回 `{ count: "exact" }` を指定した query を渡すこと
  * （指定が無いと `count` が常に `null` になり、この関数は truncation を

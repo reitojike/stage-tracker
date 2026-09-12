@@ -3,10 +3,8 @@ import { execFileSync } from "node:child_process";
 /**
  * Local Supabase connection info this E2E suite needs. Read from the CLI
  * (`supabase status -o json`) rather than hard-coded, so the suite stays
- * correct if the CLI's local demo credentials ever change - mirrors
- * `apps/legacy-web/test/rls/support/localSupabase.ts` (read for this
- * Task's design, not imported: `apps/legacy-web/**` is out of scope for
- * `apps/web` to depend on).
+ * correct if the CLI's local demo credentials ever change. This helper is
+ * owned by the current Playwright suite and has no application dependency.
  */
 export interface LocalSupabaseStatus {
   readonly apiUrl: string;
@@ -57,9 +55,8 @@ function readMailpitUrl(parsed: object): string {
 /**
  * `supabase status` is not safe to run concurrently (it rewrites the CLI's
  * own telemetry file through a temp-file-plus-rename, and concurrent
- * invocations can lose that race - see the equivalent comment in
- * `apps/legacy-web/test/rls/support/localSupabase.ts`, which observed this
- * directly). This suite runs with a single Playwright worker (see
+ * invocations can lose that race (observed while establishing the M8 test
+ * harness). This suite runs with a single Playwright worker (see
  * `playwright.config.ts`), but the main process (resolving `webServer.env`)
  * and the worker process both call this at startup, so the same bounded
  * retry is worth keeping here too.

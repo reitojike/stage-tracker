@@ -17,7 +17,7 @@ import {
  * m8-journey-comparison.md`）で確定した分類2の不具合の修正 - v2 は
  * これまで全 operation を単一の汎用メッセージへ collapse していた。
  *
- * `apps/legacy-web/src/domain/eventWriteFeedback.ts` と同じ文言を、v2 の
+ * M8 oracle の Event write feedback と同じ文言を、v2 の
  * `ActionError`（`{kind, message}` の単一 message field。legacy の
  * `{variant, title, description}` の 2 field 構造とは異なる - v2 の
  * write form は `StatePanel` ではなく単一の `<p role="alert">` で

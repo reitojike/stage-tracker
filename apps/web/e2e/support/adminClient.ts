@@ -9,9 +9,7 @@ import { readLocalSupabaseStatus } from "./localSupabase";
  * through the real app UI; this client exists solely because public
  * signup is disabled (`supabase/config.toml` `enable_signup = false`), so
  * admin-provisioning is the only way to create an account for a journey to
- * sign in with (mirrors `apps/legacy-web/scripts/provision-user.mjs` /
- * `apps/legacy-web/test/auth/support/authActors.ts`, read for this Task's
- * design, not imported), and it seeds shared-catalog rows (Event/
+ * sign in with. It also seeds shared-catalog rows (Event/
  * Occurrence) directly for journeys whose subject is *not* Event creation
  * itself (participation/invitation) so each journey stays self-contained
  * instead of depending on another journey's writes.
@@ -66,9 +64,8 @@ export async function deleteActor(
 
 /**
  * Grants designated catalog creator membership (product-rules.md "MVP
- * Event catalog write boundary") the same way
- * `apps/legacy-web/scripts/grant-catalog-creator.mjs` does operationally:
- * an upsert into `public.catalog_creators`, never a hard-coded user id.
+ * Event catalog write boundary"): an upsert into
+ * `public.catalog_creators`, never a hard-coded user id.
  */
 export async function grantCatalogCreator(
   admin: SupabaseClient<Database>,

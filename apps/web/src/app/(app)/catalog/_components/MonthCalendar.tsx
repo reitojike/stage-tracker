@@ -48,8 +48,7 @@ function monthLabel(month: TokyoYearMonth): string {
 }
 
 /**
- * `/catalog`'s month calendar grid, ported from
- * `apps/legacy-web/src/app/catalog/_components/MonthCalendar.tsx`
+ * `/catalog`'s month calendar grid, ported from the M8 oracle
  * (`docs/v2/oracle-domain.md` §2.9/§2.10/§2.11). Renders multi-day Event
  * bands (capped at `MAX_BAND_LANES` lanes/week, with a per-week overflow
  * summary), single-day Event dot/count badges, weekday/holiday role

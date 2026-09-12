@@ -325,8 +325,8 @@ export function CatalogView({
   // 潰しており、空月ではカレンダー自体・絞り込みUI・選択日一覧まで消えて
   // いた。legacy の `CatalogView.tsx` は `isEmptyRange` を「カレンダーは
   // 描画するが月レベルの空メッセージを追加する」フラグとしてのみ使う -
-  // `apps/legacy-web/src/app/catalog/page.tsx`「A failed catalog read
-  // leaves nothing to filter」コメント参照）。
+  // M8 oracle の「A failed catalog read leaves nothing to filter」
+  // コメント参照）。
   const isRawEmpty = eventsState.variant === "empty";
   // legacy の `isFilteredZero` 定義そのまま: raw range が既に空の場合は
   // （上の月レベル空メッセージと二重にならないよう）除外し、絞り込みが
