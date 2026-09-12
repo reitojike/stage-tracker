@@ -1,10 +1,22 @@
-# M8 主要 journey 並走比較
+# M8 主要 journey 並走比較 — final closure state
 
 Canonical Task Contract: Issue #391 の Acceptance Criteria 3〜6（主要 user
 journey の並走比較、観測した差分の分類、分類2/3 の記録）。`docs/v2/
 m8-difference-inventory.md`（Issue #391 着手できる単位 1、PR #401）とは
 別の作業単位で、こちらは実際に両アプリを起動して journey ごとに実データで
 比較した記録です。
+
+## 状態の読み方
+
+本書は、M8 の初期比較で得た **preflight** 記録と、その後の修正・再監査を
+反映した **final closure** 記録を分けて保持する。preflight の観測は、後続の
+修正前の状態を説明する履歴であり、現在の product gap を意味しない。現在の
+判定は、下記の final closure と、そこから参照する current main の証跡を正とする。
+
+- final audited main: `0ff3359900c86a17fc518e26f6bca77ab5b2a49d`
+- final reverse audit: [Issue #391 comment 5629034406](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5629034406)
+- final targeted Sheet / interaction audit: [Issue #391 comment 5644265444](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5644265444)
+- Sheet authority sync: [PR #429](https://github.com/reitojike/stage-tracker/pull/429)（#424、merged into the audited main）
 
 ## 方法
 
@@ -34,13 +46,13 @@ v2-parallel-verification.md`）。
 
 ## Journey: Catalog 閲覧
 
-| 項目                                                | Oracle                                                                                                                                       | Legacy (observed)                                                                                                                                 | v2 (observed)                                                                                                              | Difference                               | Classification                                                                                                                                                                                                                    | Evidence                                                                                                                                                                                                                                                                                                                       |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| genre/group/venue 分類表示                          | AGENTS.md「Catalog classification / venue boundary」: event の genre/group/venue を catalog 一覧に表示する                                   | 表示される                                                                                                                                        | 表示される                                                                                                                 | なし                                     | parity確認済み                                                                                                                                                                                                                    | 同一 test event（id `6f7a5dce-...`, genre=takarazuka, group=星組, venue=東京宝塚劇場）を両アプリの `/catalog?month=2026-09` で取得し、いずれも `M8並走比較_宝塚公演`／`宝塚`／`星組`／`東京宝塚劇場` を含むことを確認（`curl -b userA-cookies http://localhost:3000\|3001/catalog?month=2026-09`）                             |
-| group/venue filter option の genre スコープ         | AGENTS.md「Group」: 「この genre に関連する group は、その genre の Event に実際に associate されている group から動的に導出する」           | 常に genre スコープ実装済み（`catalogFilterData.ts` の `listCatalogGroupOptions(client, genre.id)`）                                              | **修正前は genre 非依存の flat list**（`listCatalogGroups`/`listCatalogVenues` が genre 引数を取らなかった）               | legacy ≠ v2（修正前）、v2 は oracle 未達 | 分類2（**修正済み、PR #402 で対応**。genre スコープの `event_groups` join + pagination 対応済み）                                                                                                                                 | `docs/v2/m8-difference-inventory.md`（PR #401）item 4 で確定 → PR #402 で修正・merge 済み（`apps/web/src/lib/data/reads/catalog.ts` の `listCatalogGroups`/`listCatalogVenues`）                                                                                                                                               |
-| Calendar（`/calendar`）の read 失敗時の劣化粒度     | `docs/v2/decisions.md` P4: 「read ごとに独立して劣化」へ統一し、「複数 read の失敗を単一の汎用エラーへ縮退させる」挙動は**採用しない**と明記 | **不採用と明記された挙動のまま**: `participationsResult`/`scheduleResult` のどちらかが失敗すると `firstError` へ縮退し、単一の error panel を返す | P4 どおり `classifyBlock1` で participation/schedule を独立した `BlockState` として扱う（コード comment も P4 を直接引用） | legacy ≠ oracle(P4)、v2 = oracle(P4)     | **分類3**（legacy の不具合を v2 が正した。旧 #401 inventory では「分類1（意図した差分）」としていたが、P4 の文言「不採用」は legacy の挙動を明示的に is-now-incorrect と位置づけているため、本比較ではより正確な分類3へ訂正する） | `docs/v2/decisions.md` P4 全文、`apps/legacy-web/src/app/calendar/page.tsx:94-112`（`firstError` への縮退を実装するコード）、`apps/web/src/app/(app)/calendar/_lib/calendar-loader.ts:13-129`（`classifyBlock1` を participation/schedule それぞれに独立適用、コード comment が P4 を引用）                                    |
-| 0-occurrence event の Event range 表示（Issue #87） | AGENTS.md「Event 開催期間（Event range）」: 0件の公演回を持つ event も、開催期間が catalog 期間と重なれば表示する                            | 表示される                                                                                                                                        | 表示される                                                                                                                 | なし                                     | parity確認済み                                                                                                                                                                                                                    | 公演回0件・genre未分類の test event（id `717bcbd2-...`, starts_on=2026-09-12, ends_on=2026-09-14）を作成し、`curl -b userA-cookies http://localhost:3000\|3001/catalog?month=2026-09` の両方で `M8並走比較_0occurrence` を確認                                                                                                 |
-| Ticket opportunity の write UI (`/tickets`)         | `docs/v2/oracle-routes-ui.md`「`/tickets`」行: `updateTicketOpportunityStateAction` で planning state 変更                                   | 実装済み（`TicketOpportunityStateControls.tsx`）                                                                                                  | **修正前は read-only badge のみ、write UI 自体が未実装**                                                                   | legacy ≠ v2（修正前）、v2 は oracle 未達 | 分類2（**修正済み、PR #403 で対応**）                                                                                                                                                                                             | `docs/v2/m8-difference-inventory.md`（PR #401）item 3 で確定 → PR #403 で実装・merge 済み。本比較でも live 確認: test ticket opportunity（`FC先行`, sale_start milestone）を作成し、`curl -b userA-cookies http://localhost:3000\|3001/tickets` で両アプリとも `FC先行`／`販売開始`／`申し込む予定にする` を表示することを確認 |
+| 項目                                                | Oracle                                                                                                                                       | Legacy (observed)                                                                                                                                 | v2 (observed)                                                                                                              | Difference                                                             | Classification                                                                                                                                                                                                                    | Evidence                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| genre/group/venue 分類表示                          | AGENTS.md「Catalog classification / venue boundary」: event の genre/group/venue を catalog 一覧に表示する                                   | 表示される                                                                                                                                        | 初回比較では group の表示名解決が漏れていた。その後 #410 で `classification.groupIds` から解決して表示                     | 初回 evidence は group rendering を証明しておらず、後発監査で gap 判明 | **historical class 2（#410 でfixed）**                                                                                                                                                                                            | 初回 curl はレスポンス内の group 値の存在しか確認していなかった。#410 で `loadCatalogEntryGroupNames` / `ClassificationBadges` を修正し、group 表示名を real Chromium と regression coverage で確認（[PR #410](https://github.com/reitojike/stage-tracker/pull/410)）                                                          |
+| group/venue filter option の genre スコープ         | AGENTS.md「Group」: 「この genre に関連する group は、その genre の Event に実際に associate されている group から動的に導出する」           | 常に genre スコープ実装済み（`catalogFilterData.ts` の `listCatalogGroupOptions(client, genre.id)`）                                              | **修正前は genre 非依存の flat list**（`listCatalogGroups`/`listCatalogVenues` が genre 引数を取らなかった）               | legacy ≠ v2（修正前）、v2 は oracle 未達                               | 分類2（**修正済み、PR #402 で対応**。genre スコープの `event_groups` join + pagination 対応済み）                                                                                                                                 | `docs/v2/m8-difference-inventory.md`（PR #401）item 4 で確定 → PR #402 で修正・merge 済み（`apps/web/src/lib/data/reads/catalog.ts` の `listCatalogGroups`/`listCatalogVenues`）                                                                                                                                               |
+| Calendar（`/calendar`）の read 失敗時の劣化粒度     | `docs/v2/decisions.md` P4: 「read ごとに独立して劣化」へ統一し、「複数 read の失敗を単一の汎用エラーへ縮退させる」挙動は**採用しない**と明記 | **不採用と明記された挙動のまま**: `participationsResult`/`scheduleResult` のどちらかが失敗すると `firstError` へ縮退し、単一の error panel を返す | P4 どおり `classifyBlock1` で participation/schedule を独立した `BlockState` として扱う（コード comment も P4 を直接引用） | legacy ≠ oracle(P4)、v2 = oracle(P4)                                   | **分類3**（legacy の不具合を v2 が正した。旧 #401 inventory では「分類1（意図した差分）」としていたが、P4 の文言「不採用」は legacy の挙動を明示的に is-now-incorrect と位置づけているため、本比較ではより正確な分類3へ訂正する） | `docs/v2/decisions.md` P4 全文、`apps/legacy-web/src/app/calendar/page.tsx:94-112`（`firstError` への縮退を実装するコード）、`apps/web/src/app/(app)/calendar/_lib/calendar-loader.ts:13-129`（`classifyBlock1` を participation/schedule それぞれに独立適用、コード comment が P4 を引用）                                    |
+| 0-occurrence event の Event range 表示（Issue #87） | AGENTS.md「Event 開催期間（Event range）」: 0件の公演回を持つ event も、開催期間が catalog 期間と重なれば表示する                            | 表示される                                                                                                                                        | 表示される                                                                                                                 | なし                                                                   | parity確認済み                                                                                                                                                                                                                    | 公演回0件・genre未分類の test event（id `717bcbd2-...`, starts_on=2026-09-12, ends_on=2026-09-14）を作成し、`curl -b userA-cookies http://localhost:3000\|3001/catalog?month=2026-09` の両方で `M8並走比較_0occurrence` を確認                                                                                                 |
+| Ticket opportunity の write UI (`/tickets`)         | `docs/v2/oracle-routes-ui.md`「`/tickets`」行: `updateTicketOpportunityStateAction` で planning state 変更                                   | 実装済み（`TicketOpportunityStateControls.tsx`）                                                                                                  | **修正前は read-only badge のみ、write UI 自体が未実装**                                                                   | legacy ≠ v2（修正前）、v2 は oracle 未達                               | 分類2（**修正済み、PR #403 で対応**）                                                                                                                                                                                             | `docs/v2/m8-difference-inventory.md`（PR #401）item 3 で確定 → PR #403 で実装・merge 済み。本比較でも live 確認: test ticket opportunity（`FC先行`, sale_start milestone）を作成し、`curl -b userA-cookies http://localhost:3000\|3001/tickets` で両アプリとも `FC先行`／`販売開始`／`申し込む予定にする` を表示することを確認 |
 
 ## Journey: Ticket Opportunity（Planning state）
 
@@ -186,32 +198,36 @@ legacy 側 bug）は分類3の追加候補として残すが、**未確認（unc
 
 ## 総括: 分類ごとの一覧（Issue #391 AC4〜6）
 
-### 分類2（v2 の不具合）
+### Historical class 2（v2 の不具合、全13件 fixed）
 
-明確な oracle citation（`docs/v2/oracle-routes-ui.md`/`docs/v2/
+明確な oracle citation（`docs/v2/oracle-routes-ui.md` / `docs/v2/
 oracle-domain.md` の当該行、または `docs/ux-ui.md`「Accessibility
-baseline」の WCAG 2.2 AA baseline）を持つ項目を分類2として確定する。
+baseline」の WCAG 2.2 AA baseline）を持つ差分を、発見時点の分類2として
+記録する。以下は修正前の差分を意味する historical inventory であり、すべて
+current main に fixed である。
 
-| #   | 項目                                                                                                   | journey            | oracle citation                                                                                                                                       | 対応状況                                                                                     |
-| --- | ------------------------------------------------------------------------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 1   | Catalog filter の group/venue option が genre 非依存                                                   | catalog            | AGENTS.md「Group」                                                                                                                                    | **修正済み**（PR #402, merge 済み）                                                          |
-| 2   | Ticket opportunity の planning state 書き込み UI が未実装                                              | ticket opportunity | `oracle-routes-ui.md`「/tickets」行                                                                                                                   | **修正済み**（PR #403, merge 済み）                                                          |
-| 3   | サインイン画面の Passkey ボタンが v2 に存在しない（Magic Link のみ）                                   | 認証               | `oracle-routes-ui.md:49`「サインイン（**Passkey優先**＋Magic Linkフォールバック）」と明記。実装は `signInWithPasskey()` 呼び出しが v2 に0件で確認済み | **修正済み**（PR #409, merge 済み。実ブラウザ WebAuthn ceremony 検証済み — Issue #406 参照） |
-| 4   | Passkey 削除ボタンの accessible name が v2 では複数登録時に重複（`aria-label` 欠落）                   | 認証               | `docs/ux-ui.md`「Accessibility baseline」: WCAG 2.2 AA相当が baseline。legacy は PR #129 の Codex finding で既に修正済み                              | **修正済み**（PR #405, merge 済み。本 PR 自体はこの修正 commit を含まない）                  |
-| 5   | Passkey 登録失敗時のエラー種別分類が v2 に無い（一律の汎用メッセージ）                                 | 認証               | `oracle-routes-ui.md:245`「失敗時はエラー種別分類→パネル表示」と明記                                                                                  | **修正済み**（PR #407, merge 済み）                                                          |
-| 6   | Event 系 Server Action の permission-denied エラー文言が全 operation で単一の汎用メッセージへ collapse | event/occurrence   | `oracle-domain.md:576-580`「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが最小変更」と明記                                        | **修正済み**（PR #408, merge 済み）                                                          |
+| #   | historical gap                                                                             | journey            | oracle / evidence                                                                     | final status            |
+| --- | ------------------------------------------------------------------------------------------ | ------------------ | ------------------------------------------------------------------------------------- | ----------------------- |
+| 1   | Catalog filter の group/venue option が genre 非依存                                       | catalog            | AGENTS.md「Group」                                                                    | **fixed** — #402        |
+| 2   | Ticket Opportunity の planning-state write UI が未実装                                     | ticket opportunity | `oracle-routes-ui.md`「/tickets」                                                     | **fixed** — #403        |
+| 3   | `/sign-in` の Passkey sign-in path と Magic Link fallback が欠落                           | 認証               | `oracle-routes-ui.md`「Passkey優先＋Magic Linkフォールバック」; #406 browser evidence | **fixed** — #409 / #406 |
+| 4   | Passkey delete button の unique accessible name が欠落                                     | 認証               | `docs/ux-ui.md` Accessibility baseline                                                | **fixed** — #405        |
+| 5   | Passkey registration failure の error classification が欠落                                | 認証               | `oracle-routes-ui.md`「失敗時はエラー種別分類→パネル表示」                            | **fixed** — #407        |
+| 6   | Event / Occurrence write・delete・cancellation feedback の operation granularity が不足    | event/occurrence   | `oracle-domain.md` `eventWriteFeedback.ts` contract                                   | **fixed** — #408        |
+| 7   | Catalog month calendar surface が欠落                                                      | catalog            | catalog calendar oracle                                                               | **fixed** — #410        |
+| 8   | Catalog selected-day occurrence / Event-range detail surface が欠落                        | catalog            | catalog selected-day oracle                                                           | **fixed** — #410        |
+| 9   | Catalog classification の group name rendering が欠落                                      | catalog            | AGENTS.md「Catalog classification / venue boundary」                                  | **fixed** — #410        |
+| 10  | PWA installability contract（manifest / icons / public asset boundary）が欠落              | PWA                | App delivery surface / `oracle-routes-ui.md`                                          | **fixed** — #411        |
+| 11  | My Calendar surface parity（月表示、markers/bands、selected-day detail、add action）が不足 | calendar           | My Calendar oracle                                                                    | **fixed** — #412        |
+| 12  | Event detail の owner-only edit affordance が不足                                          | event/occurrence   | `oracle-routes-ui.md`「イベント詳細」                                                 | **fixed** — #413        |
+| 13  | route pending/loading contract（`/catalog` / `/calendar` / `/tickets`）が不足              | cross-route        | `oracle-routes-ui.md` route inventory                                                 | **fixed** — #413        |
 
-**AC5 は本比較で確定した分類2（項目1〜6）すべてが解決したことをもって
-達成された。** 項目3（Passkey サインイン導線、Issue #406）は PO 判断
-（2026-09-10、`docs/v2/decisions.md`「PO 判断: Issue #406（Passkey サインイン
-導線）は v2 cutover 前の修正必須（2026-09-10）」）により non-blocker 化を
-拒否され、実際に修正が必須とされた。PR #409 でこれを実装し、Chrome + CDP
-WebAuthn virtual authenticator による実ブラウザ ceremony 検証（Passkey 登録
-→ サインアウト → Passkey サインイン → `/` へ遷移 → Server Component 側での
-session 認識、失敗系での Magic Link フォールバックまで）を経て merge した
-（Issue #406 の evidence コメント参照）。
+歴史的な分類2は #402 / #403 / #405 / #407 / #408 / #409〜#413 で全件
+修正済みであり、**final unresolved class 2 = 0**。#406 は PR #409 と browser
+ceremony evidence により product/evidence complete だが、Issue の open state
+は bookkeeping-only と記録する（この closure PR では Issue を close しない）。
 
-### 分類3（legacy の不具合を v2 が正したもの）
+### Class 3（legacy の不具合を v2 が正したもの、最終1件）
 
 | #   | 項目                                                                                                                                                                            | journey             | 内容                                                                                              |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
@@ -223,7 +239,7 @@ Participation の中止時降格 UI（legacy が UI から降格選択肢を出�
 受けて確定分類を一旦取り下げ、PO 判断へ escalate した。2026-09-10 の PO
 判断により分類1へ確定済み（下記「分類1」節を参照）。
 
-### 分類1（意図した差分）
+### Class 1（意図した差分、最終4件）
 
 | #   | 項目                                                                                                                 | journey       | citation                                                                                                           |
 | --- | -------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -255,7 +271,7 @@ AC4 の「観測した差分」の対象外として扱う。
 | Personal Schedule 非 owner write の error kind（`not-found` vs `permission-denied`） | oracle/AGENTS.md はこの粒度を規定していない。両アプリの正規 UI からは到達不能な経路 | legacy は行の存在を開示、v2 は read 側の opacity 原則を write 側にも拡張                     | personal schedule |
 | Participation 書き込みの no-op short-circuit                                         | 未規定。write 成功という observable な結果は同一                                    | v2 のみ `existing.status === choice` で UPDATE をスキップ                                    | participation     |
 
-### PO 判断が必要な事項（Issue #391「Escalate When」: product semantics の未決事項）
+### 旧 PO 判断候補の final adjudication（未解決事項なし）
 
 本比較で escalate した2件は、いずれも 2026-09-10 に PO 判断が出て解決済み。
 このため現時点でこの節に残る未決事項は無い。
@@ -272,54 +288,96 @@ AC4 の「観測した差分」の対象外として扱う。
    到達可能）を正とする。詳細は上記「分類1」節および participation
    journey の該当行を参照。
 
-## 対応方針（分類2、全件解決済み）
+## Final closure materialization（current composed main）
 
-上記「総括: 分類ごとの一覧」の分類2テーブルは項目1〜6の6件。うち項目1
-（Catalog filter）・2（Ticket opportunity write UI）・4（Passkey 削除
-ボタンの aria-label）の3件は本比較の早い段階で PR #402/#403/#405 により
-解決済みで、この節では扱わない。この節が扱うのは、本比較で確定した時点で
-残っていた**項目3・5・6 の3件**（下記ローカル番号1〜3に対応）。**この節に
-記録すること自体は AC5 の充足を意味しない**（codex review 指摘、PR
-#404）。AC5 は各項目が実際に解決される（修正が merge される、または PO
-が明示的に non-blocker と判断する）ことをもって達成したと扱う。以下 3
-件（= 総括テーブルの項目3・5・6）はすべて実際の修正 merge によって解決
-済み。
+### Oracle-first reverse audit / final coverage summary
 
-1. **Passkey サインイン導線の欠落**（Issue #406、**修正済み、PR #409
-   merge 済み**）: WebAuthn assertion ceremony の実装（client-side
-   ceremony trigger、`supabase.auth.signInWithPasskey()` 呼び出し、
-   `docs/v2/oracle-routes-ui.md:49` が明記する「Passkey優先＋Magic Link
-   フォールバック」UI）。PO 判断（2026-09-10、`docs/v2/decisions.md`
-   「PO 判断: Issue #406（Passkey サインイン導線）は v2 cutover 前の
-   修正必須（2026-09-10）」）により non-blocker 化を拒否され、実際の
-   修正が必須とされた。PR #409 で実装し、Chrome + CDP WebAuthn virtual
-   authenticator による実ブラウザ ceremony 検証（登録 → サインアウト →
-   サインイン → `/` へ遷移 → Server Component 側での session 認識、
-   失敗系での Magic Link フォールバックまで）を経て merge 済み
-   （Issue #406 の evidence コメント参照）。
-2. **Passkey 登録失敗時のエラー種別分類の欠如**（**修正済み、PR #407
-   merge 済み**）: `oracle-routes-ui.md:245` が明記する「エラー種別分類→
-   パネル表示」を v2 は満たしていなかった（常に単一の汎用メッセージ）。
-   legacy の `classifyCeremonyError`/`REGISTER_FEEDBACK` と同じ分類を
-   `apps/web/src/lib/passkey-ceremony-error.ts` へ移植する PR #407 が
-   merge され、この項目は解決済み。
-3. **Event 系 Server Action の permission-denied エラー文言の粒度**
-   （**修正済み、PR #408 merge 済み**）: `oracle-domain.md:576-580`
-   が「legacy の `eventWriteFeedback.ts` の直積構造をそのまま持ち込むのが
-   最小変更」と明記しているにもかかわらず、v2 は単一の汎用メッセージへ
-   collapse していた。legacy の title+description を移植した
-   `apps/web/src/lib/actions/event-write-feedback.ts` を新設し、
-   `apps/web/src/lib/actions/events.ts` の 11 箇所の呼び出し元すべてを
-   operation 別の thrower へ差し替える PR #408 が merge され、この項目は
-   解決済み。
+final closure の対象は `main` の
+`0ff3359900c86a17fc518e26f6bca77ab5b2a49d`。PR #410〜#429 の composed main を
+fresh に確認し、legacy の表面的な一致ではなく Oracle → current implementation /
+merged evidence の順に reverse-audit した。#391 の [final reverse audit comment
+5629034406](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5629034406)
+を基礎に、#420〜#424 の Sheet recovery と #429 の authority sync を反映している。
 
-**未解決の分類2は 0 件。** 分類2の総数は総括テーブルの項目1〜6で6件、
-その6件すべてが実際の修正 merge によって解決済み（うち項目1・2・4 は
-本節記載の3件より前に PR #402/#403/#405 で解決済み）。AC5 は達成された。
+- Auth / PWA / pending shell: default-deny、public resource、Passkey + Magic Link
+  fallback、loading contract を current main と merged evidence に束縛した。
+- Home: authenticated secondary read と ticket / schedule の独立 block を確認した。
+- Catalog: month calendar、selected-day list、Event-range fallback、genre-scoped
+  filters、classification group rendering を #402 / #410 の修正後状態で確認した。
+- Event / Occurrence: owner-only edit、range / occurrence management、feedback
+  granularity、delete / cancellation contract を current main に束縛した。
+- Participation / Invitation: write/read-back、cancellation、opacity、accept /
+  decline / re-invite と P3 の confirm → immediate hard delete を確認した。
+- My Calendar / Personal Schedule: month surface、markers / bands、selected-day
+  detail、create/edit/delete/share/self-leave と P4 の independent degradation を
+  #412 および composed-main evidence で確認した。
+- Ticket Opportunity: `planned` / `applied` / remove、WriteNotice、post-final
+  suppression と `不明` badge priority を確認した。
+
+### Final classification counts
+
+| classification                       | final count | final state                                                                |
+| ------------------------------------ | ----------: | -------------------------------------------------------------------------- |
+| class 1 — intentional divergence     |           4 | すべて `decisions.md` の確定判断に束縛済み                                 |
+| class 3 — legacy bug corrected by v2 |           1 | Calendar の P4 error granularity。v2 が legacy の aggregate error を正した |
+| historical class 2 — v2 bug          |          13 | すべて current main で fixed                                               |
+| unclassified                         |           0 | なし                                                                       |
+| unresolved class 2                   |           0 | なし                                                                       |
+
+Class 1 は Invitation decline UX、Magic Link の `emailRedirectTo` を渡さない
+Preview isolation、未認証 redirect の query clear、canceled occurrence での既存
+participation の downgrade / withdraw UI。Class 3 は Calendar の read ごとの独立
+劣化のみである。旧 tentative / PO-needed の2件（query string、canceled occurrence
+の downgrade / withdraw）は 2026-09-10 の PO 判断により class 1 へ確定し、現時点の
+未決事項ではない。
+
+### Sheet recovery / interaction closure
+
+`#420` / `#421` / `#422` / `#423` / `#424` はすべて completed / closed であり、
+PR #425〜#429 は composed main に着地済み。#422 の open 記述を current state として
+再利用しない。最新の targeted Sheet / interaction audit は
+[Issue #391 comment 5644265444](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5644265444)
+に durable 化されている。
+
+- new class 1 = 0
+- new class 2 = 0
+- new class 3 = 0
+- unclassified = 0
+- unresolved Sheet / interaction class 2 = 0
+
+**SHEET / INTERACTION CLEAR — GO FOR M8 CLOSURE DOC**。Sheet primitive、Event
+detail、Catalog filter、Event edit、Personal Schedule の各 consumer と Option A の
+Oracle / decisions materialization に、追加の差分や未解決 class 2 はない。
+
+### Issue #406 and Issue #391 bookkeeping
+
+Issue #406 は PR #409 と Chrome/CDP WebAuthn virtual authenticator の browser
+ceremony evidence により product/evidence complete である。現在の open state は
+bookkeeping-only と記録し、この PR では close しない。
+
+Issue #391 の AC checkbox 更新・close はこの closure PR の後に、current main と
+merged closure docs を fresh に再取得して item-by-item に adjudicate する別 checkpoint
+とする。この PR は #391 の AC も変更しない。
+
+### Final composed-main smoke evidence
+
+current main `0ff3359` の GitHub Verify / E2E は success で、同じ composed main の
+Verify / Code、Verify / Build、Verify / Database、Apply Migrations / Production も
+success。Migration Ordering Fence は sequencing 対象差分なしで skipped。5 journey
+specs による current composed-main browser smoke（Auth、Catalog、Participation の
+write/read-back、My Calendar / Personal Schedule の write/read-back）を M8 final
+smoke evidence として採用する。詳細な audit/evidence locator は
+[Issue #391 comment 5629034406](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5629034406)
+および [targeted Sheet audit 5644265444](https://github.com/reitojike/stage-tracker/issues/391#issuecomment-5644265444)
+を参照する。
+
+M9 cutover、Vercel Root Directory、Production deployment、#394 はこの closure の
+scope 外であり、着手していない。
 
 ## この文書の運用上の注意
 
-本文書も `m8-difference-inventory.md` と同様、**時点のスナップショット**
-である。上記「未修正」の分類2項目が解消された場合、該当行の「対応状況」を
-更新すること。テスト環境（Docker、port shift、test user/event）の詳細は
-本文書冒頭「方法」節を参照。
+本文書は、preflight の観測履歴と final closure の判定を意図的に分離している。
+preflight 表の「修正前」「初回比較」表現は historical evidence であり、final
+classification counts と current composed main の状態を上書きしない。新たな M9
+判断や #391 close の根拠にする場合は、必ず current main と canonical Issue / audit
+evidence を再取得する。
