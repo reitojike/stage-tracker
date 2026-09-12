@@ -129,7 +129,13 @@ test("event edit: range, occurrence, deletion, and cancellation boundaries", asy
       .getByText(`${tokyoDate} 20:00`, { exact: true })
       .locator("..")
       .locator("..");
+    const cancelResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes(`/catalog/events/${seeded.eventId}/edit`),
+    );
     await occurrenceRow.getByRole("button", { name: "中止にする" }).click();
+    await cancelResponse;
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.reload();
     occurrenceRow = page
@@ -139,7 +145,13 @@ test("event edit: range, occurrence, deletion, and cancellation boundaries", asy
     await expect(
       occurrenceRow.getByRole("button", { name: "中止を解除" }),
     ).toBeVisible();
+    const uncancelResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes(`/catalog/events/${seeded.eventId}/edit`),
+    );
     await occurrenceRow.getByRole("button", { name: "中止を解除" }).click();
+    await uncancelResponse;
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.reload();
 
