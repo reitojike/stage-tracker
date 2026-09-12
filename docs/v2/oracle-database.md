@@ -80,7 +80,7 @@ authenticated` を明示してからテーブル/列単位で必要な権限だ�
 | column      | type        | nullable | default             | 意味                                                                               |
 | ----------- | ----------- | -------- | ------------------- | ---------------------------------------------------------------------------------- |
 | id          | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                                                 |
-| owner_id    | uuid        | NOT NULL | —                   | 作成者=情報管理者。FK → `auth.users(id)`（ON DELETE 指定なし = NO ACTION）         |
+| owner_id    | uuid        | NOT NULL | —                   | 作成者=情報管理者。FK → `auth.users(id)`（明示的 `ON DELETE NO ACTION`）           |
 | title       | text        | NOT NULL | —                   | 興行名                                                                             |
 | venue       | text        | NULL     | —                   | 会場（exact text。venue master は無い）                                            |
 | source_url  | text        | NULL     | —                   | 参照 URL                                                                           |
