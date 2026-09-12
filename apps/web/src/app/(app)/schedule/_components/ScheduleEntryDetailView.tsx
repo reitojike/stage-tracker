@@ -2,6 +2,7 @@ import type { PersonalScheduleEntry } from "@stage-tracker/domain";
 import { personalScheduleEntryBlockingForViewer } from "@stage-tracker/domain";
 import { Badge, LinkButton } from "@stage-tracker/ui";
 import { formatScheduleEntryTemporal } from "./formatScheduleEntryTemporal";
+import { scheduleBlockingLabel } from "@/app/_lib/format";
 
 interface ScheduleEntryDetailViewProps {
   readonly entry: PersonalScheduleEntry;
@@ -37,7 +38,7 @@ export function ScheduleEntryDetailView({
           </Badge>
           <span data-testid="blocking-indicator">
             <Badge variant={blocking ? "subtle" : "outline"}>
-              {blocking ? "予定を確保する" : "予定を確保しない"}
+              {scheduleBlockingLabel(blocking)}
             </Badge>
           </span>
         </div>
@@ -61,7 +62,7 @@ export function ScheduleEntryDetailView({
             })}
           </dd>
         </div>
-        {entry.memo ? (
+        {entry.memo !== null && entry.memo.length > 0 ? (
           <div className="flex flex-col gap-2xs">
             <dt className="text-caption text-muted-foreground">メモ</dt>
             <dd className="whitespace-pre-wrap text-body-sm text-foreground">

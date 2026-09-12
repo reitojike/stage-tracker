@@ -9,6 +9,7 @@ import {
 } from "@stage-tracker/domain";
 import {
   ticketDeadlineBadgeDisplay,
+  ticketPersonalStateBadgeDisplay,
   ticketTargetScopeLabel,
 } from "./ticket-display";
 
@@ -72,6 +73,24 @@ describe("ticketDeadlineBadgeDisplay", () => {
       ),
     ).toBeNull();
     expect(ticketDeadlineBadgeDisplay(row("2026-03-24"), TODAY)).toBeNull();
+  });
+});
+
+describe("ticketPersonalStateBadgeDisplay", () => {
+  it("keeps Home and Tickets personal-state labels on one mapping", () => {
+    expect(ticketPersonalStateBadgeDisplay(null, true)).toEqual({
+      variant: "outline",
+      label: "不明",
+    });
+    expect(ticketPersonalStateBadgeDisplay("planned", false)).toEqual({
+      variant: "subtle",
+      label: "申し込む予定",
+    });
+    expect(ticketPersonalStateBadgeDisplay("applied", false)).toEqual({
+      variant: "done",
+      label: "申し込み済み",
+    });
+    expect(ticketPersonalStateBadgeDisplay(null, false)).toBeNull();
   });
 });
 

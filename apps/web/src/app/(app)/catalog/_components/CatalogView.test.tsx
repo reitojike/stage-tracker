@@ -5,7 +5,11 @@ import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EventCatalogEntry } from "@/lib/data";
 import type { CatalogFilterOptionsResult } from "../_lib/catalog-loader";
-import { CatalogView, type CatalogViewProps } from "./CatalogView";
+import {
+  CatalogView,
+  filterSummaryLabel,
+  type CatalogViewProps,
+} from "./CatalogView";
 
 const MONTH = { year: 2026, month: 3 };
 const TODAY = "2026-03-15" as never;
@@ -109,6 +113,29 @@ afterEach(() => {
 });
 
 describe("CatalogView", () => {
+  it("does not list every selected known facet option as an active narrowing condition", () => {
+    const options = {
+      genres: [],
+      groupsByGenreKey: {
+        takarazuka: [
+          { id: "group-a", displayName: "花組" },
+          { id: "group-b", displayName: "月組" },
+        ],
+      },
+      venuesByGenreKey: {},
+    } as never;
+    expect(
+      filterSummaryLabel(
+        {
+          genreKey: "takarazuka",
+          groupIds: ["group-a", "group-b"] as never,
+          venues: [],
+        },
+        options,
+      ),
+    ).toBe("宝塚");
+  });
+
   it("still mounts the month calendar and filter controls when the raw range is empty (ChatGPT review 指摘: legacy's isEmptyRange only adds a month-level notice, it never hides the body)", () => {
     render(
       <CatalogView

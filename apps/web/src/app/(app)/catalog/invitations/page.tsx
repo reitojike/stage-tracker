@@ -2,6 +2,9 @@ import { BackLink, StatePanel } from "@stage-tracker/ui";
 import { classifyListReadResult } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
+import { resolveScreenNow } from "@/app/_lib/now";
+import { tokyoYearMonthOf } from "@/app/_lib/calendar-grid";
+import { catalogMonthHref } from "../_lib/catalog-links";
 import { listMyReceivedInvitations } from "./_data/listMyReceivedInvitations";
 import { InvitationList } from "./_components/InvitationList";
 
@@ -10,6 +13,9 @@ import { InvitationList } from "./_components/InvitationList";
  * `/catalog/invitations`）。
  */
 export default async function InvitationsPage() {
+  const backHref = catalogMonthHref(
+    tokyoYearMonthOf(resolveScreenNow().todayTokyoDate),
+  );
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -30,7 +36,7 @@ export default async function InvitationsPage() {
 
   return (
     <div className="flex flex-col gap-md">
-      <BackLink href="/calendar">カレンダーへ戻る</BackLink>
+      <BackLink href={backHref}>イベントへ戻る</BackLink>
       <header className="flex items-baseline justify-between gap-sm border-b-2 border-foreground pb-card-block">
         <h1 className="text-heading leading-heading font-semibold text-foreground">
           招待一覧

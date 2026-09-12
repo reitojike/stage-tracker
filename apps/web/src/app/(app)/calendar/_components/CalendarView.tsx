@@ -26,6 +26,8 @@ import {
   formatMonthJa,
   formatTokyoCalendarDateJa,
   occurrenceTimeRangeLabel,
+  participationStatusLabel,
+  scheduleBlockingLabel,
 } from "@/app/_lib/format";
 import {
   READ_FAILURE_RETRY_HINT_JA,
@@ -79,12 +81,6 @@ function dayHref(date: TokyoCalendarDate): string {
 function monthDayLabel(date: TokyoCalendarDate): string {
   const [, month, day] = date.split("-");
   return `${String(Number(month))}月${String(Number(day))}日`;
-}
-
-function participationStatusLabel(
-  status: CalendarOccurrenceItem["participation"]["status"],
-): string {
-  return status === "attending" ? "参加する" : "気になる";
 }
 
 function roleTextClassName(role: CalendarDayRole): string | undefined {
@@ -734,7 +730,7 @@ function ScheduleRow({
             {item.isOwner ? "自分の予定" : "共有されている予定"}
           </Badge>
           <Badge variant={item.entry.blocking ? "subtle" : "outline"}>
-            {item.entry.blocking ? "予定を確保する" : "予定を確保しない"}
+            {scheduleBlockingLabel(item.entry.blocking)}
           </Badge>
         </span>
         <span className="text-title font-medium text-foreground">

@@ -144,10 +144,14 @@ async function ScheduleEntryDetailBody({
   readonly entryId: PersonalScheduleEntryId;
 }) {
   const supabase = await createSupabaseServerClient();
+  const [authResult, entryReadResult] = await Promise.all([
+    supabase.auth.getUser(),
+    findVisibleScheduleEntry(supabase, entryId),
+  ]);
   const {
     data: { user },
     error: authError,
-  } = await supabase.auth.getUser();
+  } = authResult;
 
   if (authError || !user) {
     return (
@@ -162,7 +166,6 @@ async function ScheduleEntryDetailBody({
     );
   }
 
-  const entryReadResult = await findVisibleScheduleEntry(supabase, entryId);
   const entryState = classifyScheduleEntryReadResult(entryReadResult);
 
   if (entryState.variant === "empty") {

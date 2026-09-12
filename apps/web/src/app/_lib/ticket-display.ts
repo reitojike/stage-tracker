@@ -6,6 +6,7 @@ import {
   type TicketOpportunityTargetScope,
   type TicketOpportunityTimelineRow,
   type TokyoCalendarDate,
+  type UserTicketOpportunityStatus,
 } from "@stage-tracker/domain";
 import {
   formatTokyoCalendarDateJa,
@@ -16,6 +17,28 @@ import {
 export interface TicketDeadlineBadgeDisplay {
   readonly variant: "deadline" | "outline";
   readonly label: string;
+}
+
+export interface TicketPersonalStateBadgeDisplay {
+  readonly variant: "outline" | "subtle" | "done";
+  readonly label: string;
+}
+
+/** Shared personal planning-state presentation for Home and Tickets. */
+export function ticketPersonalStateBadgeDisplay(
+  state: UserTicketOpportunityStatus | null,
+  personalStateUnknown: boolean,
+): TicketPersonalStateBadgeDisplay | null {
+  if (personalStateUnknown) {
+    return { variant: "outline", label: "不明" };
+  }
+  if (state === "planned") {
+    return { variant: "subtle", label: "申し込む予定" };
+  }
+  if (state === "applied") {
+    return { variant: "done", label: "申し込み済み" };
+  }
+  return null;
 }
 
 function calendarDayDifference(

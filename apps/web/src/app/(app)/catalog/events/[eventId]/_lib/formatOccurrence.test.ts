@@ -64,4 +64,19 @@ describe("formatOccurrenceEnds", () => {
     });
     expect(formatOccurrenceEnds(value)).toBe("終演 20:00");
   });
+
+  it("marks a next-day end instead of showing a misleading bare time", () => {
+    const value = occurrence({
+      startsAt: "2026-03-10T14:00:00.000Z" as Occurrence["startsAt"],
+      endsAt: "2026-03-10T16:00:00.000Z" as Occurrence["startsAt"],
+    });
+    expect(formatOccurrenceEnds(value)).toBe("終演 01:00（翌日）");
+  });
+
+  it("shows the actual date when an end is more than one Tokyo day later", () => {
+    const value = occurrence({
+      endsAt: "2026-03-12T15:30:00.000Z" as Occurrence["startsAt"],
+    });
+    expect(formatOccurrenceEnds(value)).toBe("終演 3月13日(金) 00:30");
+  });
 });

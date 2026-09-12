@@ -11,7 +11,10 @@ import {
   AnchorButton,
   BackLink,
   Badge,
+  CompactList,
   LinkButton,
+  ListRow,
+  ListRowActions,
   StatePanel,
 } from "@stage-tracker/ui";
 import { classifyListReadResult, listMyParticipations } from "@/lib/data";
@@ -247,7 +250,7 @@ export default async function EventDetailPage({
             description="開催期間は決まっていますが、具体的な公演回はまだ発表されていません。"
           />
         ) : (
-          <ul className="flex flex-col divide-y divide-border">
+          <CompactList>
             {occurrences.map((occurrence) => {
               const myParticipation = participationLookup.ok
                 ? (participationLookup.byOccurrenceId.get(occurrence.id) ??
@@ -265,51 +268,51 @@ export default async function EventDetailPage({
                   !occurrenceCanceled;
 
               return (
-                <li
-                  key={occurrence.id}
-                  id={`occurrence-${occurrence.id}`}
-                  className={
-                    focusOccurrenceId === occurrence.id
-                      ? "flex flex-col gap-xs rounded-control-sm px-sm py-compact ring-1 ring-inset ring-primary"
-                      : "flex flex-col gap-xs py-compact"
-                  }
-                >
-                  <div className="flex flex-wrap items-center gap-sm">
-                    <p className="text-title font-medium leading-title text-foreground">
-                      {formatOccurrenceDateTime(occurrence)}
-                    </p>
-                    {occurrenceCanceled ? (
-                      <Badge variant="terminal">中止</Badge>
+                <li key={occurrence.id} id={`occurrence-${occurrence.id}`}>
+                  <ListRow
+                    className={
+                      focusOccurrenceId === occurrence.id
+                        ? "flex-col gap-xs rounded-control-sm px-sm ring-1 ring-inset ring-primary"
+                        : "flex-col gap-xs"
+                    }
+                  >
+                    <div className="flex flex-wrap items-center gap-sm">
+                      <p className="text-title font-medium leading-title text-foreground">
+                        {formatOccurrenceDateTime(occurrence)}
+                      </p>
+                      {occurrenceCanceled ? (
+                        <Badge variant="terminal">中止</Badge>
+                      ) : null}
+                      {focusOccurrenceId === occurrence.id ? (
+                        <Badge variant="outline">選択した公演回</Badge>
+                      ) : null}
+                    </div>
+                    {doors !== null || ends !== null ? (
+                      <p className="text-body-sm text-muted-foreground">
+                        {[doors, ends]
+                          .filter((value) => value !== null)
+                          .join(" / ")}
+                      </p>
                     ) : null}
-                    {focusOccurrenceId === occurrence.id ? (
-                      <Badge variant="outline">選択した公演回</Badge>
-                    ) : null}
-                  </div>
-                  {doors !== null || ends !== null ? (
-                    <p className="text-body-sm text-muted-foreground">
-                      {[doors, ends]
-                        .filter((value) => value !== null)
-                        .join(" / ")}
-                    </p>
-                  ) : null}
 
-                  <div className="flex flex-wrap items-center justify-between gap-sm">
-                    <ParticipationControls
-                      eventId={eventId}
-                      occurrenceId={occurrence.id}
-                      initialStatus={myParticipation?.status ?? null}
-                      participationUnavailable={!participationLookup.ok}
-                      isEffectivelyCanceled={occurrenceCanceled}
-                    />
+                    <ListRowActions className="w-full justify-between">
+                      <ParticipationControls
+                        eventId={eventId}
+                        occurrenceId={occurrence.id}
+                        initialStatus={myParticipation?.status ?? null}
+                        participationUnavailable={!participationLookup.ok}
+                        isEffectivelyCanceled={occurrenceCanceled}
+                      />
 
-                    {canInvite ? (
-                      <InviteForm occurrenceId={occurrence.id} />
-                    ) : null}
-                  </div>
+                      {canInvite ? (
+                        <InviteForm occurrenceId={occurrence.id} />
+                      ) : null}
+                    </ListRowActions>
+                  </ListRow>
                 </li>
               );
             })}
-          </ul>
+          </CompactList>
         )}
       </section>
     </div>

@@ -20,6 +20,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock("@/app/_lib/now", () => ({
+  resolveScreenNow: () => ({
+    nowInstant: "2026-03-01T00:00:00.000Z",
+    todayTokyoDate: "2026-03-01",
+  }),
+}));
+
 /**
  * 受け入れ条件「StatePanel の 3 状態」の検証。`docs/v2/decisions.md`
  * 「M6 が負う責任」節どおり、fetch 失敗 -> error、権限が無い -> unavailable、
@@ -71,7 +78,7 @@ describe("InvitationsPage", () => {
     expect(screen.getByText("招待はありません")).toBeInTheDocument();
     expect(screen.getByText("未回答 0件")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "カレンダーへ戻る" }),
-    ).toHaveAttribute("href", "/calendar");
+      screen.getByRole("link", { name: "イベントへ戻る" }),
+    ).toHaveAttribute("href", "/catalog?month=2026-03");
   });
 });

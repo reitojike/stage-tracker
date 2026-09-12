@@ -2,6 +2,7 @@ import {
   compareInstants,
   instantToTokyoCalendarDate,
   isEffectivelyCanceled,
+  tokyoCalendarDayRangeUtc,
   type PersonalScheduleEntry,
   type TokyoCalendarDate,
   type UserId,
@@ -77,6 +78,25 @@ export interface CalendarMonthViewModel {
 export interface CalendarScheduleViewItem {
   readonly entry: PersonalScheduleEntry;
   readonly isOwner: boolean;
+}
+
+function scheduleViewSortInstant(entry: PersonalScheduleEntry) {
+  return entry.temporal.kind === "all-day"
+    ? tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startInstant
+    : entry.temporal.startsAt;
+}
+
+function compareScheduleViewItems(
+  a: CalendarScheduleViewItem,
+  b: CalendarScheduleViewItem,
+): number {
+  const byStart = compareInstants(
+    scheduleViewSortInstant(a.entry),
+    scheduleViewSortInstant(b.entry),
+  );
+  return byStart !== 0
+    ? byStart
+    : String(a.entry.id).localeCompare(String(b.entry.id));
 }
 
 export interface CalendarOccurrenceDateGroup {
@@ -377,5 +397,8 @@ export function selectCalendarMonthScheduleGroups(
 
   return [...groups.entries()]
     .sort(([dateA], [dateB]) => (dateA < dateB ? -1 : dateA > dateB ? 1 : 0))
-    .map(([date, items]) => ({ date, items }));
+    .map(([date, items]) => ({
+      date,
+      items: [...items].sort(compareScheduleViewItems),
+    }));
 }

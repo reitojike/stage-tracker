@@ -10,7 +10,7 @@ import {
 } from "@/lib/actions/invitations";
 import type { ReceivedInvitation } from "../_data/listMyReceivedInvitations";
 import {
-  formatTokyoCalendarDateJa,
+  formatTokyoCalendarDateWithYearJa,
   occurrenceTimeRangeLabel,
 } from "@/app/_lib/format";
 
@@ -202,7 +202,7 @@ function InvitationCard({
             ) : null}
           </div>
           <span className="text-body-sm text-muted-foreground">
-            {formatTokyoCalendarDateJa(
+            {formatTokyoCalendarDateWithYearJa(
               instantToTokyoCalendarDate(context.occurrence.startsAt),
             )}{" "}
             {occurrenceTimeRangeLabel(

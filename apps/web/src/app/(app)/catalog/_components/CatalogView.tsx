@@ -37,6 +37,7 @@ import {
 } from "@/app/_lib/read-state";
 import {
   DEFAULT_CATALOG_FILTER_SELECTION,
+  activeKnownSelection,
   activeFacetForGenre,
   filterCatalogEntries,
   isCatalogFilterSelectionActive,
@@ -72,7 +73,7 @@ const GENRE_LABELS_JA: Readonly<Record<string, string>> = {
   idol: "アイドル",
 };
 
-function filterSummaryLabel(
+export function filterSummaryLabel(
   selection: CatalogFilterSelection,
   options: CatalogFilterOptions,
 ): string | null {
@@ -80,11 +81,28 @@ function filterSummaryLabel(
     return null;
   }
   const parts = [GENRE_LABELS_JA[selection.genreKey] ?? selection.genreKey];
-  const groups = options.groupsByGenreKey[selection.genreKey] ?? [];
-  const groupLabels = selection.groupIds.map(
-    (id) => groups.find((group) => group.id === id)?.displayName ?? id,
-  );
-  parts.push(...groupLabels, ...selection.venues);
+  const facet = activeFacetForGenre(selection.genreKey);
+  if (facet === "group") {
+    const groups = options.groupsByGenreKey[selection.genreKey] ?? [];
+    const active = activeKnownSelection(
+      selection.groupIds,
+      groups.map((group) => group.id),
+    );
+    if (active.isActive) {
+      parts.push(
+        ...active.ids.map(
+          (id) => groups.find((group) => group.id === id)?.displayName ?? id,
+        ),
+      );
+    }
+  }
+  if (facet === "venue") {
+    const venues = options.venuesByGenreKey[selection.genreKey] ?? [];
+    const active = activeKnownSelection(selection.venues, venues);
+    if (active.isActive) {
+      parts.push(...active.ids);
+    }
+  }
   return parts.join(" / ");
 }
 

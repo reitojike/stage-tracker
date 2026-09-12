@@ -159,7 +159,8 @@ function isUpcomingParticipation(
   entry: ParticipationWithOccurrence,
   now: ScreenNow,
 ): boolean {
-  return isInstantSameOrAfter(entry.occurrence.startsAt, now.nowInstant);
+  const relevantEnd = entry.occurrence.endsAt ?? entry.occurrence.startsAt;
+  return isInstantSameOrAfter(relevantEnd, now.nowInstant);
 }
 
 function scheduleEntrySortInstant(entry: PersonalScheduleEntry): Instant {

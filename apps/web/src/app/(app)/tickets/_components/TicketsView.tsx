@@ -20,6 +20,7 @@ import {
 import { formatMonthJa } from "@/app/_lib/format";
 import {
   ticketDeadlineBadgeDisplay,
+  ticketPersonalStateBadgeDisplay,
   ticketTargetScopeLabel,
 } from "@/app/_lib/ticket-display";
 import {
@@ -150,16 +151,13 @@ function badgeForRow(row: TicketsTimelineRow, personalStateUnknown: boolean) {
   if (row.isPostFinalRetainedHistory) {
     return <Badge variant="terminal">受付終了</Badge>;
   }
-  if (personalStateUnknown) {
-    return <Badge variant="outline">不明</Badge>;
-  }
-  if (row.myState === "applied") {
-    return <Badge variant="done">申し込み済み</Badge>;
-  }
-  if (row.myState === "planned") {
-    return <Badge variant="subtle">申し込む予定</Badge>;
-  }
-  return null;
+  const display = ticketPersonalStateBadgeDisplay(
+    row.myState,
+    personalStateUnknown,
+  );
+  return display === null ? null : (
+    <Badge variant={display.variant}>{display.label}</Badge>
+  );
 }
 
 function TicketTimelineRow({

@@ -20,8 +20,13 @@ import {
 import {
   formatTokyoCalendarDateJa,
   occurrenceTimeRangeLabel,
+  participationStatusLabel,
+  scheduleBlockingLabel,
 } from "@/app/_lib/format";
-import { ticketDeadlineBadgeDisplay } from "@/app/_lib/ticket-display";
+import {
+  ticketDeadlineBadgeDisplay,
+  ticketPersonalStateBadgeDisplay,
+} from "@/app/_lib/ticket-display";
 import {
   READ_FAILURE_RETRY_HINT_JA,
   type MergedListBlockState,
@@ -117,22 +122,6 @@ function PartFailureNote({
   );
 }
 
-function badgeForTicketDeadlineRow(
-  row: HomeTicketDeadlineRow["row"],
-  personalStateUnknown: boolean,
-) {
-  if (personalStateUnknown) {
-    return <Badge variant="outline">不明</Badge>;
-  }
-  if (row.myState === "planned") {
-    return <Badge variant="subtle">申し込む予定</Badge>;
-  }
-  if (row.myState === "applied") {
-    return <Badge variant="done">申し込み済み</Badge>;
-  }
-  return null;
-}
-
 function TicketDeadlineSection({
   state,
   today,
@@ -178,8 +167,8 @@ function TicketDeadlineSection({
                 },
                 today,
               );
-              const personalStateBadge = badgeForTicketDeadlineRow(
-                row,
+              const personalStateBadge = ticketPersonalStateBadgeDisplay(
+                row.myState,
                 optional.ok === false,
               );
               return (
@@ -198,7 +187,11 @@ function TicketDeadlineSection({
                             {deadlineBadge.label}
                           </Badge>
                         ) : null}
-                        {personalStateBadge}
+                        {personalStateBadge !== null ? (
+                          <Badge variant={personalStateBadge.variant}>
+                            {personalStateBadge.label}
+                          </Badge>
+                        ) : null}
                       </span>
                     ) : null}
                     <span className="line-clamp-2 text-title font-semibold leading-title">
@@ -212,9 +205,7 @@ function TicketDeadlineSection({
                         {formatMilestoneTypeJa(row.milestone.milestoneType)}・
                         {formatMilestoneWhenJa(row.milestone)}
                       </span>
-                      {row.milestone.temporalPrecision === "date" ? null : (
-                        <ListRowChevron className="min-h-0" />
-                      )}
+                      <ListRowChevron className="min-h-0" />
                     </span>
                   </Link>
                 </li>
@@ -345,9 +336,7 @@ function UpcomingScheduleRow({ item }: { readonly item: HomeUpcomingItem }) {
               item.occurrence.endsAt,
             )}
             <Badge variant="subtle">
-              {item.participation.status === "attending"
-                ? "参加する"
-                : "気になる"}
+              {participationStatusLabel(item.participation.status)}
             </Badge>
             {canceled ? <Badge variant="terminal">中止</Badge> : null}
           </span>
@@ -371,9 +360,9 @@ function UpcomingScheduleRow({ item }: { readonly item: HomeUpcomingItem }) {
           <Badge variant="subtle">
             {item.isOwner ? "自分の予定" : "共有されている予定"}
           </Badge>
-          {!item.entry.blocking ? (
-            <Badge variant="outline">予定を確保しない</Badge>
-          ) : null}
+          <Badge variant={item.entry.blocking ? "subtle" : "outline"}>
+            {scheduleBlockingLabel(item.entry.blocking)}
+          </Badge>
         </span>
         <span className="text-title font-medium text-foreground">
           {item.entry.title}
