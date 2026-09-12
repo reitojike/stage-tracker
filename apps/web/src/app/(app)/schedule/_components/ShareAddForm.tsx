@@ -62,7 +62,9 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (!nextOpen) {
+    if (nextOpen) {
+      setAttempt(0);
+    } else {
       reset();
     }
   }

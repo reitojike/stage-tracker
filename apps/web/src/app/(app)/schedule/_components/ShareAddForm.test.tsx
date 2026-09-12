@@ -96,6 +96,7 @@ describe("ShareAddForm", () => {
     expect(screen.getByLabelText(/共有する相手のメールアドレス/)).toHaveValue(
       "",
     );
+    expect(screen.queryByText("共有に追加しました。")).not.toBeInTheDocument();
   });
 
   it("keeps the Sheet open and preserves input for validation errors", async () => {
