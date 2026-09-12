@@ -36,7 +36,54 @@ describe("/auth/confirm", () => {
     const response = await GET(request);
 
     expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
+    expect(mockVerifyOtp).toHaveBeenCalledWith({
+      token_hash: "abc123",
+      type: "email",
+    });
     expect(response.headers.get("location")).toBe("/");
+  });
+
+  it.each([
+    "magiclink",
+    "recovery",
+    "invite",
+    "signup",
+    "email_change",
+    "phone_change",
+    "sms",
+  ])(
+    "email 以外の OTP type (%s) は client を作らず session cookie も発行しない",
+    async (type) => {
+      const request = new NextRequest(
+        `https://stage-tracker.com/auth/confirm?token_hash=abc123&type=${type}`,
+      );
+
+      const response = await GET(request);
+
+      expect(mockCreateSupabaseServerClient).not.toHaveBeenCalled();
+      expect(mockVerifyOtp).not.toHaveBeenCalled();
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(response.headers.get("location")).toBe(
+        "/sign-in?error=link_expired",
+      );
+    },
+  );
+
+  it("verifyOtp が失敗した場合は link_expired へ redirect する", async () => {
+    mockVerifyOtp.mockResolvedValue({ error: new Error("expired token") });
+    const request = new NextRequest(
+      "https://stage-tracker.com/auth/confirm?token_hash=expired&type=email",
+    );
+
+    const response = await GET(request);
+
+    expect(mockVerifyOtp).toHaveBeenCalledWith({
+      token_hash: "expired",
+      type: "email",
+    });
+    expect(response.headers.get("location")).toBe(
+      "/sign-in?error=link_expired",
+    );
   });
 
   it("token_hash が無ければ verifyOtp を呼ばずに拒否する", async () => {

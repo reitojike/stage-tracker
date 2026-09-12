@@ -3,6 +3,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const LEGACY_DIRECTORY = ['apps', 'legacy-web'].join(path.sep);
+const LEGACY_PATH_REFERENCES = [
+  ['apps', 'legacy-web'].join('/'),
+  ['apps', 'legacy-web'].join('\\'),
+];
 const LEGACY_PACKAGE = ['@stage-tracker', 'legacy-web'].join('/');
 
 const SCAN_TARGETS = [
@@ -15,6 +19,7 @@ const SCAN_TARGETS = [
   'test',
   'supabase/config.toml',
   'apps/web/package.json',
+  'apps/web/.prettierignore',
   'apps/web/eslint.config.mjs',
   'apps/web/playwright.config.ts',
   'apps/web/src',
@@ -22,6 +27,7 @@ const SCAN_TARGETS = [
   'apps/web/tsconfig.json',
   'packages/domain/package.json',
   'packages/ui/package.json',
+  'packages/ui/eslint.config.mjs',
 ];
 
 function filesUnder(target) {
@@ -45,7 +51,7 @@ export function findLegacyOperationalResidue(repositoryRoot = process.cwd()) {
     for (const file of filesUnder(absoluteTarget)) {
       if (path.resolve(file) === path.resolve(self)) continue;
       const content = readFileSync(file, 'utf8');
-      if (content.includes(LEGACY_DIRECTORY.replaceAll(path.sep, '/'))) {
+      if (LEGACY_PATH_REFERENCES.some((reference) => content.includes(reference))) {
         findings.push(`${path.relative(repositoryRoot, file)}: legacy directory reference`);
       }
       if (content.includes(LEGACY_PACKAGE)) {

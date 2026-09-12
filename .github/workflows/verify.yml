@@ -10,16 +10,15 @@ name: Verify
 # source, not just against files already committed here. `Verify / Database`
 # starts a local Supabase stack (via the `supabase` npm devDependency, using
 # ubuntu-latest's preinstalled Docker) to run the generated-types drift check
-# and the DB/RLS/client-role checks before the apps/web Auth unit checks
-# against a real local Postgres - no remote Supabase project or credentials
-# are required.
+# and the DB/RLS/client-role checks against a real local Postgres - no remote
+# Supabase project or credentials are required. Auth unit coverage belongs to
+# Verify / Code; real HTTP/browser Auth coverage belongs to Verify / E2E.
 #
 # The full `pnpm run verify` one-command sequence (code + build + database)
 # remains the local/agent deterministic verification contract; these three
 # jobs each run one slice of it so failures are attributable per
 # responsibility instead of only via the aggregate command's exit code. The
-# Database job further separates its DB and Auth groups into named steps while
-# keeping one runner, one Supabase stack, and one dependency install.
+# Database job keeps one runner, one Supabase stack, and one dependency install.
 #
 # `Verify / Migration Ordering Fence` (Issue #131) is a fourth, pull_request-
 # only job: it also needs no remote Supabase credentials, but is not part of
@@ -28,14 +27,14 @@ name: Verify
 # `Verify / Database` uses the same grouped checks as the `verify:database`
 # local contract, but with a CI-specific initialization path (Issue #209): it
 # skips `supabase db reset` (redundant on this always-fresh runner - see the
-# step's own comment below) and excludes Supabase services no Database/RLS/Auth check
+# step's own comment below) and excludes Supabase services no Database/RLS check
 # uses (Studio, Realtime, Storage/imgproxy, Edge Runtime,
 # Analytics/Logflare/Vector, Supavisor - Mailpit and PostgREST/GoTrue/Kong
-# stay because the RLS suite and apps/web E2E use them) to reduce cold-start
+# stay because the RLS suite uses them) to reduce cold-start
 # image pulls and container registry exposure. The
-# DB group runs before the Auth group, and both are called directly from the
-# corresponding named steps below so the local aggregate and CI check sets
-# remain structurally aligned.
+# DB group is called directly from the corresponding named step below so the
+# local aggregate and CI check sets remain structurally aligned. Auth unit
+# tests run in Verify / Code; real HTTP/browser Auth runs in Verify / E2E.
 # `postgres-meta` also stays included (Issue #253): the generated-types
 # drift check's `supabase gen types --local` needs postgres-meta, and when
 # it is excluded from `supabase start`, that command pulls the image itself
@@ -179,18 +178,13 @@ jobs:
       # instead of re-applying migrations, which is why `pnpm run
       # verify:database` (the local/agent contract) still runs `supabase db
       # reset` explicitly. CI skips that redundant reset here. The named
-      # check steps below are the exact grouped commands composed by
-      # verify:database:checks, so CI keeps the same coverage while recording
-      # DB guardrails before the Auth unit slice.
+      # check step below is the exact grouped command composed by
+      # verify:database:checks, so CI keeps the same DB coverage.
       - name: Start local Supabase
         run: pnpm run verify:database:start
 
       - name: Verify / DB checks
         run: pnpm run verify:database:db-checks
-
-      - name: Verify / Auth checks
-        timeout-minutes: 5
-        run: pnpm run verify:database:auth-checks
 
       # Distinguishes deadlock/concurrency failures (SQLSTATE 40P01, already
       # visible in the step above's own test output) from container

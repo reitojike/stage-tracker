@@ -11,11 +11,8 @@
 // published as of the fetch above - unpublished future holidays are never
 // guessed).
 //
-// apps/web has no equivalent of legacy's scripts/update-japanese-holidays.mjs
-// regeneration tool yet (out of this Task's scope - see this Task's report:
-// porting the fetch/regeneration pipeline itself was judged a separate
-// yak-shave from porting the presentation gap this Task fixes). Refreshing
-// this snapshot for a future year requires porting that script first.
+// Refresh this snapshot with the root `scripts/update-japanese-holidays.mjs`
+// tool; see docs/holiday-data.md for the reviewable update procedure.
 
 export interface JapaneseHolidayRow {
   /** Asia/Tokyo calendar date, "YYYY-MM-DD". */

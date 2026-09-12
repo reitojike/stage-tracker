@@ -74,35 +74,36 @@ local / agent向けのone-command full deterministic verificationです。内部
 責務ごとに分けた3つのcomposition scriptを順に実行します。GitHub Actions
 (`.github/workflows/verify.yml`) 上でもこの3責務を `Verify / Code` /
 `Verify / Build` / `Verify / Database` という独立jobへ分割しており、
-`Verify / Database` 内も `Start local Supabase` / `Verify / DB checks` /
-`Verify / Auth checks` のnamed stepへ分けているため、PR Checks上でDB層と
-Auth層のどちらが failed したかを個別に確認できます。
+`Verify / Database` は `Start local Supabase` / `Verify / DB checks` のnamed
+stepに分けています。Auth unit coverageは`Verify / Code`内の`test:unit`、
+real HTTP/browser coverageは独立した`Verify / E2E`がauthorityです。
 
 - `pnpm run verify:code` — `format:check` / `lint` / `typecheck` /
   `test:unit` / `foundation:check` (generated adapter と Foundation-managed
   quality profile のdrift 検知) / `agent-rules:check` / `legacy:check` /
   `supabase:migrations:check`。いずれも local Supabase runtimeを必要としない
-  deterministic checkです。
+  deterministic checkです。`typecheck`はworkspace packageに加えてroot
+  `test/rls/**/*.ts`も`test/rls/tsconfig.json`でblocking検証します。Auth unit
+  testだけを絞って再実行する場合は`pnpm run test:auth:unit`を使えます。
 - `pnpm run verify:build` — `build` / `build-storybook`（component catalogの
   static build。Storybookのruntime Node要件がrepoのNode baselineと非互換化
   する事態をCIで検知するためblocking checkに含めています）。
 - `pnpm run verify:database` — local Supabaseを起動・resetした上で、
-  `verify:database:checks` を実行します。これは先に DB層の
+  `verify:database:checks` を実行します。これはDB層の
   `supabase:types:check` / `test:rls` / `client-role-privileges:check` を
-  `verify:database:db-checks` として、続けて `apps/web` の Auth unit suite を
-  `verify:database:auth-checks` として実行する構成です。
+  `verify:database:db-checks` として実行する構成です。
   generated database typesのexact drift、DB/RLS test、および`anon` /
   `authenticated` / `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`
   残存privilegeを検知するclient-role table privilege guardrailを含みます。
   remote Supabase projectやremote credentialsは不要です。
   Docker が起動していない場合、このステップで失敗します。real browser の
   Auth / journey coverage は独立した `verify:e2e` が担います。
-  Supabase の起動は `verify:database:start`（Database/RLS/Auth checksが使わないStudio/
+  Supabase の起動は `verify:database:start`（Database/RLS checksが使わないStudio/
   Realtime/Storage等のservice - `supabase:start --exclude`の対象 - を
   除いたもの）です。checkは`verify:database:checks`が
-  `verify:database:db-checks`と`verify:database:auth-checks`を合成しており、
+  `verify:database:db-checks`を呼び出し、
   GitHub Actions (`Verify / Database` job) は同じ`verify:database:start`の
-  後にresetを省き、同じ2つのgrouped scriptをnamed stepで実行します
+  後にresetを省き、同じDB check groupをnamed stepで実行します
   （Issue #209 - GitHub-hosted runnerは常にfreshなため、既存local
   Supabaseがdirtyな状態を引きずるlocal/agent実行と異なりresetが不要と
   実証済み）。

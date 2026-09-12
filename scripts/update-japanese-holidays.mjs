@@ -32,6 +32,7 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import * as prettier from 'prettier';
 
 const SOURCE_URL = 'https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv';
 const SOURCE_PAGE = 'https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html';
@@ -76,22 +77,9 @@ function parseCsv(text) {
   });
 }
 
-async function main() {
-  const response = await fetch(SOURCE_URL);
-  if (!response.ok) {
-    throw new Error(`failed to fetch Cabinet Office holiday CSV: HTTP ${response.status}`);
-  }
-  const buffer = Buffer.from(await response.arrayBuffer());
-  const text = new TextDecoder('shift_jis').decode(buffer);
-  const rows = parseCsv(text).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
-  if (rows.length === 0) {
-    throw new Error('parsed zero holiday rows - refusing to overwrite the existing snapshot');
-  }
-
+export async function formatHolidaySnapshot(rows, fetchedAt) {
   const firstDate = rows[0].date;
   const lastDate = rows[rows.length - 1].date;
-  const fetchedAt = new Date().toISOString();
 
   const body = rows
     .map((row) => `  { date: '${row.date}', name: ${JSON.stringify(row.name)} },`)
@@ -125,6 +113,28 @@ export const JAPANESE_HOLIDAY_DATA: readonly JapaneseHolidayRow[] = [
 ${body}
 ];
 `;
+
+  const prettierConfig = await prettier.resolveConfig(OUTPUT_PATH);
+  return prettier.format(output, { ...prettierConfig, filepath: OUTPUT_PATH });
+}
+
+async function main() {
+  const response = await fetch(SOURCE_URL);
+  if (!response.ok) {
+    throw new Error(`failed to fetch Cabinet Office holiday CSV: HTTP ${response.status}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const text = new TextDecoder('shift_jis').decode(buffer);
+  const rows = parseCsv(text).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  if (rows.length === 0) {
+    throw new Error('parsed zero holiday rows - refusing to overwrite the existing snapshot');
+  }
+
+  const firstDate = rows[0].date;
+  const lastDate = rows[rows.length - 1].date;
+  const fetchedAt = new Date().toISOString();
+  const output = await formatHolidaySnapshot(rows, fetchedAt);
 
   await writeFile(OUTPUT_PATH, output, 'utf8');
   console.log(`Wrote ${rows.length} holiday rows (${firstDate} .. ${lastDate}) to ${OUTPUT_PATH}`);

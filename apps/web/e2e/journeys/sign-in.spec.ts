@@ -160,6 +160,85 @@ test("magic-link session reaches the app and sign-out invalidates it", async ({
   }
 });
 
+test("server-side account invalidation rejects the browser's stale session", async ({
+  page,
+}) => {
+  const admin = createE2eAdminClient();
+  const actor = await provisionActor(admin, "e2e-invalidated-session");
+  let deleted = false;
+
+  try {
+    await completeMagicLinkSignIn(page, actor.email);
+    await expect(page).toHaveURL(/\/$/);
+
+    const sessionCookies = await page.context().cookies();
+    expect(
+      sessionCookies.some((cookie) => cookie.name.includes("auth-token")),
+      "the browser must hold a real Supabase session before server-side invalidation",
+    ).toBe(true);
+
+    const { error } = await admin.auth.admin.deleteUser(actor.userId);
+    expect(error).toBeNull();
+    deleted = true;
+
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/sign-in$/);
+    await expect(
+      page.getByRole("heading", { name: "サインイン" }),
+    ).toBeVisible();
+  } finally {
+    if (!deleted) {
+      await deleteActor(admin, actor.userId);
+    }
+  }
+});
+
+test("local Supabase rejects public signup without creating an account", async () => {
+  const status = readLocalSupabaseStatus();
+  const publicClient = createClient<Database>(status.apiUrl, status.anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const admin = createE2eAdminClient();
+  const email = `e2e-public-signup-${String(Date.now())}-${Math.random().toString(36).slice(2)}@example.test`;
+
+  const { data, error } = await publicClient.auth.signUp({
+    email,
+    password: "Str0ng-Test-Passw0rd!",
+  });
+
+  try {
+    expect(error).not.toBeNull();
+    expect(data.user).toBeNull();
+    expect(data.session).toBeNull();
+
+    const { data: users, error: listError } = await admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    expect(listError).toBeNull();
+    expect(users.users.some((user) => user.email === email)).toBe(false);
+  } finally {
+    if (data.user !== null) {
+      await deleteActor(admin, data.user.id);
+    }
+  }
+});
+
+test("invalid email OTP redirects to a distinguishable expired-link UI", async ({
+  page,
+}) => {
+  await page.goto(`/auth/confirm?token_hash=${"0".repeat(64)}&type=email`);
+
+  await expect(page).toHaveURL(/\/sign-in\?error=link_expired$/);
+  // Next.js itself adds a route-announcer with role=alert; scope this to
+  // the page's visible Auth error panel so the assertion is unambiguous.
+  const alert = page.locator('main [role="alert"]');
+  await expect(alert).toContainText("サインインリンクが無効です");
+  await expect(alert).toContainText(
+    "リンクの有効期限が切れているか、すでに使用されています。",
+  );
+});
+
 test("local Supabase enforces the Passkey credential and session boundary", async () => {
   const status = readLocalSupabaseStatus();
   const createPasskeyClient = () =>

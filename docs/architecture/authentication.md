@@ -231,10 +231,13 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
    の `requireAuthenticatedUserId()` がこの読み取りの主な呼び出し口です。
 
 実 HTTP の default-deny、public path / PWA resource の exact-match、Magic Link による
-session 確立、UI の sign-out 後に protected route が再び拒否されることは
+session 確立、UI の sign-out と server-side account invalidation 後に protected route が
+再び拒否されること、public self-service signup の拒否、invalid Magic Link が
+`link_expired` の識別可能な UI へ到達することは
 [apps/web/e2e/journeys/sign-in.spec.ts](../../apps/web/e2e/journeys/sign-in.spec.ts)
-が local Supabase と current Next.js server に対して検証します。pure な allowlist / redirect
-validation は `apps/web` の Auth unit suite が補完します。
+が local Supabase と current Next.js server に対して検証します。Magic Link callback が
+`type=email` だけを消費し、他の OTP type では session cookie を発行しないことを含む pure な
+allowlist / redirect validation は `apps/web` の Auth unit suite が補完します。
 
 ### コメント上の呼称のずれ（解消済み・履歴記録）
 
