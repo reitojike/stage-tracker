@@ -9,17 +9,24 @@ import {
 } from "@stage-tracker/domain";
 import EditEventPage from "./page";
 
-const mockGetUser = vi.fn();
-const mockGetEventForEdit = vi.fn();
+const mocks = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  getEventForEdit: vi.fn(),
+  refresh: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
-    auth: { getUser: mockGetUser },
+    auth: { getUser: mocks.getUser },
   })),
 }));
 
 vi.mock("./_data/getEventForEdit", () => ({
-  getEventForEdit: (...args: unknown[]) => mockGetEventForEdit(...args),
+  getEventForEdit: (...args: unknown[]) => mocks.getEventForEdit(...args),
 }));
 
 const EVENT_ID = eventIdSchema.parse("11111111-1111-4111-8111-111111111111");
@@ -51,13 +58,14 @@ function buildEvent(ownerId: string): Event {
  */
 describe("EditEventPage", () => {
   beforeEach(() => {
-    mockGetUser.mockReset();
-    mockGetEventForEdit.mockReset();
+    mocks.getUser.mockReset();
+    mocks.getEventForEdit.mockReset();
+    mocks.refresh.mockReset();
   });
 
   it("renders a permission-denied panel for a non-owner", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: OTHER_USER_ID } } });
-    mockGetEventForEdit.mockResolvedValue({
+    mocks.getUser.mockResolvedValue({ data: { user: { id: OTHER_USER_ID } } });
+    mocks.getEventForEdit.mockResolvedValue({
       ok: true,
       value: [{ event: buildEvent(OWNER_ID), occurrences: [] }],
     });
@@ -72,8 +80,8 @@ describe("EditEventPage", () => {
   });
 
   it("renders the edit form for the owner", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mockGetEventForEdit.mockResolvedValue({
+    mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
+    mocks.getEventForEdit.mockResolvedValue({
       ok: true,
       value: [{ event: buildEvent(OWNER_ID), occurrences: [] }],
     });
@@ -87,8 +95,8 @@ describe("EditEventPage", () => {
   });
 
   it("renders an empty panel when the event does not exist", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mockGetEventForEdit.mockResolvedValue({ ok: true, value: [] });
+    mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
+    mocks.getEventForEdit.mockResolvedValue({ ok: true, value: [] });
 
     const ui = await EditEventPage({
       params: Promise.resolve({ eventId: EVENT_ID }),
