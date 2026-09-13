@@ -1,4 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"]
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "description": "Automerge npm patch updates after a 14-day stability period",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "14 days",
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
 }
