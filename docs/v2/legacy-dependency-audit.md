@@ -17,21 +17,21 @@ operational asset が application package 内に同居していたためでし�
 - 並走期間の port・Auth redirect・WebAuthn origin・CI・documentation 設定
 
 M9 では application 固有でない資産を root の `scripts/` と `test/rls/` へ移し、旧
-application 固有の資産と並走設定を削除しました。`pnpm run legacy:check` は旧 directory、
-旧 workspace package、active operational surface からの旧 path 参照が復活した場合に
-fail します。
+application 固有の資産と並走設定を削除しました。完了時には専用の `legacy:check` で旧
+directory、旧 workspace package、active operational surface からの旧 path 参照がないことを
+検証しました。この移行専用 guard は、M9 完了後の Issue #438 で退役しました。
 
 ## Dependency inventory と解消
 
 | 領域                 | cutover 直後に残っていた依存                                                                                                                                                                                               | M9 の解消                                                                                                                                                                                                                                       | 検証                                                                           |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | Runtime              | Production は既に Vercel Root Directory `apps/web` で、`apps/web` / `packages/*` から旧 package への runtime import は ESLint boundary により 0 件。一方、workspace 全体の build / lint / test は旧 package も実行していた | 旧 package を workspace から除去。旧 import 防止用 ESLint rule は対象 directory 自体が無くなったため削除                                                                                                                                        | `pnpm run build`、`pnpm run lint`、`pnpm run typecheck`、Production deployment |
-| Scripts              | Foundation sync/check、migration ordering/drift、Supabase type generation/drift、RLS runner、user provisioning、catalog creator grant、Event / Ticket Opportunity import、holiday update が `apps/legacy-web/scripts` 配下 | application 非依存の entry / library / test を root `scripts/` へ `git mv`。root package script を全て新 path に変更                                                                                                                            | `pnpm run test:scripts`、`pnpm run foundation:check`、`pnpm run legacy:check`  |
+| Scripts              | Foundation sync/check、migration ordering/drift、Supabase type generation/drift、RLS runner、user provisioning、catalog creator grant、Event / Ticket Opportunity import、holiday update が `apps/legacy-web/scripts` 配下 | application 非依存の entry / library / test を root `scripts/` へ `git mv`。root package script を全て新 path に変更                                                                                                                            | `pnpm run test:scripts`、`pnpm run foundation:check`                           |
 | DB / RLS tests       | authoritative な DB/RLS integration suite と fixture が `apps/legacy-web/test/rls` 配下で、generated database type も旧 app 側を import                                                                                    | raw DB/RLS suite を `test/rls/` へ移動し、current generated type `apps/web/src/lib/data/database.types.ts` を参照。root RLS TypeScript は専用 tsconfig で blocking typecheck。app-specific typed-boundary test は current app unit / E2E へ移管 | `pnpm run typecheck:rls`、`pnpm run test:rls`、`pnpm run verify:database`      |
 | Auth / browser tests | 旧 Next.js server を起動する custom browser harness と journey test が `apps/legacy-web/test/auth` に存在                                                                                                                  | 旧 runtime と一体の harness は削除。current product/security contract は Auth unit tests と local Supabase + current Next.js の Playwright journeys へ移管                                                                                      | `pnpm run test:auth:unit`、`pnpm run test:e2e`                                 |
 | Generated types      | 同一 schema から旧 app と current app の 2 ファイルを生成し drift check                                                                                                                                                    | current app の 1 ファイルだけを生成・検査。artifact sequencing fence と PR template も 1 出力へ変更                                                                                                                                             | `pnpm run supabase:types`、`pnpm run supabase:types:check`                     |
 | Local Auth config    | 旧 app `:3000` と current app `:3001` の並走 redirect / WebAuthn origin、current app の固定 `-p 3001`                                                                                                                      | current app を標準 `:3000` に戻し、Playwright server `:3100` だけを additional redirect に保持。WebAuthn origin は `:3000` のみ                                                                                                                 | Auth unit / E2E、`supabase/config.toml` review                                 |
-| Root / CI config     | root package scripts、pnpm lock、Prettier ignore、CodeRabbit exclusion、PR template、Verify workflow、Playwright config、UI ESLint comment が旧 package を前提                                                             | root path / current app に更新し、旧 package entry と専用依存を lockfile から除去                                                                                                                                                               | `pnpm install --lockfile-only`、`pnpm run verify`、`pnpm run legacy:check`     |
+| Root / CI config     | root package scripts、pnpm lock、Prettier ignore、CodeRabbit exclusion、PR template、Verify workflow、Playwright config、UI ESLint comment が旧 package を前提                                                             | root path / current app に更新し、旧 package entry と専用依存を lockfile から除去                                                                                                                                                               | `pnpm install --lockfile-only`、`pnpm run verify`                              |
 | Documentation        | root README と runtime/Auth architecture が旧 implementation や並走 port を current として参照。並走 harness runbook が active                                                                                             | current path / command へ更新し、並走 runbook を削除。M8 comparison / oracle / decision 文書内の旧 path は、当時の比較対象を示す immutable historical evidence として意図的に保持                                                               | Markdown format/check、リンクと current command の spot check                  |
 
 ## Test coverage の置換境界
@@ -81,9 +81,7 @@ test boundary を形成しています。`apps/web` を repository root へ引�
 
 `docs/v2/oracle-*.md`、M8 comparison、decision log、Issue / PR には調査時点の
 `apps/legacy-web/...` path が残ります。これは削除済み code への dependency ではなく、git
-history と照合できる provenance です。active runtime / script / test / config からの参照とは
-区別し、historical docs は `legacy:check` の対象外にします。root operational surface、
-`apps/web/src/**`、`apps/web/e2e/**` に加え、移設時に実際の residue があった
-`apps/web/.prettierignore` と `packages/ui/eslint.config.mjs` は bounded な active surface として
-検査対象です。packages 内の historical design provenance や immutable migration comment までを
-generic に走査するものではありません。
+history と照合できる provenance です。M9 の専用 check は active runtime / script / test /
+config からの参照と区別して historical docs を対象外にしていました。Issue #438 では、
+この過去の固有名を恒久 denylist として維持する current invariant はないと判断し、専用
+check 自体を退役しました。historical provenance は引き続き保持します。

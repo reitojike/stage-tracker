@@ -80,9 +80,9 @@ supabase/         migrations / pgTAP（共有）
 
 ## 再構築時の不変ルール
 
-1. 移行中、`apps/web` と `packages/*` は旧アプリから import しない。M9 では
-   directory の不存在と active tooling / config の legacy 非依存を
-   `pnpm run legacy:check` で強制する。
+1. 移行中、`apps/web` と `packages/*` は旧アプリから import しない。M9 の完了時には
+   directory の不存在と active tooling / config の legacy 非依存を専用 check で検証した。
+   移行完了後、その M9-only guard は Issue #438 で退役した。
 2. oracle ドキュメントに記載のない振る舞いを推測で実装しない。
    不明点は oracle を更新してから実装する。
 3. Operational asset は application package に所有させず、root の `scripts/` と
