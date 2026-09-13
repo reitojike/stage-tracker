@@ -80,7 +80,7 @@ real HTTP/browser coverageは独立した`Verify / E2E`がauthorityです。
 
 - `pnpm run verify:code` — `format:check` / `lint` / `typecheck` /
   `test:unit` / `foundation:check` (generated adapter と Foundation-managed
-  quality profile のdrift 検知) / `agent-rules:check` / `legacy:check` /
+  quality profile のdrift 検知) / `agent-rules:check` /
   `supabase:migrations:check`。いずれも local Supabase runtimeを必要としない
   deterministic checkです。`typecheck`はworkspace packageに加えてroot
   `test/rls/**/*.ts`も`test/rls/tsconfig.json`でblocking検証します。Auth unit
