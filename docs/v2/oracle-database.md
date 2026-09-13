@@ -1,7 +1,7 @@
 # oracle: 現行データベース仕様（最終状態）
 
-このドキュメントは `supabase/migrations/**`（41本、`20260820000000` 〜
-`20260830010000`）と `test/rls/**` を読み、41本を1本に畳んだ **今の DB の姿**を
+このドキュメントは `supabase/migrations/**`（57本、`20260820000000` 〜
+`20260913000000`）と `test/rls/**` を読み、57本を1本に畳んだ **今の DB の姿**を
 記述したものです。v2 実装者はこのドキュメントだけを見て再実装します。差分の
 歴史（どの Issue でどう変わったか）は意図的に省き、最終的に成立している
 schema / RLS / function / invariant だけを記載します。
@@ -63,6 +63,10 @@ authenticated` を明示してからテーブル/列単位で必要な権限だ�
     （participation / invitation）の存在によりブロックされた。
   - `90002`（application-defined）: 対象 occurrence/event が
     effectively canceled のため、新規の active action が拒否された。
+  - `90010`（application-defined）: personal schedule の共有先 email が
+    登録済み account に一致しない。Invitation の opacity 境界では使わない。
+  - `90011`（application-defined）: personal schedule を自分自身へ共有
+    しようとした。
   - `22004` / `22023` / `23514` / `23505` / `23503`: それぞれ標準
     Postgres 分類（必須値欠落 / 不正な値 / CHECK違反 / 一意制約違反 /
     外部キー違反）をそのまま使い、独自コードを起こしていない。
@@ -76,7 +80,7 @@ authenticated` を明示してからテーブル/列単位で必要な権限だ�
 | column      | type        | nullable | default             | 意味                                                                               |
 | ----------- | ----------- | -------- | ------------------- | ---------------------------------------------------------------------------------- |
 | id          | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                                                 |
-| owner_id    | uuid        | NOT NULL | —                   | 作成者=情報管理者。FK → `auth.users(id)`（ON DELETE 指定なし = NO ACTION）         |
+| owner_id    | uuid        | NOT NULL | —                   | 作成者=情報管理者。FK → `auth.users(id)`（明示的 `ON DELETE NO ACTION`）           |
 | title       | text        | NOT NULL | —                   | 興行名                                                                             |
 | venue       | text        | NULL     | —                   | 会場（exact text。venue master は無い）                                            |
 | source_url  | text        | NULL     | —                   | 参照 URL                                                                           |
@@ -162,8 +166,9 @@ Constraint trigger:
 
 Index:
 
-- `event_occurrences_event_id_idx (event_id)`（UK のインデックスと重複
-  気味だが drop されず残存）
+- `event_occurrences_event_id_starts_at_key (event_id, starts_at)` の
+  unique constraint backing index。先頭列 `event_id` の検索にも使えるため、
+  重複していた `event_occurrences_event_id_idx (event_id)` は drop 済み。
 
 ### 1.3 `catalog_creators` — Event 作成権限の allowlist
 
@@ -182,7 +187,7 @@ Index:
 | column     | type        | nullable | default             | 意味                                                |
 | ---------- | ----------- | -------- | ------------------- | --------------------------------------------------- |
 | id         | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                  |
-| owner_id   | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）                  |
+| owner_id   | uuid        | NOT NULL | —                   | FK → `auth.users(id)` **ON DELETE CASCADE**         |
 | memo       | text        | NULL     | —                   |                                                     |
 | is_all_day | boolean     | NOT NULL | —                   | 終日 or 時刻指定の判別                              |
 | starts_on  | date        | NULL     | —                   | 終日エントリの開始日                                |
@@ -219,7 +224,7 @@ Index: `personal_schedule_entries_owner_id_idx (owner_id)`
 | ------------------- | ----------- | -------- | ------------------- | ---------------------------------------------------------- |
 | id                  | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                         |
 | schedule_entry_id   | uuid        | NOT NULL | —                   | FK → `personal_schedule_entries(id)` **ON DELETE CASCADE** |
-| shared_with_user_id | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）                         |
+| shared_with_user_id | uuid        | NOT NULL | —                   | FK → `auth.users(id)` **ON DELETE CASCADE**                |
 | created_at          | timestamptz | NOT NULL | `now()`             |                                                            |
 
 - UK: `(schedule_entry_id, shared_with_user_id)` — 同一エントリを同一
@@ -231,15 +236,15 @@ Index: `personal_schedule_shares_schedule_entry_id_idx`,
 
 ### 1.6 `occurrence_participations` — 公演回への参加意思
 
-| column        | type                            | nullable | default             | 意味                                      |
-| ------------- | ------------------------------- | -------- | ------------------- | ----------------------------------------- |
-| id            | uuid                            | NOT NULL | `gen_random_uuid()` | PK                                        |
-| occurrence_id | uuid                            | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION） |
-| user_id       | uuid                            | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）        |
-| status        | `participation_status` enum     | NOT NULL | —                   | `considering` / `attending`               |
-| visibility    | `participation_visibility` enum | NOT NULL | `'private'`         | `private` / `public`                      |
-| created_at    | timestamptz                     | NOT NULL | `now()`             |                                           |
-| updated_at    | timestamptz                     | NOT NULL | `now()`             |                                           |
+| column        | type                            | nullable | default             | 意味                                        |
+| ------------- | ------------------------------- | -------- | ------------------- | ------------------------------------------- |
+| id            | uuid                            | NOT NULL | `gen_random_uuid()` | PK                                          |
+| occurrence_id | uuid                            | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION）   |
+| user_id       | uuid                            | NOT NULL | —                   | FK → `auth.users(id)` **ON DELETE CASCADE** |
+| status        | `participation_status` enum     | NOT NULL | —                   | `considering` / `attending`                 |
+| visibility    | `participation_visibility` enum | NOT NULL | `'private'`         | `private` / `public`                        |
+| created_at    | timestamptz                     | NOT NULL | `now()`             |                                             |
+| updated_at    | timestamptz                     | NOT NULL | `now()`             |                                             |
 
 - UK: `(occurrence_id, user_id)` — 1 occurrence につき 1 user 1 行。
   `not_attending` は永久に非永続（行が無い＝not attending）。
@@ -248,15 +253,14 @@ Index: `occurrence_participations_user_id_idx (user_id)`
 
 ### 1.7 `occurrence_invitations` — 公演回への未回答招待（pending のみ）
 
-| column        | type        | nullable | default             | 意味                                           |
-| ------------- | ----------- | -------- | ------------------- | ---------------------------------------------- |
-| id            | uuid        | NOT NULL | `gen_random_uuid()` | PK                                             |
-| occurrence_id | uuid        | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION）      |
-| inviter_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）             |
-| invitee_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）             |
-| declined_at   | timestamptz | NULL     | —                   | **死んだ列**（後述）。書き込む経路が現存しない |
-| created_at    | timestamptz | NOT NULL | `now()`             |                                                |
-| updated_at    | timestamptz | NOT NULL | `now()`             | 実質発火機会が無い（後述）                     |
+| column        | type        | nullable | default             | 意味                                        |
+| ------------- | ----------- | -------- | ------------------- | ------------------------------------------- |
+| id            | uuid        | NOT NULL | `gen_random_uuid()` | PK                                          |
+| occurrence_id | uuid        | NOT NULL | —                   | FK → `event_occurrences(id)`（NO ACTION）   |
+| inviter_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)` **ON DELETE CASCADE** |
+| invitee_id    | uuid        | NOT NULL | —                   | FK → `auth.users(id)` **ON DELETE CASCADE** |
+| created_at    | timestamptz | NOT NULL | `now()`             |                                             |
+| updated_at    | timestamptz | NOT NULL | `now()`             | 実質発火機会が無い（後述）                  |
 
 CHECK:
 
@@ -273,10 +277,9 @@ accepted/declined history モデルは supersede 済み）:
 - 行の存在 = 「その occurrence へその招待が pending 中」を意味する
   唯一の表現。resolve（decline / invitee が attending に到達）される
   と行ごと削除される。durable な履歴は一切残らない。
-- `declined_at` は元々「辞退した事実のスタンプ」用だったが、現在の
-  `decline_occurrence_invitation` は行を DELETE するだけで、この列に
-  一切書き込まない。schema には残っているが v2 では持ち込む理由がない
-  （§7参照）。
+- `declined_at` は元々「辞退した事実のスタンプ」用だったが、pending-only
+  移行後は `decline_occurrence_invitation` が行を DELETE する。legacy app
+  削除後の contract cleanup で column 自体も削除済み（§7参照）。
 
 ### 1.8 `ticket_opportunities` — 販売機会（TicketOpportunity, shared）
 
@@ -346,7 +349,7 @@ Index: `ticket_opportunity_milestones_opportunity_id_idx`
 | column         | type        | nullable | default             | 意味                                                  |
 | -------------- | ----------- | -------- | ------------------- | ----------------------------------------------------- |
 | id             | uuid        | NOT NULL | `gen_random_uuid()` | PK                                                    |
-| user_id        | uuid        | NOT NULL | —                   | FK → `auth.users(id)`（NO ACTION）                    |
+| user_id        | uuid        | NOT NULL | —                   | FK → `auth.users(id)` **ON DELETE CASCADE**           |
 | opportunity_id | uuid        | NOT NULL | —                   | FK → `ticket_opportunities(id)` **ON DELETE CASCADE** |
 | status         | text        | NOT NULL | —                   | CHECK IN `('planned','applied')`                      |
 | created_at     | timestamptz | NOT NULL | `now()`             |                                                       |
@@ -987,7 +990,7 @@ attending` の拒否、`attending→considering`・visibility のみの更新・
 - decline: 該当なし/他人の invitation は行に一切影響を与えず
   no-op であること（inviter 自身も invitee の代わりに decline
   できない）。二重 decline が idempotent であること。
-  `declined_at` がテーブル API から一切書き込めないこと。
+  pending invitation の field がテーブル API から UPDATE できないこと。
 - 現行モデル: decline 後の再招待が新しい pending invitation を作れる
   こと（永久ブロックではない）、再招待は participation を作らない
   こと、decline 後も invitee 本人は直接 attending にできること、
@@ -1074,29 +1077,22 @@ false` で既存値を変更しないこと、`p_set_genre=true` かつ key な�
 
 ## 7. v2 で見直すべき点（提案）
 
-1. **`occurrence_invitations.declined_at` は死んだ列。** pending-only
+1. **`occurrence_invitations.declined_at` は削除済み。** pending-only
    モデルへの移行後、`decline_occurrence_invitation` は行を DELETE
-   するだけでこの列に一切書き込まない。v2 のスキーマにこの列を持ち
-   越す理由はない（存在するが誰も読み書きしない列を新設計に持ち込むと
-   「何かに使われている」という誤解を招く）。同様に、この移行後は
+   するだけでこの列に一切書き込まない。legacy app 削除後の contract
+   cleanup で v2 schema から削除した。同様に、この移行後は
    `occurrence_invitations` に対する実質的な UPDATE 経路が無いため、
    `occurrence_invitations_set_updated_at` トリガーもほぼ発火機会が
    ない。v2 では「pending invitation は不変レコード（INSERT/DELETE
    のみ）」として設計し直し、`updated_at` 自体の要否を再検討する
    価値がある。
-2. **`auth.users` への外部キーの ON DELETE 方針が一貫していない。**
-   `catalog_creators.user_id` は `ON DELETE CASCADE` だが、
-   `events.owner_id` / `personal_schedule_entries.owner_id` /
-   `occurrence_participations.user_id` /
-   `occurrence_invitations.{inviter_id,invitee_id}` /
-   `personal_schedule_shares.shared_with_user_id` /
-   `user_ticket_opportunity_states.user_id` はいずれも ON DELETE 未
-   指定（NO ACTION）。アカウント削除機能が存在しない現状は問題化して
-   いないが、v2 でアカウント削除・退会を検討するなら、削除時に何を
-   残し何を消すかの方針（shared catalog data は残す、personal data は
-   消す等）を先に決め、FK の ON DELETE 句として明示する必要がある。
-   現行 v1 はこの点を「まだ決めていないもの」として一度も明示的に
-   決定していない。
+2. **`auth.users` への外部キーの ON DELETE 方針は明示済み。** shared
+   catalog data である `events.owner_id` だけを `NO ACTION` とし、user
+   削除の副作用で Event を消さない。personal data である schedule、
+   participation、invitation、ticket opportunity state と、permission
+   membership である `catalog_creators` は `ON DELETE CASCADE` とする。
+   v2 で account deletion を実装する場合も、この shared/personal 境界を
+   暗黙に変更しない。
 3. **SECURITY DEFINER RPC 間でのボイラープレートの重複。**
    `invite_to_occurrence` と `invite_to_occurrence_by_email` は
    settle-loop・cancellation チェック・advisory lock の扱いがほぼ
@@ -1111,7 +1107,8 @@ false` で既存値を変更しないこと、`p_set_genre=true` かつ key な�
    （atomic multi-row insert、replace-all upsert、idempotent no-op）
    を明示的に部品化できないか検討する価値がある。
 4. **カスタム SQLSTATE の一覧が DB 側に一元化されていない。**
-   `42501`/`90001`/`90002` の意味はそれぞれの migration コメントと
+   `42501`/`90001`/`90002`/`90010`/`90011` の意味はそれぞれの
+   migration コメントと
    アプリ側 `classifyWriteError` 相当のコードに分散している。v2 では
    コメントに頼らず、コード内の単一箇所（例: 定数モジュール +
    このドキュメントのような oracle）でエラーコード表を正本化すべき。
@@ -1135,11 +1132,10 @@ CONSTRAINTS DEFERRED` の組み合わせで実現している。** 正しく機�
    先送りされている（「まだ決めていないもの」）。v2 でこのまま
    踏襲するかどうかは、実データ規模（venue 表記揺れの実態）を見てから
    判断すべき。
-8. **`event_occurrences_event_id_idx` が一意制約
-   `(event_id, starts_at)` のインデックスと事実上重複している。**
-   v1 では「このマイグレーションの scope 外」として意図的に残された
-   だけなので、v2 でスキーマを作り直す際は素直に単一インデックスに
-   統合してよい。
+8. **`event_occurrences_event_id_idx` の重複は解消済み。** 一意制約
+   `(event_id, starts_at)` の backing index が `event_id` 単独検索も
+   cover するため、重複していた単一列 index は drop した。v2 でも
+   同じ2本を再作成しない。
 9. **チケット関連の設計が2世代分、痕跡として残っている。** v1 は
    「取得済みチケットの在庫・割当・譲渡」モデルを一度作り、Issue
    #225→#234 で完全に撤去し、代わりに「販売機会の発見＋個人の申込

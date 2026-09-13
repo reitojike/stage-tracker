@@ -208,7 +208,6 @@ export type Database = {
       occurrence_invitations: {
         Row: {
           created_at: string
-          declined_at: string | null
           id: string
           invitee_id: string
           inviter_id: string
@@ -217,7 +216,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          declined_at?: string | null
           id?: string
           invitee_id: string
           inviter_id: string
@@ -226,7 +224,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          declined_at?: string | null
           id?: string
           invitee_id?: string
           inviter_id?: string
@@ -557,7 +554,6 @@ export type Database = {
         Args: { p_invitation_id: string }
         Returns: {
           created_at: string
-          declined_at: string | null
           id: string
           invitee_id: string
           inviter_id: string

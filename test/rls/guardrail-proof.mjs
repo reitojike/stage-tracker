@@ -957,25 +957,22 @@ try {
   );
 
   // 20. occurrence_invitations has no UPDATE grant and no UPDATE policy at
-  // all (Issue #225/#230: decline_occurrence_invitation now resolves an
-  // invitation by DELETing it, not by stamping declined_at - the column
-  // still exists on the table but no write path sets it anymore, see
-  // supabase/migrations/20260830000000_simplify_invitation_pending_only.sql).
-  // That absence is what keeps a client from writing declined_at directly at
-  // all, so it is worth proving the negative test depends on it. Both layers
+  // all (Issue #225/#230: a pending invitation is immutable and decline
+  // resolves it by DELETE through the bounded RPC). That absence is what
+  // keeps a client from rewriting invitation identity fields directly, so it
+  // is worth proving the negative test depends on it. Both layers
   // have to be added together (like guardrail items 2 and 4): a grant with
   // no policy still default-denies, and a policy with no grant is never
   // reached. Deliberately exercised against a still-*pending* invitation
-  // (not a declined one - decline now deletes the row, leaving nothing left
-  // to UPDATE regardless of this policy), mirroring the real
-  // "declined_at is not writable through the table API" test.
+  // (decline deletes the row, leaving nothing left to UPDATE), mirroring the
+  // real "pending invitation fields are not writable" test.
   await withBrokenPolicy(
-    'occurrence_invitations declined_at UPDATE grant + policy (added together)',
-    `grant update (declined_at) on public.occurrence_invitations to authenticated;
-     create policy occurrence_invitations_update_decline_own
+    'occurrence_invitations inviter_id UPDATE grant + policy (added together)',
+    `grant update (inviter_id) on public.occurrence_invitations to authenticated;
+     create policy occurrence_invitations_update_own
        on public.occurrence_invitations for update to authenticated
        using (invitee_id = auth.uid()) with check (invitee_id = auth.uid());`,
-    `drop policy occurrence_invitations_update_decline_own on public.occurrence_invitations;
+    `drop policy occurrence_invitations_update_own on public.occurrence_invitations;
      revoke update on public.occurrence_invitations from authenticated;`,
     async () => {
       const { occurrenceId } = await createAttendedOccurrence(actorA, 'private');
@@ -1000,14 +997,14 @@ try {
 
       const { data, error } = await actorB.client
         .from('occurrence_invitations')
-        .update({ declined_at: new Date().toISOString() })
+        .update({ inviter_id: stranger.user.id })
         .eq('id', invitation.id)
         .select();
       assert.equal(error, null);
       assert.equal(
         data.length,
         1,
-        'expected a direct declined_at UPDATE to go red (succeed) once a declined_at UPDATE grant and policy exist',
+        'expected a direct inviter_id UPDATE to go red (succeed) once an UPDATE grant and policy exist',
       );
     },
   );

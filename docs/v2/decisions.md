@@ -549,6 +549,18 @@ database.types.ts` の再生成、および `Invitation.declinedAt` /
 再生成してから、`declined_at` 列を DROP する contract マイグレーションを別途
 起票する。
 
+### Issue #387 post-cutover cleanup: `declined_at` を削除する（2026-09-13）
+
+上記の defer 条件は PR #433 で解消した。legacy app は repository から削除済みで、
+current application runtime と live DB object のいずれにも `declined_at` dependency が
+ないことを fresh preflight で確認した。pending-only Invitation の current domain model
+もこの field を持たない。
+
+このため `20260913000000_drop_occurrence_invitations_declined_at.sql` で dead column を
+削除する。これは release mechanism の証明専用 migration ではなく、legacy cutover 後に
+予定していた genuine contract cleanup である。PR は migration / DB-RLS tests /
+generated DB type / 必要な docs だけに限定し、application runtime code を同居させない。
+
 ### PO 確認: `events.owner_id` は `NO ACTION` で確定（2026-09-08）
 
 `auth.users` 削除時に Event を「残す」の解釈として、**`NO ACTION`（Event を所有する間は
