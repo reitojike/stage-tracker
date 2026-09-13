@@ -90,11 +90,17 @@ real HTTP/browser coverageは独立した`Verify / E2E`がauthorityです。
   する事態をCIで検知するためblocking checkに含めています）。
 - `pnpm run verify:database` — local Supabaseを起動・resetした上で、
   `verify:database:checks` を実行します。これはDB層の
-  `supabase:types:check` / `test:rls` / `client-role-privileges:check` を
+  `supabase:types:check` / `test:rls` / `test:db:client-role-privileges` を
   `verify:database:db-checks` として実行する構成です。
   generated database typesのexact drift、DB/RLS test、および`anon` /
   `authenticated` / `PUBLIC`への`TRUNCATE`/`REFERENCES`/`TRIGGER`/`MAINTAIN`
   残存privilegeを検知するclient-role table privilege guardrailを含みます。
+  guardrailは`supabase/tests/13_client_role_table_privileges_test.sql`だけを
+  `supabase test db <path> --local`で実行するpath-scoped pgTAP testです。既存の
+  pgTAP suite全体をrequired checkへ昇格させず、guardrailだけをactive verification
+  pathへ組み込んでいます。Foundation-managedな旧JavaScript checkerはsync/drift
+  対象のためrepositoryには残りますが、stage-trackerのactive verificationからは
+  呼び出しません。
   remote Supabase projectやremote credentialsは不要です。
   Docker が起動していない場合、このステップで失敗します。real browser の
   Auth / journey coverage は独立した `verify:e2e` が担います。
