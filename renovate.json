@@ -3,6 +3,11 @@
   "extends": ["config:recommended"],
   "packageRules": [
     {
+      "description": "Wait 1 day before proposing npm registry dependency updates to match pnpm release-age enforcement",
+      "matchDatasources": ["npm"],
+      "minimumReleaseAge": "1 day"
+    },
+    {
       "description": "Automerge npm patch updates after a 14-day stability period",
       "matchManagers": ["npm"],
       "matchUpdateTypes": ["patch"],
