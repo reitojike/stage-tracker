@@ -34,9 +34,9 @@ temporary static product rules に、その責務に応じて記録します。
 pnpm install
 ```
 
-開発用の harness は Spec Kit standard surface（`.specify/`、標準の Claude /
-Codex integration、`specs/**/spec.md`）です。Claude を default integration と
-し、Codex も multi-install しています。Next.js の `agentRules: false` は、
+開発用の harness は Spec Kit standard surface（`.specify/`、標準の Codex /
+Claude integration、`specs/**/spec.md`）です。Codex を default integration と
+し、Claude も multi-install しています。Next.js の `agentRules: false` は、
 Spec Kit が管理する guidance surface と Next.js の自動生成 root guidance が
 競合しないよう、`apps/web/next.config.ts` の project-owned standard setting
 として維持します。
