@@ -104,8 +104,10 @@ if (status === 'drift') {
     );
   }
   console.error(
-    'Pending migrations: apply with `supabase db push --linked` (operator action - see ' +
-      'docs/runbooks/gate-a-remote-environment.md "Schema migration to the hosted project"). ' +
+    'Pending migrations: the normal path is the Apply Migrations workflow (rerun it with ' +
+      '`workflow_dispatch` on `main`). Use `supabase db push --linked` only as an explicit ' +
+      'fallback/recovery after confirming no unexpected remote-only entries; see ' +
+      'docs/runbooks/gate-a-remote-environment.md "Schema migration to the hosted project". ' +
       'Unexpected remote-only entries need investigation before any further push.',
   );
   process.exitCode = 1;
