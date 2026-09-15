@@ -196,6 +196,12 @@ The following boundaries are intentionally explicit:
   current runtime behavior for this authority cutover; it does not relax the global
   success-notice requirement, and a follow-up UI task is required to restore conformity.
 
+### Cross-domain Boundary
+
+- **FR-035**: Participation and TicketOpportunity personal planning state (`planned` /
+  `applied`) MUST remain independent. Changing either state MUST NOT automatically create,
+  update, or delete the other.
+
 ### Key Entities
 
 - **Occurrence Participation**: A user's current participation state for one occurrence,

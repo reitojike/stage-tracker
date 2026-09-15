@@ -46,6 +46,11 @@ first-party `--script py` variantで生成しています。Spec Kit workflowを
 Python 3を利用可能にしてください。repository側のshell wrapper、post-processing、
 managed fileの手編集は追加しません。
 
+Claude secondary integration利用時、Spec Kit shared prerequisite scriptがdefault
+Codex syntaxの `$speckit-*` recovery commandを表示する場合は、対応するClaude
+`/speckit-*` Skillを使用してください。これはSpec Kit v1.0.6のshared recovery
+guidance limitationであり、managed filesはproject側でpatchしません。
+
 Current behavior の authority は、Occurrence Participation については
 [`specs/001-occurrence-participation/spec.md`](./specs/001-occurrence-participation/spec.md)
 です。未移行 domain は temporary static product rules、architecture / runbook /

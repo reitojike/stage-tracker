@@ -55,3 +55,6 @@ storybook-static
 node_modules/
 .next/
 .turbo/
+
+# Spec Kit's standard Python helper runtime cache.
+/.specify/scripts/python/__pycache__/
