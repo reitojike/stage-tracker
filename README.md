@@ -42,8 +42,9 @@ Spec Kit が管理する guidance surface と Next.js の自動生成 root guida
 として維持します。
 
 Spec Kit の標準 helper scripts は、Codex の実行環境を限定しないよう、v1.0.6 の
-first-party `--script py` variantで生成しています。Spec Kit workflowを実行するときは
-Python 3を利用可能にしてください。repository側のshell wrapper、post-processing、
+first-party `--script py` variantで生成しています。生成されたSkillは`python3`
+commandでhelperを呼ぶため、Spec Kit workflowを実行するときは`python3` commandで
+Python 3を利用可能にしてください。repository側のlauncher wrapper、post-processing、
 managed fileの手編集は追加しません。
 
 Claude secondary integration利用時、Spec Kit shared prerequisite scriptがdefault
