@@ -217,10 +217,12 @@ write notice と undo row は別の語彙です。
 irreversible な操作は本文の下部の独立した destructive section に隔離します。1件の
 occurrence を扱う Sheet では、その対象の action を Sheet 内に置けます。
 
-削除は対象を明記した confirmation Sheet とし、close affordance を出さず、footer の
-danger action だけで実行します。overlay tap と Escape は cancel です。中止・中止解除
-のような reversible action は確認を出さず、実行結果を notice で伝えます。native
-`window.confirm()` は使いません。
+ここでいう削除は Event、Occurrence、Personal Schedule entry の hard delete を指します。
+対象を明記した confirmation Sheet とし、close affordance を出さず、footer の danger
+action だけで実行します。認証 credential など別の security flow の削除はこの rule の
+対象に含めず、その operation-specific rule に従います。overlay tap と Escape は
+cancel です。中止・中止解除のような reversible action は確認を出さず、実行結果を
+notice で伝えます。native `window.confirm()` は使いません。
 
 ## 読み込み中の見せ方
 
