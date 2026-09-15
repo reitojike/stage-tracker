@@ -302,7 +302,10 @@ section構成は「予定とイベント」（個人予定の管理・イベン�
 `attending → considering` 降格と withdraw の導線は失いません。absence と
 read failure は別状態です。
 
-成功時は選択を反映してSheetを閉じます。独立したsuccess notificationは表示しません。
+成功時は選択を反映してSheetを閉じます。現在のruntimeでは独立したsuccess
+notificationは表示しません。これは `docs/ux-ui.md` のglobal success-notice
+requirementに対する既知のcurrent deviationであり、#487ではUI runtimeを変更せず、
+後続のUI taskで是正します。
 
 ### 招待する / 共有相手を追加
 

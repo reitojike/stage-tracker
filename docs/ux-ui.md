@@ -199,10 +199,6 @@ screen ごとに作りません。
 
 - 成功は読み上げ対象の notice として、書き込みを起こしたまとまりの先頭に置きます。
   ボタンの隣に置いて action row を崩しません。
-- **Participation status の immediate-choice write はこの原則の明示的な例外です。**
-  選択結果を画面へ反映して Sheet を閉じますが、独立した success notification は
-  表示しません。これは current の `ParticipationControls` の behavior に限定した
-  例外で、他の write へは広げません。
 - 失敗は StatePanel の error semantics で伝え、同じ試行でも再度読み上げられるよう
   にします。error を赤や icon だけで表現しません。
 - 送信中は form を busy として扱い、入力を無効化し、button label だけを action の

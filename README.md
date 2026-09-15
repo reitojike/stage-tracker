@@ -41,11 +41,10 @@ Spec Kit が管理する guidance surface と Next.js の自動生成 root guida
 競合しないよう、`apps/web/next.config.ts` の project-owned standard setting
 として維持します。
 
-Spec Kit の標準 helper scripts は、今回の Windows / PowerShell development
-baseline に合わせて `--script ps` で生成しています。Spec Kit workflow を実行する
-ときは PowerShell（Windows PowerShell または PowerShell 7+ の `pwsh`）を利用可能に
-してください。repository 側の POSIX wrapper、post-processing、managed file の
-手編集は追加しません。
+Spec Kit の標準 helper scripts は、Codex の実行環境を限定しないよう、v1.0.6 の
+first-party `--script py` variantで生成しています。Spec Kit workflowを実行するときは
+Python 3を利用可能にしてください。repository側のshell wrapper、post-processing、
+managed fileの手編集は追加しません。
 
 Current behavior の authority は、Occurrence Participation については
 [`specs/001-occurrence-participation/spec.md`](./specs/001-occurrence-participation/spec.md)

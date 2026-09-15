@@ -191,6 +191,10 @@ The following boundaries are intentionally explicit:
 - **FR-032**: My Calendar MUST show only the caller's Participation-derived occurrence
   items and MUST keep Personal Schedule as a separate source.
 - **FR-033**: An absent Participation MUST NOT create a Participation calendar item.
+- **FR-034**: The current immediate-choice Participation interaction reflects a successful
+  choice and closes its Sheet without a standalone success notification. This records the
+  current runtime behavior for this authority cutover; it does not relax the global
+  success-notice requirement, and a follow-up UI task is required to restore conformity.
 
 ### Key Entities
 
