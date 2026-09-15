@@ -228,6 +228,14 @@ layout が先に決まる calendar 系画面は skeleton を使い、内容量�
 画面は spinner を使います。遷移中も AppBar と PrimaryNav は残し、navigation や
 avatar の tap 中は control 内の pending state だけを示します。calendar の month
 navigation は grid と month context を残したまま、操作した control を pending にします。
+
+loading fallback には、data read や permission check の結果より前から確定している
+stable な page chrome（heading や戻る affordance など）を、同じ hierarchy と destination
+で残します。data-dependent な chrome を fallback で推測して追加しません。これは
+transition 中の layout shift と navigation semantics の変化を防ぐための cross-screen
+invariant です。どの chrome が stable かという route 単位の判断は各 route の実装で
+行い、screen 固有の状態や文言は [`docs/screens.md`](./screens.md) を参照します。
+
 reduced motion を尊重します。
 
 ## List row affordance
