@@ -314,7 +314,7 @@ function Format-SpecKitCommand {
     }
     $name = $name -replace '\.', $separator
 
-    return "/speckit$separator$name"
+    return "`$speckit$separator$name"
 }
 
 # Find a usable Python 3 executable (python3, python, or py -3).
