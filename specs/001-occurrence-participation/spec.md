@@ -194,7 +194,7 @@ The following boundaries are intentionally explicit:
 - **FR-034**: The current immediate-choice Participation interaction reflects a successful
   choice and closes its Sheet without a standalone success notification. This records the
   current runtime behavior for this authority cutover; it does not relax the global
-  success-notice requirement, and a follow-up UI task is required to restore conformity.
+  success-notice requirement and currently deviates from it.
 
 ### Cross-domain Boundary
 
