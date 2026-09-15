@@ -1,1011 +1,403 @@
 # stage-tracker UX/UI baseline
 
-このdocumentは、stage-trackerの screen / feature 横断で適用する **global
-UX/UI ruleのcanonical source** です。個別screenの状態・権限・文言のdecisionは
-[`docs/screens.md`](./screens.md) に分けています。
+この document は、stage-tracker の screen / feature 横断で適用する global
+UX/UI rule の canonical source です。個別 screen の状態・権限・実文言は
+[`docs/screens.md`](./screens.md) を正本とします。
 
-## Canonical ownership
+## Canonical ownership と current implementation pointer
 
-- global UX/UI principle・responsive baseline・visual foundation・design
-  token semantics・shared UI patternのnormativeなruleは、本ファイルのみを
-  正本とします。`docs/prd.md` / `docs/roadmap.md` /
-  `.ai-dev-foundation/product-rules.md` へ同じruleの別正本を作りません。
-- 画面ごとの状態・権限・実文言のdecisionは
-  [`docs/screens.md`](./screens.md) を正本とします。本ファイルはそれらを
-  screen横断のruleとして総論的に固定し、画面別の分岐と文言は繰り返しません。
-- product domain semantics（event / participation / TicketOpportunity /
-  personal schedule等）の正本は引き続き
-  `.ai-dev-foundation/product-rules.md` です。本ファイルは domain semantics
-  を固定しません。
-- component catalog（Storybook）はこのruleの **rendered examples / states
-  catalog** であり、rule自体の正本にはしません。
-- **token の値の正本は `src/ui/tokens.css` です。本ファイルは token 名と
-  その role を書き、値を再掲しません。** 色・typography・radius・spacing の
-  ように semantic token を持つものは、hex や px ではなく token 名で参照
-  します。値を変えたい場合に直す場所を1箇所に保つためです。token を持たない
-  値（tap target の 44px 等）は、数値そのものではなくその決定の理由が
-  分かる形で書きます。
-- **repository外のdesign handoff artifact（`design_handoff_stage_tracker/`
-  / `design_handoff_v2/` / `design_handoff_v3/` / `design_refactor/` の
-  `README.md`・`RULES.md`・`.dc.html` canvas・参照PNG）は、materialize済み
-  decisionのhistorical evidenceであり、ruleのauthorityではありません。**
-  `design_handoff_v3/RULES.md` は「デザインルール（正本）」と自称して
-  いますが、repository内のruleの正本は本ファイルです。どのhandoffで何を決め、
-  どのIssue / PRでmaterializeしたかという経緯（flow情報）は
-  [Issue #280](https://github.com/reitojike/stage-tracker/issues/280) に
-  集約しており、repositoryでは管理しません。
-- 本ファイルに書くruleは、artifactの記述をそのまま写したものではなく、
-  `src/ui/`・`src/ui/tokens.css`・`src/app/**/_components/`・
-  `src/domain/*Formatting.ts` のcurrent implementationと突き合わせた上で
-  確定した内容です。ruleと実装が食い違う場合は、勝手にどちらかへ寄せず
-  checkpointします。
+- smartphone-first、information hierarchy、interaction principle、visual
+  semantics、accessibility baseline など、screen 横断の UX/UI rule は本書で
+  固定します。
+- 画面ごとの状態・権限・実文言は [`docs/screens.md`](./screens.md) を参照し、
+  domain semantics は `.ai-dev-foundation/product-rules.md` を参照します。
+  本書はそれらを画面単位・domain 単位で再掲しません。
+- Storybook は rendered examples / states catalog です。Storybook や実装の
+  class 名は本書の design rule の正本ではありません。
+- current runtime の実装参照先は `apps/web/`、shared UI ownership は
+  `packages/ui/` です。`AppShell` / `AppBar` / `PrimaryNav` は
+  `packages/ui/src/` が所有し、authenticated route の shell composition は
+  `apps/web` の app route group が行います。screen / domain semantics を持つ
+  component は `apps/web` 側の feature boundary に残します。
+- styling は Tailwind CSS v4 と shadcn の component conventions を使います。
+  app-wide の theme / semantic styling values は `apps/web/src/app/globals.css`
+  とその `@theme` composition が所有し、shared component はそれを utility
+  class と shadcn primitive 経由で利用します。本書は CSS custom-property 名、
+  class 名、component inventory、pixel 値の一覧を別の implementation authority
+  として複製しません。
+- current rendered examples は `packages/ui/src/*.stories.tsx` と
+  `packages/ui/src/ui/*.stories.tsx` にあります。Storybook の a11y check は
+  QA aid であり、本書の意味規則や WCAG 適合そのものの証明ではありません。
+
+本書に implementation reference が必要な場合も、上記の package / app / theme
+boundary を pointer として使います。migration-era の styling / token mechanics を
+current rule として参照しません。
 
 ## Origin
 
-ここに記載するglobal decisionは、Issue #10 Phase 1のPO checkpoint
-（2026-08-21）で承認された範囲を起点とし、Design Wave 1（Issue #136系）・
-Design Wave 2（Issue #184系）・Design handoff v3（Issue #244以降）で
-materializeされたdecisionを反映しています。checkpointで
-**intentionally unresolved** とされた項目（下記「本ドキュメントで固定
-しないもの」参照）は、実装都合で決定済みにはしません。
+ここに記載する global decision は、Issue #10 Phase 1 の PO checkpoint を起点に、
+その後の Design Wave と v2 cutover で current runtime に採用された UX/UI semantics
+を整理したものです。過去の handoff、parity evidence、migration record は
+historical context であり、本書の current implementation authority ではありません。
+実装と rule が食い違う場合は、UI behavior を変更せずに fresh な implementation
+cross-check と product checkpoint を行います。
 
 ## Platform priority
 
-stage-trackerは **smartphone-first** です。desktopはsecondary information /
-density / wider list / supplemental controlsに追加spaceを使ってよいですが、
-mobile experienceをdesktop版の縮小版にはしません。
+stage-tracker は **smartphone-first** です。desktop では secondary information、
+list density、補助 controls のために余白を使えますが、mobile experience を
+desktop 版の縮小として扱いません。
 
-content columnは単一カラムで、広い画面では横に伸ばしきらず、上限幅で
-中央寄せします（実値は `AppShell.module.css`。まだtoken化していません）。
-column paddingは `--space-md`、section間のgapは `--space-section` を
-`AppShell` 側が持ち、各pageは自前のtop-level marginを持ちません。shellの
-高さは `100dvh` とし、mobile browserのtoolbarを含む `vh` は使いません
-（sticky navが可視領域の下へ押し出されるため）。
+content は単一の bounded column とし、広い画面で無制限に伸ばしません。各 page が
+top-level margin を個別に持つのではなく、shell が content の幅・padding・section
+間隔を統一します。shell は mobile viewport の可視領域を優先し、bottom navigation
+や safe-area が content を隠さない構成にします。
 
 ## Product personality
 
-Native-feeling / calmな mobile organizerとします。iOS / Android標準のUI
-conventionから大きく逸脱しません。派手なmotion / glass effect /
-oversized cardsをglobal defaultにしません。特定OS専用のUIではなく、
-cross-platformでnative-feelingな体験を狙います。
+Native-feeling で calm な mobile organizer とします。iOS / Android 標準の
+convention から大きく逸脱せず、派手な motion、glass effect、oversized card を
+global default にしません。特定 OS 専用ではなく cross-platform の体験を狙います。
 
 ## Primary interaction pattern
 
-Primary time granularityはday-levelです。month viewをprimary viewとし、
-hourly timeline / week schedulerをglobal centerにしません。
+primary time granularity は day-level です。month view を primary view とし、
+hourly timeline / week scheduler を global center にしません。
 
-以下のpatternをglobalなprimary interaction patternとします。
+global な primary interaction pattern は次です。
 
 ```text
 month calendar → selected-day list → event detail
 ```
 
-このpatternは次の2つのcontextで共通利用します。ただし各contextの domain
-semantics（query / empty state / actions）は分離し、shared catalogと
-personal participationを同一semanticとして混在させません。
+この pattern は次の context で共通に使います。ただし query、empty state、action
+などの domain semantics は分離し、shared catalog と personal participation を
+同じ意味として混在させません。
 
-1. **Event Catalog**（`/catalog`） — authenticated users間のshared catalogを
-   見る / 探す
-2. **My Calendar**（`/calendar`） — 自分がparticipation登録したoccurrenceと、
-   event-independentなpersonal schedule entryを合わせた自分のpersonal
-   schedule
+1. **Event Catalog** (`/catalog`) — authenticated users 間の shared catalog を見る・探す
+2. **My Calendar** (`/calendar`) — participation 登録した occurrence と、
+   event-independent な personal schedule entry を見る
 
 ## Navigation principle
 
-Shared catalogとpersonal scheduleの間をmobileで自然に移動できるIA
-（情報設計）とします。current PrimaryNavは画面に表示するlabelとして
-**ホーム / イベント / チケット / カレンダー** の4項目です（Issue #140、#188）。
-現在地は「labelを `--font-weight-semibold` にする＋上辺に `--color-accent`
-のバーを出す」という色以外の手がかりで示し、`aria-current="page"` を
-併記します。My Pageとお知らせはnavの同列に置かず、AppBarから開きます。
+mobile で shared catalog と personal schedule の間を自然に移動できる IA とします。
+current PrimaryNav は **ホーム / イベント / チケット / カレンダー** の4項目です。
+現在地は色だけに依存せず、label の強調、上辺の indicator、`aria-current="page"`
+を併用します。My Page とお知らせは nav の同列に置かず、AppBar から開きます。
 
-AppBarはsticky topで、左＝お知らせベル、中央＝ロゴタイプ、右＝My Pageの
-アバターの3カラムです。左右は固定幅、中央が残りを取ります（実寸は
-`AppBar.module.css`。まだtoken化していません）。背景は `--color-canvas`
-で、面を分けるのではなく下辺の細罫（`--color-border`）だけで本文と
-区切ります。
+AppBar は画面上部に残り、左のお知らせ affordance、中央の logotype、右の My Page
+affordance という3領域で構成します。左右の affordance の位置を揃え、本文とは
+面を増やさず細い境界で区切ります。お知らせ機能が未提供の間も affordance の
+tap target と disabled semantics は維持します。
 
-`/sign-in` はPrimaryNavとAppBarのactionを出さない唯一の画面です
-（遷移先がすべて認証の内側にあるため）。
-
-Searchの独立tab化、Settings配置、future feature navはfreezeしません
-（「本ドキュメントで固定しないもの」参照）。
+`/sign-in` は PrimaryNav と AppBar actions を表示しない認証外側の画面です。
+Search の独立 tab、Settings の配置、future feature nav は追加の product decision
+なしに固定しません。
 
 ## Information density
 
-mobileはmedium、desktopはmedium-highまで許容します。giant cardで
-viewportを使い切る構成は避け、calendarとevent listのscanabilityを
-優先します。month calendarのdate cellは装飾よりinformation recognitionを
-優先します。
+mobile は medium、desktop は medium-high まで許容します。giant card で viewport を
+使い切らず、calendar と event list の scanability を優先します。month calendar の
+date cell は装飾より情報認識を優先します。
 
 ## Typography
 
-System / native UI sans系フォントを使います。日本語可読性を優先し、
-restrained heading hierarchyとします。Giant marketing typographyは
-使わず、UI fontのためだけにwebfont dependencyを増やしません。
+system / native UI sans 系を使い、日本語可読性を優先します。UI font のためだけに
+webfont dependency を増やしません。heading hierarchy は restrained にし、marketing
+向けの巨大な文字を使いません。
 
-font stackは次のとおりです。
+typography role は次の ladder に限定します。
 
-```css
---font-family-base:
-  -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans',
-  Meiryo, system-ui, sans-serif;
-```
+| role    | 主な用途                                         |
+| ------- | ------------------------------------------------ |
+| heading | page-level heading                               |
+| title   | list / section / sheet heading、list title       |
+| body    | 本文                                             |
+| body-sm | 副文、helper text、compact control、write notice |
+| label   | 短い項目名                                       |
+| caption | weekday、補助情報、bottom navigation label       |
 
-font sizeは5段、weightは3段だけを使い、この外側に段を増やしません。
-typography roleは次のladderで分離します。値は `src/ui/tokens.css` が持ちます。
-
-| role    | size token            | 主なweight / line-height                           | 用途                                               |
-| ------- | --------------------- | -------------------------------------------------- | -------------------------------------------------- |
-| heading | `--font-size-heading` | `--font-weight-semibold` / `--line-height-heading` | PageHeading等のpage-level heading                  |
-| title   | `--font-size-title`   | `--font-weight-semibold` / `--line-height-title`   | list / card title、section heading、Sheetのheading |
-| body    | `--font-size-body`    | `--font-weight-regular` / `--line-height-base`     | 本文                                               |
-| body-sm | `--font-size-body-sm` | `--font-weight-regular`                            | 副文、compact control、書き込み通知                |
-| label   | `--font-size-label`   | `--font-weight-semibold`                           | 短い項目名                                         |
-| caption | `--font-size-caption` | 用途による                                         | weekday、補助情報、PrimaryNavのbottom-nav label    |
-
-- `--font-size-title` と `--font-size-body` は同じ段を指し、weightと
-  line-heightだけで区別します。titleを本文より大きくすることでは階層を
-  作りません。
-- PrimaryNavのbottom-nav labelは、現在地を `--font-weight-semibold`、
-  非現在地を `--font-weight-regular` にします。
-- compact control（Button等）の詰まった行間には `--line-height-tight` を
-  使い、本文の `--line-height-base` と分けます。
-- **Badgeはこのladderのconsumerではありません。** Issue #138がBadge自身の
-  spec としてfont sizeとline heightを固定したため、`Badge.module.css` は
-  この2つをtokenではなく自前の値として持ちます（結果としてcaption段と
-  同じ大きさになりますが、caption tokenを変えてもBadgeは追随しません）。
-  この非依存はtokens.css側にも記録されています。
-
-見出しが、その直下でhierarchy上 subordinateな本文より小さくなる構成は作りません。
-例えばPersonal Schedule detailの「共有」は `--font-size-title` の section
-heading として、直下の本文より小さくならない階層を保ちます。
+title は body より単純に大きくするのではなく、weight と line-height の組み合わせ
+で階層を作ります。現在地の navigation label は非現在地より明確に強調します。
+見出しが直下の subordinate な本文より小さくなる構成は作りません。
 
 ## 面と区切り
 
-- **カード面を使いません。** 面で囲うのではなく、罫と縦の間隔で区切ります。
-  白面の塗りcardはcurrent app runtimeでは使っていません。
-- 画面の地は `--color-canvas` です。`--color-surface` は
-  input・checkbox・PrimaryNavといったcontrol / chrome側の塗りとして残り、
-  contentのcard面としては使いません。
-- 区切りは次の3種です。
-  - **1px 細罫**（`--color-border`） — 一覧の行の区切り、AppBarの下辺、
-    Sheetのheader下辺、StatePanelの上下
-  - **2px 太罫**（`--color-text`） — section headingの下線
-    （My Page / Event write / Personal Schedule detail）
-  - **2px 太罫**（`--color-border`） — section blockの上端の区切り
-    （Personal Schedule detailの各section）
-
-  破壊的操作のsection headingだけは `--color-danger` の2px 太罫を使います
-  （「破壊的操作の置き場所」参照）。
-
-- **section heading本文から2px太罫までの `padding-bottom` は
-  `--space-card-block`（14px）です。** 太罫見出しの実装は
-  `src/ui/sectionHeading.module.css` に一本化し、値もここでのみ持ちます
-  （Issue #309）。個別画面が別の値（一覧行相当の `--space-compact` 等）を
-  自前で書くことはしません。
-
-- 縦の間隔はspacing tokenのscale（`--space-2xs` / `--space-xs` /
-  `--space-sm` / `--space-compact` / `--space-card-block` / `--space-md` /
-  `--space-section` / `--space-lg` / `--space-xl`）から選び、任意の数値を
-  直接書きません。
-- 行の `padding-block` は、一覧の行が `--space-compact`、card相当の行が
-  `--space-card-block` です。この2つを分けているのは、card相当の行のほうが
-  1行に載る情報が多く、同じ間隔だと詰まって見えるためです。
+- card 面を global default にせず、罫と縦の間隔で情報を区切ります。
+- 画面と overlay の地は neutral な canvas、control / chrome はそれと区別できる
+  neutral surface とします。content の card 面を増やして階層を作りません。
+- 1px の細罫は list row、AppBar、Sheet、StatePanel の境界に使います。
+- 2px の太罫は section heading や section block の境界に限定します。
+- destructive section は通常の content と視覚的に分離します。
+- spacing は小さい間隔、行内間隔、section 間隔を段階的に使い、任意の値を増やして
+  density を調整しません。
 
 ## 角丸
 
-**箱の角丸は、roleではなく箱の大きさで2段に分けます。** 使う token は次の
-2系統だけです。
-
-| 段           | token                                                                   | 対象の箱       | 該当                                                                   |
-| ------------ | ----------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------- |
-| 小さい箱     | `--radius-badge`（calendar bandは `--radius-band`。同じ段）             | 印や小さな箱   | Badge、calendarのEvent range band、checkboxの箱                        |
-| 中くらいの箱 | `--radius-control` / `--radius-control-sm` / `--radius-sheet`（同じ段） | control 大の箱 | Button全variant、genre chip、input / textarea、Sheetの上端、取り消し行 |
-
-同じradiusでも箱が大きいほど丸みの印象は弱くなるため、「触れるもの」と
-いったroleで分けるより、大きさで分けたほうが揃って見えます。checkboxが
-小さい段なのはその箱が小さいからであり、tap範囲は箱ではなく行全体が持つので
-tap target ruleとも矛盾しません。
-
-**丸い印はこの2段の対象外です。** 完全なpill（`--radius-pill`）は、円形・
-帯状であることそのものが形の意味になるものにだけ使います。現行の該当は
-未読ドット / marker dot、アバター、calendarの日付の丸、件数chip、spinner、
-PrimaryNavの現在地バーです。
-
-汎用surfaceのdefault形状としてpillを使いません。この2段とpillの外に3つ目の
-箱用radius roleを増やしません（Issue #283: 白面cardの残存tokenだった
-`--radius-surface` / `--radius-scale-container` は、唯一の consumer だった
-selected-occurrence focus ringを`--radius-control-sm`へ寄せた上で削除
-済みです）。
+箱の大きさに応じた2段階の形状を基本とします。小さい badge / marker / checkbox
+と、button / input / sheet などの control-sized box を同じ見え方にしません。
+完全な pill は、円形・帯状であること自体が意味になる avatar、dot、chip、marker、
+current indicator などに限定し、汎用 surface の default にはしません。
 
 ## Control vocabulary
 
-controlでは、**visible fill heightとtap targetを同一視しません**。compactな
-塗り箱を使っても、透明なtap target expansion（`tapTarget.module.css` の
-`expand44`）により操作範囲を保ちます。
+visible fill の高さと tap target を同一視しません。compact な見た目でも、control
+または行全体が十分な操作範囲を持つようにします。stage-tracker の通常の tap
+target floor は 44px です。これは product usability floor であり、特定の CSS
+mechanism や component inventory を意味しません。
 
-`Button` と `LinkButton` は同じ `ButtonVariant` を使います。静止時（rest）の
-見た目までvariantの規約に含めます。
+control の強調順序は次です。
 
-| variant   | visible fill   | 静止時の見た目                                                |
-| --------- | -------------- | ------------------------------------------------------------- |
-| primary   | 標準           | `--color-accent` の塗り。**1画面（1シート）に1つだけ**        |
-| secondary | 標準           | 透明＋`--color-control-border` の枠                           |
-| small     | 標準より一段小 | 透明＋枠。compactなinline action                              |
-| quiet     | 最小           | **塗りなし・枠なし。文字だけ**                                |
-| icon      | 正方形         | 透明・枠なし。`--color-accent` のグリフ                       |
-| danger    | 標準           | **透明**＋`--color-danger` の枠と文字。irreversibleな操作のみ |
+| variant   | 意味                                              |
+| --------- | ------------------------------------------------- |
+| primary   | 画面または sheet の主操作。1つのまとまりに原則1つ |
+| secondary | 通常の補助操作。neutral な境界を持つ              |
+| small     | compact な inline action                          |
+| quiet     | 塗り・枠を持たない低強調 action                   |
+| icon      | icon 自体が action を表す正方形 control           |
+| danger    | hard delete など irreversible な操作だけ          |
 
-visible fillのruleは絶対値ではなく **強調の順序** です
-（primary / secondary / danger ＞ small ＞ quiet）。実際の高さは
-`Button.module.css` が持ち、まだtoken化していません。tap targetは全variant
-44px以上です。WCAG 2.2 SC 2.5.8（Target Size Minimum, Level AA）が定める
-寸法は24×24 CSS px（例外あり）であり、44pxはこれを上回る
-**stage-tracker独自のproduct usability floor** です。実装の都合ではなく、
-この44pxという数値自体がstage-trackerのruleです。なお WCAG 2.2 SC 2.5.5
-（Target Size Enhanced, Level AAA）は44×44 CSS px以上（例外あり）を
-定めており、44pxはこの数値と一致します。ただしstage-trackerはAAA準拠を
-主張しているわけではなく、44pxはAAA基準への言及ではなくstage-tracker
-自身のproduct usability floorとして扱います。
-
-44pxを満たす方式は2つあります。`tapTarget.module.css` の `expand44` で
-視覚上小さい塗りを透明な擬似要素で外側へ広げる方式（Button・BackLink等）
-と、control自身のboxを直接44px以上にする方式（row全体がtap targetの
-checkbox row、native input/select、calendarの日セルのLink等）です。
-どちらもtap target自体の役割であり、layout / skeletonのgeometryが
-たまたま同じ44pxを使っていても（例: `CalendarSkeleton.day` は実dayセルと
-高さを揃えるための非interactiveなgeometryで、tap targetではありません）
-同じauthorityへ混ぜません（Issue #357）。
-
-唯一の記録済み例外が `ScheduleWriteForm.segmentedControl` 内の
-`.segment` です。outer groupの1px borderは`.segment`自身のhit areaに
-含まれないため、実際にtapされるlabelの高さは44px − 1px×2 = 42pxです
-（`ScheduleWriteForm.module.css`のコメント参照）。WCAG 2.2 SC 2.5.8の
-24×24 CSS pxは上回るため標準は満たしますが、stage-tracker自身の44px
-floorには2px届かない、意図的なexceptionとして記録します（Issue #357）。
-
-tap target群では `touch-action: manipulation` も維持します。この値は
-pan（scroll）と継続的なzoom（pinch zoom）は許可する一方、double-tapで
-zoomするような、一定時間内の複数回activationを前提とする追加gestureは
-無効化します（W3C Pointer Events）。double-tap-to-zoomそのものを無効化
-した結果として、対応browserは次のtapを待つdisambiguation遅延なしに
-tapを単発のactivationとして確定でき、pressed状態が即時に見えます
-（`Button.module.css` のコメントが元rationale、他のcontrolはそこを
-参照します）。double-tap-to-zoom自体は残したまま遅延だけを消す、という
-decisionではありません。このプロパティは1行で自己文書化されており、
-`expand44` のような共有class配線とは別種のリスクのため、専用の
-shared class や repository-wide census testは追加しません（Issue #357）。
-
-- `danger` はhard delete等のirreversibleな操作専用です。cancel / uncancel
-  のようなreversibleなlifecycle操作は `secondary` のままとし、危険度で
-  tierを分けます。
-- **quietの例外** — 行全体がlinkになっている行の中だけ、静止時に淡い面
-  （`--color-surface-subtle`）を許します。current該当はチケット行の状態
-  変更controlのみです。理由は「行全体がlinkなので、押せる場所がどこかを
-  示す必要がある」ことであり、quietだからではありません。この例外は
-  呼び出し側のclassにscopeし、`Button` の共有defaultを戻しません。
-- **可変text/content + trailing action/metadataのrow** — 同じmain/aside
-  patternを持つ `space-between` rowは、CSS-onlyの
-  `src/ui/row.module.css`をcomposeします。`row` は横方向・中央揃え・
-  `space-between`・`--space-sm` gap、可変側の`main`は
-  `flex: 1 1 auto; min-width: 0`、trailing側の`aside`は
-  `flex: 0 0 auto`を持ちます。既存surfaceのbaseline/flex-start/gap等の
-  visual exceptionはscreen-localで維持します。これはすべての
-  `justify-content: space-between` rowにshared primitiveを強制する
-  global ruleではなく、可変text/content + trailing action/metadataの
-  main/aside patternだけが対象です。
-- **Buttonのlabelは折り返しません。** 縮む文字と縮まないButtonが同居する
-  `space-between` の行では、上記rowの`main` / `aside`でflex sizingを
-  共通化し、labelの`white-space: nowrap`はshared `Button` defaultで
-  保証します（[Issue #270](https://github.com/reitojike/stage-tracker/issues/270) /
-  [#271](https://github.com/reitojike/stage-tracker/issues/271)）。
-- `input` / `textarea` も、入力対象として同じ44pxのtap targetを満たします。
+cancel / uncancel のような reversible lifecycle action は danger に格上げしません。
+Button label は原則折り返さず、入力 control も同じ tap target の考え方を満たします。
+touch interaction は scroll、pinch zoom、単発 activation を妨げない形にします。
 
 ## Form field vocabulary
 
-Event / Occurrence / Personal Scheduleのmanagement formが共有する
-presentation vocabularyです。個別fieldのrequired/optionalの一覧等、product
-domain semanticsの正本は引き続き
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-であり、本節では重複記載しません。
+Event / Occurrence / Personal Schedule の management form は、required / optional の
+表示、label と control の association、fieldset / legend の semantics を共有します。
+視覚的な required marker は補助であり、assistive technology には native required
+semantics を伝えます。任意であることだけを説明する helper text は増やしません。
 
-- **必須/任意の表示** — `src/ui/RequirementIndicator.tsx`が、必須fieldのlabel/
-  legend直後に赤い`*`を表示します（PO決定、2026-08-26）。任意fieldには何も
-  表示しません（`*`の不在で任意と分かる、という一般的なWeb form慣習に従います）。
-  `*`は`aria-hidden`とし、assistive technologyへのrequired伝達は native
-  `required`属性に委ねます（`*`はその視覚的な補助であり、唯一の手段にしません）。
-  `TextInput`/`TextArea`はlabelに渡された`required`から自動的にこれを表示し、
-  native `required`属性・`aria-*`・label associationは変更しません。「任意です。」
-  のような、任意であること自体だけを説明するhelper textは書きません。
-- **section / fieldsetの既定** — `src/ui/FormSection.tsx`は、feature固有の
-  presentation要件を持たないform groupingが最初に使う**generic default
-  primitive**です。`as="section"`（既定）はboxなしのheading + contentで、
-  purely organizationalなgroupingに使います。`as="fieldset"`は実際に
-  relatedなinputのgroupingがある場合（choice group等）にのみ使い、
-  `<fieldset>`/`<legend>`のaccessibility semanticsを保ちながら、prototype的な
-  border/padding boxは持たせません。**「既定」は、既存のfeature-specific
-  wrapperをFormSectionへ統合すべきというruleではありません。** heading /
-  surfaceのvocabularyがfeature固有のscreen（Event write formの
-  `EventWriteSection`が持つdanger heading・subtle surface等）は、その
-  専用wrapperを引き続き所有してよく、これはcomponent API sharingと
-  presentation/semantic value sharingが別軸である（「Shared /
-  feature-local component boundary」参照）ことの一例です。
-- **action area** — 確定・送信のactionを横に並べる行は、右揃え
-  （`justify-content: flex-end`）と `--space-sm` のgapを共通のかたちと
-  します。Sheetのfooterはこのかたちを `Sheet` 自身が持ちます。それ以外の
-  action行（InvitationCardのaction行等）は、置かれる面の文脈に合わせて
-  各screenの `*.module.css` が持ちます。
-- 同じroleの2つのactionが行の幅を均等に分け合う場合（Event編集の
-  「中止と削除」、公演回lifecycle行）は、`src/ui/actionRow.module.css` の
-  `.equal` をcomposeします（[Issue #310](https://github.com/reitojike/stage-tracker/issues/310)）。
-  flex-wrapの要否、各actionの意味・variant・font-sizeは呼び出し側が持ちます。
-  幅だけが目的の見た目の一致は対象にせず、比率の異なる行（`FilterSheet`の
-  クリア／確定行等）はこの共有roleを使いません。
-- 1つの画面に独立した書き込み単位が複数並ぶ場合（Event編集画面）、
-  それぞれが自分のfeedbackを持ち、1つの失敗が他を巻き込みません。
+form grouping は box を増やすためではなく、関連する入力を意味的にまとめるために
+使います。choice group には fieldset semantics を使い、feature-specific な section
+の見た目や domain semantics を generic primitive に無理に統合しません。
+
+submit action は footer / action area で到達しやすくし、複数の独立した write unit は
+互いの feedback を巻き込みません。
 
 ## Sheet
 
-画面としてのrouteを持たないが独立した表示状態を持つ面は、共通の
-`src/ui/Sheet.tsx`（native `<dialog>`ベースのbottom sheet）を使います。
-新しいoverlay vocabularyを別に作りません。
+route を持たない独立した表示状態は、current shared Sheet primitive
+（`packages/ui/src/components/sheet.tsx`）を使います。新しい overlay vocabulary を
+screen ごとに作りません。
 
-- 覆いは暗い半透明で、その下の画面が見えたまま操作対象でなくなることを示します。
-- 面は `--color-canvas`（画面の地と同じ）。上端の角だけ `--radius-sheet` で
-  丸め、下端は画面の縁に接します。
-- Sheetは幅と高さを制限します。幅は広い画面で横に伸びきらないよう上限を持ち、
-  高さは常に背後の画面が上に残る高さで頭打ちにします（`Sheet.module.css`
-  が実値を持ちます。まだtoken化していません）。
-- headingは `--font-size-title` / `--font-weight-semibold` で、下に
-  `--color-border` の細罫。
-- **submit-basedなSheetは、submit actionをscroll可能なbodyの外側にあるfooterへ
-  置き、headerに「閉じる」を出しません。** `footer`を持たないimmediate-choice
-  のSheetは、選択せずに離脱できるよう「閉じる」を出します。footerがないSheet
-  では、「閉じる」が画面に見えている唯一の離脱手段だからです。
-- footerの帯そのもの（bodyとの境の細罫、内側のpadding、actionの揃え）は
-  `Sheet` が持ちます。呼び出し側はfooterへactionを渡すだけで、同じ帯を
-  screenごとに書きません。呼び出し側に残るのは、そのactionの意味と、
-  1つのfooterへ複数のactionを置く場合の幅の配分です。
-- 覆いのtapとEscapeはどちらでも効きます。confirmation Sheetでは、この2つが
-  「取り消し」に当たります。
-- 藍の塗り（`primary`）はSheet内の実行ボタン1つだけです。
-- Sheet自体はchoice / form / save・confirm semanticsを持ちません。それらは
-  呼び出し側が所有します。
+- overlay は背後の画面を見せたまま操作対象でなくなったことを示します。
+- Sheet は wide screen で横に伸びきらず、bottom sheet は背後の画面を残します。
+- heading と header boundary を持ち、body が伸びる場合も submit footer は scroll
+  body の外側で到達可能にします。
+- submit-based Sheet は header に close action を重ねず、footer の primary action
+  で完了します。immediate-choice Sheet は選択せずに離脱できる close affordance を
+  持ちます。
+- overlay tap と Escape は confirmation Sheet の cancel として扱います。
+- Sheet 自体は choice / form / save の domain semantics を所有せず、呼び出し側が
+  所有します。
 
 ## 書き込みのフィードバック
 
-- **成功** — 読み上げ対象の通知（`src/ui/WriteNotice.tsx`）で伝えます。
-  通知は、その書き込みを起こしたまとまり（form全体、またはSheet 1枚）の
-  **先頭** に置きます。ボタンの隣には置きません（横並びのボタン行に入れる
-  と行が崩れるため）。
-- 通知の見た目は、淡い面（`--color-surface-subtle`）・`--radius-control-sm`・
-  `--font-size-body-sm` です。本文より一段小さくすることで、読むべき本体では
-  なく直前の操作の控えであることを示します。live regionは常時mountし、
-  message側を試行回数（`attempt`）でkeyします（同じ文言の2回目も読み上げ
-  させるため）。
-- **失敗** — `StatePanel` で伝えます。同じ失敗が続いたときも試行ごとに
-  panelを作り直し（`key={attempt}`）、再度読み上げられるようにします。
-- 送信中はform全体を `aria-busy` にして入力を無効化し、送信ボタンのlabel
-  だけを差し替えます。ボタン幅は最長のlabelで固定してあるため、押しても
-  行の高さや幅が動きません。この幅固定はCSS-onlyの
-  `src/ui/pendingLabel.module.css`をcomposeし、`label` が両labelを1つの
-  grid cellへ重ね、`sizing` が最長label側のcopyを不可視のまま幅の基準
-  として残します（[Issue #308](https://github.com/reitojike/stage-tracker/issues/308)）。
-- **処理中の語は、その操作の動詞をそのまま「〜中…」にします。** 送信ボタンの
-  labelから機械的に作ります（「保存」→「保存中…」、「追加」→
-  「追加中…」、「招待する」→「送信中…」）。「処理中…」のような汎用語は、
-  動詞が特定できない場合だけです。
-- 書き込みの失敗文言は「権限がない / 対象が見つからない / 入力に問題がある /
-  通信に失敗した」の4分類を持ち、同じ「できませんでした」で済ませません。
-  分類ごとの実文言は [`docs/screens.md`](./screens.md) を参照します。
+- 成功は読み上げ対象の notice として、書き込みを起こしたまとまりの先頭に置きます。
+  ボタンの隣に置いて action row を崩しません。
+- 失敗は StatePanel の error semantics で伝え、同じ試行でも再度読み上げられるよう
+  にします。error を赤や icon だけで表現しません。
+- 送信中は form を busy として扱い、入力を無効化し、button label だけを action の
+  動詞に沿って変えます。label の変化で layout が跳ねないようにします。
+- 失敗文言は「権限がない」「対象が見つからない」「入力に問題がある」「通信に
+  失敗した」を区別します。screen ごとの実文言は [`docs/screens.md`](./screens.md)
+  を参照します。
 
-## 一時的に操作できる行（取り消し行）
+## 一時的に操作できる行
 
-書き込み通知とは **別語彙** です。見た目が似ているため、取り消し行には
-必ず操作を1つ置いて区別します。
+write notice と undo row は別の語彙です。
 
-- **通知** ＝「終わったこと」の控え。淡い面のtextのみで、操作を持ちません。
-- **取り消し行** ＝「まだ操作できる」。淡い面
-  （`--color-surface-subtle`）・`--radius-control-sm` の行を、tap target
-  （44px）を満たす高さで置き、右揃えで下線付きのtext操作を1つ置きます。
-  current該当は招待一覧の8秒の「取り消す」だけです。
-
-取り消し行はclient-localな表示の差し替えであり、新しいpersisted stateを
-作りません。
+- notice は「終わったこと」の控えで、操作を持ちません。
+- undo row は「まだ操作できる」ことを示し、tap target を満たす行と1つの action を
+  持ちます。client-local な表示差し替えであり、新しい persisted state を作りません。
 
 ## 破壊的操作の置き場所
 
-- 原則：本文の最下部に、`--color-danger` の見出しと太罫で隔離します。
-  current該当はEvent編集画面の「中止と削除」sectionと、Personal Schedule
-  詳細の削除sectionです。
-- 例外：**Sheetが1件だけを扱っている場合、その1件の中止・削除はSheetの中に
-  置きます。** 公演回のSheetがこれにあたります（listの行に赤を並べると誤tap
-  の危険があるため）。event全体の中止・削除は編集画面の最下部のままです。
-- 確認は **元に戻せるかどうか** で2つに分けます。
-  - **削除（元に戻せない3件：event / 公演回 / personal schedule entry）** —
-    自作の確認Sheet。`Sheet` を使い、titleは対象を含む操作名、bodyは確認文、
-    footerに `danger` の実行ボタンを置き、headerに「閉じる」は出しません。
-    覆いのtapとEscapeが取り消しに当たります。
-  - **中止・解除（元に戻せる2件）** — 確認を出しません。押した時点で実行し、
-    結果は通知で伝えます。
-- native `window.confirm()` は使いません。
-- **danger triggerのlabelは短い名詞形（「削除」）にします。** font-sizeの
-  `--font-size-body-sm`は、shared `src/ui/actionRow.module.css`の`.equal`
-  ではなく、各consumer（`EventWriteForm.module.css`の`.dangerActions` /
-  `.sheetLifecycleActions`、`ScheduleWriteForm.module.css`の
-  `.dangerTrigger`）がこのcanonical tokenを参照する形で表現します
-  （[Issue #310](https://github.com/reitojike/stage-tracker/issues/310)）。
-  `.equal`自身はequal-width layoutだけを持ち、font-sizeは持ちません
-  （`src/ui/__tests__/actionRow.test.ts`がguard）。`.dangerActions` /
-  `.sheetLifecycleActions`はrow内の子buttonへ一律にこの値を適用するため、
-  同じrowに同居するreversibleなcancel/uncancel（`secondary`）actionも
-  結果として同じcompactなfont-sizeになります。これは「dangerだけの
-  typography rule」ではなく、equal-width rowを持つconsumer自身が選んだ
-  row-level typography contractです。中止・解除のtoggle labelは
-  短い名詞形へのlabel短縮の対象にせず、双方向の意味をそのまま保ちます
-  （font-sizeの共有とlabel短縮は別の軸です）。
+irreversible な操作は本文の下部の独立した destructive section に隔離します。1件の
+occurrence を扱う Sheet では、その対象の action を Sheet 内に置けます。
+
+ここでいう削除は Event、Occurrence、Personal Schedule entry の hard delete を指します。
+対象を明記した confirmation Sheet とし、close affordance を出さず、footer の danger
+action だけで実行します。認証 credential など別の security flow の削除はこの rule の
+対象に含めず、その operation-specific rule に従います。overlay tap と Escape は
+cancel です。中止・中止解除のような reversible action は確認を出さず、実行結果を
+notice で伝えます。native `window.confirm()` は使いません。
 
 ## 読み込み中の見せ方
 
-2系統を意図的に使い分けます（PO確定、2026-08-31）。
+layout が先に決まる calendar 系画面は skeleton を使い、内容量で layout が変わる
+画面は spinner を使います。遷移中も AppBar と PrimaryNav は残し、navigation や
+avatar の tap 中は control 内の pending state だけを示します。calendar の month
+navigation は grid と month context を残したまま、操作した control を pending にします。
 
-- **skeleton** — layoutが先に決まっている画面。current該当はcalendarの
-  2 route（`/catalog` / `/calendar`）で、`CalendarSkeleton` が枠組みを
-  先に出して跳ねを防ぎます。
-- **spinner** — 中身の量でlayoutが変わる画面。`LoadingIndicator` の `md`
-  をpage / section levelのdefaultとし、controlのlabelに並べるinlineは
-  `sm` を使います。
+loading fallback には、data read や permission check の結果より前から確定している
+stable な page chrome（heading や戻る affordance など）を、同じ hierarchy と destination
+で残します。data-dependent な chrome を fallback で推測して追加しません。これは
+transition 中の layout shift と navigation semantics の変化を防ぐための cross-screen
+invariant です。どの chrome が stable かという route 単位の判断は各 route の実装で
+行い、screen 固有の状態や文言は [`docs/screens.md`](./screens.md) を参照します。
 
-迷ったらspinnerです。skeletonは「実物と同じ骨組みが描ける」ときだけ使います。
-
-- 各routeの `loading.tsx` は、そのrouteのpage.tsxがdata取得前から確定して
-  持つ **stable / unconditionalなchrome** を先に置きます（pendingの間だけ
-  chromeが消えて、commit時に押し戻される layout shiftを避けるため）。
-  対象は `PageHeading` に限らず、page.tsxが無条件に描く `BackLink` 等も
-  含みます（Issue #355）。
-  - 判別基準は「そのcomponentがpage内に存在するか」ではなく、「pending
-    開始前 - どのdata read / permission checkの結果より前 - から確定して
-    いるか」です。同じcomponentでも、data / permission依存のsuccess
-    branchにしか出ない場合はfallbackで捏造しません（例:
-    `catalog/events/[eventId]/edit/page.tsx` は `BackLink` を無条件に
-    描く一方、`PageHeading` はevent読み込み + 権限確認が成立した
-    success branchにしか存在しません）。
-  - route ごとの現在の分類（stable chromeの有無・内訳）は
-    `src/app/__tests__/loadingChromeContract.ts` のallowlistを正本とし、
-    ここでは重複して列挙しません。
-  - stable chromeがBackLinkのように動的なhref（選択中の月/日、event id、
-    entry id等）を持つ場合、loading.tsxはpage.tsxと同じ意味・同じ
-    destinationを維持します。label / destinationを別のnavigationへ
-    差し替えることは、layout shiftを防ぐ範囲を超えたnavigation
-    semanticsの変更であり、避けます（PR #363 review）。
-  - Next.jsはloading.tsxへ`params`/`searchParams`をpropsとして渡しません
-    が、`next/navigation`の`useParams()`/`useSearchParams()`はApp
-    Routerが提供するcontextから解決するため、loading.tsxを Client
-    Component にすれば同じ値を読めます。これはNext.jsの全routeに対する
-    一般ruleではなく、**現行の対象route（本アプリのGate A routeは全て
-    dynamic rendering - `next build`の出力で `ƒ` と表示される、request
-    ごとにserver-renderされるroute）で成立する技法**です。dynamic
-    renderingでは、requestごとの実際のsearch paramsがserver側で既に
-    確定しているため、useSearchParams()は初回のserver-rendered pass
-    でも正しく解決します。static renderingのroute（build時に事前生成
-    される`○`route）でuseSearchParams()を使うcomponentは扱いが異なり
-    （CSR-onlyへbail outする等）、この技法をそのまま適用できません。
-    stable chromeが動的contextに依存するdynamic routeでは、この hook
-    を使ってpage.tsx側と同じ関数呼び出しで同じhrefを再現します（例:
-    `src/app/catalog/events/[eventId]/edit/loading.tsx`）。static
-    routeが同様の要件を持つ場合は、その時点で改めて検討します。
-  - この手法はrouteごとに個別のhookを呼ぶだけの局所的な対応であり、
-    generic route control-flow analyzerやloading DSLの新設ではありません。
-- 遷移中もAppBarとPrimaryNavは画面に残ります。navやアバターのtap中は
-  iconをspinnerに差し替え、行の高さを増やしません。
-- calendarのmonth navigationのpending中は、tapしたcontrol自身だけが
-  spinnerになり、spinnerとchevronを併記しません。month labelはcontextとして
-  残し、calendar gridも消さずにpending stateを表現します。
-- reduced motionを尊重します。
+reduced motion を尊重します。
 
 ## List row affordance
 
-chevronは、**row全体がtap可能でdestinationへ遷移する**ことを示すaffordanceです。
-したがって、tappable navigation rowには付けますが、static surface、information-only
-row、calendar cell、または内部にactionがあってもrow全体がnavigation targetで
-ない面には付けません。
+chevron は row 全体が tap 可能で destination へ遷移することを示します。static row、
+information-only row、calendar cell、row 全体が navigation target ではない surface
+には付けません。
 
-## Color
+## Color と Badge
 
-Neutral base + single restrained cool accentのlow-noise UIとします。
+neutral base と restrained cool accent の low-noise UI とします。色は意味 role に
+従って使い、色だけを status の唯一の手がかりにしません。
 
-**色の役割は3つに固定します。**
+- accent は操作可能な場所、link、current location、focus の視覚 cue に使います。
+- danger は deadline、休日、irreversible action に限定します。読み込み失敗の色には
+  使いません。
+- terminal は中止や受付終了など、もう行動できない状態に使います。
+- neutral は本文、副文、境界、canvas、control surface を階層化します。
+- success / warning / info の汎用色を増やして status を色だけで表しません。
 
-| token              | 役割                        | 何に使うか                                      |
-| ------------------ | --------------------------- | ----------------------------------------------- |
-| `--color-accent`   | 藍 — 操作できる場所と現在地 | Buttonのprimary、link、現在地、focus ring、土曜 |
-| `--color-danger`   | 赤 — まだ間に合う期限と休日 | deadline Badge、破壊的操作、日曜・祝日          |
-| `--color-terminal` | 墨 — もう行動できないもの   | terminal Badge（中止、受付終了）                |
+Badge は色の名前ではなく、次の固定した意味を持つ semantic variant です。
 
-これに、面と文字のneutral roleが付きます。
+| variant  | 意味                     | 例                               |
+| -------- | ------------------------ | -------------------------------- |
+| outline  | 分類                     | 宝塚、月組、一般発売             |
+| subtle   | 進行中の状態・意思       | 参加する、気になる、申し込む予定 |
+| done     | 自分が終えたこと         | 申し込み済み                     |
+| deadline | まだ間に合う期限         | 残り1日                          |
+| terminal | もう行動できない終了状態 | 中止、受付終了                   |
 
-| token                                       | 役割                   | 何に使うか                                         |
-| ------------------------------------------- | ---------------------- | -------------------------------------------------- |
-| `--color-canvas`                            | 紙                     | 画面の地、Sheetの面                                |
-| `--color-border`                            | 細罫                   | 行の区切り、AppBarの下辺、StatePanelの上下         |
-| `--color-surface-subtle`                    | 淡い面                 | 書き込み通知、取り消し行、subtle Badge、hover      |
-| `--color-band-fill` / `--color-band-text`   | 藍の淡い面（完了・帯） | done Badge、calendarの複数日band                   |
-| `--color-danger-on` / `--color-terminal-on` | 赤・墨の上の文字       | deadline / terminal Badgeのlabel                   |
-| `--color-text` / `-secondary` / `-tertiary` | 本文 / 副文 / 第3      | 本文、補助テキスト、Badgeのlabel                   |
-| `--color-control-border`                    | controlの罫            | secondary / small Buttonの枠、input / checkboxの枠 |
+text label と必要な非色 cue を併用し、done は check cue と組み合わせます。
 
-- **赤は期限・休日・破壊的操作だけです。読み込み失敗には使いません。**
-  `StatePanel` は上下の細罫と文言だけで `empty` / `error` / `unavailable`
-  を区別し、`error` を赤やiconで特別扱いしません（「Common states」参照）。
-- **success / warning はUIから外しています。** `--color-success` /
-  `--color-warning` / `--color-info` はtokenとしては `tokens.css` に残って
-  いますが、`src/` 内に参照はありません。新しい参照を足しません。statusを
-  色だけで表現しないというruleは維持し、iconやtext labelを併用します。
-- exact accent hueは引き続きintentionally unresolvedであり、本ファイルで
-  永久的なfinal hueとして固定しません。`--color-accent` のcurrent値はGate Aの
-  current vocabularyとして実際に使用しています（未使用のplaceholderでは
-  ありません）。hueを変える場合に直すのは `src/ui/tokens.css` のこのtokenだけ
-  です。
+## Design token と styling boundary
 
-### Badge
+implementation は primitive value と semantic role を分けて管理します。component /
+feature は raw value を個別に再発明せず、current theme の semantic role と Tailwind
+utility を使います。実装上の theme values は `apps/web/src/app/globals.css`、shared
+component composition は `packages/ui/` が所有します。本書は role の意味を定めますが、
+CSS custom-property 名、hex、px、class の一覧を固定しません。
 
-`src/ui/Badge` は色roleではなく **5つの固定した意味** で表現します。variant
-によらず共通のサイズ・角丸（`--radius-badge`）・weight
-（`--font-weight-semibold`）を持ち、variantが変えるのは塗りと文字色だけです。
-font sizeとline heightだけはtokenを参照せず `Badge.module.css` が固定します
-（「Typography」参照）。
-
-| variant    | 意味                     | 例                               |
-| ---------- | ------------------------ | -------------------------------- |
-| `outline`  | 分類                     | 宝塚 / 月組、一般発売            |
-| `subtle`   | 進行中の状態・意思       | 参加する、気になる、申し込む予定 |
-| `done`     | 自分が終えたこと         | ✓ 申し込み済み                   |
-| `deadline` | まだ間に合う期限         | 残り1日                          |
-| `terminal` | もう行動できない終了状態 | 中止、受付終了                   |
-
-`outline` / `subtle` はtext labelで状態を区別します。`done` はtoneに加えて
-componentが持つ `✓`（`aria-hidden`）で `subtle` と区別し、色だけに依存
-しません。`deadline` / `terminal` のみ塗りを持ちます。
-
-## Design tokens
-
-CSS custom propertiesを使い、**primitive → semantic** の2層構成とします。
-
-- **primitive layer** — 生の値（color scale, spacing scale, radius scale
-  等）。他のtokenやcomponentから直接参照しません。
-- **semantic layer** — primitiveを参照し、role（`--color-canvas` /
-  `--color-text` / `--color-accent` / `--space-md` 等）を表現します。
-  componentは常にsemantic tokenを参照し、primitiveを直接参照しません。
-
-必要なsemantic roleだけを先に作り、未使用のroleを先行して作りません。
-実装は `src/ui/tokens.css` をtoken値のauthorityとします。
-
-Dark modeは、token構成としては対応可能なarchitecture（semantic tokenの
-値を切り替えるだけで成立する構成）にしますが、dark mode UI自体は今回
-実装しません。
+dark mode は semantic role の差し替えで拡張できる構造を保ちますが、dark mode UI 自体と
+theme toggle は未実装です。future value を推測して追加しません。
 
 ## Shared / feature-local component boundary
 
-Visual / interaction semanticsがdomain-independentで実際に再利用される
-ものだけをshared化します。
+domain-independent で実際に複数の screen が使う presentation / interaction primitive
+だけを shared 化します。current shared UI の ownership は `packages/ui/` です。
+実際の export と rendered example は package の source / Storybook を参照し、本書に
+固定 inventory を作りません。
 
-- **shared**（`src/ui/`） — Button / LinkButton / TextInput / TextArea /
-  Badge / StatePanel / Sheet / WriteNotice / LoadingIndicator /
-  CalendarSkeleton / AppShell / AppBar / PrimaryNav / FormSection /
-  PageHeading / BackLink / TriStateCheckbox 等。
-- **screen-local**（`src/app/**/_components/`） — EventDetail / calendar
-  marker / ParticipationSheet / FilterSheet / InvitationCard /
-  TicketOpportunityRow 等、domain semanticsを持つもの。
+domain semantics、feature-specific query、screen-specific layout、calendar marker、
+participation / invitation / filter の state を持つものは `apps/web` の feature-local
+boundary に残します。将来の feature component を先行して大量に作りません。
 
-`src/ui/` にあることは「現に共有されている」ことを意味しません。current
-runtimeからのconsumerが0のものは、見つかり次第削除します（Issue #283で
-`Surface` / `ActionRow` を削除済み）。本ファイルはそうした未使用component
-を、現に使うべきvocabularyとしては提示しません。（Issue #361時点のfresh
-scanでも、production/runtime importを持たないshared componentは
-見つかっていません。）
+component API sharing と presentation value sharing は別軸です。DOM / state semantics
+が異なる control を見た目だけで1つの APIへ統合しません。一方、複数 consumer が同じ
+named role や semantic value を持つ場合は、API を統合せずに shared theme / primitive
+へ寄せて drift を防ぎます。
 
-**新しいcontrolはscreen-localのCSS Moduleで始めてよい**（PO確定、
-2026-08-31）。2つ目の使い手が出た時点で `src/ui/` へ引き上げます。先に
-共有化すると、使い手1つのためにAPIを決めることになるためです。current
-該当はcheckboxと2択segment（`ScheduleWriteForm.module.css`）です。
-引き上げるときも見た目は変えません。
-
-未来のfeature componentを大量に先行実装しません。
-
-### component API sharingとpresentation / semantic value sharingは別軸（Issue #358）
-
-上記のlocal-first ruleは「2つ目の使い手が出るまでAPIを共有しない」という
-**component API sharing** の軸だけを見ています。これとは別に、**同じ
-presentation / semantic valueの置き場所を1つにするかどうか**という軸が
-あり、この2つは独立に判断します。consumer数はAPI sharingの判断材料には
-なりますが、value sharingの判断材料にはなりません。
-
-- **DOM構造・selector・state semanticsがconsumer固有のままでも、同じ
-  semantic/presentation valueはshared authorityを持てます。** 逆に言うと、
-  「まだscreen-localだから」「使い手が1つだから」という理由だけで、値の
-  authorityを複数箇所に放置してよいことにはなりません。値が複数箇所に
-  散っている場合の置き場所は、前節「反復する宣言をいつ共通化するか」の
-  named role / semantic tokenのどちらかに従います。
-- **逆方向も成立します。** 見た目（presentation）が一致しているという
-  事実は、API semanticsが異なるcontrolを1つのcomponent / 1つのAPIへ
-  統合する理由にはなりません。API統合の判断は、値の一致とは別に、その
-  controlが同じ状態・同じ操作契約を持つかどうかで行います。
-
-具体例（checkbox）: `TriStateCheckbox`（checked/unchecked/indeterminateの
-3値）と `ScheduleWriteForm` の2値checkboxは、API semanticsが異なるため
-1つのcomponent / 1つのAPIへ統合しません。一方、両者のbox 18px・checkの
-glyph 12pxという寸法は同じpresentation valueであり、`src/ui/tokens.css`
-の `--size-checkbox-box` / `--size-checkbox-glyph` を値のauthorityとして
-共有します。それぞれのDOM（`<span>` + SVG構造）・selector・checked-state
-の実装（`TriStateCheckbox.module.css` の `.checked`/`.indeterminate` と
-`ScheduleWriteForm.module.css` の `:has(.controlInput:checked)`）は、
-consumerごとに引き続き別々に所有します。
-
-具体例（disabled）: disabled controlの見た目の値authorityは
-`--opacity-disabled` の1箇所です（下記「Common states」参照）。Button /
-TextInput / TriStateCheckbox / ParticipationSheet / ScheduleWriteFormは、
-このtokenをそれぞれ自分のselector（`:disabled`、`:has(:disabled)`等）と
-DOM構造の中で参照しており、selectorやDOM構造そのものを1つのshared
-class / component へ統合してはいません。「`:disabled` / `:has()` /
-`+` を含む」という理由でこれらのselectorをclass sharingの対象外にする
-必要がないのと同様に、selectorがconsumerごとに違うという理由で値の
-sharingを諦める必要もありません。
-
-### 反復する宣言をいつ共通化するか
-
-**同じ宣言の組が複数箇所に現れること自体は、共通化の理由になりません**
-（Issue #319で確定）。同じCSS宣言が並ぶのは、共有されたcontractがあるから
-ではなく、同じprimitiveをたまたま使っているからであることが多いためです。
-件数もfeature追加のたびに動くため、判断基準にしません。
-
-共通化するのは、次のどちらかが成立するときだけです。
-
-1. **値がtoken化されていない** — 生の値が複数箇所に散っており、変えたい
-   ときに直す場所が1箇所でない。
-2. **複数consumerが同一のnamed roleを共有している** — 「時刻ラベル」
-   「会場ラベル」のように、名前の付く役割が一致している。
-
-したがって共有境界は、**named role**（`src/ui/listRow.module.css`
-の `.time` / `.venue` のように役割で名前が付くもの）か、**semantic token**
-（`src/ui/tokens.css` が値の正本を持つもの）のどちらかに置きます。宣言の組
-そのものをutility classへ切り出すことはしません。2つのtokenが既に言って
-いること以下しか言わない名前を増やすと、かえって意味が隠れます。
-
-**`composes` は単一class selectorの規則にしか書けません**が、これは
-`composes` 宣言をどこへ置けるかの制約であって、共有できる範囲の制約では
-ありません。共有module側でそのclassに紐づけた擬似クラス・擬似要素・結合子
-の規則は、そのclassをcomposeしたconsumerにも適用されます。
-`src/ui/tapTarget.module.css` の `.expand44::before` を Button と BackLink
-がcomposition経由で共有しているのが実例です。**`:disabled` / `:has()` /
-`+` を含むというだけで、classによる共有を候補から外さないでください。**
-
-ただし `:has()` のように、共有module側から書けない内側のclass名に依存する
-規則は、consumerごとに名前が違えば共有できません。また、反復しているのが
-roleではなく値だけの場合は、composeする先のroleがそもそもありません。
-その2つの場合はtokenが値の置き場所です。
-
-### 決定済みshared roleのwiringを共有元で保証する
-
-- **shared roleは、consumerが実際にcomposeしている間だけ共有されています。**
-  `composes` の行が消えれば、その画面は静かに自前のpresentationへ戻ります。
-  これを防ぐため、どのconsumerがどのshared roleをcomposeするかを
-  **共有元のtest 1箇所**へ書きます（Issue #312、
-  `src/ui/__tests__/sharedRoleWiring.ts` と各authorityのtest）。
-  classごと消えた場合だけでなく、**局所宣言を残したまま `composes` だけが
-  消えた場合**も検出します。
-- **どのconsumerがどのroleを使うべきかはsemantic factなので、機械に推測
-  させず明示的に書きます。** 一方、次には戻しません。
-  - exact consumer count（`compositions.length === 6` のようなcensus）
-  - 移行時の全件census
-  - 同じconsumer一覧を複数のtestへ複製すること
-- **未知の一致はCIを失敗させません。** shared roleをcomposeせず同じCSSを
-  自前で書き直したケースを自動検出することは必須にしていません。宣言の
-  組がたまたま一致したというだけで違反にはせず、上記「反復する宣言をいつ
-  共通化するか」で共通化しないと決めたもの（縦積みのflex、副文の指定、
-  list reset、focus ringの転送）や、単独の `justify-content: space-between`
-  / `flex` / `min-width` / `flex-shrink` も違反ではありません。これは
-  **code reviewの責務として明示的に残したresidual risk**です。
-- **shared ruleを変えるときは、検証責務も共有側へ移します。** 置き換え
-  られたconsumer側のsource/CSS assertionは残さず削除します。同じ保証を
-  共有元と各consumerで二重に持ちません。
-- **shared moduleであること自体は、専用testを追加する理由になりません。**
-  dedicated testを持たないshared componentが複数ありますが、consumer数や
-  既存coverageに照らしてtest追加の維持費が見合わない場合は追加しません
-  （Issue #361）。例外は、compositionが静かに落ちる具体的なsilent
-  regression riskがある高ROIケースだけです（`TextArea.module.css`が
-  `TextInput.module.css`の6つのroleをcomposeする配線、Issue #356）。
-
-### list-row presentation authorityの境界（Issue #359）
-
-`src/ui/selectedDayList.module.css` は `src/ui/listRow.module.css` へ改名
-しました。My Calendarの選択日リストだけでなく、Home / My Page / catalog /
-Ticketsの各list-row consumerが実際に使う語彙になったため、「selected-day」
-という名前がconsumer scopeを誤解させる状態になっていたためです（#358の
-「component API sharingとpresentation / semantic value sharingは別軸」を
-前提に、React componentやDOMは各featureのまま、CSSのvalue authorityだけを
-移します）。改名そのものを目的にはしていません。
-
-- **cross-feature composition の解消。** Home（`HomeUpcomingList` /
-  `HomeDeadlineList`）、My Page（`ScheduleAndEventSection`）は、以前は
-  My Calendarの screen-local module（`MySelectedDayList.module.css`）から
-  `item` / `itemLink` / `itemBody` / `chevron` / `time` / `title` /
-  `venue` / `badgeRow` を直接composeしていました。`src/app/** ->
-src/app/**` という feature間 composition だったため、いずれも
-  `src/ui/listRow.module.css` を直接composeする形へ変更しています。
-  My Calendar自身の `MySelectedDayList.module.css` も同じ authority を
-  composeするconsumerの1つになりました。
-- **separator role の判断。** `.item` の `:not(:last-child)` rule は
-  `src/ui/listRow.module.css` 側のshared roleとして残します。この rule は
-  `.item` にだけ適用され、`.addRow` へは適用されません。My Calendar の
-  リストは items の末尾に別種類の行（`.addRow`、Issue #196）が続き得る
-  ため、`.addRow` が続く場合、最後の `.item` は（`.addRow` という後続
-  sibling があるため）`:last-child` ではなくなり、この rule の
-  `border-bottom` が引き続き適用されます。したがって実際の区切り線は
-  「item 同士の間」だけでなく、「最後の item と `.addRow` の間」にも
-  最後の `.item` 側の `border-bottom` として引かれます。list 全体の
-  下端は `.addRow` 側が自分の `border-bottom` で閉じます（`.item` 側の
-  rule が `.addRow` へ及ばないため、二重線にはなりません）。catalogの
-  2つのリスト（`SelectedDayList` / `EventLevelFallbackList`）はこの
-  末尾行を持たず、`.items > li + li` という素朴なsibling ruleのまま
-  ローカルに残しています。raw declarationが近いというだけで1方式へ
-  強制統合はしません。
-- **title role の判断。** `HomeDeadlineList.eventTitle` /
-  `TicketOpportunityRow.eventTitle` は、`.title` と同じ4宣言
-  （`--font-size-title` / `--font-weight-semibold` /
-  `--line-height-title` / `--color-text`）を持つだけでなく、どちらも
-  「list/card row に出る Event名」という同じsemantic roleであるため、
-  `src/ui/listRow.module.css` の `.title` をcomposeする形にしました
-  （`margin: 0` は `<p>`要素向けのlocal override として残ります）。
-  Ticketsをこの名称の由来だった「selected-day」module へ直接composeさせる
-  ことは避け、改名後の `listRow.module.css` へ配線しています。
-  `ScheduleAndEventSection.label` はこのroleとは別（プレーンな
-  navigation行であり、Event/entry titleではない）と判断し、ローカルの
-  ままです。
+同じ宣言が複数箇所にあるだけでは共通化の理由にしません。共通化するのは、意味のある
+named role が共有される場合、または変更時に一つの semantic authority が必要な場合
+です。未知の見た目の一致を機械的な違反として扱わず、shared boundary を増やす判断は
+product quality、consumer semantics、maintenance cost で行います。
 
 ## Common states
 
-loading / empty / error / disabled / unavailableのglobal visual pattern
-を持ちます。ただしfeature/domain層がmeaning / messageを所有し、shared層は
-presentation primitiveのみを提供します。
+loading / empty / error / disabled / unavailable は global visual pattern を持ちますが、
+meaning と message は feature / domain 側が所有します。current shared StatePanel は
+title → description → action と境界線を共有し、error のみ `alert` を使います。empty /
+unavailable は現在の component API が ARIA role を固定していないため、本書では role を
+追加で要求しません。
 
-`src/ui/StatePanel.tsx` の3つのvariantは「title → description → action」と
-上下1px細罫という **同一の構造** を共有します。違いは文言とARIA role
-（`error` は `alert`、`empty` / `unavailable` は `status`）だけです。
+次を同じ「何もありません」にしません。
 
-- **`error` を赤やiconで特別扱いしません**（赤は期限専用のため）。
-  `StatePanel` はdanger tokenを参照しません。
-- 次の状態を同一の「何もありません」表示にしません。RLS等のsilent failure
-  をempty UIとして誤表示する設計を避けます。
-  - empty result（該当データなし）
-  - auth failure（認証エラー）
-  - permission denial（権限拒否）
-  - permission check failure（権限の確認自体の失敗）
-  - data load failure（読み込み失敗）
-  - unavailable（機能未提供・準備中）
-- **「読み込み失敗」を「データなし」に紛れ込ませません。** 特に、権限確認
-  自体が失敗したときに「権限がない」と言いません（実際には権限を持つ人へ
-  誤った説明をすることになるため）。
-- 1つのpageが複数の独立した読み取りを持つ場合、blockごとに結果を持ち、
-  片方が失敗してももう片方は表示します。page全体の失敗にするのは身元確認の
-  失敗だけです。
-- **disabled controlの見た目**は `--opacity-disabled`（`src/ui/tokens.css`
-  semantic layer）が値の正本を持つ、単一のsemantic roleです（Issue
-  #324）。`cursor: not-allowed` と併記し、Button / TextInput /
-  TriStateCheckbox / ParticipationSheet / ScheduleWriteFormの各disabled
-  siteがこのtokenを参照します。値はここに書かず、`tokens.css` を参照して
-  ください。各consumerのselector / DOM構造は統合対象ではありません
-  （「Shared / feature-local component boundary」の「component API
-  sharingとpresentation / semantic value sharingは別軸」参照）。この5
-  siteが`--opacity-disabled`へ配線され続けることは、
-  `src/ui/__tests__/disabledOpacityWiring.test.ts`がbounded structural
-  testとしてguardします（repository-wide censusではなく、この5 siteの
-  wiringだけを対象とします）。
+- empty result
+- authentication failure
+- permission denial
+- permission check failure
+- data load failure
+- unavailable / 未提供
 
-### 補助的な件数表示の例外
+読み込み失敗をデータなしに潰しません。複数の独立した read がある page は block
+ごとに結果を持ち、身元確認の失敗以外では成功した block を残します。
 
-上記「失敗をデータなしとして描かない」ruleの適用対象は、**その状態が
-user-facingな主張になる surface** です。行や画面の内容そのものではなく、
-既に到達可能な導線へ添えるだけの補助的な件数（badge / chip）に限り、
-読み取り失敗を0として描いてよいものとします。
-
-- 適用条件は次の3つを **すべて** 満たすことです。
-  1. その件数がそのpageの主データではないこと
-  2. 件数が0でも、その先へ辿る導線（行そのもの）が常に残ること
-  3. 実際の値はその導線の先（一覧画面）で、通常の失敗表示とともに
-     確認できること
-- current該当はMy Pageの「招待一覧」行に添える未対応件数だけです。
-  0を描いても「招待が0件である」と主張したことにはならず、user は行を
-  開いて `docs/screens.md` の招待一覧の失敗表示に到達できます。
-- この例外を、画面本体の空表示・一覧・状態表示へ広げません。
-
-画面ごとの分岐と実文言は [`docs/screens.md`](./screens.md) を正本とします。
+補助的な件数だけは、(1) page の主データではなく、(2) 件数が0でも導線が残り、
+(3) 導線の先で通常の失敗表示とともに実値を確認できる、の3条件をすべて満たす場合に
+限り読み取り失敗を0として表示できます。current 該当は My Page の招待一覧 row の
+未対応件数だけです。この例外を画面本体や一覧へ広げません。
 
 ## Calendar weekday / Japanese holiday presentation
 
-month calendar全体に適用するglobal presentation ruleです。個別feature
-screenのcalendar marker semantics（date dot / run period band等）とは
-別concernとして扱います。
+month calendar の global presentation rule です。feature-specific な event marker
+semantics とは分離します。
 
-- Saturdayはblue role（`--color-accent`）で表示します。
-- Sundayはred role（`--color-danger`）で表示します。
-- 日本の祝日（国民の祝日・休日）はred roleで表示します。
-- SaturdayとJapanese holidayが重なる場合は、holiday presentationを
-  優先します。
-- 日付数字は固定段に置き、marker rowを別段として確保します。markerの有無で
-  日付数字の縦位置を変えません。
-- weekday headerを表示します。Saturday / Sundayは列位置、weekday header、
-  accessible nameを組み合わせて非色cueを成立させ、per-cellの`土` / `日`は
-  使いません。
-- 実際の祝日は列位置から導出できませんが、per-cellの可視`祝`グリフは
-  持ちません（Issue #142「祝グリフは廃止」）。日付の色+太字と、day cell
-  の accessible name（例:「3月20日、祝日」）の組み合わせで判別できるように
-  します。
-- 前後月の日付は`text-secondary`で表示します。色だけを唯一の意味表現にせず、
-  accessible name等のsemantic cueを併用します。
-- Event rangeのcalendar bandのradiusは `--radius-band` で、Badgeと同じ段を
-  指します。controlのradiusとは混同しません。
-- month navigationはicon control vocabularyを使います（「Control
-  vocabulary」の `icon` variant）。
-- `holiday-unconfirmed`はmonth-level noticeだけで表現します。per-cellの`?`や
-  `祝日未確認` cueは復活させません。
+- Saturday は blue role、Sunday と日本の祝日は red role で示します。
+- Saturday と祝日が重なる場合は holiday presentation を優先します。
+- date number は固定段、marker row は別段とし、marker の有無で date number を動かしません。
+- weekday header、列位置、accessible name を組み合わせ、`土` / `日` の per-cell
+  表示に依存しません。
+- per-cell の可視な `祝` glyph や `?` cue は使わず、日付の visual cue と accessible
+  name、month-level notice を組み合わせます。
+- 前後月の日付は subordinate に示し、色だけを唯一の意味表現にしません。
+- calendar band、badge、control の shape は別の意味 role として扱います。
 
-Holiday dataのauthorityは内閣府「国民の祝日について」掲載データ / CSV
-です（[https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html)）。
-公式に公表されていない将来年の祝日を推測し、確定扱いにしません。
-
-product上の日付境界（`Asia/Tokyo`）は
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-を正本とし、本節では重複記載しません。
+Holiday data の authority は内閣府「国民の祝日について」掲載データ / CSV です。
+公式に公表されていない将来年を推測しません。product の日付境界は
+`.ai-dev-foundation/product-rules.md` を参照します。
 
 ## Component-specific treatment
 
-global consistencyは目的ではなく、product qualityのための手段です。まず
-usability、readability、product design qualityを優先して検討し、その結果として
-再利用可能なruleをglobal vocabularyへ落とします。既存のglobal ruleがproduct
-qualityを阻害する場合は、exceptionを足すだけでなくglobal rule自体を見直せます。
-一方、screenごとの無秩序な別designは避けます。componentのroleに本質的な差が
-ある場合は、component-specific treatmentを許容します。
+global consistency は product quality の手段です。usability、readability、native-feeling
+を優先し、component role に本質的な差がある場合は local treatment を許容します。
+一方、screen ごとの無秩序な別 design は避け、例外にはその理由を残します。
 
-### 共通化しないと決めた反復
-
-次はいずれも複数箇所に同じ宣言が並びますが、**共通化しないことを決定済み**
-です（Issue #319）。走査のたびに候補として再提出しないための記録であり、
-判断の根拠は「Shared / feature-local component boundary」の「反復する宣言を
-いつ共通化するか」に従います。
-
-- **縦積みのflex**（`display: flex; flex-direction: column;` ＋
-  `gap: var(--space-*)`） — 縦に積むというCSSのprimitiveであってnamed role
-  ではなく、gap値は既にtokenです。`md` か `sm` かはその文脈固有のdensity
-  判断なので、局所に書いてある方が意図を読めます。
-- **副文の指定**（`color: var(--color-text-secondary);` ＋
-  `font-size: var(--font-size-body-sm)`） — 「Typography」のladder
-  （body-sm＝副文）とsemantic color tokenをそのまま適用した姿です。両方
-  tokenなのでdriftする値がありません。caption / helper text / 行内メタ情報
-  が混在しており、1つのroleでもありません。
-- **list reset**（`list-style: none; margin: 0; padding: 0`） —
-  **site-localに維持します。** `globals.css` のresetへ寄せることは検討の上
-  で採用しませんでした（PO確定、Issue #319）。局所宣言に実害もdrift riskも
-  なく、global defaultを増やすよりも、マーカーを消すという判断が各listの
-  siteに見えている方を優先します。
-- **focus ringの転送** — globalsの重複ではありません。次節を参照します。
-- **calendar marker geometry** — `MonthCalendar.module.css`（Event
-  Catalog）と`MyMonthCalendar.module.css`（My Calendar）の`.markerRow`
-  （`min-height: 9px`）・`.dot`（`7px`）・`.band`（`min-height: 10px` /
-  `padding-inline: 3px` / `line-height: 1.6`）は一致する反復です。marker
-  presentationは各calendar screenのlocal ownershipを維持し、shared
-  presentation moduleや共通tokenへは統合しません。raw valueが一致して
-  いても、ここでの共通化はしないと決定済みです。`MonthCalendar`だけが
-  持つ`.weekOverflow`の`line-height: 1.4`は、この2ファイルで一致していない
-  別presentation role（week overflow summary text）であり、marker
-  geometryのこのdecisionには含めません。
-
-### visually hidden inputからvisible proxyへのfocus ring転送
-
-`globals.css` の `:focus-visible` は、focusを受けた要素自身にringを描き
-ます。checkbox / chip / segmentのように、実際にfocusを受ける `<input>` を
-`visuallyHidden` でclipし、見える要素を別に置くcontrolでは、このglobal ring
-は当たっていても見えません。
-
-そのため、見える代理要素（`+` の兄弟、または `:has()` で参照する祖先）へ
-`--focus-ring-width` / `--color-focus-ring` / `--focus-ring-offset` で
-**ringを転送します**。globalsの重複記述ではなく、globalsだけでは表現でき
-ない構造への対応です。selectorの形（`+` の兄弟 / `:has()` の自身 /
-`:has()` の子孫）はDOM形状によって変わるため、1つには寄せられません。
-
-clipされたinput自身のringは、`visuallyHidden` の `clip-path: inset(50%)`
-が既に切り落としています。そのうえで `TriStateCheckbox.module.css` と
-`FilterSheet.module.css` はinput側にも `outline: none` を明示しており、
-`ScheduleWriteForm.module.css` は明示していません。**この差は現時点では
-見た目に影響しません。** input側の `outline: none` は、clipping techniqueが
-変わった場合に備えた防御的な指定です。
-
-- `outline: none` が無いことを不具合として扱わないでください。
-- 逆に、`outline: none` を「globalsの打ち消しだから不要」として機械的に
-  削除しないでください。`visuallyHidden` のclipping technique（現在は
-  `clip-path`）を変える場合は、input自身のringが見えないことを再確認して
-  から判断します。
-
-値は3つともtokenなので、global ringのtoken値を変えた場合は追随します。
-同期が要るのは、global ringの**構造**を変えた場合（outlineをbox-shadowへ
-変える等）だけです。
+calendar marker の geometry、縦積みの layout、補助文の表示、list reset のように、
+値が似ているだけで domain / screen semantics が異なるものは無理に一つへ統合しません。
+visible focus は focus を受ける control と見える proxy の両方で利用者に確認できるように
+し、DOM 形状が異なることだけを理由に keyboard access を失わせません。
 
 ## Accessibility baseline
 
-WCAG 2.2 AA相当を baselineとします。
+WCAG 2.2 AA 相当を baseline とします。
 
 - semantic HTML
 - keyboard access
 - visible focus
 - sufficient contrast
-- zoom・reflow対応
-- reduced motion（`prefers-reduced-motion`を尊重し、motionをglobal
-  defaultで多用しない）
-- 色のみに意味を依存しない
-- sufficiently large touch target
-- 片手利用しやすいinteraction
+- zoom / reflow 対応
+- `prefers-reduced-motion` の尊重
+- 色のみに意味を依存しないこと
+- 十分に大きい touch target
+- 片手利用しやすい interaction
 
-Storybookのa11y addon等はQA aidとして使いますが、compliance自体の証明
-とはしません。
+Storybook の a11y addon や test は QA aid として使いますが、compliance 自体の証明とは
+しません。失敗表示、disabled、unavailable を視覚だけで区別しないことも baseline に
+含めます。
 
 ## Component catalog
 
-Storybookを採用します。
-
-- 責務分離: 本ファイル（`docs/ux-ui.md`）= global UX/UI ruleのcanonical
-  source、`docs/screens.md` = 画面ごとの状態・権限・文言のdecision、
-  tokens / shared components = implementation、Storybook =
-  rendered examples / states catalog。Storybookをdesign ruleの正本には
-  しません。
-- Next.js / Reactのcurrent versionに対応する`@storybook/nextjs-vite`
-  framework adapterを使用します。
-- app production runtimeへ不要なcouplingを持ち込みません
-  （`.storybook/**`はapp buildの対象外）。
-- local起動用のnpm script、static build検証を用意します。
+Storybook は current shared UI の rendered examples / states catalog として使います。
+current framework adapter は `@storybook/nextjs-vite` です。Storybook は app production
+runtime と不要に coupling せず、static build と relevant a11y verification を通します。
+本書が rule を、`docs/screens.md` が screen decision を、source / tests / Storybook が
+implementation と example をそれぞれ担います。
 
 ## 本ドキュメントで固定しないもの
 
-次の項目はintentionally unresolvedであり、実装都合で本ファイルへ先行して
-書き込みません。それぞれ関連するproduct task / 追加のPO checkpointで
-確定します。
+次の項目は実装都合で先行確定しません。関連する product task / PO checkpoint で決めます。
 
-- exact accent hue（current Gate A scaleは使用中だが、futureのexact hue
-  decisionはunresolved）
-- お知らせ（`/notifications`）のUI。通知trigger / 保持期間 / 既読の
-  domainが未決のため、画面自体が未着手です。AppBarのベルは正しいサイズの
-  tap領域を保ったまま押せない状態で、未読ドットも呼び出し側が値を持つまで
-  出しません（[Issue #231](https://github.com/reitojike/stage-tracker/issues/231)）
-- feature-specific calendar marker semantics（同日複数公演の件数表示 /
-  overlapping runsのstack / `+N` collapsing）
-- Event range内でoccurrenceが存在しない日の表示方法
-  （「Event range内でoccurrenceが存在しない日 = 休演日」という旧解釈は
-  Issue #87で廃止済みであり、休演日専用の表示conceptは想定しません）
+- exact accent hue の将来の final decision
+- お知らせ (`/notifications`) の trigger、保持期間、既読 domain、完成 UI
+- feature-specific calendar marker semantics
+- Event range 内で occurrence が存在しない日の表示方法
 - event / occurrence / participation / invitation / personal schedule /
-  TicketOpportunity planning のpersistence shape・table naming。これら
-  のdomain persistenceの正本は `.ai-dev-foundation/product-rules.md` と
-  current implementationであり、本ドキュメントでは固定しません
-- budget集計の期間基準
-- classification taxonomyの具体形（classificationのdata boundary自体は
-  `.ai-dev-foundation/product-rules.md`で承認済み）、canonical venue
-  identityの表示上の扱い、server-sideに永続化するsaved filter preference
-  （Gate Aのfilter選択状態はbrowser-local persistence）
-- bottom navのSearch tab化 / Settings placement / future feature
-  navigation（ホーム / イベント / チケット / カレンダーの4項目label setは
-  Issue #140・#188で確定済みだが、これ以上の項目追加や永久的なfinal IAは
-  未確定）
-- dark mode UI（token構成としては対応可能にするが、UI自体は未実装）
-- production hosting（Gate A dogfood限定のVercel Hobby採用を除き
-  broader/general production hosting platformは引き続きuncommitted）、
-  PWAのoffline capabilityとWeb Push notificationのproduct scope
-  （installabilityとstandalone起動はIssue #304で確定・実装済みで、
-  canonicalな記述は`.ai-dev-foundation/product-rules.md`の
-  「App delivery surface」。standalone固有のUI対応 — 例えば
-  safe-area insetを使うfull-bleed表示 — は本ドキュメントで未確定）、
-  MCP scope、broader rollout（現時点の実runtimeはGate Aの
-  本人 + 妻の bounded 2-user dogfood）
+  TicketOpportunity planning の persistence shape / table naming
+- budget 集計の期間基準
+- classification taxonomy の具体形、canonical venue identity、server-side saved filter
+- Search tab 化、Settings placement、future navigation item
+- dark mode UI と theme toggle
+- production hosting の broader scope、PWA offline、Web Push、MCP scope、broader rollout
 
-auth providerはEmail magic link + Supabase Auth cookie-based session
-（Issue #11、account bootstrap / recovery用）に加え、日常sign-inの
-primary pathとしてPasskey（Issue #106、Magic Linkを置換しないoptional
-credential）を追加した構成として決定済みです。production hosting等の
-他のdeferred項目とは別に扱います。
+認証の user-visible behavior は current product rule / screen decision と実装の境界で
+扱い、provider protocol の詳細を本書へ増やしません。
