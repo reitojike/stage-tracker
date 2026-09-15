@@ -88,17 +88,43 @@ session が operator 自身の credential なしに実行できるものでは�
 
 ## Schema migration to the hosted project
 
+Production の migration 適用は、通常は GitHub Actions の
+`.github/workflows/apply-migrations.yml` が担当します。`main` への push
+（migration を含む merge の後を含む）または `workflow_dispatch` を契機に、
+GitHub Environment `production` の Environment secret
+`SUPABASE_DB_URL` を使って `scripts/apply-pending-migrations.mjs` を実行します。
+この secret は Deployment branches を `main` のみに制限した `production`
+Environment に置きます（詳細は
+[`v2-migration-apply-setup.md`](v2-migration-apply-setup.md) を参照）。
+
+自動適用の判定と適用は次のとおりです。
+
+- repository と Production の migration history を比較します。
+- repository にだけある pending migration の場合だけ、
+  `supabase db push --db-url ... --include-all --skip-vault --yes` を実行します。
+- Production にだけある remote-only migration、または比較不能な unknown の
+  場合は、Production へ追加書き込みせず停止します。
+- 適用後に同じ分類経路で pending / remote-only が解消されたことを再確認します。
+
+新規 hosted project の初回適用や、merge 後に手動で再実行する場合も、まず
+GitHub Actions の **Apply Migrations** を `main` で `workflow_dispatch` します。
+`SUPABASE_DB_URL` が未設定の間は workflow が notice を出して skip するため、
+Environment の設定を完了してから再実行してください。
+
+次の read-only check は、初回適用後の確認または operator による調査に使えます。
 Supabase CLI がインストールされ authenticate 済み（`supabase login`）の
-マシンから実行します。
+マシンから実行し、最初に project を link します。
 
 ```bash
 supabase link --project-ref <the-project-ref-from-step-2>
-supabase db push
+node scripts/check-migration-drift.mjs --linked
 ```
 
-`supabase db push` は `supabase/migrations/**` を順番に適用し、remote
-project 上に migration history を記録します。完了後、drift がないことを
-確認します。
+この wrapper は書き込みを行いません。exit code 0 は repository と
+Production の migration version が一致している positive evidence がある場合
+だけ、pending migration は exit code 1、未 link / 未認証 / network failure 等で
+判定できない場合は exit code 2（`UNKNOWN`）を返します。必要に応じて、schema
+drift の追加確認には `supabase db diff --linked` を使います。
 
 ```bash
 supabase db diff --linked
@@ -126,10 +152,12 @@ Production の migration version が一致している」という positive evid
 （`UNKNOWN`）を返します — いずれの failure も synchronized とは表示しま
 せん。`pnpm run supabase:migrations:drift -- --linked` でも同じです。
 
-migration を追加する merge の後は毎回 `supabase db push` を re-run します。
-hosted project へ migration を push する自動 CI ステップは存在しません。
-これは意図的な manual operator action です（Issue #61: 「multiple
-sessions が同じ remote schema を無秩序に mutate しない」）。
+通常運用で operator が手元から `supabase db push` を実行する必要はありません。
+workflow が利用できない、または `SUPABASE_DB_URL` 未設定のため skip された
+状態から復旧する場合に限り、read-only drift check で remote-only が無いことを
+確認した後、明示的な operator fallback として `supabase db push --linked` を
+使えます。remote-only がある場合は追加 push をせず、先に原因を調査します。
+これは automatic apply の代替となる通常手順ではありません。
 
 ## Auth configuration（Supabase Dashboard → Authentication）
 
