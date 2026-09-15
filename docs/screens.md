@@ -302,7 +302,7 @@ section構成は「予定とイベント」（個人予定の管理・イベン�
 `attending → considering` 降格と withdraw の導線は失いません。absence と
 read failure は別状態です。
 
-閉じた後の結果は読み上げ対象の通知で伝えます。
+成功時は選択を反映してSheetを閉じます。独立したsuccess notificationは表示しません。
 
 ### 招待する / 共有相手を追加
 
