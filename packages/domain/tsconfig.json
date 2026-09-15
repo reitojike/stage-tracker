@@ -1,5 +1,5 @@
 {
-  "extends": "../../.ai-dev-foundation/quality/tsconfig.quality.json",
+  "extends": "../../tsconfig.quality.json",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],

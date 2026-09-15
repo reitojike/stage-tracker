@@ -5,25 +5,28 @@
 application です。product intentの詳細は [`docs/prd.md`](./docs/prd.md) を
 参照してください。
 
-`ai-dev-foundation` の consumer bootstrap baseline (PR A) と、shared event
-catalog の最初の product slice (Issue #3 / PR B) です。
+GitHub Spec Kit v1.0.6 の standard harness を使う、shared event catalog と
+personal planning の authenticated multi-user application です。既存の
+Foundation harness への runtime dependency は持ちません。
 
 ## Canonical docs
 
-| Document                                                                       | 内容                                                                          |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope         |
-| [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）            |
-| [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本       |
-| [`docs/screens.md`](./docs/screens.md)                                         | 画面ごとの状態・権限分岐と実文言のdecisionの正本                              |
-| [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | agentが実装時に守るcurrent-approved product/domain constraintsの正本          |
-| [`AGENTS.md`](./AGENTS.md)                                                     | 開発ルール（Foundation policy + technology profile + product rules から生成） |
+| Document                                                                       | 内容                                                                    |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope   |
+| [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）      |
+| [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本 |
+| [`docs/screens.md`](./docs/screens.md)                                         | 画面ごとの状態・権限分岐と実文言のdecisionの正本                        |
+| [`.specify/`](./.specify/)                                                     | Spec Kit standard workflow / template / integration metadata            |
+| [`.claude/skills/`](./.claude/skills/)                                         | Claude の Spec Kit standard integration                                 |
+| [`.agents/skills/`](./.agents/skills/)                                         | Codex の Spec Kit standard integration                                  |
+| [`specs/`](./specs/)                                                           | current product behavior の Living Spec（`specs/**/spec.md`）           |
+| [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | 未移行 domain の temporary static product authority                     |
 
-`AGENTS.md` / `.ai-dev-foundation/quality/` は
-[reitojike/ai-dev-foundation](https://github.com/reitojike/ai-dev-foundation)
-からの生成物であり、直接編集しません。product-specific constraintの追加・
-変更は `.ai-dev-foundation/product-rules.md` を編集した上で Foundation sync
-を行います。
+Foundation generated `AGENTS.md` / `CLAUDE.md`、Foundation Skills、reviewer
+routing、pin、checkout、sync/check は post-cutover harness に含めません。
+新しい product rule は対象 domain の Living Spec、または未移行 domain の
+temporary static product rules に、その責務に応じて記録します。
 
 ## Setup
 
@@ -31,12 +34,34 @@ catalog の最初の product slice (Issue #3 / PR B) です。
 pnpm install
 ```
 
-Foundation tooling を使う `foundation:sync` / `foundation:check` は、pinされた
-SHA の `ai-dev-foundation` checkout を `FOUNDATION_CHECKOUT` 環境変数(既定値
-`../ai-dev-foundation`)で参照します。pin されている SHA の single source of
-truthは [`.ai-dev-foundation/foundation-pin.json`](./.ai-dev-foundation/foundation-pin.json)
-です。`.github/workflows/verify.yml` もこのfileからSHAを読み取り、CI上の
-Foundation checkoutをpinします。
+開発用の harness は Spec Kit standard surface（`.specify/`、標準の Codex /
+Claude integration、`specs/**/spec.md`）です。Codex を default integration と
+し、Claude も multi-install しています。Next.js の `agentRules: false` は、
+Spec Kit が管理する guidance surface と Next.js の自動生成 root guidance が
+競合しないよう、`apps/web/next.config.ts` の project-owned standard setting
+として維持します。
+
+Spec Kit の標準 helper scripts は、PowerShellへの依存を避け、Codex / Claudeで
+共通利用するため、v1.0.6 first-party `--script py` variantを使用します。生成された
+Skillは`python3` commandでhelperを呼ぶため、Spec Kit workflowを実行するenvironment
+ではPython 3を`python3` commandとして利用可能にしてください。repository側の
+launcher wrapper、post-processing、managed fileの手編集は追加しません。
+
+Claude secondary integration利用時、Spec Kit shared prerequisite scriptがdefault
+Codex syntaxの `$speckit-*` recovery commandを表示する場合は、対応するClaude
+`/speckit-*` Skillを使用してください。これはSpec Kit v1.0.6のshared recovery
+guidance limitationであり、managed filesはproject側でpatchしません。
+
+Current behavior の authority は、Occurrence Participation については
+[`specs/001-occurrence-participation/spec.md`](./specs/001-occurrence-participation/spec.md)
+です。未移行 domain は temporary static product rules、architecture / runbook /
+schema / migration / test はそれぞれの既存責務の文書・コードを参照します。
+
+Issue #487 は既存 behavior の authority cutover と initial bootstrap です。
+新規 feature の implementation plan を必要とする Task ではないため、Participation
+spec に `plan.md` / `tasks.md` は付けていません。通常の Wave 4 feature / bug fix /
+DB migration では Spec Kit standard plan/tasks workflow を実作業で評価し、不要な
+artifactだけを意図的に省略します。Issue が存在すること自体を省略理由にはしません。
 
 ### Local Supabase (Docker が必要)
 
@@ -79,9 +104,8 @@ stepに分けています。Auth unit coverageは`Verify / Code`内の`test:unit
 real HTTP/browser coverageは独立した`Verify / E2E`がauthorityです。
 
 - `pnpm run verify:code` — `format:check` / `lint` / `typecheck` /
-  `test:unit` / `foundation:check` (generated adapter と Foundation-managed
-  quality profile のdrift 検知) / `agent-rules:check` /
-  `supabase:migrations:check`。いずれも local Supabase runtimeを必要としない
+  `test:unit` / `test:scripts` / `supabase:migrations:check`。いずれも local
+  Supabase runtimeを必要としない
   deterministic checkです。`typecheck`はworkspace packageに加えてroot
   `test/rls/**/*.ts`も`test/rls/tsconfig.json`でblocking検証します。Auth unit
   testだけを絞って再実行する場合は`pnpm run test:auth:unit`を使えます。
@@ -98,9 +122,8 @@ real HTTP/browser coverageは独立した`Verify / E2E`がauthorityです。
   guardrailは`supabase/tests/13_client_role_table_privileges_test.sql`だけを
   `supabase test db <path> --local`で実行するpath-scoped pgTAP testです。既存の
   pgTAP suite全体をrequired checkへ昇格させず、guardrailだけをactive verification
-  pathへ組み込んでいます。Foundation-managedな旧JavaScript checkerはsync/drift
-  対象のためrepositoryには残りますが、stage-trackerのactive verificationからは
-  呼び出しません。
+  pathへ組み込んでいます。DB / migration の deterministic safety は project-owned
+  scripts と migrations / tests で維持します。
   remote Supabase projectやremote credentialsは不要です。
   Docker が起動していない場合、このステップで失敗します。real browser の
   Auth / journey coverage は独立した `verify:e2e` が担います。
@@ -114,29 +137,9 @@ real HTTP/browser coverageは独立した`Verify / E2E`がauthorityです。
   Supabaseがdirtyな状態を引きずるlocal/agent実行と異なりresetが不要と
   実証済み）。
 
-`verify:profile` は、Foundation v0.4.0のcanonical extension point命名
-（`.ai-dev-foundation/quality/README.md` が定める `verify:profile:code` /
-`verify:profile:database` の2分割）とは別の、stage-trackerが既存互換の
-ため保持しているrepo-local aggregate scriptです（Issue #118当時に
-`verify:profile`という単一名で導入し、Issue #134のrepinではIssue #134
-本文の「v0.4.0 reference exampleへ機械的に置換せず、coverageを欠落
-させない最小integrationにする」方針により、この既存script自体の
-rename/分割は行っていません）。`agent-rules:check` /
-`supabase:migrations:check` に続けて `verify:database`（DB起動・reset・
-`verify:database:checks`）を呼ぶ構成にしており、DB runtimeを要する部分は
-`verify:database`を単一のsourceとして参照します（同じ手順を2箇所へ独立に
-ハードコードしないため）。stage-trackerのcurrent full
-verificationは`verify:profile`を経由せず、`pnpm run verify`から
-`verify:code`/`verify:build`/`verify:database`を直接呼びます。
-`agent-rules:check` / `supabase:migrations:check`はDB runtime不要なので
-`verify:code`側にも含めており、`verify:profile`とはこの2 checkの呼び出し
-のみ重複します（Issue #118のlane境界: agent-rules/migrationはCode lane
-に属しDatabase laneには含めないため、full `verify`内での二重実行には
-なりません）。
-
-profile固有checkを追加・変更する場合は、DB runtimeが不要なら
-`verify:code`（および必要なら`verify:profile`）へ、DB runtimeが必要なら
-`verify:database`へ追加してください。
+Code lane に project-owned quality config と migration collision fence を含め、
+DB runtime を必要とするものは `verify:database` に分離しています。新しい check
+もこの責務境界に従って追加します。
 
 RLS policy の guardrail proof (`test/rls/guardrail-proof.mjs`) は
 `pnpm run test:rls:guardrail-proof` で手動実行します。実際に policy /

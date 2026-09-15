@@ -1,5 +1,7 @@
 /**
- * Cancellation (AGENTS.md "Cancellation", docs/v2/oracle-domain.md §1.3/§2.3).
+ * Cancellation (current Participation boundaries are in
+ * specs/001-occurrence-participation/spec.md; migration-era context is in
+ * docs/v2/oracle-domain.md §1.3/§2.3).
  *
  * Event-level and Occurrence-level cancellation are independent nullable
  * timestamps; "effective cancellation" is their OR. Only whether `canceledAt`

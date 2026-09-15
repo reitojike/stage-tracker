@@ -32,7 +32,7 @@ describe("mapParticipationRow", () => {
   });
 
   it("returns an error (never throws) for a status outside the MVP vocabulary", () => {
-    // not_attending must never be persisted (AGENTS.md "Participation") -
+    // not_attending must never be persisted (specs/001-occurrence-participation/spec.md FR-003–FR-005) -
     // a row claiming it is a data-layer anomaly, not RLS-related.
     const result = mapParticipationRow(baseRow({ status: "not_attending" }));
     expect(result.ok).toBe(false);

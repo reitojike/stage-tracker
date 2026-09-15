@@ -10,7 +10,7 @@ import type { TicketOpportunityTargetScope } from './ticketOpportunity';
  * 2. `event_wide` with the Event not canceled -> never terminal from
  *    Occurrence state alone. `event_wide` is a semantic fact about the
  *    whole Event, not a snapshot of whichever Occurrences currently exist
- *    (AGENTS.md "Target scope"), so one current Occurrence being canceled
+ *    (.ai-dev-foundation/product-rules.md "Target scope"), so one current Occurrence being canceled
  *    must not cancel the Opportunity.
  * 3. `selected_occurrences` with the Event not canceled -> terminal only
  *    when the target set is *completely* resolved

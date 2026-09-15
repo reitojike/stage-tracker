@@ -25,7 +25,7 @@ export interface SelectedDayListProps {
   readonly occurrences: readonly SelectedDayOccurrence[];
   /** Events whose Event range covers `date` but have no actual occurrence
    * on it (`selectEventLevelFallback`) - e.g. a 0-occurrence Event whose
-   * range overlaps `date` (AGENTS.md "Catalog の日程参照要件": a 0-occurrence
+   * range overlaps `date` (.ai-dev-foundation/product-rules.md "Catalog の日程参照要件": a 0-occurrence
    * Event within its Event range must still be reachable). */
   readonly fallbackEntries: readonly EventCatalogEntry[];
   readonly classificationByEventId: ReadonlyMap<string, EventClassification>;

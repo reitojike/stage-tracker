@@ -15,7 +15,7 @@ export interface MyPageAccount {
 }
 
 /** 認証済みでなければ `null`。email 取得失敗は「識別情報行を出さない」
- * という product rule（AGENTS.md「マイページ」節）に従い `email: null`
+ * という product rule（.ai-dev-foundation/product-rules.md「マイページ」節）に従い `email: null`
  * として扱う（呼び出し元は行自体を非表示にする）。 */
 export async function getMyPageAccount(): Promise<MyPageAccount | null> {
   const supabase = await createSupabaseServerClient();
@@ -31,7 +31,7 @@ export async function getMyPageAccount(): Promise<MyPageAccount | null> {
 
 /**
  * designated catalog creator membership（`public.catalog_creators`）の
- * fail-closed 判定。`AGENTS.md`「MVP Event catalog write boundary」:
+ * fail-closed 判定。`.ai-dev-foundation/product-rules.md`「MVP Event catalog write boundary」:
  * 真の権限境界は `create_event` RPC の membership check であり、ここでの
  * 判定は「イベントを追加」行を表示するかどうかのレンダー制御に過ぎない。
  * 読み取り失敗・未認証はすべて `false`（fail-closed - 「membership/read

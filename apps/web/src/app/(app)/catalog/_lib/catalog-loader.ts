@@ -91,7 +91,7 @@ export type CatalogFilterOptionsResult =
  * "フィルタ機能自体が利用不能" (oracle §2 「イベントカタログ一覧」) -
  * unlike `BlockState`, this has no `empty` variant: 0 known genres/groups/
  * venues just means the filter UI has nothing to offer, which is not a
- * failure (AGENTS.md never treats an empty lookup table as an error state).
+ * failure (.ai-dev-foundation/product-rules.md never treats an empty lookup table as an error state).
  * `ok: false` covers exactly the 2 real failure kinds
  * (`unavailable`/`error`), using `@/lib/data`'s `toReadErrorVariant` (the
  * single canonical failure-kind mapping, PR #381 review finding 3) - kept

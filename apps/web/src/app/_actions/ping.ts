@@ -23,7 +23,7 @@ const pingInputSchema = z.object({
  * clock-free な domain package ではなくこの application 層であり、
  * domain 側の `instantToTokyoCalendarDate`/`epochMsToInstant` は「今」を
  * 引数として受け取るだけ（`@/lib/tokyo-date.ts` 参照）。product 上の日付
- * 境界が `Asia/Tokyo` であること（AGENTS.md 時刻・タイムゾーン節）の配線が
+ * 境界が `Asia/Tokyo` であること（.ai-dev-foundation/product-rules.md 時刻・タイムゾーン節）の配線が
  * 実際に動くことを、この ping action でも合わせて確認する。
  */
 export const pingAction = authActionClient

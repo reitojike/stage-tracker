@@ -18,7 +18,8 @@ import { classifyPostgrestLikeError } from "./postgrest-error";
  */
 
 /**
- * Accept: AGENTS.md "Invitation" / decisions.md 「accept は専用 RPC を持た
+ * Accept: specs/001-occurrence-participation/spec.md Invitation Requirements /
+ * decisions.md 「accept は専用 RPC を持た
  * ない」— 通常の participation write（`considering`/rowなし ->
  * `attending`）と全く同一の operation として実装する。書き込みが成功すると
  * DB 側の `resolve_pending_invitations_on_attending` トリガーが、同一

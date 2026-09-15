@@ -65,14 +65,14 @@ const NEXT_DAY_SUFFIX = "（翌日）";
  * 開始時刻しか表示せず、終了時刻の有無・翌日終了を区別できなかった修正）。
  *
  * 終演時刻は不明な場合があり、未設定を正当な状態として扱う
- * （AGENTS.md「公演日程」）ので、既知の終了時刻が無いことを「終了時刻
+ * （.ai-dev-foundation/product-rules.md「公演日程」）ので、既知の終了時刻が無いことを「終了時刻
  * 未定」という明示ラベルで示し、単に開始時刻だけを見せて「終了時刻を
  * 入力し忘れた」ように誤読させない。既知の終了時刻が開始日の翌 Tokyo
  * calendar date に及ぶ場合（23:00 開演 → 日付をまたいで終演等）、終了
  * 時刻だけを見ると開始時刻より小さい数字になり逆転して見えるため、
  * 「（翌日）」を付けて区別する。
  *
- * `starts_at <= ends_at` はDB level のproduct invariant（AGENTS.md「開場 /
+ * `starts_at <= ends_at` はDB level のproduct invariant（.ai-dev-foundation/product-rules.md「開場 /
  * 開演 / 終演」）だが、24時間以内という上限は無い - 開始日の2日以上後に
  * 終演する公演回もDB上は正当（codex review 指摘: legacy由来の実装が
  * 「終了日 ≠ 開始日」だけで一律「（翌日）」と表示しており、開始日の翌日

@@ -5,7 +5,7 @@ import { Button } from "@stage-tracker/ui";
 import { deletePasskeyAction } from "@/lib/actions/passkeys";
 
 /**
- * AGENTS.md「マイページ」/ oracle-routes-ui.md §2: 削除は行内即時ボタン、
+ * .ai-dev-foundation/product-rules.md「マイページ」/ oracle-routes-ui.md §2: 削除は行内即時ボタン、
  * 確認ダイアログなし（低リスク・再登録可能なため意図的に省略）。
  *
  * `passkeyLabel`（`PasskeySection` が同じ行に表示するラベルと同一）を

@@ -6,10 +6,10 @@ import { ticketOpportunityIdSchema, ticketOpportunityMilestoneIdSchema } from '.
 /**
  * TicketOpportunityMilestone: one dated event in an Opportunity's own
  * lifecycle (application open/close, result announcement, sale start,
- * payment window - AGENTS.md "TicketOpportunity（Ticket planning MVP）").
+ * payment window - .ai-dev-foundation/product-rules.md "TicketOpportunity（Ticket planning MVP）").
  *
  * A milestone the source never gave is represented by simply not creating a
- * row - never by a sentinel "unknown" value (AGENTS.md "source に存在しない
+ * row - never by a sentinel "unknown" value (.ai-dev-foundation/product-rules.md "source に存在しない
  * milestone...は、行を作らないことでそのまま表現します。「不明」を表す
  * 特別な値は持ちません"). That rule lives one level up, in the aggregate
  * that holds `readonly TicketOpportunityMilestone[]` (see
@@ -24,7 +24,7 @@ import { ticketOpportunityIdSchema, ticketOpportunityMilestoneIdSchema } from '.
  * than three nullable sibling fields on one flat object. This makes it a
  * type error, not just a runtime possibility, to read `at` off a
  * `date`-precision milestone or to fabricate a time a `date`-precision
- * milestone never had (AGENTS.md "source が与えていない時刻を補完しません
+ * milestone never had (.ai-dev-foundation/product-rules.md "source が与えていない時刻を補完しません
  * （例: date-only を `00:00` timestamp へ fake 変換しない）").
  */
 

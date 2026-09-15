@@ -1222,10 +1222,10 @@ one-time token）を持たない直接アクセス経由の spoofing 自体へ�
 起票すること。
 
 この決定は将来の `return_to` 実装も拘束する product-specific security
-decision であるため、`.ai-dev-foundation/product-rules.md`「認証: サイン
-イン redirect の query string 境界」へ canonical rule として同期済み
-（`foundation:sync` で `AGENTS.md` へ反映済み）。canonical rules だけを
-参照する後続 Task でも、query の無条件転送を再導入しないことを認識できる。
+decision であるため、未移行 domain の temporary static authority である
+`.ai-dev-foundation/product-rules.md`「認証: サインイン redirect の query string
+境界」に記録されています。Foundation generated adapter への同期は行いません。
+後続 Task では、query の無条件転送を再導入しないことを認識できる状態を保ちます。
 
 この決定により、`docs/v2/m8-journey-comparison.md` の当該項目は「PO 判断が
 必要な事項」から**分類1（意図した差分）**へ確定する。legacy 側のこの挙動は

@@ -28,7 +28,7 @@ type InviteMessage = {
  * （legacy の `InviteSheet` 相当）。Sheet は presentation と lifecycle
  * だけを担当し、招待 action と opacity semantics はこの consumer が持つ。
  *
- * **opacity（AGENTS.md「Invitation」、`docs/v2/decisions.md`「踏んでは
+ * **opacity（specs/001-occurrence-participation/spec.md の Invitation Requirements、`docs/v2/decisions.md`「踏んでは
  * いけない地雷」）**: 成功時は invitee の3分岐（行なし/considering/
  * attending）によらず常に同一の文言・同一のタイミングで完了する。
  * `inviteToOccurrenceAction` が返す成功値は `@stage-tracker/domain` の

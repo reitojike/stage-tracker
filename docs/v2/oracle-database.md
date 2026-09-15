@@ -1,10 +1,16 @@
-# oracle: 現行データベース仕様（最終状態）
+# oracle: database（migration-era extraction / historical evidence）
 
-このドキュメントは `supabase/migrations/**`（57本、`20260820000000` 〜
-`20260913000000`）と `test/rls/**` を読み、57本を1本に畳んだ **今の DB の姿**を
-記述したものです。v2 実装者はこのドキュメントだけを見て再実装します。差分の
-歴史（どの Issue でどう変わったか）は意図的に省き、最終的に成立している
-schema / RLS / function / invariant だけを記載します。
+このドキュメントは `supabase/migrations/**` と `test/rls/**` を読み、v2 移行時の
+database 状態を一つの文書へ抽出した記録です。現在の mechanical authority では
+ありません。DB schema / RLS / trigger の current authority は、現行の
+`supabase/migrations/**`、generated schema/types、および DB/RLS tests です。
+変更時は必ずそれらを直接確認してください。
+
+Occurrence Participation の current product behavior は
+[`specs/001-occurrence-participation/spec.md`](../../specs/001-occurrence-participation/spec.md)
+を正本とします。本書は migration-era の architecture/mechanical context と
+historical evidence を保持するために残しており、これだけを見て現行 schema を
+再実装したり、product semantics を再承認したりしません。
 
 途中で導入され、後続の migration で drop / 置換された内容（例:
 `events.starts_at`/`ends_at` 列、`create_event_with_occurrence`、Ticket 精算

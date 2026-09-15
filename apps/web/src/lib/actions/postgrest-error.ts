@@ -10,7 +10,7 @@ import { ActionError } from "@/lib/action-error";
  * `20260830000000_simplify_invitation_pending_only.sql` 等で実装済み
  * （`42501`/`90001`/`90002` を全て `using errcode = ...` で明示）。
  * したがってこの分類は SQLSTATE のみを見る。**message 文字列マッチは
- * 一切行わない**（AGENTS.md 制約「エラー分類は message 文字列マッチで
+ * 一切行わない**（.ai-dev-foundation/product-rules.md 制約「エラー分類は message 文字列マッチで
  * 行わない（A8）」）。
  *
  * M8 oracle の `classifyWriteError` と同じ SQLSTATE 集合を採用するが、共通の

@@ -7,7 +7,7 @@ import type { PersonalScheduleEntry } from './scheduleEntry';
 
 /**
  * ScheduleShare: one recipient a PersonalScheduleEntry has been shared with
- * (AGENTS.md "Event-independent personal schedule" - "owner は entry 単位で
+ * (.ai-dev-foundation/product-rules.md "Event-independent personal schedule" - "owner は entry 単位で
  * authenticated user を明示指定して共有できます"). Sharing has no approval
  * flow: a share row existing IS the (immediate) grant.
  *
@@ -45,7 +45,7 @@ export function canUserViewPersonalScheduleEntry(
 
 /**
  * `blocking` is a property of the entry itself, never of the viewer
- * (AGENTS.md: "`blocking` は entry 本体の属性であり、share 先にも同じ
+ * (.ai-dev-foundation/product-rules.md: "`blocking` は entry 本体の属性であり、share 先にも同じ
  * semantics で伝播する。per-recipient の blocking override は設けません").
  * This function is intentionally trivial - it exists to give that invariant
  * a single, testable call site: whichever viewer asks (owner or any

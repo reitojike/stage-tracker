@@ -21,7 +21,7 @@ export interface MonthCalendarProps {
  * elsewhere in this component - this appends a plain-text "（中止）" marker
  * (not color-only) so a canceled Event's band and its day's aria-label both
  * carry the same distinguishable information
- * (AGENTS.md "Cancellation": "UIでは中止状態が「中止」として表示されます"). */
+ * (specs/001-occurrence-participation/spec.md FR-016: "UIでは中止状態が「中止」として表示されます"). */
 function bandDisplayTitle(eventTitle: string, isCanceled: boolean): string {
   return isCanceled ? `${eventTitle}（中止）` : eventTitle;
 }

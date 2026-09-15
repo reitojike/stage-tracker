@@ -18,7 +18,7 @@ interface EditEventPageProps {
  * 空状態/error/unavailable の3分岐は `@/lib/data` の
  * `classifyListReadResult` をそのまま使う。owner 判定はここでの
  * レンダー制御であり、真の書き込み権限境界は常に RLS/RPC 側
- * （AGENTS.md 制約）。
+ * （.ai-dev-foundation/product-rules.md 制約）。
  */
 export default async function EditEventPage({ params }: EditEventPageProps) {
   const { eventId } = await params;

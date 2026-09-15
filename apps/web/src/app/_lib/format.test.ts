@@ -15,7 +15,7 @@ describe("occurrenceTimeRangeLabel", () => {
     ).toBe("11:00〜16:00");
   });
 
-  it("shows the 終了時刻未定 label when endsAt is unset (AGENTS.md「公演日程」: nullable end time is a valid state)", () => {
+  it("shows the 終了時刻未定 label when endsAt is unset (.ai-dev-foundation/product-rules.md「公演日程」: nullable end time is a valid state)", () => {
     expect(
       occurrenceTimeRangeLabel("2026-09-10T02:00:00.000Z" as never, null),
     ).toBe("11:00〜（終了時刻未定）");
@@ -30,7 +30,7 @@ describe("occurrenceTimeRangeLabel", () => {
     ).toBe("23:00〜01:00（翌日）");
   });
 
-  it("shows the actual end date instead of （翌日） when the end is 2+ Tokyo calendar days after the start (codex review 指摘: starts_at <= ends_at has no 24h cap - AGENTS.md「開場 / 開演 / 終演」)", () => {
+  it("shows the actual end date instead of （翌日） when the end is 2+ Tokyo calendar days after the start (codex review 指摘: starts_at <= ends_at has no 24h cap - .ai-dev-foundation/product-rules.md「開場 / 開演 / 終演」)", () => {
     const label = occurrenceTimeRangeLabel(
       "2026-09-10T14:00:00.000Z" as never, // 23:00 JST on 9/10
       "2026-09-12T02:00:00.000Z" as never, // 11:00 JST on 9/12 (2 days later)

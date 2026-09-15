@@ -25,7 +25,7 @@ function noticeForIntent(intent: "planned" | "applied" | "remove"): string {
 export interface TicketOpportunityStateControlsProps {
   readonly opportunityId: TicketOpportunityId;
   /** 呼び出し元本人の現在の planning state。row が無い = 未登録
-   * (AGENTS.md「UserTicketOpportunityState」)。 */
+   * (.ai-dev-foundation/product-rules.md「UserTicketOpportunityState」)。 */
   readonly initialState: UserTicketOpportunityStatus | null;
 }
 

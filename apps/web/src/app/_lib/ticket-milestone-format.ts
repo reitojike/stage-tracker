@@ -11,7 +11,7 @@ import { formatTokyoCalendarDateJa, formatTokyoTime } from "./format";
  * by `/` (home's "申し込み期限" block) and `/tickets` (the full timeline) -
  * both render the same milestone rows, just filtered/grouped differently.
  * The oracle names the 5 milestone kinds
- * (`docs/v2/oracle-routes-ui.md`/AGENTS.md "Milestone") but does not specify
+ * (`docs/v2/oracle-routes-ui.md`/.ai-dev-foundation/product-rules.md "Milestone") but does not specify
  * their exact Japanese label text; these are this Task's own reasonable
  * choice (see this Task's report).
  */
@@ -31,7 +31,7 @@ export function formatMilestoneTypeJa(
 }
 
 /** Renders a milestone's "when" respecting its own `temporalPrecision` -
- * never fabricates a time for a `date`-precision milestone (AGENTS.md
+ * never fabricates a time for a `date`-precision milestone (.ai-dev-foundation/product-rules.md
  * "source が与えていない時刻を補完しません"). */
 export function formatMilestoneWhenJa(
   milestone: TicketOpportunityMilestone,

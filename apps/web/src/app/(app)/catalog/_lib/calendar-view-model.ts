@@ -42,7 +42,7 @@ import {
  *   `eventRangeBandSegment`/`buildCatalogMonthViewModel`). The band spans
  *   `startsOn`..`endsOn` inclusive, as-is, regardless of how many
  *   occurrences (if any) exist - the Event range is a first-class fact
- *   (AGENTS.md "Event 開催期間（Event range）"), never split around a day
+ *   (.ai-dev-foundation/product-rules.md "Event 開催期間（Event range）"), never split around a day
  *   with no occurrence evidence.
  * - the day-number count is a *single-day Event count*, not an occurrence
  *   count: a 0-occurrence single-day Event still counts once, and a

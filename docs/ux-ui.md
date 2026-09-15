@@ -9,8 +9,11 @@ UX/UI rule の canonical source です。個別 screen の状態・権限・実�
 - smartphone-first、information hierarchy、interaction principle、visual
   semantics、accessibility baseline など、screen 横断の UX/UI rule は本書で
   固定します。
-- 画面ごとの状態・権限・実文言は [`docs/screens.md`](./screens.md) を参照し、
-  domain semantics は `.ai-dev-foundation/product-rules.md` を参照します。
+- 画面ごとの状態・権限・実文言は [`docs/screens.md`](./screens.md) を参照します。
+  Occurrence Participation の current behavior は
+  [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)、
+  未移行 domain の semantics は temporary static authority である
+  `.ai-dev-foundation/product-rules.md` を参照します。
   本書はそれらを画面単位・domain 単位で再掲しません。
 - Storybook は rendered examples / states catalog です。Storybook や実装の
   class 名は本書の design rule の正本ではありません。
@@ -343,8 +346,8 @@ semantics とは分離します。
 - calendar band、badge、control の shape は別の意味 role として扱います。
 
 Holiday data の authority は内閣府「国民の祝日について」掲載データ / CSV です。
-公式に公表されていない将来年を推測しません。product の日付境界は
-`.ai-dev-foundation/product-rules.md` を参照します。
+公式に公表されていない将来年を推測しません。product の日付境界は未移行
+domain では `.ai-dev-foundation/product-rules.md` を参照します。
 
 ## Component-specific treatment
 

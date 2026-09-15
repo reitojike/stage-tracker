@@ -8,7 +8,7 @@ import { compareInstants, instantSchema } from '../time/instant';
  * unknown door/end time is a valid state, never defaulted.
  *
  * Enforces the ordering invariant `doorsAt <= startsAt <= endsAt`
- * (AGENTS.md "開場 / 開演 / 終演"), comparing only the fields that are
+ * (.ai-dev-foundation/product-rules.md "開場 / 開演 / 終演"), comparing only the fields that are
  * actually set: a null field is not compared, per the same product rule.
  *
  * This schema does NOT enforce "occurrence's startsAt falls within the

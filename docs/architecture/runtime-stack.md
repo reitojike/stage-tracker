@@ -58,7 +58,7 @@ flowchart LR
 - `stage-tracker.com`（サブドメインではなくルートドメイン）が Vercel の
   Production domain です。Cloudflare 側でこのドメインを取得・DNS 管理し、
   Vercel プロジェクトへ向けています。
-- GitHub Actions（`verify.yml` / `claude-review.yml`）は Production の
+- GitHub Actions（`verify.yml`）は Production の
   deploy パイプラインには関与しません。Vercel が `main` への push を検知して
   auto-deploy する構成であり、CI は「PR の merge 前検証」の役割に閉じています
   （詳細は「デプロイ・実行経路」節）。
@@ -70,8 +70,8 @@ flowchart LR
 
 ## デプロイ・実行経路
 
-1. PR が `main` へ merge される（Foundation Review Protocol に従う通常の PR
-   フロー）。
+1. PR が `main` へ merge される（repository の review / merge policy に従う
+   通常の PR フロー）。
 2. Vercel がその push を検知し、Production ビルドを自動実行・デプロイします。
    Vercel 側の deploy を起動する専用の GitHub Actions ステップは存在しません
    （`vercel.json` もリポジトリに存在せず、Vercel プロジェクト側の連携設定に
@@ -107,12 +107,11 @@ flowchart LR
 
 ### merge-ready fence が見ない外部 status（Vercel、Issue #394）
 
-merge-ready fence（`.ai-dev-foundation/tooling/merge-ready-fence.mjs`）が
-評価するのは Foundation Review Protocol の review contract（Selection /
-Execution / Acquisition & Validity / Resolution）だけであり、Vercel の
-deployment status のような外部 commit status は見ない。`Verify /*`（Code /
-Build / Database / E2E / Migration Ordering Fence）が全て green でも、Vercel
-Preview deployment は独立に failure になり得る。
+repository の merge-ready review gate が評価するのは repository review contract
+と deterministic verification であり、Vercel の deployment status のような外部
+commit status は見ない。`Verify /*`（Code / Build / Database / E2E / Migration
+Ordering Fence）が全て green でも、Vercel Preview deployment は独立に failure
+になり得る。
 
 PR #392 は `apps/web/src/env.ts` の `NEXT_PUBLIC_SUPABASE_URL` が URL 形式を
 要求するのに対し、当時の Vercel Preview scope の placeholder が URL として

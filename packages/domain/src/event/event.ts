@@ -5,7 +5,7 @@ import { compareTokyoCalendarDates, tokyoCalendarDateSchema } from '../time/toky
 
 /**
  * The Event range ("公演期間"): a required, inclusive-both-ends Asia/Tokyo
- * calendar date range (docs/v2/oracle-domain.md §1.1, AGENTS.md "Event 開催
+ * calendar date range (docs/v2/oracle-domain.md §1.1, .ai-dev-foundation/product-rules.md "Event 開催
  * 期間 (Event range)"). This is first-class Event data, not derived from its
  * Occurrences - an Event may have zero Occurrences while its range is known.
  */

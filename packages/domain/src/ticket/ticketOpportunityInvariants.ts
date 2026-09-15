@@ -29,7 +29,7 @@ export type TicketOpportunityInvariantViolation =
  * invariants:
  *
  * - every target Occurrence belongs to the same Event as the Opportunity
- *   itself (AGENTS.md "selected target の Occurrence は、必ずその
+ *   itself (.ai-dev-foundation/product-rules.md "selected target の Occurrence は、必ずその
  *   Opportunity の Event に属していなければなりません");
  * - at most one milestone per `milestoneType` for this Opportunity
  *   (docs/v2/oracle-database.md §1.10 UK `(opportunity_id, milestone_type)`

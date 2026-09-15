@@ -3,8 +3,7 @@
 このroadmapは、productとして何をどの方向に成立させていくかを示す
 directional documentです。固定されたMVP bundleや厳密な実装順序を宣言する
 ものではありません。development process（provider/model routing、review
-工程、Issue運用等）はここに含みません。process governanceの正本は
-Foundation v0.3.0 です。
+工程、Issue運用等）はここに含みません。
 
 ## Roadmap principle
 
@@ -13,7 +12,7 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 
 ## 1. Completed baseline
 
-- Foundation v0.3.0 consumer baseline
+- GitHub Spec Kit standard harness baseline（Issue #487）
 - shared Event catalog（`public.events` / `public.event_occurrences` の
   schema / RLS）、Event owner semantics、temporal model、designated
   catalog creator限定のwrite boundary
@@ -48,9 +47,11 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   decommissionしました。将来の詳細な申込管理やinventoryは、
   TicketOpportunityを前提に新しいbounded product Taskで再設計します。
 
-これらは [`docs/prd.md`](./prd.md) が指す
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-に従って実装済みです。
+これらのうち Occurrence Participation の current behavior は
+[`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)、
+未移行domainは temporary static product rules
+([`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md))
+を参照します。
 
 ## 2. MVP personal planning capabilities（成立させたい方向性）
 

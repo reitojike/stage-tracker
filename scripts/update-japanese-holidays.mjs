@@ -3,7 +3,7 @@
 // (Cabinet Office) "国民の祝日について" CSV dataset (Issue #34).
 //
 // Holiday authority (docs/ux-ui.md "Calendar weekday / Japanese holiday
-// presentation", AGENTS.md product rules): this CSV is the *only* canonical
+// presentation", .ai-dev-foundation/product-rules.md product rules): this CSV is the *only* canonical
 // source for Japanese national holidays this product renders. This script
 // never invents or extrapolates a future holiday beyond what the CSV
 // itself already lists - the generated snapshot's coverage is exactly
