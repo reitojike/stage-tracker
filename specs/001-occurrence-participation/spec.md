@@ -67,12 +67,15 @@ occurrence, or neither is canceled, and compare absence with a read failure.
    chooses `considering`, **then** the transition remains available and succeeds.
 4. **Given** an effectively canceled occurrence with an existing participation, **when**
    the user withdraws, **then** withdrawal remains available and succeeds.
-5. **Given** an effectively canceled occurrence, **when** the user performs a same-status
-   or visibility-only update allowed by the current behavior, **then** the existing
-   participation is not rewritten or removed.
-6. **Given** a participation read fails, **when** the event detail renders, **then** the
+5. **Given** an effectively canceled occurrence with an existing participation, **when**
+   the user chooses the already persisted status, **then** the operation is a semantic
+   no-op and the participation row is unchanged.
+6. **Given** an effectively canceled occurrence with an existing participation, **when**
+   the user performs a visibility-only update allowed by the current behavior, **then**
+   the visibility changes while the participation status remains unchanged.
+7. **Given** a participation read fails, **when** the event detail renders, **then** the
    UI presents a read failure rather than treating the participation as absent.
-7. **Given** an event or occurrence is canceled, **when** the detail view renders, **then**
+8. **Given** an event or occurrence is canceled, **when** the detail view renders, **then**
    it displays the canceled state while keeping valid downgrade and withdrawal paths
    reachable.
 
@@ -96,8 +99,12 @@ event detail and the user's calendar independently of personal schedule entries.
 2. **Given** a pending invitation and an existing `considering` participation, **when**
    the user declines, **then** the invitation is resolved and the existing
    `considering` intention is unchanged.
-3. **Given** a pending invitation, **when** the user accepts, **then** the result is the
-   same `attending` transition available through the normal participation interaction.
+3. **Given** a pending invitation, **when** the user accepts, **then** the system attempts
+   the same `attending` transition available through the normal participation interaction.
+   The invitation converges only when that transition is allowed by the effective
+   cancellation rules; otherwise the transition is rejected without bypassing those rules.
+   In an effectively canceled occurrence, the Participation status remains unchanged and
+   the pending invitation is not resolved.
 4. **Given** one or more pending invitations for an occurrence, **when** the invitee
    reaches `attending` through any supported path, **then** all pending invitations for
    that occurrence and invitee are resolved.
@@ -161,8 +168,10 @@ The following boundaries are intentionally explicit:
   `not_attending`.
 - **FR-019**: Declining an invitation MUST NOT change a separate existing `considering`
   Participation.
-- **FR-020**: Accepting an invitation MUST converge on `attending` without a distinct
-  persisted invitation-origin status.
+- **FR-020**: Accepting an invitation MUST attempt the same `attending` transition as
+  the normal Participation interaction and MUST converge on `attending` only when that
+  transition is allowed by the effective cancellation rules. It MUST NOT bypass those
+  rules or create a distinct persisted invitation-origin status.
 - **FR-021**: Reaching `attending` through any supported path MUST resolve all pending
   invitations for the same occurrence and invitee.
 
