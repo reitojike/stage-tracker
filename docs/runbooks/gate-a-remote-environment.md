@@ -155,8 +155,9 @@ Production の migration version が一致している」という positive evid
 通常運用で operator が手元から `supabase db push` を実行する必要はありません。
 workflow が利用できない、または `SUPABASE_DB_URL` 未設定のため skip された
 状態から復旧する場合に限り、read-only drift check で remote-only が無いことを
-確認した後、明示的な operator fallback として `supabase db push --linked` を
-使えます。remote-only がある場合は追加 push をせず、先に原因を調査します。
+確認した後、明示的な operator fallback として `supabase db push --linked
+--include-all --skip-vault --yes` を使えます。remote-only がある場合は追加
+push をせず、先に原因を調査します。
 これは automatic apply の代替となる通常手順ではありません。
 
 ## Auth configuration（Supabase Dashboard → Authentication）
