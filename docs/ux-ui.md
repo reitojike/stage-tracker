@@ -306,8 +306,9 @@ product quality、consumer semantics、maintenance cost で行います。
 
 loading / empty / error / disabled / unavailable は global visual pattern を持ちますが、
 meaning と message は feature / domain 側が所有します。current shared StatePanel は
-title → description → action と境界線を共有し、error は `alert`、empty / unavailable
-は `status` として表します。
+title → description → action と境界線を共有し、error のみ `alert` を使います。empty /
+unavailable は現在の component API が ARIA role を固定していないため、本書では role を
+追加で要求しません。
 
 次を同じ「何もありません」にしません。
 
