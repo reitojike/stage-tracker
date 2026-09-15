@@ -5,7 +5,7 @@ import { groupIdSchema } from './ids';
 
 /**
  * EventClassification: one Event's classification facets, joined for
- * display (AGENTS.md "Catalog classification / venue boundary").
+ * display (.ai-dev-foundation/product-rules.md "Catalog classification / venue boundary").
  *
  * `genre` is the full resolved `Genre` row (0..1, `null` = unclassified) -
  * the Event's genre is asymmetric with its groups on purpose
@@ -17,7 +17,7 @@ import { groupIdSchema } from './ids';
  *
  * `venue` is deliberately absent from this type: it lives directly on the
  * Event row (`events.venue`, a plain nullable text column, no canonical
- * venue master - AGENTS.md §Venue), not as a classification facet.
+ * venue master - .ai-dev-foundation/product-rules.md §Venue), not as a classification facet.
  */
 export const eventClassificationSchema = z.object({
   eventId: eventIdSchema,

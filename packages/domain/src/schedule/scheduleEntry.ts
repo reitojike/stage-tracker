@@ -6,7 +6,7 @@ import { personalScheduleEntryIdSchema } from './ids';
 
 /**
  * PersonalScheduleEntry: an Event-independent personal schedule item
- * (AGENTS.md "Event-independent personal schedule", docs/v2/oracle-domain.md
+ * (.ai-dev-foundation/product-rules.md "Event-independent personal schedule", docs/v2/oracle-domain.md
  * §1.8). Unlike the superseded `paid_leave`/`work`/`travel`/`other` closed
  * vocabulary (Issue #121), an entry has no fixed category - only a required
  * free-form `title`.
@@ -69,7 +69,7 @@ export type PersonalScheduleEntryTemporal = z.infer<typeof personalScheduleEntry
 
 /**
  * `blocking` is documented separately from `temporal` on purpose: it is an
- * independent attribute of the entry (AGENTS.md "各 entry は独立した
+ * independent attribute of the entry (.ai-dev-foundation/product-rules.md "各 entry は独立した
  * blocking boolean を持ちます"), not derived from the temporal shape - an
  * all-day entry can be non-blocking (e.g. a reminder) and a time-bounded
  * entry can be blocking.

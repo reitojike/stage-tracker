@@ -16,7 +16,7 @@ import type { ActionErrorShape } from "@/lib/action-error";
  * invite の書き込み core（`docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細
  * の `inviteToOccurrenceAction`）。
  *
- * **opacity boundary（AGENTS.md「Invitation」、`docs/v2/decisions.md`
+ * **opacity boundary（specs/001-occurrence-participation/spec.md の Invitation Requirements、`docs/v2/decisions.md`
  * 「v2実装で踏んではいけない地雷」）**: invitee の private な participation
  * 状態が inviter へ漏れる経路を作らないこと。この関数が inviter へ返す
  * 成功値は `@stage-tracker/domain` の `evaluateInvite` が返す

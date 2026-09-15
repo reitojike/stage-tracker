@@ -26,8 +26,8 @@ import { completeMagicLinkSignIn } from "../support/signIn";
  *
  * What this does *not* verify: `considering` (the other MVP status),
  * visibility (`private`/`public`), or cancellation-blocked writes - those
- * are unit/DB-test territory (see product-rules.md "Participation"); this
- * journey's job is proving the read-through-UI -> write -> re-render loop
+ * are unit/DB-test territory (see specs/001-occurrence-participation/spec.md);
+ * this journey's job is proving the read-through-UI -> write -> re-render loop
  * for the one status a user exercises most (attending), plus withdrawal.
  */
 test("participation: register attending for an occurrence, then withdraw", async ({

@@ -43,7 +43,7 @@ function mockEligibleInviter() {
 
 describe("inviteToOccurrenceByEmail — opacity", () => {
   /**
-   * The core of AGENTS.md's "Invitation" opacity requirement and
+   * The core of specs/001-occurrence-participation/spec.md's Invitation opacity requirement and
    * `docs/v2/decisions.md`'s "踏んではいけない地雷": the inviter must not be
    * able to tell which of the 3 invitee-state branches
    * (no row / considering / attending) the DB actually took. Since this
@@ -99,7 +99,7 @@ describe("inviteToOccurrenceByEmail — opacity", () => {
     // `server.listen({ onUnhandledRequest: "error" })` (src/test/setup.ts)
     // fails this test outright if `inviteToOccurrenceByEmail` makes any
     // request beyond the ones mocked here — in particular, no generic
-    // `email -> user_id` lookup (forbidden by AGENTS.md "Authenticated-user
+    // `email -> user_id` lookup (forbidden by the project's Authenticated-user
     // targeting"), since the RPC does that resolution entirely server-side.
     mockEligibleInviter();
     server.use(

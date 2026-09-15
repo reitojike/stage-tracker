@@ -28,7 +28,7 @@ authenticated multi-user application として家族・友人等の複数ユー�
 
 現在採用しているtop-level domain conceptは次の5つです。各conceptの内部構造
 （例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
+未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
 を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
 
 - **event** — 公演・イベントそのものの情報
@@ -71,11 +71,11 @@ ownership transfer は Issue #234 で current schema / runtime から撤去し�
 
 ## Current-approved product-level semantics
 
-event owner の権限、invitation の可否条件、participation visibility の
-既定値、participation と TicketOpportunity planning state の独立性などのnormativeな
-constraintは、実装agentが従うべき正本として
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-に一意に置かれています。本PRDではそれらの詳細を複製しません。
+未移行domainの normative な constraint は
+[temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
+Occurrence Participation とその直接の Invitation / cancellation behavior は
+[Living Spec](../specs/001-occurrence-participation/spec.md)が正本であり、このPRDでは
+その詳細を複製しません。
 
 ## Current committed scope
 
@@ -89,8 +89,10 @@ time-bounded、required free-form title、独立した blocking、private defaul
 entry単位の sharing、owner-only recipient管理・entry deletion を備えます。
 occurrence-level Participation は `considering` / `attending` と private/
 public visibility を持ち、Invitation は pending-only の独立 coordination
-recordです。accept / decline / generic attending convergence で resolve済み
-rowを保持せず、Invitationの作成・declineは専用RPC経由です。
+recordです。current behaviorの詳細は
+[Occurrence Participation Living Spec](../specs/001-occurrence-participation/spec.md)
+を参照します。Personal ScheduleやTicketOpportunityの詳細は本PRDの各scopeに
+属し、Participationの仕様を再掲しません。
 
 TicketOpportunity planning は、sharedな販売機会・target scope・milestoneと、
 user-ownedな `UserTicketOpportunityState`（statusは exactly `planned` /
@@ -110,9 +112,10 @@ modelは、Issue #234でcurrent schema・runtime・専用テストから撤去�
 ません。将来そのneedが生じた場合は、TicketOpportunityを前提に新しいbounded
 product Taskで再設計します。
 
-詳細なproduct semanticsは、[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-を正本とします。calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)を
-参照してください。
+詳細なcurrent product semanticsは、Occurrence Participationについては
+[Living Spec](../specs/001-occurrence-participation/spec.md)、未移行domainについては
+[temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
+calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)を参照してください。
 
 ## Deferred decisions
 
@@ -163,5 +166,6 @@ deferred項目として扱いません。
 
 実装agentが従うべきnormativeなproduct/domain constraint（permission /
 invariant / default / 禁止事項等）の正本は
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-です。本PRDと矛盾する記述がある場合は `product-rules.md` を優先します。
+Occurrence Participationについては[Living Spec](../specs/001-occurrence-participation/spec.md)、
+その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
+です。本PRDと矛盾する記述がある場合は、該当domainのcurrent authorityを優先します。

@@ -57,7 +57,7 @@ export interface CalendarOccurrenceItem {
 /**
  * "参加予定" block: occurrences the caller has a Participation for, indexed
  * by the Asia/Tokyo calendar date of `occurrence.startsAt` (this Task's
- * "date the item concerns", matching AGENTS.md's own choice of `startsAt`'s
+ * "date the item concerns", matching .ai-dev-foundation/product-rules.md's own choice of `startsAt`'s
  * date over `doorsAt`/`endsAt` for the Event range containment invariant -
  * the same reasoning applies here). Restricted to `[gridStart, gridEnd]`
  * (the visible month grid, including its leading/trailing adjacent-month

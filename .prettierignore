@@ -3,7 +3,7 @@
 pnpm-lock.yaml
 
 # apps/web は shadcn/ui が生成するコード（double quote）を正とするため、
-# Foundation の prettier config ではなく自前の apps/web/.prettierrc.json で
+# root project's prettier configではなく自前の apps/web/.prettierrc.json で
 # チェックする。root の format:check からは除外し、
 # pnpm --filter @stage-tracker/web run format:check が別途検証する。
 apps/web/
@@ -13,3 +13,18 @@ apps/web/
 # セッション worktree があるとローカルの format:check だけが失敗する
 # （CI はクリーンチェックアウトなので再現しない）。CI と揃えるために除外する。
 .claude/worktrees/
+
+# These directories are managed by the Spec Kit CLI. Keep the project-owned
+# constitution and Living Specs in the root format boundary; do not rewrite
+# generated integration, template, workflow, or skill files with project rules.
+.agents/skills/
+.claude/skills/
+.specify/integrations/
+.specify/scripts/
+.specify/templates/
+.specify/workflows/
+.specify/.gitignore
+.specify/memory/.constitution-template.json
+.specify/init-options.json
+.specify/integration.json
+.specify/feature.json

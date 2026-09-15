@@ -3,8 +3,9 @@ import { err, ok, type Result } from '../result';
 import { canInviteToOccurrence } from './inviteEligibility';
 
 /**
- * The invite-time opacity boundary (docs/v2/oracle-domain.md §1.7, AGENTS.md
- * "Invitation" opacity requirement, docs/v2/decisions.md "v2 実装で踏んでは
+ * The invite-time opacity boundary (see specs/001-occurrence-participation/spec.md
+ * Invitation Requirements; migration-era context: docs/v2/oracle-domain.md §1.7,
+ * docs/v2/decisions.md "v2 実装で踏んでは
  * いけない地雷": "Invitation の opacity 境界は「動いているように見えても
  * 静かに破れる」領域"). Inviting dispatches on the invitee's *current*,
  * private Participation state into one of three branches, but the inviter
@@ -35,7 +36,7 @@ import { canInviteToOccurrence } from './inviteEligibility';
 /**
  * Whether a pending Invitation row should be created for this invite. This
  * is the only thing that differs across the three invitee-state branches
- * (docs/v2/oracle-domain.md §1.7):
+ * (see specs/001-occurrence-participation/spec.md Invitation Requirements):
  *
  * 1. no existing Participation row -> create (invitee's Participation is
  *    left untouched, no auto-`considering`)

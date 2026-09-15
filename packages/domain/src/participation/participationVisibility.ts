@@ -2,8 +2,9 @@ import type { UserId } from '../ids';
 import type { Participation } from './participation';
 
 /**
- * SELECT visibility for a Participation row (docs/v2/oracle-database.md §2
- * `occurrence_participations`, AGENTS.md "Participation"): visible to its
+ * SELECT visibility for a Participation row (see
+ * specs/001-occurrence-participation/spec.md: FR-022–FR-024; migration-era DB
+ * context is in docs/v2/oracle-database.md §2 `occurrence_participations`): visible to its
  * own user, or to anyone when `visibility` is `public`.
  *
  * Deliberately takes only `userId`/`visibility` as input - not, say, an

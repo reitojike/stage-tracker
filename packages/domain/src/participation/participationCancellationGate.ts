@@ -3,8 +3,8 @@ import type { ParticipationStatus } from './participation';
 /**
  * Mirrors the DB-level cancellation gate on `occurrence_participations`
  * writes (docs/v2/oracle-database.md §3.2 `check_occurrence_participation_
- * insert_not_canceled`/`_update_not_canceled`, §5 invariant 12; AGENTS.md
- * "Cancellation"): while an Occurrence is effectively canceled (see
+ * insert_not_canceled`/`_update_not_canceled`, §5 invariant 12; see
+ * specs/001-occurrence-participation/spec.md: FR-012–FR-015): while an Occurrence is effectively canceled (see
  * `../event/cancellation.ts` `isEffectivelyCanceled`), creating a *new*
  * active Participation is rejected, but withdraw (row deletion) and
  * downgrading an existing `attending` back to `considering` remain allowed

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * designated catalog creator membership（`public.catalog_creators`）の
- * fail-closed 判定。`AGENTS.md`「MVP Event catalog write boundary」の
+ * fail-closed 判定。`.ai-dev-foundation/product-rules.md`「MVP Event catalog write boundary」の
  * とおり、真の権限境界は `create_event` RPC 側の membership check
  * （`supabase/migrations/20260822000300_restrict_event_create_to_catalog_creators.sql`）
  * にあり、ここでの判定は「フォームを描画するかどうか」のレンダー制御に

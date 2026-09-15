@@ -47,7 +47,7 @@ export function instantToTokyoCalendarDate(instant: Instant): TokyoCalendarDate 
 /**
  * The UTC instant range `[startInstant, endInstantExclusive)` covering a full
  * Asia/Tokyo calendar day (half-open, matching "ある日を指定して、その日に
- * 公演回がある event を引ける" style range queries in AGENTS.md).
+ * 公演回がある event を引ける" style range queries in .ai-dev-foundation/product-rules.md).
  */
 export interface TokyoCalendarDayUtcRange {
   readonly startInstant: Instant;

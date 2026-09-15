@@ -1,8 +1,13 @@
-# stage-tracker product rules
+# stage-tracker temporary static product rules
 
-これは `reitojike/stage-tracker` の canonical product rule source です。
-`reitojike/stage-tracker-old` は historical evidence に過ぎず、この source を
-上書きしません。product semantics はここで再承認したものだけを記載します。
+これは `reitojike/stage-tracker` の、まだ Living Spec へ移行していない domain
+向けの temporary static product authority です。`reitojike/stage-tracker-old` は
+historical evidence に過ぎず、この source を上書きしません。product semantics
+はここで再承認したものだけを記載します。
+
+このファイルは外部 Foundation checkout から sync / regenerate する配布物では
+ありません。domain の current behavior を Living Spec へ移行した後は、対象
+sectionをここへ再掲しません。
 
 このファイルは承認済みの product semantics を記載します。記載されている
 semantics が schema / RLS として実装済みであるとは限りません。実装状況は
@@ -253,19 +258,11 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
 
 ## Participation
 
-- participation の対象は **公演回（occurrence）単位** です。event 単位の
-  participation は持ちません。
-- MVP の participation status は `considering` / `attending` のみです。
-  `not_attending` は MVP の persistence へ含めません。row が存在しないことと
-  `not_attending` を別々に二重化しません。
-- participation visibility の default は `private` です。
-  - `private` = 本人のみ
-  - `public` = authenticated users 全員
-- participation と TicketOpportunity の personal planning state
-  (`planned`/`applied`) は独立した concept とし、一方から他方の status を
-  自動変更しません。
-- event-level の「興味がある / 行きたいが回未定」という intention は
-  participation へ混ぜず、扱う場合は別途評価します（現時点は Deferred）。
+Occurrence Participation の current product behavior は Spec Kit Living Specへ
+cut overしました。canonical current contractは
+[`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)
+です。legacy domain authorityとして本ファイルに詳細 semanticsを再掲せず、
+未移行domainの product rulesだけをここに保持します。
 
 ## Authenticated-user targeting（identity boundary）
 

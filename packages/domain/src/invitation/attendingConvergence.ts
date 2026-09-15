@@ -3,7 +3,8 @@ import type { Invitation, InvitationId } from './invitation';
 
 /**
  * "Generic attending convergence" (docs/v2/oracle-domain.md §1.7 "Generic
- * attending convergence", §5 invariant 10; AGENTS.md "Invitation"): the
+ * attending convergence", §5 invariant 10; see
+ * specs/001-occurrence-participation/spec.md Invitation Requirements): the
  * instant an invitee's Participation reaches `attending` - through any path,
  * not only by resolving one specific Invitation - every pending Invitation
  * for that (occurrence, invitee) pair resolves, regardless of which inviter

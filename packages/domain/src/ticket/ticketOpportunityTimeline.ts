@@ -51,7 +51,7 @@ import type { EventId } from '../ids';
 
 /** Issue #192's bounded post-final retention window, in Asia/Tokyo calendar
  * days after an Opportunity's own final milestone's final day (inclusive of
- * that boundary day itself) - AGENTS.md/oracle-domain.md §2.7
+ * that boundary day itself) - .ai-dev-foundation/product-rules.md/oracle-domain.md §2.7
  * "TICKET_POST_FINAL_RETENTION_DAYS = 7". */
 export const TICKET_POST_FINAL_RETENTION_DAYS = 7;
 

@@ -18,7 +18,7 @@ import type { Occurrence } from './occurrence';
  * The Event range containment invariant compares the Occurrence's `startsAt`
  * *Tokyo calendar date* against the Event range - `doorsAt`/`endsAt` are
  * never consulted here, even if they fall on a different calendar day
- * (AGENTS.md "開催期間（Event range）": "開場日時（doors 相当）や終演日時
+ * (.ai-dev-foundation/product-rules.md "開催期間（Event range）": "開場日時（doors 相当）や終演日時
  * （ends_at）が日付をまたいでも、それらは range 判定の対象に含めません").
  */
 export function isOccurrenceStartWithinEventRange(

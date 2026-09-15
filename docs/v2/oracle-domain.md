@@ -1,10 +1,18 @@
-# oracle: domain（v2 `packages/domain` 設計のための現行仕様）
+# oracle: domain（v2 の migration-era extraction / historical evidence）
 
-本書は `docs/v2/README.md` が定める oracle documentation の一つです。対象は
-`src/domain/**`・`src/infrastructure/**`・`src/pwa/**`・`scripts/**`
-（このコミット時点の `main` 相当のワーキングツリー）。v2 の `packages/domain`
-はここに書かれた仕様だけを見て再実装します。現行コードは移植元ではなく
-「正しい振る舞いを確認する対象（oracle）」であり、本書はその読み取りです。
+本書は `docs/v2/README.md` が定める oracle documentation の一つとして作成された
+移行期の記録です。現在の product authority ではありません。Occurrence
+Participation の current product behavior は
+[`specs/001-occurrence-participation/spec.md`](../../specs/001-occurrence-participation/spec.md)
+を正本とします。未移行 domain の product semantics は temporary static authority
+である [`.ai-dev-foundation/product-rules.md`](../../.ai-dev-foundation/product-rules.md)
+を参照します。
+
+現在の domain implementation / architecture の確認には現行コードとテストを使い、
+DB schema / RLS / trigger の mechanical authority には
+`supabase/migrations/**`、generated schema/types、および `test/rls/**` を使います。
+本書は v2 再実装時の読み取りと判断履歴を保持するために残しており、現行コードを
+本書だけから再実装したり、Participation の現行挙動を本書から再承認したりしません。
 
 表記関する注意:
 
@@ -13,10 +21,9 @@
   おらず、SQLSTATE・RPC 引数名・trigger 名は `src/infrastructure/supabase/**`
   のコメントから間接的に確認したものです。migration 本体との整合は
   別途 oracle-db.md 相当のドキュメントで確認してください。
-- 本書が記述する semantics の canonical source は
-  `AGENTS.md`（Foundation 生成物、Consumer product rules を含む）です。
-  本書はそれをコード実装のレベルまで具体化したものであり、矛盾する場合は
-  `AGENTS.md` を正とします。
+- 本書に残る semantics の記述は、作成時点の v2 extraction として扱います。
+  current behavior と矛盾する場合は、対象 domain の Living Spec、現行コード、
+  migrations、schema/types、tests の責務分担に従います。
 
 ---
 
@@ -713,7 +720,7 @@ planningAuth.ts`）: 型付き read/write boundary（participation /
 
 - Supabase 生成 TypeScript 型（`src/infrastructure/supabase/
 database.types.ts`）を database schema の source of truth として
-  扱う（`AGENTS.md` Technology profile の明文規定）。
+  扱う（作成時点の technology profile の明文規定）。
 - domain 層（`src/domain/**`）はこの生成型を **import しない**。
   かわりに `RawEventRow` 等、必要な列だけを持つ最小限の interface を
   独自定義し、`mapXRow` 関数で domain 型へ変換する（アーキテクチャ上の
@@ -773,7 +780,7 @@ database.types.ts`）を database schema の source of truth として
   詳細（App Router metadata route）は差し替え可能だが、`id`/
   `start_url`/`scope` の値と「未認証公開パスの exact-path 限定」という
   contract 自体は不変として扱うこと。
-- offline/Web Push は「まだ決めていないもの」（`AGENTS.md`）に残る
+- offline/Web Push は「まだ決めていないもの」（作成時点の product rules）に残る
   未決事項であり、v2 でも先行実装しない。
 
 ---
@@ -895,7 +902,7 @@ starts_at)` の一意性を壊すため）。
     （`JAPANESE_HOLIDAY_DATA_COVERAGE_START/END`）がそのままコード上の
     coverage になる。未来の祝日を推測しない。
 - **実行タイミング**: 固定スケジュールのジョブではなく、内閣府が
-  新しい年の祝日を公表するたびに手動実行する運用（`AGENTS.md` は
+  新しい年の祝日を公表するたびに手動実行する運用（作成時点の product rules は
   この手動運用を明示的に是とする）。
 - コミット後、生成ファイルの diff（特に coverage end の前進）を
   レビューしてから通常のソース変更として commit する。

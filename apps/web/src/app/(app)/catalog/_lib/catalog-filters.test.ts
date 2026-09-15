@@ -212,7 +212,7 @@ describe("groupDisplayNameById", () => {
     expect(byId.get("group-b" as never)).toBe("月組");
     expect(byId.get("group-c" as never)).toBe("花組");
     // Flattened across genres too (idol's own group), since a Group's
-    // canonical identity is genre-independent (AGENTS.md "Group").
+    // canonical identity is genre-independent (.ai-dev-foundation/product-rules.md "Group").
     expect(byId.get("group-d" as never)).toBe("テストグループ");
   });
 

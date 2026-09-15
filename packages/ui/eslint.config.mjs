@@ -1,4 +1,4 @@
-import { nextSupabaseQualityProfile } from '../../.ai-dev-foundation/quality/eslint.config.mjs';
+import { projectTypeScriptQualityProfile } from '../../eslint.quality.config.mjs';
 
 const appsWebBoundaryMessage =
   'packages/ui は apps/web 固有のモジュール（src/lib/supabase, src/lib/auth, ' +
@@ -59,7 +59,7 @@ const noDynamicAppsWebImport = {
 };
 
 export default [
-  ...nextSupabaseQualityProfile(),
+  ...projectTypeScriptQualityProfile(),
   {
     ignores: ['node_modules/**'],
   },

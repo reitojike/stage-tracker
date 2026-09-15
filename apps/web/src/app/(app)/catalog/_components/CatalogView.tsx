@@ -60,10 +60,10 @@ import { SelectedDayList } from "./SelectedDayList";
 const FILTER_STORAGE_KEY = "stage-tracker:catalog-filter:v1";
 
 /**
- * AGENTS.md「Gate Aの canonical genre identity」の3件。永久 closed world では
+ * .ai-dev-foundation/product-rules.md「Gate Aの canonical genre identity」の3件。永久 closed world では
  * ないが（同節参照）、この Gate A 実装は known な3件だけを選択肢として示す -
  * 将来 genre が increaseした場合は `filterOptionsResult.options.genres`
- * （catalog全体の known values、AGENTS.md「Filter option universe」）を
+ * （catalog全体の known values、.ai-dev-foundation/product-rules.md「Filter option universe」）を
  * そのまま列挙する形に変えられる。ここでは genre の表示順・ラベルを
  * 固定するために、読み込んだ genre 行のうち Gate A の3件のみ使う。
  */
@@ -206,7 +206,7 @@ export interface CatalogViewProps {
  * (`docs/v2/oracle-routes-ui.md` §2 「イベントカタログ一覧」,
  * `docs/v2/oracle-domain.md` §2.9/§2.10). A Client Component because filter
  * selection is held client-local and persisted to `localStorage`
- * (AGENTS.md "Filter persistence": "browser-local persistenceで十分" - no
+ * (.ai-dev-foundation/product-rules.md "Filter persistence": "browser-local persistenceで十分" - no
  * server round-trip, no user preference row).
  *
  * Renders the month calendar grid (`MonthCalendar`) + selected-day list

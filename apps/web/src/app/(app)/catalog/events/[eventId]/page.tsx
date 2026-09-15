@@ -135,7 +135,7 @@ export default async function EventDetailPage({
     );
   }
 
-  // AGENTS.md「イベント詳細画面」: participation の個別読込失敗は event 本体
+  // specs/001-occurrence-participation/spec.md: participation の個別読込失敗は event 本体
   // とは別枠で表示する（event は表示継続）。「read ごとに独立して劣化」
   // (docs/v2/decisions.md P4)。
   const participationState = classifyListReadResult(participationsReadResult);

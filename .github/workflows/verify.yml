@@ -1,14 +1,11 @@
 name: Verify
 
-# Deterministic verification floor for this consumer (Issue #1 / PR A;
+# Deterministic verification floor for this repository (Issue #1 / PR A;
 # extended for Issue #3 / PR B's local Supabase checks; split into
 # per-responsibility lanes for Issue #118 so PR Checks show which
 # responsibility failed instead of a single collapsed `Verify` result).
-# Checks out ai-dev-foundation at a reproducible pinned revision alongside
-# this repository so `pnpm run verify:code` can validate the generated
-# adapters and Foundation-managed quality profile against the canonical
-# source, not just against files already committed here. `Verify / Database`
-# starts a local Supabase stack (via the `supabase` npm devDependency, using
+# `Verify / Database` starts a local Supabase stack (via the `supabase` npm
+# devDependency, using
 # ubuntu-latest's preinstalled Docker) to run the generated-types drift check
 # and the DB/RLS/client-role pgTAP checks against a real local Postgres - no
 # remote
@@ -67,9 +64,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  FOUNDATION_CHECKOUT: ${{ github.workspace }}/.foundation-checkout
-
 jobs:
   code:
     name: Verify / Code
@@ -79,25 +73,6 @@ jobs:
       - name: Checkout stage-tracker
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          persist-credentials: false
-
-      # .ai-dev-foundation/foundation-pin.json is the single source of truth
-      # for the pinned Foundation SHA; scripts/foundation-checkout.mjs reads
-      # the same file locally. Update it only after re-confirming the pin
-      # with the Foundation bootstrap Issue (reitojike/ai-dev-foundation#17)
-      # — do not assume it is still current without checking.
-      - name: Read pinned Foundation SHA
-        id: pin
-        run: |
-          sha=$(node -e "console.log(require('./.ai-dev-foundation/foundation-pin.json').sha)")
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout ai-dev-foundation at pinned SHA
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: reitojike/ai-dev-foundation
-          ref: ${{ steps.pin.outputs.sha }}
-          path: .foundation-checkout
           persist-credentials: false
 
       - name: Setup pnpm

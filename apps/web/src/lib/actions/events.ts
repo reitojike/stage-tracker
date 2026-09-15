@@ -31,7 +31,7 @@ import {
  *
  * すべての action は `authActionClient` を通す（`@/lib/safe-action.ts`）
  * だけで、権限そのものは判定しない。真の権限境界は常に RPC/RLS 側にあり
- * （AGENTS.md 制約）、ここでの分類は DB が返したエラーを共通の
+ * （.ai-dev-foundation/product-rules.md 制約）、ここでの分類は DB が返したエラーを共通の
  * `ActionErrorShape` 語彙へ変換するだけ。plain table UPDATE は RLS の
  * `using` 句が対象行を除外すると *エラーにならず* 0件成功を返す
  * （`event_occurrences_update_own`/`events_update_own` の性質）ため、

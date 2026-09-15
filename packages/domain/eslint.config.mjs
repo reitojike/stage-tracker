@@ -1,13 +1,13 @@
-import { nextSupabaseQualityProfile } from '../../.ai-dev-foundation/quality/eslint.config.mjs';
+import { projectTypeScriptQualityProfile } from '../../eslint.quality.config.mjs';
 
 const purityMessage =
-  'packages/domain must stay pure: no I/O, no framework/provider dependency. See AGENTS.md 設計方針.';
+  'packages/domain must stay pure: no I/O, no framework/provider dependency. See the package architecture boundary.';
 
 const clockMessage =
-  'packages/domain must stay clock-free: accept "now" as a parameter instead of reading the current time (see AGENTS.md 設計方針 / docs/v2/decisions.md A6).';
+  'packages/domain must stay clock-free: accept "now" as a parameter instead of reading the current time (see docs/v2/decisions.md A6).';
 
 export default [
-  ...nextSupabaseQualityProfile(),
+  ...projectTypeScriptQualityProfile(),
   {
     ignores: ['node_modules/**'],
   },

@@ -13,8 +13,8 @@ import { completeMagicLinkSignIn } from "../support/signIn";
 
 /**
  * Invitation journey (Issue #380 primary journey 5): an `attending` user
- * invites another authenticated user (by exact registered email,
- * product-rules.md "Authenticated-user targeting") to an occurrence, and
+ * invites another authenticated user (by exact registered email, per the
+ * project's authenticated-user targeting boundary) to an occurrence, and
  * the invitee accepts through `/catalog/invitations`.
  *
  * Two separate browser contexts stand in for the two actors (inviter/
@@ -29,8 +29,8 @@ import { completeMagicLinkSignIn } from "../support/signIn";
  * What this does *not* verify: decline, re-invite after decline, the
  * inviter-opacity guarantee (inviter never learns which of the 3 branches
  * ran), or inviting a `considering`/no-participation user - those are
- * unit/DB-test territory (see product-rules.md "Invitation"); this
- * journey's job is the invite -> accept path a real pair of users takes
+ * unit/DB-test territory (see specs/001-occurrence-participation/spec.md);
+ * this journey's job is the invite -> accept path a real pair of users takes
  * most often.
  */
 test("invitation: an attending user invites another user, who accepts", async ({
@@ -86,7 +86,7 @@ test("invitation: an attending user invites another user, who accepts", async ({
     // Persisted: the invitee's own participation is now `attending` on the
     // same occurrence, through the same write `participation.spec.ts`
     // exercises directly (invitation acceptance is that same operation -
-    // product-rules.md "Invitation" "Accept").
+    // specs/001-occurrence-participation/spec.md Invitation Requirements).
     await inviteePage.goto(`/catalog/events/${seeded.eventId}`);
     const inviteeOccurrenceRow = inviteePage.locator(
       `#occurrence-${seeded.occurrenceId}`,

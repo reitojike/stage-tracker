@@ -1,12 +1,22 @@
-# Oracle: Routes / UI（v2 再実装仕様）
+# Oracle: Routes / UI（v2 migration-era extraction / historical evidence）
 
-現行 stage-tracker（`src/app/**`, `src/ui/**`）を読んで抽出した、v2 実装者が
-これだけを見て再実装するための仕様書。現行コードの読み替えではなく、
-**現行の振る舞いの記述**として書く。憶測は書かず、確認できないことは
-「未確認」と明記する。
+現行 stage-tracker を読んで v2 再実装向けに抽出した移行期の記録です。現在の
+product/UI authority ではありません。Occurrence Participation の current
+behavior は
+[`specs/001-occurrence-participation/spec.md`](../../specs/001-occurrence-participation/spec.md)
+を正本とし、現行画面の確認には `apps/web/**` とその tests を使います。
+未移行 domain の product semantics は temporary static authority である
+[`.ai-dev-foundation/product-rules.md`](../../.ai-dev-foundation/product-rules.md)
+を参照します。本書は historical context と migration-era evidence を保持する
+ために残しており、これだけを見て現行実装を再構築しません。
 
 対象外: `src/domain/**` / `src/infrastructure/**` の内部実装詳細、
 DB migration / RLS の SQL 本文（テーブル名・RPC 名のみ本書に登場する）。
+
+Participation の visibility capability と UI behavior は分離して扱います。
+private が default で、public Participation を読めるのは authenticated user
+だけです。anonymous user は読めません。現在の first-party UI には公開範囲の
+切り替えも、他人の public Participation を閲覧する browse surface もありません。
 
 ## 0. 全ルート共通の前提
 
@@ -127,6 +137,12 @@ decline は pending row の hard delete なので、下記の確認フェーズ�
 - バリデーション: フィルタは選択式のみでバリデーションエラーの概念なし。
 
 ### イベント詳細（`/catalog/events/[eventId]`）
+
+Occurrence Participation の current behavior、cancellation 時の downgrade /
+withdraw、read failure と absence の区別、visibility の UI boundary は
+[`specs/001-occurrence-participation/spec.md`](../../specs/001-occurrence-participation/spec.md)
+を参照してください。この historical extraction の記述は current product
+contract ではありません。
 
 - 空状態: 指定 event が存在しない→「指定されたイベントが見つかりません」。
 - error: event 読込失敗→専用パネル。participation の個別読込失敗は

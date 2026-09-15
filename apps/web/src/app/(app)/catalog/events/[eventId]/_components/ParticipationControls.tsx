@@ -53,7 +53,7 @@ function transitionFor(
  * この consumer が担当する。
  *
  * 中止 (`isEffectivelyCanceled`) 状態での新規 active action の拒否
- * （AGENTS.md「Cancellation」、PO 判断: 新規 `considering` 作成も拒否
+ * （specs/001-occurrence-participation/spec.md の Cancellation Requirements、PO 判断: 新規 `considering` 作成も拒否
  * 対象）は、`@stage-tracker/domain` の
  * `isParticipationWriteBlockedByCancellation` を使って UI 側でも
  * 事前に choice を disable する。真の enforcement は DB trigger

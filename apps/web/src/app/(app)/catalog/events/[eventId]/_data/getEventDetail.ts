@@ -52,7 +52,7 @@ function mapEventDetailRow(row: EventDetailRow): Result<EventDetail, string> {
     }
     occurrences.push(occurrenceResult.value);
   }
-  // AGENTS.md「Catalog の日程参照要件」: 「ある event について、その公演回を
+  // .ai-dev-foundation/product-rules.md「Catalog の日程参照要件」: 「ある event について、その公演回を
   // 日時順に引ける」。ここで一度だけ並べ替え、呼び出し元
   // (`page.tsx`)・テストの双方が並べ替え済みの前提で書けるようにする。
   occurrences.sort((a, b) => compareInstants(a.startsAt, b.startsAt));
