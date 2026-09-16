@@ -1,11 +1,14 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { occurrenceIdSchema, userIdSchema } from "@stage-tracker/domain";
 import { ActionError } from "@/lib/action-error";
 import { authActionClient } from "@/lib/safe-action";
 import { inviteToOccurrenceByEmail } from "./invitation";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 
 const inviteToOccurrenceInputSchema = z.object({
   occurrenceId: occurrenceIdSchema,
@@ -52,7 +55,7 @@ export const inviteToOccurrenceAction = authActionClient
       throw new ActionError(result.error.kind, result.error.message);
     }
 
-    revalidatePath("/catalog/invitations");
+    revalidateReadSurfaces(affectedReadSurfaces.invitationCreate());
 
     return { outcome: result.value };
   });

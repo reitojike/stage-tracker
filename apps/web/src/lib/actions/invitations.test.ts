@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * PR #384 review への回帰テスト: `acceptInvitationAction` が participation の
@@ -17,10 +17,19 @@ import { describe, expect, it, vi } from "vitest";
 
 const OCCURRENCE_ID = "11111111-1111-4111-8111-111111111111";
 const USER_ID = "22222222-2222-4222-8222-222222222222";
+const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
 const mockSetParticipationChoice = vi.fn();
 const mockRevalidatePath = vi.fn();
-const supabaseStub = { auth: { getUser: vi.fn() } };
+const occurrenceQuery = {
+  select: vi.fn(() => occurrenceQuery),
+  eq: vi.fn(() => occurrenceQuery),
+  maybeSingle: vi.fn(async () => ({ data: { event_id: EVENT_ID }, error: null })),
+};
+const supabaseStub = {
+  auth: { getUser: vi.fn() },
+  from: vi.fn(() => occurrenceQuery),
+};
 
 vi.mock("@/env", () => ({
   env: {
@@ -56,6 +65,14 @@ function signedIn() {
 }
 
 describe("acceptInvitationAction", () => {
+  beforeEach(() => {
+    mockSetParticipationChoice.mockReset();
+    mockRevalidatePath.mockReset();
+    occurrenceQuery.select.mockClear();
+    occurrenceQuery.eq.mockClear();
+    occurrenceQuery.maybeSingle.mockClear();
+  });
+
   it("participation の canonical write boundary をそのまま呼ぶ", async () => {
     signedIn();
     mockSetParticipationChoice.mockResolvedValue({
@@ -73,6 +90,13 @@ describe("acceptInvitationAction", () => {
       userId: USER_ID,
       choice: "attending",
     });
+    expect(mockRevalidatePath.mock.calls.map(([path]) => path)).toEqual([
+      `/catalog/events/${EVENT_ID}`,
+      "/calendar",
+      "/",
+      "/catalog/invitations",
+      "/mypage",
+    ]);
     expect(result.data).toEqual({ ok: true });
   });
 

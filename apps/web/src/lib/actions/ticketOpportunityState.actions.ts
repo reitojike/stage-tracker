@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   ticketOpportunityIdSchema,
@@ -13,6 +12,10 @@ import {
   removeMyTicketOpportunityState,
   setMyTicketOpportunityState,
 } from "./ticketOpportunityState";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 
 const TICKET_OPPORTUNITY_STATE_INTENTS = [
   "planned",
@@ -48,8 +51,9 @@ export const updateTicketOpportunityStateAction = authActionClient
       if (!result.ok) {
         throw new ActionError(result.error.kind, result.error.message);
       }
-      revalidatePath("/tickets");
-      revalidatePath("/");
+      revalidateReadSurfaces(
+        affectedReadSurfaces.ticketOpportunityStateWrite(),
+      );
       return { status: null };
     }
 
@@ -64,7 +68,8 @@ export const updateTicketOpportunityStateAction = authActionClient
     if (!result.ok) {
       throw new ActionError(result.error.kind, result.error.message);
     }
-    revalidatePath("/tickets");
-    revalidatePath("/");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.ticketOpportunityStateWrite(),
+    );
     return { status };
   });
