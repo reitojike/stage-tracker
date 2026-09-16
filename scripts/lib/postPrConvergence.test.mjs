@@ -332,6 +332,36 @@ test('latest review request observation exposes a stable identity for timer rese
   );
 });
 
+test('review request observation uses creation time before update time', () => {
+  assert.deepEqual(
+    latestReviewRequestObservation([
+      {
+        id: 1,
+        created_at: '2026-09-16T10:00:00Z',
+        updated_at: '2026-09-16T10:30:00Z',
+        body: '@codex review',
+      },
+      {
+        id: 2,
+        created_at: '2026-09-16T10:01:00Z',
+        updated_at: '2026-09-16T10:02:00Z',
+        body: '@codex review',
+      },
+    ]),
+    { identity: '2', timestamp: Date.parse('2026-09-16T10:01:00Z') },
+  );
+});
+
+test('review request observation uses comment ID to break creation-time ties', () => {
+  assert.equal(
+    latestReviewRequestObservation([
+      { id: 10, created_at: '2026-09-16T10:00:00Z', body: '@codex review' },
+      { id: 11, created_at: '2026-09-16T10:00:00Z', body: '@codex review' },
+    ]).identity,
+    '11',
+  );
+});
+
 test('review evidence unknown is fail-closed', () => {
   const ci = evaluateCi({
     headSha: HEAD_A,

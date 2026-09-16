@@ -61,8 +61,29 @@ function observationTimestamp(observation) {
   return null;
 }
 
+function reviewRequestCreationTimestamp(request) {
+  const value = request?.created_at ?? request?.createdAt;
+  if (value === undefined || value === null || String(value).length === 0) return null;
+  const timestamp = Date.parse(String(value));
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function latestReviewRequest(requests) {
+  return [...requests]
+    .sort((left, right) => {
+      const leftTime = reviewRequestCreationTimestamp(left) ?? Number.NEGATIVE_INFINITY;
+      const rightTime = reviewRequestCreationTimestamp(right) ?? Number.NEGATIVE_INFINITY;
+      if (leftTime !== rightTime) return leftTime - rightTime;
+
+      const leftId = String(left?.id ?? left?.node_id ?? '');
+      const rightId = String(right?.id ?? right?.node_id ?? '');
+      return leftId.localeCompare(rightId, undefined, { numeric: true });
+    })
+    .at(-1);
+}
+
 export function latestReviewRequestObservation(requests = []) {
-  const latest = latestObservation(requests);
+  const latest = latestReviewRequest(requests);
   if (latest === undefined) return null;
 
   const identity =
@@ -71,7 +92,7 @@ export function latestReviewRequestObservation(requests = []) {
     `${latest.created_at ?? latest.createdAt ?? ''}:${latest.body ?? ''}`;
   return {
     identity: String(identity),
-    timestamp: observationTimestamp(latest),
+    timestamp: reviewRequestCreationTimestamp(latest),
   };
 }
 
@@ -314,14 +335,14 @@ export function evaluateReview({
         .includes(CODEX_REVIEW_TRIGGER),
   );
   const latestCurrentReviewComment = latestObservation(currentReviewComments);
-  const latestCurrentReviewRequest = latestObservation(currentRequests);
+  const latestCurrentReviewRequest = latestReviewRequestObservation(currentRequests);
   const latestResultIsNoFindings =
     latestCurrentReviewComment !== undefined &&
     NO_FINDINGS_PATTERN.test(latestCurrentReviewComment.body ?? '');
   const latestReviewResultTimestamp = observationTimestamp(latestCurrentReviewComment);
-  const latestReviewRequestTimestamp = observationTimestamp(latestCurrentReviewRequest);
+  const latestReviewRequestTimestamp = latestCurrentReviewRequest?.timestamp ?? null;
   const reviewResultRequiresFreshness =
-    latestResultIsNoFindings && latestCurrentReviewRequest !== undefined;
+    latestResultIsNoFindings && latestCurrentReviewRequest !== null;
   const reviewResultTimestampUnknown =
     reviewResultRequiresFreshness &&
     (latestReviewResultTimestamp === null ||
