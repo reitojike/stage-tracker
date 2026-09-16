@@ -61,9 +61,7 @@ export function PasskeySignInButton() {
   }
 
   return (
-    // `max-w-[24rem]`（`max-w-sm` ではない理由）: `/sign-in/page.tsx` の
-    // 同名コメント参照（`--spacing-sm` との theme collision）。
-    <div className="flex w-full max-w-[24rem] flex-col gap-xs">
+    <div className="flex w-full max-w-sm flex-col gap-xs">
       {state.status === "error" ? (
         // `w-full`: StatePanel 自身が明示的な width を持たないと、この
         // 画面の hand-rolled error panel（`/sign-in/page.tsx` の

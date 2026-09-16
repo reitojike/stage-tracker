@@ -6,6 +6,7 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -80,6 +81,23 @@ describe('Sheet', () => {
       'data-[side=bottom]:max-w-[480px]',
       'data-[side=bottom]:data-starting-style:translate-y-full',
       'data-[side=bottom]:data-ending-style:translate-y-full',
+    );
+  });
+
+  it('keeps side sheets on the container width and preserves footer safe-area spacing', () => {
+    render(
+      <Sheet open onOpenChange={() => undefined}>
+        <SheetContent side="left">
+          <SheetFooter>
+            <button type="button">Save</button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>,
+    );
+
+    expect(screen.getByRole('dialog')).toHaveClass('data-[side=left]:max-w-sm');
+    expect(screen.getByRole('button', { name: 'Save' }).parentElement).toHaveClass(
+      'pb-[calc(var(--spacing-sm)+env(safe-area-inset-bottom))]',
     );
   });
 });
