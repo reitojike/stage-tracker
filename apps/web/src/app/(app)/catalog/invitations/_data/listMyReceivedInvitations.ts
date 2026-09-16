@@ -14,7 +14,7 @@ import {
   mapEventRow,
   mapOccurrenceRow,
   mapRows,
-  runSupabaseSelect,
+  runPagedSupabaseSelect,
   type EventRow,
   type OccurrenceRow,
   type ReadResult,
@@ -119,14 +119,16 @@ export async function listMyReceivedInvitations(
   client: SupabaseClient,
   userId: string,
 ): Promise<ReadResult<readonly ReceivedInvitation[]>> {
-  const query = client
-    .from("occurrence_invitations")
-    .select("*, event_occurrences(*, events(*))")
-    .eq("invitee_id", userId)
-    .order("created_at", { ascending: true })
-    .overrideTypes<InvitationRow[]>();
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("occurrence_invitations")
+      .select("*, event_occurrences(*, events(*))", { count: "exact" })
+      .eq("invitee_id", userId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .overrideTypes<InvitationRow[]>(),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }

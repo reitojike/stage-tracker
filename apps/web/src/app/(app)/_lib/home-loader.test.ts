@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { userIdSchema } from "@stage-tracker/domain";
 import { server } from "@/test/msw/server";
 import { resolveScreenNow } from "@/app/_lib/now";
@@ -26,6 +26,35 @@ const USER_ID = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
 const EVENT_ID = "22222222-2222-4222-8222-222222222222";
 const OCCURRENCE_ID = "33333333-3333-4333-8333-333333333333";
 const OPPORTUNITY_ID = "44444444-4444-4444-8444-444444444444";
+
+beforeEach(() => {
+  server.use(
+    http.get(`${REST_URL}/ticket_opportunity_target_occurrences`, () =>
+      HttpResponse.json([], {
+        headers: { "content-range": "*/0" },
+      }),
+    ),
+    http.get(`${REST_URL}/ticket_opportunity_milestones`, () =>
+      HttpResponse.json(
+        [
+          {
+            id: "55555555-5555-4555-8555-555555555555",
+            opportunity_id: OPPORTUNITY_ID,
+            milestone_type: "sale_start",
+            temporal_precision: "datetime",
+            date_value: null,
+            at: "2026-03-10T10:00:00Z",
+            starts_at: null,
+            ends_at: null,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+        { headers: { "content-range": "0-0/1" } },
+      ),
+    ),
+  );
+});
 
 // "now" fixed well before every fixture's dates below, so nothing here is
 // ever accidentally treated as already past.
@@ -66,42 +95,45 @@ describe("loadHomeTicketDeadlines", () => {
   it("is populated when both the shared opportunities and personal state reads succeed", async () => {
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
-        HttpResponse.json([
-          {
-            id: OPPORTUNITY_ID,
-            event_id: EVENT_ID,
-            target_scope: "event_wide",
-            display_name: "一般発売",
-            source_key: "src-1",
-            source_url: null,
-            memo: null,
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            events: {
-              title: "テスト公演",
-              venue: null,
-              canceled_at: null,
-            },
-            ticket_opportunity_target_occurrences: [],
-            ticket_opportunity_milestones: [
-              {
-                id: "55555555-5555-4555-8555-555555555555",
-                opportunity_id: OPPORTUNITY_ID,
-                milestone_type: "sale_start",
-                temporal_precision: "datetime",
-                date_value: null,
-                at: "2026-03-10T10:00:00Z",
-                starts_at: null,
-                ends_at: null,
-                created_at: "2026-01-01T00:00:00Z",
-                updated_at: "2026-01-01T00:00:00Z",
+        HttpResponse.json(
+          [
+            {
+              id: OPPORTUNITY_ID,
+              event_id: EVENT_ID,
+              target_scope: "event_wide",
+              display_name: "一般発売",
+              source_key: "src-1",
+              source_url: null,
+              memo: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              events: {
+                title: "テスト公演",
+                venue: null,
+                canceled_at: null,
               },
-            ],
-          },
-        ]),
+              ticket_opportunity_target_occurrences: [],
+              ticket_opportunity_milestones: [
+                {
+                  id: "55555555-5555-4555-8555-555555555555",
+                  opportunity_id: OPPORTUNITY_ID,
+                  milestone_type: "sale_start",
+                  temporal_precision: "datetime",
+                  date_value: null,
+                  at: "2026-03-10T10:00:00Z",
+                  starts_at: null,
+                  ends_at: null,
+                  created_at: "2026-01-01T00:00:00Z",
+                  updated_at: "2026-01-01T00:00:00Z",
+                },
+              ],
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
       http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
     );
 
@@ -121,9 +153,11 @@ describe("loadHomeTicketDeadlines", () => {
 
   it("is empty when both reads succeed with 0 rows", async () => {
     server.use(
-      http.get(`${REST_URL}/ticket_opportunities`, () => HttpResponse.json([])),
+      http.get(`${REST_URL}/ticket_opportunities`, () =>
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
+      ),
       http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
     );
 
@@ -148,7 +182,7 @@ describe("loadHomeTicketDeadlines", () => {
         ),
       ),
       http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
     );
 
@@ -175,39 +209,42 @@ describe("loadHomeTicketDeadlines", () => {
     // render this exactly like a real 0-row personal-state read.
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
-        HttpResponse.json([
-          {
-            id: OPPORTUNITY_ID,
-            event_id: EVENT_ID,
-            target_scope: "event_wide",
-            display_name: "一般発売",
-            source_key: "src-1",
-            source_url: null,
-            memo: null,
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            events: {
-              title: "テスト公演",
-              venue: null,
-              canceled_at: null,
-            },
-            ticket_opportunity_target_occurrences: [],
-            ticket_opportunity_milestones: [
-              {
-                id: "55555555-5555-4555-8555-555555555555",
-                opportunity_id: OPPORTUNITY_ID,
-                milestone_type: "sale_start",
-                temporal_precision: "datetime",
-                date_value: null,
-                at: "2026-03-10T10:00:00Z",
-                starts_at: null,
-                ends_at: null,
-                created_at: "2026-01-01T00:00:00Z",
-                updated_at: "2026-01-01T00:00:00Z",
+        HttpResponse.json(
+          [
+            {
+              id: OPPORTUNITY_ID,
+              event_id: EVENT_ID,
+              target_scope: "event_wide",
+              display_name: "一般発売",
+              source_key: "src-1",
+              source_url: null,
+              memo: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              events: {
+                title: "テスト公演",
+                venue: null,
+                canceled_at: null,
               },
-            ],
-          },
-        ]),
+              ticket_opportunity_target_occurrences: [],
+              ticket_opportunity_milestones: [
+                {
+                  id: "55555555-5555-4555-8555-555555555555",
+                  opportunity_id: OPPORTUNITY_ID,
+                  milestone_type: "sale_start",
+                  temporal_precision: "datetime",
+                  date_value: null,
+                  at: "2026-03-10T10:00:00Z",
+                  starts_at: null,
+                  ends_at: null,
+                  created_at: "2026-01-01T00:00:00Z",
+                  updated_at: "2026-01-01T00:00:00Z",
+                },
+              ],
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
       http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
         HttpResponse.json(
@@ -237,21 +274,24 @@ describe("loadHomeUpcomingSchedule", () => {
   it("is populated when both participations and personal schedule succeed", async () => {
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
-        HttpResponse.json([
-          {
-            id: "66666666-6666-4666-8666-666666666666",
-            occurrence_id: OCCURRENCE_ID,
-            user_id: USER_ID,
-            status: "attending",
-            visibility: "private",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            event_occurrences: { ...occurrenceRow(), events: eventRow() },
-          },
-        ]),
+        HttpResponse.json(
+          [
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              occurrence_id: OCCURRENCE_ID,
+              user_id: USER_ID,
+              status: "attending",
+              visibility: "private",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              event_occurrences: { ...occurrenceRow(), events: eventRow() },
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "0-0/0" } }),
       ),
     );
 
@@ -290,22 +330,25 @@ describe("loadHomeUpcomingSchedule", () => {
         ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([
-          {
-            id: "77777777-7777-4777-8777-777777777777",
-            owner_id: USER_ID,
-            memo: null,
-            is_all_day: true,
-            starts_on: "2026-03-05",
-            ends_on: "2026-03-06",
-            starts_at: null,
-            ends_at: null,
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            title: "旅行",
-            blocking: true,
-          },
-        ]),
+        HttpResponse.json(
+          [
+            {
+              id: "77777777-7777-4777-8777-777777777777",
+              owner_id: USER_ID,
+              memo: null,
+              is_all_day: true,
+              starts_on: "2026-03-05",
+              ends_on: "2026-03-06",
+              starts_at: null,
+              ends_at: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              title: "旅行",
+              blocking: true,
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
     );
 
@@ -342,7 +385,7 @@ describe("loadHomeUpcomingSchedule", () => {
         ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
     );
 
@@ -389,27 +432,30 @@ describe("loadHomeUpcomingSchedule", () => {
   it("excludes an occurrence whose relevant end has already passed", async () => {
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
-        HttpResponse.json([
-          {
-            id: "66666666-6666-4666-8666-666666666666",
-            occurrence_id: OCCURRENCE_ID,
-            user_id: USER_ID,
-            status: "attending",
-            visibility: "private",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            event_occurrences: {
-              ...occurrenceRow({
-                starts_at: "2026-01-01T00:00:00Z",
-                ends_at: "2026-01-01T02:00:00Z",
-              }),
-              events: eventRow(),
+        HttpResponse.json(
+          [
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              occurrence_id: OCCURRENCE_ID,
+              user_id: USER_ID,
+              status: "attending",
+              visibility: "private",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              event_occurrences: {
+                ...occurrenceRow({
+                  starts_at: "2026-01-01T00:00:00Z",
+                  ends_at: "2026-01-01T02:00:00Z",
+                }),
+                events: eventRow(),
+              },
             },
-          },
-        ]),
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
     );
 
@@ -425,27 +471,30 @@ describe("loadHomeUpcomingSchedule", () => {
   it("keeps an in-progress occurrence until its known end", async () => {
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
-        HttpResponse.json([
-          {
-            id: "66666666-6666-4666-8666-666666666666",
-            occurrence_id: OCCURRENCE_ID,
-            user_id: USER_ID,
-            status: "attending",
-            visibility: "private",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            event_occurrences: {
-              ...occurrenceRow({
-                starts_at: "2026-02-28T23:00:00Z",
-                ends_at: "2026-03-01T01:00:00Z",
-              }),
-              events: eventRow(),
+        HttpResponse.json(
+          [
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              occurrence_id: OCCURRENCE_ID,
+              user_id: USER_ID,
+              status: "attending",
+              visibility: "private",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              event_occurrences: {
+                ...occurrenceRow({
+                  starts_at: "2026-02-28T23:00:00Z",
+                  ends_at: "2026-03-01T01:00:00Z",
+                }),
+                events: eventRow(),
+              },
             },
-          },
-        ]),
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
     );
 
@@ -473,25 +522,28 @@ describe("home's 2 blocks are independent (P4)", () => {
         ),
       ),
       http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
       // 直近の予定 block: both of its reads succeed with real data.
       http.get(`${REST_URL}/occurrence_participations`, () =>
-        HttpResponse.json([
-          {
-            id: "66666666-6666-4666-8666-666666666666",
-            occurrence_id: OCCURRENCE_ID,
-            user_id: USER_ID,
-            status: "attending",
-            visibility: "private",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            event_occurrences: { ...occurrenceRow(), events: eventRow() },
-          },
-        ]),
+        HttpResponse.json(
+          [
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              occurrence_id: OCCURRENCE_ID,
+              user_id: USER_ID,
+              status: "attending",
+              visibility: "private",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              event_occurrences: { ...occurrenceRow(), events: eventRow() },
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([]),
+        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
       ),
     );
 

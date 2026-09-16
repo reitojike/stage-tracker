@@ -21,7 +21,7 @@ import {
 } from "../mappers/participationRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
-import { runSupabaseSelect } from "../supabase-select";
+import { runPagedSupabaseSelect } from "../paged-select";
 
 export interface ParticipationWithOccurrenceRow extends ParticipationRow {
   readonly event_occurrences:
@@ -92,12 +92,16 @@ export async function listMyParticipations(
   client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly ParticipationWithOccurrence[]>> {
-  const query = client
-    .from("occurrence_participations")
-    .select("*, event_occurrences!inner(*, events!inner(*))")
-    .eq("user_id", userId);
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("occurrence_participations")
+      .select("*, event_occurrences!inner(*, events!inner(*))", {
+        count: "exact",
+      })
+      .eq("user_id", userId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }

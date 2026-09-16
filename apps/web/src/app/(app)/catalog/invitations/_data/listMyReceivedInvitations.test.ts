@@ -40,7 +40,7 @@ describe("listMyReceivedInvitations", () => {
               event_occurrences: null,
             },
           ],
-          { status: 200 },
+          { status: 200, headers: { "content-range": "0-0/1" } },
         ),
       ),
     );
@@ -96,7 +96,7 @@ describe("listMyReceivedInvitations", () => {
               },
             },
           ],
-          { status: 200 },
+          { status: 200, headers: { "content-range": "0-0/1" } },
         ),
       ),
     );
@@ -106,6 +106,41 @@ describe("listMyReceivedInvitations", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+    }
+  });
+
+  it("pages past the boundary without duplicating or omitting invitations", async () => {
+    const rows = Array.from({ length: 501 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      occurrence_id: "33333333-3333-4333-8333-333333333333",
+      inviter_id: "44444444-4444-4444-8444-444444444444",
+      invitee_id: userId,
+      event_occurrences: null,
+    }));
+    server.use(
+      http.get(`${REST_URL}/occurrence_invitations`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("order")).toBe("created_at.asc,id.asc");
+        const offset = Number(url.searchParams.get("offset") ?? "0");
+        const page = rows.slice(offset, offset + 500);
+        return HttpResponse.json(page, {
+          status: 200,
+          headers: {
+            "content-range": `${offset}-${offset + page.length - 1}/501`,
+          },
+        });
+      }),
+    );
+
+    const result = await listMyReceivedInvitations(createTestClient(), userId);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(501);
+      expect(result.value.at(-1)?.invitationId).toBe(rows.at(-1)?.id);
+      expect(
+        new Set(result.value.map((invitation) => invitation.invitationId)).size,
+      ).toBe(501);
     }
   });
 });

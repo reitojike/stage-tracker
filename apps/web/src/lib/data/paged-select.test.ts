@@ -72,13 +72,30 @@ describe("runPagedSupabaseSelect", () => {
     expect(queryPage).toHaveBeenNthCalledWith(2, 500, 999);
   });
 
-  it("stops early if a page comes back short even though more rows were expected (defensive, does not loop forever)", async () => {
+  it("fails closed if an empty page arrives before the exact count is reached", async () => {
     const queryPage = vi.fn().mockResolvedValueOnce(successPage([], 5));
 
     const result = await runPagedSupabaseSelect(queryPage);
 
-    expect(result).toEqual({ ok: true, value: [] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("failure");
+    }
     expect(queryPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves every row across the page boundary without duplicates or omissions", async () => {
+    const rows = Array.from({ length: 501 }, (_, index) => ({ id: index }));
+    const queryPage = vi
+      .fn()
+      .mockResolvedValueOnce(successPage(rows.slice(0, 500), rows.length))
+      .mockResolvedValueOnce(successPage(rows.slice(500), rows.length));
+
+    const result = await runPagedSupabaseSelect(queryPage);
+
+    expect(result).toEqual({ ok: true, value: rows });
+    expect(queryPage).toHaveBeenNthCalledWith(1, 0, 499);
+    expect(queryPage).toHaveBeenNthCalledWith(2, 500, 999);
   });
 
   it("fails when a page reports an error", async () => {

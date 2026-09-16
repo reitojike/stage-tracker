@@ -4,7 +4,7 @@ import type { Database } from "../database.types";
 import { mapPersonalScheduleEntryRow } from "../mappers/scheduleEntryRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
-import { runSupabaseSelect } from "../supabase-select";
+import { runPagedSupabaseSelect } from "../paged-select";
 
 /**
  * 自分に見える personal schedule entry（owner本人 + 自分宛に共有された
@@ -33,9 +33,13 @@ import { runSupabaseSelect } from "../supabase-select";
 export async function listVisiblePersonalSchedule(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly PersonalScheduleEntry[]>> {
-  const query = client.from("personal_schedule_entries").select("*");
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("personal_schedule_entries")
+      .select("*", { count: "exact" })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }

@@ -52,8 +52,18 @@ export async function runPagedSupabaseSelect<Row>(
 
     rows.push(...response.data);
     offset += response.data.length;
-    if (response.data.length === 0 || offset >= response.count) {
+    if (offset >= response.count) {
       break;
+    }
+
+    // A short or empty page is not evidence that the read is complete. The
+    // exact count says that rows still exist, so accepting this response would
+    // turn a transient/truncated page into a successful partial read.
+    if (response.data.length === 0) {
+      console.error(
+        `[read] paginated SELECT returned an empty page before its exact count was reached (received=${offset}, count=${response.count}).`,
+      );
+      return err(readError("failure"));
     }
   }
   return ok(rows);

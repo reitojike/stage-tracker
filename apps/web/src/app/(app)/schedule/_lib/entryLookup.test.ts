@@ -42,7 +42,10 @@ describe("findVisibleScheduleEntry", () => {
   it("returns the entry when it is present in the visible list", async () => {
     server.use(
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([VISIBLE_ROW], { status: 200 }),
+        HttpResponse.json([VISIBLE_ROW], {
+          status: 200,
+          headers: { "content-range": "0-0/1" },
+        }),
       ),
     );
 
@@ -65,7 +68,10 @@ describe("findVisibleScheduleEntry", () => {
   it("returns null (not an error) when the requested id is not in the visible list", async () => {
     server.use(
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([VISIBLE_ROW], { status: 200 }),
+        HttpResponse.json([VISIBLE_ROW], {
+          status: 200,
+          headers: { "content-range": "0-0/1" },
+        }),
       ),
     );
 

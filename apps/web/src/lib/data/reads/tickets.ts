@@ -29,7 +29,7 @@ import {
 import { mapOccurrenceRow, type OccurrenceRow } from "../mappers/eventRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
-import { runSupabaseSelect } from "../supabase-select";
+import { runPagedSupabaseSelect } from "../paged-select";
 
 export interface TicketOpportunityListRow extends TicketOpportunityRow {
   readonly events: {
@@ -38,11 +38,20 @@ export interface TicketOpportunityListRow extends TicketOpportunityRow {
     readonly canceled_at: string | null;
   } | null;
   readonly ticket_opportunity_target_occurrences: readonly {
+    readonly opportunity_id: string;
     readonly occurrence_id: string;
     readonly event_occurrences: OccurrenceRow | null;
   }[];
   readonly ticket_opportunity_milestones: readonly TicketOpportunityMilestoneRow[];
 }
+
+type TicketOpportunityParentRow = Omit<
+  TicketOpportunityListRow,
+  "ticket_opportunity_target_occurrences" | "ticket_opportunity_milestones"
+>;
+
+type TicketOpportunityTargetRow =
+  TicketOpportunityListRow["ticket_opportunity_target_occurrences"][number];
 
 export interface TicketOpportunityDetail {
   readonly opportunityWithTargets: TicketOpportunityWithTargets;
@@ -208,28 +217,104 @@ function mapTicketOpportunityListRow(
  * `ticket_opportunities`/`ticket_opportunity_target_occurrences`/
  * `ticket_opportunity_milestones` はいずれも `using (true)` の shared
  * read-only catalog（`docs/v2/oracle-database.md` §2）なので、
- * authenticated である限り0件は常に「本当に0件」。
+ * authenticated である限り0件は常に「本当に0件」。全3 resource は
+ * exact-count paging で読む。
  *
  * 個人の planning state（`user_ticket_opportunity_states`）は意図的に
  * 別関数（`listMyTicketOpportunityStates`）に分離した。
  * `docs/v2/decisions.md` P4「read ごとに独立して劣化」に従い、shared
  * catalog の読み込みと自分の planning state の読み込みのどちらか片方が
  * 失敗しても、他方は独立して表示継続できるようにするため。
+ *
+ * `events` と target occurrence の `event_occurrences` は各 parent に
+ * 1件の to-one embed なので parent/child pagingで完全性を保てる。一方、
+ * target occurrences と milestones は to-many embed であり、PostgRESTの
+ * parent rangeだけでは子の `max_rows` 到達を検出できない。したがって
+ * parent rowsを先にpaged readし、to-many resourcesをそれぞれ全件paged
+ * readしてIDで再結合する。これはparentごとのN+1ではなく、最大3つの
+ * sequential resource scansに限定した最小のquery shapeである。
  */
 export async function listTicketOpportunities(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly TicketOpportunityDetail[]>> {
-  const query = client
-    .from("ticket_opportunities")
-    .select(
-      "*, events(title, venue, canceled_at), ticket_opportunity_target_occurrences(occurrence_id, event_occurrences(*)), ticket_opportunity_milestones(*)",
-    );
-
-  const rowsResult = await runSupabaseSelect(query);
-  if (!rowsResult.ok) {
-    return rowsResult;
+  const parentRowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("ticket_opportunities")
+      .select("*, events(title, venue, canceled_at)", { count: "exact" })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .overrideTypes<TicketOpportunityParentRow[]>(),
+  );
+  if (!parentRowsResult.ok) {
+    return parentRowsResult;
   }
-  return mapRows(rowsResult.value, mapTicketOpportunityListRow);
+
+  const parentIds = new Set(parentRowsResult.value.map((row) => row.id));
+  if (parentIds.size === 0) {
+    return ok([]);
+  }
+
+  const targetRowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("ticket_opportunity_target_occurrences")
+      .select("opportunity_id, occurrence_id, event_occurrences(*)", {
+        count: "exact",
+      })
+      .order("opportunity_id", { ascending: true })
+      .order("occurrence_id", { ascending: true })
+      .range(from, to)
+      .overrideTypes<TicketOpportunityTargetRow[]>(),
+  );
+  if (!targetRowsResult.ok) {
+    return targetRowsResult;
+  }
+
+  const milestoneRowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("ticket_opportunity_milestones")
+      .select("*", { count: "exact" })
+      .order("opportunity_id", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .overrideTypes<TicketOpportunityMilestoneRow[]>(),
+  );
+  if (!milestoneRowsResult.ok) {
+    return milestoneRowsResult;
+  }
+
+  const targetsByOpportunity = new Map<string, TicketOpportunityTargetRow[]>();
+  for (const row of targetRowsResult.value) {
+    if (!parentIds.has(row.opportunity_id)) {
+      continue;
+    }
+    const rows = targetsByOpportunity.get(row.opportunity_id) ?? [];
+    rows.push(row);
+    targetsByOpportunity.set(row.opportunity_id, rows);
+  }
+
+  const milestonesByOpportunity = new Map<
+    string,
+    TicketOpportunityMilestoneRow[]
+  >();
+  for (const row of milestoneRowsResult.value) {
+    if (!parentIds.has(row.opportunity_id)) {
+      continue;
+    }
+    const rows = milestonesByOpportunity.get(row.opportunity_id) ?? [];
+    rows.push(row);
+    milestonesByOpportunity.set(row.opportunity_id, rows);
+  }
+
+  const rows: TicketOpportunityListRow[] = parentRowsResult.value.map(
+    (parent) => ({
+      ...parent,
+      ticket_opportunity_target_occurrences:
+        targetsByOpportunity.get(parent.id) ?? [],
+      ticket_opportunity_milestones:
+        milestonesByOpportunity.get(parent.id) ?? [],
+    }),
+  );
+  return mapRows(rows, mapTicketOpportunityListRow);
 }
 
 /**
@@ -243,12 +328,14 @@ export async function listMyTicketOpportunityStates(
   client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly UserTicketOpportunityState[]>> {
-  const query = client
-    .from("user_ticket_opportunity_states")
-    .select("*")
-    .eq("user_id", userId);
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+    client
+      .from("user_ticket_opportunity_states")
+      .select("*", { count: "exact" })
+      .eq("user_id", userId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (!rowsResult.ok) {
     return rowsResult;
   }
