@@ -27,7 +27,8 @@
   },
   "devDependencies": {
     "@storybook/nextjs-vite": "^9.1.20",
-    "storybook": "^9.1.20"
+    "storybook": "^9.1.20",
+    "tailwindcss": "^4"
   },
   "peerDependencies": {
     "next": "16.3.4",

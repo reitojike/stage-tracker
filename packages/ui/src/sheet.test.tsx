@@ -1,15 +1,33 @@
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
+import { compile } from 'tailwindcss';
 import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from './components/sheet';
+
+const require = createRequire(import.meta.url);
+const appCssPath = resolve(process.cwd(), '../../apps/web/src/app/globals.css');
+const appCssDirectory = resolve(process.cwd(), '../../apps/web/src/app');
+
+async function generateSheetCss(candidates: string[]) {
+  const appCss = readFileSync(appCssPath, 'utf8').replace(/^@import .*$/gm, '');
+  const tailwindTheme = readFileSync(require.resolve('tailwindcss/theme.css'), 'utf8');
+  const compiler = await compile(`${tailwindTheme}\n${appCss}\n@tailwind utilities;`, {
+    base: appCssDirectory,
+  });
+  return compiler.build(candidates);
+}
 
 function SheetHarness() {
   const [open, setOpen] = useState(false);
@@ -80,6 +98,50 @@ describe('Sheet', () => {
       'data-[side=bottom]:max-w-[480px]',
       'data-[side=bottom]:data-starting-style:translate-y-full',
       'data-[side=bottom]:data-ending-style:translate-y-full',
+    );
+  });
+
+  it('keeps side sheets on the container width and preserves footer safe-area spacing', async () => {
+    render(
+      <>
+        <Sheet open onOpenChange={() => undefined}>
+          <SheetContent side="left">
+            <SheetFooter>
+              <button type="button">Save left</button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+        <Sheet open onOpenChange={() => undefined}>
+          <SheetContent>
+            <SheetFooter>
+              <button type="button">Save right</button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      </>,
+    );
+
+    const dialogs = screen.getAllByRole('dialog', { hidden: true });
+    const leftDialog = dialogs.find((dialog) => dialog.getAttribute('data-side') === 'left');
+    const rightDialog = dialogs.find((dialog) => dialog.getAttribute('data-side') === 'right');
+    expect(leftDialog).toHaveClass('data-[side=left]:max-w-sm');
+    expect(rightDialog).toHaveClass('data-[side=right]:max-w-sm');
+    const footer = screen.getByRole('button', { name: 'Save left', hidden: true }).parentElement;
+    expect(footer).toHaveClass('pb-[calc(var(--spacing-sm)+env(safe-area-inset-bottom))]');
+
+    const generatedCss = await generateSheetCss([
+      'data-[side=left]:max-w-sm',
+      'data-[side=right]:max-w-sm',
+      'pb-[calc(var(--spacing-sm)+env(safe-area-inset-bottom))]',
+    ]);
+    expect(generatedCss).toMatch(
+      /\.data-\\\[side\\=left\\\]\\:max-w-sm\[data-side="left"\]\s*\{\s*max-width:\s*var\(--container-sm\);\s*\}/,
+    );
+    expect(generatedCss).toMatch(
+      /\.data-\\\[side\\=right\\\]\\:max-w-sm\[data-side="right"\]\s*\{\s*max-width:\s*var\(--container-sm\);\s*\}/,
+    );
+    expect(generatedCss).toMatch(
+      /\.pb-\\\[calc\\\(var\\\(--spacing-sm\\\)\\\+env\\\(safe-area-inset-bottom\\\)\\\)\\\]\s*\{\s*padding-bottom:\s*calc\(var\(--spacing-sm\) \+ env\(safe-area-inset-bottom\)\);\s*\}/,
     );
   });
 });

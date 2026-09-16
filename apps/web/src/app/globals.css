@@ -124,6 +124,26 @@
   --spacing-lg: 24px;
   --spacing-xl: 32px;
 
+  /*
+   * Tailwind v4 lets width utilities resolve a matching --spacing-* token
+   * before the default --container-* token. Keep the semantic spacing scale
+   * above for gap/padding utilities, while explicitly assigning the
+   * container-sized width namespaces so max-w-sm (and its width variants)
+   * cannot collapse to the spacing values.
+   */
+  --width-sm: var(--container-sm);
+  --min-width-sm: var(--container-sm);
+  --max-width-sm: var(--container-sm);
+  --width-md: var(--container-md);
+  --min-width-md: var(--container-md);
+  --max-width-md: var(--container-md);
+  --width-lg: var(--container-lg);
+  --min-width-lg: var(--container-lg);
+  --max-width-lg: var(--container-lg);
+  --width-xl: var(--container-xl);
+  --min-width-xl: var(--container-xl);
+  --max-width-xl: var(--container-xl);
+
   /* ---- typography: font size (legacy --font-size-* semantic names) ---- */
   --text-caption: 11px;
   --text-label: 12px;
