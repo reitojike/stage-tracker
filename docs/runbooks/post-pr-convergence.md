@@ -37,19 +37,23 @@ create` returns; it never merges the PR.
 The policy is intentionally fixed and small. It is not a general delivery
 configuration framework.
 
-| Boundary            | Current policy                                                                                                                                       |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PR base             | `main`                                                                                                                                               |
-| Required CI         | `Verify / Code`, `Verify / Build`, `Verify / Database`, `Verify / E2E`, `Verify / Migration Ordering Fence`, `Vercel Preview Comments`, and `Vercel` |
-| Review trigger      | A top-level `@codex review` request bound to the full current head SHA                                                                               |
-| Review evidence     | Current-head Codex no-findings result, with the observed review object/top-level result surface; GitHub `APPROVED` is not required by this policy    |
-| Thread prerequisite | No unresolved, non-outdated current review thread                                                                                                    |
-| CI wait             | 30 minutes                                                                                                                                           |
-| Review wait         | 15 minutes after the current-head request or observed pending request                                                                                |
-| Correction ceiling  | Two bounded correction attempts; the third attempt is `HOLD`                                                                                         |
+| Boundary            | Current policy                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR base             | `main`                                                                                                                                            |
+| Required CI         | `Verify / Code`, `Verify / Build`, `Verify / Database`, `Verify / E2E`, and `Verify / Migration Ordering Fence`                                   |
+| Review trigger      | A top-level `@codex review` request bound to the full current head SHA                                                                            |
+| Review evidence     | Current-head Codex no-findings result, with the observed review object/top-level result surface; GitHub `APPROVED` is not required by this policy |
+| Thread prerequisite | No unresolved, non-outdated current review thread                                                                                                 |
+| CI wait             | 30 minutes                                                                                                                                        |
+| Review wait         | 15 minutes after the current-head request or observed pending request                                                                             |
+| Correction ceiling  | Two bounded correction attempts; the third attempt is `HOLD`                                                                                      |
 
 CodeRabbit is currently configured as advisory (`auto_review.enabled: false`)
 and is not the required clearing evidence for this phase.
+
+The Vercel deployment status remains a separate pre-merge check, as defined by
+[`docs/architecture/runtime-stack.md`](../architecture/runtime-stack.md). It
+is intentionally not part of this repository merge-ready evaluator.
 
 ## Deterministic and semantic boundaries
 

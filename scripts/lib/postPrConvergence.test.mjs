@@ -64,6 +64,20 @@ test('green exact-head CI and Codex result produce MERGE_READY', () => {
   assert.equal(result.headSha, HEAD_A);
 });
 
+test('external Vercel status is not part of the repository merge-ready gate', () => {
+  const ci = evaluateCi({
+    headSha: HEAD_A,
+    checkRuns: greenCheckRuns(HEAD_A),
+    statuses: [],
+  });
+
+  assert.equal(ci.status, 'green');
+  assert.equal(
+    ci.checks.some((check) => check.name.startsWith('Vercel')),
+    false,
+  );
+});
+
 test('pending CI is not green', () => {
   const checkRuns = greenCheckRuns(HEAD_A);
   checkRuns[0].status = 'in_progress';
@@ -75,6 +89,30 @@ test('pending CI is not green', () => {
     evaluatePostPrConvergence({ pr: pr(), ci, review: { status: 'green' } }).mergeReady,
     false,
   );
+});
+
+test('a newer in-progress rerun wins over an older green check for the same head', () => {
+  const checkRuns = greenCheckRuns(HEAD_A);
+  const older = {
+    ...checkRuns[0],
+    started_at: '2026-09-16T10:00:00Z',
+    completed_at: '2026-09-16T10:05:00Z',
+  };
+  const newer = {
+    ...checkRuns[0],
+    started_at: '2026-09-16T10:06:00Z',
+    completed_at: null,
+    status: 'in_progress',
+    conclusion: null,
+  };
+  const ci = evaluateCi({
+    headSha: HEAD_A,
+    checkRuns: [older, newer, ...checkRuns.slice(1)],
+    statuses: greenStatuses(),
+  });
+
+  assert.equal(ci.status, 'pending');
+  assert.equal(ci.checks[0].state, 'pending');
 });
 
 test('missing or unknown CI is not green', () => {
@@ -164,6 +202,53 @@ test('an unresolved thread from an old head is unknown rather than current evide
   assert.equal(review.status, 'unknown');
   assert.equal(review.unresolvedThreads.length, 0);
   assert.equal(review.unknownThreads.length, 1);
+});
+
+test('the latest current-head Codex result clears an earlier failure', () => {
+  const review = evaluateReview({
+    headSha: HEAD_A,
+    reviews: [],
+    comments: [
+      {
+        user: { login: CODEX_REVIEW_ACTOR },
+        created_at: '2026-09-16T10:00:00Z',
+        body: `Review failed. Reviewed commit: ${HEAD_A}`,
+      },
+      {
+        user: { login: CODEX_REVIEW_ACTOR },
+        created_at: '2026-09-16T10:01:00Z',
+        body: `Codex Review: Didn't find any major issues. Reviewed commit: ${HEAD_A}`,
+      },
+    ],
+    reviewThreads: [],
+  });
+
+  assert.equal(review.status, 'green');
+  assert.equal(review.currentFailures.length, 0);
+});
+
+test('a newer non-clearing Codex result does not get masked by an earlier success', () => {
+  const review = evaluateReview({
+    headSha: HEAD_A,
+    reviews: [],
+    comments: [
+      {
+        user: { login: CODEX_REVIEW_ACTOR },
+        created_at: '2026-09-16T10:00:00Z',
+        body: `Codex Review: Didn't find any major issues. Reviewed commit: ${HEAD_A}`,
+      },
+      {
+        user: { login: CODEX_REVIEW_ACTOR },
+        created_at: '2026-09-16T10:01:00Z',
+        body: `Found a possible issue. Reviewed commit: ${HEAD_A}`,
+      },
+    ],
+    reviewThreads: [],
+  });
+
+  assert.equal(review.status, 'findings');
+  assert.equal(review.evidence.length, 1);
+  assert.match(review.evidence[0].body, /Found a possible issue/iu);
 });
 
 test('review evidence unknown is fail-closed', () => {

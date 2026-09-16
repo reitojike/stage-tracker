@@ -20,8 +20,6 @@ export const REQUIRED_CI_CHECKS = Object.freeze([
   Object.freeze({ name: 'Verify / Database', source: 'check-run' }),
   Object.freeze({ name: 'Verify / E2E', source: 'check-run' }),
   Object.freeze({ name: 'Verify / Migration Ordering Fence', source: 'check-run' }),
-  Object.freeze({ name: 'Vercel Preview Comments', source: 'check-run' }),
-  Object.freeze({ name: 'Vercel', source: 'status' }),
 ]);
 
 // This is the review surface currently exercised by this repository. It is
@@ -48,6 +46,8 @@ const REVIEW_FAILURE_PATTERN = /encountered an error|review failed|unable to com
 function latestObservation(observations) {
   return [...observations].sort((left, right) => {
     const leftTime =
+      left.started_at ??
+      left.startedAt ??
       left.completed_at ??
       left.completedAt ??
       left.updated_at ??
@@ -55,6 +55,8 @@ function latestObservation(observations) {
       left.created_at ??
       '';
     const rightTime =
+      right.started_at ??
+      right.startedAt ??
       right.completed_at ??
       right.completedAt ??
       right.updated_at ??
@@ -271,24 +273,31 @@ export function evaluateReview({
   const currentReviewComments = codexComments.filter((comment) =>
     commentTargetsHead(comment, headSha),
   );
-  const currentNoFindings = currentReviewComments.filter((comment) =>
-    NO_FINDINGS_PATTERN.test(comment.body ?? ''),
-  );
-  const currentFailures = currentReviewComments.filter((comment) =>
-    REVIEW_FAILURE_PATTERN.test(comment.body ?? ''),
-  );
-  const currentNonClearingResults = currentReviewComments.filter(
-    (comment) =>
-      !NO_FINDINGS_PATTERN.test(comment.body ?? '') &&
-      !REVIEW_FAILURE_PATTERN.test(comment.body ?? ''),
-  );
   const currentRequests = comments.filter(
     (comment) =>
+      !isCodexComment(comment) &&
       commentTargetsHead(comment, headSha) &&
       String(comment.body ?? '')
         .toLowerCase()
         .includes(CODEX_REVIEW_TRIGGER),
   );
+  const latestCurrentReviewComment = latestObservation(currentReviewComments);
+  const currentNoFindings =
+    latestCurrentReviewComment !== undefined &&
+    NO_FINDINGS_PATTERN.test(latestCurrentReviewComment.body ?? '')
+      ? [latestCurrentReviewComment]
+      : [];
+  const currentFailures =
+    latestCurrentReviewComment !== undefined &&
+    REVIEW_FAILURE_PATTERN.test(latestCurrentReviewComment.body ?? '')
+      ? [latestCurrentReviewComment]
+      : [];
+  const currentNonClearingResults =
+    latestCurrentReviewComment !== undefined &&
+    !NO_FINDINGS_PATTERN.test(latestCurrentReviewComment.body ?? '') &&
+    !REVIEW_FAILURE_PATTERN.test(latestCurrentReviewComment.body ?? '')
+      ? [latestCurrentReviewComment]
+      : [];
   const { unresolvedThreads, unknownThreads } = classifyReviewThreads(reviewThreads, headSha);
 
   if (reviewThreadsError !== null) {
@@ -299,6 +308,7 @@ export function evaluateReview({
       unresolvedThreads: [],
       currentReviewObjects,
       currentReviewComments,
+      currentRequests,
       oldReviewObjects,
       reviewThreadsError,
     };
@@ -312,6 +322,7 @@ export function evaluateReview({
       unresolvedThreads,
       currentReviewObjects,
       currentReviewComments,
+      currentRequests,
       oldReviewObjects,
       currentFailures,
     };
@@ -326,6 +337,7 @@ export function evaluateReview({
       unknownThreads,
       currentReviewObjects,
       currentReviewComments,
+      currentRequests,
       oldReviewObjects,
       currentFailures,
     };
@@ -339,6 +351,7 @@ export function evaluateReview({
       unresolvedThreads,
       currentReviewObjects,
       currentReviewComments,
+      currentRequests,
       oldReviewObjects,
       currentFailures,
     };
@@ -352,6 +365,7 @@ export function evaluateReview({
       unresolvedThreads,
       currentReviewObjects,
       currentReviewComments,
+      currentRequests,
       oldReviewObjects,
       currentFailures,
     };
@@ -374,6 +388,7 @@ export function evaluateReview({
     unresolvedThreads,
     currentReviewObjects,
     currentReviewComments,
+    currentRequests,
     oldReviewObjects,
     currentFailures,
   };

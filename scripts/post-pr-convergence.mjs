@@ -80,6 +80,38 @@ function apiJson(path) {
   }
 }
 
+function apiPages(path) {
+  const raw = runGh([
+    'api',
+    path,
+    '--paginate',
+    '--slurp',
+    '--header',
+    'Accept: application/vnd.github+json',
+  ]);
+  try {
+    const pages = JSON.parse(raw);
+    if (!Array.isArray(pages)) throw new Error('paginated response is not an array');
+    return pages;
+  } catch (error) {
+    throw new Error(`GitHub API returned invalid paginated JSON for ${path}: ${error.message}`);
+  }
+}
+
+function apiList(path) {
+  return apiPages(path).flatMap((page) => {
+    if (Array.isArray(page)) return page;
+    throw new Error(`GitHub API returned a non-list page for ${path}`);
+  });
+}
+
+function apiItems(path, key) {
+  return apiPages(path).flatMap((page) => {
+    if (Array.isArray(page?.[key])) return page[key];
+    throw new Error(`GitHub API page for ${path} did not include ${key}`);
+  });
+}
+
 function graphqlJson(args) {
   const raw = runGh(['api', 'graphql', ...args]);
   let payload;
@@ -281,17 +313,20 @@ function fetchSnapshot(repo, prNumber) {
     };
   }
 
-  const checks = apiJson(`repos/${repo}/commits/${headSha}/check-runs?per_page=100`);
-  const status = apiJson(`repos/${repo}/commits/${headSha}/status`);
-  const reviews = apiJson(`repos/${repo}/pulls/${prNumber}/reviews?per_page=100`);
-  const comments = apiJson(`repos/${repo}/issues/${prNumber}/comments?per_page=100`);
-  const inlineComments = apiJson(`repos/${repo}/pulls/${prNumber}/comments?per_page=100`);
+  const checkRuns = apiItems(
+    `repos/${repo}/commits/${headSha}/check-runs?per_page=100`,
+    'check_runs',
+  );
+  const statuses = apiItems(`repos/${repo}/commits/${headSha}/status?per_page=100`, 'statuses');
+  const reviews = apiList(`repos/${repo}/pulls/${prNumber}/reviews?per_page=100`);
+  const comments = apiList(`repos/${repo}/issues/${prNumber}/comments?per_page=100`);
+  const inlineComments = apiList(`repos/${repo}/pulls/${prNumber}/comments?per_page=100`);
   const reviewThreads = fetchReviewThreads(repo, prNumber);
 
   return {
     pr,
-    checkRuns: checks.check_runs ?? [],
-    statuses: status.statuses ?? [],
+    checkRuns,
+    statuses,
     reviews,
     comments,
     inlineComments,
@@ -313,6 +348,23 @@ function requestReview(repo, prNumber, headSha) {
     '--body',
     reviewRequestBody(headSha),
   ]);
+}
+
+function observedReviewRequestStart(review) {
+  const requests = review.currentRequests ?? [];
+  const latest = [...requests]
+    .sort((left, right) => {
+      const leftTime = left.created_at ?? left.createdAt ?? left.updated_at ?? left.updatedAt ?? '';
+      const rightTime =
+        right.created_at ?? right.createdAt ?? right.updated_at ?? right.updatedAt ?? '';
+      return String(leftTime).localeCompare(String(rightTime));
+    })
+    .at(-1);
+  if (latest === undefined) return null;
+  const timestamp = Date.parse(
+    String(latest.created_at ?? latest.createdAt ?? latest.updated_at ?? latest.updatedAt ?? ''),
+  );
+  return Number.isNaN(timestamp) ? null : timestamp;
 }
 
 function extractRunId(detailsUrl) {
@@ -420,6 +472,7 @@ async function converge({ repo, prNumber, options }) {
       prUrl: snapshot.pr.html_url ?? null,
       headChanges,
       reviewRequestUrl,
+      externalStatuses: snapshot.statuses.filter((status) => status.context === 'Vercel'),
       inlineComments: snapshot.inlineComments,
     };
 
@@ -463,7 +516,7 @@ async function converge({ repo, prNumber, options }) {
           };
         }
       } else if (reviewStartedAt === null) {
-        reviewStartedAt = Date.now();
+        reviewStartedAt = observedReviewRequestStart(review) ?? Date.now();
       }
 
       if (options.once) {
