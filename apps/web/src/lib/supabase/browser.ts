@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { env } from "@/env";
+import type { Database } from "@/lib/data/database.types";
 
 /**
  * Client Component から直接呼ぶ操作のための Supabase client。
@@ -15,13 +16,13 @@ import { env } from "@/env";
  * 方針とのバランスとして、配線（このファイル）だけをここで用意し、
  * 実際の呼び出しは passkey 機能を実装する Task 側に委ねる。
  *
- * Database 型は Supabase 生成型がまだ無いため未指定（呼び出しごとに
- * client を生成する設計にしているのはそのまま。型が生成された後は
- * `createBrowserClient<Database>(...)` のように型引数を渡すだけで
- * 差し込める）。
+ * 生成済み Database 型を client factory に接続し、schema/table/column/RPC
+ * の drift を TypeScript boundary で検知する。これは runtime の client
+ * semantics とは独立した type-safety の責務である。呼び出しごとに client
+ * を生成する設計と browser cookie behavior はそのまま維持する。
  */
 export function createSupabaseBrowserClient() {
-  return createBrowserClient(
+  return createBrowserClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );

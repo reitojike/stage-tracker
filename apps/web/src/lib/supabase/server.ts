@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { env } from "@/env";
+import type { Database } from "@/lib/data/database.types";
 
 /**
  * Server Component / Route Handler / Server Action からの通常の
@@ -19,14 +20,14 @@ import { env } from "@/env";
  * 呼び出しごとに新しい client を生成すること（request をまたいで
  * 共有しないこと）は `@supabase/ssr` 自身の要件。
  *
- * Database 型は Supabase 生成型がまだ無いため未指定（生成された後は
- * `createServerClient<Database>(...)` のように型引数を渡すだけで
- * 差し込める）。
+ * 生成済み Database 型を client factory に接続し、schema/table/column/RPC
+ * の drift を TypeScript boundary で検知する。これは runtime の client
+ * semantics とは独立した type-safety の責務である。
  */
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
-  return createServerClient(
+  return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
@@ -71,7 +72,7 @@ export async function createSupabaseServerClient() {
 export async function createSupabaseCookielessServerClient() {
   const cookieStore = await cookies();
 
-  return createServerClient(
+  return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
