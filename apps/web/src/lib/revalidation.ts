@@ -87,10 +87,11 @@ const EVENT_SHARED_SURFACES = [
   staticSurface("invitations"),
 ] as const satisfies readonly ReadSurfaceDescriptor[];
 
-const EVENT_DETAIL_SURFACES = (eventId: string) => [
-  eventSurface("eventEdit", eventId),
-  eventSurface("eventDetail", eventId),
-] as const satisfies readonly ReadSurfaceDescriptor[];
+const EVENT_DETAIL_SURFACES = (eventId: string) =>
+  [
+    eventSurface("eventEdit", eventId),
+    eventSurface("eventDetail", eventId),
+  ] as const satisfies readonly ReadSurfaceDescriptor[];
 
 const PARTICIPATION_SHARED_SURFACES = [
   staticSurface("calendar"),
@@ -99,10 +100,11 @@ const PARTICIPATION_SHARED_SURFACES = [
   staticSurface("myPage"),
 ] as const satisfies readonly ReadSurfaceDescriptor[];
 
-const EVENT_CONTENT_SURFACES = (eventId: string) => [
-  ...EVENT_DETAIL_SURFACES(eventId),
-  ...EVENT_SHARED_SURFACES,
-] as const satisfies readonly ReadSurfaceDescriptor[];
+const EVENT_CONTENT_SURFACES = (eventId: string) =>
+  [
+    ...EVENT_DETAIL_SURFACES(eventId),
+    ...EVENT_SHARED_SURFACES,
+  ] as const satisfies readonly ReadSurfaceDescriptor[];
 
 /**
  * Canonical affected-surface contracts for current supported mutations.
@@ -114,31 +116,30 @@ export const affectedReadSurfaces = {
 
   eventDetailsWrite: (eventId: string) => EVENT_CONTENT_SURFACES(eventId),
 
-  eventRangeWrite: (eventId: string) => [
-    ...EVENT_DETAIL_SURFACES(eventId),
-    staticSurface("catalog"),
-  ] as const satisfies readonly ReadSurfaceDescriptor[],
+  eventRangeWrite: (eventId: string) =>
+    [
+      ...EVENT_DETAIL_SURFACES(eventId),
+      staticSurface("catalog"),
+    ] as const satisfies readonly ReadSurfaceDescriptor[],
 
   eventOccurrenceWrite: (eventId: string) => EVENT_CONTENT_SURFACES(eventId),
 
   eventCancellationWrite: (eventId: string) => EVENT_CONTENT_SURFACES(eventId),
 
-  eventDelete: (eventId: string) => [
-    ...EVENT_DETAIL_SURFACES(eventId),
-    staticSurface("catalog"),
-    staticSurface("tickets"),
-    staticSurface("home"),
-  ] as const satisfies readonly ReadSurfaceDescriptor[],
+  eventDelete: (eventId: string) =>
+    [
+      ...EVENT_DETAIL_SURFACES(eventId),
+      staticSurface("catalog"),
+      staticSurface("tickets"),
+      staticSurface("home"),
+    ] as const satisfies readonly ReadSurfaceDescriptor[],
 
   participationWrite: (
     eventId: string,
     choice: "attending" | "considering" | "withdraw",
   ) =>
     choice === "attending"
-      ? [
-          eventSurface("eventDetail", eventId),
-          ...PARTICIPATION_SHARED_SURFACES,
-        ]
+      ? [eventSurface("eventDetail", eventId), ...PARTICIPATION_SHARED_SURFACES]
       : [
           eventSurface("eventDetail", eventId),
           staticSurface("calendar"),
@@ -147,43 +148,38 @@ export const affectedReadSurfaces = {
 
   participationConvergence: () => PARTICIPATION_SHARED_SURFACES,
 
-  invitationCreate: () => [
-    staticSurface("invitations"),
-    staticSurface("myPage"),
-  ] as const,
+  invitationCreate: () =>
+    [staticSurface("invitations"), staticSurface("myPage")] as const,
 
-  invitationDecline: () => [
-    staticSurface("invitations"),
-    staticSurface("myPage"),
-  ] as const,
+  invitationDecline: () =>
+    [staticSurface("invitations"), staticSurface("myPage")] as const,
 
-  scheduleEntryCreate: () => [
-    staticSurface("calendar"),
-    staticSurface("home"),
-  ] as const,
+  scheduleEntryCreate: () =>
+    [staticSurface("calendar"), staticSurface("home")] as const,
 
-  scheduleEntryWrite: (entryId: string) => [
-    staticSurface("calendar"),
-    staticSurface("home"),
-    scheduleSurface(entryId),
-  ] as const,
+  scheduleEntryWrite: (entryId: string) =>
+    [
+      staticSurface("calendar"),
+      staticSurface("home"),
+      scheduleSurface(entryId),
+    ] as const,
 
-  scheduleEntryDelete: (entryId: string) => [
-    staticSurface("calendar"),
-    staticSurface("home"),
-    scheduleSurface(entryId),
-  ] as const,
+  scheduleEntryDelete: (entryId: string) =>
+    [
+      staticSurface("calendar"),
+      staticSurface("home"),
+      scheduleSurface(entryId),
+    ] as const,
 
-  scheduleShareWrite: (entryId: string) => [
-    staticSurface("calendar"),
-    staticSurface("home"),
-    scheduleSurface(entryId),
-  ] as const,
+  scheduleShareWrite: (entryId: string) =>
+    [
+      staticSurface("calendar"),
+      staticSurface("home"),
+      scheduleSurface(entryId),
+    ] as const,
 
-  ticketOpportunityStateWrite: () => [
-    staticSurface("tickets"),
-    staticSurface("home"),
-  ] as const,
+  ticketOpportunityStateWrite: () =>
+    [staticSurface("tickets"), staticSurface("home")] as const,
 
   passkeyDelete: () => [staticSurface("myPage")] as const,
 };

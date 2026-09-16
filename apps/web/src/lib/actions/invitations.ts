@@ -66,9 +66,7 @@ export const acceptInvitationAction = authActionClient
       .eq("id", parsedInput.occurrenceId)
       .maybeSingle();
     if (occurrence === null) {
-      revalidateReadSurfaces(
-        affectedReadSurfaces.participationConvergence(),
-      );
+      revalidateReadSurfaces(affectedReadSurfaces.participationConvergence());
     } else {
       revalidateReadSurfaces(
         affectedReadSurfaces.participationWrite(

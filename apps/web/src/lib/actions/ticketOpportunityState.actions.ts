@@ -68,8 +68,6 @@ export const updateTicketOpportunityStateAction = authActionClient
     if (!result.ok) {
       throw new ActionError(result.error.kind, result.error.message);
     }
-    revalidateReadSurfaces(
-      affectedReadSurfaces.ticketOpportunityStateWrite(),
-    );
+    revalidateReadSurfaces(affectedReadSurfaces.ticketOpportunityStateWrite());
     return { status };
   });

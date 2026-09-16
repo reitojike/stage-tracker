@@ -58,12 +58,18 @@ export const createEventAction = authActionClient
       p_title: details.title,
       p_starts_on: range.startsOn,
       p_ends_on: range.endsOn,
-      p_venue: details.venue,
-      p_source_url: details.sourceUrl,
-      p_memo: details.memo,
-      p_starts_at: occurrence?.startsAt ?? null,
-      p_ends_at: occurrence?.endsAt ?? null,
-      p_doors_at: occurrence?.doorsAt ?? null,
+      ...(details.venue === null ? {} : { p_venue: details.venue }),
+      ...(details.sourceUrl === null
+        ? {}
+        : { p_source_url: details.sourceUrl }),
+      ...(details.memo === null ? {} : { p_memo: details.memo }),
+      ...(occurrence === null ? {} : { p_starts_at: occurrence.startsAt }),
+      ...(occurrence?.endsAt === null || occurrence === null
+        ? {}
+        : { p_ends_at: occurrence.endsAt }),
+      ...(occurrence?.doorsAt === null || occurrence === null
+        ? {}
+        : { p_doors_at: occurrence.doorsAt }),
     });
     if (error) {
       throwEventWriteError("create-event", error);

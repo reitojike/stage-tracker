@@ -24,7 +24,10 @@ const mockRevalidatePath = vi.fn();
 const occurrenceQuery = {
   select: vi.fn(() => occurrenceQuery),
   eq: vi.fn(() => occurrenceQuery),
-  maybeSingle: vi.fn(async () => ({ data: { event_id: EVENT_ID }, error: null })),
+  maybeSingle: vi.fn(async () => ({
+    data: { event_id: EVENT_ID },
+    error: null,
+  })),
 };
 const supabaseStub = {
   auth: { getUser: vi.fn() },

@@ -8,9 +8,8 @@ vi.mock("next/cache", () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
 }));
 
-const { affectedReadSurfaces, revalidateReadSurfaces } = await import(
-  "./revalidation.js"
-);
+const { affectedReadSurfaces, revalidateReadSurfaces } =
+  await import("./revalidation.js");
 
 function revalidatedPaths(
   surfaces: Parameters<typeof revalidateReadSurfaces>[0],
@@ -77,9 +76,10 @@ describe("affected read-surface contracts", () => {
     expect(affectedReadSurfaces.invitationCreate()).toEqual(
       affectedReadSurfaces.invitationDecline(),
     );
-    expect(
-      revalidatedPaths(affectedReadSurfaces.invitationCreate()),
-    ).toEqual(["/catalog/invitations", "/mypage"]);
+    expect(revalidatedPaths(affectedReadSurfaces.invitationCreate())).toEqual([
+      "/catalog/invitations",
+      "/mypage",
+    ]);
   });
 
   it("materializes dynamic schedule paths without broad route patterns", () => {
