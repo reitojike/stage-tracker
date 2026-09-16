@@ -7,6 +7,7 @@ import {
   evaluateCi,
   evaluatePostPrConvergence,
   evaluateReview,
+  latestReviewRequestObservation,
   shouldStopBeforeConvergence,
 } from './lib/postPrConvergence.mjs';
 
@@ -351,21 +352,8 @@ function requestReview(repo, prNumber, headSha) {
   ]);
 }
 
-function observedReviewRequestStart(review) {
-  const requests = review.currentRequests ?? [];
-  const latest = [...requests]
-    .sort((left, right) => {
-      const leftTime = left.created_at ?? left.createdAt ?? left.updated_at ?? left.updatedAt ?? '';
-      const rightTime =
-        right.created_at ?? right.createdAt ?? right.updated_at ?? right.updatedAt ?? '';
-      return String(leftTime).localeCompare(String(rightTime));
-    })
-    .at(-1);
-  if (latest === undefined) return null;
-  const timestamp = Date.parse(
-    String(latest.created_at ?? latest.createdAt ?? latest.updated_at ?? latest.updatedAt ?? ''),
-  );
-  return Number.isNaN(timestamp) ? null : timestamp;
+function observedReviewRequest(review) {
+  return latestReviewRequestObservation(review.currentRequests ?? []);
 }
 
 function extractRunId(detailsUrl) {
@@ -424,6 +412,7 @@ async function converge({ repo, prNumber, options }) {
   let previousHead = null;
   let ciStartedAt = Date.now();
   let reviewStartedAt = null;
+  let reviewRequestIdentity = null;
   const headChanges = [];
   let reviewRequestUrl = null;
 
@@ -445,6 +434,7 @@ async function converge({ repo, prNumber, options }) {
       });
       ciStartedAt = Date.now();
       reviewStartedAt = null;
+      reviewRequestIdentity = null;
       reviewRequestUrl = null;
     }
     previousHead = currentHead;
@@ -506,6 +496,7 @@ async function converge({ repo, prNumber, options }) {
           return holdForGitHubError(error, 'requesting the current-head Codex review');
         }
         reviewStartedAt = Date.now();
+        reviewRequestIdentity = null;
         if (options.once) {
           return {
             ...report,
@@ -516,8 +507,19 @@ async function converge({ repo, prNumber, options }) {
             reviewRequestUrl,
           };
         }
-      } else if (reviewStartedAt === null) {
-        reviewStartedAt = observedReviewRequestStart(review) ?? Date.now();
+      } else {
+        const currentReviewRequest = observedReviewRequest(review);
+        if (
+          currentReviewRequest !== null &&
+          (reviewRequestIdentity === null ||
+            currentReviewRequest.identity !== reviewRequestIdentity)
+        ) {
+          reviewStartedAt = currentReviewRequest.timestamp ?? Date.now();
+          reviewRequestIdentity = currentReviewRequest.identity;
+        } else if (reviewStartedAt === null) {
+          reviewStartedAt = currentReviewRequest?.timestamp ?? Date.now();
+          reviewRequestIdentity = currentReviewRequest?.identity ?? null;
+        }
       }
 
       if (options.once) {

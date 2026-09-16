@@ -73,8 +73,10 @@ After a correction, verify locally, push the new head, increment
 `--correction-attempt`, and rerun the command. Do not reuse evidence from the
 old head. A newer review request for the same head also invalidates an earlier
 no-findings result; the command remains pending until a result newer than that
-request is observed. If the correction ceiling is exceeded, the command
-returns `HOLD` before waiting for CI or requesting another review.
+request is observed. Equal or unparseable timestamps fail closed. A newer
+request also starts a fresh review wait window. If the correction ceiling is
+exceeded, the command returns `HOLD` before waiting for CI or requesting
+another review.
 
 Missing, pending, unknown, failed, timed-out, or differently-bound evidence
 always produces `HOLD`. GitHub authentication/API failure also produces

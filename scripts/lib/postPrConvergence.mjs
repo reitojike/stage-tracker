@@ -61,6 +61,20 @@ function observationTimestamp(observation) {
   return null;
 }
 
+export function latestReviewRequestObservation(requests = []) {
+  const latest = latestObservation(requests);
+  if (latest === undefined) return null;
+
+  const identity =
+    latest.id ??
+    latest.node_id ??
+    `${latest.created_at ?? latest.createdAt ?? ''}:${latest.body ?? ''}`;
+  return {
+    identity: String(identity),
+    timestamp: observationTimestamp(latest),
+  };
+}
+
 function latestObservation(observations) {
   return [...observations].sort((left, right) => {
     const leftTime =
@@ -310,7 +324,9 @@ export function evaluateReview({
     latestResultIsNoFindings && latestCurrentReviewRequest !== undefined;
   const reviewResultTimestampUnknown =
     reviewResultRequiresFreshness &&
-    (latestReviewResultTimestamp === null || latestReviewRequestTimestamp === null);
+    (latestReviewResultTimestamp === null ||
+      latestReviewRequestTimestamp === null ||
+      latestReviewResultTimestamp === latestReviewRequestTimestamp);
   const reviewResultIsStale =
     reviewResultRequiresFreshness &&
     latestReviewResultTimestamp !== null &&

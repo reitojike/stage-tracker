@@ -6,6 +6,7 @@ import {
   evaluateCi,
   evaluatePostPrConvergence,
   evaluateReview,
+  latestReviewRequestObservation,
   shouldStopBeforeConvergence,
 } from './postPrConvergence.mjs';
 
@@ -276,6 +277,29 @@ test('a newer review request invalidates an earlier no-findings result', () => {
   assert.equal(review.evidence.length, 0);
 });
 
+test('equal-time review request and result ordering is fail-closed', () => {
+  const review = evaluateReview({
+    headSha: HEAD_A,
+    reviews: [],
+    comments: [
+      {
+        user: { login: CODEX_REVIEW_ACTOR },
+        created_at: '2026-09-16T10:00:00Z',
+        body: `Codex Review: Didn't find any major issues. Reviewed commit: ${HEAD_A}`,
+      },
+      {
+        user: { login: 'reitojike' },
+        created_at: '2026-09-16T10:00:00Z',
+        body: `@codex review\n\nReviewed commit: ${HEAD_A}`,
+      },
+    ],
+    reviewThreads: [],
+  });
+
+  assert.equal(review.status, 'unknown');
+  assert.match(review.reason, /ordering/iu);
+});
+
 test('a no-findings result after the latest review request clears the head', () => {
   const review = evaluateReview({
     headSha: HEAD_A,
@@ -296,6 +320,16 @@ test('a no-findings result after the latest review request clears the head', () 
   });
 
   assert.equal(review.status, 'green');
+});
+
+test('latest review request observation exposes a stable identity for timer resets', () => {
+  assert.deepEqual(
+    latestReviewRequestObservation([
+      { id: 1, created_at: '2026-09-16T10:00:00Z', body: '@codex review' },
+      { id: 2, created_at: '2026-09-16T10:01:00Z', body: '@codex review' },
+    ]),
+    { identity: '2', timestamp: Date.parse('2026-09-16T10:01:00Z') },
+  );
 });
 
 test('review evidence unknown is fail-closed', () => {
