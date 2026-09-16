@@ -24,7 +24,7 @@ export const REQUIRED_CI_CHECKS = Object.freeze([
 
 // This is the review surface currently exercised by this repository. It is
 // intentionally project-local rather than a provider abstraction.
-export const CODEX_REVIEW_ACTOR = 'chatgpt-codex-connector';
+export const CODEX_REVIEW_ACTOR = 'chatgpt-codex-connector[bot]';
 export const CODEX_REVIEW_TRIGGER = '@codex review';
 
 const SUCCESS_CONCLUSIONS = new Set(['success']);
