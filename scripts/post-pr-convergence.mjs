@@ -7,6 +7,7 @@ import {
   evaluateCi,
   evaluatePostPrConvergence,
   evaluateReview,
+  shouldStopBeforeConvergence,
 } from './lib/postPrConvergence.mjs';
 
 const REPO_PATTERN = /^[^/\s]+\/[^/\s]+$/u;
@@ -476,7 +477,7 @@ async function converge({ repo, prNumber, options }) {
       inlineComments: snapshot.inlineComments,
     };
 
-    if (result.phase === 'pr') return report;
+    if (shouldStopBeforeConvergence(result)) return report;
     if (ci.status === 'failed') {
       return {
         ...report,

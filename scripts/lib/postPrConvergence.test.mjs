@@ -6,6 +6,7 @@ import {
   evaluateCi,
   evaluatePostPrConvergence,
   evaluateReview,
+  shouldStopBeforeConvergence,
 } from './postPrConvergence.mjs';
 
 const HEAD_A = 'a'.repeat(40);
@@ -251,6 +252,52 @@ test('a newer non-clearing Codex result does not get masked by an earlier succes
   assert.match(review.evidence[0].body, /Found a possible issue/iu);
 });
 
+test('a newer review request invalidates an earlier no-findings result', () => {
+  const review = evaluateReview({
+    headSha: HEAD_A,
+    reviews: [],
+    comments: [
+      {
+        user: { login: CODEX_REVIEW_ACTOR },
+        created_at: '2026-09-16T10:00:00Z',
+        body: `Codex Review: Didn't find any major issues. Reviewed commit: ${HEAD_A}`,
+      },
+      {
+        user: { login: 'reitojike' },
+        created_at: '2026-09-16T10:01:00Z',
+        body: `@codex review\n\nReviewed commit: ${HEAD_A}`,
+      },
+    ],
+    reviewThreads: [],
+  });
+
+  assert.equal(review.status, 'pending');
+  assert.equal(review.currentRequests.length, 1);
+  assert.equal(review.evidence.length, 0);
+});
+
+test('a no-findings result after the latest review request clears the head', () => {
+  const review = evaluateReview({
+    headSha: HEAD_A,
+    reviews: [],
+    comments: [
+      {
+        user: { login: 'reitojike' },
+        created_at: '2026-09-16T10:00:00Z',
+        body: `@codex review\n\nReviewed commit: ${HEAD_A}`,
+      },
+      {
+        user: { login: CODEX_REVIEW_ACTOR },
+        created_at: '2026-09-16T10:01:00Z',
+        body: `Codex Review: Didn't find any major issues. Reviewed commit: ${HEAD_A}`,
+      },
+    ],
+    reviewThreads: [],
+  });
+
+  assert.equal(review.status, 'green');
+});
+
 test('review evidence unknown is fail-closed', () => {
   const ci = evaluateCi({
     headSha: HEAD_A,
@@ -291,6 +338,13 @@ test('correction retry ceiling is enforced', () => {
   assert.equal(result.status, 'HOLD');
   assert.equal(result.phase, 'correction');
   assert.match(result.reason, /ceiling/iu);
+});
+
+test('correction and PR phases stop before external convergence actions', () => {
+  assert.equal(shouldStopBeforeConvergence({ phase: 'correction' }), true);
+  assert.equal(shouldStopBeforeConvergence({ phase: 'pr' }), true);
+  assert.equal(shouldStopBeforeConvergence({ phase: 'ci' }), false);
+  assert.equal(shouldStopBeforeConvergence({ phase: 'review' }), false);
 });
 
 test('wrong base branch is not merge-ready', () => {

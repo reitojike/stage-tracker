@@ -42,6 +42,24 @@ const REVIEWED_COMMIT_PATTERN = /reviewed commit:\*{0,2}\s*`?([0-9a-f]{7,40})`?/
 const NO_FINDINGS_PATTERN =
   /didn't find any major issues|no (?:major )?issues|no actionable findings|no findings/iu;
 const REVIEW_FAILURE_PATTERN = /encountered an error|review failed|unable to complete/iu;
+const OBSERVATION_TIME_FIELDS = Object.freeze([
+  'submitted_at',
+  'submittedAt',
+  'created_at',
+  'createdAt',
+  'updated_at',
+  'updatedAt',
+]);
+
+function observationTimestamp(observation) {
+  for (const field of OBSERVATION_TIME_FIELDS) {
+    const value = observation?.[field];
+    if (value === undefined || value === null || String(value).length === 0) continue;
+    const timestamp = Date.parse(String(value));
+    if (!Number.isNaN(timestamp)) return timestamp;
+  }
+  return null;
+}
 
 function latestObservation(observations) {
   return [...observations].sort((left, right) => {
@@ -282,9 +300,24 @@ export function evaluateReview({
         .includes(CODEX_REVIEW_TRIGGER),
   );
   const latestCurrentReviewComment = latestObservation(currentReviewComments);
-  const currentNoFindings =
+  const latestCurrentReviewRequest = latestObservation(currentRequests);
+  const latestResultIsNoFindings =
     latestCurrentReviewComment !== undefined &&
-    NO_FINDINGS_PATTERN.test(latestCurrentReviewComment.body ?? '')
+    NO_FINDINGS_PATTERN.test(latestCurrentReviewComment.body ?? '');
+  const latestReviewResultTimestamp = observationTimestamp(latestCurrentReviewComment);
+  const latestReviewRequestTimestamp = observationTimestamp(latestCurrentReviewRequest);
+  const reviewResultRequiresFreshness =
+    latestResultIsNoFindings && latestCurrentReviewRequest !== undefined;
+  const reviewResultTimestampUnknown =
+    reviewResultRequiresFreshness &&
+    (latestReviewResultTimestamp === null || latestReviewRequestTimestamp === null);
+  const reviewResultIsStale =
+    reviewResultRequiresFreshness &&
+    latestReviewResultTimestamp !== null &&
+    latestReviewRequestTimestamp !== null &&
+    latestReviewResultTimestamp < latestReviewRequestTimestamp;
+  const currentNoFindings =
+    latestResultIsNoFindings && !reviewResultTimestampUnknown && !reviewResultIsStale
       ? [latestCurrentReviewComment]
       : [];
   const currentFailures =
@@ -357,6 +390,34 @@ export function evaluateReview({
     };
   }
 
+  if (reviewResultTimestampUnknown) {
+    return {
+      status: 'unknown',
+      reason: 'current-head review result/request ordering could not be established',
+      evidence: [],
+      unresolvedThreads,
+      currentReviewObjects,
+      currentReviewComments,
+      currentRequests,
+      oldReviewObjects,
+      currentFailures,
+    };
+  }
+
+  if (reviewResultIsStale) {
+    return {
+      status: 'pending',
+      reason: 'a newer current-head Codex review was requested after the latest no-findings result',
+      evidence: [],
+      unresolvedThreads,
+      currentReviewObjects,
+      currentReviewComments,
+      currentRequests,
+      oldReviewObjects,
+      currentFailures,
+    };
+  }
+
   if (currentNoFindings.length > 0) {
     return {
       status: 'green',
@@ -392,6 +453,10 @@ export function evaluateReview({
     oldReviewObjects,
     currentFailures,
   };
+}
+
+export function shouldStopBeforeConvergence(result) {
+  return result?.phase === 'pr' || result?.phase === 'correction';
 }
 
 /**
