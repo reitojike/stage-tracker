@@ -8,6 +8,7 @@ import {
   type ParticipationStatus,
   type ParticipationWriteTransition,
 } from "@stage-tracker/domain";
+import { StatePanel } from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
   Sheet,
@@ -76,9 +77,11 @@ export function ParticipationControls({
 
   if (participationUnavailable) {
     return (
-      <p className="text-body-sm text-muted-foreground">
-        参加状況を読み込めませんでした。
-      </p>
+      <StatePanel
+        variant="error"
+        title="参加状況を読み込めませんでした"
+        description="時間をおいてもう一度お試しください。"
+      />
     );
   }
 

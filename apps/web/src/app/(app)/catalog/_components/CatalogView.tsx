@@ -11,6 +11,7 @@ import {
   ClearFilterButton,
   FilterButton,
   MonthNavigation,
+  PageHeading,
   RadioChip,
   RadioGroup,
   StatePanel,
@@ -343,9 +344,7 @@ export function CatalogView({
   return (
     <div className="flex flex-col gap-section">
       <div className="flex min-h-11 items-start justify-between gap-sm">
-        <h1 className="min-w-0 flex-1 text-heading font-semibold text-foreground">
-          イベント
-        </h1>
+        <PageHeading className="min-w-0 flex-1">イベント</PageHeading>
         {filterOptionsResult.ok ? (
           <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
             <SheetTrigger
@@ -464,15 +463,14 @@ export function CatalogView({
           ) : null}
 
           {isFilteredZero ? (
-            <StatePanel
-              variant="empty"
-              title="条件に合うイベントがありません"
-              action={
-                <Button type="button" variant="secondary" onClick={resetFilter}>
-                  条件を解除する
-                </Button>
-              }
-            />
+            <div className="flex flex-col items-start gap-sm">
+              <p className="text-body-sm text-muted-foreground">
+                条件に合うイベントがありません
+              </p>
+              <Button type="button" variant="secondary" onClick={resetFilter}>
+                条件を解除する
+              </Button>
+            </div>
           ) : null}
 
           {selectedDate !== null && !isFilteredZero ? (

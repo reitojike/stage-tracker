@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
+import { PageHeading } from './page-heading';
 import { StatePanel } from './state-panel';
 import { AppShell } from './app-shell';
 
@@ -22,7 +23,7 @@ export const Default: Story = {
   args: {
     children: (
       <>
-        <h1 className="text-heading font-semibold">ホーム</h1>
+        <PageHeading>ホーム</PageHeading>
         <p className="text-body-sm text-muted-foreground">コンテンツ領域はここに描画される。</p>
       </>
     ),

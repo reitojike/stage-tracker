@@ -10,6 +10,7 @@ import {
   LinkButton,
   ListRowLink,
   MonthNavigation,
+  PageHeading,
   StatePanel,
 } from "@stage-tracker/ui";
 import { cn } from "cn";
@@ -127,16 +128,6 @@ function selectScheduleGroupsForScope(
   return items.length === 0 ? [] : [{ date: selectedDate, items }];
 }
 
-function isConfirmedEmptyAtScope<T>(
-  state: BlockState<T>,
-  scopedGroupCount: number,
-): boolean {
-  return (
-    state.variant === "empty" ||
-    (state.variant === "populated" && scopedGroupCount === 0)
-  );
-}
-
 /**
  * `/calendar`'s presentational layer. Read classification stays at the two
  * independent `BlockState`s owned by the loader; this component only projects
@@ -167,13 +158,22 @@ export function CalendarView({
     scheduleState.variant === "populated"
       ? selectScheduleGroupsForScope(scheduleIndex, month, selectedDate, userId)
       : [];
-  const bothTrulyEmpty =
-    isConfirmedEmptyAtScope(occurrenceState, occurrenceGroups.length) &&
-    isConfirmedEmptyAtScope(scheduleState, scheduleGroups.length);
+  const bothReadEmpty =
+    occurrenceState.variant === "empty" && scheduleState.variant === "empty";
+  const hasReadFailure =
+    occurrenceState.variant === "error" ||
+    occurrenceState.variant === "unavailable" ||
+    scheduleState.variant === "error" ||
+    scheduleState.variant === "unavailable";
+  const showMonthScheduleAdd =
+    selectedDate === null &&
+    !hasReadFailure &&
+    occurrenceGroups.length === 0 &&
+    scheduleGroups.length === 0;
 
   return (
     <div className="flex flex-col gap-section">
-      <h1 className="text-heading font-semibold text-foreground">カレンダー</h1>
+      <PageHeading>カレンダー</PageHeading>
 
       <MonthNavigation
         label={formatMonthJa(formatMonthParam(month))}
@@ -198,7 +198,7 @@ export function CalendarView({
         </h2>
       ) : null}
 
-      {bothTrulyEmpty ? (
+      {bothReadEmpty ? (
         <StatePanel
           variant="empty"
           title={
@@ -224,6 +224,8 @@ export function CalendarView({
           />
           {selectedDate !== null ? (
             <ScheduleAddLink selectedDate={selectedDate} />
+          ) : showMonthScheduleAdd ? (
+            <ScheduleAddLink selectedDate={null} />
           ) : null}
         </>
       )}

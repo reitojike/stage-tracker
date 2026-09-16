@@ -11,6 +11,7 @@ import {
   ListRowActions,
   ListRowChevron,
   ListRowOverlayLink,
+  PageHeading,
   StatePanel,
 } from "@stage-tracker/ui";
 import {
@@ -66,7 +67,7 @@ export function TicketsView({ state, today }: TicketsViewProps) {
 
   return (
     <div className="flex flex-col gap-section">
-      <h1 className="text-heading font-semibold text-foreground">チケット</h1>
+      <PageHeading>チケット</PageHeading>
 
       {block.variant !== "populated" ? (
         <StatePanel
