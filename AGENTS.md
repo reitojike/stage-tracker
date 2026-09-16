@@ -17,6 +17,9 @@ policy bundle.
 - Current structure and boundaries live in
   [`docs/architecture/`](docs/architecture/).
 - Current operational procedures live in [`docs/runbooks/`](docs/runbooks/).
+- For Task Contracts that explicitly require merge-ready, use the bounded
+  continuation in [`docs/runbooks/post-pr-convergence.md`](docs/runbooks/post-pr-convergence.md)
+  after PR creation; its `MERGE_READY` result is the stop boundary.
 - Mechanical correctness and safety are enforced by executable configuration,
   tests, and CI. The normal repository verification entry point is
   [`pnpm run verify`](package.json); inspect the applicable workflow in
@@ -53,6 +56,10 @@ policy bundle.
   authority index, compatibility layer, generated/sync router, or equivalent
   process machinery without a demonstrated project need recorded in the
   canonical task context.
+- A merge-ready Task Contract treats PR creation as an intermediate checkpoint
+  and continues into the bounded post-PR phase without an additional user
+  prompt. This does not override read-only, report-plus-STOP, or explicit
+  PR-creation STOP contracts.
 - This router does not revive the retired Foundation-generated guidance,
   external checkout/pin/sync dependency, or provider/model-specific operating
   rules. If a capability is genuinely missing, record the evidence in the task
