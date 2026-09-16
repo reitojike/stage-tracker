@@ -34,9 +34,11 @@ policy bundle.
 - A Spec Kit artifact generated while implementing a task is a work artifact
   until the repository explicitly designates it as a current Living Spec. Do
   not infer current product authority from a filename alone.
-- `docs/v2/**` and other migration-era or historical documents are discoverable
-  evidence, not current normative authority, unless the document explicitly
-  says it is current. Historical intent belongs to GitHub and Git.
+- Migration-era or historical documents are supporting/history rather than
+  current normative authority for topics whose authority cutover is complete.
+  Do not infer historical status from the `docs/v2` path alone; mixed documents
+  remain source material until their current content is extracted or superseded.
+  Historical intent belongs to GitHub and Git.
 - The public application keeps its product and data boundaries in the current
   Living Spec, architecture, schema, tests, and CI. When these responsibilities
   appear to disagree, re-read the canonical artifacts and the task Issue before
