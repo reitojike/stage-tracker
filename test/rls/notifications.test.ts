@@ -178,7 +178,7 @@ void test('the schema exposes only the MVP contract and a stable recipient order
        from pg_proc
        where oid = 'public.mark_notification_read(uuid)'::regprocedure`,
     );
-    assert.deepEqual(functionSecurity, [{ prosecdef: true, proconfig: ['search_path='] }]);
+    assert.deepEqual(functionSecurity, [{ prosecdef: true, proconfig: ['search_path=""'] }]);
 
     const { rows: functionGrants } = await client.query<{
       authenticated_can_execute: boolean;

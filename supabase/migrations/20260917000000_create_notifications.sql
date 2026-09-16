@@ -87,7 +87,11 @@ begin
   where id = p_notification_id
     and recipient_id = v_actor_id;
 
-  return v_notification;
+  if found then
+    return v_notification;
+  end if;
+
+  return null;
 end;
 $$;
 
