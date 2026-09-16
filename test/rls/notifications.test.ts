@@ -293,7 +293,21 @@ void test('mark_notification_read is recipient-only, idempotent, and keeps canon
     { p_notification_id: notification.id },
   );
   assert.equal(otherError, null);
-  assert.equal(otherResult, null, 'another user must not update or receive the row');
+  // PostgREST serializes a SQL NULL composite return as an object whose
+  // attributes are all null. It carries no row data and, importantly, no
+  // identifier that could reveal another user's Notification.
+  assert.deepEqual(
+    otherResult,
+    {
+      id: null,
+      recipient_id: null,
+      kind: null,
+      source_id: null,
+      created_at: null,
+      read_at: null,
+    },
+    'another user must not update or receive the row',
+  );
 
   const anonymous = createAnonymousClient();
   const { error: anonymousError } = await anonymous.rpc('mark_notification_read', {
