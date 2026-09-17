@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { StatePanel } from "@stage-tracker/ui";
+import { PageHeading, StatePanel } from "@stage-tracker/ui";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isDesignatedCatalogCreator } from "./_data/creatorCapability";
 import { NewEventForm } from "./_components/NewEventForm";
@@ -66,9 +66,7 @@ export default async function NewEventPage({
       >
         ← イベントカタログへ戻る
       </Link>
-      <h1 className="text-heading leading-heading font-semibold text-foreground">
-        イベントを作成
-      </h1>
+      <PageHeading>イベントを作成</PageHeading>
       <NewEventForm />
     </>
   );

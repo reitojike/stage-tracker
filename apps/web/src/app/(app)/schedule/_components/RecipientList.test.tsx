@@ -55,6 +55,18 @@ describe("RecipientList", () => {
     mocks.results.length = 0;
   });
 
+  it("uses the shared empty state for a successful read with no recipients", () => {
+    render(<RecipientList entryId={entryId} recipients={[]} />);
+
+    const panel = screen
+      .getByText("まだ誰とも共有していません")
+      .closest("[data-slot='state-panel']");
+    expect(panel).toHaveAttribute("data-variant", "empty");
+    expect(
+      screen.queryByText("まだ誰とも共有していません。"),
+    ).not.toBeInTheDocument();
+  });
+
   it("gives each recipient removal button a unique accessible name", () => {
     render(<RecipientList entryId={entryId} recipients={recipients} />);
 

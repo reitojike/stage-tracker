@@ -32,7 +32,7 @@ export default async function EditScheduleEntryPage({
       <BackLink href={backHref}>カレンダーへ戻る</BackLink>
       <PageHeading>予定を編集</PageHeading>
       {!entryIdResult.success ? (
-        <StatePanel variant="empty" title="この予定は見つかりませんでした。" />
+        <StatePanel variant="empty" title="この予定は見つかりませんでした" />
       ) : (
         <EditScheduleEntryBody entryId={entryIdResult.data} />
       )}
@@ -55,7 +55,7 @@ async function EditScheduleEntryBody({
     return (
       <StatePanel
         variant="unavailable"
-        title="サインイン状態を確認できませんでした。"
+        title="サインイン状態を確認できませんでした"
         description="再度サインインしてからお試しください。"
       />
     );
@@ -66,19 +66,19 @@ async function EditScheduleEntryBody({
 
   if (entryState.variant === "empty") {
     return (
-      <StatePanel variant="empty" title="この予定は見つかりませんでした。" />
+      <StatePanel variant="empty" title="この予定は見つかりませんでした" />
     );
   }
   if (entryState.variant === "unavailable") {
     return (
-      <StatePanel variant="unavailable" title="この予定を表示できません。" />
+      <StatePanel variant="unavailable" title="この予定を表示できません" />
     );
   }
   if (entryState.variant === "error") {
     return (
       <StatePanel
         variant="error"
-        title="予定を読み込めませんでした。"
+        title="予定を読み込めませんでした"
         description={READ_FAILURE_RETRY_HINT_JA}
       />
     );
@@ -94,7 +94,7 @@ async function EditScheduleEntryBody({
     return (
       <StatePanel
         variant="unavailable"
-        title="この予定を編集する権限がありません。"
+        title="この予定を編集する権限がありません"
         description="この操作は予定の作成者のみ行えます。"
       />
     );

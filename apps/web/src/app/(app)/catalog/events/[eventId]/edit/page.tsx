@@ -1,4 +1,4 @@
-import { StatePanel } from "@stage-tracker/ui";
+import { PageHeading, StatePanel } from "@stage-tracker/ui";
 import { eventIdSchema } from "@stage-tracker/domain";
 import { classifyListReadResult } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -88,9 +88,7 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
 
   return (
     <>
-      <h1 className="text-heading leading-heading font-semibold text-foreground">
-        イベントを編集
-      </h1>
+      <PageHeading>イベントを編集</PageHeading>
       <EditEventForm event={event} occurrences={occurrences} />
     </>
   );

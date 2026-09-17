@@ -15,6 +15,7 @@ import {
   LinkButton,
   ListRow,
   ListRowActions,
+  PageHeading,
   StatePanel,
 } from "@stage-tracker/ui";
 import { classifyListReadResult, listMyParticipations } from "@/lib/data";
@@ -157,9 +158,9 @@ export default async function EventDetailPage({
 
       <header className="flex flex-wrap items-center justify-between gap-sm border-b-2 border-foreground pb-card-block">
         <div className="flex min-w-0 items-center gap-sm">
-          <h1 className="min-w-0 break-words text-heading font-semibold leading-heading text-foreground">
+          <PageHeading className="min-w-0 break-words">
             {eventDetail.event.title}
-          </h1>
+          </PageHeading>
           {isCanceled(eventDetail.event) ? (
             <Badge variant="terminal">中止</Badge>
           ) : null}

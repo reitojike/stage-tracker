@@ -1,4 +1,4 @@
-import { Button } from "@stage-tracker/ui";
+import { Button, PageHeading } from "@stage-tracker/ui";
 import { requestSignInLink } from "./actions";
 import { PasskeySignInButton } from "./_components/PasskeySignInButton";
 
@@ -47,7 +47,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
-      <h1 className="text-2xl font-semibold">サインイン</h1>
+      <PageHeading>サインイン</PageHeading>
 
       {authError ? (
         <div

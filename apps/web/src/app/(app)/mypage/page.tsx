@@ -1,3 +1,4 @@
+import { PageHeading } from "@stage-tracker/ui";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   countMyPendingInvitations,
@@ -23,9 +24,7 @@ export default async function MyPage() {
 
   return (
     <>
-      <h1 className="text-heading leading-heading font-semibold text-foreground">
-        マイページ
-      </h1>
+      <PageHeading>マイページ</PageHeading>
       <ScheduleAndEventSection
         canCreateEvent={canCreateEvent}
         pendingInvitationCount={pendingInvitationCount}
