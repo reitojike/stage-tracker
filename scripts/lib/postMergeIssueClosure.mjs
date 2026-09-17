@@ -8,6 +8,7 @@ const DIRECT_CHECKBOX_PATTERN = /^-\s+\[([ xX])\]\s+(.+?)\s*$/u;
 const CHECKBOX_MARKER_PATTERN = /\[[ xX]\]/u;
 const LEVEL_TWO_HEADING_PATTERN = /^##(?:\s|$)/u;
 const NESTED_HEADING_PATTERN = /^###[ \t]*/u;
+const ACCEPTANCE_CRITERIA_LINE_PATTERN = /^## Acceptance Criteria[ \t]*$/u;
 const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})(.*)$/u;
 const RAW_HTML_BLOCK_START_PATTERN = /^\s{0,3}<(?:\/?[A-Za-z]|[!?])/u;
 const HTML_COMMENT_START_PATTERN = /^\s*<!--/u;
@@ -132,6 +133,15 @@ function maskNonRenderedLines(lines) {
         lines: [],
       };
     }
+    if (
+      !ACCEPTANCE_CRITERIA_LINE_PATTERN.test(line) &&
+      ACCEPTANCE_CRITERIA_LINE_PATTERN.test(stripped.line)
+    ) {
+      return {
+        error: 'HTML comments cannot change Acceptance Criteria heading syntax',
+        lines: [],
+      };
+    }
     if (blockHtmlLine && !stripped.inComment && stripped.line.trim().length > 0) {
       return {
         error: 'block HTML with trailing text makes the Issue body ambiguous',
@@ -166,9 +176,8 @@ export function parseAcceptanceCriteria(body) {
   const rendered = maskNonRenderedLines(lines);
   if (rendered.error !== null) return ambiguous(rendered.error);
   const visibleLines = rendered.lines.map((line) => line ?? '');
-  const headingPattern = /^## Acceptance Criteria[ \t]*$/u;
   const headingIndexes = visibleLines.flatMap((line, index) =>
-    headingPattern.test(line) ? [index] : [],
+    ACCEPTANCE_CRITERIA_LINE_PATTERN.test(line) ? [index] : [],
   );
 
   if (headingIndexes.length !== 1) {
