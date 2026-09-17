@@ -80,7 +80,7 @@ export function ParticipationControls({
       <StatePanel
         variant="error"
         title="参加状況を読み込めませんでした"
-        description="時間をおいてもう一度お試しください。"
+        description="しばらくしてから再度お試しください。"
       />
     );
   }

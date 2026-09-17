@@ -31,6 +31,9 @@ describe("ParticipationControls", () => {
     expect(
       screen.getByText("参加状況を読み込めませんでした"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("しばらくしてから再度お試しください。"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveAttribute("data-variant", "error");
     expect(
       screen.queryByRole("button", { name: "変更" }),
