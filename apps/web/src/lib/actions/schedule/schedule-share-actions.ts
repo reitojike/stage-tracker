@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -10,6 +9,10 @@ import {
 } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 import {
   addScheduleShareByEmail,
   findOwnScheduleShareId,
@@ -53,7 +56,9 @@ export const addScheduleShareByEmailAction = authActionClient
       parsedInput.entryId,
       parsedInput.recipientEmail,
     );
-    revalidatePath(`/schedule/${parsedInput.entryId}`);
+    revalidateReadSurfaces(
+      affectedReadSurfaces.scheduleShareWrite(parsedInput.entryId),
+    );
   });
 
 /**
@@ -61,7 +66,7 @@ export const addScheduleShareByEmailAction = authActionClient
  * （`docs/v2/oracle-routes-ui.md` §1 `removeScheduleShareAsOwnerAction`）。
  * 「owner の recipient『解除』は確認なしの即時実行」（同 §2）につき、
  * 削除（entry 自体の hard delete）とは異なり画面に留まる - `redirect` せず
- * `revalidatePath` のみ。
+ * affected read surface の再検証のみ。
  */
 const removeScheduleShareAsOwnerInputSchema = z.object({
   entryId: personalScheduleEntryIdSchema,
@@ -76,7 +81,9 @@ export const removeScheduleShareAsOwnerAction = authActionClient
       parsedInput.entryId,
       parsedInput.shareId,
     );
-    revalidatePath(`/schedule/${parsedInput.entryId}`);
+    revalidateReadSurfaces(
+      affectedReadSurfaces.scheduleShareWrite(parsedInput.entryId),
+    );
   });
 
 /**
@@ -118,6 +125,8 @@ export const removeScheduleShareAction = authActionClient
       throw new ActionError("not-found", "対象の共有が見つかりませんでした。");
     }
     await removeScheduleShare(ctx.supabase, parsedInput.entryId, ownShareId);
-    revalidatePath(CALENDAR_PATH);
+    revalidateReadSurfaces(
+      affectedReadSurfaces.scheduleShareWrite(parsedInput.entryId),
+    );
     redirect(CALENDAR_PATH);
   });

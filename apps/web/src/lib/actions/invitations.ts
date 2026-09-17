@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   invitationIdSchema,
@@ -11,6 +10,10 @@ import { ActionError } from "@/lib/action-error";
 import { authActionClient } from "@/lib/safe-action";
 import { setParticipationChoice } from "./participation";
 import { classifyPostgrestLikeError } from "./postgrest-error";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 
 /**
  * `/catalog/invitations` の書き込み層
@@ -53,12 +56,25 @@ export const acceptInvitationAction = authActionClient
       throw new ActionError(result.error.kind, result.error.message);
     }
 
-    revalidatePath("/catalog/invitations");
-    revalidatePath("/mypage");
-    revalidatePath("/calendar");
-    // ホームの「直近の予定」も listMyParticipations を読むので、
-    // setParticipationChoiceAction と同じ範囲を再検証する。
-    revalidatePath("/");
+    // Accept is the same attending transition as the generic participation
+    // action, including the trigger-driven invitation convergence. The
+    // invitation action only has an occurrence id, so resolve the concrete
+    // event-detail path without changing the write boundary or result shape.
+    const { data: occurrence } = await ctx.supabase
+      .from("event_occurrences")
+      .select("event_id")
+      .eq("id", parsedInput.occurrenceId)
+      .maybeSingle();
+    if (occurrence === null) {
+      revalidateReadSurfaces(affectedReadSurfaces.participationConvergence());
+    } else {
+      revalidateReadSurfaces(
+        affectedReadSurfaces.participationWrite(
+          occurrence.event_id,
+          "attending",
+        ),
+      );
+    }
     return { ok: true as const };
   });
 
@@ -104,8 +120,7 @@ export const declineInvitationAction = authActionClient
       throw classifyPostgrestLikeError(error);
     }
 
-    revalidatePath("/catalog/invitations");
-    revalidatePath("/mypage");
+    revalidateReadSurfaces(affectedReadSurfaces.invitationDecline());
 
     const parsed = declinedInvitationRowSchema.safeParse(data);
     const snapshot: DeclinedInvitationSnapshotOutput | null = parsed.success
