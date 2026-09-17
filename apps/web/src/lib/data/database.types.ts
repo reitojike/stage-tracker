@@ -205,6 +205,33 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at: string | null
+          recipient_id: string
+          source_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          recipient_id: string
+          source_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          recipient_id?: string
+          source_id?: string
+        }
+        Relationships: []
+      }
       occurrence_invitations: {
         Row: {
           created_at: string
@@ -723,6 +750,23 @@ export type Database = {
           shared_at: string
         }[]
       }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at: string | null
+          recipient_id: string
+          source_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "notifications"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reschedule_event: {
         Args: {
           p_ends_on: string
@@ -764,6 +808,7 @@ export type Database = {
       }
     }
     Enums: {
+      notification_kind: "invitation_received"
       participation_status: "considering" | "attending"
       participation_visibility: "private" | "public"
     }
@@ -893,6 +938,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      notification_kind: ["invitation_received"],
       participation_status: ["considering", "attending"],
       participation_visibility: ["private", "public"],
     },

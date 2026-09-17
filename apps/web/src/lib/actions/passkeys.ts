@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -11,6 +10,10 @@ import {
 import { env } from "@/env";
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 
 /**
  * `/mypage` の Passkey 削除（`docs/v2/oracle-routes-ui.md` §1 `/mypage`）。
@@ -83,6 +86,6 @@ export const deletePasskeyAction = authActionClient
       throw new ActionError("failure", "Passkeyの削除に失敗しました。");
     }
 
-    revalidatePath("/mypage");
+    revalidateReadSurfaces(affectedReadSurfaces.passkeyDelete());
     return { ok: true as const };
   });

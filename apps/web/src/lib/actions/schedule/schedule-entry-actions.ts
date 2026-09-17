@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -20,6 +19,10 @@ import {
   updatePersonalScheduleEntry,
 } from "./schedule-entry-write";
 import { ActionError } from "@/lib/action-error";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 
 /**
  * `docs/v2/oracle-routes-ui.md` §1 の補足: 「schedule 系は成功時に必ず
@@ -57,7 +60,7 @@ export const createScheduleEntryAction = authActionClient
         temporal,
       },
     );
-    revalidatePath(CALENDAR_PATH);
+    revalidateReadSurfaces(affectedReadSurfaces.scheduleEntryCreate());
     redirect(CALENDAR_PATH);
   });
 
@@ -71,8 +74,9 @@ export const updateScheduleEntryAction = authActionClient
       blocking: parsedInput.blocking,
       temporal,
     });
-    revalidatePath(CALENDAR_PATH);
-    revalidatePath(`/schedule/${parsedInput.entryId}`);
+    revalidateReadSurfaces(
+      affectedReadSurfaces.scheduleEntryWrite(parsedInput.entryId),
+    );
     redirect(CALENDAR_PATH);
   });
 
@@ -84,6 +88,8 @@ export const deleteScheduleEntryAction = authActionClient
   .inputSchema(deleteScheduleEntryInputSchema)
   .action(async ({ parsedInput, ctx }) => {
     await deletePersonalScheduleEntry(ctx.supabase, parsedInput.entryId);
-    revalidatePath(CALENDAR_PATH);
+    revalidateReadSurfaces(
+      affectedReadSurfaces.scheduleEntryDelete(parsedInput.entryId),
+    );
     redirect(CALENDAR_PATH);
   });
