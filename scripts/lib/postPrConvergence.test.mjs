@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   CODEX_REVIEW_ACTOR,
+  POST_PR_POLICY,
   REQUIRED_CI_CHECKS,
   evaluateCi,
   evaluatePostPrConvergence,
@@ -447,6 +448,10 @@ test('correction retry ceiling is enforced', () => {
 test('correction and PR phases stop before external convergence actions', () => {
   assert.equal(shouldStopBeforeConvergence({ phase: 'correction' }), true);
   assert.equal(shouldStopBeforeConvergence({ phase: 'pr' }), true);
+  assert.equal(
+    shouldStopBeforeConvergence({ phase: 'pr', baseUpToDate: null, retryable: true }),
+    false,
+  );
   assert.equal(shouldStopBeforeConvergence({ phase: 'ci' }), false);
   assert.equal(shouldStopBeforeConvergence({ phase: 'review' }), false);
 });
@@ -485,4 +490,7 @@ test('unknown base freshness is not merge-ready', () => {
   assert.equal(result.status, 'HOLD');
   assert.equal(result.phase, 'pr');
   assert.equal(result.baseUpToDate, null);
+  assert.equal(result.retryable, true);
+  assert.equal(shouldStopBeforeConvergence(result), false);
+  assert.equal(POST_PR_POLICY.baseTimeoutMs, 2 * 60 * 1000);
 });

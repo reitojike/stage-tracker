@@ -9,6 +9,7 @@
 
 export const POST_PR_POLICY = Object.freeze({
   baseBranch: 'main',
+  baseTimeoutMs: 2 * 60 * 1000,
   ciTimeoutMs: 30 * 60 * 1000,
   reviewTimeoutMs: 15 * 60 * 1000,
   correctionRetryCeiling: 2,
@@ -511,7 +512,7 @@ export function evaluateReview({
 }
 
 export function shouldStopBeforeConvergence(result) {
-  return result?.phase === 'pr' || result?.phase === 'correction';
+  return result?.phase === 'correction' || (result?.phase === 'pr' && result?.retryable !== true);
 }
 
 /**
@@ -608,6 +609,7 @@ export function evaluatePostPrConvergence({
       baseBranch,
       baseState: base.state,
       baseUpToDate: null,
+      retryable: true,
       correctionAttempt,
     };
   }

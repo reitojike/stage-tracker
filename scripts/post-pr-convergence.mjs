@@ -409,8 +409,10 @@ function timeoutReport(result, timeout, elapsedMs) {
 async function converge({ repo, prNumber, options }) {
   const ciTimeoutMs = options.ciTimeoutSeconds * 1000;
   const reviewTimeoutMs = options.reviewTimeoutSeconds * 1000;
+  const baseTimeoutMs = POST_PR_POLICY.baseTimeoutMs;
   let previousHead = null;
   let ciStartedAt = Date.now();
+  let baseStartedAt = null;
   let reviewStartedAt = null;
   let reviewRequestIdentity = null;
   const headChanges = [];
@@ -433,6 +435,7 @@ async function converge({ repo, prNumber, options }) {
         observedAt: new Date().toISOString(),
       });
       ciStartedAt = Date.now();
+      baseStartedAt = null;
       reviewStartedAt = null;
       reviewRequestIdentity = null;
       reviewRequestUrl = null;
@@ -468,6 +471,17 @@ async function converge({ repo, prNumber, options }) {
     };
 
     if (shouldStopBeforeConvergence(result)) return report;
+    if (result.retryable === true && result.baseUpToDate === null) {
+      if (options.once) return report;
+      if (baseStartedAt === null) baseStartedAt = Date.now();
+      const baseElapsedMs = Date.now() - baseStartedAt;
+      if (baseElapsedMs >= baseTimeoutMs) {
+        return timeoutReport(report, 'base', baseElapsedMs);
+      }
+      await sleep(options.pollSeconds);
+      continue;
+    }
+    baseStartedAt = null;
     if (ci.status === 'failed') {
       return {
         ...report,
