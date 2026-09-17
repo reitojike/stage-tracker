@@ -20,7 +20,6 @@ import {
   type ParticipationRow,
 } from "../mappers/participationRow";
 import { mapRows } from "../row-mapping";
-import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
 import { runKeysetSupabaseSelect } from "../paged-select";
 
