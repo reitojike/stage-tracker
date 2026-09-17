@@ -100,6 +100,22 @@ test('non-rendered Acceptance Criteria text is ambiguous', () => {
   assert.equal(parseAcceptanceCriteria(`${body()}\n<!-- unfinished`).status, 'ambiguous');
 });
 
+test('inline HTML comments preserve visible section boundaries', () => {
+  const source = [
+    '## Acceptance Criteria',
+    '- [x] visible criterion',
+    '## Notes <!-- explanation -->',
+    '- [x] unrelated checkbox',
+  ].join('\n');
+  const parsed = parseAcceptanceCriteria(source);
+
+  assert.equal(parsed.status, 'clear');
+  assert.deepEqual(
+    parsed.items.map((item) => item.text),
+    ['visible criterion'],
+  );
+});
+
 test('pull-request-shaped Issues API payloads are rejected', () => {
   assert.equal(isPullRequestPayload({ number: 528, pull_request: {} }), true);
   assert.equal(isPullRequestPayload({ number: 527, body: body() }), false);

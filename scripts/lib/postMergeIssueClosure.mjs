@@ -55,6 +55,35 @@ function fenceRun(line) {
   };
 }
 
+function stripHtmlComments(line, inComment) {
+  let visible = '';
+  let cursor = 0;
+  let comment = inComment;
+
+  while (cursor < line.length) {
+    if (comment) {
+      const closeIndex = line.indexOf('-->', cursor);
+      if (closeIndex === -1) return { line: visible, inComment: true };
+      comment = false;
+      cursor = closeIndex + 3;
+      continue;
+    }
+
+    const openIndex = line.indexOf('<!--', cursor);
+    if (openIndex === -1) {
+      visible += line.slice(cursor);
+      return { line: visible, inComment: false };
+    }
+
+    visible += line.slice(cursor, openIndex);
+    const closeIndex = line.indexOf('-->', openIndex + 4);
+    if (closeIndex === -1) return { line: visible, inComment: true };
+    cursor = closeIndex + 3;
+  }
+
+  return { line: visible, inComment: comment };
+}
+
 function maskNonRenderedLines(lines) {
   const visibleLines = [];
   let fence = null;
@@ -82,29 +111,9 @@ function maskNonRenderedLines(lines) {
       continue;
     }
 
-    let hidden = htmlComment;
-    let cursor = 0;
-    while (cursor < line.length) {
-      if (htmlComment) {
-        hidden = true;
-        const closeIndex = line.indexOf('-->', cursor);
-        if (closeIndex === -1) break;
-        htmlComment = false;
-        cursor = closeIndex + 3;
-        continue;
-      }
-
-      const openIndex = line.indexOf('<!--', cursor);
-      if (openIndex === -1) break;
-      hidden = true;
-      const closeIndex = line.indexOf('-->', openIndex + 4);
-      if (closeIndex === -1) {
-        htmlComment = true;
-        break;
-      }
-      cursor = closeIndex + 3;
-    }
-    visibleLines.push(hidden ? null : line);
+    const stripped = stripHtmlComments(line, htmlComment);
+    htmlComment = stripped.inComment;
+    visibleLines.push(stripped.line);
   }
 
   if (fence !== null) {
