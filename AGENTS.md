@@ -69,14 +69,16 @@ policy bundle.
   cross-provider review; do not add another reviewer by default. For a Codex
   implementation, prefer a Claude independent semantic second opinion when
   available, in addition to the required Codex review.
-- Cross-provider review is optional for a normal Task unless the canonical
-  Task Contract explicitly makes it required. Unavailability or lack of
-  machine-observable evidence for an otherwise optional cross-review alone
-  must not block the normal deterministic `MERGE_READY` contract. A high-risk
-  Task (for example auth, RLS, security boundaries, secrets, migrations,
-  destructive data operations, release safety, or the review/convergence
-  mechanism itself) may make cross-provider review required in its Task
-  Contract; this is an explicit task judgment, not a general classifier.
+- Cross-provider review is optional and does not currently form a
+  repository-level required merge gate. For high-risk changes such as auth,
+  RLS, security boundaries, secrets, migrations, destructive data operations,
+  release safety, or the review/convergence mechanism itself, strongly prefer
+  the cross-provider semantic second opinion. Its unavailability or lack of
+  machine-observable evidence alone must not block the normal deterministic
+  `MERGE_READY` contract, which currently requires only the supported Codex
+  review evidence. Do not make cross-provider review required until a safe,
+  fail-closed evidence path can be machine-observed; establish that path in a
+  separate task first.
 - This router does not revive the retired Foundation-generated guidance,
   external checkout/pin/sync dependency, provider/model-specific capability
   rules, reviewer routing, provider abstraction, quorum, or compatibility
