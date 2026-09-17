@@ -8,7 +8,6 @@ import {
   type ParticipationStatus,
   type ParticipationWriteTransition,
 } from "@stage-tracker/domain";
-import { StatePanel } from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
   Sheet,
@@ -30,7 +29,8 @@ export interface ParticipationControlsProps {
    * ことを意味する（`_lib/participationLookup.ts` 参照）。「参加していない」
    * (`initialStatus === null`) とは明確に別状態であり、インタラクティブな
    * 選択肢は出さない（read failure を「未参加」という product 上の意味へ
-   * 化けさせないため）。
+   * 化けさせないため）。親の event detail が read-state の StatePanel を
+   * 既に表示するため、この occurrence row は重複表示しない。
    */
   readonly participationUnavailable: boolean;
   readonly isEffectivelyCanceled: boolean;
@@ -76,13 +76,7 @@ export function ParticipationControls({
   const [isPending, startTransition] = useTransition();
 
   if (participationUnavailable) {
-    return (
-      <StatePanel
-        variant="error"
-        title="参加状況を読み込めませんでした"
-        description="しばらくしてから再度お試しください。"
-      />
-    );
+    return null;
   }
 
   function handleOpenChange(nextOpen: boolean) {
