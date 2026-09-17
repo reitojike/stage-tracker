@@ -31,7 +31,10 @@ describe("listMyParticipations", () => {
   it("classifies a 0-row success as empty (ok with an empty array)", async () => {
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
-        HttpResponse.json([], { status: 200 }),
+        HttpResponse.json([], {
+          status: 200,
+          headers: { "content-range": "*/0" },
+        }),
       ),
     );
 
@@ -78,7 +81,7 @@ describe("listMyParticipations", () => {
               },
             },
           ],
-          { status: 200 },
+          { status: 200, headers: { "content-range": "0-0/1" } },
         ),
       ),
     );
@@ -134,6 +137,74 @@ describe("listMyParticipations", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+    }
+  });
+
+  it("pages through 1001 participations without duplicating or omitting rows", async () => {
+    const eventId = "44444444-4444-4444-8444-444444444444";
+    const occurrenceId = "33333333-3333-4333-8333-333333333333";
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      occurrence_id: occurrenceId,
+      user_id: userId,
+      status: "attending",
+      visibility: "private",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      event_occurrences: {
+        id: occurrenceId,
+        event_id: eventId,
+        starts_at: "2026-03-05T10:00:00Z",
+        ends_at: null,
+        doors_at: null,
+        canceled_at: null,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        events: {
+          id: eventId,
+          owner_id: "55555555-5555-4555-8555-555555555555",
+          title: "テスト興行",
+          venue: null,
+          source_url: null,
+          memo: null,
+          starts_on: "2026-03-01",
+          ends_on: "2026-03-10",
+          canceled_at: null,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      },
+    }));
+    server.use(
+      http.get(`${REST_URL}/occurrence_participations`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("order")).toBe("id.asc");
+        expect(url.searchParams.get("limit")).toBe("500");
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const remaining =
+          cursor === null ? rows : rows.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
+        return HttpResponse.json(page, {
+          status: 200,
+          headers: {
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
+          },
+        });
+      }),
+    );
+
+    const result = await listMyParticipations(createTestClient(), userId);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1001);
+      expect(result.value.at(-1)?.participation.id).toBe(rows.at(-1)?.id);
+      expect(
+        new Set(result.value.map((entry) => entry.participation.id)).size,
+      ).toBe(1001);
     }
   });
 });

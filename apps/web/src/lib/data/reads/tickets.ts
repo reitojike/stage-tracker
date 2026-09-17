@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import type { PostgrestResponse } from "@supabase/supabase-js";
 import {
   err,
   instantSchema,
@@ -28,8 +29,12 @@ import {
 } from "../mappers/ticketRow";
 import { mapOccurrenceRow, type OccurrenceRow } from "../mappers/eventRow";
 import { mapRows } from "../row-mapping";
+import { readError } from "../read-error";
+import { classifyPostgrestError } from "../supabase-select";
 import type { ReadResult } from "../read-result";
-import { runSupabaseSelect } from "../supabase-select";
+import { runKeysetSupabaseSelect } from "../paged-select";
+
+const MAX_TICKET_IMPORT_GENERATION_ATTEMPTS = 2;
 
 export interface TicketOpportunityListRow extends TicketOpportunityRow {
   readonly events: {
@@ -38,11 +43,20 @@ export interface TicketOpportunityListRow extends TicketOpportunityRow {
     readonly canceled_at: string | null;
   } | null;
   readonly ticket_opportunity_target_occurrences: readonly {
+    readonly opportunity_id: string;
     readonly occurrence_id: string;
     readonly event_occurrences: OccurrenceRow | null;
   }[];
   readonly ticket_opportunity_milestones: readonly TicketOpportunityMilestoneRow[];
 }
+
+type TicketOpportunityParentRow = Omit<
+  TicketOpportunityListRow,
+  "ticket_opportunity_target_occurrences" | "ticket_opportunity_milestones"
+>;
+
+type TicketOpportunityTargetRow =
+  TicketOpportunityListRow["ticket_opportunity_target_occurrences"][number];
 
 export interface TicketOpportunityDetail {
   readonly opportunityWithTargets: TicketOpportunityWithTargets;
@@ -52,6 +66,153 @@ export interface TicketOpportunityDetail {
   readonly eventTitle: string;
   readonly eventVenue: string | null;
   readonly targetOccurrences: readonly Occurrence[];
+}
+
+async function listTicketOpportunityParents(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<readonly TicketOpportunityParentRow[]>> {
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
+      .from("ticket_opportunities")
+      .select("*, events(title, venue, canceled_at)", { count: "exact" });
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor
+      .order("id", { ascending: true })
+      .limit(limit)
+      .overrideTypes<TicketOpportunityParentRow[]>();
+  });
+}
+
+async function listTicketOpportunityMilestones(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<readonly TicketOpportunityMilestoneRow[]>> {
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
+      .from("ticket_opportunity_milestones")
+      .select("*", { count: "exact" });
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor
+      .order("id", { ascending: true })
+      .limit(limit)
+      .overrideTypes<TicketOpportunityMilestoneRow[]>();
+  });
+}
+
+interface TicketTargetCursor {
+  readonly opportunity_id: string;
+  readonly occurrence_id: string;
+}
+
+async function listTicketOpportunityTargets(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<readonly TicketOpportunityTargetRow[]>> {
+  const rows: TicketOpportunityTargetRow[] = [];
+  const seenKeys = new Set<string>();
+  let cursor: TicketTargetCursor | null = null;
+
+  for (;;) {
+    let response: PostgrestResponse<TicketOpportunityTargetRow>;
+    try {
+      const query = client
+        .from("ticket_opportunity_target_occurrences")
+        .select("opportunity_id, occurrence_id, event_occurrences(*)", {
+          count: "exact",
+        });
+      if (cursor === null) {
+        response = await query
+          .order("opportunity_id", { ascending: true })
+          .order("occurrence_id", { ascending: true })
+          .limit(500)
+          .overrideTypes<TicketOpportunityTargetRow[]>();
+      } else {
+        response = await query
+          .or(
+            `opportunity_id.gt.${cursor.opportunity_id},and(opportunity_id.eq.${cursor.opportunity_id},occurrence_id.gt.${cursor.occurrence_id})`,
+          )
+          .order("opportunity_id", { ascending: true })
+          .order("occurrence_id", { ascending: true })
+          .limit(500)
+          .overrideTypes<TicketOpportunityTargetRow[]>();
+      }
+    } catch (thrown) {
+      console.error(
+        "[read] unexpected exception during ticket target keyset SELECT",
+        thrown,
+      );
+      return err(readError("failure"));
+    }
+
+    if (response.error !== null) {
+      return err(classifyPostgrestError(response.error, response.status));
+    }
+    if (response.count === null || response.data === null) {
+      console.error(
+        "[read] ticket target keyset SELECT did not report complete response metadata.",
+      );
+      return err(readError("failure"));
+    }
+    if (response.data.length === 0) {
+      if (response.count === 0) {
+        break;
+      }
+      console.error(
+        `[read] ticket target keyset SELECT returned no rows while exact count was ${response.count}.`,
+      );
+      return err(readError("failure"));
+    }
+
+    for (const row of response.data) {
+      const key = `${row.opportunity_id}:${row.occurrence_id}`;
+      if (seenKeys.has(key)) {
+        console.error(
+          `[read] ticket target keyset SELECT returned duplicate key=${key}.`,
+        );
+        return err(readError("failure"));
+      }
+      seenKeys.add(key);
+      rows.push(row);
+    }
+
+    const lastRow: TicketOpportunityTargetRow | undefined =
+      response.data.at(-1);
+    if (lastRow === undefined) {
+      return err(readError("failure"));
+    }
+    const nextCursor: TicketTargetCursor = {
+      opportunity_id: lastRow.opportunity_id,
+      occurrence_id: lastRow.occurrence_id,
+    };
+    if (
+      cursor !== null &&
+      nextCursor.opportunity_id === cursor.opportunity_id &&
+      nextCursor.occurrence_id === cursor.occurrence_id
+    ) {
+      console.error(
+        "[read] ticket target keyset SELECT made no cursor progress.",
+      );
+      return err(readError("failure"));
+    }
+    cursor = nextCursor;
+    if (response.count <= response.data.length) {
+      break;
+    }
+  }
+
+  return ok(rows);
+}
+
+function haveSameTicketImportGeneration(
+  before: readonly TicketOpportunityParentRow[],
+  after: readonly TicketOpportunityParentRow[],
+): boolean {
+  return (
+    before.length === after.length &&
+    before.every(
+      (row, index) =>
+        row.id === after[index]?.id &&
+        row.updated_at === after[index]?.updated_at,
+    )
+  );
 }
 
 const eventDisplaySchema = z.object({
@@ -208,28 +369,112 @@ function mapTicketOpportunityListRow(
  * `ticket_opportunities`/`ticket_opportunity_target_occurrences`/
  * `ticket_opportunity_milestones` はいずれも `using (true)` の shared
  * read-only catalog（`docs/v2/oracle-database.md` §2）なので、
- * authenticated である限り0件は常に「本当に0件」。
+ * authenticated である限り0件は常に「本当に0件」。全3 resource は
+ * exact-count keyset paging で読む。
  *
  * 個人の planning state（`user_ticket_opportunity_states`）は意図的に
  * 別関数（`listMyTicketOpportunityStates`）に分離した。
  * `docs/v2/decisions.md` P4「read ごとに独立して劣化」に従い、shared
  * catalog の読み込みと自分の planning state の読み込みのどちらか片方が
  * 失敗しても、他方は独立して表示継続できるようにするため。
+ *
+ * `events` と target occurrence の `event_occurrences` は各 parent に
+ * 1件の to-one embed なので parent/child pagingで完全性を保てる。一方、
+ * target occurrences と milestones は to-many embed であり、PostgRESTの
+ * parent rangeだけでは子の `max_rows` 到達を検出できない。したがって
+ * parent rowsを先にkeyset readし、to-many resourcesをそれぞれ全件keyset
+ * readしてIDで再結合する。これはparentごとのN+1ではなく、最大3つの
+ * sequential resource scansに限定した最小のquery shapeである。Import RPCは
+ * parent更新時に`updated_at`を更新するため、child scans後にparentのID/
+ * `updated_at`を再読して、対応するimport generationがscan中にcommitした
+ * ことだけを検証する。これはwhole-list snapshot保証ではない。
  */
 export async function listTicketOpportunities(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly TicketOpportunityDetail[]>> {
-  const query = client
-    .from("ticket_opportunities")
-    .select(
-      "*, events(title, venue, canceled_at), ticket_opportunity_target_occurrences(occurrence_id, event_occurrences(*)), ticket_opportunity_milestones(*)",
-    );
+  for (
+    let attempt = 0;
+    attempt < MAX_TICKET_IMPORT_GENERATION_ATTEMPTS;
+    attempt += 1
+  ) {
+    const parentRowsResult = await listTicketOpportunityParents(client);
+    if (!parentRowsResult.ok) {
+      return parentRowsResult;
+    }
 
-  const rowsResult = await runSupabaseSelect(query);
-  if (!rowsResult.ok) {
-    return rowsResult;
+    const parentIds = new Set(parentRowsResult.value.map((row) => row.id));
+    if (parentIds.size === 0) {
+      return ok([]);
+    }
+
+    const targetRowsResult = await listTicketOpportunityTargets(client);
+    if (!targetRowsResult.ok) {
+      return targetRowsResult;
+    }
+
+    const milestoneRowsResult = await listTicketOpportunityMilestones(client);
+    if (!milestoneRowsResult.ok) {
+      return milestoneRowsResult;
+    }
+
+    const verificationRowsResult = await listTicketOpportunityParents(client);
+    if (!verificationRowsResult.ok) {
+      return verificationRowsResult;
+    }
+    if (
+      !haveSameTicketImportGeneration(
+        parentRowsResult.value,
+        verificationRowsResult.value,
+      )
+    ) {
+      if (attempt + 1 < MAX_TICKET_IMPORT_GENERATION_ATTEMPTS) {
+        continue;
+      }
+      console.error(
+        "[read] TicketOpportunity import generation kept changing during child paging; refusing to return an unstable aggregate.",
+      );
+      return err(readError("failure"));
+    }
+
+    const targetsByOpportunity = new Map<
+      string,
+      TicketOpportunityTargetRow[]
+    >();
+    for (const row of targetRowsResult.value) {
+      if (!parentIds.has(row.opportunity_id)) {
+        continue;
+      }
+      const rows = targetsByOpportunity.get(row.opportunity_id) ?? [];
+      rows.push(row);
+      targetsByOpportunity.set(row.opportunity_id, rows);
+    }
+
+    const milestonesByOpportunity = new Map<
+      string,
+      TicketOpportunityMilestoneRow[]
+    >();
+    for (const row of milestoneRowsResult.value) {
+      if (!parentIds.has(row.opportunity_id)) {
+        continue;
+      }
+      const rows = milestonesByOpportunity.get(row.opportunity_id) ?? [];
+      rows.push(row);
+      milestonesByOpportunity.set(row.opportunity_id, rows);
+    }
+
+    const rows: TicketOpportunityListRow[] = parentRowsResult.value.map(
+      (parent) => ({
+        ...parent,
+        ticket_opportunity_target_occurrences:
+          targetsByOpportunity.get(parent.id) ?? [],
+        ticket_opportunity_milestones:
+          milestonesByOpportunity.get(parent.id) ?? [],
+      }),
+    );
+    return mapRows(rows, mapTicketOpportunityListRow);
   }
-  return mapRows(rowsResult.value, mapTicketOpportunityListRow);
+
+  return err(readError("failure"));
 }
 
 /**
@@ -243,12 +488,14 @@ export async function listMyTicketOpportunityStates(
   client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly UserTicketOpportunityState[]>> {
-  const query = client
-    .from("user_ticket_opportunity_states")
-    .select("*")
-    .eq("user_id", userId);
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
+      .from("user_ticket_opportunity_states")
+      .select("*", { count: "exact" })
+      .eq("user_id", userId);
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor.order("id", { ascending: true }).limit(limit);
+  });
   if (!rowsResult.ok) {
     return rowsResult;
   }

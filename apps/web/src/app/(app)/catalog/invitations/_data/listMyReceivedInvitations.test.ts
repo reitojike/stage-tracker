@@ -34,13 +34,15 @@ describe("listMyReceivedInvitations", () => {
           [
             {
               id: "22222222-2222-4222-8222-222222222222",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
               occurrence_id: "33333333-3333-4333-8333-333333333333",
               inviter_id: "44444444-4444-4444-8444-444444444444",
               invitee_id: userId,
               event_occurrences: null,
             },
           ],
-          { status: 200 },
+          { status: 200, headers: { "content-range": "0-0/1" } },
         ),
       ),
     );
@@ -64,6 +66,8 @@ describe("listMyReceivedInvitations", () => {
           [
             {
               id: "22222222-2222-4222-8222-222222222222",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
               occurrence_id: "33333333-3333-4333-8333-333333333333",
               inviter_id: "44444444-4444-4444-8444-444444444444",
               invitee_id: userId,
@@ -96,7 +100,7 @@ describe("listMyReceivedInvitations", () => {
               },
             },
           ],
-          { status: 200 },
+          { status: 200, headers: { "content-range": "0-0/1" } },
         ),
       ),
     );
@@ -106,6 +110,49 @@ describe("listMyReceivedInvitations", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+    }
+  });
+
+  it("pages through 1001 invitations without duplicating or omitting rows", async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      occurrence_id: "33333333-3333-4333-8333-333333333333",
+      inviter_id: "44444444-4444-4444-8444-444444444444",
+      invitee_id: userId,
+      event_occurrences: null,
+    }));
+    server.use(
+      http.get(`${REST_URL}/occurrence_invitations`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("order")).toBe("id.asc");
+        expect(url.searchParams.get("limit")).toBe("500");
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const remaining =
+          cursor === null ? rows : rows.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
+        return HttpResponse.json(page, {
+          status: 200,
+          headers: {
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
+          },
+        });
+      }),
+    );
+
+    const result = await listMyReceivedInvitations(createTestClient(), userId);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1001);
+      expect(result.value.at(-1)?.invitationId).toBe(rows.at(-1)?.id);
+      expect(
+        new Set(result.value.map((invitation) => invitation.invitationId)).size,
+      ).toBe(1001);
     }
   });
 });

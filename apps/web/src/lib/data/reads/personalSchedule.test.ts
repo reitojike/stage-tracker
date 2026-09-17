@@ -28,7 +28,10 @@ describe("listVisiblePersonalSchedule", () => {
   it("classifies a 0-row success as empty (ok with an empty array)", async () => {
     server.use(
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([], { status: 200 }),
+        HttpResponse.json([], {
+          status: 200,
+          headers: { "content-range": "*/0" },
+        }),
       ),
     );
 
@@ -71,7 +74,7 @@ describe("listVisiblePersonalSchedule", () => {
               blocking: false,
             },
           ],
-          { status: 200 },
+          { status: 200, headers: { "content-range": "0-1/2" } },
         ),
       ),
     );
@@ -120,6 +123,53 @@ describe("listVisiblePersonalSchedule", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+    }
+  });
+
+  it("pages through the 1001-row max_rows boundary and returns the final entry", async () => {
+    const ownerId = "22222222-2222-4222-8222-222222222222";
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      owner_id: ownerId,
+      memo: null,
+      is_all_day: true,
+      starts_on: "2026-03-05",
+      ends_on: "2026-03-05",
+      starts_at: null,
+      ends_at: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      title: `予定-${index}`,
+      blocking: false,
+    }));
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_entries`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("order")).toBe("id.asc");
+        expect(url.searchParams.get("limit")).toBe("500");
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const remaining =
+          cursor === null ? rows : rows.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
+        return HttpResponse.json(page, {
+          status: 200,
+          headers: {
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
+          },
+        });
+      }),
+    );
+
+    const result = await listVisiblePersonalSchedule(createTestClient());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1001);
+      expect(result.value.at(-1)?.id).toBe(rows.at(-1)?.id);
+      expect(new Set(result.value.map((entry) => entry.id)).size).toBe(1001);
     }
   });
 });

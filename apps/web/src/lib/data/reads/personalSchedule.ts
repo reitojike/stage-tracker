@@ -1,10 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PersonalScheduleEntry } from "@stage-tracker/domain";
+import { type PersonalScheduleEntry } from "@stage-tracker/domain";
 import type { Database } from "../database.types";
 import { mapPersonalScheduleEntryRow } from "../mappers/scheduleEntryRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
-import { runSupabaseSelect } from "../supabase-select";
+import { runKeysetSupabaseSelect } from "../paged-select";
+
+async function listPersonalScheduleRows(client: SupabaseClient<Database>) {
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
+      .from("personal_schedule_entries")
+      .select("*", { count: "exact" });
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor.order("id", { ascending: true }).limit(limit);
+  });
+}
 
 /**
  * 自分に見える personal schedule entry（owner本人 + 自分宛に共有された
@@ -33,9 +43,7 @@ import { runSupabaseSelect } from "../supabase-select";
 export async function listVisiblePersonalSchedule(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly PersonalScheduleEntry[]>> {
-  const query = client.from("personal_schedule_entries").select("*");
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await listPersonalScheduleRows(client);
   if (!rowsResult.ok) {
     return rowsResult;
   }

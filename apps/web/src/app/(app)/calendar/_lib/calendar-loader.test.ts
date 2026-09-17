@@ -58,21 +58,24 @@ describe("loadCalendarOccurrences", () => {
   it("indexes an occurrence within the grid range by its Tokyo calendar date", async () => {
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
-        HttpResponse.json([
-          {
-            id: "66666666-6666-4666-8666-666666666666",
-            occurrence_id: "33333333-3333-4333-8333-333333333333",
-            user_id: USER_ID,
-            status: "attending",
-            visibility: "private",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            event_occurrences: {
-              ...occurrenceRow("2026-03-15T10:00:00Z"),
-              events: eventRow(),
+        HttpResponse.json(
+          [
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              occurrence_id: "33333333-3333-4333-8333-333333333333",
+              user_id: USER_ID,
+              status: "attending",
+              visibility: "private",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              event_occurrences: {
+                ...occurrenceRow("2026-03-15T10:00:00Z"),
+                events: eventRow(),
+              },
             },
-          },
-        ]),
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
     );
 
@@ -92,21 +95,24 @@ describe("loadCalendarOccurrences", () => {
   it("excludes an occurrence outside the grid range", async () => {
     server.use(
       http.get(`${REST_URL}/occurrence_participations`, () =>
-        HttpResponse.json([
-          {
-            id: "66666666-6666-4666-8666-666666666666",
-            occurrence_id: "33333333-3333-4333-8333-333333333333",
-            user_id: USER_ID,
-            status: "attending",
-            visibility: "private",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            event_occurrences: {
-              ...occurrenceRow("2026-01-01T10:00:00Z"),
-              events: eventRow(),
+        HttpResponse.json(
+          [
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              occurrence_id: "33333333-3333-4333-8333-333333333333",
+              user_id: USER_ID,
+              status: "attending",
+              visibility: "private",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              event_occurrences: {
+                ...occurrenceRow("2026-01-01T10:00:00Z"),
+                events: eventRow(),
+              },
             },
-          },
-        ]),
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
     );
 
@@ -145,22 +151,25 @@ describe("loadCalendarSchedule", () => {
   it("indexes a multi-day all-day entry on every touched date within the grid", async () => {
     server.use(
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([
-          {
-            id: "77777777-7777-4777-8777-777777777777",
-            owner_id: USER_ID,
-            memo: null,
-            is_all_day: true,
-            starts_on: "2026-03-14",
-            ends_on: "2026-03-16",
-            starts_at: null,
-            ends_at: null,
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            title: "旅行",
-            blocking: true,
-          },
-        ]),
+        HttpResponse.json(
+          [
+            {
+              id: "77777777-7777-4777-8777-777777777777",
+              owner_id: USER_ID,
+              memo: null,
+              is_all_day: true,
+              starts_on: "2026-03-14",
+              ends_on: "2026-03-16",
+              starts_at: null,
+              ends_at: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              title: "旅行",
+              blocking: true,
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
     );
 
@@ -182,36 +191,39 @@ describe("loadCalendarSchedule", () => {
   it("indexes known-end time-bounded entries through every touched Tokyo date", async () => {
     server.use(
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([
-          {
-            id: "77777777-7777-4777-8777-777777777777",
-            owner_id: USER_ID,
-            memo: null,
-            is_all_day: false,
-            starts_on: null,
-            ends_on: null,
-            starts_at: "2026-03-05T14:00:00Z",
-            ends_at: "2026-03-06T00:00:00Z",
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            title: "夜行予定",
-            blocking: false,
-          },
-          {
-            id: "88888888-8888-4888-8888-888888888888",
-            owner_id: USER_ID,
-            memo: null,
-            is_all_day: false,
-            starts_on: null,
-            ends_on: null,
-            starts_at: "2026-03-07T14:00:00Z",
-            ends_at: null,
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            title: "終了時刻未定",
-            blocking: true,
-          },
-        ]),
+        HttpResponse.json(
+          [
+            {
+              id: "77777777-7777-4777-8777-777777777777",
+              owner_id: USER_ID,
+              memo: null,
+              is_all_day: false,
+              starts_on: null,
+              ends_on: null,
+              starts_at: "2026-03-05T14:00:00Z",
+              ends_at: "2026-03-06T00:00:00Z",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              title: "夜行予定",
+              blocking: false,
+            },
+            {
+              id: "88888888-8888-4888-8888-888888888888",
+              owner_id: USER_ID,
+              memo: null,
+              is_all_day: false,
+              starts_on: null,
+              ends_on: null,
+              starts_at: "2026-03-07T14:00:00Z",
+              ends_at: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              title: "終了時刻未定",
+              blocking: true,
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
     );
 
@@ -260,22 +272,25 @@ describe("calendar's 2 blocks are independent (P4)", () => {
         ),
       ),
       http.get(`${REST_URL}/personal_schedule_entries`, () =>
-        HttpResponse.json([
-          {
-            id: "77777777-7777-4777-8777-777777777777",
-            owner_id: USER_ID,
-            memo: null,
-            is_all_day: true,
-            starts_on: "2026-03-14",
-            ends_on: "2026-03-14",
-            starts_at: null,
-            ends_at: null,
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-            title: "旅行",
-            blocking: true,
-          },
-        ]),
+        HttpResponse.json(
+          [
+            {
+              id: "77777777-7777-4777-8777-777777777777",
+              owner_id: USER_ID,
+              memo: null,
+              is_all_day: true,
+              starts_on: "2026-03-14",
+              ends_on: "2026-03-14",
+              starts_at: null,
+              ends_at: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+              title: "旅行",
+              blocking: true,
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
     );
 

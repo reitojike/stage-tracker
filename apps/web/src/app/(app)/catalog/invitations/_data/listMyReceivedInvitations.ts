@@ -14,7 +14,7 @@ import {
   mapEventRow,
   mapOccurrenceRow,
   mapRows,
-  runSupabaseSelect,
+  runKeysetSupabaseSelect,
   type EventRow,
   type OccurrenceRow,
   type ReadResult,
@@ -50,11 +50,26 @@ export interface ReceivedInvitation {
 
 interface InvitationRow {
   readonly id: string;
+  readonly created_at: string;
   readonly occurrence_id: string;
   readonly inviter_id: string;
   readonly invitee_id: string;
   readonly event_occurrences:
     (OccurrenceRow & { readonly events: EventRow | null }) | null;
+}
+
+async function listInvitationRows(client: SupabaseClient, userId: string) {
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
+      .from("occurrence_invitations")
+      .select("*, event_occurrences(*, events(*))", { count: "exact" })
+      .eq("invitee_id", userId);
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor
+      .order("id", { ascending: true })
+      .limit(limit)
+      .overrideTypes<InvitationRow[]>();
+  });
 }
 
 function mapInvitationRow(
@@ -119,16 +134,14 @@ export async function listMyReceivedInvitations(
   client: SupabaseClient,
   userId: string,
 ): Promise<ReadResult<readonly ReceivedInvitation[]>> {
-  const query = client
-    .from("occurrence_invitations")
-    .select("*, event_occurrences(*, events(*))")
-    .eq("invitee_id", userId)
-    .order("created_at", { ascending: true })
-    .overrideTypes<InvitationRow[]>();
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await listInvitationRows(client, userId);
   if (!rowsResult.ok) {
     return rowsResult;
   }
-  return mapRows(rowsResult.value, mapInvitationRow);
+  const orderedRows = [...rowsResult.value].sort(
+    (left, right) =>
+      left.created_at.localeCompare(right.created_at) ||
+      left.id.localeCompare(right.id),
+  );
+  return mapRows(orderedRows, mapInvitationRow);
 }

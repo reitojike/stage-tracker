@@ -9,6 +9,7 @@
 export * from "./read-error";
 export * from "./read-result";
 export * from "./supabase-select";
+export * from "./paged-select";
 export * from "./row-mapping";
 
 export * from "./mappers/eventRow";

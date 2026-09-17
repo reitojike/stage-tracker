@@ -21,7 +21,23 @@ import {
 } from "../mappers/participationRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
-import { runSupabaseSelect } from "../supabase-select";
+import { runKeysetSupabaseSelect } from "../paged-select";
+
+async function listParticipationRows(
+  client: SupabaseClient<Database>,
+  userId: UserId,
+) {
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
+      .from("occurrence_participations")
+      .select("*, event_occurrences!inner(*, events!inner(*))", {
+        count: "exact",
+      })
+      .eq("user_id", userId);
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor.order("id", { ascending: true }).limit(limit);
+  });
+}
 
 export interface ParticipationWithOccurrenceRow extends ParticipationRow {
   readonly event_occurrences:
@@ -82,6 +98,8 @@ function mapParticipationWithOccurrenceRow(
  * `event_occurrences`/`events` は shared catalog（`using (true)`）なので、
  * `!inner` embed は「その occurrence/event が存在しない」というデータ
  * 整合性上の異常時にのみ行を落とす防御であり、権限による欠落は起こらない。
+ * 各 keyset page 内では participation と embed が同じ statement snapshot
+ * から返るが、複数 page 全体を単一時点の snapshot とはみなさない。
  *
  * 日付範囲の絞り込みはこの read の責務にしない: 呼び出し元（画面層）が
  * `@stage-tracker/domain` の `compareInstants` 等の pure 関数で絞り込む。
@@ -92,12 +110,7 @@ export async function listMyParticipations(
   client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly ParticipationWithOccurrence[]>> {
-  const query = client
-    .from("occurrence_participations")
-    .select("*, event_occurrences!inner(*, events!inner(*))")
-    .eq("user_id", userId);
-
-  const rowsResult = await runSupabaseSelect(query);
+  const rowsResult = await listParticipationRows(client, userId);
   if (!rowsResult.ok) {
     return rowsResult;
   }
