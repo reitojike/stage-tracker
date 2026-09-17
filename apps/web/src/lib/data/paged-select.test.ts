@@ -1,6 +1,9 @@
 import type { PostgrestError, PostgrestResponse } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
-import { runPagedSupabaseSelect } from "./paged-select";
+import {
+  runKeysetSupabaseSelect,
+  runPagedSupabaseSelect,
+} from "./paged-select";
 
 /**
  * `PostgrestResponse` を組み立てるヘルパー。実 HTTP は経由せず `queryPage`
@@ -132,6 +135,142 @@ describe("runPagedSupabaseSelect", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("failure");
+    }
+  });
+});
+
+describe("runKeysetSupabaseSelect", () => {
+  type Row = { id: string };
+
+  function keysetRows(rows: readonly Row[]) {
+    return (cursor: string | null, limit: number) => {
+      const remaining =
+        cursor === null ? rows : rows.filter((row) => row.id > cursor);
+      return Promise.resolve(
+        successPage(remaining.slice(0, limit), remaining.length),
+      );
+    };
+  }
+
+  it("returns all 1001 rows through the final keyset page", async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    }));
+
+    const result = await runKeysetSupabaseSelect(keysetRows(rows));
+
+    expect(result).toEqual({ ok: true, value: rows });
+  });
+
+  it("continues after a short page when exact count says rows remain", async () => {
+    const queryPage = vi
+      .fn()
+      .mockResolvedValueOnce(successPage([{ id: "a" }], 3))
+      .mockResolvedValueOnce(successPage([{ id: "b" }], 2))
+      .mockResolvedValueOnce(successPage([{ id: "c" }], 1));
+
+    const result = await runKeysetSupabaseSelect(queryPage);
+
+    expect(result).toEqual({
+      ok: true,
+      value: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    });
+    expect(queryPage).toHaveBeenNthCalledWith(1, null, 500);
+    expect(queryPage).toHaveBeenNthCalledWith(2, "a", 500);
+    expect(queryPage).toHaveBeenNthCalledWith(3, "b", 500);
+  });
+
+  it("fails closed when a page cannot advance while rows remain", async () => {
+    const queryPage = vi
+      .fn()
+      .mockResolvedValueOnce(successPage([{ id: "a" }], 2))
+      .mockResolvedValueOnce(successPage([], 1));
+
+    const result = await runKeysetSupabaseSelect(queryPage);
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("does not duplicate or omit rows when a row before the cursor is deleted", async () => {
+    const originalRows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    }));
+    let page = 0;
+    const queryPage = (cursor: string | null, limit: number) => {
+      page += 1;
+      const rows = page === 2 ? originalRows.slice(1) : originalRows;
+      const remaining =
+        cursor === null ? rows : rows.filter((row) => row.id > cursor);
+      return Promise.resolve(
+        successPage(remaining.slice(0, limit), remaining.length),
+      );
+    };
+
+    const result = await runKeysetSupabaseSelect(queryPage);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1000);
+      expect(new Set(result.value.map((row) => row.id)).size).toBe(1000);
+      expect(result.value.at(-1)?.id).toBe(originalRows.at(-1)?.id);
+    }
+  });
+
+  it("does not repeat existing rows when a row is inserted behind the cursor", async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    }));
+    let page = 0;
+    const queryPage = (cursor: string | null, limit: number) => {
+      page += 1;
+      const currentRows =
+        page === 2
+          ? [{ id: "00000000-0000-4000-8000-000000000000" }, ...rows]
+          : rows;
+      const remaining =
+        cursor === null
+          ? currentRows
+          : currentRows.filter((row) => row.id > cursor);
+      return Promise.resolve(
+        successPage(remaining.slice(0, limit), remaining.length),
+      );
+    };
+
+    const result = await runKeysetSupabaseSelect(queryPage);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1001);
+      expect(new Set(result.value.map((row) => row.id)).size).toBe(1001);
+    }
+  });
+
+  it("includes a row inserted ahead of the cursor at most once", async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    }));
+    const inserted = { id: "ffffffff-ffff-4fff-8fff-ffffffffffff" };
+    let page = 0;
+    const queryPage = (cursor: string | null, limit: number) => {
+      page += 1;
+      const currentRows = page === 2 ? [...rows, inserted] : rows;
+      const remaining =
+        cursor === null
+          ? currentRows
+          : currentRows.filter((row) => row.id > cursor);
+      return Promise.resolve(
+        successPage(remaining.slice(0, limit), remaining.length),
+      );
+    };
+
+    const result = await runKeysetSupabaseSelect(queryPage);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(1002);
+      expect(result.value.filter((row) => row.id === inserted.id)).toHaveLength(
+        1,
+      );
     }
   });
 });

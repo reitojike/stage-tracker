@@ -6,23 +6,8 @@ import type { ReadResult } from "./read-result";
 
 const PAGE_SIZE = 500;
 
-export interface StableReadRow {
+export interface KeysetReadRow {
   readonly id: string;
-  readonly updated_at: string;
-}
-
-export function haveSameStableRowVersions<Row extends StableReadRow>(
-  before: readonly Row[],
-  after: readonly Row[],
-): boolean {
-  if (before.length !== after.length) {
-    return false;
-  }
-  return before.every(
-    (row, index) =>
-      row.id === after[index]?.id &&
-      row.updated_at === after[index]?.updated_at,
-  );
 }
 
 /**
@@ -85,5 +70,88 @@ export async function runPagedSupabaseSelect<Row>(
       return err(readError("failure"));
     }
   }
+  return ok(rows);
+}
+
+/**
+ * Read every row using an immutable UUID primary-key cursor.
+ *
+ * `queryPage` must order by ascending `id`, apply `id > cursor` when the
+ * cursor is non-null, request at most `limit` rows, and request
+ * `{ count: "exact" }`. The exact count is only completeness evidence for
+ * the current qualifying set; this helper does not claim a point-in-time
+ * snapshot across requests. A short page is therefore not EOF when the
+ * count says that more qualifying rows remain.
+ */
+export async function runKeysetSupabaseSelect<Row extends KeysetReadRow>(
+  queryPage: (
+    cursor: string | null,
+    limit: number,
+  ) => PromiseLike<PostgrestResponse<Row>>,
+): Promise<ReadResult<readonly Row[]>> {
+  const rows: Row[] = [];
+  const seenIds = new Set<string>();
+  let cursor: string | null = null;
+
+  for (;;) {
+    let response: PostgrestResponse<Row>;
+    try {
+      response = await queryPage(cursor, PAGE_SIZE);
+    } catch (thrown) {
+      console.error("[read] unexpected exception during keyset SELECT", thrown);
+      return err(readError("failure"));
+    }
+
+    if (response.error !== null) {
+      return err(classifyPostgrestError(response.error, response.status));
+    }
+    if (response.count === null) {
+      console.error(
+        "[read] Supabase did not report a total row count for a keyset query (missing count: 'exact').",
+      );
+      return err(readError("failure"));
+    }
+    if (response.data === null) {
+      console.error(
+        "[read] Supabase returned no error but no data for a keyset SELECT query.",
+      );
+      return err(readError("failure"));
+    }
+
+    if (response.data.length === 0) {
+      if (response.count === 0) {
+        break;
+      }
+      console.error(
+        `[read] keyset SELECT returned no rows while its exact count was ${response.count}; refusing to claim completeness.`,
+      );
+      return err(readError("failure"));
+    }
+
+    for (const row of response.data) {
+      if (seenIds.has(row.id)) {
+        console.error(
+          `[read] keyset SELECT returned duplicate id=${row.id}; refusing to return an ambiguous list.`,
+        );
+        return err(readError("failure"));
+      }
+      seenIds.add(row.id);
+      rows.push(row);
+    }
+
+    const nextCursor = response.data.at(-1)?.id;
+    if (nextCursor === undefined || (cursor !== null && nextCursor <= cursor)) {
+      console.error(
+        "[read] keyset SELECT made no cursor progress; refusing to loop or return a partial list.",
+      );
+      return err(readError("failure"));
+    }
+    cursor = nextCursor;
+
+    if (response.count <= response.data.length) {
+      break;
+    }
+  }
+
   return ok(rows);
 }

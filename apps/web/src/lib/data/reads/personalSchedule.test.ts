@@ -126,9 +126,9 @@ describe("listVisiblePersonalSchedule", () => {
     }
   });
 
-  it("pages past the page boundary and returns the final visible entry", async () => {
+  it("pages through the 1001-row max_rows boundary and returns the final entry", async () => {
     const ownerId = "22222222-2222-4222-8222-222222222222";
-    const rows = Array.from({ length: 501 }, (_, index) => ({
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
       owner_id: ownerId,
       memo: null,
@@ -146,12 +146,18 @@ describe("listVisiblePersonalSchedule", () => {
       http.get(`${REST_URL}/personal_schedule_entries`, ({ request }) => {
         const url = new URL(request.url);
         expect(url.searchParams.get("order")).toBe("id.asc");
-        const offset = Number(url.searchParams.get("offset") ?? "0");
-        const page = rows.slice(offset, offset + 500);
+        expect(url.searchParams.get("limit")).toBe("500");
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const remaining =
+          cursor === null ? rows : rows.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
         return HttpResponse.json(page, {
           status: 200,
           headers: {
-            "content-range": `${offset}-${offset + page.length - 1}/501`,
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
           },
         });
       }),
@@ -161,45 +167,9 @@ describe("listVisiblePersonalSchedule", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value).toHaveLength(501);
+      expect(result.value).toHaveLength(1001);
       expect(result.value.at(-1)?.id).toBe(rows.at(-1)?.id);
-      expect(new Set(result.value.map((entry) => entry.id)).size).toBe(501);
-    }
-  });
-
-  it("fails closed when the visible schedule keeps changing during paging", async () => {
-    let requestCount = 0;
-    server.use(
-      http.get(`${REST_URL}/personal_schedule_entries`, () => {
-        requestCount += 1;
-        return HttpResponse.json(
-          [
-            {
-              id: "11111111-1111-4111-8111-111111111111",
-              owner_id: "22222222-2222-4222-8222-222222222222",
-              memo: null,
-              is_all_day: true,
-              starts_on: "2026-03-05",
-              ends_on: "2026-03-05",
-              starts_at: null,
-              ends_at: null,
-              created_at: "2026-01-01T00:00:00Z",
-              updated_at: `2026-01-0${requestCount}T00:00:00Z`,
-              title: "予定",
-              blocking: false,
-            },
-          ],
-          { status: 200, headers: { "content-range": "0-0/1" } },
-        );
-      }),
-    );
-
-    const result = await listVisiblePersonalSchedule(createTestClient());
-
-    expect(result.ok).toBe(false);
-    expect(requestCount).toBe(4);
-    if (!result.ok) {
-      expect(result.error.kind).toBe("failure");
+      expect(new Set(result.value.map((entry) => entry.id)).size).toBe(1001);
     }
   });
 });

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import type { PostgrestResponse } from "@supabase/supabase-js";
 import {
   err,
   instantSchema,
@@ -29,13 +30,11 @@ import {
 import { mapOccurrenceRow, type OccurrenceRow } from "../mappers/eventRow";
 import { mapRows } from "../row-mapping";
 import { readError } from "../read-error";
+import { classifyPostgrestError } from "../supabase-select";
 import type { ReadResult } from "../read-result";
-import {
-  haveSameStableRowVersions,
-  runPagedSupabaseSelect,
-} from "../paged-select";
+import { runKeysetSupabaseSelect } from "../paged-select";
 
-const MAX_TICKET_OPPORTUNITY_SNAPSHOT_ATTEMPTS = 2;
+const MAX_TICKET_IMPORT_GENERATION_ATTEMPTS = 2;
 
 export interface TicketOpportunityListRow extends TicketOpportunityRow {
   readonly events: {
@@ -72,13 +71,141 @@ export interface TicketOpportunityDetail {
 async function listTicketOpportunityParents(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly TicketOpportunityParentRow[]>> {
-  return runPagedSupabaseSelect((from, to) =>
-    client
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
       .from("ticket_opportunities")
-      .select("*, events(title, venue, canceled_at)", { count: "exact" })
+      .select("*, events(title, venue, canceled_at)", { count: "exact" });
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor
       .order("id", { ascending: true })
-      .range(from, to)
-      .overrideTypes<TicketOpportunityParentRow[]>(),
+      .limit(limit)
+      .overrideTypes<TicketOpportunityParentRow[]>();
+  });
+}
+
+async function listTicketOpportunityMilestones(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<readonly TicketOpportunityMilestoneRow[]>> {
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
+      .from("ticket_opportunity_milestones")
+      .select("*", { count: "exact" });
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor
+      .order("id", { ascending: true })
+      .limit(limit)
+      .overrideTypes<TicketOpportunityMilestoneRow[]>();
+  });
+}
+
+interface TicketTargetCursor {
+  readonly opportunity_id: string;
+  readonly occurrence_id: string;
+}
+
+async function listTicketOpportunityTargets(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<readonly TicketOpportunityTargetRow[]>> {
+  const rows: TicketOpportunityTargetRow[] = [];
+  const seenKeys = new Set<string>();
+  let cursor: TicketTargetCursor | null = null;
+
+  for (;;) {
+    let response: PostgrestResponse<TicketOpportunityTargetRow>;
+    try {
+      const query = client
+        .from("ticket_opportunity_target_occurrences")
+        .select("opportunity_id, occurrence_id, event_occurrences(*)", {
+          count: "exact",
+        });
+      const afterCursor =
+        cursor === null
+          ? query
+          : query.or(
+              `opportunity_id.gt.${cursor.opportunity_id},and(opportunity_id.eq.${cursor.opportunity_id},occurrence_id.gt.${cursor.occurrence_id})`,
+            );
+      response = await afterCursor
+        .order("opportunity_id", { ascending: true })
+        .order("occurrence_id", { ascending: true })
+        .limit(500)
+        .overrideTypes<TicketOpportunityTargetRow[]>();
+    } catch (thrown) {
+      console.error(
+        "[read] unexpected exception during ticket target keyset SELECT",
+        thrown,
+      );
+      return err(readError("failure"));
+    }
+
+    if (response.error !== null) {
+      return err(classifyPostgrestError(response.error, response.status));
+    }
+    if (response.count === null || response.data === null) {
+      console.error(
+        "[read] ticket target keyset SELECT did not report complete response metadata.",
+      );
+      return err(readError("failure"));
+    }
+    if (response.data.length === 0) {
+      if (response.count === 0) {
+        break;
+      }
+      console.error(
+        `[read] ticket target keyset SELECT returned no rows while exact count was ${response.count}.`,
+      );
+      return err(readError("failure"));
+    }
+
+    for (const row of response.data) {
+      const key = `${row.opportunity_id}:${row.occurrence_id}`;
+      if (seenKeys.has(key)) {
+        console.error(
+          `[read] ticket target keyset SELECT returned duplicate key=${key}.`,
+        );
+        return err(readError("failure"));
+      }
+      seenKeys.add(key);
+      rows.push(row);
+    }
+
+    const lastRow = response.data.at(-1);
+    if (lastRow === undefined) {
+      return err(readError("failure"));
+    }
+    const nextCursor = {
+      opportunity_id: lastRow.opportunity_id,
+      occurrence_id: lastRow.occurrence_id,
+    };
+    if (
+      cursor !== null &&
+      nextCursor.opportunity_id === cursor.opportunity_id &&
+      nextCursor.occurrence_id === cursor.occurrence_id
+    ) {
+      console.error(
+        "[read] ticket target keyset SELECT made no cursor progress.",
+      );
+      return err(readError("failure"));
+    }
+    cursor = nextCursor;
+    if (response.count <= response.data.length) {
+      break;
+    }
+  }
+
+  return ok(rows);
+}
+
+function haveSameTicketImportGeneration(
+  before: readonly TicketOpportunityParentRow[],
+  after: readonly TicketOpportunityParentRow[],
+): boolean {
+  return (
+    before.length === after.length &&
+    before.every(
+      (row, index) =>
+        row.id === after[index]?.id &&
+        row.updated_at === after[index]?.updated_at,
+    )
   );
 }
 
@@ -237,7 +364,7 @@ function mapTicketOpportunityListRow(
  * `ticket_opportunity_milestones` はいずれも `using (true)` の shared
  * read-only catalog（`docs/v2/oracle-database.md` §2）なので、
  * authenticated である限り0件は常に「本当に0件」。全3 resource は
- * exact-count paging で読む。
+ * exact-count keyset paging で読む。
  *
  * 個人の planning state（`user_ticket_opportunity_states`）は意図的に
  * 別関数（`listMyTicketOpportunityStates`）に分離した。
@@ -249,20 +376,19 @@ function mapTicketOpportunityListRow(
  * 1件の to-one embed なので parent/child pagingで完全性を保てる。一方、
  * target occurrences と milestones は to-many embed であり、PostgRESTの
  * parent rangeだけでは子の `max_rows` 到達を検出できない。したがって
- * parent rowsを先にpaged readし、to-many resourcesをそれぞれ全件paged
+ * parent rowsを先にkeyset readし、to-many resourcesをそれぞれ全件keyset
  * readしてIDで再結合する。これはparentごとのN+1ではなく、最大3つの
  * sequential resource scansに限定した最小のquery shapeである。Import RPCは
  * parent更新時に`updated_at`を更新するため、child scans後にparentのID/
- * `updated_at`を再読して楽観的snapshot検証を行う。importがscan間にcommit
- * した場合はbounded retryし、安定したversionを得られなければfailureに
- * する（異なるsnapshotの混在を成功扱いにしない）。
+ * `updated_at`を再読して、対応するimport generationがscan中にcommitした
+ * ことだけを検証する。これはwhole-list snapshot保証ではない。
  */
 export async function listTicketOpportunities(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly TicketOpportunityDetail[]>> {
   for (
     let attempt = 0;
-    attempt < MAX_TICKET_OPPORTUNITY_SNAPSHOT_ATTEMPTS;
+    attempt < MAX_TICKET_IMPORT_GENERATION_ATTEMPTS;
     attempt += 1
   ) {
     const parentRowsResult = await listTicketOpportunityParents(client);
@@ -275,30 +401,12 @@ export async function listTicketOpportunities(
       return ok([]);
     }
 
-    const targetRowsResult = await runPagedSupabaseSelect((from, to) =>
-      client
-        .from("ticket_opportunity_target_occurrences")
-        .select("opportunity_id, occurrence_id, event_occurrences(*)", {
-          count: "exact",
-        })
-        .order("opportunity_id", { ascending: true })
-        .order("occurrence_id", { ascending: true })
-        .range(from, to)
-        .overrideTypes<TicketOpportunityTargetRow[]>(),
-    );
+    const targetRowsResult = await listTicketOpportunityTargets(client);
     if (!targetRowsResult.ok) {
       return targetRowsResult;
     }
 
-    const milestoneRowsResult = await runPagedSupabaseSelect((from, to) =>
-      client
-        .from("ticket_opportunity_milestones")
-        .select("*", { count: "exact" })
-        .order("opportunity_id", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to)
-        .overrideTypes<TicketOpportunityMilestoneRow[]>(),
-    );
+    const milestoneRowsResult = await listTicketOpportunityMilestones(client);
     if (!milestoneRowsResult.ok) {
       return milestoneRowsResult;
     }
@@ -308,16 +416,16 @@ export async function listTicketOpportunities(
       return verificationRowsResult;
     }
     if (
-      !haveSameStableRowVersions(
+      !haveSameTicketImportGeneration(
         parentRowsResult.value,
         verificationRowsResult.value,
       )
     ) {
-      if (attempt + 1 < MAX_TICKET_OPPORTUNITY_SNAPSHOT_ATTEMPTS) {
+      if (attempt + 1 < MAX_TICKET_IMPORT_GENERATION_ATTEMPTS) {
         continue;
       }
       console.error(
-        "[read] TicketOpportunity parent versions changed during child paging; refusing to return a mixed snapshot.",
+        "[read] TicketOpportunity import generation kept changing during child paging; refusing to return an unstable aggregate.",
       );
       return err(readError("failure"));
     }
@@ -374,14 +482,14 @@ export async function listMyTicketOpportunityStates(
   client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly UserTicketOpportunityState[]>> {
-  const rowsResult = await runPagedSupabaseSelect((from, to) =>
-    client
+  const rowsResult = await runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
       .from("user_ticket_opportunity_states")
       .select("*", { count: "exact" })
-      .eq("user_id", userId)
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
+      .eq("user_id", userId);
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor.order("id", { ascending: true }).limit(limit);
+  });
   if (!rowsResult.ok) {
     return rowsResult;
   }

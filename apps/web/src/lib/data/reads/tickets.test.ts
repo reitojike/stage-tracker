@@ -264,8 +264,8 @@ describe("listTicketOpportunities (shared catalog)", () => {
     }
   });
 
-  it("pages the parent opportunity resource without duplicating or omitting rows", async () => {
-    const rows = Array.from({ length: 501 }, (_, index) =>
+  it("pages the parent opportunity resource through 1001 rows without duplication or omission", async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) =>
       opportunityRow({
         id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
       }),
@@ -275,12 +275,18 @@ describe("listTicketOpportunities (shared catalog)", () => {
       http.get(`${REST_URL}/ticket_opportunities`, ({ request }) => {
         const url = new URL(request.url);
         expect(url.searchParams.get("order")).toBe("id.asc");
-        const offset = Number(url.searchParams.get("offset") ?? "0");
-        const page = rows.slice(offset, offset + 500);
+        expect(url.searchParams.get("limit")).toBe("500");
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const remaining =
+          cursor === null ? rows : rows.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
         return HttpResponse.json(page, {
           status: 200,
           headers: {
-            "content-range": `${offset}-${offset + page.length - 1}/501`,
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
           },
         });
       }),
@@ -290,7 +296,7 @@ describe("listTicketOpportunities (shared catalog)", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value).toHaveLength(501);
+      expect(result.value).toHaveLength(1001);
       expect(result.value.at(-1)?.opportunityWithTargets.opportunity.id).toBe(
         rows.at(-1)?.id,
       );
@@ -300,7 +306,7 @@ describe("listTicketOpportunities (shared catalog)", () => {
             (detail) => detail.opportunityWithTargets.opportunity.id,
           ),
         ).size,
-      ).toBe(501);
+      ).toBe(1001);
     }
   });
 
@@ -330,12 +336,19 @@ describe("listTicketOpportunities (shared catalog)", () => {
           expect(url.searchParams.get("order")).toBe(
             "opportunity_id.asc,occurrence_id.asc",
           );
-          const offset = Number(url.searchParams.get("offset") ?? "0");
-          const page = targets.slice(offset, offset + 500);
+          expect(url.searchParams.get("limit")).toBe("500");
+          const orFilter = url.searchParams.get("or");
+          const cursorMatch = orFilter?.match(/occurrence_id\.gt\.([^)]*)/u);
+          const cursor = cursorMatch?.[1] ?? null;
+          const remaining =
+            cursor === null
+              ? targets
+              : targets.filter((row) => row.occurrence_id > cursor);
+          const page = remaining.slice(0, 500);
           return HttpResponse.json(page, {
             status: 200,
             headers: {
-              "content-range": `${offset}-${offset + page.length - 1}/501`,
+              "content-range": `0-${page.length - 1}/${remaining.length}`,
             },
           });
         },
@@ -345,6 +358,62 @@ describe("listTicketOpportunities (shared catalog)", () => {
     const result = await listTicketOpportunities(createTestClient());
 
     expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value[0]?.targetOccurrences).toHaveLength(501);
+      expect(
+        new Set(result.value[0]?.targetOccurrences.map(({ id }) => id)).size,
+      ).toBe(501);
+    }
+  });
+
+  it("does not skip a stable target when an earlier composite-key row is deleted", async () => {
+    const targets = Array.from({ length: 501 }, (_, index) => {
+      const occurrenceId = `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+      return {
+        opportunity_id: opportunityId,
+        occurrence_id: occurrenceId,
+        event_occurrences: occurrenceRow(occurrenceId),
+      };
+    });
+    let requestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/ticket_opportunities`, () =>
+        HttpResponse.json(
+          [opportunityRow({ target_scope: "selected_occurrences" })],
+          {
+            status: 200,
+            headers: { "content-range": "0-0/1" },
+          },
+        ),
+      ),
+      http.get(
+        `${REST_URL}/ticket_opportunity_target_occurrences`,
+        ({ request }) => {
+          requestCount += 1;
+          const url = new URL(request.url);
+          const orFilter = url.searchParams.get("or");
+          const cursorMatch = orFilter?.match(/occurrence_id\.gt\.([^)]*)/u);
+          const cursor = cursorMatch?.[1] ?? null;
+          const currentRows = requestCount === 2 ? targets.slice(1) : targets;
+          const remaining =
+            cursor === null
+              ? currentRows
+              : currentRows.filter((row) => row.occurrence_id > cursor);
+          const page = remaining.slice(0, 500);
+          return HttpResponse.json(page, {
+            status: 200,
+            headers: {
+              "content-range": `0-${page.length - 1}/${remaining.length}`,
+            },
+          });
+        },
+      ),
+    );
+
+    const result = await listTicketOpportunities(createTestClient());
+
+    expect(result.ok).toBe(true);
+    expect(requestCount).toBe(2);
     if (result.ok) {
       expect(result.value[0]?.targetOccurrences).toHaveLength(501);
       expect(
@@ -382,12 +451,20 @@ describe("listTicketOpportunities (shared catalog)", () => {
       http.get(`${REST_URL}/ticket_opportunity_milestones`, ({ request }) => {
         const url = new URL(request.url);
         expect(url.searchParams.get("order")).toBe("opportunity_id.asc,id.asc");
-        const offset = Number(url.searchParams.get("offset") ?? "0");
-        const page = milestones.slice(offset, offset + 500);
+        expect(url.searchParams.get("limit")).toBe("500");
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const remaining =
+          cursor === null
+            ? milestones
+            : milestones.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
         return HttpResponse.json(page, {
           status: 200,
           headers: {
-            "content-range": `${offset}-${offset + page.length - 1}/501`,
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
           },
         });
       }),
@@ -547,7 +624,7 @@ describe("listMyTicketOpportunityStates (personal, own only)", () => {
     }
   });
 
-  it("pages the caller's states through the final row", async () => {
+  it("pages the caller's states through the final row with a UUID cursor", async () => {
     const rows = Array.from({ length: 501 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
       user_id: userId,
@@ -560,12 +637,18 @@ describe("listMyTicketOpportunityStates (personal, own only)", () => {
       http.get(`${REST_URL}/user_ticket_opportunity_states`, ({ request }) => {
         const url = new URL(request.url);
         expect(url.searchParams.get("order")).toBe("id.asc");
-        const offset = Number(url.searchParams.get("offset") ?? "0");
-        const page = rows.slice(offset, offset + 500);
+        expect(url.searchParams.get("limit")).toBe("500");
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const remaining =
+          cursor === null ? rows : rows.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
         return HttpResponse.json(page, {
           status: 200,
           headers: {
-            "content-range": `${offset}-${offset + page.length - 1}/501`,
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
           },
         });
       }),
@@ -581,6 +664,53 @@ describe("listMyTicketOpportunityStates (personal, own only)", () => {
       expect(result.value).toHaveLength(501);
       expect(result.value.at(-1)?.id).toBe(rows.at(-1)?.id);
       expect(new Set(result.value.map((state) => state.id)).size).toBe(501);
+    }
+  });
+
+  it("does not skip a stable state when a row before the cursor is deleted", async () => {
+    const rows = Array.from({ length: 501 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      user_id: userId,
+      opportunity_id: opportunityId,
+      status: "planned",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    }));
+    let requestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/user_ticket_opportunity_states`, ({ request }) => {
+        requestCount += 1;
+        const url = new URL(request.url);
+        const idFilter = url.searchParams.get("id");
+        const cursor = idFilter?.startsWith("gt.")
+          ? idFilter.slice("gt.".length)
+          : null;
+        const currentRows = requestCount === 2 ? rows.slice(1) : rows;
+        const remaining =
+          cursor === null
+            ? currentRows
+            : currentRows.filter((row) => row.id > cursor);
+        const page = remaining.slice(0, 500);
+        return HttpResponse.json(page, {
+          status: 200,
+          headers: {
+            "content-range": `0-${page.length - 1}/${remaining.length}`,
+          },
+        });
+      }),
+    );
+
+    const result = await listMyTicketOpportunityStates(
+      createTestClient(),
+      userId,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(requestCount).toBe(2);
+    if (result.ok) {
+      expect(result.value).toHaveLength(501);
+      expect(new Set(result.value.map((state) => state.id)).size).toBe(501);
+      expect(result.value.at(-1)?.id).toBe(rows.at(-1)?.id);
     }
   });
 });

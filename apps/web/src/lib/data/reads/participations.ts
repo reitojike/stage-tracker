@@ -22,27 +22,22 @@ import {
 import { mapRows } from "../row-mapping";
 import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
-import {
-  haveSameStableRowVersions,
-  runPagedSupabaseSelect,
-} from "../paged-select";
-
-const MAX_PARTICIPATION_SNAPSHOT_ATTEMPTS = 2;
+import { runKeysetSupabaseSelect } from "../paged-select";
 
 async function listParticipationRows(
   client: SupabaseClient<Database>,
   userId: UserId,
 ) {
-  return runPagedSupabaseSelect((from, to) =>
-    client
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
       .from("occurrence_participations")
       .select("*, event_occurrences!inner(*, events!inner(*))", {
         count: "exact",
       })
-      .eq("user_id", userId)
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
+      .eq("user_id", userId);
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor.order("id", { ascending: true }).limit(limit);
+  });
 }
 
 export interface ParticipationWithOccurrenceRow extends ParticipationRow {
@@ -104,6 +99,8 @@ function mapParticipationWithOccurrenceRow(
  * `event_occurrences`/`events` は shared catalog（`using (true)`）なので、
  * `!inner` embed は「その occurrence/event が存在しない」というデータ
  * 整合性上の異常時にのみ行を落とす防御であり、権限による欠落は起こらない。
+ * 各 keyset page 内では participation と embed が同じ statement snapshot
+ * から返るが、複数 page 全体を単一時点の snapshot とはみなさない。
  *
  * 日付範囲の絞り込みはこの read の責務にしない: 呼び出し元（画面層）が
  * `@stage-tracker/domain` の `compareInstants` 等の pure 関数で絞り込む。
@@ -114,31 +111,9 @@ export async function listMyParticipations(
   client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly ParticipationWithOccurrence[]>> {
-  for (
-    let attempt = 0;
-    attempt < MAX_PARTICIPATION_SNAPSHOT_ATTEMPTS;
-    attempt += 1
-  ) {
-    const rowsResult = await listParticipationRows(client, userId);
-    if (!rowsResult.ok) {
-      return rowsResult;
-    }
-    const verificationResult = await listParticipationRows(client, userId);
-    if (!verificationResult.ok) {
-      return verificationResult;
-    }
-    if (
-      !haveSameStableRowVersions(rowsResult.value, verificationResult.value)
-    ) {
-      if (attempt + 1 < MAX_PARTICIPATION_SNAPSHOT_ATTEMPTS) {
-        continue;
-      }
-      console.error(
-        "[read] participations changed during paging; refusing to return a mixed snapshot.",
-      );
-      return err(readError("failure"));
-    }
-    return mapRows(rowsResult.value, mapParticipationWithOccurrenceRow);
+  const rowsResult = await listParticipationRows(client, userId);
+  if (!rowsResult.ok) {
+    return rowsResult;
   }
-  return err(readError("failure"));
+  return mapRows(rowsResult.value, mapParticipationWithOccurrenceRow);
 }

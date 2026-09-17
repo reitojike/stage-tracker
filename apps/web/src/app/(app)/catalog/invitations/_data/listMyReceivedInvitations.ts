@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  err,
   invitationIdSchema,
   occurrenceIdSchema,
   ok,
@@ -15,9 +14,7 @@ import {
   mapEventRow,
   mapOccurrenceRow,
   mapRows,
-  runPagedSupabaseSelect,
-  haveSameStableRowVersions,
-  readError,
+  runKeysetSupabaseSelect,
   type EventRow,
   type OccurrenceRow,
   type ReadResult,
@@ -53,7 +50,7 @@ export interface ReceivedInvitation {
 
 interface InvitationRow {
   readonly id: string;
-  readonly updated_at: string;
+  readonly created_at: string;
   readonly occurrence_id: string;
   readonly inviter_id: string;
   readonly invitee_id: string;
@@ -61,19 +58,18 @@ interface InvitationRow {
     (OccurrenceRow & { readonly events: EventRow | null }) | null;
 }
 
-const MAX_INVITATION_SNAPSHOT_ATTEMPTS = 2;
-
 async function listInvitationRows(client: SupabaseClient, userId: string) {
-  return runPagedSupabaseSelect((from, to) =>
-    client
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
       .from("occurrence_invitations")
       .select("*, event_occurrences(*, events(*))", { count: "exact" })
-      .eq("invitee_id", userId)
-      .order("created_at", { ascending: true })
+      .eq("invitee_id", userId);
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor
       .order("id", { ascending: true })
-      .range(from, to)
-      .overrideTypes<InvitationRow[]>(),
-  );
+      .limit(limit)
+      .overrideTypes<InvitationRow[]>();
+  });
 }
 
 function mapInvitationRow(
@@ -138,31 +134,14 @@ export async function listMyReceivedInvitations(
   client: SupabaseClient,
   userId: string,
 ): Promise<ReadResult<readonly ReceivedInvitation[]>> {
-  for (
-    let attempt = 0;
-    attempt < MAX_INVITATION_SNAPSHOT_ATTEMPTS;
-    attempt += 1
-  ) {
-    const rowsResult = await listInvitationRows(client, userId);
-    if (!rowsResult.ok) {
-      return rowsResult;
-    }
-    const verificationResult = await listInvitationRows(client, userId);
-    if (!verificationResult.ok) {
-      return verificationResult;
-    }
-    if (
-      !haveSameStableRowVersions(rowsResult.value, verificationResult.value)
-    ) {
-      if (attempt + 1 < MAX_INVITATION_SNAPSHOT_ATTEMPTS) {
-        continue;
-      }
-      console.error(
-        "[read] invitations changed during paging; refusing to return a mixed snapshot.",
-      );
-      return err(readError("failure"));
-    }
-    return mapRows(rowsResult.value, mapInvitationRow);
+  const rowsResult = await listInvitationRows(client, userId);
+  if (!rowsResult.ok) {
+    return rowsResult;
   }
-  return err(readError("failure"));
+  const orderedRows = [...rowsResult.value].sort(
+    (left, right) =>
+      left.created_at.localeCompare(right.created_at) ||
+      left.id.localeCompare(right.id),
+  );
+  return mapRows(orderedRows, mapInvitationRow);
 }

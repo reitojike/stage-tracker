@@ -1,25 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { err, type PersonalScheduleEntry } from "@stage-tracker/domain";
+import { type PersonalScheduleEntry } from "@stage-tracker/domain";
 import type { Database } from "../database.types";
 import { mapPersonalScheduleEntryRow } from "../mappers/scheduleEntryRow";
 import { mapRows } from "../row-mapping";
-import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
-import {
-  haveSameStableRowVersions,
-  runPagedSupabaseSelect,
-} from "../paged-select";
-
-const MAX_PERSONAL_SCHEDULE_SNAPSHOT_ATTEMPTS = 2;
+import { runKeysetSupabaseSelect } from "../paged-select";
 
 async function listPersonalScheduleRows(client: SupabaseClient<Database>) {
-  return runPagedSupabaseSelect((from, to) =>
-    client
+  return runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
       .from("personal_schedule_entries")
-      .select("*", { count: "exact" })
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
+      .select("*", { count: "exact" });
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor.order("id", { ascending: true }).limit(limit);
+  });
 }
 
 /**
@@ -49,31 +43,9 @@ async function listPersonalScheduleRows(client: SupabaseClient<Database>) {
 export async function listVisiblePersonalSchedule(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly PersonalScheduleEntry[]>> {
-  for (
-    let attempt = 0;
-    attempt < MAX_PERSONAL_SCHEDULE_SNAPSHOT_ATTEMPTS;
-    attempt += 1
-  ) {
-    const rowsResult = await listPersonalScheduleRows(client);
-    if (!rowsResult.ok) {
-      return rowsResult;
-    }
-    const verificationResult = await listPersonalScheduleRows(client);
-    if (!verificationResult.ok) {
-      return verificationResult;
-    }
-    if (
-      !haveSameStableRowVersions(rowsResult.value, verificationResult.value)
-    ) {
-      if (attempt + 1 < MAX_PERSONAL_SCHEDULE_SNAPSHOT_ATTEMPTS) {
-        continue;
-      }
-      console.error(
-        "[read] personal schedule changed during paging; refusing to return a mixed snapshot.",
-      );
-      return err(readError("failure"));
-    }
-    return mapRows(rowsResult.value, mapPersonalScheduleEntryRow);
+  const rowsResult = await listPersonalScheduleRows(client);
+  if (!rowsResult.ok) {
+    return rowsResult;
   }
-  return err(readError("failure"));
+  return mapRows(rowsResult.value, mapPersonalScheduleEntryRow);
 }
