@@ -6,10 +6,9 @@ import {
   occurrenceIdSchema,
   userIdSchema,
 } from "@stage-tracker/domain";
-import { ActionError } from "@/lib/action-error";
+import { ActionError, GENERIC_FAILURE_MESSAGE_JA } from "@/lib/action-error";
 import { authActionClient } from "@/lib/safe-action";
 import { setParticipationChoice } from "./participation";
-import { classifyPostgrestLikeError } from "./postgrest-error";
 import {
   affectedReadSurfaces,
   revalidateReadSurfaces,
@@ -108,6 +107,16 @@ export interface DeclinedInvitationSnapshotOutput {
  * 下記コメント参照）が、Issue #382 が「同じ inviter からの pending
  * invitation を作り直す」undo を実装する際にこの情報が必要になるため、
  * RPC が無償で返す値を捨てずに残す。
+ *
+ * **エラー分類は単一の opaque failure。** `decline_occurrence_invitation`
+ * （`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`）
+ * は `raise exception` に `using errcode` を一切指定しておらず、custom
+ * SQLSTATE を発生させない（未認証/invitationId 欠落の2箇所のみで、いずれも
+ * `authActionClient`/zod スキーマにより実際には到達しない）。したがって
+ * SQLSTATE 別に分岐する classifier（`duplicate-occurrence`/`delete-blocked`/
+ * `occurrence-canceled` 等）は、このRPCに対しては到達不能な分岐を宣言する
+ * だけになるため使わない（Issue #500 AC: unreachable classifier branches
+ * をテストだけのために維持しない）。
  */
 export const declineInvitationAction = authActionClient
   .inputSchema(declineInvitationInputSchema)
@@ -117,7 +126,11 @@ export const declineInvitationAction = authActionClient
       { p_invitation_id: parsedInput.invitationId },
     );
     if (error) {
-      throw classifyPostgrestLikeError(error);
+      console.error("[invitation decline] unclassified PostgREST error", {
+        code: error.code,
+        message: error.message,
+      });
+      throw new ActionError("failure", GENERIC_FAILURE_MESSAGE_JA);
     }
 
     revalidateReadSurfaces(affectedReadSurfaces.invitationDecline());
