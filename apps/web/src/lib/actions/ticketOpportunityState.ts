@@ -8,6 +8,10 @@ import {
   type UserTicketOpportunityStatus,
 } from "@stage-tracker/domain";
 import type { ActionErrorShape } from "@/lib/action-error";
+import {
+  UNIQUE_VIOLATION,
+  type RawPostgrestLikeError,
+} from "./postgrest-error";
 
 /**
  * `user_ticket_opportunity_states` の write core（`docs/v2/oracle-routes-ui.md`
@@ -19,15 +23,8 @@ import type { ActionErrorShape } from "@/lib/action-error";
 
 export type SetTicketOpportunityStateErrorKind = ActionErrorShape<never>;
 
-interface PostgrestLikeError {
-  readonly code?: string | null;
-  readonly message: string;
-}
-
-const UNIQUE_VIOLATION_SQLSTATE = "23505";
-
 function classifyWriteError(
-  error: PostgrestLikeError,
+  error: RawPostgrestLikeError,
 ): SetTicketOpportunityStateErrorKind {
   // `occurrence_participations` の `occurrence-canceled` (90002) に相当する
   // actor 事実由来の分岐はこのテーブルには無い（TicketOpportunity の
@@ -119,7 +116,7 @@ export async function setMyTicketOpportunityState(
     return ok(undefined);
   }
 
-  if (insertError.code !== UNIQUE_VIOLATION_SQLSTATE) {
+  if (insertError.code !== UNIQUE_VIOLATION) {
     return err(classifyWriteError(insertError));
   }
 

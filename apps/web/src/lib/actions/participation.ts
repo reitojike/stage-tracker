@@ -7,6 +7,11 @@ import {
   type UserId,
 } from "@stage-tracker/domain";
 import type { ActionErrorShape } from "@/lib/action-error";
+import {
+  EFFECTIVELY_CANCELED,
+  UNIQUE_VIOLATION,
+  type RawPostgrestLikeError,
+} from "./postgrest-error";
 
 /**
  * 参加状況の書き込み core（`docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細
@@ -24,22 +29,12 @@ export const PARTICIPATION_CHOICES = [
 ] as const;
 export type ParticipationChoice = (typeof PARTICIPATION_CHOICES)[number];
 
-/** `docs/v2/decisions.md` A8: message 文字列マッチではなく custom SQLSTATE で分類する。 */
-const OCCURRENCE_CANCELED_SQLSTATE = "90002";
-const UNIQUE_VIOLATION_SQLSTATE = "23505";
-
-export type SetParticipationChoiceErrorKind =
-  ActionErrorShape<"occurrence-canceled">;
-
-interface PostgrestLikeError {
-  readonly code?: string | null;
-  readonly message: string;
-}
+export type SetParticipationChoiceErrorKind = ActionErrorShape;
 
 function classifyWriteError(
-  error: PostgrestLikeError,
+  error: RawPostgrestLikeError,
 ): SetParticipationChoiceErrorKind {
-  if (error.code === OCCURRENCE_CANCELED_SQLSTATE) {
+  if (error.code === EFFECTIVELY_CANCELED) {
     return {
       kind: "occurrence-canceled",
       message: "この公演回は中止されているため、この操作はできません。",
@@ -169,7 +164,7 @@ export async function setParticipationChoice(
     });
 
   if (insertError) {
-    if (insertError.code === UNIQUE_VIOLATION_SQLSTATE) {
+    if (insertError.code === UNIQUE_VIOLATION) {
       // 同一 (occurrence_id, user_id) への並行 INSERT レース: 相手が先に
       // 行を作った。UPDATE へフォールバックする（`invite_to_occurrence`
       // RPC のリトライループと同じ種類のレース、規模はごく小さいので単純な

@@ -1,5 +1,10 @@
 import type { PostgrestError } from "@supabase/supabase-js";
-import { ActionError, type BaseActionErrorKind } from "@/lib/action-error";
+import {
+  ActionError,
+  GENERIC_FAILURE_MESSAGE_JA,
+  GENERIC_VALIDATION_MESSAGE_JA,
+  type BaseActionErrorKind,
+} from "@/lib/action-error";
 
 /**
  * PostgREST/RPC 呼び出しの失敗を `ActionError` へ分類する、この write 層の
@@ -34,10 +39,6 @@ const PERMISSION_DENIED_POSTGRES_CODES: ReadonlySet<string> = new Set([
  */
 const SINGLE_ROW_NOT_MATCHED_CODE = "PGRST116";
 
-const GENERIC_FAILURE_MESSAGE_JA =
-  "処理に失敗しました。しばらくしてから再度お試しください。";
-const GENERIC_VALIDATION_MESSAGE_JA =
-  "入力内容をご確認のうえ、再度お試しください。";
 const PERMISSION_DENIED_MESSAGE_JA = "権限がありません。";
 
 /**
