@@ -22,6 +22,8 @@ export interface NotificationsListProps {
   readonly initialNotifications: readonly NotificationListItem[];
 }
 
+type ReadActionResult = Awaited<ReturnType<typeof markNotificationsReadAction>>;
+
 /**
  * The Notifications screen's only client boundary. The server supplies a
  * bounded list snapshot; this component passes the exact IDs it renders to
@@ -47,21 +49,23 @@ export function NotificationsList({
   const [readWriteError, setReadWriteError] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const snapshotSubmissionKey = `${renderedIds.join("\u001f")}:${retryAttempt}`;
-  const lastSubmissionKeyRef = useRef<string | null>(null);
+  const submissionsRef = useRef<Map<string, Promise<ReadActionResult>>>(
+    new Map(),
+  );
 
   useEffect(() => {
     let active = true;
 
-    if (lastSubmissionKeyRef.current === snapshotSubmissionKey) {
-      return undefined;
+    let submission = submissionsRef.current.get(snapshotSubmissionKey);
+    if (submission === undefined) {
+      submission = markNotificationsReadAction({
+        notificationIds: renderedIds,
+      });
+      submissionsRef.current.set(snapshotSubmissionKey, submission);
     }
-    lastSubmissionKeyRef.current = snapshotSubmissionKey;
 
-    async function markRenderedNotificationsRead() {
-      try {
-        const result = await markNotificationsReadAction({
-          notificationIds: renderedIds,
-        });
+    void submission.then(
+      (result) => {
         if (!active) {
           return;
         }
@@ -72,14 +76,13 @@ export function NotificationsList({
         } else {
           setReadWriteError(true);
         }
-      } catch {
+      },
+      () => {
         if (active) {
           setReadWriteError(true);
         }
-      }
-    }
-
-    void markRenderedNotificationsRead();
+      },
+    );
 
     return () => {
       active = false;

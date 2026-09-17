@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   instantSchema,
@@ -12,6 +12,16 @@ import type { NotificationListItem } from "@/lib/data/reads/notifications";
 import { NotificationsList } from "./NotificationsList";
 
 const mockMarkNotificationsReadAction = vi.fn();
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
 
 vi.mock("@/lib/actions/notifications", () => ({
   markNotificationsReadAction: (...args: unknown[]) =>
@@ -164,11 +174,18 @@ describe("NotificationsList", () => {
 
   it("keeps rejected read-state requests visible and retryable", async () => {
     const user = userEvent.setup();
+    const rejected = createDeferred<{ data: { ok: true } }>();
+    const retried = createDeferred<{ data: { ok: true } }>();
     mockMarkNotificationsReadAction
-      .mockRejectedValueOnce(new Error("request rejected"))
-      .mockResolvedValueOnce({ data: { ok: true } });
+      .mockReturnValueOnce(rejected.promise)
+      .mockReturnValueOnce(retried.promise);
 
     render(<NotificationsList initialNotifications={[buildNotification()]} />);
+
+    await waitFor(() =>
+      expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(1),
+    );
+    rejected.reject(new Error("request rejected"));
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
@@ -179,8 +196,34 @@ describe("NotificationsList", () => {
 
     await user.click(screen.getByRole("button", { name: "もう一度試す" }));
 
+    await waitFor(() =>
+      expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(2),
+    );
+    retried.resolve({ data: { ok: true } });
+
     await waitFor(() => expect(screen.getByText("既読")).toBeInTheDocument());
     expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets a StrictMode re-setup observe one pending successful submission", async () => {
+    const pending = createDeferred<{ data: { ok: true } }>();
+    mockMarkNotificationsReadAction.mockReturnValueOnce(pending.promise);
+
+    render(
+      <StrictMode>
+        <NotificationsList initialNotifications={[buildNotification()]} />
+      </StrictMode>,
+    );
+
+    await waitFor(() =>
+      expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(1),
+    );
+    expect(screen.getByText("未読")).toBeInTheDocument();
+
+    pending.resolve({ data: { ok: true } });
+
+    await waitFor(() => expect(screen.getByText("既読")).toBeInTheDocument());
+    expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(1);
   });
 
   it("does not resubmit an unchanged snapshot after a successful revalidation", async () => {
@@ -198,6 +241,47 @@ describe("NotificationsList", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let an old snapshot result overwrite the current snapshot error", async () => {
+    const oldSubmission = createDeferred<{ data: { ok: true } }>();
+    const currentSubmission = createDeferred<{ data: { ok: true } }>();
+    mockMarkNotificationsReadAction
+      .mockReturnValueOnce(oldSubmission.promise)
+      .mockReturnValueOnce(currentSubmission.promise);
+
+    const { rerender } = render(
+      <NotificationsList
+        initialNotifications={[buildNotification({ id: NOTIFICATION_ID_A })]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(1),
+    );
+
+    rerender(
+      <NotificationsList
+        initialNotifications={[buildNotification({ id: NOTIFICATION_ID_B })]}
+      />,
+    );
+    await waitFor(() =>
+      expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(2),
+    );
+
+    currentSubmission.resolve({ data: { ok: true } });
+    await waitFor(() => expect(screen.getByText("既読")).toBeInTheDocument());
+
+    oldSubmission.reject(new Error("stale request rejected"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const currentRow = screen
+      .getAllByTestId("notification-row")
+      .find(
+        (row) => row.getAttribute("data-notification-id") === NOTIFICATION_ID_B,
+      );
+    expect(currentRow).not.toBeUndefined();
+    expect(within(currentRow!).getByLabelText("既読")).toBeInTheDocument();
   });
 
   it("remains safe when React development remounts the effect", async () => {
