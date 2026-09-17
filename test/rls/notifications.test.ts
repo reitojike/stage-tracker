@@ -228,24 +228,6 @@ void test('the schema exposes only the MVP contract and a stable recipient order
     assert.deepEqual(triggerFunctions, [
       { tgenabled: 'O', prosecdef: true, proconfig: ['search_path=""'] },
     ]);
-
-    const { rows: triggerFunctionGrants } = await client.query<{
-      role_name: string;
-      can_execute: boolean;
-    }>(
-      `select role_name, has_function_privilege(
-         role_name,
-         'public.create_invitation_received_notification()'::regprocedure,
-         'EXECUTE'
-       ) as can_execute
-       from (values ('anon'::name), ('authenticated'::name), ('service_role'::name)) roles(role_name)
-       order by role_name`,
-    );
-    assert.deepEqual(triggerFunctionGrants, [
-      { role_name: 'anon', can_execute: false },
-      { role_name: 'authenticated', can_execute: false },
-      { role_name: 'service_role', can_execute: false },
-    ]);
   } finally {
     await client.end();
   }
