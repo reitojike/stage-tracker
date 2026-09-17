@@ -105,6 +105,20 @@ async function createInvitationSource(): Promise<string> {
   return invitation.id;
 }
 
+async function readNotificationForSource(sourceId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('notifications')
+    .select()
+    .eq('recipient_id', recipient.user.id)
+    .eq('kind', 'invitation_received')
+    .eq('source_id', sourceId)
+    .single();
+  assert.equal(error, null);
+  assert.ok(data);
+  return data;
+}
+
 void test('the schema exposes only the MVP contract and a stable recipient ordering index', async () => {
   const status = readLocalSupabaseStatus();
   const client = new pg.Client({ connectionString: status.dbUrl });
@@ -198,6 +212,21 @@ void test('the schema exposes only the MVP contract and a stable recipient order
     );
     assert.deepEqual(functionGrants, [
       { authenticated_can_execute: true, anon_can_execute: false },
+    ]);
+
+    const { rows: triggerFunctions } = await client.query<{
+      tgenabled: string;
+      prosecdef: boolean;
+      proconfig: string[] | null;
+    }>(
+      `select t.tgenabled, p.prosecdef, p.proconfig
+       from pg_trigger t
+       join pg_proc p on p.oid = t.tgfoid
+       where t.tgrelid = 'public.occurrence_invitations'::regclass
+         and t.tgname = 'occurrence_invitations_create_notification'`,
+    );
+    assert.deepEqual(triggerFunctions, [
+      { tgenabled: 'O', prosecdef: true, proconfig: ['search_path=""'] },
     ]);
   } finally {
     await client.end();
@@ -328,7 +357,7 @@ void test('mark_notification_read is recipient-only, idempotent, and keeps canon
 
 void test('the recipient/source identity is unique and source Invitation deletion preserves the Notification', async () => {
   const sourceId = await createInvitationSource();
-  const notification = await createNotification(recipient.user.id, sourceId);
+  const notification = await readNotificationForSource(sourceId);
   const admin = createAdminClient();
 
   const { data: duplicate, error: duplicateError } = await admin
