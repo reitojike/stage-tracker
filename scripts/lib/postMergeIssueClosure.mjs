@@ -9,6 +9,7 @@ const CHECKBOX_MARKER_PATTERN = /\[[ xX]\]/u;
 const LEVEL_TWO_HEADING_PATTERN = /^##(?:\s|$)/u;
 const NESTED_HEADING_PATTERN = /^###[ \t]*/u;
 const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})(.*)$/u;
+const RAW_HTML_BLOCK_START_PATTERN = /^\s{0,3}<(?:\/?[A-Za-z]|[!?])/u;
 
 function normalizeNumber(value, name) {
   if (!Number.isSafeInteger(value) || value <= 0) {
@@ -109,6 +110,13 @@ function maskNonRenderedLines(lines) {
       visibleLines.push(null);
       fence = openingFence;
       continue;
+    }
+
+    if (!htmlComment && RAW_HTML_BLOCK_START_PATTERN.test(line)) {
+      return {
+        error: 'raw HTML makes the Issue body ambiguous for checklist parsing',
+        lines: [],
+      };
     }
 
     const stripped = stripHtmlComments(line, htmlComment);
