@@ -47,7 +47,12 @@ function reviewResult(headSha) {
 }
 
 function pr(headSha = HEAD_A) {
-  return { state: 'open', base: { ref: 'main' }, head: { sha: headSha } };
+  return {
+    state: 'open',
+    base: { ref: 'main' },
+    head: { sha: headSha },
+    mergeable_state: 'clean',
+  };
 }
 
 test('green exact-head CI and Codex result produce MERGE_READY', () => {
@@ -64,6 +69,7 @@ test('green exact-head CI and Codex result produce MERGE_READY', () => {
   assert.equal(result.status, 'MERGE_READY');
   assert.equal(result.mergeReady, true);
   assert.equal(result.headSha, HEAD_A);
+  assert.equal(result.baseUpToDate, true);
 });
 
 test('external Vercel status is not part of the repository merge-ready gate', () => {
@@ -151,6 +157,22 @@ test('old-head review evidence cannot clear a new head', () => {
   assert.equal(result.mergeReady, false);
 });
 
+test('a base update that changes the head requires fresh CI and review evidence', () => {
+  const ci = evaluateCi({
+    headSha: HEAD_B,
+    checkRuns: greenCheckRuns(HEAD_A),
+    statuses: greenStatuses(),
+  });
+  const review = evaluateReview({ headSha: HEAD_B, ...reviewResult(HEAD_A) });
+  const result = evaluatePostPrConvergence({ pr: pr(HEAD_B), ci, review });
+
+  assert.equal(ci.status, 'unknown');
+  assert.equal(review.status, 'not_requested');
+  assert.equal(result.status, 'HOLD');
+  assert.equal(result.phase, 'ci');
+  assert.equal(result.baseUpToDate, true);
+});
+
 test('an unresolved current review thread blocks merge-ready', () => {
   const ci = evaluateCi({
     headSha: HEAD_A,
@@ -177,15 +199,33 @@ test('an unresolved current review thread blocks merge-ready', () => {
   assert.equal(result.mergeReady, false);
 });
 
-test('outdated resolved history does not block a current clear review', () => {
+test('resolved outdated history does not block a current clear review', () => {
+  const review = evaluateReview({
+    headSha: HEAD_A,
+    ...reviewResult(HEAD_A),
+    reviewThreads: [{ isResolved: true, isOutdated: true }],
+  });
+
+  assert.equal(review.status, 'green');
+  assert.equal(review.unresolvedThreads.length, 0);
+});
+
+test('an unresolved outdated thread blocks until it is explicitly resolved', () => {
   const review = evaluateReview({
     headSha: HEAD_A,
     ...reviewResult(HEAD_A),
     reviewThreads: [{ isResolved: false, isOutdated: true }],
   });
+  const result = evaluatePostPrConvergence({
+    pr: pr(),
+    ci: { status: 'green' },
+    review,
+  });
 
-  assert.equal(review.status, 'green');
-  assert.equal(review.unresolvedThreads.length, 0);
+  assert.equal(review.status, 'findings');
+  assert.equal(review.unresolvedThreads.length, 1);
+  assert.equal(result.status, 'HOLD');
+  assert.equal(result.phase, 'review');
 });
 
 test('an unresolved thread from an old head is unknown rather than current evidence', () => {
@@ -420,4 +460,29 @@ test('wrong base branch is not merge-ready', () => {
 
   assert.equal(result.status, 'HOLD');
   assert.equal(result.phase, 'pr');
+});
+
+test('a behind base is not merge-ready', () => {
+  const result = evaluatePostPrConvergence({
+    pr: { ...pr(), mergeable_state: 'behind' },
+    ci: { status: 'green' },
+    review: { status: 'green' },
+  });
+
+  assert.equal(result.status, 'HOLD');
+  assert.equal(result.phase, 'pr');
+  assert.equal(result.baseUpToDate, false);
+  assert.match(result.reason, /behind/iu);
+});
+
+test('unknown base freshness is not merge-ready', () => {
+  const result = evaluatePostPrConvergence({
+    pr: { ...pr(), mergeable_state: 'unknown' },
+    ci: { status: 'green' },
+    review: { status: 'green' },
+  });
+
+  assert.equal(result.status, 'HOLD');
+  assert.equal(result.phase, 'pr');
+  assert.equal(result.baseUpToDate, null);
 });

@@ -567,6 +567,11 @@ function printReport(report, json) {
   console.log(`${report.status}: ${report.reason}`);
   console.log(`PR: ${report.prUrl ?? report.prNumber ?? 'unknown'}`);
   console.log(`Head: ${report.headSha ?? 'unknown'}`);
+  if (report.baseUpToDate !== undefined) {
+    console.log(
+      `Base: ${report.baseUpToDate === true ? 'up-to-date' : 'not up-to-date'} (${report.baseState ?? 'unknown'})`,
+    );
+  }
   if (report.headChanges?.length > 0)
     console.log(`Evidence invalidations: ${report.headChanges.length}`);
   if (report.ci !== undefined) {

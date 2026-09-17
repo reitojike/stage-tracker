@@ -120,6 +120,17 @@ function latestObservation(observations) {
   })[observations.length - 1];
 }
 
+function baseFreshness(pr) {
+  const mergeableState = String(pr?.mergeable_state ?? pr?.mergeableState ?? '').toLowerCase();
+  if (mergeableState === 'behind') {
+    return { state: mergeableState, upToDate: false };
+  }
+  if (mergeableState.length === 0 || mergeableState === 'unknown') {
+    return { state: mergeableState || null, upToDate: null };
+  }
+  return { state: mergeableState, upToDate: true };
+}
+
 function normaliseCheckRun(run, headSha) {
   if (run?.head_sha !== headSha) {
     return {
@@ -286,7 +297,11 @@ function classifyReviewThreads(reviewThreads, headSha) {
   const unknownThreads = [];
 
   for (const thread of reviewThreads) {
-    if (thread?.isResolved === true || thread?.isOutdated === true) continue;
+    if (thread?.isResolved === true) continue;
+    if (thread?.isOutdated === true) {
+      unresolvedThreads.push(thread);
+      continue;
+    }
     if (threadTargetsHead(thread, headSha)) unresolvedThreads.push(thread);
     else unknownThreads.push(thread);
   }
@@ -297,7 +312,9 @@ function classifyReviewThreads(reviewThreads, headSha) {
 /**
  * Evaluate the repository's current Codex review evidence for one exact head.
  * The no-findings result is accepted from the observed top-level result
- * surface, while any current unresolved thread remains a blocker.
+ * surface, while any unresolved thread remains a blocker. Outdated threads
+ * are not auto-dismissed; the agent must explicitly resolve them on GitHub
+ * after deciding that they are fixed or obsolete.
  */
 export function evaluateReview({
   headSha,
@@ -387,7 +404,8 @@ export function evaluateReview({
   if (unresolvedThreads.length > 0) {
     return {
       status: 'findings',
-      reason: 'current unresolved review thread(s) remain; agent judgment is required',
+      reason:
+        'unresolved review thread(s) remain, including outdated threads; agent judgment and explicit GitHub resolution are required',
       evidence: [...currentReviewObjects, ...currentNoFindings],
       unresolvedThreads,
       currentReviewObjects,
@@ -509,6 +527,7 @@ export function evaluatePostPrConvergence({
 }) {
   const headSha = pr?.head?.sha ?? null;
   const baseBranch = pr?.base?.ref ?? null;
+  const base = baseFreshness(pr);
 
   if (!Number.isInteger(correctionAttempt) || correctionAttempt < 0) {
     return {
@@ -518,6 +537,8 @@ export function evaluatePostPrConvergence({
       reason: 'correction attempt must be a non-negative integer',
       headSha,
       baseBranch,
+      baseState: base.state,
+      baseUpToDate: base.upToDate,
     };
   }
 
@@ -529,6 +550,8 @@ export function evaluatePostPrConvergence({
       reason: `correction retry ceiling exceeded (${policy.correctionRetryCeiling})`,
       headSha,
       baseBranch,
+      baseState: base.state,
+      baseUpToDate: base.upToDate,
       correctionAttempt,
     };
   }
@@ -541,6 +564,8 @@ export function evaluatePostPrConvergence({
       reason: 'PR is not open',
       headSha,
       baseBranch,
+      baseState: base.state,
+      baseUpToDate: base.upToDate,
       correctionAttempt,
     };
   }
@@ -553,6 +578,36 @@ export function evaluatePostPrConvergence({
       reason: `PR base is ${baseBranch ?? 'unknown'}, expected ${policy.baseBranch}`,
       headSha,
       baseBranch,
+      baseState: base.state,
+      baseUpToDate: base.upToDate,
+      correctionAttempt,
+    };
+  }
+
+  if (base.upToDate === false) {
+    return {
+      status: 'HOLD',
+      mergeReady: false,
+      phase: 'pr',
+      reason: `PR base is behind ${baseBranch ?? policy.baseBranch}; update the branch before convergence`,
+      headSha,
+      baseBranch,
+      baseState: base.state,
+      baseUpToDate: false,
+      correctionAttempt,
+    };
+  }
+
+  if (base.upToDate !== true) {
+    return {
+      status: 'HOLD',
+      mergeReady: false,
+      phase: 'pr',
+      reason: 'PR base freshness is unknown; GitHub mergeable state is not available yet',
+      headSha,
+      baseBranch,
+      baseState: base.state,
+      baseUpToDate: null,
       correctionAttempt,
     };
   }
@@ -565,6 +620,8 @@ export function evaluatePostPrConvergence({
       reason: 'PR head SHA is missing',
       headSha,
       baseBranch,
+      baseState: base.state,
+      baseUpToDate: base.upToDate,
       correctionAttempt,
     };
   }
@@ -577,6 +634,8 @@ export function evaluatePostPrConvergence({
       reason: ci?.reason ?? 'required CI is not green',
       headSha,
       baseBranch,
+      baseState: base.state,
+      baseUpToDate: base.upToDate,
       correctionAttempt,
       ci,
       review,
@@ -591,6 +650,8 @@ export function evaluatePostPrConvergence({
       reason: review?.reason ?? 'required review evidence is not clear',
       headSha,
       baseBranch,
+      baseState: base.state,
+      baseUpToDate: base.upToDate,
       correctionAttempt,
       ci,
       review,
@@ -605,6 +666,8 @@ export function evaluatePostPrConvergence({
       'exact-head CI and required review evidence are green with no unresolved current thread',
     headSha,
     baseBranch,
+    baseState: base.state,
+    baseUpToDate: base.upToDate,
     correctionAttempt,
     ci,
     review,
