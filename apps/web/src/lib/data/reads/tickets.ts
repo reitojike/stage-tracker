@@ -118,17 +118,22 @@ async function listTicketOpportunityTargets(
         .select("opportunity_id, occurrence_id, event_occurrences(*)", {
           count: "exact",
         });
-      const afterCursor =
-        cursor === null
-          ? query
-          : query.or(
-              `opportunity_id.gt.${cursor.opportunity_id},and(opportunity_id.eq.${cursor.opportunity_id},occurrence_id.gt.${cursor.occurrence_id})`,
-            );
-      response = await afterCursor
-        .order("opportunity_id", { ascending: true })
-        .order("occurrence_id", { ascending: true })
-        .limit(500)
-        .overrideTypes<TicketOpportunityTargetRow[]>();
+      if (cursor === null) {
+        response = await query
+          .order("opportunity_id", { ascending: true })
+          .order("occurrence_id", { ascending: true })
+          .limit(500)
+          .overrideTypes<TicketOpportunityTargetRow[]>();
+      } else {
+        response = await query
+          .or(
+            `opportunity_id.gt.${cursor.opportunity_id},and(opportunity_id.eq.${cursor.opportunity_id},occurrence_id.gt.${cursor.occurrence_id})`,
+          )
+          .order("opportunity_id", { ascending: true })
+          .order("occurrence_id", { ascending: true })
+          .limit(500)
+          .overrideTypes<TicketOpportunityTargetRow[]>();
+      }
     } catch (thrown) {
       console.error(
         "[read] unexpected exception during ticket target keyset SELECT",
@@ -168,11 +173,12 @@ async function listTicketOpportunityTargets(
       rows.push(row);
     }
 
-    const lastRow = response.data.at(-1);
+    const lastRow: TicketOpportunityTargetRow | undefined =
+      response.data.at(-1);
     if (lastRow === undefined) {
       return err(readError("failure"));
     }
-    const nextCursor = {
+    const nextCursor: TicketTargetCursor = {
       opportunity_id: lastRow.opportunity_id,
       occurrence_id: lastRow.occurrence_id,
     };
