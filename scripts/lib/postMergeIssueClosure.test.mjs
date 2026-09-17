@@ -97,6 +97,10 @@ test('non-rendered Acceptance Criteria text is ambiguous', () => {
 
   assert.equal(parseAcceptanceCriteria(fenced).status, 'ambiguous');
   assert.equal(parseAcceptanceCriteria(commented).status, 'ambiguous');
+  assert.equal(
+    parseAcceptanceCriteria('<!-- annotation -->## Acceptance Criteria\n- [x] hidden').status,
+    'ambiguous',
+  );
   assert.equal(parseAcceptanceCriteria(`${body()}\n<!-- unfinished`).status, 'ambiguous');
 });
 

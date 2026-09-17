@@ -112,6 +112,13 @@ function maskNonRenderedLines(lines) {
     }
 
     const stripped = stripHtmlComments(line, htmlComment);
+    const blockHtmlLine = htmlComment || /^\s*<!--/u.test(line);
+    if (blockHtmlLine && !stripped.inComment && stripped.line.trim().length > 0) {
+      return {
+        error: 'block HTML with trailing text makes the Issue body ambiguous',
+        lines: [],
+      };
+    }
     htmlComment = stripped.inComment;
     visibleLines.push(stripped.line);
   }
