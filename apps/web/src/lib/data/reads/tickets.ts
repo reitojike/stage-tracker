@@ -30,7 +30,10 @@ import { mapOccurrenceRow, type OccurrenceRow } from "../mappers/eventRow";
 import { mapRows } from "../row-mapping";
 import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
-import { runPagedSupabaseSelect } from "../paged-select";
+import {
+  haveSameStableRowVersions,
+  runPagedSupabaseSelect,
+} from "../paged-select";
 
 const MAX_TICKET_OPPORTUNITY_SNAPSHOT_ATTEMPTS = 2;
 
@@ -76,20 +79,6 @@ async function listTicketOpportunityParents(
       .order("id", { ascending: true })
       .range(from, to)
       .overrideTypes<TicketOpportunityParentRow[]>(),
-  );
-}
-
-function hasSameTicketOpportunityParentVersions(
-  before: readonly TicketOpportunityParentRow[],
-  after: readonly TicketOpportunityParentRow[],
-): boolean {
-  if (before.length !== after.length) {
-    return false;
-  }
-  return before.every(
-    (parent, index) =>
-      parent.id === after[index]?.id &&
-      parent.updated_at === after[index]?.updated_at,
   );
 }
 
@@ -319,7 +308,7 @@ export async function listTicketOpportunities(
       return verificationRowsResult;
     }
     if (
-      !hasSameTicketOpportunityParentVersions(
+      !haveSameStableRowVersions(
         parentRowsResult.value,
         verificationRowsResult.value,
       )
