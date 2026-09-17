@@ -126,6 +126,12 @@ function maskNonRenderedLines(lines) {
 
     const stripped = stripHtmlComments(line, htmlComment);
     const blockHtmlLine = htmlComment || HTML_COMMENT_START_PATTERN.test(line);
+    if (!DIRECT_CHECKBOX_PATTERN.test(line) && DIRECT_CHECKBOX_PATTERN.test(stripped.line)) {
+      return {
+        error: 'HTML comments cannot change Acceptance Criteria checkbox syntax',
+        lines: [],
+      };
+    }
     if (blockHtmlLine && !stripped.inComment && stripped.line.trim().length > 0) {
       return {
         error: 'block HTML with trailing text makes the Issue body ambiguous',
