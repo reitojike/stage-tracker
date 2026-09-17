@@ -242,9 +242,9 @@ describe("runKeysetSupabaseSelect", () => {
     if (result.ok) {
       expect(result.value).toHaveLength(1001);
       expect(new Set(result.value.map((row) => row.id)).size).toBe(1001);
-      expect(
-        result.value.filter((row) => row.id === inserted.id),
-      ).toHaveLength(0);
+      expect(result.value.filter((row) => row.id === inserted.id)).toHaveLength(
+        0,
+      );
     }
   });
 
