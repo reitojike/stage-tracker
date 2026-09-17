@@ -20,6 +20,11 @@ policy bundle.
 - For Task Contracts that explicitly require merge-ready, use the bounded
   continuation in [`docs/runbooks/post-pr-convergence.md`](docs/runbooks/post-pr-convergence.md)
   after PR creation; its `MERGE_READY` result is the stop boundary.
+- For Task Contracts that permit the merged implementation to complete the
+  canonical Issue, use the separate bounded procedure in
+  [`docs/runbooks/post-merge-issue-closure.md`](docs/runbooks/post-merge-issue-closure.md);
+  semantic AC verification remains an agent responsibility and the helper is
+  fail-closed.
 - Mechanical correctness and safety are enforced by executable configuration,
   tests, and CI. The normal repository verification entry point is
   [`pnpm run verify`](package.json); inspect the applicable workflow in
@@ -60,6 +65,10 @@ policy bundle.
   and continues into the bounded post-PR phase without an additional user
   prompt. This does not override read-only, report-plus-STOP, or explicit
   PR-creation STOP contracts.
+- Post-merge Issue closure is a separate phase. Do not extend
+  `post-pr:converge` into Issue lifecycle, parent/tracking coordination, or
+  automatic close behavior; parent, tracking, read-only, close-prohibited, or
+  otherwise ambiguous Tasks remain `HOLD`.
 - When the primary implementation provider is known from the canonical Task
   Contract or handoff, prefer an independent semantic review by a different
   provider when that provider is available. The current required deterministic
