@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { eventIdSchema } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
@@ -23,6 +22,10 @@ import {
   updateEventRangeInputSchema,
   updateOccurrenceInputSchema,
 } from "./eventSchemas";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 
 /**
  * `docs/v2/oracle-routes-ui.md` §1 の Event/Occurrence 書き込み層
@@ -80,6 +83,7 @@ export const createEventAction = authActionClient
       );
     }
 
+    revalidateReadSurfaces(affectedReadSurfaces.eventCreate());
     redirect(`/catalog/events/${parsed.data.id}`);
   });
 
@@ -106,9 +110,7 @@ export const updateEventDetailsAction = authActionClient
       throwEventWritePermissionDenied("update-event");
     }
 
-    revalidatePath(`/catalog/events/${eventId}/edit`);
-    revalidatePath(`/catalog/events/${eventId}`);
-    revalidatePath("/catalog");
+    revalidateReadSurfaces(affectedReadSurfaces.eventDetailsWrite(eventId));
     return { ok: true as const };
   });
 
@@ -136,10 +138,7 @@ export const updateEventRangeAction = authActionClient
       throwEventWriteError("update-event", error);
     }
 
-    revalidatePath(`/catalog/events/${eventId}/edit`);
-    revalidatePath(`/catalog/events/${eventId}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(affectedReadSurfaces.eventRangeWrite(eventId));
     return { ok: true as const };
   });
 
@@ -163,10 +162,7 @@ export const addOccurrenceAction = authActionClient
       throwEventWriteError("add-occurrence", error);
     }
 
-    revalidatePath(`/catalog/events/${eventId}/edit`);
-    revalidatePath(`/catalog/events/${eventId}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(affectedReadSurfaces.eventOccurrenceWrite(eventId));
     return { ok: true as const };
   });
 
@@ -192,10 +188,9 @@ export const updateOccurrenceAction = authActionClient
       throwEventWritePermissionDenied("update-occurrence");
     }
 
-    revalidatePath(`/catalog/events/${data.event_id}/edit`);
-    revalidatePath(`/catalog/events/${data.event_id}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.eventOccurrenceWrite(data.event_id),
+    );
     return { ok: true as const };
   });
 
@@ -208,10 +203,9 @@ export const deleteEventOccurrenceAction = authActionClient
     if (error) {
       throwEventDeleteError("delete-occurrence", error);
     }
-    revalidatePath(`/catalog/events/${parsedInput.eventId}/edit`);
-    revalidatePath(`/catalog/events/${parsedInput.eventId}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.eventOccurrenceWrite(parsedInput.eventId),
+    );
     return { ok: true as const };
   });
 
@@ -224,6 +218,9 @@ export const deleteEventAction = authActionClient
     if (error) {
       throwEventDeleteError("delete-event", error);
     }
+    revalidateReadSurfaces(
+      affectedReadSurfaces.eventDelete(parsedInput.eventId),
+    );
     redirect("/catalog");
   });
 
@@ -242,10 +239,9 @@ export const cancelEventAction = authActionClient
     if (data === null) {
       throwEventCancellationPermissionDenied("cancel-event");
     }
-    revalidatePath(`/catalog/events/${parsedInput.eventId}/edit`);
-    revalidatePath(`/catalog/events/${parsedInput.eventId}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.eventCancellationWrite(parsedInput.eventId),
+    );
     return { ok: true as const };
   });
 
@@ -264,10 +260,9 @@ export const uncancelEventAction = authActionClient
     if (data === null) {
       throwEventCancellationPermissionDenied("uncancel-event");
     }
-    revalidatePath(`/catalog/events/${parsedInput.eventId}/edit`);
-    revalidatePath(`/catalog/events/${parsedInput.eventId}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.eventCancellationWrite(parsedInput.eventId),
+    );
     return { ok: true as const };
   });
 
@@ -286,10 +281,9 @@ export const cancelEventOccurrenceAction = authActionClient
     if (data === null) {
       throwEventCancellationPermissionDenied("cancel-occurrence");
     }
-    revalidatePath(`/catalog/events/${data.event_id}/edit`);
-    revalidatePath(`/catalog/events/${data.event_id}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.eventCancellationWrite(data.event_id),
+    );
     return { ok: true as const };
   });
 
@@ -308,9 +302,8 @@ export const uncancelEventOccurrenceAction = authActionClient
     if (data === null) {
       throwEventCancellationPermissionDenied("uncancel-occurrence");
     }
-    revalidatePath(`/catalog/events/${data.event_id}/edit`);
-    revalidatePath(`/catalog/events/${data.event_id}`);
-    revalidatePath("/catalog");
-    revalidatePath("/calendar");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.eventCancellationWrite(data.event_id),
+    );
     return { ok: true as const };
   });

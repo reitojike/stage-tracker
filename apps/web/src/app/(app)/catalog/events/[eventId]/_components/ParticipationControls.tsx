@@ -29,7 +29,8 @@ export interface ParticipationControlsProps {
    * ことを意味する（`_lib/participationLookup.ts` 参照）。「参加していない」
    * (`initialStatus === null`) とは明確に別状態であり、インタラクティブな
    * 選択肢は出さない（read failure を「未参加」という product 上の意味へ
-   * 化けさせないため）。
+   * 化けさせないため）。親の event detail が read-state の StatePanel を
+   * 既に表示するため、この occurrence row は重複表示しない。
    */
   readonly participationUnavailable: boolean;
   readonly isEffectivelyCanceled: boolean;
@@ -75,11 +76,7 @@ export function ParticipationControls({
   const [isPending, startTransition] = useTransition();
 
   if (participationUnavailable) {
-    return (
-      <p className="text-body-sm text-muted-foreground">
-        参加状況を読み込めませんでした。
-      </p>
-    );
+    return null;
   }
 
   function handleOpenChange(nextOpen: boolean) {

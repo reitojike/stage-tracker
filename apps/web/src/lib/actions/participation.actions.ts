@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   eventIdSchema,
@@ -10,9 +9,13 @@ import {
 import { ActionError } from "@/lib/action-error";
 import { authActionClient } from "@/lib/safe-action";
 import { PARTICIPATION_CHOICES, setParticipationChoice } from "./participation";
+import {
+  affectedReadSurfaces,
+  revalidateReadSurfaces,
+} from "@/lib/revalidation";
 
 const setParticipationChoiceInputSchema = z.object({
-  // revalidatePath のスコープ算出にのみ使う（このタスクの制約により
+  // affected read surface のスコープ算出にのみ使う（このタスクの制約により
   // `apps/web/src/lib/data/` は変更しないため、`occurrenceId` からその
   // event を逆引きする read boundary はここには無い）。呼び出し元
   // (`ParticipationControls`) は自分が描画している event のページから
@@ -49,10 +52,12 @@ export const setParticipationChoiceAction = authActionClient
       throw new ActionError(result.error.kind, result.error.message);
     }
 
-    revalidatePath(`/catalog/events/${parsedInput.eventId}`);
-    revalidatePath("/calendar");
-    revalidatePath("/");
-    revalidatePath("/catalog/invitations");
+    revalidateReadSurfaces(
+      affectedReadSurfaces.participationWrite(
+        parsedInput.eventId,
+        parsedInput.choice,
+      ),
+    );
 
     return { choice: parsedInput.choice };
   });

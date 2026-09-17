@@ -18,7 +18,7 @@ const mockedAction = vi.mocked(setParticipationChoiceAction);
 describe("ParticipationControls", () => {
   beforeEach(() => mockedAction.mockReset());
 
-  it("shows a read-failure notice without an interactive trigger", () => {
+  it("does not duplicate the parent read-failure panel in each occurrence row", () => {
     render(
       <ParticipationControls
         eventId={eventId}
@@ -28,9 +28,10 @@ describe("ParticipationControls", () => {
         isEffectivelyCanceled={false}
       />,
     );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
-      screen.getByText("参加状況を読み込めませんでした。"),
-    ).toBeInTheDocument();
+      screen.queryByText("参加状況を読み込めませんでした"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "変更" }),
     ).not.toBeInTheDocument();

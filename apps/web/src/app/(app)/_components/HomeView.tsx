@@ -11,6 +11,7 @@ import {
   CompactList,
   ListRowChevron,
   ListRowLink,
+  PageHeading,
   StatePanel,
 } from "@stage-tracker/ui";
 import {
@@ -79,7 +80,7 @@ export function HomeView({ ticketState, scheduleState, today }: HomeViewProps) {
 
   return (
     <div className="flex flex-col gap-section">
-      <h1 className="text-heading font-semibold text-foreground">ホーム</h1>
+      <PageHeading>ホーム</PageHeading>
 
       {bothEmpty ? (
         <StatePanel

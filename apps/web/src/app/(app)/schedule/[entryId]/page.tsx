@@ -63,7 +63,7 @@ async function OwnerShareManagement({
       ) : (
         <StatePanel
           variant="error"
-          title="共有相手の一覧を読み込めませんでした。"
+          title="共有相手の一覧を読み込めませんでした"
           description={READ_FAILURE_RETRY_HINT_JA}
         />
       )}
@@ -94,7 +94,7 @@ async function NonOwnerShareStatus({
     return (
       <StatePanel
         variant="error"
-        title="共有状態を確認できませんでした。"
+        title="共有状態を確認できませんでした"
         description={READ_FAILURE_RETRY_HINT_JA}
       />
     );
@@ -126,10 +126,7 @@ export default async function ScheduleEntryDetailPage({
       {!entryIdResult.success ? (
         <>
           <PageHeading>予定の詳細</PageHeading>
-          <StatePanel
-            variant="empty"
-            title="この予定は見つかりませんでした。"
-          />
+          <StatePanel variant="empty" title="この予定は見つかりませんでした" />
         </>
       ) : (
         <ScheduleEntryDetailBody entryId={entryIdResult.data} />
@@ -159,7 +156,7 @@ async function ScheduleEntryDetailBody({
         <PageHeading>予定の詳細</PageHeading>
         <StatePanel
           variant="unavailable"
-          title="サインイン状態を確認できませんでした。"
+          title="サインイン状態を確認できませんでした"
           description="再度サインインしてからお試しください。"
         />
       </>
@@ -174,7 +171,7 @@ async function ScheduleEntryDetailBody({
     return (
       <>
         <PageHeading>予定の詳細</PageHeading>
-        <StatePanel variant="empty" title="この予定は見つかりませんでした。" />
+        <StatePanel variant="empty" title="この予定は見つかりませんでした" />
       </>
     );
   }
@@ -182,7 +179,7 @@ async function ScheduleEntryDetailBody({
     return (
       <>
         <PageHeading>予定の詳細</PageHeading>
-        <StatePanel variant="unavailable" title="この予定を表示できません。" />
+        <StatePanel variant="unavailable" title="この予定を表示できません" />
       </>
     );
   }
@@ -192,7 +189,7 @@ async function ScheduleEntryDetailBody({
         <PageHeading>予定の詳細</PageHeading>
         <StatePanel
           variant="error"
-          title="予定を読み込めませんでした。"
+          title="予定を読み込めませんでした"
           description={READ_FAILURE_RETRY_HINT_JA}
         />
       </>

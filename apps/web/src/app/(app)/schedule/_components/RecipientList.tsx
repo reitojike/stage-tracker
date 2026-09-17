@@ -1,7 +1,7 @@
 "use client";
 
 import { useAction } from "next-safe-action/hooks";
-import { Button } from "@stage-tracker/ui";
+import { Button, StatePanel } from "@stage-tracker/ui";
 import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
 import { removeScheduleShareAsOwnerAction } from "@/lib/actions/schedule/schedule-share-actions";
 import type { ScheduleShareRecipient } from "@/lib/actions/schedule/schedule-share-write";
@@ -61,11 +61,7 @@ interface RecipientListProps {
  */
 export function RecipientList({ entryId, recipients }: RecipientListProps) {
   if (recipients.length === 0) {
-    return (
-      <p className="text-body-sm text-muted-foreground">
-        まだ誰とも共有していません。
-      </p>
-    );
+    return <StatePanel variant="empty" title="まだ誰とも共有していません" />;
   }
 
   return (

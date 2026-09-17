@@ -182,7 +182,7 @@ describe("CalendarView", () => {
     ).toBeInTheDocument();
   });
 
-  it("merges an empty selected day even when another day has data", () => {
+  it("keeps a selected-day filtered empty contextual when another day has data", () => {
     render(
       <CalendarView
         month={MONTH}
@@ -198,21 +198,19 @@ describe("CalendarView", () => {
     );
 
     expect(
-      screen.getByText("この日の予定はまだありません"),
+      screen.getByText("この日の参加予定はありません"),
     ).toBeInTheDocument();
+    expect(screen.getByText("個人の予定はありません")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "+ 3月16日に予定を追加" }),
     ).toHaveAttribute("href", "/schedule/new?date=2026-03-16");
     expect(
-      screen.queryByText("この日の参加予定はありません"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("この日の個人の予定はありません"),
+      screen.queryByText("この日の予定はまだありません"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("テスト公演")).not.toBeInTheDocument();
   });
 
-  it("scopes the month empty state to the actual month, not adjacent grid days", () => {
+  it("keeps a month-scoped filtered empty contextual when adjacent grid days have data", () => {
     render(
       <CalendarView
         month={MONTH}
@@ -227,12 +225,15 @@ describe("CalendarView", () => {
       />,
     );
 
-    expect(screen.getByText("この月の予定はありません")).toBeInTheDocument();
+    expect(
+      screen.getByText("この月の参加予定はありません"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("個人の予定はありません")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "+ 予定を追加" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("この月の参加予定はありません"),
+      screen.queryByText("この月の予定はありません"),
     ).not.toBeInTheDocument();
   });
 

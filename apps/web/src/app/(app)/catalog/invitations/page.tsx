@@ -1,4 +1,4 @@
-import { BackLink, StatePanel } from "@stage-tracker/ui";
+import { BackLink, PageHeading, StatePanel } from "@stage-tracker/ui";
 import { classifyListReadResult } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
@@ -38,9 +38,7 @@ export default async function InvitationsPage() {
     <div className="flex flex-col gap-md">
       <BackLink href={backHref}>イベントへ戻る</BackLink>
       <header className="flex items-baseline justify-between gap-sm border-b-2 border-foreground pb-card-block">
-        <h1 className="text-heading leading-heading font-semibold text-foreground">
-          招待一覧
-        </h1>
+        <PageHeading>招待一覧</PageHeading>
         {state.variant === "empty" || state.variant === "populated" ? (
           <p className="text-body-sm text-muted-foreground">
             未回答 {state.variant === "populated" ? state.data.length : 0}件

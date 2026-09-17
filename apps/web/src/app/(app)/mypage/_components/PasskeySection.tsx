@@ -38,9 +38,7 @@ export async function PasskeySection() {
           description="時間をおいてもう一度お試しください。"
         />
       ) : data.length === 0 ? (
-        <p className="text-body-sm text-muted-foreground">
-          登録済みのPasskeyはありません。
-        </p>
+        <StatePanel variant="empty" title="登録済みのPasskeyはありません" />
       ) : (
         <ul className="flex flex-col gap-sm">
           {data.map((passkey) => (

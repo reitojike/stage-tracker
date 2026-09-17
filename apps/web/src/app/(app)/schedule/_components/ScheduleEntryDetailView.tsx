@@ -1,6 +1,6 @@
 import type { PersonalScheduleEntry } from "@stage-tracker/domain";
 import { personalScheduleEntryBlockingForViewer } from "@stage-tracker/domain";
-import { Badge, LinkButton } from "@stage-tracker/ui";
+import { Badge, LinkButton, PageHeading } from "@stage-tracker/ui";
 import { formatScheduleEntryTemporal } from "./formatScheduleEntryTemporal";
 import { scheduleBlockingLabel } from "@/app/_lib/format";
 
@@ -43,9 +43,9 @@ export function ScheduleEntryDetailView({
           </span>
         </div>
         <div className="flex items-start justify-between gap-sm border-b-2 border-foreground pb-card-block">
-          <h1 className="min-w-0 break-words text-heading font-semibold leading-heading text-foreground">
+          <PageHeading className="min-w-0 break-words">
             {entry.title}
-          </h1>
+          </PageHeading>
           {editHref ? (
             <LinkButton href={editHref} variant="ghost" size="sm">
               編集
