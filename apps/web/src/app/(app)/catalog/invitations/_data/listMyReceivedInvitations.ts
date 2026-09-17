@@ -63,10 +63,7 @@ interface InvitationRow {
 
 const MAX_INVITATION_SNAPSHOT_ATTEMPTS = 2;
 
-async function listInvitationRows(
-  client: SupabaseClient,
-  userId: string,
-) {
+async function listInvitationRows(client: SupabaseClient, userId: string) {
   return runPagedSupabaseSelect((from, to) =>
     client
       .from("occurrence_invitations")
@@ -154,7 +151,9 @@ export async function listMyReceivedInvitations(
     if (!verificationResult.ok) {
       return verificationResult;
     }
-    if (!haveSameStableRowVersions(rowsResult.value, verificationResult.value)) {
+    if (
+      !haveSameStableRowVersions(rowsResult.value, verificationResult.value)
+    ) {
       if (attempt + 1 < MAX_INVITATION_SNAPSHOT_ATTEMPTS) {
         continue;
       }

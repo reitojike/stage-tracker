@@ -127,7 +127,9 @@ export async function listMyParticipations(
     if (!verificationResult.ok) {
       return verificationResult;
     }
-    if (!haveSameStableRowVersions(rowsResult.value, verificationResult.value)) {
+    if (
+      !haveSameStableRowVersions(rowsResult.value, verificationResult.value)
+    ) {
       if (attempt + 1 < MAX_PARTICIPATION_SNAPSHOT_ATTEMPTS) {
         continue;
       }

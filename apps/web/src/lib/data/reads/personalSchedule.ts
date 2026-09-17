@@ -12,9 +12,7 @@ import {
 
 const MAX_PERSONAL_SCHEDULE_SNAPSHOT_ATTEMPTS = 2;
 
-async function listPersonalScheduleRows(
-  client: SupabaseClient<Database>,
-) {
+async function listPersonalScheduleRows(client: SupabaseClient<Database>) {
   return runPagedSupabaseSelect((from, to) =>
     client
       .from("personal_schedule_entries")
@@ -64,7 +62,9 @@ export async function listVisiblePersonalSchedule(
     if (!verificationResult.ok) {
       return verificationResult;
     }
-    if (!haveSameStableRowVersions(rowsResult.value, verificationResult.value)) {
+    if (
+      !haveSameStableRowVersions(rowsResult.value, verificationResult.value)
+    ) {
       if (attempt + 1 < MAX_PERSONAL_SCHEDULE_SNAPSHOT_ATTEMPTS) {
         continue;
       }
