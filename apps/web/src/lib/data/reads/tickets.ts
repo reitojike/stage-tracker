@@ -28,8 +28,11 @@ import {
 } from "../mappers/ticketRow";
 import { mapOccurrenceRow, type OccurrenceRow } from "../mappers/eventRow";
 import { mapRows } from "../row-mapping";
+import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
 import { runPagedSupabaseSelect } from "../paged-select";
+
+const MAX_TICKET_OPPORTUNITY_SNAPSHOT_ATTEMPTS = 2;
 
 export interface TicketOpportunityListRow extends TicketOpportunityRow {
   readonly events: {
@@ -61,6 +64,33 @@ export interface TicketOpportunityDetail {
   readonly eventTitle: string;
   readonly eventVenue: string | null;
   readonly targetOccurrences: readonly Occurrence[];
+}
+
+async function listTicketOpportunityParents(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<readonly TicketOpportunityParentRow[]>> {
+  return runPagedSupabaseSelect((from, to) =>
+    client
+      .from("ticket_opportunities")
+      .select("*, events(title, venue, canceled_at)", { count: "exact" })
+      .order("id", { ascending: true })
+      .range(from, to)
+      .overrideTypes<TicketOpportunityParentRow[]>(),
+  );
+}
+
+function hasSameTicketOpportunityParentVersions(
+  before: readonly TicketOpportunityParentRow[],
+  after: readonly TicketOpportunityParentRow[],
+): boolean {
+  if (before.length !== after.length) {
+    return false;
+  }
+  return before.every(
+    (parent, index) =>
+      parent.id === after[index]?.id &&
+      parent.updated_at === after[index]?.updated_at,
+  );
 }
 
 const eventDisplaySchema = z.object({
@@ -232,89 +262,116 @@ function mapTicketOpportunityListRow(
  * parent rangeだけでは子の `max_rows` 到達を検出できない。したがって
  * parent rowsを先にpaged readし、to-many resourcesをそれぞれ全件paged
  * readしてIDで再結合する。これはparentごとのN+1ではなく、最大3つの
- * sequential resource scansに限定した最小のquery shapeである。
+ * sequential resource scansに限定した最小のquery shapeである。Import RPCは
+ * parent更新時に`updated_at`を更新するため、child scans後にparentのID/
+ * `updated_at`を再読して楽観的snapshot検証を行う。importがscan間にcommit
+ * した場合はbounded retryし、安定したversionを得られなければfailureに
+ * する（異なるsnapshotの混在を成功扱いにしない）。
  */
 export async function listTicketOpportunities(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly TicketOpportunityDetail[]>> {
-  const parentRowsResult = await runPagedSupabaseSelect((from, to) =>
-    client
-      .from("ticket_opportunities")
-      .select("*, events(title, venue, canceled_at)", { count: "exact" })
-      .order("id", { ascending: true })
-      .range(from, to)
-      .overrideTypes<TicketOpportunityParentRow[]>(),
-  );
-  if (!parentRowsResult.ok) {
-    return parentRowsResult;
-  }
-
-  const parentIds = new Set(parentRowsResult.value.map((row) => row.id));
-  if (parentIds.size === 0) {
-    return ok([]);
-  }
-
-  const targetRowsResult = await runPagedSupabaseSelect((from, to) =>
-    client
-      .from("ticket_opportunity_target_occurrences")
-      .select("opportunity_id, occurrence_id, event_occurrences(*)", {
-        count: "exact",
-      })
-      .order("opportunity_id", { ascending: true })
-      .order("occurrence_id", { ascending: true })
-      .range(from, to)
-      .overrideTypes<TicketOpportunityTargetRow[]>(),
-  );
-  if (!targetRowsResult.ok) {
-    return targetRowsResult;
-  }
-
-  const milestoneRowsResult = await runPagedSupabaseSelect((from, to) =>
-    client
-      .from("ticket_opportunity_milestones")
-      .select("*", { count: "exact" })
-      .order("opportunity_id", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, to)
-      .overrideTypes<TicketOpportunityMilestoneRow[]>(),
-  );
-  if (!milestoneRowsResult.ok) {
-    return milestoneRowsResult;
-  }
-
-  const targetsByOpportunity = new Map<string, TicketOpportunityTargetRow[]>();
-  for (const row of targetRowsResult.value) {
-    if (!parentIds.has(row.opportunity_id)) {
-      continue;
+  for (
+    let attempt = 0;
+    attempt < MAX_TICKET_OPPORTUNITY_SNAPSHOT_ATTEMPTS;
+    attempt += 1
+  ) {
+    const parentRowsResult = await listTicketOpportunityParents(client);
+    if (!parentRowsResult.ok) {
+      return parentRowsResult;
     }
-    const rows = targetsByOpportunity.get(row.opportunity_id) ?? [];
-    rows.push(row);
-    targetsByOpportunity.set(row.opportunity_id, rows);
-  }
 
-  const milestonesByOpportunity = new Map<
-    string,
-    TicketOpportunityMilestoneRow[]
-  >();
-  for (const row of milestoneRowsResult.value) {
-    if (!parentIds.has(row.opportunity_id)) {
-      continue;
+    const parentIds = new Set(parentRowsResult.value.map((row) => row.id));
+    if (parentIds.size === 0) {
+      return ok([]);
     }
-    const rows = milestonesByOpportunity.get(row.opportunity_id) ?? [];
-    rows.push(row);
-    milestonesByOpportunity.set(row.opportunity_id, rows);
+
+    const targetRowsResult = await runPagedSupabaseSelect((from, to) =>
+      client
+        .from("ticket_opportunity_target_occurrences")
+        .select("opportunity_id, occurrence_id, event_occurrences(*)", {
+          count: "exact",
+        })
+        .order("opportunity_id", { ascending: true })
+        .order("occurrence_id", { ascending: true })
+        .range(from, to)
+        .overrideTypes<TicketOpportunityTargetRow[]>(),
+    );
+    if (!targetRowsResult.ok) {
+      return targetRowsResult;
+    }
+
+    const milestoneRowsResult = await runPagedSupabaseSelect((from, to) =>
+      client
+        .from("ticket_opportunity_milestones")
+        .select("*", { count: "exact" })
+        .order("opportunity_id", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+        .overrideTypes<TicketOpportunityMilestoneRow[]>(),
+    );
+    if (!milestoneRowsResult.ok) {
+      return milestoneRowsResult;
+    }
+
+    const verificationRowsResult = await listTicketOpportunityParents(client);
+    if (!verificationRowsResult.ok) {
+      return verificationRowsResult;
+    }
+    if (
+      !hasSameTicketOpportunityParentVersions(
+        parentRowsResult.value,
+        verificationRowsResult.value,
+      )
+    ) {
+      if (attempt + 1 < MAX_TICKET_OPPORTUNITY_SNAPSHOT_ATTEMPTS) {
+        continue;
+      }
+      console.error(
+        "[read] TicketOpportunity parent versions changed during child paging; refusing to return a mixed snapshot.",
+      );
+      return err(readError("failure"));
+    }
+
+    const targetsByOpportunity = new Map<
+      string,
+      TicketOpportunityTargetRow[]
+    >();
+    for (const row of targetRowsResult.value) {
+      if (!parentIds.has(row.opportunity_id)) {
+        continue;
+      }
+      const rows = targetsByOpportunity.get(row.opportunity_id) ?? [];
+      rows.push(row);
+      targetsByOpportunity.set(row.opportunity_id, rows);
+    }
+
+    const milestonesByOpportunity = new Map<
+      string,
+      TicketOpportunityMilestoneRow[]
+    >();
+    for (const row of milestoneRowsResult.value) {
+      if (!parentIds.has(row.opportunity_id)) {
+        continue;
+      }
+      const rows = milestonesByOpportunity.get(row.opportunity_id) ?? [];
+      rows.push(row);
+      milestonesByOpportunity.set(row.opportunity_id, rows);
+    }
+
+    const rows: TicketOpportunityListRow[] = parentRowsResult.value.map(
+      (parent) => ({
+        ...parent,
+        ticket_opportunity_target_occurrences:
+          targetsByOpportunity.get(parent.id) ?? [],
+        ticket_opportunity_milestones:
+          milestonesByOpportunity.get(parent.id) ?? [],
+      }),
+    );
+    return mapRows(rows, mapTicketOpportunityListRow);
   }
 
-  const rows: TicketOpportunityListRow[] = parentRowsResult.value.map(
-    (parent) => ({
-      ...parent,
-      ticket_opportunity_target_occurrences:
-        targetsByOpportunity.get(parent.id) ?? [],
-      ticket_opportunity_milestones:
-        milestonesByOpportunity.get(parent.id) ?? [],
-    }),
-  );
-  return mapRows(rows, mapTicketOpportunityListRow);
+  return err(readError("failure"));
 }
 
 /**

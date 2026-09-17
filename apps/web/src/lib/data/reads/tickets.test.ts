@@ -404,6 +404,55 @@ describe("listTicketOpportunities (shared catalog)", () => {
     }
   });
 
+  it("retries when the parent version changes during independent child scans", async () => {
+    let parentReadCount = 0;
+    const initialParent = opportunityRow({
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    const changedParent = opportunityRow({
+      updated_at: "2026-01-02T00:00:00Z",
+    });
+    server.use(
+      http.get(`${REST_URL}/ticket_opportunities`, () => {
+        parentReadCount += 1;
+        return HttpResponse.json(
+          [parentReadCount === 1 ? initialParent : changedParent],
+          { status: 200, headers: { "content-range": "0-0/1" } },
+        );
+      }),
+    );
+
+    const result = await listTicketOpportunities(createTestClient());
+
+    expect(result.ok).toBe(true);
+    expect(parentReadCount).toBe(4);
+  });
+
+  it("fails closed when parent versions keep changing across the bounded retry", async () => {
+    let parentReadCount = 0;
+    server.use(
+      http.get(`${REST_URL}/ticket_opportunities`, () => {
+        parentReadCount += 1;
+        return HttpResponse.json(
+          [
+            opportunityRow({
+              updated_at: `2026-01-0${parentReadCount}T00:00:00Z`,
+            }),
+          ],
+          { status: 200, headers: { "content-range": "0-0/1" } },
+        );
+      }),
+    );
+
+    const result = await listTicketOpportunities(createTestClient());
+
+    expect(result.ok).toBe(false);
+    expect(parentReadCount).toBe(4);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("failure");
+    }
+  });
+
   it("classifies a permission-denied response as unavailable, independent of the personal-state read", async () => {
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
