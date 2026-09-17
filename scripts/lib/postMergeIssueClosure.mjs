@@ -8,6 +8,7 @@ const DIRECT_CHECKBOX_PATTERN = /^-\s+\[([ xX])\]\s+(.+?)\s*$/u;
 const CHECKBOX_MARKER_PATTERN = /\[[ xX]\]/u;
 const LEVEL_TWO_HEADING_PATTERN = /^##(?:\s|$)/u;
 const NESTED_HEADING_PATTERN = /^###[ \t]*/u;
+const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})(.*)$/u;
 
 function normalizeNumber(value, name) {
   if (!Number.isSafeInteger(value) || value <= 0) {
@@ -44,6 +45,77 @@ function ambiguous(reason, extra = {}) {
   };
 }
 
+function fenceRun(line) {
+  const match = FENCE_PATTERN.exec(line);
+  if (match === null) return null;
+  return {
+    character: match[1][0],
+    length: match[1].length,
+    rest: match[2],
+  };
+}
+
+function maskNonRenderedLines(lines) {
+  const visibleLines = [];
+  let fence = null;
+  let htmlComment = false;
+
+  for (const line of lines) {
+    if (fence !== null) {
+      visibleLines.push(null);
+      const run = fenceRun(line);
+      if (
+        run !== null &&
+        run.character === fence.character &&
+        run.length >= fence.length &&
+        run.rest.trim().length === 0
+      ) {
+        fence = null;
+      }
+      continue;
+    }
+
+    const openingFence = fenceRun(line);
+    if (openingFence !== null) {
+      visibleLines.push(null);
+      fence = openingFence;
+      continue;
+    }
+
+    let hidden = htmlComment;
+    let cursor = 0;
+    while (cursor < line.length) {
+      if (htmlComment) {
+        hidden = true;
+        const closeIndex = line.indexOf('-->', cursor);
+        if (closeIndex === -1) break;
+        htmlComment = false;
+        cursor = closeIndex + 3;
+        continue;
+      }
+
+      const openIndex = line.indexOf('<!--', cursor);
+      if (openIndex === -1) break;
+      hidden = true;
+      const closeIndex = line.indexOf('-->', openIndex + 4);
+      if (closeIndex === -1) {
+        htmlComment = true;
+        break;
+      }
+      cursor = closeIndex + 3;
+    }
+    visibleLines.push(hidden ? null : line);
+  }
+
+  if (fence !== null) {
+    return { error: 'an unclosed fenced code block makes the Issue body ambiguous', lines: [] };
+  }
+  if (htmlComment) {
+    return { error: 'an unclosed HTML comment makes the Issue body ambiguous', lines: [] };
+  }
+  return { error: null, lines: visibleLines };
+}
+
 /**
  * Parse only the repository's explicit, top-level `## Acceptance Criteria`
  * section. This intentionally does not attempt to understand arbitrary
@@ -56,8 +128,13 @@ export function parseAcceptanceCriteria(body) {
 
   const lineEnding = lineEndingFor(body);
   const lines = body.split(/\r\n|\n/u);
+  const rendered = maskNonRenderedLines(lines);
+  if (rendered.error !== null) return ambiguous(rendered.error);
+  const visibleLines = rendered.lines.map((line) => line ?? '');
   const headingPattern = /^## Acceptance Criteria[ \t]*$/u;
-  const headingIndexes = lines.flatMap((line, index) => (headingPattern.test(line) ? [index] : []));
+  const headingIndexes = visibleLines.flatMap((line, index) =>
+    headingPattern.test(line) ? [index] : [],
+  );
 
   if (headingIndexes.length !== 1) {
     return ambiguous(
@@ -68,14 +145,14 @@ export function parseAcceptanceCriteria(body) {
   }
 
   const headingLine = headingIndexes[0];
-  const sectionEnd = lines.findIndex(
+  const sectionEnd = visibleLines.findIndex(
     (line, index) => index > headingLine && LEVEL_TWO_HEADING_PATTERN.test(line),
   );
-  const endLine = sectionEnd === -1 ? lines.length : sectionEnd;
+  const endLine = sectionEnd === -1 ? visibleLines.length : sectionEnd;
   const items = [];
 
   for (let index = headingLine + 1; index < endLine; index += 1) {
-    const line = lines[index] ?? '';
+    const line = visibleLines[index] ?? '';
     if (NESTED_HEADING_PATTERN.test(line)) {
       return ambiguous('nested headings inside the Acceptance Criteria section are ambiguous');
     }
@@ -118,6 +195,15 @@ export function parseAcceptanceCriteria(body) {
 
 export function sha256(value) {
   return createHash('sha256').update(String(value), 'utf8').digest('hex');
+}
+
+export function isPullRequestPayload(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, 'pull_request')
+  );
 }
 
 /**

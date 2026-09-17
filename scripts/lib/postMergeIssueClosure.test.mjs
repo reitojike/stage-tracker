@@ -5,6 +5,7 @@ import {
   completionEvidenceMarker,
   evaluatePostMergeIssueClosure,
   findCompletionEvidence,
+  isPullRequestPayload,
   isSufficientCompletionEvidence,
   parseAcceptanceCriteria,
   sha256,
@@ -88,6 +89,21 @@ test('missing, duplicate, nested, and alternate checklist syntax are ambiguous',
     parseAcceptanceCriteria(body().replace('- [ ] first criterion', '* [ ] alternate')).status,
     'ambiguous',
   );
+});
+
+test('non-rendered Acceptance Criteria text is ambiguous', () => {
+  const fenced = ['```markdown', '## Acceptance Criteria', '- [x] hidden', '```'].join('\n');
+  const commented = ['<!--', '## Acceptance Criteria', '- [x] hidden', '-->'].join('\n');
+
+  assert.equal(parseAcceptanceCriteria(fenced).status, 'ambiguous');
+  assert.equal(parseAcceptanceCriteria(commented).status, 'ambiguous');
+  assert.equal(parseAcceptanceCriteria(`${body()}\n<!-- unfinished`).status, 'ambiguous');
+});
+
+test('pull-request-shaped Issues API payloads are rejected', () => {
+  assert.equal(isPullRequestPayload({ number: 528, pull_request: {} }), true);
+  assert.equal(isPullRequestPayload({ number: 527, body: body() }), false);
+  assert.equal(isPullRequestPayload(null), false);
 });
 
 test('checkbox update changes only explicitly selected items', () => {

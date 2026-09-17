@@ -7,6 +7,7 @@ import {
   evaluatePostMergeIssueClosure,
   findCompletionEvidence,
   isFullSha,
+  isPullRequestPayload,
   isSufficientCompletionEvidence,
   parseAcceptanceCriteria,
   sha256,
@@ -182,6 +183,9 @@ function readIssue(repo, issueNumber) {
   const issue = apiJson(`repos/${repo}/issues/${issueNumber}`);
   if (issue === null || typeof issue !== 'object' || Array.isArray(issue)) {
     throw new Error('GitHub Issue response was not an object');
+  }
+  if (isPullRequestPayload(issue)) {
+    throw new Error('GitHub response is a pull request, not an Issue');
   }
 
   const body = typeof issue.body === 'string' ? issue.body : null;
