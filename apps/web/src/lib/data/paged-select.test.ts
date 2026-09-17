@@ -210,8 +210,8 @@ describe("runKeysetSupabaseSelect", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value).toHaveLength(1000);
-      expect(new Set(result.value.map((row) => row.id)).size).toBe(1000);
+      expect(result.value).toHaveLength(1001);
+      expect(new Set(result.value.map((row) => row.id)).size).toBe(1001);
       expect(result.value.at(-1)?.id).toBe(originalRows.at(-1)?.id);
     }
   });
@@ -242,6 +242,9 @@ describe("runKeysetSupabaseSelect", () => {
     if (result.ok) {
       expect(result.value).toHaveLength(1001);
       expect(new Set(result.value.map((row) => row.id)).size).toBe(1001);
+      expect(
+        result.value.filter((row) => row.id === inserted.id),
+      ).toHaveLength(0);
     }
   });
 
@@ -253,7 +256,7 @@ describe("runKeysetSupabaseSelect", () => {
     let page = 0;
     const queryPage = (cursor: string | null, limit: number) => {
       page += 1;
-      const currentRows = page === 2 ? [...rows, inserted] : rows;
+      const currentRows = page >= 2 ? [...rows, inserted] : rows;
       const remaining =
         cursor === null
           ? currentRows
@@ -268,9 +271,11 @@ describe("runKeysetSupabaseSelect", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toHaveLength(1002);
+      expect(new Set(result.value.map((row) => row.id)).size).toBe(1002);
       expect(result.value.filter((row) => row.id === inserted.id)).toHaveLength(
         1,
       );
+      expect(result.value.slice(0, 1001)).toEqual(rows);
     }
   });
 });

@@ -450,7 +450,7 @@ describe("listTicketOpportunities (shared catalog)", () => {
       ),
       http.get(`${REST_URL}/ticket_opportunity_milestones`, ({ request }) => {
         const url = new URL(request.url);
-        expect(url.searchParams.get("order")).toBe("opportunity_id.asc,id.asc");
+        expect(url.searchParams.get("order")).toBe("id.asc");
         expect(url.searchParams.get("limit")).toBe("500");
         const idFilter = url.searchParams.get("id");
         const cursor = idFilter?.startsWith("gt.")
