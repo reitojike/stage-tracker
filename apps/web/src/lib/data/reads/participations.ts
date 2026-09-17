@@ -20,8 +20,30 @@ import {
   type ParticipationRow,
 } from "../mappers/participationRow";
 import { mapRows } from "../row-mapping";
+import { readError } from "../read-error";
 import type { ReadResult } from "../read-result";
-import { runPagedSupabaseSelect } from "../paged-select";
+import {
+  haveSameStableRowVersions,
+  runPagedSupabaseSelect,
+} from "../paged-select";
+
+const MAX_PARTICIPATION_SNAPSHOT_ATTEMPTS = 2;
+
+async function listParticipationRows(
+  client: SupabaseClient<Database>,
+  userId: UserId,
+) {
+  return runPagedSupabaseSelect((from, to) =>
+    client
+      .from("occurrence_participations")
+      .select("*, event_occurrences!inner(*, events!inner(*))", {
+        count: "exact",
+      })
+      .eq("user_id", userId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+}
 
 export interface ParticipationWithOccurrenceRow extends ParticipationRow {
   readonly event_occurrences:
@@ -92,18 +114,29 @@ export async function listMyParticipations(
   client: SupabaseClient<Database>,
   userId: UserId,
 ): Promise<ReadResult<readonly ParticipationWithOccurrence[]>> {
-  const rowsResult = await runPagedSupabaseSelect((from, to) =>
-    client
-      .from("occurrence_participations")
-      .select("*, event_occurrences!inner(*, events!inner(*))", {
-        count: "exact",
-      })
-      .eq("user_id", userId)
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
-  if (!rowsResult.ok) {
-    return rowsResult;
+  for (
+    let attempt = 0;
+    attempt < MAX_PARTICIPATION_SNAPSHOT_ATTEMPTS;
+    attempt += 1
+  ) {
+    const rowsResult = await listParticipationRows(client, userId);
+    if (!rowsResult.ok) {
+      return rowsResult;
+    }
+    const verificationResult = await listParticipationRows(client, userId);
+    if (!verificationResult.ok) {
+      return verificationResult;
+    }
+    if (!haveSameStableRowVersions(rowsResult.value, verificationResult.value)) {
+      if (attempt + 1 < MAX_PARTICIPATION_SNAPSHOT_ATTEMPTS) {
+        continue;
+      }
+      console.error(
+        "[read] participations changed during paging; refusing to return a mixed snapshot.",
+      );
+      return err(readError("failure"));
+    }
+    return mapRows(rowsResult.value, mapParticipationWithOccurrenceRow);
   }
-  return mapRows(rowsResult.value, mapParticipationWithOccurrenceRow);
+  return err(readError("failure"));
 }

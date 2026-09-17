@@ -34,6 +34,7 @@ describe("listMyReceivedInvitations", () => {
           [
             {
               id: "22222222-2222-4222-8222-222222222222",
+              updated_at: "2026-01-01T00:00:00Z",
               occurrence_id: "33333333-3333-4333-8333-333333333333",
               inviter_id: "44444444-4444-4444-8444-444444444444",
               invitee_id: userId,
@@ -64,6 +65,7 @@ describe("listMyReceivedInvitations", () => {
           [
             {
               id: "22222222-2222-4222-8222-222222222222",
+              updated_at: "2026-01-01T00:00:00Z",
               occurrence_id: "33333333-3333-4333-8333-333333333333",
               inviter_id: "44444444-4444-4444-8444-444444444444",
               invitee_id: userId,
@@ -112,6 +114,7 @@ describe("listMyReceivedInvitations", () => {
   it("pages past the boundary without duplicating or omitting invitations", async () => {
     const rows = Array.from({ length: 501 }, (_, index) => ({
       id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      updated_at: "2026-01-01T00:00:00Z",
       occurrence_id: "33333333-3333-4333-8333-333333333333",
       inviter_id: "44444444-4444-4444-8444-444444444444",
       invitee_id: userId,
@@ -141,6 +144,36 @@ describe("listMyReceivedInvitations", () => {
       expect(
         new Set(result.value.map((invitation) => invitation.invitationId)).size,
       ).toBe(501);
+    }
+  });
+
+  it("fails closed when invitations keep changing during paging", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/occurrence_invitations`, () => {
+        requestCount += 1;
+        return HttpResponse.json(
+          [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              updated_at: `2026-01-0${requestCount}T00:00:00Z`,
+              occurrence_id: "33333333-3333-4333-8333-333333333333",
+              inviter_id: "44444444-4444-4444-8444-444444444444",
+              invitee_id: userId,
+              event_occurrences: null,
+            },
+          ],
+          { status: 200, headers: { "content-range": "0-0/1" } },
+        );
+      }),
+    );
+
+    const result = await listMyReceivedInvitations(createTestClient(), userId);
+
+    expect(result.ok).toBe(false);
+    expect(requestCount).toBe(4);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("failure");
     }
   });
 });

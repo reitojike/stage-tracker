@@ -6,6 +6,25 @@ import type { ReadResult } from "./read-result";
 
 const PAGE_SIZE = 500;
 
+export interface StableReadRow {
+  readonly id: string;
+  readonly updated_at: string;
+}
+
+export function haveSameStableRowVersions<Row extends StableReadRow>(
+  before: readonly Row[],
+  after: readonly Row[],
+): boolean {
+  if (before.length !== after.length) {
+    return false;
+  }
+  return before.every(
+    (row, index) =>
+      row.id === after[index]?.id &&
+      row.updated_at === after[index]?.updated_at,
+  );
+}
+
 /**
  * PostgREST は `supabase/config.toml` の `api.max_rows`（既定 1000）を
  * 超える行数を silently truncate する（エラーにならず、要求より短い行数が

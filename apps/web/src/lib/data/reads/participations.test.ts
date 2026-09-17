@@ -201,4 +201,58 @@ describe("listMyParticipations", () => {
       ).toBe(501);
     }
   });
+
+  it("fails closed when participations keep changing during paging", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/occurrence_participations`, () => {
+        requestCount += 1;
+        return HttpResponse.json(
+          [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              occurrence_id: "33333333-3333-4333-8333-333333333333",
+              user_id: userId,
+              status: "attending",
+              visibility: "private",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: `2026-01-0${requestCount}T00:00:00Z`,
+              event_occurrences: {
+                id: "33333333-3333-4333-8333-333333333333",
+                event_id: "44444444-4444-4444-8444-444444444444",
+                starts_at: "2026-03-05T10:00:00Z",
+                ends_at: null,
+                doors_at: null,
+                canceled_at: null,
+                created_at: "2026-01-01T00:00:00Z",
+                updated_at: "2026-01-01T00:00:00Z",
+                events: {
+                  id: "44444444-4444-4444-8444-444444444444",
+                  owner_id: "55555555-5555-4555-8555-555555555555",
+                  title: "テスト興行",
+                  venue: null,
+                  source_url: null,
+                  memo: null,
+                  starts_on: "2026-03-01",
+                  ends_on: "2026-03-10",
+                  canceled_at: null,
+                  created_at: "2026-01-01T00:00:00Z",
+                  updated_at: "2026-01-01T00:00:00Z",
+                },
+              },
+            },
+          ],
+          { status: 200, headers: { "content-range": "0-0/1" } },
+        );
+      }),
+    );
+
+    const result = await listMyParticipations(createTestClient(), userId);
+
+    expect(result.ok).toBe(false);
+    expect(requestCount).toBe(4);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("failure");
+    }
+  });
 });

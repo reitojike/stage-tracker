@@ -166,4 +166,40 @@ describe("listVisiblePersonalSchedule", () => {
       expect(new Set(result.value.map((entry) => entry.id)).size).toBe(501);
     }
   });
+
+  it("fails closed when the visible schedule keeps changing during paging", async () => {
+    let requestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_entries`, () => {
+        requestCount += 1;
+        return HttpResponse.json(
+          [
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              owner_id: "22222222-2222-4222-8222-222222222222",
+              memo: null,
+              is_all_day: true,
+              starts_on: "2026-03-05",
+              ends_on: "2026-03-05",
+              starts_at: null,
+              ends_at: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: `2026-01-0${requestCount}T00:00:00Z`,
+              title: "予定",
+              blocking: false,
+            },
+          ],
+          { status: 200, headers: { "content-range": "0-0/1" } },
+        );
+      }),
+    );
+
+    const result = await listVisiblePersonalSchedule(createTestClient());
+
+    expect(result.ok).toBe(false);
+    expect(requestCount).toBe(4);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("failure");
+    }
+  });
 });
