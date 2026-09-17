@@ -113,6 +113,16 @@ test('non-rendered Acceptance Criteria text is ambiguous', () => {
     parseAcceptanceCriteria('#<!-- hidden --># Acceptance Criteria\n- [x] hidden').status,
     'ambiguous',
   );
+  assert.equal(
+    parseAcceptanceCriteria(
+      '## Acceptance Criteria\n- [x] satisfied\n#<!-- hidden --># Notes\n- [ ] unfinished',
+    ).status,
+    'ambiguous',
+  );
+  assert.equal(
+    parseAcceptanceCriteria('## Acceptance Criteria\n-     [x] indented code').status,
+    'ambiguous',
+  );
   assert.equal(parseAcceptanceCriteria(`<!-- hidden guidance -->\n${body()}`).status, 'clear');
   assert.equal(parseAcceptanceCriteria(`${body()}\n<!-- unfinished`).status, 'ambiguous');
 });

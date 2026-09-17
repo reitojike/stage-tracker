@@ -4,7 +4,7 @@ export const ACCEPTANCE_CRITERIA_HEADING = 'Acceptance Criteria';
 export const COMPLETION_EVIDENCE_MARKER_PREFIX = '<!-- stage-tracker:post-merge-completion';
 
 const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/iu;
-const DIRECT_CHECKBOX_PATTERN = /^-\s+\[([ xX])\]\s+(.+?)\s*$/u;
+const DIRECT_CHECKBOX_PATTERN = /^-[ \t]{1,4}\[([ xX])\][ \t]+(.+?)\s*$/u;
 const CHECKBOX_MARKER_PATTERN = /\[[ xX]\]/u;
 const LEVEL_TWO_HEADING_PATTERN = /^##(?:\s|$)/u;
 const NESTED_HEADING_PATTERN = /^###[ \t]*/u;
@@ -139,6 +139,16 @@ function maskNonRenderedLines(lines) {
     ) {
       return {
         error: 'HTML comments cannot change Acceptance Criteria heading syntax',
+        lines: [],
+      };
+    }
+    if (
+      line.includes('<!--') &&
+      !LEVEL_TWO_HEADING_PATTERN.test(line) &&
+      LEVEL_TWO_HEADING_PATTERN.test(stripped.line)
+    ) {
+      return {
+        error: 'HTML comments cannot change Markdown section-heading syntax',
         lines: [],
       };
     }
