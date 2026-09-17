@@ -136,6 +136,37 @@ test('non-rendered Acceptance Criteria text is ambiguous', () => {
   assert.equal(parseAcceptanceCriteria(`${body()}\n<!-- unfinished`).status, 'ambiguous');
 });
 
+test('fence detection only accepts Markdown ASCII-space indentation and closing whitespace', () => {
+  for (const leading of ['\t', '\u00a0', '\u2003']) {
+    const parsed = parseAcceptanceCriteria(
+      [
+        '## Acceptance Criteria',
+        '- [x] visible criterion',
+        leading + '```markdown',
+        '- [ ] hidden-looking criterion',
+        leading + '```',
+      ].join('\n'),
+    );
+
+    assert.equal(parsed.status, 'clear');
+    assert.equal(parsed.uncheckedCount, 1);
+  }
+
+  for (const trailing of ['\u00a0', '\u2003']) {
+    const parsed = parseAcceptanceCriteria(
+      [
+        '## Acceptance Criteria',
+        '- [x] visible criterion',
+        '```markdown',
+        '- [ ] hidden-looking criterion',
+        '```' + trailing,
+      ].join('\n'),
+    );
+
+    assert.equal(parsed.status, 'ambiguous');
+  }
+});
+
 test('inline HTML comments preserve visible section boundaries', () => {
   const source = [
     '## Acceptance Criteria',

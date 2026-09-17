@@ -9,7 +9,8 @@ const CHECKBOX_MARKER_PATTERN = /\[[ xX]\]/u;
 const LEVEL_TWO_HEADING_PATTERN = /^##(?:[ \t]|$)/u;
 const NESTED_HEADING_PATTERN = /^###[ \t]*/u;
 const ACCEPTANCE_CRITERIA_LINE_PATTERN = /^## Acceptance Criteria[ \t]*$/u;
-const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})(.*)$/u;
+const FENCE_PATTERN = /^ {0,3}(`{3,}|~{3,})(.*)$/u;
+const FENCE_CLOSING_REST_PATTERN = /^[ \t]*$/u;
 const RAW_HTML_BLOCK_START_PATTERN = /^\s{0,3}<(?:\/?[A-Za-z]|[!?])/u;
 const HTML_COMMENT_START_PATTERN = /^\s*<!--/u;
 
@@ -100,7 +101,7 @@ function maskNonRenderedLines(lines) {
         run !== null &&
         run.character === fence.character &&
         run.length >= fence.length &&
-        run.rest.trim().length === 0
+        FENCE_CLOSING_REST_PATTERN.test(run.rest)
       ) {
         fence = null;
       }
