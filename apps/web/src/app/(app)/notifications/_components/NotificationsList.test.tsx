@@ -26,9 +26,7 @@ const SOURCE_ID = invitationIdSchema.parse(
 const OCCURRENCE_ID = occurrenceIdSchema.parse(
   "44444444-4444-4444-8444-444444444444",
 );
-const INVITER_ID = userIdSchema.parse(
-  "55555555-5555-4555-8555-555555555555",
-);
+const INVITER_ID = userIdSchema.parse("55555555-5555-4555-8555-555555555555");
 
 function buildNotification(options?: {
   readonly id?: string;
@@ -40,8 +38,7 @@ function buildNotification(options?: {
     id: options?.id ?? NOTIFICATION_ID_A,
     kind: "invitation_received",
     sourceId: SOURCE_ID,
-    createdAt:
-      options?.createdAt ?? "2026-09-17T00:00:00.000Z",
+    createdAt: options?.createdAt ?? "2026-09-17T00:00:00.000Z",
     readAt: options?.readAt ?? null,
     source: options?.source ?? {
       status: "active",
@@ -68,7 +65,9 @@ describe("NotificationsList", () => {
 
     render(<NotificationsList initialNotifications={[first, second]} />);
 
-    expect(screen.getByRole("list", { name: "お知らせ一覧" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "お知らせ一覧" }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("参加への招待が届いています")).toHaveLength(2);
     expect(screen.getByText("9月17日(木) 09:00")).toBeInTheDocument();
     expect(screen.getByText("9月16日(水) 09:00")).toBeInTheDocument();
@@ -79,7 +78,9 @@ describe("NotificationsList", () => {
     const rows = screen.getAllByTestId("notification-row");
     expect(rows[0]).toHaveAttribute("data-notification-id", NOTIFICATION_ID_A);
     expect(rows[1]).toHaveAttribute("data-notification-id", NOTIFICATION_ID_B);
-    await waitFor(() => expect(mockMarkNotificationsReadAction).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockMarkNotificationsReadAction).toHaveBeenCalled(),
+    );
   });
 
   it("navigates active sources and exposes no action for resolved sources", async () => {
@@ -94,9 +95,13 @@ describe("NotificationsList", () => {
       />,
     );
 
-    const activeLink = screen.getByRole("link", { name: /参加への招待が届いています/ });
+    const activeLink = screen.getByRole("link", {
+      name: /参加への招待が届いています/,
+    });
     expect(activeLink).toHaveAttribute("href", "/catalog/invitations");
-    expect(screen.getByText("この招待はすでに終了しています。")).toBeInTheDocument();
+    expect(
+      screen.getByText("この招待はすでに終了しています。"),
+    ).toBeInTheDocument();
     const resolvedRow = screen
       .getByText("この招待はすでに終了しています。")
       .closest("li");
@@ -123,9 +128,9 @@ describe("NotificationsList", () => {
         notificationIds: [NOTIFICATION_ID_A, NOTIFICATION_ID_B],
       }),
     );
-    expect(mockMarkNotificationsReadAction.mock.calls[0]?.[0]).not.toHaveProperty(
-      "before",
-    );
+    expect(
+      mockMarkNotificationsReadAction.mock.calls[0]?.[0],
+    ).not.toHaveProperty("before");
   });
 
   it("keeps unread presentation and offers retry when the read-state write fails", async () => {
@@ -147,9 +152,9 @@ describe("NotificationsList", () => {
       ),
     );
     expect(screen.getByText("未読")).toBeInTheDocument();
-    expect(
-      screen.getByRole("alert").textContent,
-    ).not.toContain("private server detail");
+    expect(screen.getByRole("alert").textContent).not.toContain(
+      "private server detail",
+    );
 
     await user.click(screen.getByRole("button", { name: "もう一度試す" }));
 
@@ -165,7 +170,9 @@ describe("NotificationsList", () => {
     );
 
     await waitFor(() =>
-      expect(mockMarkNotificationsReadAction.mock.calls.length).toBeGreaterThan(0),
+      expect(mockMarkNotificationsReadAction.mock.calls.length).toBeGreaterThan(
+        0,
+      ),
     );
     for (const [input] of mockMarkNotificationsReadAction.mock.calls) {
       expect(input).toEqual({ notificationIds: [NOTIFICATION_ID_A] });

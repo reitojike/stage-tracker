@@ -66,8 +66,12 @@ describe("NotificationsPage", () => {
     const ui = await NotificationsPage();
     render(ui);
 
-    expect(screen.getByRole("heading", { name: "お知らせ" })).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "お知らせ一覧" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "お知らせ" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "お知らせ一覧" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("22222222-2222-4222-8222-222222222222"),
     ).toBeInTheDocument();
@@ -80,28 +84,37 @@ describe("NotificationsPage", () => {
     const ui = await NotificationsPage();
     render(ui);
 
-    expect(screen.getByRole("heading", { name: "お知らせ" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "お知らせ" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("お知らせはありません")).toBeInTheDocument();
     expect(
       screen.getByText("新しいお知らせが届くとここに表示されます。"),
     ).toBeInTheDocument();
-    expect(screen.getByText("お知らせはありません").closest("[data-slot=state-panel]")).toHaveAttribute(
-      "data-variant",
-      "empty",
-    );
+    expect(
+      screen
+        .getByText("お知らせはありません")
+        .closest("[data-slot=state-panel]"),
+    ).toHaveAttribute("data-variant", "empty");
   });
 
   it("keeps list failures as an error StatePanel", async () => {
     mockListMyNotifications.mockResolvedValue({
       ok: false,
-      error: { kind: "failure", message: "private failure", phase: "notification-list" },
+      error: {
+        kind: "failure",
+        message: "private failure",
+        phase: "notification-list",
+      },
     });
 
     const ui = await NotificationsPage();
     render(ui);
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-variant", "error");
-    expect(screen.getByText("お知らせを読み込めませんでした")).toBeInTheDocument();
+    expect(
+      screen.getByText("お知らせを読み込めませんでした"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("しばらくしてから再度お試しください。"),
     ).toBeInTheDocument();
@@ -122,7 +135,9 @@ describe("NotificationsPage", () => {
     render(ui);
 
     expect(screen.getByRole("alert")).toHaveAttribute("data-variant", "error");
-    expect(screen.getByText("お知らせを読み込めませんでした")).toBeInTheDocument();
+    expect(
+      screen.getByText("お知らせを読み込めませんでした"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("この招待はすでに終了しています。"),
     ).not.toBeInTheDocument();
@@ -137,7 +152,9 @@ describe("NotificationsPage", () => {
     const ui = await NotificationsPage();
     render(ui);
 
-    expect(screen.getByRole("heading", { name: "お知らせ" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "お知らせ" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("サインインが必要です")).toBeInTheDocument();
     expect(mockListMyNotifications).not.toHaveBeenCalled();
   });
@@ -145,7 +162,9 @@ describe("NotificationsPage", () => {
   it("keeps the loading heading chrome aligned with the production page", () => {
     render(<NotificationsLoading />);
 
-    expect(screen.getByRole("heading", { name: "お知らせ" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "お知らせ" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("読み込み中…");
   });
 });

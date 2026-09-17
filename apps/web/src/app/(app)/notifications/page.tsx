@@ -16,7 +16,9 @@ export default async function NotificationsPage() {
       <div className="flex flex-col gap-md">
         <PageHeading>お知らせ</PageHeading>
         <StatePanel
-          variant={userResult.error.kind === "failure" ? "error" : "unavailable"}
+          variant={
+            userResult.error.kind === "failure" ? "error" : "unavailable"
+          }
           title={
             userResult.error.kind === "failure"
               ? "お知らせを読み込めませんでした"

@@ -86,7 +86,7 @@ description: 'Task list for Issue #513 Notifications screen'
 - [x] T014 Run focused web tests, accessibility assertions, typecheck, lint, format, and `git diff --check`; update implementation tests/paths in `apps/web/src/app/(app)/notifications/` as required by the results
 - [x] T015 Run `pnpm run verify` where available and validate `quickstart.md`; record environment-only limitations without changing repository contracts in `specs/002-notifications-screen/quickstart.md`
 - [x] T016 Finalize `specs/002-notifications-screen/spec.md` as `Status: Current behavior contract`, review the current/future fence, and keep only behavior landed by Issue #513
-- [ ] T017 Record the concrete Spec Kit normal-feature/NEW TOPIC canary observation for Issue #513 in GitHub Issue #509, including friction, authority handoff, reusable boundaries, post-PR convergence, and why no Foundation mechanism was added
+- [x] T017 Record the concrete Spec Kit normal-feature/NEW TOPIC canary observation for Issue #513 in GitHub Issue #509, including friction, authority handoff, reusable boundaries, post-PR convergence, and why no Foundation mechanism was added
 
 ## Dependencies & Execution Order
 
