@@ -4,9 +4,9 @@ export const ACCEPTANCE_CRITERIA_HEADING = 'Acceptance Criteria';
 export const COMPLETION_EVIDENCE_MARKER_PREFIX = '<!-- stage-tracker:post-merge-completion';
 
 const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/iu;
-const DIRECT_CHECKBOX_PATTERN = /^-[ \t]{1,4}\[([ xX])\][ \t]+(.+?)\s*$/u;
+const DIRECT_CHECKBOX_PATTERN = /^-[ ]{1,4}\[([ xX])\][ \t]+(.+?)\s*$/u;
 const CHECKBOX_MARKER_PATTERN = /\[[ xX]\]/u;
-const LEVEL_TWO_HEADING_PATTERN = /^##(?:\s|$)/u;
+const LEVEL_TWO_HEADING_PATTERN = /^##(?:[ \t]|$)/u;
 const NESTED_HEADING_PATTERN = /^###[ \t]*/u;
 const ACCEPTANCE_CRITERIA_LINE_PATTERN = /^## Acceptance Criteria[ \t]*$/u;
 const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})(.*)$/u;

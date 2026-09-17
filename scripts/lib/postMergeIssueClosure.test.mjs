@@ -123,6 +123,15 @@ test('non-rendered Acceptance Criteria text is ambiguous', () => {
     parseAcceptanceCriteria('## Acceptance Criteria\n-     [x] indented code').status,
     'ambiguous',
   );
+  assert.equal(
+    parseAcceptanceCriteria('## Acceptance Criteria\n-\t[x] tabbed item').status,
+    'ambiguous',
+  );
+  const nonBreakingSpaceHeading = parseAcceptanceCriteria(
+    '## Acceptance Criteria\n- [x] satisfied\n##\u00a0Notes\n- [ ] unfinished',
+  );
+  assert.equal(nonBreakingSpaceHeading.status, 'clear');
+  assert.equal(nonBreakingSpaceHeading.uncheckedCount, 1);
   assert.equal(parseAcceptanceCriteria(`<!-- hidden guidance -->\n${body()}`).status, 'clear');
   assert.equal(parseAcceptanceCriteria(`${body()}\n<!-- unfinished`).status, 'ambiguous');
 });
