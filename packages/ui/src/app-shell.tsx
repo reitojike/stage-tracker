@@ -30,7 +30,7 @@ export function AppShell({
   showPrimaryNav = true,
   showActions = true,
   hasUnreadNotifications = false,
-  notificationsHref,
+  notificationsHref = '/notifications',
   myPageHref,
   myPageInitial,
   className,
