@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
  * Read surfaces that can be affected by a supported write.
  *
  * The descriptors deliberately describe product surfaces rather than exposing
- * route strings to each action.  A future Notifications surface can be added
- * here when #512/#514 land; its mutation contract will then use the same
- * `revalidateReadSurfaces` boundary.
+ * route strings to each action. Notifications and the authenticated AppShell
+ * are represented here as bounded read-surface descriptors; their mutation
+ * contract uses the same `revalidateReadSurfaces` boundary.
  */
 export type ReadSurface =
   | "home"
@@ -17,21 +17,24 @@ export type ReadSurface =
   | "tickets"
   | "eventDetail"
   | "eventEdit"
-  | "scheduleDetail";
+  | "scheduleDetail"
+  | "notifications"
+  | "appShell";
 
 export type ReadSurfaceDescriptor =
   | {
       readonly surface: Exclude<
         ReadSurface,
-        "eventDetail" | "eventEdit" | "scheduleDetail"
+        "eventDetail" | "eventEdit" | "scheduleDetail" | "appShell"
       >;
     }
   | { readonly surface: "eventDetail" | "eventEdit"; readonly eventId: string }
-  | { readonly surface: "scheduleDetail"; readonly entryId: string };
+  | { readonly surface: "scheduleDetail"; readonly entryId: string }
+  | { readonly surface: "appShell" };
 
 type StaticSurface = Exclude<
   ReadSurface,
-  "eventDetail" | "eventEdit" | "scheduleDetail"
+  "eventDetail" | "eventEdit" | "scheduleDetail" | "appShell"
 >;
 
 const STATIC_SURFACE_PATHS: Readonly<Record<StaticSurface, string>> = {
@@ -41,6 +44,7 @@ const STATIC_SURFACE_PATHS: Readonly<Record<StaticSurface, string>> = {
   invitations: "/catalog/invitations",
   myPage: "/mypage",
   tickets: "/tickets",
+  notifications: "/notifications",
 };
 
 function pathForSurface(descriptor: ReadSurfaceDescriptor): string {
@@ -51,6 +55,8 @@ function pathForSurface(descriptor: ReadSurfaceDescriptor): string {
       return `/catalog/events/${descriptor.eventId}/edit`;
     case "scheduleDetail":
       return `/schedule/${descriptor.entryId}`;
+    case "appShell":
+      throw new Error("AppShell must be revalidated as a layout descriptor");
     default:
       return STATIC_SURFACE_PATHS[descriptor.surface];
   }
@@ -65,6 +71,13 @@ export function revalidateReadSurfaces(
   surfaces: readonly ReadSurfaceDescriptor[],
 ): void {
   for (const surface of surfaces) {
+    if (surface.surface === "appShell") {
+      // The authenticated routes use the `(app)` route-group layout for the
+      // AppShell. Revalidate that layout only; the root layout also contains
+      // unauthenticated routes and does not own the unread source.
+      revalidatePath("/(app)", "layout");
+      continue;
+    }
     revalidatePath(pathForSurface(surface));
   }
 }
@@ -182,4 +195,7 @@ export const affectedReadSurfaces = {
     [staticSurface("tickets"), staticSurface("home")] as const,
 
   passkeyDelete: () => [staticSurface("myPage")] as const,
+
+  notificationRead: () =>
+    [staticSurface("notifications"), { surface: "appShell" }] as const,
 };

@@ -91,4 +91,13 @@ describe("affected read-surface contracts", () => {
       "page",
     ]);
   });
+
+  it("revalidates the Notifications page and only the authenticated AppShell layout after a read", () => {
+    revalidatedPaths(affectedReadSurfaces.notificationRead());
+
+    expect(revalidatePathMock.mock.calls).toEqual([
+      ["/notifications"],
+      ["/(app)", "layout"],
+    ]);
+  });
 });
