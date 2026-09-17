@@ -60,7 +60,27 @@ policy bundle.
   and continues into the bounded post-PR phase without an additional user
   prompt. This does not override read-only, report-plus-STOP, or explicit
   PR-creation STOP contracts.
+- When the primary implementation provider is known from the canonical Task
+  Contract or handoff, prefer an independent semantic review by a different
+  provider when that provider is available. The current required deterministic
+  merge-ready review remains a top-level `@codex review` and is not replaced by
+  this preference.
+- A Claude implementation is covered by the required Codex review as its
+  cross-provider review; do not add another reviewer by default. For a Codex
+  implementation, prefer a Claude independent semantic second opinion when
+  available, in addition to the required Codex review.
+- Cross-provider review is optional and does not currently form a
+  repository-level required merge gate. For high-risk changes such as auth,
+  RLS, security boundaries, secrets, migrations, destructive data operations,
+  release safety, or the review/convergence mechanism itself, strongly prefer
+  the cross-provider semantic second opinion. Its unavailability or lack of
+  machine-observable evidence alone must not block the normal deterministic
+  `MERGE_READY` contract, which currently requires only the supported Codex
+  review evidence. Do not make cross-provider review required until a safe,
+  fail-closed evidence path can be machine-observed; establish that path in a
+  separate task first.
 - This router does not revive the retired Foundation-generated guidance,
-  external checkout/pin/sync dependency, or provider/model-specific operating
-  rules. If a capability is genuinely missing, record the evidence in the task
-  and reassess it separately.
+  external checkout/pin/sync dependency, provider/model-specific capability
+  rules, reviewer routing, provider abstraction, quorum, or compatibility
+  machinery. If a capability is genuinely missing, record the evidence in the
+  task and reassess it separately.
