@@ -125,7 +125,7 @@ describe("NotificationsPage", () => {
     mockListMyNotifications.mockResolvedValue({
       ok: false,
       error: {
-        kind: "failure",
+        kind: "permission-denied",
         message: "private source failure",
         phase: "source-resolution",
       },

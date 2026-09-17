@@ -33,7 +33,10 @@ export default async function NotificationsPage() {
   }
 
   const result = await listMyNotifications(supabase);
-  const state = classifyListReadResult(result);
+  const state =
+    !result.ok && result.error.phase === "source-resolution"
+      ? { variant: "error" as const }
+      : classifyListReadResult(result);
 
   return (
     <div className="flex flex-col gap-md">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Instant } from "@stage-tracker/domain";
 import {
   Button,
@@ -46,23 +46,36 @@ export function NotificationsList({
   );
   const [readWriteError, setReadWriteError] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const snapshotSubmissionKey = `${renderedIds.join("\u001f")}:${retryAttempt}`;
+  const lastSubmissionKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    async function markRenderedNotificationsRead() {
-      const result = await markNotificationsReadAction({
-        notificationIds: renderedIds,
-      });
-      if (!active) {
-        return;
-      }
+    if (lastSubmissionKeyRef.current === snapshotSubmissionKey) {
+      return undefined;
+    }
+    lastSubmissionKeyRef.current = snapshotSubmissionKey;
 
-      if (result?.data?.ok === true) {
-        setReadIds(new Set(renderedIds));
-        setReadWriteError(false);
-      } else {
-        setReadWriteError(true);
+    async function markRenderedNotificationsRead() {
+      try {
+        const result = await markNotificationsReadAction({
+          notificationIds: renderedIds,
+        });
+        if (!active) {
+          return;
+        }
+
+        if (result?.data?.ok === true) {
+          setReadIds(new Set(renderedIds));
+          setReadWriteError(false);
+        } else {
+          setReadWriteError(true);
+        }
+      } catch {
+        if (active) {
+          setReadWriteError(true);
+        }
       }
     }
 
@@ -71,7 +84,7 @@ export function NotificationsList({
     return () => {
       active = false;
     };
-  }, [renderedIds, retryAttempt]);
+  }, [renderedIds, retryAttempt, snapshotSubmissionKey]);
 
   return (
     <div className="flex flex-col gap-md">

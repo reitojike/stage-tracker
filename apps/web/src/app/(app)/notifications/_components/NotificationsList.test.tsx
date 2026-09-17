@@ -162,6 +162,44 @@ describe("NotificationsList", () => {
     expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps rejected read-state requests visible and retryable", async () => {
+    const user = userEvent.setup();
+    mockMarkNotificationsReadAction
+      .mockRejectedValueOnce(new Error("request rejected"))
+      .mockResolvedValueOnce({ data: { ok: true } });
+
+    render(<NotificationsList initialNotifications={[buildNotification()]} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "お知らせを既読にできませんでした",
+      ),
+    );
+    expect(screen.getByText("未読")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "もう一度試す" }));
+
+    await waitFor(() => expect(screen.getByText("既読")).toBeInTheDocument());
+    expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not resubmit an unchanged snapshot after a successful revalidation", async () => {
+    const { rerender } = render(
+      <NotificationsList initialNotifications={[buildNotification()]} />,
+    );
+
+    await waitFor(() =>
+      expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(1),
+    );
+
+    rerender(
+      <NotificationsList initialNotifications={[buildNotification()]} />,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockMarkNotificationsReadAction).toHaveBeenCalledTimes(1);
+  });
+
   it("remains safe when React development remounts the effect", async () => {
     render(
       <StrictMode>
