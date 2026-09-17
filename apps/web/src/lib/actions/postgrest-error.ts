@@ -1,4 +1,8 @@
-import { ActionError } from "@/lib/action-error";
+import {
+  ActionError,
+  GENERIC_FAILURE_MESSAGE_JA,
+  GENERIC_VALIDATION_MESSAGE_JA,
+} from "@/lib/action-error";
 
 /**
  * この write boundary（Event/Occurrence/Invitation/Participation）全体で
@@ -46,33 +50,53 @@ export const VALIDATION_CODES = new Set([
   "22004",
 ]);
 
-/** unique_violation。この write boundary 内で authenticated が到達し得る
- * 唯一の unique 制約は `event_occurrences_event_id_starts_at_key`
- * （Issue #79）。 */
+/** unique_violation（Postgres 標準 SQLSTATE）。この write boundary 内で
+ * authenticated が到達し得る唯一の unique 制約は
+ * `event_occurrences_event_id_starts_at_key`（Issue #79）が、標準コード
+ * 自体は boundary 固有ではないため、同じ write 層内の他の write core
+ * （`participation.ts`/`ticketOpportunityState.ts` の並行 INSERT race
+ * 検出）もこの定数を re-export せず直接 import して共有する（Issue #500:
+ * `"23505"` literal の重複解消）。 */
 export const UNIQUE_VIOLATION = "23505";
 
 /** delete-blocked（Issue #124）: 参加/招待データが存在するための削除拒否。 */
 export const DELETE_BLOCKED = "90001";
 
-/** 実質的に中止済みの occurrence への新規 active action 拒否（Issue #125）。
- * 送信内容自体は不正ではなく対象の現在状態が理由なので `validation` に
- * 分類する（legacy `planningError.ts` の分類方針を踏襲）。 */
+/**
+ * 実質的に中止済みの occurrence への新規 active action 拒否（Issue #125）。
+ *
+ * migration 上（`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`
+ * 等、`using errcode = '90002'`）、この拒否は actor/入力ではなく**対象
+ * （occurrence）の現在状態**を理由に定義されている。base kind
+ * `occurrence-canceled`（`@/lib/action-error.ts`）へ分類する
+ * （Issue #500: 以前はこの共通 classifier だけが `validation` へ折り畳んで
+ * おり、`participation.ts`/`invitation.ts` の `occurrence-canceled` 分類と
+ * 経路によって異なる kind に分裂していた）。この write boundary の唯一の
+ * SQLSTATE 正本として、`participation.ts`/`invitation.ts` もこの定数を
+ * re-export せず直接 import する。
+ */
 export const EFFECTIVELY_CANCELED = "90002";
 
 const PERMISSION_DENIED_MESSAGE_JA =
   "対象が見つからないか、操作する権限がありません。";
-const DUPLICATE_OCCURRENCE_MESSAGE_JA =
+/** Issue #79 の `(event_id, starts_at)` 一意制約違反。`event-write-feedback.ts`
+ * の operation 別文言でも同じ基底文言を使うため export する
+ * （Issue #500: 同一文言の重複 literal 解消）。 */
+export const DUPLICATE_OCCURRENCE_MESSAGE_JA =
   "同じ開始日時の公演回が既に登録されています。";
 const DELETE_BLOCKED_MESSAGE_JA =
   "参加・招待データが存在するため削除できませんでした。";
 const EFFECTIVELY_CANCELED_MESSAGE_JA =
   "この公演回は中止されているため操作できません。";
-const VALIDATION_MESSAGE_JA = "入力内容をご確認のうえ、再度お試しください。";
-const GENERIC_FAILURE_MESSAGE_JA =
-  "処理に失敗しました。しばらくしてから再度お試しください。";
 
+/** `code` を `string | null | undefined` まで許容するのは、この write
+ * boundary 内の他の write core（`participation.ts`/`invitation.ts`/
+ * `ticketOpportunityState.ts`）が受け取る Supabase レスポンスの `error`
+ * 型と揃え、同じ型をそのまま共有できるようにするため
+ * （Issue #500: 4箇所に分散していた、ほぼ同一の PostgREST-like error 型
+ * 定義の重複解消）。 */
 export interface RawPostgrestLikeError {
-  readonly code: string;
+  readonly code?: string | null;
   readonly message: string;
 }
 
@@ -113,18 +137,22 @@ export function classifyPostgrestLikeError(
     // 業務上ありふれた状態遷移であり異常ではないため、他の分岐と異なり
     // console.error は出さない（従来どおり）。
     return new ActionError<EventWriteExtraKind>(
-      "validation",
+      "occurrence-canceled",
       EFFECTIVELY_CANCELED_MESSAGE_JA,
     );
   }
-  if (VALIDATION_CODES.has(error.code)) {
+  if (
+    error.code !== null &&
+    error.code !== undefined &&
+    VALIDATION_CODES.has(error.code)
+  ) {
     console.error("[event write] validation rejected", {
       code: error.code,
       message: error.message,
     });
     return new ActionError<EventWriteExtraKind>(
       "validation",
-      VALIDATION_MESSAGE_JA,
+      GENERIC_VALIDATION_MESSAGE_JA,
     );
   }
   console.error("[event write] unclassified PostgREST error", {

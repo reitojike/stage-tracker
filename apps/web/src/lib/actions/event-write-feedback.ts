@@ -1,6 +1,7 @@
 import { ActionError } from "@/lib/action-error";
 import {
   DELETE_BLOCKED,
+  DUPLICATE_OCCURRENCE_MESSAGE_JA,
   EFFECTIVELY_CANCELED,
   INSUFFICIENT_PRIVILEGE,
   UNIQUE_VIOLATION,
@@ -96,12 +97,6 @@ const WRITE_FAILURE: EventWriteFeedback = {
   description: "通信状況を確認し、もう一度お試しください。",
 };
 
-/** Issue #79 の `(event_id, starts_at)` 一意制約違反。legacy と同じく、
- * 汎用 VALIDATION へ潰さず「開始日時を変えれば直る」ことが分かる専用文言
- * にする。 */
-const DUPLICATE_OCCURRENCE_MESSAGE_JA =
-  "同じ開始日時の公演回が既に登録されています。";
-
 export function throwEventWriteError(
   operation: EventWriteOperation,
   error: RawPostgrestLikeError,
@@ -128,11 +123,15 @@ export function throwEventWriteError(
   }
   if (error.code === EFFECTIVELY_CANCELED) {
     throw new ActionError<EventWriteExtraKind>(
-      "validation",
+      "occurrence-canceled",
       toMessage(WRITE_EFFECTIVELY_CANCELED[operation]),
     );
   }
-  if (VALIDATION_CODES.has(error.code)) {
+  if (
+    error.code !== null &&
+    error.code !== undefined &&
+    VALIDATION_CODES.has(error.code)
+  ) {
     console.error("[event write] validation rejected", {
       code: error.code,
       message: error.message,

@@ -12,6 +12,7 @@ describe("ActionError", () => {
       "not-found",
       "permission-denied",
       "validation",
+      "occurrence-canceled",
       "failure",
     ]);
     expect(new Set(BASE_ACTION_ERROR_KINDS).size).toBe(

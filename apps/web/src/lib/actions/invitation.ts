@@ -11,6 +11,10 @@ import {
   type UserId,
 } from "@stage-tracker/domain";
 import type { ActionErrorShape } from "@/lib/action-error";
+import {
+  EFFECTIVELY_CANCELED,
+  type RawPostgrestLikeError,
+} from "./postgrest-error";
 
 /**
  * invite の書き込み core（`docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細
@@ -33,15 +37,7 @@ import type { ActionErrorShape } from "@/lib/action-error";
  * （常に `void` を返す）に完全に委譲する。
  */
 
-const OCCURRENCE_CANCELED_SQLSTATE = "90002";
-
-export type InviteToOccurrenceErrorKind =
-  ActionErrorShape<"occurrence-canceled">;
-
-interface PostgrestLikeError {
-  readonly code?: string | null;
-  readonly message: string;
-}
+export type InviteToOccurrenceErrorKind = ActionErrorShape;
 
 function mapInviteRejection(
   reason: InviteRejectionReason,
@@ -66,9 +62,9 @@ function mapInviteRejection(
 }
 
 function classifyInviteRpcError(
-  error: PostgrestLikeError,
+  error: RawPostgrestLikeError,
 ): InviteToOccurrenceErrorKind {
-  if (error.code === OCCURRENCE_CANCELED_SQLSTATE) {
+  if (error.code === EFFECTIVELY_CANCELED) {
     return {
       kind: "occurrence-canceled",
       message: "この公演回は中止されているため、招待できません。",

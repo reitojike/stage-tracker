@@ -99,11 +99,11 @@ describe("throwEventWriteError", () => {
     expect(result.message).not.toContain(SECRET);
   });
 
-  it("classifies 90002 as validation with the fixed cancellation message", () => {
+  it("classifies 90002 as occurrence-canceled with the fixed cancellation message", () => {
     const result = catchActionError(() =>
       throwEventWriteError("update-occurrence", rawError("90002")),
     );
-    expect(result.kind).toBe("validation");
+    expect(result.kind).toBe("occurrence-canceled");
     expect(result.message).toContain("公演回");
     expect(result.message).toContain("中止");
     expect(result.message).not.toContain(SECRET);

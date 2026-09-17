@@ -16,6 +16,17 @@
  * `delete-blocked` のような feature 固有 kind は、この base を拡張する
  * discriminated union として個々の action が表現する
  * （`ActionErrorShape<"duplicate-occurrence" | "delete-blocked">` 等）。
+ *
+ * `occurrence-canceled`（Issue #500）は base kind へ昇格済み: SQLSTATE
+ * `90002`（実質的に中止済みの occurrence への新規 active action 拒否）は
+ * migration 上、actor/入力ではなく対象の現在状態を理由とする拒否として
+ * 定義されており（`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`
+ * 等）、participation/invitation/event write のいずれの write path でも
+ * 同一の DB 事実を表す。以前は participation/invitation だけが feature 固有
+ * `ExtraKind` として個別に宣言しており、event/common write boundary
+ * （`postgrest-error.ts`）はこの成分を `validation` へ折り畳んでいたため、
+ * 同一事実が経路により異なる kind へ分裂していた。base kind 化により、
+ * 全 write path が同一の `occurrence-canceled` を参照する。
  */
 export const BASE_ACTION_ERROR_KINDS = [
   /** セッションが無い、または期限切れ。サインインへの誘導対象。 */
@@ -29,6 +40,10 @@ export const BASE_ACTION_ERROR_KINDS = [
   /** スキーマ形状では表現できない業務的な入力エラー
    * （next-safe-action 自身のスキーマ検証エラーとは別の経路）。 */
   "validation",
+  /** 対象（occurrence）が実質的に中止済みであることを理由とした拒否
+   * （SQLSTATE `90002`）。actor/入力自体は不正ではなく、対象の現在状態が
+   * 理由という点で `validation` とは区別する（Issue #500）。 */
+  "occurrence-canceled",
   /** 5xx・レート制限・ネットワーク断等、分類できない/一時的な失敗。
    * `unauthenticated` と明確に区別する（`docs/v2/oracle-domain.md` §2.13）。 */
   "failure",
@@ -63,3 +78,16 @@ export class ActionError<ExtraKind extends string = never> extends Error {
     this.kind = kind;
   }
 }
+
+/**
+ * `failure`/`validation` kind の既定文言。write boundary ごとの
+ * classifier（`lib/actions/postgrest-error.ts`、
+ * `lib/actions/schedule/postgrest-error.ts`）が、DB/PostgREST の生
+ * メッセージを client へ転記しないための固定 fallback として共有する
+ * （Issue #500: 同一文言が classifier ごとに独立した literal として重複
+ * していたための集約）。
+ */
+export const GENERIC_FAILURE_MESSAGE_JA =
+  "処理に失敗しました。しばらくしてから再度お試しください。";
+export const GENERIC_VALIDATION_MESSAGE_JA =
+  "入力内容をご確認のうえ、再度お試しください。";
