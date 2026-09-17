@@ -10,6 +10,7 @@ const LEVEL_TWO_HEADING_PATTERN = /^##(?:\s|$)/u;
 const NESTED_HEADING_PATTERN = /^###[ \t]*/u;
 const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})(.*)$/u;
 const RAW_HTML_BLOCK_START_PATTERN = /^\s{0,3}<(?:\/?[A-Za-z]|[!?])/u;
+const HTML_COMMENT_START_PATTERN = /^\s*<!--/u;
 
 function normalizeNumber(value, name) {
   if (!Number.isSafeInteger(value) || value <= 0) {
@@ -112,7 +113,11 @@ function maskNonRenderedLines(lines) {
       continue;
     }
 
-    if (!htmlComment && RAW_HTML_BLOCK_START_PATTERN.test(line)) {
+    if (
+      !htmlComment &&
+      !HTML_COMMENT_START_PATTERN.test(line) &&
+      RAW_HTML_BLOCK_START_PATTERN.test(line)
+    ) {
       return {
         error: 'raw HTML makes the Issue body ambiguous for checklist parsing',
         lines: [],
@@ -120,7 +125,7 @@ function maskNonRenderedLines(lines) {
     }
 
     const stripped = stripHtmlComments(line, htmlComment);
-    const blockHtmlLine = htmlComment || /^\s*<!--/u.test(line);
+    const blockHtmlLine = htmlComment || HTML_COMMENT_START_PATTERN.test(line);
     if (blockHtmlLine && !stripped.inComment && stripped.line.trim().length > 0) {
       return {
         error: 'block HTML with trailing text makes the Issue body ambiguous',
