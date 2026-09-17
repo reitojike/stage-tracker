@@ -150,19 +150,34 @@ execution and a failed write without treating the items as successfully read.
   succeeds.
 - **FR-012**: The feature MUST preserve recipient privacy and MUST NOT turn
   Notifications into an Invitation history ledger.
+- **FR-013**: Authenticated AppBar actions MUST expose the bell as a
+  keyboard-accessible link to `/notifications` regardless of unread state;
+  the bell MUST NOT be disabled when the inbox is empty or its unread read
+  fails.
+- **FR-014**: The authenticated `(app)` layout MUST read the canonical
+  boolean unread existence result using the shared server client and pass only
+  that presentation boolean to AppShell/AppBar. A failed unread read MUST
+  render the bell with no dot and MUST NOT be cached or persisted as a product
+  fact.
+- **FR-015**: The AppBar unread cue MUST remain a boolean, use the existing
+  non-destructive primary semantic, and converge through the existing
+  Notifications/read-surface revalidation contract after rendered rows become
+  read. No numeric count, global store, polling, or client-side unread cache
+  is part of this behavior.
 
 ## Scope Boundaries
 
-The current surface includes only the authenticated `/notifications` route, the
-persisted recipient-owned `invitation_received` inbox rows, exact unread/read
-semantics, Notification timestamps, active Invitation source navigation,
-resolved/unavailable fallback, loading, empty, and read-error behavior described
-above.
+The current surface includes the authenticated `/notifications` route and its
+authenticated AppBar bell entry point, the persisted recipient-owned
+`invitation_received` inbox rows, exact unread/read semantics, Notification
+timestamps, active Invitation source navigation, resolved/unavailable fallback,
+loading, empty, read-error behavior, and the boolean unread projection
+described above.
 
-The following are not current behavior of this topic: AppBar bell or unread-dot
-integration (Issue #514), unread count, direct accept/decline, other Notification
-kinds, Push, email, preferences, filters, grouping, pagination/load-more,
-mark-all-read, dismiss/delete, or an Invitation history ledger.
+The following are not current behavior of this topic: unread count, direct
+accept/decline, other Notification kinds, Push, email, preferences, filters,
+grouping, pagination/load-more, mark-all-read, dismiss/delete, or an Invitation
+history ledger.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -194,7 +209,7 @@ mark-all-read, dismiss/delete, or an Invitation history ledger.
   available and remain authoritative.
 - The first Notification window is the existing explicit bound of 50 rows; no
   paging UI is needed for this feature.
-- MVP contains only `invitation_received`; AppBar bell/unread dot integration is
-  Issue #514 and remains out of scope.
+- MVP contains only `invitation_received`; the AppBar bell is the authenticated
+  entry point and its unread cue is boolean-only as described above.
 - The app supports mobile and desktop widths through the existing design system;
   no new design-system primitive is required.

@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { AppShell } from "@stage-tracker/ui";
+import { hasUnreadNotifications } from "@/lib/data/reads/notifications";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveMyPageAppBarIdentity } from "./_lib/app-bar-identity";
 
 /**
- * Shared `layout.tsx` for the 4 authenticated screens this Task implements
- * (`/`, `/calendar`, `/catalog`, `/tickets`). `docs/v2/oracle-routes-ui.md`
+ * Shared `layout.tsx` for authenticated screens under the `(app)` route group.
+ * `docs/v2/oracle-routes-ui.md`
  * §0 describes each route segment's `layout.tsx` as an identical, minimal
  * Server Component that resolves the AppBar identity and renders
  * `AppShell` - the legacy app duplicated this file once per route folder
@@ -27,9 +28,19 @@ export default async function AppShellLayout({
   const supabase = await createSupabaseServerClient();
   const { myPageHref, myPageInitial } =
     await resolveMyPageAppBarIdentity(supabase);
+  const unreadResult = await hasUnreadNotifications(supabase);
+  // A failed unread read is only a presentation fallback: it must not turn
+  // into a cached or persisted "zero unread" product fact. The inbox remains
+  // the screen-level authority for explaining and retrying read failures.
+  const hasUnread = unreadResult.ok ? unreadResult.value : false;
 
   return (
-    <AppShell myPageHref={myPageHref} myPageInitial={myPageInitial}>
+    <AppShell
+      myPageHref={myPageHref}
+      myPageInitial={myPageInitial}
+      notificationsHref="/notifications"
+      hasUnreadNotifications={hasUnread}
+    >
       {children}
     </AppShell>
   );

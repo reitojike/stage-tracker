@@ -13,16 +13,8 @@ export type AppBarProps = {
    * derives this itself (docs/v2/oracle-routes-ui.md §3 AppBar).
    */
   hasUnreadNotifications?: boolean;
-  /**
-   * Notifications (お知らせ) are not implemented yet - PO decision P1
-   * (docs/v2/decisions.md) keeps the bell in the UI but non-interactive
-   * until that feature ships. When `onNotificationsPress` is omitted, the
-   * bell renders `aria-disabled` and does not respond to clicks, matching
-   * the current (pre-P1-implementation) product behavior. Once the
-   * notifications feature is implemented, pass a real handler here to
-   * enable it - no other change to AppBar's API should be needed.
-   */
-  onNotificationsPress?: (() => void) | undefined;
+  /** Href for the authenticated Notifications inbox affordance. */
+  notificationsHref?: string;
   /** Href for the My Page avatar affordance (top-right). */
   myPageHref: string;
   /** Single-character (or short) initial shown inside the avatar chip. */
@@ -38,13 +30,11 @@ export type AppBarProps = {
 export function AppBar({
   showActions = true,
   hasUnreadNotifications = false,
-  onNotificationsPress,
+  notificationsHref = '/notifications',
   myPageHref,
   myPageInitial,
   className,
 }: AppBarProps) {
-  const notificationsEnabled = showActions && typeof onNotificationsPress === 'function';
-
   return (
     <header
       data-slot="app-bar"
@@ -54,26 +44,20 @@ export function AppBar({
       )}
     >
       {showActions ? (
-        <button
-          type="button"
+        <Link
+          href={notificationsHref}
           aria-label={hasUnreadNotifications ? 'お知らせ（未読あり）' : 'お知らせ'}
-          aria-disabled={notificationsEnabled ? undefined : true}
-          onClick={notificationsEnabled ? onNotificationsPress : undefined}
-          className={cn(
-            'relative inline-flex size-11 touch-manipulation items-center justify-center rounded-control-sm text-foreground',
-            notificationsEnabled
-              ? 'hover:bg-muted active:bg-surface-active'
-              : 'cursor-not-allowed opacity-(--opacity-disabled)',
-          )}
+          className="relative inline-flex size-11 touch-manipulation items-center justify-center rounded-control-sm text-foreground hover:bg-muted active:bg-surface-active focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"
         >
           <Bell aria-hidden className="size-5" />
           {hasUnreadNotifications ? (
             <span
               aria-hidden
-              className="absolute top-2 right-2 size-2 rounded-pill bg-destructive"
+              data-slot="notification-unread-indicator"
+              className="absolute top-2 right-2 size-2 rounded-pill bg-primary"
             />
           ) : null}
-        </button>
+        </Link>
       ) : (
         <span aria-hidden className="size-11" />
       )}
