@@ -1,12 +1,13 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
+import { userIdSchema } from "@stage-tracker/domain";
 import { server } from "@/test/msw/server";
-import { listMyReceivedInvitations } from "./listMyReceivedInvitations";
+import { listMyReceivedInvitations } from "@/lib/data";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
-const userId = "11111111-1111-4111-8111-111111111111";
+const userId = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
 
 function createTestClient(): SupabaseClient {
   return createClient(SUPABASE_URL, "anon-key", {
@@ -23,8 +24,7 @@ afterEach(() => {
  * （oracle どおり context unavailable として継続表示）と、embed は
  * 存在するが `mapOccurrenceRow`/`mapEventRow` の mapping に失敗する場合
  * （A10「読めない行を黙って間引かない」に従い `Result` を error にする）
- * を別ケースとして区別する（`./listMyReceivedInvitations.ts` の
- * `mapInvitationRow`）。
+ * を別ケースとして区別する（`./invitations.ts` の `mapInvitationRow`）。
  */
 describe("listMyReceivedInvitations", () => {
   it("keeps the invitation row with context: null when the occurrence embed itself is null", async () => {

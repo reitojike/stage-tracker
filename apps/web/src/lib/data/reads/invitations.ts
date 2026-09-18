@@ -10,34 +10,17 @@ import {
   type Result,
   type UserId,
 } from "@stage-tracker/domain";
+import type { Database } from "../database.types";
 import {
   mapEventRow,
   mapOccurrenceRow,
-  mapRows,
-  runKeysetSupabaseSelect,
   type EventRow,
   type OccurrenceRow,
-  type ReadResult,
-} from "@/lib/data";
+} from "../mappers/eventRow";
+import { runKeysetSupabaseSelect } from "../paged-select";
+import { mapRows } from "../row-mapping";
+import type { ReadResult } from "../read-result";
 
-/**
- * `/catalog/invitations` の read（`docs/v2/oracle-routes-ui.md` §1 の
- * `listMyReceivedInvitations`）。`occurrence_invitations` の SELECT policy
- * (`occurrence_invitations_select_invitee`) が invitee 本人の行だけを
- * 返すため、`.eq("invitee_id", userId)` は defense-in-depth
- * （`apps/web/src/lib/data/reads/participations.ts` と同じ方針）。
- *
- * pending-only モデル（Issue #225/#230）では行の存在自体が「未回答」を
- * 意味するため、この read が返す全行がそのまま pending invitation。
- *
- * `event_occurrences`/`events` の embed は inner join にしない: FK
- * (`occurrence_invitations.occurrence_id -> event_occurrences.id`) が
- * NO ACTION である限り理論上は必ず解決するはずだが、万一 embed が
- * 解決しない場合でも invitation 行自体（occurrenceId を含む）は
- * 表示・応答操作を続けられるようにし、event/occurrence context だけを
- * 「読み込めませんでした」として個別に fallback する
- * （`docs/v2/oracle-routes-ui.md` §2「Invitation 一覧」の要件）。
- */
 export interface ReceivedInvitation {
   readonly invitationId: string;
   readonly occurrenceId: OccurrenceId;
@@ -58,17 +41,17 @@ interface InvitationRow {
     (OccurrenceRow & { readonly events: EventRow | null }) | null;
 }
 
-async function listInvitationRows(client: SupabaseClient, userId: string) {
+async function listInvitationRows(
+  client: SupabaseClient<Database>,
+  userId: UserId,
+) {
   return runKeysetSupabaseSelect((cursor, limit) => {
     const query = client
       .from("occurrence_invitations")
       .select("*, event_occurrences(*, events(*))", { count: "exact" })
       .eq("invitee_id", userId);
     const afterCursor = cursor === null ? query : query.gt("id", cursor);
-    return afterCursor
-      .order("id", { ascending: true })
-      .limit(limit)
-      .overrideTypes<InvitationRow[]>();
+    return afterCursor.order("id", { ascending: true }).limit(limit);
   });
 }
 
@@ -97,12 +80,6 @@ function mapInvitationRow(
     };
   }
 
-  // `event_occurrences`/`events` の embed が null なら「embed 未解決」
-  // として context unavailable へ fallback する（oracle どおり、上記
-  // docstring 参照）。embed 自体は存在するのに `mapOccurrenceRow`/
-  // `mapEventRow` が失敗する場合はスキーマ drift であり、embed 未解決と
-  // 区別して bulk 全体を `err` にする（A10「読めない行を黙って間引かない」
-  // - `mapRows` に委ねる）。
   let context: ReceivedInvitation["context"] = null;
   if (row.event_occurrences !== null) {
     const occurrenceResult = mapOccurrenceRow(row.event_occurrences);
@@ -130,9 +107,10 @@ function mapInvitationRow(
   });
 }
 
+/** List all pending invitations while preserving keyset paging and context fallback. */
 export async function listMyReceivedInvitations(
-  client: SupabaseClient,
-  userId: string,
+  client: SupabaseClient<Database>,
+  userId: UserId,
 ): Promise<ReadResult<readonly ReceivedInvitation[]>> {
   const rowsResult = await listInvitationRows(client, userId);
   if (!rowsResult.ok) {

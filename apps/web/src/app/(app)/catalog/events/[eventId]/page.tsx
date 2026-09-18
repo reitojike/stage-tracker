@@ -1,6 +1,5 @@
 import {
   canInviteToOccurrence,
-  compareInstants,
   eventIdSchema,
   isCanceled,
   isEffectivelyCanceled,
@@ -18,10 +17,13 @@ import {
   PageHeading,
   StatePanel,
 } from "@stage-tracker/ui";
-import { classifyListReadResult, listMyParticipations } from "@/lib/data";
+import {
+  classifyListReadResult,
+  getEventWithOccurrences,
+  listMyParticipations,
+} from "@/lib/data";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getEventWithOccurrences } from "./_data/getEventDetail";
 import { InviteForm } from "./_components/InviteForm";
 import { ParticipationControls } from "./_components/ParticipationControls";
 import { ScrollToFocusedOccurrence } from "./_components/ScrollToFocusedOccurrence";
@@ -147,9 +149,7 @@ export default async function EventDetailPage({
 
   const focusOccurrenceId =
     typeof search.occurrence === "string" ? search.occurrence : null;
-  const occurrences = [...eventDetail.occurrences].sort((a, b) =>
-    compareInstants(a.startsAt, b.startsAt),
-  );
+  const occurrences = eventDetail.occurrences;
 
   return (
     <div className={CONTENT_CLASS}>

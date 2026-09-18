@@ -4,6 +4,7 @@ import NewEventPage from "./page";
 
 const mockGetUser = vi.fn();
 const mockMaybeSingle = vi.fn();
+const USER_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
@@ -31,7 +32,7 @@ describe("NewEventPage", () => {
   });
 
   it("renders a permission-denied panel for a non-creator", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockGetUser.mockResolvedValue({ data: { user: { id: USER_ID } } });
     mockMaybeSingle.mockResolvedValue({ data: null, error: null });
 
     const ui = await NewEventPage({ searchParams: Promise.resolve({}) });
@@ -46,9 +47,9 @@ describe("NewEventPage", () => {
   });
 
   it("renders the create form for a designated creator", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockGetUser.mockResolvedValue({ data: { user: { id: USER_ID } } });
     mockMaybeSingle.mockResolvedValue({
-      data: { user_id: "user-1" },
+      data: { user_id: USER_ID },
       error: null,
     });
 

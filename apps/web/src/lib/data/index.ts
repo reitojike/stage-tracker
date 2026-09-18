@@ -23,3 +23,6 @@ export * from "./reads/personalSchedule";
 export * from "./reads/catalog";
 export * from "./reads/tickets";
 export * from "./reads/notifications";
+export * from "./reads/events";
+export * from "./reads/invitations";
+export * from "./creator-capability";

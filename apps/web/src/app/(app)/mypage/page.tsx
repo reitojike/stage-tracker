@@ -1,10 +1,7 @@
 import { PageHeading } from "@stage-tracker/ui";
+import { isDesignatedCatalogCreator } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import {
-  countMyPendingInvitations,
-  getMyPageAccount,
-  resolveCanCreateEvent,
-} from "./_data/identity";
+import { countMyPendingInvitations, getMyPageAccount } from "./_data/identity";
 import { AccountSection } from "./_components/AccountSection";
 import { PasskeySection } from "./_components/PasskeySection";
 import { ScheduleAndEventSection } from "./_components/ScheduleAndEventSection";
@@ -17,10 +14,13 @@ import { ScheduleAndEventSection } from "./_components/ScheduleAndEventSection";
 export default async function MyPage() {
   const supabase = await createSupabaseServerClient();
   const account = await getMyPageAccount();
-  const [canCreateEvent, pendingInvitationCount] = await Promise.all([
-    resolveCanCreateEvent(supabase, account?.userId ?? null),
-    countMyPendingInvitations(supabase, account?.userId ?? null),
-  ]);
+  const [canCreateEvent, pendingInvitationCount] =
+    account === null
+      ? [false, 0]
+      : await Promise.all([
+          isDesignatedCatalogCreator(supabase, account.userId),
+          countMyPendingInvitations(supabase, account.userId),
+        ]);
 
   return (
     <>
