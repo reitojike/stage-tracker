@@ -119,7 +119,9 @@ describe("TicketsView", () => {
   });
 
   it("keeps non-contiguous same-month sections distinct without duplicate-key warnings", () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     try {
       render(
@@ -165,11 +167,11 @@ describe("TicketsView", () => {
         />,
       );
 
-      expect(screen.getAllByRole("region").map((section) => section.getAttribute("aria-label"))).toEqual([
-        "2026年10月",
-        "2026年9月",
-        "2026年10月",
-      ]);
+      expect(
+        screen
+          .getAllByRole("region")
+          .map((section) => section.getAttribute("aria-label")),
+      ).toEqual(["2026年10月", "2026年9月", "2026年10月"]);
       expect(
         consoleError.mock.calls.some((args) =>
           args.some(
