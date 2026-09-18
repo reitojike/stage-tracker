@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useAction } from "next-safe-action/hooks";
-import { Button } from "@stage-tracker/ui";
+import { Button, Field, Input, Textarea } from "@stage-tracker/ui";
 import { createEventAction } from "@/lib/actions/events";
 import { fieldErrorMessage } from "@/lib/actions/validationErrors";
 
@@ -50,19 +50,26 @@ export function NewEventForm() {
           基本情報
         </legend>
         <Field
+          id="title"
           label="タイトル"
-          name="title"
           required
           error={fieldErrorMessage(validationErrors, "title")}
-        />
-        <Field label="会場" name="venue" />
+        >
+          <Input name="title" required />
+        </Field>
+        <Field id="venue" label="会場">
+          <Input name="venue" />
+        </Field>
         <Field
+          id="sourceUrl"
           label="参照URL"
-          name="sourceUrl"
-          type="url"
           error={fieldErrorMessage(validationErrors, "sourceUrl")}
-        />
-        <TextAreaField label="メモ" name="memo" />
+        >
+          <Input name="sourceUrl" type="url" />
+        </Field>
+        <Field id="memo" label="メモ">
+          <Textarea name="memo" rows={3} />
+        </Field>
       </fieldset>
 
       <fieldset disabled={isExecuting} className="flex flex-col gap-md">
@@ -70,19 +77,21 @@ export function NewEventForm() {
           開催期間
         </legend>
         <Field
+          id="startsOn"
           label="開始日"
-          name="startsOn"
-          type="date"
           required
           error={fieldErrorMessage(validationErrors, "startsOn")}
-        />
+        >
+          <Input name="startsOn" type="date" required />
+        </Field>
         <Field
+          id="endsOn"
           label="終了日"
-          name="endsOn"
-          type="date"
           required
           error={fieldErrorMessage(validationErrors, "endsOn")}
-        />
+        >
+          <Input name="endsOn" type="date" required />
+        </Field>
       </fieldset>
 
       <fieldset disabled={isExecuting} className="flex flex-col gap-md">
@@ -90,82 +99,31 @@ export function NewEventForm() {
           初回公演回（任意 - 未定なら空欄のままにできます）
         </legend>
         <Field
+          id="occurrenceStartsAt"
           label="開演日時"
-          name="occurrenceStartsAt"
-          type="datetime-local"
           error={fieldErrorMessage(validationErrors, "occurrenceStartsAt")}
-        />
+        >
+          <Input name="occurrenceStartsAt" type="datetime-local" />
+        </Field>
         <Field
+          id="occurrenceEndsAt"
           label="終演日時"
-          name="occurrenceEndsAt"
-          type="datetime-local"
           error={fieldErrorMessage(validationErrors, "occurrenceEndsAt")}
-        />
+        >
+          <Input name="occurrenceEndsAt" type="datetime-local" />
+        </Field>
         <Field
+          id="occurrenceDoorsAt"
           label="開場日時"
-          name="occurrenceDoorsAt"
-          type="datetime-local"
           error={fieldErrorMessage(validationErrors, "occurrenceDoorsAt")}
-        />
+        >
+          <Input name="occurrenceDoorsAt" type="datetime-local" />
+        </Field>
       </fieldset>
 
       <Button type="submit" disabled={isExecuting}>
         {isExecuting ? "作成中…" : "作成する"}
       </Button>
     </form>
-  );
-}
-
-function Field({
-  label,
-  name,
-  type = "text",
-  required = false,
-  error,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  required?: boolean;
-  error?: string | undefined;
-}) {
-  return (
-    <label className="flex flex-col gap-xs text-body-sm">
-      <span className="font-medium text-foreground">
-        {label}
-        {required ? (
-          <span aria-hidden className="text-destructive">
-            {" "}
-            *
-          </span>
-        ) : null}
-      </span>
-      <input
-        name={name}
-        type={type}
-        required={required}
-        aria-invalid={error !== undefined}
-        aria-describedby={error !== undefined ? `${name}-error` : undefined}
-        className="h-9 rounded-control border border-input bg-background px-sm text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      {error !== undefined ? (
-        <span id={`${name}-error`} role="alert" className="text-destructive">
-          {error}
-        </span>
-      ) : null}
-    </label>
-  );
-}
-
-function TextAreaField({ label, name }: { label: string; name: string }) {
-  return (
-    <label className="flex flex-col gap-xs text-body-sm">
-      <span className="font-medium text-foreground">{label}</span>
-      <textarea
-        name={name}
-        rows={3}
-        className="rounded-control border border-input bg-background p-sm text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-    </label>
   );
 }

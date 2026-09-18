@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import type { Event, Occurrence } from "@stage-tracker/domain";
-import { Badge } from "@stage-tracker/ui";
+import { Badge, Field, Input, Textarea } from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
   Sheet,
@@ -112,30 +112,31 @@ export function EditEventForm({
         <h2 className="text-title leading-title font-semibold text-foreground">
           基本情報
         </h2>
-        <EditField
+        <Field
+          id="event-edit-title"
           label="タイトル"
-          name="title"
-          defaultValue={event.title}
           required
           error={fieldErrorMessage(detailsErrors, "title")}
-        />
-        <EditField label="会場" name="venue" defaultValue={event.venue ?? ""} />
-        <EditField
+        >
+          <Input name="title" defaultValue={event.title} required />
+        </Field>
+        <Field id="event-edit-venue" label="会場">
+          <Input name="venue" defaultValue={event.venue ?? ""} />
+        </Field>
+        <Field
+          id="event-edit-sourceUrl"
           label="参照URL"
-          name="sourceUrl"
-          type="url"
-          defaultValue={event.sourceUrl ?? ""}
           error={fieldErrorMessage(detailsErrors, "sourceUrl")}
-        />
-        <label className="flex flex-col gap-xs text-body-sm">
-          <span className="font-medium text-foreground">メモ</span>
-          <textarea
-            name="memo"
-            rows={3}
-            defaultValue={event.memo ?? ""}
-            className="rounded-control border border-input bg-background p-sm text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <Input
+            name="sourceUrl"
+            type="url"
+            defaultValue={event.sourceUrl ?? ""}
           />
-        </label>
+        </Field>
+        <Field id="event-edit-memo" label="メモ">
+          <Textarea name="memo" rows={3} defaultValue={event.memo ?? ""} />
+        </Field>
         {detailsAction.result.serverError ? (
           <p role="alert" className="text-body-sm text-destructive">
             {detailsAction.result.serverError.message}
@@ -180,22 +181,32 @@ export function EditEventForm({
                 className="flex flex-col gap-md"
                 aria-busy={rangeAction.isExecuting}
               >
-                <EditField
+                <Field
+                  id="event-edit-startsOn"
                   label="開始日"
-                  name="startsOn"
-                  type="date"
-                  defaultValue={event.startsOn}
                   required
                   error={fieldErrorMessage(rangeErrors, "startsOn")}
-                />
-                <EditField
+                >
+                  <Input
+                    name="startsOn"
+                    type="date"
+                    defaultValue={event.startsOn}
+                    required
+                  />
+                </Field>
+                <Field
+                  id="event-edit-endsOn"
                   label="終了日"
-                  name="endsOn"
-                  type="date"
-                  defaultValue={event.endsOn}
                   required
                   error={fieldErrorMessage(rangeErrors, "endsOn")}
-                />
+                >
+                  <Input
+                    name="endsOn"
+                    type="date"
+                    defaultValue={event.endsOn}
+                    required
+                  />
+                </Field>
                 {rangeAction.result.serverError ? (
                   <p role="alert" className="text-body-sm text-destructive">
                     {rangeAction.result.serverError.message}
@@ -309,53 +320,5 @@ export function EditEventForm({
         </Sheet>
       </div>
     </div>
-  );
-}
-
-function EditField({
-  label,
-  name,
-  type = "text",
-  defaultValue,
-  required = false,
-  error,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  defaultValue: string;
-  required?: boolean;
-  error?: string | undefined;
-}) {
-  const inputId = `event-edit-${name}`;
-  const errorId = `${inputId}-error`;
-
-  return (
-    <label htmlFor={inputId} className="flex flex-col gap-xs text-body-sm">
-      <span className="font-medium text-foreground">
-        {label}
-        {required ? (
-          <span aria-hidden className="text-destructive">
-            {" "}
-            *
-          </span>
-        ) : null}
-      </span>
-      <input
-        id={inputId}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        aria-invalid={error !== undefined}
-        aria-describedby={error !== undefined ? errorId : undefined}
-        className="h-9 rounded-control border border-input bg-background px-sm text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      {error !== undefined ? (
-        <span id={errorId} role="alert" className="text-destructive">
-          {error}
-        </span>
-      ) : null}
-    </label>
   );
 }

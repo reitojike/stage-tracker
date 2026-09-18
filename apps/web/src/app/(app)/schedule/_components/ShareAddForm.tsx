@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
-import { Button } from "@stage-tracker/ui";
+import { Button, Field, Input } from "@stage-tracker/ui";
 import {
   Sheet,
   SheetContent,
@@ -15,7 +15,7 @@ import {
 } from "@stage-tracker/ui/components/sheet";
 import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
 import { addScheduleShareByEmailAction } from "@/lib/actions/schedule/schedule-share-actions";
-import { TextField } from "./FormField";
+import { fieldErrorMessage } from "@/lib/actions/validationErrors";
 import { WriteNotice } from "./WriteNotice";
 
 interface ShareAddFormProps {
@@ -102,17 +102,17 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
             className="flex flex-col gap-2"
             noValidate
           >
-            <TextField
+            <Field
               id="recipientEmail"
-              name="recipientEmail"
-              type="email"
               label="共有する相手のメールアドレス"
               required
               error={
                 result.serverError?.message ??
-                result.validationErrors?.recipientEmail?._errors?.[0]
+                fieldErrorMessage(result.validationErrors, "recipientEmail")
               }
-            />
+            >
+              <Input name="recipientEmail" type="email" required />
+            </Field>
             <WriteNotice
               notice={attempt > 0 ? "共有に追加しました。" : null}
               attempt={attempt}

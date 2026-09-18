@@ -19,6 +19,27 @@ describe('selection controls', () => {
     expect(onCheckedChange).toHaveBeenCalledWith(true, expect.anything());
   });
 
+  it('preserves native checkbox FormData semantics', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <form>
+        <label>
+          <Checkbox name="blocking" defaultChecked />
+          blocking
+        </label>
+      </form>,
+    );
+
+    const form = container.querySelector('form');
+    if (form === null) {
+      throw new Error('Expected a form');
+    }
+    expect(new FormData(form).get('blocking')).toBe('on');
+
+    await user.click(screen.getByRole('checkbox', { name: 'blocking' }));
+    expect(new FormData(form).get('blocking')).toBeNull();
+  });
+
   it('uses Base UI radio-group keyboard and selection semantics', async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();
@@ -31,5 +52,30 @@ describe('selection controls', () => {
 
     await user.click(screen.getByRole('radio', { name: '宝塚' }));
     expect(onValueChange).toHaveBeenCalledWith('takarazuka', expect.anything());
+  });
+
+  it('submits the selected radio value and supports arrow-key selection', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <form>
+        <RadioGroup name="temporalMode" defaultValue="all-day">
+          <RadioChip value="all-day">終日</RadioChip>
+          <RadioChip value="time-bounded">時刻指定</RadioChip>
+        </RadioGroup>
+      </form>,
+    );
+
+    const form = container.querySelector('form');
+    if (form === null) {
+      throw new Error('Expected a form');
+    }
+    expect(new FormData(form).get('temporalMode')).toBe('all-day');
+
+    const allDay = screen.getByRole('radio', { name: '終日' });
+    allDay.focus();
+    await user.keyboard('{ArrowRight}');
+
+    expect(screen.getByRole('radio', { name: '時刻指定' })).toBeChecked();
+    expect(new FormData(form).get('temporalMode')).toBe('time-bounded');
   });
 });

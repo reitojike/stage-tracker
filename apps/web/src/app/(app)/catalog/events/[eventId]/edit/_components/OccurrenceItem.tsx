@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import type { EventId, Occurrence } from "@stage-tracker/domain";
-import { Badge } from "@stage-tracker/ui";
+import { Badge, Field, Input } from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
   Sheet,
@@ -120,33 +120,50 @@ export function OccurrenceItem({
                 className="flex flex-col gap-sm"
                 aria-busy={updateAction.isExecuting}
               >
-                <OccurrenceField
-                  label="開演日時"
-                  name="startsAt"
+                <Field
                   id={`${updateFormId}-startsAt`}
-                  defaultValue={instantToDateTimeLocalValue(
-                    occurrence.startsAt,
-                  )}
+                  label="開演日時"
                   required
-                  disabled={updateAction.isExecuting}
                   error={fieldErrorMessage(validationErrors, "startsAt")}
-                />
-                <OccurrenceField
-                  label="終演日時"
-                  name="endsAt"
+                >
+                  <Input
+                    name="startsAt"
+                    type="datetime-local"
+                    defaultValue={instantToDateTimeLocalValue(
+                      occurrence.startsAt,
+                    )}
+                    required
+                    disabled={updateAction.isExecuting}
+                  />
+                </Field>
+                <Field
                   id={`${updateFormId}-endsAt`}
-                  defaultValue={instantToDateTimeLocalValue(occurrence.endsAt)}
-                  disabled={updateAction.isExecuting}
+                  label="終演日時"
                   error={fieldErrorMessage(validationErrors, "endsAt")}
-                />
-                <OccurrenceField
-                  label="開場日時"
-                  name="doorsAt"
+                >
+                  <Input
+                    name="endsAt"
+                    type="datetime-local"
+                    defaultValue={instantToDateTimeLocalValue(
+                      occurrence.endsAt,
+                    )}
+                    disabled={updateAction.isExecuting}
+                  />
+                </Field>
+                <Field
                   id={`${updateFormId}-doorsAt`}
-                  defaultValue={instantToDateTimeLocalValue(occurrence.doorsAt)}
-                  disabled={updateAction.isExecuting}
+                  label="開場日時"
                   error={fieldErrorMessage(validationErrors, "doorsAt")}
-                />
+                >
+                  <Input
+                    name="doorsAt"
+                    type="datetime-local"
+                    defaultValue={instantToDateTimeLocalValue(
+                      occurrence.doorsAt,
+                    )}
+                    disabled={updateAction.isExecuting}
+                  />
+                </Field>
                 {updateAction.result.serverError ? (
                   <p role="alert" className="text-body-sm text-destructive">
                     {updateAction.result.serverError.message}
@@ -262,55 +279,5 @@ export function OccurrenceItem({
         </p>
       ) : null}
     </div>
-  );
-}
-
-function OccurrenceField({
-  label,
-  name,
-  id,
-  defaultValue,
-  required = false,
-  disabled,
-  error,
-}: {
-  label: string;
-  name: string;
-  id: string;
-  defaultValue: string;
-  required?: boolean;
-  disabled: boolean;
-  error?: string | undefined;
-}) {
-  const errorId = `${id}-error`;
-
-  return (
-    <label htmlFor={id} className="flex flex-col gap-xs text-body-sm">
-      <span className="font-medium text-foreground">
-        {label}
-        {required ? (
-          <span aria-hidden className="text-destructive">
-            {" "}
-            *
-          </span>
-        ) : null}
-      </span>
-      <input
-        id={id}
-        name={name}
-        type="datetime-local"
-        required={required}
-        defaultValue={defaultValue}
-        disabled={disabled}
-        aria-invalid={error !== undefined}
-        aria-describedby={error !== undefined ? errorId : undefined}
-        className="h-9 rounded-control border border-input bg-background px-sm text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      {error !== undefined ? (
-        <span id={errorId} role="alert" className="text-destructive">
-          {error}
-        </span>
-      ) : null}
-    </label>
   );
 }

@@ -1,4 +1,4 @@
-import { Button, PageHeading } from "@stage-tracker/ui";
+import { Button, Field, Input, PageHeading } from "@stage-tracker/ui";
 import { requestSignInLink } from "./actions";
 import { PasskeySignInButton } from "./_components/PasskeySignInButton";
 
@@ -92,17 +92,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             action={requestSignInLink}
             className="flex w-full flex-col gap-3"
           >
-            <label htmlFor="email" className="text-sm font-medium">
-              メールアドレス
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
+            <Field id="email" label="メールアドレス">
+              <Input name="email" type="email" required autoComplete="email" />
+            </Field>
             <Button type="submit">リンクをリクエスト</Button>
           </form>
         </div>

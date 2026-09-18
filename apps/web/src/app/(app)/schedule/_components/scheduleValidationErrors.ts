@@ -1,3 +1,5 @@
+import { fieldErrorMessage } from "@/lib/actions/validationErrors";
+
 /**
  * `next-safe-action` の既定（nested）validation error 形状
  * （`{ fieldName: { _errors: string[] } }`）から、`ScheduleEntryFields` が
@@ -33,19 +35,11 @@ const FIELD_NAMES = [
 export function toScheduleEntryFieldErrorMap(
   validationErrors: unknown,
 ): ScheduleEntryFieldErrorMap {
-  if (typeof validationErrors !== "object" || validationErrors === null) {
-    return {};
-  }
-  const record = validationErrors as Record<string, unknown>;
   const result: Record<string, string> = {};
   for (const field of FIELD_NAMES) {
-    const node = record[field];
-    if (typeof node !== "object" || node === null) {
-      continue;
-    }
-    const errors = (node as { _errors?: unknown })._errors;
-    if (Array.isArray(errors) && typeof errors[0] === "string") {
-      result[field] = errors[0];
+    const message = fieldErrorMessage(validationErrors, field);
+    if (message !== undefined) {
+      result[field] = message;
     }
   }
   return result;
