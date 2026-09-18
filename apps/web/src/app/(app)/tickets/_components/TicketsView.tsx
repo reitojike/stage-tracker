@@ -39,6 +39,18 @@ export interface TicketsViewProps {
   readonly today: TokyoCalendarDate;
 }
 
+function ticketTimelineMonthGroupKey(
+  group: TicketsTimelineState["groups"][number],
+): string {
+  const firstRow = group.rows[0];
+  if (firstRow === undefined) {
+    throw new Error(
+      "unreachable: a populated TicketOpportunity month group has no rows",
+    );
+  }
+  return `${group.monthKey}-${firstRow.opportunityId}-${firstRow.milestone.id}`;
+}
+
 /**
  * `/tickets`'s presentational layer (`docs/v2/oracle-routes-ui.md` §2
  * 「チケット一覧」). Takes the already-classified state as a prop. The
@@ -90,7 +102,7 @@ export function TicketsView({ state, today }: TicketsViewProps) {
           ) : null}
           {block.data.groups.map((group) => (
             <section
-              key={group.monthKey}
+              key={ticketTimelineMonthGroupKey(group)}
               aria-label={formatMonthJa(group.monthKey)}
               className="flex flex-col gap-sm"
             >
