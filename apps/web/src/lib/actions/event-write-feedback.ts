@@ -97,6 +97,42 @@ const WRITE_FAILURE: EventWriteFeedback = {
   description: "通信状況を確認し、もう一度お試しください。",
 };
 
+const EVENT_RANGE_CONSTRAINT_FAILURE: EventWriteFeedback = {
+  title: "開催期間を保存できませんでした",
+  description:
+    "公演回が新しい開催期間に含まれているか確認して、もう一度お試しください。",
+};
+
+const EVENT_RANGE_PREVALIDATION_FAILURE: EventWriteFeedback = {
+  title: "開催期間を保存できませんでした",
+  description:
+    "公演回を確認できませんでした。時間をおいて、もう一度お試しください。",
+};
+
+export function throwEventRangeInvariantError(
+  occurrenceDateTimes: readonly string[],
+): never {
+  throw new ActionError<EventWriteExtraKind>(
+    "validation",
+    `新しい開催期間に含まれない公演回があります: ${occurrenceDateTimes.join("、")}。開催期間を広げるか、公演回の日時を変更してから、もう一度お試しください。`,
+  );
+}
+
+export function throwEventRangePrevalidationError(
+  error?: RawPostgrestLikeError,
+): never {
+  if (error !== undefined) {
+    console.error("[event range prevalidation] occurrence read failed", {
+      code: error.code,
+      message: error.message,
+    });
+  }
+  throw new ActionError<EventWriteExtraKind>(
+    "failure",
+    toMessage(EVENT_RANGE_PREVALIDATION_FAILURE),
+  );
+}
+
 export function throwEventWriteError(
   operation: EventWriteOperation,
   error: RawPostgrestLikeError,
@@ -125,6 +161,16 @@ export function throwEventWriteError(
     throw new ActionError<EventWriteExtraKind>(
       "occurrence-canceled",
       toMessage(WRITE_EFFECTIVELY_CANCELED[operation]),
+    );
+  }
+  if (operation === "update-event" && error.code === "23514") {
+    console.error("[event write] event range constraint rejected", {
+      code: error.code,
+      message: error.message,
+    });
+    throw new ActionError<EventWriteExtraKind>(
+      "validation",
+      toMessage(EVENT_RANGE_CONSTRAINT_FAILURE),
     );
   }
   if (
