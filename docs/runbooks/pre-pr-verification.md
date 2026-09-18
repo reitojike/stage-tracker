@@ -26,19 +26,26 @@ $env:PATH = "$shimDir;$env:PATH"
 
 pnpm --version
 cmd.exe /d /c pnpm.cmd --version
+
+# These are process-local build placeholders, not deployment configuration.
+$env:NEXT_PUBLIC_SUPABASE_URL = 'https://placeholder.invalid'
+$env:NEXT_PUBLIC_SUPABASE_ANON_KEY = 'ci-build-placeholder-not-a-real-key'
 ```
 
 両方のversionがrepositoryの指定と一致することを確認してから、次を順番に実行します。
 
 ```powershell
 corepack pnpm install --frozen-lockfile
+corepack pnpm run e2e:install-browsers
 corepack pnpm run verify
 git diff --check origin/main...HEAD
 ```
 
 `verify`は`verify:code`（format、lint、typecheck、unit tests、script tests、migration
 check）に加えて、build/Storybookとdatabase/RLSのverificationも含むrepositoryのfull
-verification entry pointです。`git diff --check`は最後に実行し、baseとの差分に
+verification entry pointです。`e2e:install-browsers`はStorybookのPlaywright Chromium
+依存を用意します。Supabaseのplaceholderはbuild時のenv schemaを通すためだけに使い、
+実際のdeployment値として扱いません。`git diff --check`は最後に実行し、baseとの差分に
 whitespace errorがないことも確認します。
 
 ## Environment-blocked fallback
