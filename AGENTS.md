@@ -30,9 +30,13 @@ policy bundle.
   semantic AC verification remains an agent responsibility and the helper is
   fail-closed.
 - Mechanical correctness and safety are enforced by executable configuration,
-  tests, and CI. The normal repository verification entry point is
-  [`pnpm run verify`](package.json); inspect the applicable workflow in
-  [`.github/workflows/`](.github/workflows/) for CI authority.
+  tests, and CI. The default mandatory pre-PR mechanical floor is defined by
+  [`docs/runbooks/pre-pr-verification.md`](docs/runbooks/pre-pr-verification.md).
+  The normal repository full local verification entry point remains
+  [`pnpm run verify`](package.json) for tasks or risks that require broader
+  build/database coverage; it is not synonymous with the default mandatory
+  pre-PR floor. Inspect the applicable workflow in [`.github/workflows/`](.github/workflows/)
+  for CI authority.
 - Domains without a Living Spec may use
   [`.ai-dev-foundation/product-rules.md`](.ai-dev-foundation/product-rules.md)
   as temporary static product authority only. This file is not a runtime

@@ -1,8 +1,15 @@
 # Pre-PR verification
 
-このrunbookは、PR作成前にrepositoryのmechanical verificationを実行するための
-boundedな手順です。PR作成後のCI・review・MERGE_READY収束は、別の
+このrunbookは、PR作成前のdefault mandatory mechanical floorを定義する
+boundedな手順です。`verify:code`はformat、lint、typecheck、unit tests、script tests、
+migration mechanical checkをPR作成前に止める責務を持ちます。PR作成後のCI・review・MERGE_READY収束は、別の
 [`post-pr-convergence.md`](./post-pr-convergence.md)の責務です。
+
+`pnpm run verify`は、build/Storybookとdatabase/RLSを含むrepositoryのfull local
+verification entry pointとして維持されます。Task Contract、risk、または明示的な要件が
+より広いlocal verificationを必要とする場合は`pnpm run verify`を使いますが、full local
+verificationとdefault mandatory pre-PR mechanical floorは同義ではありません。Build、
+Database、E2E等のrequired GitHub CI lanesは、引き続きpost-PR convergenceで必須です。
 
 ## Normal path
 
@@ -36,11 +43,8 @@ corepack pnpm run verify:code
 git diff --check origin/main...HEAD
 ```
 
-`verify:code`はformat、lint、typecheck、unit tests、script tests、migration checkを
-含む、このbounded gateのcode verification entry pointです。既存の`verify`はbuild/
-Storybookとdatabase/RLSを含むrepositoryのfull local verification entry pointとして
-維持されますが、このrunbookのmandatory pre-PR sequenceには含めません。`git diff
---check`は最後に実行し、baseとの差分にwhitespace errorがないことも確認します。
+`verify:code`は、このrunbookのbounded gateにおけるcode verification entry pointです。
+`git diff --check`は最後に実行し、baseとの差分にwhitespace errorがないことも確認します。
 
 ## Environment-blocked fallback
 
