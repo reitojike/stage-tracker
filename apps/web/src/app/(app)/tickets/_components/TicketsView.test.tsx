@@ -118,6 +118,73 @@ describe("TicketsView", () => {
     expect(screen.getByText("販売開始")).toBeInTheDocument();
   });
 
+  it("keeps non-contiguous same-month sections distinct without duplicate-key warnings", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    try {
+      render(
+        <TicketsView
+          today={TODAY}
+          state={{
+            block: {
+              variant: "populated",
+              data: {
+                groups: [
+                  {
+                    monthKey: "2026-10",
+                    rows: [
+                      row({
+                        opportunityId: "44444444-4444-4444-8444-444444444444",
+                        milestoneId: "55555555-5555-4555-8555-555555555555",
+                      }),
+                    ],
+                  },
+                  {
+                    monthKey: "2026-09",
+                    rows: [
+                      row({
+                        opportunityId: "66666666-6666-4666-8666-666666666666",
+                        milestoneId: "77777777-7777-4777-8777-777777777777",
+                      }),
+                    ],
+                  },
+                  {
+                    monthKey: "2026-10",
+                    rows: [
+                      row({
+                        opportunityId: "88888888-8888-4888-8888-888888888888",
+                        milestoneId: "99999999-9999-4999-8999-999999999999",
+                      }),
+                    ],
+                  },
+                ],
+              },
+            },
+            optional: { ok: true },
+          }}
+        />,
+      );
+
+      expect(
+        screen
+          .getAllByRole("region")
+          .map((section) => section.getAttribute("aria-label")),
+      ).toEqual(["2026年10月", "2026年9月", "2026年10月"]);
+      expect(
+        consoleError.mock.calls.some((args) =>
+          args.some(
+            (argument) =>
+              typeof argument === "string" && argument.includes("same key"),
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("prioritizes 受付終了 over the personal planning-state badge", () => {
     render(
       <TicketsView

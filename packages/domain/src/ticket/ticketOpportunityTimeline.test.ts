@@ -507,4 +507,51 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
     const groups = groupTicketOpportunityTimelineRowsByMonth([marchRowA, aprilRow, marchRowB]);
     expect(groups.map((group) => group.monthKey)).toEqual(['2026-03', '2026-04', '2026-03']);
   });
+
+  it('uses a window end month for membership without changing startsAt-based row order', () => {
+    const rows = buildTicketOpportunityTimelineRows([
+      {
+        opportunityId: oppId(1),
+        eventId,
+        displayName: 'FC先行',
+        milestones: [
+          windowMilestone(1, 'payment_window', '2026-09-28T00:00:00Z', '2026-10-03T00:00:00Z'),
+        ],
+        myState: null,
+      },
+      {
+        opportunityId: oppId(2),
+        eventId,
+        displayName: '一般発売',
+        milestones: [dateMilestone(2, 'application_close', '2026-09-30')],
+        myState: null,
+      },
+      {
+        opportunityId: oppId(3),
+        eventId,
+        displayName: '一般発売',
+        milestones: [dateMilestone(3, 'sale_start', '2026-10-02')],
+        myState: null,
+      },
+    ]);
+
+    expect(rows.map((row) => row.milestone.id)).toEqual([
+      milestoneId(1),
+      milestoneId(2),
+      milestoneId(3),
+    ]);
+    const windowRow = rows[0];
+    if (windowRow === undefined) {
+      throw new Error('unreachable: the month-crossing window row is missing');
+    }
+    expect(ticketOpportunityMilestoneTokyoCalendarDate(windowRow.milestone)).toBe('2026-10-03');
+
+    const groups = groupTicketOpportunityTimelineRowsByMonth(rows);
+    expect(groups.map((group) => group.monthKey)).toEqual(['2026-10', '2026-09', '2026-10']);
+    expect(groups.flatMap((group) => group.rows.map((row) => row.milestone.id))).toEqual([
+      milestoneId(1),
+      milestoneId(2),
+      milestoneId(3),
+    ]);
+  });
 });

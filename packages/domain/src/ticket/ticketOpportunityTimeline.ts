@@ -392,17 +392,18 @@ export interface TicketOpportunityTimelineMonthGroup {
 
 /**
  * Groups already chronologically-sorted rows into contiguous month buckets,
- * preserving row order within each. The month key is derived from each
- * row's `sortInstant` - an ordering-only value (see its own header), safe
- * to reuse here since only the *month* is read out of it, never a specific
- * day/time displayed to the user.
+ * preserving row order within each. Month membership is based on the
+ * product-relevant Tokyo calendar date, while row ordering remains based on
+ * the ordering-only `sortInstant`. A window can therefore belong to a later
+ * month than its position in the chronological row sequence; that does not
+ * change the existing contiguous-bucket contract.
  */
 export function groupTicketOpportunityTimelineRowsByMonth(
   rows: readonly TicketOpportunityTimelineRow[],
 ): TicketOpportunityTimelineMonthGroup[] {
   const groups: { monthKey: string; rows: TicketOpportunityTimelineRow[] }[] = [];
   for (const row of rows) {
-    const monthKey = instantToTokyoCalendarDate(row.sortInstant).slice(0, 7);
+    const monthKey = ticketOpportunityMilestoneTokyoCalendarDate(row.milestone).slice(0, 7);
     const lastGroup = groups[groups.length - 1];
     if (lastGroup !== undefined && lastGroup.monthKey === monthKey) {
       lastGroup.rows.push(row);
