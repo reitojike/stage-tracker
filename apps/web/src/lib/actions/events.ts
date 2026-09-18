@@ -11,6 +11,7 @@ import {
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
 import { formatTokyoDateTimeJa } from "@/app/_lib/format";
+import { runPagedSupabaseSelect } from "@/lib/data/paged-select";
 import {
   throwEventCancellationError,
   throwEventCancellationPermissionDenied,
@@ -131,22 +132,40 @@ export const updateEventRangeAction = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     const { eventId, range } = parsedInput;
 
+    // Keep the UX pre-check from disclosing occurrence details to a caller
+    // who cannot perform this owner-only update. This is only a feedback-order
+    // guard; `reschedule_event` remains the authoritative permission check.
+    const { data: ownedEvent, error: ownershipReadError } = await ctx.supabase
+      .from("events")
+      .select("id")
+      .eq("id", eventId)
+      .eq("owner_id", ctx.userId)
+      .maybeSingle();
+    if (ownershipReadError) {
+      throwEventWriteError("update-event", ownershipReadError);
+    }
+    if (ownedEvent === null) {
+      throwEventWritePermissionDenied("update-event");
+    }
+
     // This read is only a UX pre-validation input. It deliberately selects the
     // minimum fields needed by the domain invariant and does not replace the
     // RPC/RLS/DB authority that follows it.
-    const { data: occurrenceRows, error: occurrenceReadError } =
-      await ctx.supabase
+    const occurrenceRowsResult = await runPagedSupabaseSelect((from, to) =>
+      ctx.supabase
         .from("event_occurrences")
-        .select("id, starts_at")
+        .select("id, starts_at", { count: "exact" })
         .eq("event_id", eventId)
-        .order("starts_at", { ascending: true });
-    if (occurrenceReadError) {
-      throwEventRangePrevalidationError(occurrenceReadError);
+        .order("starts_at", { ascending: true })
+        .range(from, to),
+    );
+    if (!occurrenceRowsResult.ok) {
+      throwEventRangePrevalidationError();
     }
 
     const parsedOccurrenceRows = z
       .array(currentOccurrenceForRangeValidationSchema)
-      .safeParse(occurrenceRows);
+      .safeParse(occurrenceRowsResult.value);
     if (!parsedOccurrenceRows.success) {
       throwEventRangePrevalidationError();
     }

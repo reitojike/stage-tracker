@@ -11,11 +11,19 @@ const mockRpc = vi.fn();
 const occurrenceQuery = {
   select: vi.fn(() => occurrenceQuery),
   eq: vi.fn(() => occurrenceQuery),
-  order: vi.fn(),
+  order: vi.fn(() => occurrenceQuery),
+  range: vi.fn(),
+};
+const eventQuery = {
+  select: vi.fn(() => eventQuery),
+  eq: vi.fn(() => eventQuery),
+  maybeSingle: vi.fn(),
 };
 const supabaseStub = {
   auth: { getUser: mockGetUser },
-  from: vi.fn(() => occurrenceQuery),
+  from: vi.fn((table: string) =>
+    table === "events" ? eventQuery : occurrenceQuery,
+  ),
   rpc: mockRpc,
 };
 
@@ -58,13 +66,24 @@ describe("updateEventRangeAction occurrence pre-validation", () => {
     mockRpc.mockReset();
     occurrenceQuery.select.mockClear();
     occurrenceQuery.eq.mockClear();
-    occurrenceQuery.order.mockReset();
+    occurrenceQuery.order.mockClear();
+    occurrenceQuery.range.mockReset();
+    eventQuery.select.mockClear();
+    eventQuery.eq.mockClear();
+    eventQuery.maybeSingle.mockReset();
     mockGetUser.mockResolvedValue({
       data: { user: { id: USER_ID } },
       error: null,
     });
-    occurrenceQuery.order.mockResolvedValue({
+    occurrenceQuery.range.mockResolvedValue({
       data: [insideRangeOccurrence()],
+      count: 1,
+      error: null,
+      status: 200,
+      statusText: "OK",
+    });
+    eventQuery.maybeSingle.mockResolvedValue({
+      data: { id: EVENT_ID },
       error: null,
     });
     mockRpc.mockResolvedValue({ data: [], error: null });
@@ -74,7 +93,10 @@ describe("updateEventRangeAction occurrence pre-validation", () => {
     const result = await runRangeUpdate();
 
     expect(result.data).toEqual({ ok: true });
-    expect(occurrenceQuery.select).toHaveBeenCalledWith("id, starts_at");
+    expect(eventQuery.eq).toHaveBeenLastCalledWith("owner_id", USER_ID);
+    expect(occurrenceQuery.select).toHaveBeenCalledWith("id, starts_at", {
+      count: "exact",
+    });
     expect(occurrenceQuery.eq).toHaveBeenCalledWith("event_id", EVENT_ID);
     expect(mockRpc).toHaveBeenCalledWith("reschedule_event", {
       p_event_id: EVENT_ID,
@@ -85,9 +107,12 @@ describe("updateEventRangeAction occurrence pre-validation", () => {
   });
 
   it("stops before the RPC and identifies one outside-range occurrence by Tokyo date/time", async () => {
-    occurrenceQuery.order.mockResolvedValue({
+    occurrenceQuery.range.mockResolvedValue({
       data: [{ id: OCCURRENCE_ID, starts_at: "2026-04-30T09:00:00Z" }],
+      count: 1,
       error: null,
+      status: 200,
+      statusText: "OK",
     });
 
     const result = await runRangeUpdate();
@@ -100,12 +125,15 @@ describe("updateEventRangeAction occurrence pre-validation", () => {
   });
 
   it("reports every outside-range occurrence instead of hiding later violations", async () => {
-    occurrenceQuery.order.mockResolvedValue({
+    occurrenceQuery.range.mockResolvedValue({
       data: [
         { id: OCCURRENCE_ID, starts_at: "2026-04-30T09:00:00Z" },
         { id: SECOND_OCCURRENCE_ID, starts_at: "2026-06-01T09:00:00Z" },
       ],
+      count: 2,
       error: null,
+      status: 200,
+      statusText: "OK",
     });
 
     const result = await runRangeUpdate();
@@ -116,9 +144,12 @@ describe("updateEventRangeAction occurrence pre-validation", () => {
   });
 
   it("stops safely when the current occurrence pre-read fails", async () => {
-    occurrenceQuery.order.mockResolvedValue({
+    occurrenceQuery.range.mockResolvedValue({
       data: null,
+      count: null,
       error: { code: "XX000", message: SECRET },
+      status: 500,
+      statusText: "Internal Server Error",
     });
 
     const result = await runRangeUpdate();
@@ -143,5 +174,53 @@ describe("updateEventRangeAction occurrence pre-validation", () => {
     expect(result.serverError?.message).toContain("開催期間");
     expect(result.serverError?.message).toContain("公演回");
     expect(result.serverError?.message).not.toContain(SECRET);
+  });
+
+  it("pages through the complete occurrence set before validating", async () => {
+    const firstPage = Array.from({ length: 500 }, (_, index) =>
+      insideRangeOccurrence(
+        `55555555-5555-4555-8555-${String(index).padStart(12, "0")}`,
+      ),
+    );
+    occurrenceQuery.range
+      .mockResolvedValueOnce({
+        data: firstPage,
+        count: 501,
+        error: null,
+        status: 200,
+        statusText: "OK",
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: SECOND_OCCURRENCE_ID, starts_at: "2026-06-01T09:00:00Z" }],
+        count: 501,
+        error: null,
+        status: 200,
+        statusText: "OK",
+      });
+
+    const result = await runRangeUpdate();
+
+    expect(result.serverError?.message).toContain("6月1日(月) 18:00");
+    expect(occurrenceQuery.range).toHaveBeenNthCalledWith(1, 0, 499);
+    expect(occurrenceQuery.range).toHaveBeenNthCalledWith(2, 500, 999);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("returns permission feedback before disclosing occurrence validation details", async () => {
+    eventQuery.maybeSingle.mockResolvedValue({ data: null, error: null });
+    occurrenceQuery.range.mockResolvedValue({
+      data: [{ id: OCCURRENCE_ID, starts_at: "2026-04-30T09:00:00Z" }],
+      count: 1,
+      error: null,
+      status: 200,
+      statusText: "OK",
+    });
+
+    const result = await runRangeUpdate();
+
+    expect(result.serverError?.kind).toBe("permission-denied");
+    expect(result.serverError?.message).not.toContain("4月30日(木) 18:00");
+    expect(occurrenceQuery.range).not.toHaveBeenCalled();
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });
