@@ -540,7 +540,11 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
       milestoneId(2),
       milestoneId(3),
     ]);
-    expect(ticketOpportunityMilestoneTokyoCalendarDate(rows[0]!.milestone)).toBe('2026-10-03');
+    const windowRow = rows[0];
+    if (windowRow === undefined) {
+      throw new Error('unreachable: the month-crossing window row is missing');
+    }
+    expect(ticketOpportunityMilestoneTokyoCalendarDate(windowRow.milestone)).toBe('2026-10-03');
 
     const groups = groupTicketOpportunityTimelineRowsByMonth(rows);
     expect(groups.map((group) => group.monthKey)).toEqual(['2026-10', '2026-09', '2026-10']);
