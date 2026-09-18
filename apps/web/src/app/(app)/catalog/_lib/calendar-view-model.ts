@@ -9,13 +9,14 @@ import {
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   buildMonthGridDays,
+  formatMonthParam,
   type TokyoYearMonth,
 } from "@/app/_lib/calendar-grid";
 import {
   calendarDayRole,
-  isWithinJapaneseHolidayDataCoverage,
   type CalendarDayRole,
 } from "@/app/_lib/calendar-day-role";
+import { hasUnconfirmedHolidayCoverage } from "@/app/_lib/calendar-month-presentation";
 import {
   layoutWeekBands,
   type BandSegment,
@@ -150,9 +151,7 @@ export function buildCatalogMonthViewModel(
     weeks.push({
       days: weekDates.map((date) => ({
         date,
-        inCurrentMonth:
-          date.slice(0, 7) ===
-          `${String(month.year).padStart(4, "0")}-${String(month.month).padStart(2, "0")}`,
+        inCurrentMonth: date.slice(0, 7) === formatMonthParam(month),
         badgeCount: badgeCounts.get(date) ?? 0,
         role: calendarDayRole(date),
       })),
@@ -160,14 +159,14 @@ export function buildCatalogMonthViewModel(
     });
   }
 
-  const monthKey = `${String(month.year).padStart(4, "0")}-${String(month.month).padStart(2, "0")}`;
-  const hasUnconfirmedHolidayCoverage = gridDays.some(
-    (date) =>
-      date.slice(0, 7) === monthKey &&
-      !isWithinJapaneseHolidayDataCoverage(date),
-  );
-
-  return { month, weeks, hasUnconfirmedHolidayCoverage };
+  return {
+    month,
+    weeks,
+    hasUnconfirmedHolidayCoverage: hasUnconfirmedHolidayCoverage(
+      month,
+      gridDays,
+    ),
+  };
 }
 
 export interface SelectedDayOccurrence {
