@@ -2,13 +2,22 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { eventIdSchema } from "@stage-tracker/domain";
+import {
+  eventIdSchema,
+  findEventOccurrenceInvariantViolations,
+  instantSchema,
+  occurrenceIdSchema,
+} from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
+import { formatTokyoDateTimeJa } from "@/app/_lib/format";
+import { runPagedSupabaseSelect } from "@/lib/data/paged-select";
 import {
   throwEventCancellationError,
   throwEventCancellationPermissionDenied,
   throwEventDeleteError,
+  throwEventRangeInvariantError,
+  throwEventRangePrevalidationError,
   throwEventWriteError,
   throwEventWritePermissionDenied,
 } from "./event-write-feedback";
@@ -48,6 +57,10 @@ import {
  */
 
 const createEventRpcRowSchema = z.object({ id: eventIdSchema });
+const currentOccurrenceForRangeValidationSchema = z.object({
+  id: occurrenceIdSchema,
+  starts_at: instantSchema,
+});
 
 export const createEventAction = authActionClient
   .inputSchema(createEventInputSchema)
@@ -119,15 +132,69 @@ export const updateEventRangeAction = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     const { eventId, range } = parsedInput;
 
+    // Keep the UX pre-check from disclosing occurrence details to a caller
+    // who cannot perform this owner-only update. This is only a feedback-order
+    // guard; `reschedule_event` remains the authoritative permission check.
+    const { data: ownedEvent, error: ownershipReadError } = await ctx.supabase
+      .from("events")
+      .select("id")
+      .eq("id", eventId)
+      .eq("owner_id", ctx.userId)
+      .maybeSingle();
+    if (ownershipReadError) {
+      throwEventWriteError("update-event", ownershipReadError);
+    }
+    if (ownedEvent === null) {
+      throwEventWritePermissionDenied("update-event");
+    }
+
+    // This read is only a UX pre-validation input. It deliberately selects the
+    // minimum fields needed by the domain invariant and does not replace the
+    // RPC/RLS/DB authority that follows it.
+    const occurrenceRowsResult = await runPagedSupabaseSelect((from, to) =>
+      ctx.supabase
+        .from("event_occurrences")
+        .select("id, starts_at", { count: "exact" })
+        .eq("event_id", eventId)
+        .order("starts_at", { ascending: true })
+        .range(from, to),
+    );
+    if (!occurrenceRowsResult.ok) {
+      throwEventRangePrevalidationError();
+    }
+
+    const parsedOccurrenceRows = z
+      .array(currentOccurrenceForRangeValidationSchema)
+      .safeParse(occurrenceRowsResult.value);
+    if (!parsedOccurrenceRows.success) {
+      throwEventRangePrevalidationError();
+    }
+    const rangeViolations = findEventOccurrenceInvariantViolations(
+      range,
+      parsedOccurrenceRows.data.map((row) => ({
+        id: row.id,
+        startsAt: row.starts_at,
+      })),
+    ).filter(
+      (violation) => violation.kind === "occurrence-outside-event-range",
+    );
+    if (rangeViolations.length > 0) {
+      throwEventRangeInvariantError(
+        rangeViolations.map((violation) =>
+          formatTokyoDateTimeJa(violation.startsAt),
+        ),
+      );
+    }
+
     // `reschedule_event`（`supabase/migrations/
     // 20260825000400_create_reschedule_event_rpc.sql`）は Event range と
     // occurrence 群の atomic 更新を1つの RPC にまとめているが、この画面の
     // 「期間だけ編集」フローは occurrence 自体を動かさない
     // （`docs/v2/oracle-routes-ui.md` §2「期間編集はSheet内フォームで…」）
     // ため、`p_occurrences` は空配列のまま渡す。既存 occurrence が新しい
-    // range に収まらない場合は、DB 側の deferred constraint
-    // (`events_range_contains_occurrences`) がコミット時に `23514` で
-    // 拒否する。
+    // range に収まらない場合の最終判定は、DB 側の deferred constraint
+    // (`events_range_contains_occurrences`) が担う。上の read/check との間に
+    // race があり得るため、RPC側の拒否を不要な dead branch と見なさない。
     const { error } = await ctx.supabase.rpc("reschedule_event", {
       p_event_id: eventId,
       p_starts_on: range.startsOn,
