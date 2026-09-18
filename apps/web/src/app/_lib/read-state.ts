@@ -13,7 +13,7 @@ import {
  * declarations). Kept as a distinct name because a screen *block* here can
  * be backed by more than one independent `ReadResult` (e.g. home's
  * "直近の予定" block combines `listMyParticipations` +
- * `listVisiblePersonalSchedule` - `apps/web/src/lib/data/reads/home.ts`'s own
+ * `listVisiblePersonalSchedule` - the shared personal-schedule read's own
  * docstring), which `@/lib/data`'s single-read classifiers don't combine on
  * their own - the combinators below (`classifyBlock1`/`classifyBlock2Optional`/
  * `classifyMergedListBlock2`) are that screen-layer decision, kept out of

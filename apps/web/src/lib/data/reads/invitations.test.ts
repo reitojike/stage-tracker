@@ -1,12 +1,13 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
+import { userIdSchema } from "@stage-tracker/domain";
 import { server } from "@/test/msw/server";
-import { listMyReceivedInvitations } from "./listMyReceivedInvitations";
+import { listMyReceivedInvitations } from "@/lib/data";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
-const userId = "11111111-1111-4111-8111-111111111111";
+const userId = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
 
 function createTestClient(): SupabaseClient {
   return createClient(SUPABASE_URL, "anon-key", {

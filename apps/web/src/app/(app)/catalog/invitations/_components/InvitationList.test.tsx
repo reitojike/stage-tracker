@@ -10,7 +10,7 @@ import {
   userIdSchema,
 } from "@stage-tracker/domain";
 import { InvitationList } from "./InvitationList";
-import type { ReceivedInvitation } from "../_data/listMyReceivedInvitations";
+import type { ReceivedInvitation } from "@/lib/data";
 
 const mockAccept = vi.fn();
 const mockDecline = vi.fn();

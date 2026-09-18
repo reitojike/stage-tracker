@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { userIdSchema } from "@stage-tracker/domain";
 import { PageHeading, StatePanel } from "@stage-tracker/ui";
+import { isDesignatedCatalogCreator } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isDesignatedCatalogCreator } from "./_data/creatorCapability";
 import { NewEventForm } from "./_components/NewEventForm";
 
 interface NewEventPageProps {
@@ -47,7 +48,21 @@ export default async function NewEventPage({
     );
   }
 
-  const canCreate = await isDesignatedCatalogCreator(supabase, user.id);
+  const parsedUserId = userIdSchema.safeParse(user.id);
+  if (!parsedUserId.success) {
+    return (
+      <StatePanel
+        variant="unavailable"
+        title="サインインが必要です"
+        description="サインインしてからもう一度お試しください。"
+      />
+    );
+  }
+
+  const canCreate = await isDesignatedCatalogCreator(
+    supabase,
+    parsedUserId.data,
+  );
   if (!canCreate) {
     return (
       <StatePanel

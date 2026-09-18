@@ -1,9 +1,8 @@
 import { PageHeading, StatePanel } from "@stage-tracker/ui";
 import { eventIdSchema } from "@stage-tracker/domain";
-import { classifyListReadResult } from "@/lib/data";
+import { classifyListReadResult, getEventWithOccurrences } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
-import { getEventForEdit } from "./_data/getEventForEdit";
 import { EditEventForm } from "./_components/EditEventForm";
 
 interface EditEventPageProps {
@@ -44,7 +43,7 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     );
   }
 
-  const result = await getEventForEdit(supabase, parsedEventId.data);
+  const result = await getEventWithOccurrences(supabase, parsedEventId.data);
   const state = classifyListReadResult(result);
 
   if (state.variant === "unavailable" || state.variant === "error") {

@@ -1,11 +1,11 @@
+import { userIdSchema } from "@stage-tracker/domain";
 import { BackLink, PageHeading, StatePanel } from "@stage-tracker/ui";
-import { classifyListReadResult } from "@/lib/data";
+import { classifyListReadResult, listMyReceivedInvitations } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { resolveScreenNow } from "@/app/_lib/now";
 import { tokyoYearMonthOf } from "@/app/_lib/calendar-grid";
 import { catalogMonthHref } from "../_lib/catalog-links";
-import { listMyReceivedInvitations } from "./_data/listMyReceivedInvitations";
 import { InvitationList } from "./_components/InvitationList";
 
 /**
@@ -31,7 +31,18 @@ export default async function InvitationsPage() {
     );
   }
 
-  const result = await listMyReceivedInvitations(supabase, user.id);
+  const parsedUserId = userIdSchema.safeParse(user.id);
+  if (!parsedUserId.success) {
+    return (
+      <StatePanel
+        variant="unavailable"
+        title="サインインが必要です"
+        description="サインインしてからもう一度お試しください。"
+      />
+    );
+  }
+
+  const result = await listMyReceivedInvitations(supabase, parsedUserId.data);
   const state = classifyListReadResult(result);
 
   return (

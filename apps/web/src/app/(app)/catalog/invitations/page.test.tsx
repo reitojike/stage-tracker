@@ -4,6 +4,7 @@ import InvitationsPage from "./page";
 
 const mockGetUser = vi.fn();
 const mockListMyReceivedInvitations = vi.fn();
+const USER_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
@@ -11,7 +12,8 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-vi.mock("./_data/listMyReceivedInvitations", () => ({
+vi.mock("@/lib/data", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data")>("@/lib/data")),
   listMyReceivedInvitations: (...args: unknown[]) =>
     mockListMyReceivedInvitations(...args),
 }));
@@ -37,7 +39,7 @@ describe("InvitationsPage", () => {
   beforeEach(() => {
     mockGetUser.mockReset();
     mockListMyReceivedInvitations.mockReset();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockGetUser.mockResolvedValue({ data: { user: { id: USER_ID } } });
   });
 
   it("renders an error StatePanel on fetch failure", async () => {

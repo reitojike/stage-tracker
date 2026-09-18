@@ -11,7 +11,7 @@ import EditEventPage from "./page";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
-  getEventForEdit: vi.fn(),
+  getEventWithOccurrences: vi.fn(),
   refresh: vi.fn(),
 }));
 
@@ -25,8 +25,10 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-vi.mock("./_data/getEventForEdit", () => ({
-  getEventForEdit: (...args: unknown[]) => mocks.getEventForEdit(...args),
+vi.mock("@/lib/data", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data")>("@/lib/data")),
+  getEventWithOccurrences: (...args: unknown[]) =>
+    mocks.getEventWithOccurrences(...args),
 }));
 
 const EVENT_ID = eventIdSchema.parse("11111111-1111-4111-8111-111111111111");
@@ -59,13 +61,13 @@ function buildEvent(ownerId: string): Event {
 describe("EditEventPage", () => {
   beforeEach(() => {
     mocks.getUser.mockReset();
-    mocks.getEventForEdit.mockReset();
+    mocks.getEventWithOccurrences.mockReset();
     mocks.refresh.mockReset();
   });
 
   it("renders a permission-denied panel for a non-owner", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OTHER_USER_ID } } });
-    mocks.getEventForEdit.mockResolvedValue({
+    mocks.getEventWithOccurrences.mockResolvedValue({
       ok: true,
       value: [{ event: buildEvent(OWNER_ID), occurrences: [] }],
     });
@@ -81,7 +83,7 @@ describe("EditEventPage", () => {
 
   it("renders the edit form for the owner", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mocks.getEventForEdit.mockResolvedValue({
+    mocks.getEventWithOccurrences.mockResolvedValue({
       ok: true,
       value: [{ event: buildEvent(OWNER_ID), occurrences: [] }],
     });
@@ -96,7 +98,7 @@ describe("EditEventPage", () => {
 
   it("renders an empty panel when the event does not exist", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: OWNER_ID } } });
-    mocks.getEventForEdit.mockResolvedValue({ ok: true, value: [] });
+    mocks.getEventWithOccurrences.mockResolvedValue({ ok: true, value: [] });
 
     const ui = await EditEventPage({
       params: Promise.resolve({ eventId: EVENT_ID }),

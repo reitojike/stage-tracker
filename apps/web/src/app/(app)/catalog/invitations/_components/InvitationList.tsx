@@ -8,7 +8,7 @@ import {
   acceptInvitationAction,
   declineInvitationAction,
 } from "@/lib/actions/invitations";
-import type { ReceivedInvitation } from "../_data/listMyReceivedInvitations";
+import type { ReceivedInvitation } from "@/lib/data";
 import {
   formatTokyoCalendarDateWithYearJa,
   occurrenceTimeRangeLabel,
