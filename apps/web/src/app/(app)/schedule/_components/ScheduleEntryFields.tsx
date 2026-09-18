@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { CheckboxField, TextAreaField, TextField } from "./FormField";
+import {
+  Checkbox,
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  Input,
+  RadioChip,
+  RadioGroup,
+  Textarea,
+} from "@stage-tracker/ui";
 import type { ScheduleEntryFieldErrorMap } from "./scheduleValidationErrors";
 
 /**
@@ -44,109 +54,116 @@ export function ScheduleEntryFields({
       disabled={disabled}
       className="flex flex-col gap-4 border-none p-0"
     >
-      <TextField
-        id="title"
-        name="title"
-        label="件名"
-        required
-        defaultValue={defaultValues?.title}
-        error={fieldErrors?.title}
-      />
-      <TextAreaField
-        id="memo"
-        name="memo"
-        label="メモ"
-        defaultValue={defaultValues?.memo}
-        error={fieldErrors?.memo}
-      />
-      <CheckboxField
-        id="blocking"
-        name="blocking"
-        label="この予定がある間は空き時間として扱わない（blocking）"
-        helperText="オフにすると、一覧には表示されますが空き時間の扱いは変わりません。共有先にも同じ設定がそのまま伝わります。"
-        defaultChecked={defaultValues?.blocking ?? true}
-      />
-
-      <div
-        role="radiogroup"
-        aria-label="予定の種類"
-        className="flex flex-col gap-2"
-      >
-        <span className="text-label font-medium text-foreground">
-          予定の種類
-          <span aria-hidden className="text-destructive">
-            {" "}
-            *
-          </span>
-        </span>
-        <label className="flex items-center gap-2 text-body-sm text-foreground">
-          <input
-            type="radio"
-            name="temporalMode"
-            value="all-day"
-            checked={temporalMode === "all-day"}
-            onChange={() => setTemporalMode("all-day")}
+      <Field id="title" label="件名" required error={fieldErrors?.title}>
+        <Input name="title" required defaultValue={defaultValues?.title} />
+      </Field>
+      <Field id="memo" label="メモ" error={fieldErrors?.memo}>
+        <Textarea name="memo" defaultValue={defaultValues?.memo} rows={3} />
+      </Field>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="blocking"
+            name="blocking"
+            defaultChecked={defaultValues?.blocking ?? true}
+            disabled={disabled}
+            aria-describedby="blocking-helper"
           />
-          終日
-        </label>
-        <label className="flex items-center gap-2 text-body-sm text-foreground">
-          <input
-            type="radio"
-            name="temporalMode"
-            value="time-bounded"
-            checked={temporalMode === "time-bounded"}
-            onChange={() => setTemporalMode("time-bounded")}
-          />
-          時刻指定
-        </label>
-        {fieldErrors?.temporalMode ? (
-          <p role="alert" className="text-body-sm text-destructive">
-            {fieldErrors.temporalMode}
-          </p>
-        ) : null}
+          <label htmlFor="blocking" className="text-body-sm text-foreground">
+            この予定がある間は空き時間として扱わない（blocking）
+          </label>
+        </div>
+        <FieldDescription id="blocking-helper">
+          オフにすると、一覧には表示されますが空き時間の扱いは変わりません。共有先にも同じ設定がそのまま伝わります。
+        </FieldDescription>
       </div>
+
+      <fieldset className="flex flex-col gap-xs border-none p-0">
+        <FieldLabel id="temporalMode-label" required>
+          予定の種類
+        </FieldLabel>
+        <RadioGroup
+          name="temporalMode"
+          value={temporalMode}
+          onValueChange={(value: "all-day" | "time-bounded") =>
+            setTemporalMode(value)
+          }
+          disabled={disabled}
+          required
+          aria-labelledby="temporalMode-label"
+          aria-invalid={fieldErrors?.temporalMode !== undefined || undefined}
+          aria-describedby={
+            fieldErrors?.temporalMode !== undefined
+              ? "temporalMode-error"
+              : undefined
+          }
+          className="flex flex-col gap-2"
+        >
+          <RadioChip value="all-day">終日</RadioChip>
+          <RadioChip value="time-bounded">時刻指定</RadioChip>
+        </RadioGroup>
+        {fieldErrors?.temporalMode !== undefined ? (
+          <FieldError id="temporalMode-error">
+            {fieldErrors.temporalMode}
+          </FieldError>
+        ) : null}
+      </fieldset>
 
       {temporalMode === "all-day" ? (
         <>
-          <TextField
+          <Field
             id="allDayStartsOn"
-            name="allDayStartsOn"
-            type="date"
             label="開始日"
             required
-            defaultValue={defaultValues?.allDayStartsOn}
             error={fieldErrors?.allDayStartsOn}
-          />
-          <TextField
+          >
+            <Input
+              name="allDayStartsOn"
+              type="date"
+              required
+              defaultValue={defaultValues?.allDayStartsOn}
+            />
+          </Field>
+          <Field
             id="allDayEndsOn"
-            name="allDayEndsOn"
-            type="date"
             label="終了日"
-            helperText="未入力の場合は開始日と同じ日になります。"
-            defaultValue={defaultValues?.allDayEndsOn}
+            description="未入力の場合は開始日と同じ日になります。"
             error={fieldErrors?.allDayEndsOn}
-          />
+          >
+            <Input
+              name="allDayEndsOn"
+              type="date"
+              defaultValue={defaultValues?.allDayEndsOn}
+            />
+          </Field>
         </>
       ) : (
         <>
-          <TextField
+          <Field
             id="timeBoundedStartsAt"
-            name="timeBoundedStartsAt"
-            type="datetime-local"
             label="開始日時"
             required
-            defaultValue={defaultValues?.timeBoundedStartsAt}
             error={fieldErrors?.timeBoundedStartsAt}
-          />
-          <TextField
+          >
+            <Input
+              name="timeBoundedStartsAt"
+              type="datetime-local"
+              required
+              defaultValue={defaultValues?.timeBoundedStartsAt}
+            />
+          </Field>
+          <Field
             id="timeBoundedEndsAt"
-            name="timeBoundedEndsAt"
-            type="datetime-local"
             label="終了日時"
-            helperText="未定の場合は空欄のままにできます。"
-            defaultValue={defaultValues?.timeBoundedEndsAt}
+            description="未定の場合は空欄のままにできます。"
             error={fieldErrors?.timeBoundedEndsAt}
-          />
+          >
+            <Input
+              name="timeBoundedEndsAt"
+              type="datetime-local"
+              defaultValue={defaultValues?.timeBoundedEndsAt}
+            />
+          </Field>
         </>
       )}
     </fieldset>
@@ -181,7 +198,7 @@ export function readScheduleEntryFormData(formData: FormData): {
   return {
     title: readOptional("title") ?? "",
     memo: readOptional("memo"),
-    blocking: formData.get("blocking") === "on",
+    blocking: formData.has("blocking"),
     temporalMode:
       formData.get("temporalMode") === "time-bounded"
         ? "time-bounded"
