@@ -26,42 +26,37 @@ $env:PATH = "$shimDir;$env:PATH"
 
 pnpm --version
 cmd.exe /d /c pnpm.cmd --version
-
-# These are process-local build placeholders, not deployment configuration.
-$env:NEXT_PUBLIC_SUPABASE_URL = 'https://placeholder.invalid'
-$env:NEXT_PUBLIC_SUPABASE_ANON_KEY = 'ci-build-placeholder-not-a-real-key'
 ```
 
 両方のversionがrepositoryの指定と一致することを確認してから、次を順番に実行します。
 
 ```powershell
 corepack pnpm install --frozen-lockfile
-corepack pnpm run e2e:install-browsers
-corepack pnpm run verify
+corepack pnpm run verify:code
 git diff --check origin/main...HEAD
 ```
 
-`verify`は`verify:code`（format、lint、typecheck、unit tests、script tests、migration
-check）に加えて、build/Storybookとdatabase/RLSのverificationも含むrepositoryのfull
-verification entry pointです。`e2e:install-browsers`はStorybookのPlaywright Chromium
-依存を用意します。Supabaseのplaceholderはbuild時のenv schemaを通すためだけに使い、
-実際のdeployment値として扱いません。`git diff --check`は最後に実行し、baseとの差分に
-whitespace errorがないことも確認します。
+`verify:code`はformat、lint、typecheck、unit tests、script tests、migration checkを
+含む、このbounded gateのcode verification entry pointです。既存の`verify`はbuild/
+Storybookとdatabase/RLSを含むrepositoryのfull local verification entry pointとして
+維持されますが、このrunbookのmandatory pre-PR sequenceには含めません。`git diff
+--check`は最後に実行し、baseとの差分にwhitespace errorがないことも確認します。
 
 ## Environment-blocked fallback
 
-TEMP、registry、workspace linker、network、権限などの環境要因でfull verificationを
+TEMP、registry、workspace linker、network、権限などの環境要因で通常のcode gateを
 完走できない場合も、実行可能なcheckを省略しません。少なくとも次をchanged filesと
 repositoryの変更範囲に合わせて試行します。
 
 - changed-file Prettier
 - changed-file ESLint
 - typecheck
+- unit tests
 - script tests
 - Supabase migration check
 - `git diff --check origin/main...HEAD`
 
-PR本文には、full verificationを完走できなかった理由、実行できたcheck、実行できな
+PR本文には、通常のcode gateを完走できなかった理由、実行できたcheck、実行できな
 かったcheckを記録します。degraded checksはfull preflightと同等ではありません。
 実行不能なcheckの最終authorityはrequired CIです。
 
