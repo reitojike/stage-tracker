@@ -20,10 +20,8 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: (...args: unknown[]) => mockCreateServerClient(...args),
 }));
 
-const {
-  createSupabaseCookielessServerClient,
-  createSupabaseServerClient,
-} = await import("./server");
+const { createSupabaseCookielessServerClient, createSupabaseServerClient } =
+  await import("./server");
 
 describe("Supabase server factories", () => {
   beforeEach(() => {
@@ -38,14 +36,19 @@ describe("Supabase server factories", () => {
 
   it("enables Passkey on the typed shared server client and preserves cookie wiring", async () => {
     const client = await createSupabaseServerClient();
-    const options = (client as unknown as { options: {
-      auth: { experimental: { passkey: boolean } };
-      cookies: {
-        getAll: () => unknown;
-        setAll: (cookies: { name: string; value: string; options: object }[]) =>
-          void;
-      };
-    } }).options;
+    const options = (
+      client as unknown as {
+        options: {
+          auth: { experimental: { passkey: boolean } };
+          cookies: {
+            getAll: () => unknown;
+            setAll: (
+              cookies: { name: string; value: string; options: object }[],
+            ) => void;
+          };
+        };
+      }
+    ).options;
 
     expect(options.auth.experimental.passkey).toBe(true);
     expect(options.cookies.getAll()).toEqual([
@@ -71,13 +74,18 @@ describe("Supabase server factories", () => {
 
   it("keeps the cookieless client write-free", async () => {
     const client = await createSupabaseCookielessServerClient();
-    const options = (client as unknown as { options: {
-      cookies: {
-        getAll: () => unknown;
-        setAll: (cookies: { name: string; value: string; options: object }[]) =>
-          void;
-      };
-    } }).options;
+    const options = (
+      client as unknown as {
+        options: {
+          cookies: {
+            getAll: () => unknown;
+            setAll: (
+              cookies: { name: string; value: string; options: object }[],
+            ) => void;
+          };
+        };
+      }
+    ).options;
 
     expect(options.cookies.getAll()).toEqual([
       { name: "sb-session", value: "session" },

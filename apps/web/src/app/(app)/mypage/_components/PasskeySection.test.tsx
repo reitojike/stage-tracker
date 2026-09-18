@@ -40,7 +40,9 @@ describe("PasskeySection", () => {
 
     render(await PasskeySection());
 
-    expect(screen.getByText("登録済みのPasskeyはありません")).toBeInTheDocument();
+    expect(
+      screen.getByText("登録済みのPasskeyはありません"),
+    ).toBeInTheDocument();
   });
 
   it("renders registered Passkeys from the shared server client", async () => {
