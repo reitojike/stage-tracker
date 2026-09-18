@@ -5,7 +5,7 @@ import { cn } from './lib/utils';
 
 export type AppShellProps = Pick<
   AppBarProps,
-  'showActions' | 'hasUnreadNotifications' | 'onNotificationsPress' | 'myPageHref' | 'myPageInitial'
+  'showActions' | 'hasUnreadNotifications' | 'notificationsHref' | 'myPageHref' | 'myPageInitial'
 > & {
   children: ReactNode;
   /** Hides the bottom PrimaryNav on unauthenticated surfaces. Default `true`. */
@@ -17,8 +17,8 @@ export type AppShellProps = Pick<
  * The all-screen shell: AppBar + bounded content column + PrimaryNav
  * (docs/v2/oracle-routes-ui.md §3 AppShell). Purely presentational - no
  * Supabase dependency. Every authenticated route's `layout.tsx` renders
- * this and nothing else (oracle §0), passing through the identity resolved
- * server-side (`myPageHref`/`myPageInitial`).
+ * this and nothing else (oracle §0), passing through the identity and
+ * canonical unread presentation values resolved server-side.
  *
  * `showPrimaryNav`/`showActions` exist so an unauthenticated-but-still-
  * inside-the-shell surface can hide both navigation affordances rather than
@@ -30,7 +30,7 @@ export function AppShell({
   showPrimaryNav = true,
   showActions = true,
   hasUnreadNotifications = false,
-  onNotificationsPress,
+  notificationsHref = '/notifications',
   myPageHref,
   myPageInitial,
   className,
@@ -43,7 +43,7 @@ export function AppShell({
       <AppBar
         showActions={showActions}
         hasUnreadNotifications={hasUnreadNotifications}
-        onNotificationsPress={onNotificationsPress}
+        notificationsHref={notificationsHref}
         myPageHref={myPageHref}
         myPageInitial={myPageInitial}
       />

@@ -39,6 +39,24 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'マイページ' })).not.toBeInTheDocument();
   });
 
+  it('passes the Notifications href and unread boolean through to AppBar', () => {
+    render(
+      <AppShell
+        myPageHref="/mypage"
+        myPageInitial="A"
+        notificationsHref="/notifications"
+        hasUnreadNotifications
+      >
+        <p>コンテンツ</p>
+      </AppShell>,
+    );
+
+    expect(screen.getByRole('link', { name: 'お知らせ（未読あり）' })).toHaveAttribute(
+      'href',
+      '/notifications',
+    );
+  });
+
   // PR #377 review / Issue #376 a11y verification: an axe-core run against
   // the AppShell stories found the content column had regressed from
   // legacy's `<main>` (apps/legacy-web/src/ui/AppShell.tsx) to a plain
