@@ -22,6 +22,7 @@ import {
   isWithinJapaneseHolidayDataCoverage,
   type CalendarDayRole,
 } from "@/app/_lib/calendar-day-role";
+import { hasUnconfirmedHolidayCoverage } from "@/app/_lib/calendar-month-presentation";
 import {
   layoutWeekBands,
   MAX_BAND_LANES,
@@ -337,16 +338,14 @@ export function buildMyCalendarMonthViewModel(
     });
   }
 
-  const monthStart = firstDayOfMonth(month);
-  const monthEnd = lastDayOfMonth(month);
-  const hasUnconfirmedHolidayCoverage = gridDays.some(
-    (date) =>
-      date >= monthStart &&
-      date <= monthEnd &&
-      !isWithinJapaneseHolidayDataCoverage(date),
-  );
-
-  return { month, weeks, hasUnconfirmedHolidayCoverage };
+  return {
+    month,
+    weeks,
+    hasUnconfirmedHolidayCoverage: hasUnconfirmedHolidayCoverage(
+      month,
+      gridDays,
+    ),
+  };
 }
 
 export function selectCalendarMonthOccurrenceGroups(

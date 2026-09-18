@@ -16,7 +16,11 @@ function entry(
     startsOn: string;
     endsOn: string;
     canceledAt: string | null;
-    occurrences: readonly { id: string; startsAt: string }[];
+    occurrences: readonly {
+      id: string;
+      startsAt: string;
+      canceledAt?: string | null;
+    }[];
   }> = {},
 ): EventCatalogEntry {
   const {
@@ -47,7 +51,7 @@ function entry(
       doorsAt: null,
       startsAt: occurrence.startsAt,
       endsAt: null,
-      canceledAt: null,
+      canceledAt: occurrence.canceledAt ?? null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     })) as never,
@@ -98,6 +102,31 @@ describe("computeBadgeCounts", () => {
   it("never counts a multi-day Event", () => {
     const entries = [entry({ startsOn: "2026-03-01", endsOn: "2026-03-05" })];
     expect(computeBadgeCounts(entries).size).toBe(0);
+  });
+
+  it("keeps canceled Events and canceled occurrences in Catalog publication counts", () => {
+    const entries = [
+      entry({
+        id: "canceled-event",
+        startsOn: "2026-03-05",
+        endsOn: "2026-03-05",
+        canceledAt: "2026-02-01T00:00:00.000Z",
+      }),
+      entry({
+        id: "canceled-occurrence",
+        startsOn: "2026-03-05",
+        endsOn: "2026-03-05",
+        occurrences: [
+          {
+            id: "o1",
+            startsAt: "2026-03-05T01:00:00.000Z",
+            canceledAt: "2026-02-02T00:00:00.000Z",
+          },
+        ],
+      }),
+    ];
+
+    expect(computeBadgeCounts(entries).get("2026-03-05" as never)).toBe(2);
   });
 });
 

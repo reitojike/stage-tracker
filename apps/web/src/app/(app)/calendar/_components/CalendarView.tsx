@@ -15,14 +15,17 @@ import {
 } from "@stage-tracker/ui";
 import { cn } from "cn";
 import {
+  MonthGrid as SharedMonthGrid,
+  MonthGridDayLink,
+} from "@/app/_components/MonthGrid";
+import {
   addMonths,
   formatMonthParam,
   tokyoYearMonthOf,
-  weekdayLabelJa,
   type TokyoYearMonth,
 } from "@/app/_lib/calendar-grid";
 import { MAX_BAND_LANES } from "@/app/_lib/calendar-band-layout";
-import type { CalendarDayRole } from "@/app/_lib/calendar-day-role";
+import { bandDisplayTitle } from "@/app/_lib/calendar-presentation";
 import {
   formatMonthJa,
   formatTokyoCalendarDateJa,
@@ -48,6 +51,8 @@ import {
   selectCalendarOccurrenceItems,
   selectCalendarScheduleItems,
   type CalendarMonthViewModel,
+  type CalendarDayViewModel,
+  type CalendarWeekViewModel,
   type CalendarOccurrenceDateGroup,
   type CalendarScheduleDateGroup,
 } from "../_lib/calendar-view-model";
@@ -82,23 +87,6 @@ function dayHref(date: TokyoCalendarDate): string {
 function monthDayLabel(date: TokyoCalendarDate): string {
   const [, month, day] = date.split("-");
   return `${String(Number(month))}月${String(Number(day))}日`;
-}
-
-function roleTextClassName(role: CalendarDayRole): string | undefined {
-  if (role === "holiday") {
-    return "text-calendar-holiday font-semibold";
-  }
-  if (role === "saturday") {
-    return "text-calendar-saturday";
-  }
-  if (role === "sunday") {
-    return "text-calendar-sunday";
-  }
-  return undefined;
-}
-
-function bandDisplayTitle(eventTitle: string, isCanceled: boolean): string {
-  return isCanceled ? `${eventTitle}（中止）` : eventTitle;
 }
 
 function selectOccurrenceGroupsForScope(
@@ -242,216 +230,147 @@ function MonthGrid({
   readonly today: TokyoCalendarDate;
   readonly selectedDate: TokyoCalendarDate | null;
 }) {
-  const weekdayHeaderDays = viewModel.weeks[0]?.days ?? [];
-
   return (
-    <section
-      className="flex flex-col gap-sm"
-      aria-label={`${formatMonthJa(formatMonthParam(viewModel.month))}のカレンダー`}
-    >
-      <div
-        className="grid grid-cols-7 gap-2xs text-center text-caption font-semibold text-muted-foreground"
-        aria-hidden="true"
-      >
-        {weekdayHeaderDays.map((day, index) => (
-          <span
+    <SharedMonthGrid<CalendarDayViewModel, CalendarWeekViewModel>
+      ariaLabel={`${formatMonthJa(formatMonthParam(viewModel.month))}のカレンダー`}
+      weeks={viewModel.weeks}
+      hasUnconfirmedHolidayCoverage={viewModel.hasUnconfirmedHolidayCoverage}
+      renderDay={(day, columnIndex, week) => {
+        const isToday = day.date === today;
+        const isSelected = day.date === selectedDate;
+        const bandsThisDay = week.bandLayout.segments.filter(
+          (segment) =>
+            segment.startCol <= columnIndex && columnIndex <= segment.endCol,
+        );
+        const labelParts = [
+          `${formatMonthJa(formatMonthParam(tokyoYearMonthOf(day.date)))}${String(Number(day.date.slice(8, 10)))}日`,
+        ];
+        if (isToday) labelParts.push("今日");
+        if (day.role === "holiday") labelParts.push("祝日");
+        else if (day.role === "saturday") labelParts.push("土曜日");
+        else if (day.role === "sunday") labelParts.push("日曜日");
+        if (day.attendingCount > 0) {
+          labelParts.push(`参加する公演回${String(day.attendingCount)}件`);
+        }
+        if (day.consideringCount > 0) {
+          labelParts.push(`気になる公演回${String(day.consideringCount)}件`);
+        }
+        if (day.ownScheduleCount > 0) {
+          labelParts.push(`自分の予定${String(day.ownScheduleCount)}件`);
+        }
+        if (day.sharedScheduleCount > 0) {
+          labelParts.push(
+            `共有されている予定${String(day.sharedScheduleCount)}件`,
+          );
+        }
+        if (bandsThisDay.length > 0) {
+          labelParts.push(
+            bandsThisDay
+              .map((segment) =>
+                bandDisplayTitle(segment.eventTitle, segment.isCanceled),
+              )
+              .join("、"),
+          );
+        }
+
+        return (
+          <MonthGridDayLink
             key={day.date}
-            className={cn(
-              "py-2xs",
-              index === 6 ? "text-calendar-saturday" : undefined,
-              index === 0 ? "text-calendar-sunday" : undefined,
-            )}
-          >
-            {weekdayLabelJa(day.date)}
-          </span>
-        ))}
-      </div>
-
-      {viewModel.hasUnconfirmedHolidayCoverage ? (
-        <p
-          role="note"
-          className="rounded-control border border-dashed border-border p-xs text-caption text-muted-foreground"
-        >
-          この月の一部の日付は祝日データの公表範囲外です。未公表の祝日は表示されません。
-        </p>
-      ) : null}
-
-      {/* Each date is a fully-labelled link. We intentionally do not use
-          role="grid"/"row"/"gridcell": this bounded tap-target calendar does
-          not implement the roving-tabindex keyboard model those roles need. */}
-      <div className="flex flex-col gap-2xs">
-        {viewModel.weeks.map((week, weekIndex) => (
-          <div
-            key={weekIndex}
-            className="relative grid grid-cols-7 gap-2xs border-t border-border pt-2xs [grid-auto-rows:minmax(0,min-content)]"
-          >
-            {week.days.map((day, colIndex) => {
-              const isToday = day.date === today;
-              const isSelected = day.date === selectedDate;
-              const bandsThisDay = week.bandLayout.segments.filter(
-                (segment) =>
-                  segment.startCol <= colIndex && colIndex <= segment.endCol,
-              );
-              const labelParts = [
-                `${formatMonthJa(formatMonthParam(tokyoYearMonthOf(day.date)))}${String(Number(day.date.slice(8, 10)))}日`,
-              ];
-              if (isToday) {
-                labelParts.push("今日");
-              }
-              if (day.role === "holiday") {
-                labelParts.push("祝日");
-              } else if (day.role === "saturday") {
-                labelParts.push("土曜日");
-              } else if (day.role === "sunday") {
-                labelParts.push("日曜日");
-              }
-              if (day.attendingCount > 0) {
-                labelParts.push(
-                  `参加する公演回${String(day.attendingCount)}件`,
-                );
-              }
-              if (day.consideringCount > 0) {
-                labelParts.push(
-                  `気になる公演回${String(day.consideringCount)}件`,
-                );
-              }
-              if (day.ownScheduleCount > 0) {
-                labelParts.push(`自分の予定${String(day.ownScheduleCount)}件`);
-              }
-              if (day.sharedScheduleCount > 0) {
-                labelParts.push(
-                  `共有されている予定${String(day.sharedScheduleCount)}件`,
-                );
-              }
-              if (bandsThisDay.length > 0) {
-                labelParts.push(
-                  bandsThisDay
-                    .map((segment) =>
-                      bandDisplayTitle(segment.eventTitle, segment.isCanceled),
-                    )
-                    .join("、"),
-                );
-              }
-
-              return (
-                <Link
-                  key={day.date}
-                  href={dayHref(day.date)}
-                  aria-label={labelParts.join("、")}
-                  aria-current={isToday ? "date" : undefined}
-                  data-date={day.date}
-                  style={{ gridColumn: colIndex + 1, gridRow: 1 }}
-                  className={cn(
-                    "flex min-h-11 min-w-0 flex-col items-center gap-2xs rounded-control-sm border border-transparent p-xs text-body-sm",
-                    day.inCurrentMonth
-                      ? "text-foreground"
-                      : "text-muted-foreground",
-                    isSelected ? "border-primary bg-muted" : "hover:bg-muted",
-                  )}
+            date={day.date}
+            inCurrentMonth={day.inCurrentMonth}
+            role={day.role}
+            columnIndex={columnIndex}
+            href={dayHref(day.date)}
+            ariaLabel={labelParts.join("、")}
+            isToday={isToday}
+            isSelected={isSelected}
+            marker={
+              day.dot !== "none" ? (
+                <span
+                  className="flex h-2 items-center"
+                  aria-hidden="true"
+                  data-marker-state={day.dot}
                 >
                   <span
                     className={cn(
-                      "flex size-6 items-center justify-center rounded-pill",
-                      isToday
-                        ? cn(
-                            "bg-primary text-primary-foreground",
-                            day.role === "holiday"
-                              ? "font-semibold"
-                              : "font-medium",
-                          )
-                        : roleTextClassName(day.role),
+                      "size-1 rounded-pill",
+                      day.dot === "filled"
+                        ? "bg-primary"
+                        : "border border-primary bg-transparent",
                     )}
-                  >
-                    {Number(day.date.slice(8, 10))}
-                  </span>
-                  {day.dot !== "none" ? (
-                    <span
-                      className="flex h-2 items-center"
-                      aria-hidden="true"
-                      data-marker-state={day.dot}
-                    >
-                      <span
-                        className={cn(
-                          "size-1 rounded-pill",
-                          day.dot === "filled"
-                            ? "bg-primary"
-                            : "border border-primary bg-transparent",
-                        )}
-                      />
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
-
-            {week.bandLayout.segments.map((segment) => (
-              <span
-                key={`${segment.eventId}-${segment.startDate}`}
-                aria-hidden="true"
-                data-band-kind={segment.kind}
-                data-band-event-id={segment.eventId}
-                data-band-start-date={segment.startDate}
-                data-band-end-date={segment.endDate}
-                title={bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
-                style={{
-                  gridColumn: `${String(segment.startCol + 1)} / ${String(segment.endCol + 2)}`,
-                  gridRow: segment.lane + 2,
-                }}
-                className={cn(
-                  "mt-2xs flex min-h-[10px] min-w-0 items-center overflow-hidden rounded-band px-1 text-caption font-semibold text-nowrap text-ellipsis",
-                  segment.blocking
-                    ? "bg-band-fill text-band-text"
-                    : "border border-band-outline bg-transparent text-band-outline",
-                )}
-              >
-                {bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
+                  />
+                </span>
+              ) : null
+            }
+          />
+        );
+      }}
+      renderWeekOverlays={(week) => (
+        <>
+          {week.bandLayout.segments.map((segment) => (
+            <span
+              key={`${segment.eventId}-${segment.startDate}`}
+              aria-hidden="true"
+              data-band-kind={segment.kind}
+              data-band-event-id={segment.eventId}
+              data-band-start-date={segment.startDate}
+              data-band-end-date={segment.endDate}
+              title={bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
+              style={{
+                gridColumn: `${String(segment.startCol + 1)} / ${String(segment.endCol + 2)}`,
+                gridRow: segment.lane + 2,
+              }}
+              className={cn(
+                "mt-2xs flex min-h-[10px] min-w-0 items-center overflow-hidden rounded-band px-1 text-caption font-semibold text-nowrap text-ellipsis",
+                segment.blocking
+                  ? "bg-band-fill text-band-text"
+                  : "border border-band-outline bg-transparent text-band-outline",
+              )}
+            >
+              {bandDisplayTitle(segment.eventTitle, segment.isCanceled)}
+            </span>
+          ))}
+          {week.bandLayout.overflowEvents.length > 0 ? (
+            <p
+              style={{
+                gridColumn: "1 / -1",
+                gridRow: MAX_BAND_LANES + 2,
+              }}
+              className="mt-2xs flex min-w-0 items-baseline gap-2xs text-caption text-muted-foreground"
+            >
+              <span className="shrink-0 text-nowrap">
+                {`この週にほか${String(week.bandLayout.overflowCount)}件：`}
               </span>
-            ))}
-
-            {week.bandLayout.overflowEvents.length > 0 ? (
-              <p
-                style={{
-                  gridColumn: "1 / -1",
-                  gridRow: MAX_BAND_LANES + 2,
-                }}
-                className="mt-2xs flex min-w-0 items-baseline gap-2xs text-caption text-muted-foreground"
-              >
-                <span className="shrink-0 text-nowrap">
-                  {`この週にほか${String(week.bandLayout.overflowCount)}件：`}
-                </span>
-                <span className="min-w-0 flex-1 overflow-hidden text-nowrap text-ellipsis">
-                  {week.bandLayout.overflowEvents.map((hidden, index) => (
-                    <span key={hidden.eventId}>
-                      {index > 0 ? "、" : null}
-                      <Link
-                        href={scheduleEntryHref(
-                          hidden.eventId,
-                          viewModel.month,
-                        )}
-                        className="underline hover:text-foreground"
-                        title={bandDisplayTitle(
-                          hidden.eventTitle,
-                          hidden.isCanceled,
-                        )}
-                      >
-                        {bandDisplayTitle(hidden.eventTitle, hidden.isCanceled)}
-                      </Link>
-                    </span>
-                  ))}
-                </span>
-              </p>
-            ) : null}
-          </div>
-        ))}
-      </div>
-
-      <ul className="flex flex-wrap items-center gap-x-sm gap-y-2xs pt-xs text-caption text-muted-foreground">
-        <LegendItem dot="filled" label="参加する" />
-        <LegendItem dot="outline" label="気になる" />
-        <LegendItem band="filled" label="予定を確保する" />
-        <LegendItem band="outline" label="予定を確保しない" />
-      </ul>
-    </section>
+              <span className="min-w-0 flex-1 overflow-hidden text-nowrap text-ellipsis">
+                {week.bandLayout.overflowEvents.map((hidden, index) => (
+                  <span key={hidden.eventId}>
+                    {index > 0 ? "、" : null}
+                    <Link
+                      href={scheduleEntryHref(hidden.eventId, viewModel.month)}
+                      className="underline hover:text-foreground"
+                      title={bandDisplayTitle(
+                        hidden.eventTitle,
+                        hidden.isCanceled,
+                      )}
+                    >
+                      {bandDisplayTitle(hidden.eventTitle, hidden.isCanceled)}
+                    </Link>
+                  </span>
+                ))}
+              </span>
+            </p>
+          ) : null}
+        </>
+      )}
+      footer={
+        <ul className="flex flex-wrap items-center gap-x-sm gap-y-2xs pt-xs text-caption text-muted-foreground">
+          <LegendItem dot="filled" label="参加する" />
+          <LegendItem dot="outline" label="気になる" />
+          <LegendItem band="filled" label="予定を確保する" />
+          <LegendItem band="outline" label="予定を確保しない" />
+        </ul>
+      }
+    />
   );
 }
 
