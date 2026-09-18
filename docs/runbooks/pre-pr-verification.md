@@ -32,13 +32,14 @@ cmd.exe /d /c pnpm.cmd --version
 
 ```powershell
 corepack pnpm install --frozen-lockfile
-corepack pnpm run verify:code
+corepack pnpm run verify
 git diff --check origin/main...HEAD
 ```
 
-`verify:code`はformat、lint、typecheck、unit tests、script tests、migration checkを
-含むrepositoryのcode verification entry pointです。`git diff --check`は最後に実行し、
-baseとの差分にwhitespace errorがないことも確認します。
+`verify`は`verify:code`（format、lint、typecheck、unit tests、script tests、migration
+check）に加えて、build/Storybookとdatabase/RLSのverificationも含むrepositoryのfull
+verification entry pointです。`git diff --check`は最後に実行し、baseとの差分に
+whitespace errorがないことも確認します。
 
 ## Environment-blocked fallback
 
