@@ -24,8 +24,7 @@ afterEach(() => {
  * （oracle どおり context unavailable として継続表示）と、embed は
  * 存在するが `mapOccurrenceRow`/`mapEventRow` の mapping に失敗する場合
  * （A10「読めない行を黙って間引かない」に従い `Result` を error にする）
- * を別ケースとして区別する（`./listMyReceivedInvitations.ts` の
- * `mapInvitationRow`）。
+ * を別ケースとして区別する（`./invitations.ts` の `mapInvitationRow`）。
  */
 describe("listMyReceivedInvitations", () => {
   it("keeps the invitation row with context: null when the occurrence embed itself is null", async () => {
