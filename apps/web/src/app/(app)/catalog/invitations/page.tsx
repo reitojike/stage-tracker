@@ -2,6 +2,7 @@ import { userIdSchema } from "@stage-tracker/domain";
 import { BackLink, PageHeading, StatePanel } from "@stage-tracker/ui";
 import { classifyListReadResult, listMyReceivedInvitations } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { resolveScreenNow } from "@/app/_lib/now";
 import { tokyoYearMonthOf } from "@/app/_lib/calendar-grid";
@@ -26,7 +27,7 @@ export default async function InvitationsPage() {
       <StatePanel
         variant="unavailable"
         title="サインインが必要です"
-        description="サインインしてからもう一度お試しください。"
+        description={REAUTH_RETRY_HINT_JA}
       />
     );
   }
@@ -37,7 +38,7 @@ export default async function InvitationsPage() {
       <StatePanel
         variant="unavailable"
         title="サインインが必要です"
-        description="サインインしてからもう一度お試しください。"
+        description={REAUTH_RETRY_HINT_JA}
       />
     );
   }

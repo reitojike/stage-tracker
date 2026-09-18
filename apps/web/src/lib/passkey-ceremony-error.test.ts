@@ -4,6 +4,7 @@ import {
   resolveRegisterPasskeyFeedback,
   resolveSignInPasskeyFeedback,
 } from "./passkey-ceremony-error";
+import { UNKNOWN_RETRY_HINT_JA } from "./user-facing-copy";
 
 describe("classifyPasskeyCeremonyError", () => {
   it("classifies ERROR_CEREMONY_ABORTED as cancelled", () => {
@@ -76,7 +77,7 @@ describe("resolveRegisterPasskeyFeedback", () => {
   it("gives the failure kind a generic retry message", () => {
     expect(resolveRegisterPasskeyFeedback("failure")).toEqual({
       title: "Passkeyを登録できませんでした",
-      description: "通信状況を確認し、もう一度お試しください。",
+      description: UNKNOWN_RETRY_HINT_JA,
     });
   });
 });
@@ -127,8 +128,7 @@ describe("resolveSignInPasskeyFeedback", () => {
   it("gives the failure kind a generic retry-then-fallback message", () => {
     expect(resolveSignInPasskeyFeedback("failure")).toEqual({
       title: "Passkeyサインインに失敗しました",
-      description:
-        "通信状況を確認してもう一度お試しいただくか、下のメールアドレスからサインインしてください。",
+      description: `${UNKNOWN_RETRY_HINT_JA}下のメールアドレスからサインインしてください。`,
     });
   });
 });

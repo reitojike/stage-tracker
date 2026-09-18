@@ -1,5 +1,6 @@
 import { StatePanel } from "@stage-tracker/ui";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { passkeyDisplayLabel } from "../_data/passkeyDisplay";
 import { DeletePasskeyForm } from "./DeletePasskeyForm";
 import { RegisterPasskeyButton } from "./RegisterPasskeyButton";
@@ -35,7 +36,7 @@ export async function PasskeySection() {
         <StatePanel
           variant="error"
           title="Passkeyの一覧を取得できませんでした"
-          description="時間をおいてもう一度お試しください。"
+          description={UNKNOWN_RETRY_HINT_JA}
         />
       ) : data.length === 0 ? (
         <StatePanel variant="empty" title="登録済みのPasskeyはありません" />

@@ -33,6 +33,9 @@ describe("PasskeySection", () => {
     expect(
       screen.getByText("Passkeyの一覧を取得できませんでした"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("しばらくしてから再度お試しください。"),
+    ).toBeInTheDocument();
   });
 
   it("shows the empty state when no Passkeys are registered", async () => {

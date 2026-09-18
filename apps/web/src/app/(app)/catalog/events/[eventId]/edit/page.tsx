@@ -2,6 +2,7 @@ import { PageHeading, StatePanel } from "@stage-tracker/ui";
 import { eventIdSchema } from "@stage-tracker/domain";
 import { classifyListReadResult, getEventWithOccurrences } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { EditEventForm } from "./_components/EditEventForm";
 
@@ -38,7 +39,7 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
       <StatePanel
         variant="unavailable"
         title="サインインが必要です"
-        description="サインインしてからもう一度お試しください。"
+        description={REAUTH_RETRY_HINT_JA}
       />
     );
   }

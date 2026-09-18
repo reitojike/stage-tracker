@@ -55,6 +55,17 @@ describe("InvitationsPage", () => {
     expect(panel).toHaveAttribute("data-variant", "error");
   });
 
+  it("uses the canonical re-auth guidance when the session is unavailable", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+
+    const ui = await InvitationsPage();
+    render(ui);
+
+    expect(
+      screen.getByText("サインインしてからもう一度お試しください。"),
+    ).toBeInTheDocument();
+  });
+
   it("renders an unavailable StatePanel on permission-denied", async () => {
     mockListMyReceivedInvitations.mockResolvedValue({
       ok: false,
