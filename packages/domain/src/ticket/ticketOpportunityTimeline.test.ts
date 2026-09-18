@@ -515,12 +515,7 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
         eventId,
         displayName: 'FC先行',
         milestones: [
-          windowMilestone(
-            1,
-            'payment_window',
-            '2026-09-28T00:00:00Z',
-            '2026-10-03T00:00:00Z',
-          ),
+          windowMilestone(1, 'payment_window', '2026-09-28T00:00:00Z', '2026-10-03T00:00:00Z'),
         ],
         myState: null,
       },
@@ -545,16 +540,10 @@ describe('groupTicketOpportunityTimelineRowsByMonth', () => {
       milestoneId(2),
       milestoneId(3),
     ]);
-    expect(ticketOpportunityMilestoneTokyoCalendarDate(rows[0]!.milestone)).toBe(
-      '2026-10-03',
-    );
+    expect(ticketOpportunityMilestoneTokyoCalendarDate(rows[0]!.milestone)).toBe('2026-10-03');
 
     const groups = groupTicketOpportunityTimelineRowsByMonth(rows);
-    expect(groups.map((group) => group.monthKey)).toEqual([
-      '2026-10',
-      '2026-09',
-      '2026-10',
-    ]);
+    expect(groups.map((group) => group.monthKey)).toEqual(['2026-10', '2026-09', '2026-10']);
     expect(groups.flatMap((group) => group.rows.map((row) => row.milestone.id))).toEqual([
       milestoneId(1),
       milestoneId(2),
