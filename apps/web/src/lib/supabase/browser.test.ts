@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-const mockCreateBrowserClient = vi.fn(() => ({}));
+const mockCreateBrowserClient = vi.fn((..._args: unknown[]) => ({}));
 
 vi.mock("@/env", () => ({
   env: {
