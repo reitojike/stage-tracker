@@ -281,9 +281,10 @@ boundaryの詳細は [Issue #106 の Phase 1 checkpoint コメント](https://gi
 
 - Supabase Auth Passkey は 2026-05-28 公開の Beta（experimental）機能です。
   `auth.experimental.passkey: true` を client 初期化時に明示しないと全
-  passkey method が reject されます
-  （Passkey 専用 browser/server client と
-  [apps/web/src/lib/actions/passkeys.ts](../../apps/web/src/lib/actions/passkeys.ts)）。
+  passkey method が reject されます。flag と client wiring は
+  [apps/web/src/lib/supabase/browser.ts](../../apps/web/src/lib/supabase/browser.ts)
+  と [apps/web/src/lib/supabase/server.ts](../../apps/web/src/lib/supabase/server.ts)
+  の shared factory が所有します。
 - WebAuthn ceremony（`navigator.credentials.create()`/`get()`）は browser
   専用のため、`registerPasskey()` / `signInWithPasskey()` は client
   component からのみ呼び出します

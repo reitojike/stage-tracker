@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 import { Button, StatePanel } from "@stage-tracker/ui";
-import { env } from "@/env";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   classifyPasskeyCeremonyError,
   resolveRegisterPasskeyFeedback,
@@ -16,19 +15,9 @@ import {
  * ブラウザ直接 `supabase.auth.registerPasskey()`（WebAuthn ceremony
  * (`navigator.credentials.create()`) のため Client 限定）。
  *
- * `@/lib/supabase/browser.ts` の共有 `createSupabaseBrowserClient` には
- * `experimental.passkey: true` flag が付いていない（このタスクの編集許可
- * 範囲外）ため、この画面専用にこの1箇所だけ独自 client を構築する
- * （`../_data/passkeySupabaseClient.ts` の server 版と同じ理由）。
+ * Passkey capability は shared browser factory が所有するため、ceremony
+ * ごとに同じ factory から client を取得する。
  */
-function createPasskeyBrowserClient() {
-  return createBrowserClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { auth: { experimental: { passkey: true } } },
-  );
-}
-
 type RegisterState =
   | { readonly status: "idle" }
   | { readonly status: "busy" }
@@ -40,7 +29,7 @@ export function RegisterPasskeyButton() {
 
   async function handleRegister() {
     setState({ status: "busy" });
-    const client = createPasskeyBrowserClient();
+    const client = createSupabaseBrowserClient();
     const { error } = await client.auth.registerPasskey();
     if (error) {
       const kind = classifyPasskeyCeremonyError(error);

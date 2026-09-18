@@ -5,7 +5,7 @@ import { deletePasskeyAction } from "@/lib/actions/passkeys";
 import { DeletePasskeyForm } from "./DeletePasskeyForm";
 
 // `deletePasskeyAction` transitively pulls in `src/env.ts` via
-// `next-safe-action`/`createPasskeyServerClient` - not available/valid in
+// `next-safe-action`/shared server factory - not available/valid in
 // this unit test's environment. Mock it out the same way
 // `ParticipationControls.test.tsx`/`TicketOpportunityStateControls.test.tsx`
 // mock their own `.actions` module.

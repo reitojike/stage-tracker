@@ -10,19 +10,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh }),
 }));
 
-// `PasskeySignInButton` は独自の passkey 用 browser client を作るため
-// `src/env.ts` を直接読む（`RegisterPasskeyButton.test.tsx` と同じ理由）。
-vi.mock("@/env", () => ({
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: "https://example-project.supabase.test",
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
-  },
-}));
-
 const signInWithPasskey = vi.fn();
 
-vi.mock("@supabase/ssr", () => ({
-  createBrowserClient: vi.fn(() => ({
+vi.mock("@/lib/supabase/browser", () => ({
+  createSupabaseBrowserClient: vi.fn(() => ({
     auth: { signInWithPasskey },
   })),
 }));

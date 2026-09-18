@@ -1,5 +1,5 @@
 import { StatePanel } from "@stage-tracker/ui";
-import { createPasskeyServerClient } from "../_data/passkeySupabaseClient";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { passkeyDisplayLabel } from "../_data/passkeyDisplay";
 import { DeletePasskeyForm } from "./DeletePasskeyForm";
 import { RegisterPasskeyButton } from "./RegisterPasskeyButton";
@@ -11,7 +11,7 @@ import { RegisterPasskeyButton } from "./RegisterPasskeyButton";
  * 誤変換しない。
  */
 export async function PasskeySection() {
-  const client = await createPasskeyServerClient();
+  const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.passkey.list();
 
   return (
