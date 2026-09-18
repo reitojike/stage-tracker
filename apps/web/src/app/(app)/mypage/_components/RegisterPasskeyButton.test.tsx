@@ -7,22 +7,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
-// `RegisterPasskeyButton` は独自の passkey 用 browser client を作るため
-// `src/env.ts` を直接読む（`@/lib/supabase/browser.ts` の共有 client には
-// `experimental.passkey` flag が無い、コンポーネント自身の doc comment
-// 参照）。テスト環境には実際の env var が無いため、他の write-action mock
-// と同じ理由でこの2つも mock する。
-vi.mock("@/env", () => ({
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: "https://example-project.supabase.test",
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
-  },
-}));
-
 const registerPasskey = vi.fn();
 
-vi.mock("@supabase/ssr", () => ({
-  createBrowserClient: vi.fn(() => ({
+vi.mock("@/lib/supabase/browser", () => ({
+  createSupabaseBrowserClient: vi.fn(() => ({
     auth: { registerPasskey },
   })),
 }));

@@ -11,6 +11,10 @@ import type { Database } from "@/lib/data/database.types";
  * 対応する。anon key のみを使い、`next/headers` の `cookies()` から
  * セッションを読み書きする。
  *
+ * Passkey Auth API も通常の server client の capability として有効化する。
+ * Passkey の read/write callsite はこの factory を共有し、cookie wiring と
+ * `auth.experimental.passkey` の ownership をここに集約する。
+ *
  * Server Component のレンダー中は cookie ストアが read-only であり
  * `setAll` が失敗し得る。この失敗は握りつぶしてよい設計とする——ただし、
  * この判断は「middleware 相当の層が毎リクエストでセッション refresh を
@@ -31,6 +35,7 @@ export async function createSupabaseServerClient() {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      auth: { experimental: { passkey: true } },
       cookies: {
         getAll() {
           return cookieStore.getAll();
