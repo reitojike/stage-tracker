@@ -142,6 +142,8 @@ describe("throwEventWriteError", () => {
     );
     expect(result.kind).toBe("failure");
     expect(result.message).not.toContain(SECRET);
+    expect(result.message).toContain("しばらくしてから再度お試しください。");
+    expect(result.message).not.toContain("通信状況");
   });
 });
 
@@ -212,6 +214,8 @@ describe("throwEventDeleteError", () => {
     );
     expect(result.kind).toBe("failure");
     expect(result.message).not.toContain(SECRET);
+    expect(result.message).toContain("しばらくしてから再度お試しください。");
+    expect(result.message).not.toContain("通信状況");
   });
 });
 
@@ -253,5 +257,7 @@ describe("throwEventCancellationError / throwEventCancellationPermissionDenied",
     );
     expect(result.kind).toBe("failure");
     expect(result.message).not.toContain(SECRET);
+    expect(result.message).toContain("しばらくしてから再度お試しください。");
+    expect(result.message).not.toContain("通信状況");
   });
 });

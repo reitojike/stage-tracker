@@ -6,6 +6,7 @@ import {
   type PersonalScheduleEntryId,
 } from "@stage-tracker/domain";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import {
   listScheduleShareRecipientEmails,
@@ -157,7 +158,7 @@ async function ScheduleEntryDetailBody({
         <StatePanel
           variant="unavailable"
           title="サインイン状態を確認できませんでした"
-          description="再度サインインしてからお試しください。"
+          description={REAUTH_RETRY_HINT_JA}
         />
       </>
     );

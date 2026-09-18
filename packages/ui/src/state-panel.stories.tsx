@@ -45,7 +45,7 @@ export const Error: Story = {
   args: {
     variant: 'error',
     title: 'ホームを読み込めませんでした',
-    description: '時間をおいて再度お試しください。',
+    description: 'しばらくしてから再度お試しください。',
   },
 };
 

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PasskeySignInButton } from "./PasskeySignInButton";
+import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -72,7 +73,7 @@ describe("PasskeySignInButton", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "通信状況を確認してもう一度お試しいただくか、下のメールアドレスからサインインしてください。",
+        `${UNKNOWN_RETRY_HINT_JA}下のメールアドレスからサインインしてください。`,
       ),
     ).toBeInTheDocument();
   });

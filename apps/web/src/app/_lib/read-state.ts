@@ -4,6 +4,7 @@ import {
   type ReadResult,
   type ReadState,
 } from "@/lib/data";
+import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 
 /**
  * The same `empty`/`error`/`unavailable`/`populated` 4-way split as
@@ -73,8 +74,7 @@ function classifyPart<A>(result: ReadResult<A>): PartState {
  * - the screen's own title copy ("...を確認できません") already conveys
  * that case without needing a generic retry hint.
  */
-export const READ_FAILURE_RETRY_HINT_JA =
-  "しばらくしてから再度お試しください。";
+export const READ_FAILURE_RETRY_HINT_JA = UNKNOWN_RETRY_HINT_JA;
 
 /**
  * Classifies a block backed by exactly 1 read - `T` need not be an array

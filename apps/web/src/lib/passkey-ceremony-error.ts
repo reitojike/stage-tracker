@@ -1,3 +1,5 @@
+import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
+
 /**
  * `docs/v2/oracle-routes-ui.md:245`（`/mypage` Passkey 登録）「失敗時は
  * エラー種別分類→パネル表示」、および `docs/v2/oracle-routes-ui.md:49`
@@ -95,7 +97,7 @@ const REGISTER_FEEDBACK: Record<
   },
   failure: {
     title: "Passkeyを登録できませんでした",
-    description: "通信状況を確認し、もう一度お試しください。",
+    description: UNKNOWN_RETRY_HINT_JA,
   },
 };
 
@@ -134,8 +136,7 @@ const SIGN_IN_FEEDBACK: Record<
   },
   failure: {
     title: "Passkeyサインインに失敗しました",
-    description:
-      "通信状況を確認してもう一度お試しいただくか、下のメールアドレスからサインインしてください。",
+    description: `${UNKNOWN_RETRY_HINT_JA}下のメールアドレスからサインインしてください。`,
   },
 };
 

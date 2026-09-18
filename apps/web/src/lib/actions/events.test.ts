@@ -159,6 +159,10 @@ describe("updateEventRangeAction occurrence pre-validation", () => {
     expect(result.serverError?.message).toContain(
       "公演回を確認できませんでした",
     );
+    expect(result.serverError?.message).toContain(
+      "しばらくしてから再度お試しください。",
+    );
+    expect(result.serverError?.message).not.toContain("通信状況");
     expect(mockRpc).not.toHaveBeenCalled();
   });
 

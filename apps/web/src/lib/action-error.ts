@@ -1,3 +1,5 @@
+import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
+
 /**
  * Server Action の共通 error kind 語彙。
  *
@@ -87,7 +89,6 @@ export class ActionError<ExtraKind extends string = never> extends Error {
  * （Issue #500: 同一文言が classifier ごとに独立した literal として重複
  * していたための集約）。
  */
-export const GENERIC_FAILURE_MESSAGE_JA =
-  "処理に失敗しました。しばらくしてから再度お試しください。";
+export const GENERIC_FAILURE_MESSAGE_JA = `処理に失敗しました。${UNKNOWN_RETRY_HINT_JA}`;
 export const GENERIC_VALIDATION_MESSAGE_JA =
   "入力内容をご確認のうえ、再度お試しください。";

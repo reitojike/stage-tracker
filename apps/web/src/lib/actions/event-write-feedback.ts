@@ -1,4 +1,5 @@
 import { ActionError } from "@/lib/action-error";
+import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import {
   DELETE_BLOCKED,
   DUPLICATE_OCCURRENCE_MESSAGE_JA,
@@ -94,7 +95,7 @@ const WRITE_EFFECTIVELY_CANCELED: Record<
 
 const WRITE_FAILURE: EventWriteFeedback = {
   title: "保存に失敗しました",
-  description: "通信状況を確認し、もう一度お試しください。",
+  description: UNKNOWN_RETRY_HINT_JA,
 };
 
 const EVENT_RANGE_CONSTRAINT_FAILURE: EventWriteFeedback = {
@@ -105,8 +106,7 @@ const EVENT_RANGE_CONSTRAINT_FAILURE: EventWriteFeedback = {
 
 const EVENT_RANGE_PREVALIDATION_FAILURE: EventWriteFeedback = {
   title: "開催期間を保存できませんでした",
-  description:
-    "公演回を確認できませんでした。時間をおいて、もう一度お試しください。",
+  description: `公演回を確認できませんでした。${UNKNOWN_RETRY_HINT_JA}`,
 };
 
 export function throwEventRangeInvariantError(
@@ -244,7 +244,7 @@ const DELETE_BLOCKED_FEEDBACK: Record<
 
 const DELETE_FAILURE: EventWriteFeedback = {
   title: "削除に失敗しました",
-  description: "通信状況を確認し、もう一度お試しください。",
+  description: UNKNOWN_RETRY_HINT_JA,
 };
 
 export function throwEventDeleteError(
@@ -315,7 +315,7 @@ const CANCELLATION_PERMISSION_DENIED: Record<
 
 const CANCELLATION_FAILURE: EventWriteFeedback = {
   title: "操作に失敗しました",
-  description: "通信状況を確認し、もう一度お試しください。",
+  description: UNKNOWN_RETRY_HINT_JA,
 };
 
 /**

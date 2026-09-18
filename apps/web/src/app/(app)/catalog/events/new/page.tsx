@@ -3,6 +3,7 @@ import { userIdSchema } from "@stage-tracker/domain";
 import { PageHeading, StatePanel } from "@stage-tracker/ui";
 import { isDesignatedCatalogCreator } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { NewEventForm } from "./_components/NewEventForm";
 
 interface NewEventPageProps {
@@ -43,7 +44,7 @@ export default async function NewEventPage({
       <StatePanel
         variant="unavailable"
         title="サインインが必要です"
-        description="サインインしてからもう一度お試しください。"
+        description={REAUTH_RETRY_HINT_JA}
       />
     );
   }
@@ -54,7 +55,7 @@ export default async function NewEventPage({
       <StatePanel
         variant="unavailable"
         title="サインインが必要です"
-        description="サインインしてからもう一度お試しください。"
+        description={REAUTH_RETRY_HINT_JA}
       />
     );
   }

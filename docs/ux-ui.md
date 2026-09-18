@@ -330,6 +330,20 @@ unavailable は現在の component API が ARIA role を固定していないた
 限り読み取り失敗を0として表示できます。current 該当は My Page の招待一覧 row の
 未対応件数だけです。この例外を画面本体や一覧へ広げません。
 
+### Retry / auth copy
+
+画面横断の再試行 guidance は、原因を確定できる範囲に限って使い分けます。
+
+- 原因不明または一時的な失敗: 「しばらくしてから再度お試しください。」
+- network 起因と確定できる失敗: 「通信状況を確認し、もう一度お試しください。」
+- re-auth が必要な状態: 「サインインしてからもう一度お試しください。」
+
+原因不明の失敗を network と推測しません。operation-specific な title、入力理由、
+権限・対象なしの説明、Passkey の代替手段などは consumer 側に残します。
+heading / StatePanel title / button / badge / label は原則として句点を付けず、
+description / alert / sentence copy は句点を付けます。web 実装で複数画面が共有する
+固定 clause は `apps/web/src/lib/user-facing-copy.ts` が所有します。
+
 ## Calendar weekday / Japanese holiday presentation
 
 month calendar の global presentation rule です。feature-specific な event marker
