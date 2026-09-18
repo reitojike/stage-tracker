@@ -17,6 +17,10 @@ policy bundle.
 - Current structure and boundaries live in
   [`docs/architecture/`](docs/architecture/).
 - Current operational procedures live in [`docs/runbooks/`](docs/runbooks/).
+- Run the bounded pre-PR mechanical gate in
+  [`docs/runbooks/pre-pr-verification.md`](docs/runbooks/pre-pr-verification.md)
+  before creating a PR; use the post-PR runbook only when the Task Contract
+  requires merge-ready convergence.
 - For Task Contracts that explicitly require merge-ready, use the bounded
   continuation in [`docs/runbooks/post-pr-convergence.md`](docs/runbooks/post-pr-convergence.md)
   after PR creation; its `MERGE_READY` result is the stop boundary.
