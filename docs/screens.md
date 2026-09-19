@@ -261,6 +261,11 @@ Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とし
 
 ## マイページ（`/mypage`）
 
+account eligibility、protected route、account identity、Passkeyのsecurity roleは
+[`specs/006-authentication-account-access/spec.md`](../specs/006-authentication-account-access/spec.md)
+を正本とします。このsectionは、authenticated My Pageのlayout、screen state、
+導線および表示上の例外だけを扱い、認証・credentialの意味を再定義しません。
+
 **decision: カード面を使わず、太罫見出し＋本文のsectionで構成する。**
 
 section構成は「予定とイベント」（個人予定の管理・イベントを追加・招待一覧）、
@@ -286,6 +291,12 @@ section構成は「予定とイベント」（個人予定の管理・イベン�
 
 ## サインイン（`/sign-in`）
 
+account eligibility、Magic Link / Passkeyのrole、enumeration safety、protected
+routeおよびredirect stateのsecurity boundaryは
+[`specs/006-authentication-account-access/spec.md`](../specs/006-authentication-account-access/spec.md)
+を正本とします。このsectionは、sign-in screenのstate、layout、導線および
+rendered copyだけを扱います。
+
 **decision: 3状態を持つ。**
 
 | 状態   | 表示                                                                                                                                                                                                                     |
@@ -294,8 +305,8 @@ section構成は「予定とイベント」（個人予定の管理・イベン�
 | 送信後 | 入力欄を隠し、受領文だけを出す（「リクエストを受け付けました。登録済みのメールアドレスで、メール送信が利用可能な場合はサインインリンクが届きます。届かない場合は時間をおいて再試行するか、管理者に連絡してください。」） |
 | エラー | 「サインインリンクが無効です」／「メールアドレスを入力してください」を上に重ねる                                                                                                                                         |
 
-**decision: 送信後の受領文は「送信できた」とも「そのアドレスにaccountが
-ある」とも言わない。** アドレスの登録有無を漏らさないためです。
+送信後の受領文は、上記Living Specのenumeration safetyを満たすscreen copyとして
+表示します。accountの登録有無やメール送信の成否を意味するものではありません。
 
 **decision: PrimaryNavとAppBarのactionを出さない唯一の画面。** 遷移先が
 すべて認証の内側にあるためです。
