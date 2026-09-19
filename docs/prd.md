@@ -30,7 +30,7 @@ authenticated multi-user application として家族・友人等の複数ユー�
 （例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
 Event / Occurrenceの詳細は
 [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、
- Personal Schedule lifecycleは
+Personal Schedule lifecycleは
 [`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)、
 Personal Schedule sharing / recipient privacyは[temporary product rules](../.ai-dev-foundation/product-rules.md)
 の同topic節（#565まで）、
