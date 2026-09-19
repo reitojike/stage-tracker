@@ -14,7 +14,14 @@ semantics が schema / RLS として実装済みであるとは限りません�
 `docs/prd.md` の Current committed scope と `docs/roadmap.md` の
 Completed baseline を参照してください。
 
-## Event catalog
+## Historical Event catalog notes (not current authority)
+
+Event / Occurrenceの現行product authorityは
+[`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
+です。以下の旧sectionは、cutover前の承認内容と実装判断を追跡するための
+historical / supporting provenanceとして残します。現行semanticsの正本としては
+解決しません。Catalog classification / venue boundaryは、このTaskの対象外であり、
+後続の#564まで下記の専用sectionを参照します。
 
 - Event 情報は authenticated users 間の共有 catalog です。anonymous user は
   catalog を閲覧・変更できません。
@@ -644,7 +651,13 @@ AND venue IN (東京宝塚劇場)` のように拡張することを、この fa
 - group hierarchy / alias platform
 - classification に対する recommendation / ranking
 
-## MVP Event catalog write boundary
+## Historical MVP Event catalog write boundary (not current authority)
+
+Event作成・owner・Occurrence管理の現行capabilityは
+[`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
+で定義します。以下はcutover前のMVP境界と、将来のgovernance gateに関する
+historical / supporting materialです。ここを現行Event / Occurrence authorityとして
+使用しません。
 
 - minimal な Event + occurrence の create/update UI を MVP へ含めます。
 - shared catalog の read は引き続き authenticated users 全員へ維持します。
