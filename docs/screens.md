@@ -37,6 +37,12 @@ sourceの責務です。ここに書くのは「なぜこの分岐を分ける�
 「直近の予定」は片方が失敗してももう片方を表示します。page全体の失敗に
 なるのは身元確認の失敗だけです。
 
+「申し込み期限」が参照するTicketOpportunityのplanning semanticsは
+[TicketOpportunity planning Living Spec](../specs/006-ticket-opportunity-planning/spec.md)、
+relevant date・月・orderingは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)
+がauthorityです。この画面文書はHomeのblock合成とread-stateだけを扱い、domain
+semanticsを再定義しません。
+
 | 状態                  | 表示                                                                      |
 | --------------------- | ------------------------------------------------------------------------- |
 | 申し込み期限 — 失敗   | 「申し込み期限を読み込めませんでした」（`unavailable`）                   |
@@ -167,8 +173,12 @@ privacy contract を定義しません。画面固有のlayout・loading・copy�
 | 認証 | 「ログインが必要です」                               |
 | 通信 | 「チケットスケジュールを読み込めませんでした」       |
 
-**decision: 1つの入手機会につき「今こなすべき1件」（過去でない直近の
-milestone）だけを月ごとに並べる。** 受付終了済みのものは行から落ちます。
+TicketOpportunity planning modelは
+[TicketOpportunity planning Living Spec](../specs/006-ticket-opportunity-planning/spec.md)、
+milestoneのrelevant date・past・月配置・orderingは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)
+のauthorityです。このファイルは`/tickets` routeのscreen stateとsurface pointerを
+案内し、planning semanticsのduplicate current authorityではありません。受付終了済みの
+milestoneをどのsurfaceに残すかも、Spec 003のtimeline projectionへ委譲します。
 
 **decision: 行全体がイベント詳細へのlinkで、状態変更のcontrolだけが
 その中で別に押せる。** そのcontrolはquietの例外として静止時に淡い面を持ちます

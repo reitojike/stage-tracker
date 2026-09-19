@@ -391,87 +391,24 @@ runtime から撤去しました。これは現行の product concept ではあ�
 status、assignment、provenance、transfer lifecycle を current behavior として
 再承認しません。
 
-## Ticket Opportunity（Ticket planning MVP）
+## Ticket Opportunity（Ticket planning MVP）— current authority pointer
 
-Issue #157 で確定した、現行 MVP の canonical ticket journey です。目的は
-「いつ、何の抽選・先行・販売開始があるのかを漏らさず見られる」ことに
-限定され、full Ticket inventory / detailed application tracking では
-ありません。これは現行の Ticket planning における唯一の canonical model
-であり、詳細な申込管理や inventory はこの scope に含めません（Issue #162）。
+TicketOpportunity の current product behavior は、Issue #562 で作成した
+[TicketOpportunity planning model Living Spec](../specs/006-ticket-opportunity-planning/spec.md)
+が唯一のnormative authorityです。この文書の旧Ticket Opportunity節は、
+inventory reportと実装へ辿るための historical / supporting provenance に
+de-authorizeされ、current semanticsを定義しません。
 
-### TicketOpportunity — shared
+timelineのrelevant date、cross-month window、ordering、month labelは
+[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)のbounded authority、
+Participationのlifecycleと直接の境界は
+[Spec 001](../specs/001-occurrence-participation/spec.md)のauthorityです。
+この文書はそれらのplanning semanticsを再掲しません。
 
-- 抽選・先行・一般発売等、Event に対する 1 つの販売機会を
-  `TicketOpportunity` として扱います。
-- 必ず 1 つの Event に属し、1 Event に複数 Opportunity を許容します。
-- source 上の display name をそのまま保持し、`FC先行` 等の source 固有
-  名称を premature な closed enum へ潰しません。
-- Event 自身の source とは独立した source provenance（source key /
-  source URL）を持てます。source URL 単体を identity にしません
-  （1 ページに複数 Opportunity が掲載される source が実在するため）。
-
-### Target scope — shared
-
-- Opportunity の対象は次のどちらかを曖昧なく表現します。
-  - Event 全体（`event_wide`）
-  - selected Occurrences
-- `event_wide` は Event 全体という semantic fact であり、その時点で
-  存在する Occurrence 一覧の snapshot へ暗黙変換しません。
-- selected Occurrences の場合のみ、Opportunity ↔ Occurrence の関連を
-  explicit に保持します。1 Opportunity は複数 Occurrence を target
-  できます。
-- selected target の Occurrence は、必ずその Opportunity の Event に
-  属していなければなりません。
-
-### Milestone — shared
-
-- Opportunity について、少なくとも次の semantics を扱います:
-  application open / application close（deadline）/ result announcement /
-  sale start / payment・settlement window。
-- date-only（時刻不明）/ exact datetime / window の 3 種類の precision を
-  区別して保持し、source が与えていない時刻を補完しません
-  （例: date-only を `00:00` timestamp へ fake 変換しない）。
-- source に存在しない milestone（未公表の result date、実施されない
-  conditional phase 等）は、行を作らないことでそのまま表現します。
-  「不明」を表す特別な値は持ちません。
-
-### UserTicketOpportunityState — personal
-
-- personal planning state の MVP status vocabulary は exactly
-  `planned`（申し込む予定）と `applied`（申し込み済み）です。
-- row が存在しない = その Opportunity を personal planning 対象として
-  登録していない、という意味です。actual application record では
-  ありません。
-- 第 1〜第 N 希望・枚数・席種・実際の申込内容・当落詳細・acquired
-  Ticket は、この record に含めません。
-- owner 本人だけが read/write できます。user × opportunity の state は
-  一意です。
-
-### Shared / personal authority boundary
-
-- TicketOpportunity / target scope / milestone は shared catalog data
-  です。authenticated user は read できますが、ordinary authenticated
-  user 向けの shared schedule 直接 mutation UI/API は現行 MVP に
-  ありません。
-- shared data の write path は、operator-assisted import が consume
-  する service/operator boundary（`import_ticket_opportunity`）だけです
-  （import 実装自体は Issue #163 の scope）。
-- official/shared data の create/update は `planned`/`applied` を勝手に
-  作成・変更・削除しません。
-
-### Participation independence
-
-- Ticket planning state（`planned`/`applied`）と participation
-  （considering/attending）は完全に独立です。一方から他方を暗黙で
-  作成・変更しません。
-
-### Scope boundary
-
-- TicketOpportunity と UserTicketOpportunityState は、販売機会の発見と
-  personal planning state（`planned`/`applied`）だけを表します。
-- 実際の申込内容、希望順位、枚数、当落、seat、inventory、ownership
-  transfer はこの model に追加しません。必要になった場合は、別の bounded
-  product Task で TicketOpportunity を前提に設計します。
+旧acquired-ticket inventory / assignment / ownership transfer modelがcurrent
+modelではないことは、上の「Ticket model removal」に残るhistoryです。将来の
+詳細な申込管理をcurrent behaviorとして扱う場合は、TicketOpportunityを前提に
+別のbounded product Taskで新たに定義します。
 
 ## Catalog classification / venue boundary — CURRENT-OTHER-TOPIC
 

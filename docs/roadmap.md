@@ -53,7 +53,11 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 [`specs/007-personal-schedule-lifecycle/spec.md`](../specs/007-personal-schedule-lifecycle/spec.md)、
 Occurrence Participation の current behavior は
 [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)、
-未移行domainは temporary static product rules
+TicketOpportunity planningのcurrent behaviorは
+[`specs/008-ticket-opportunity-planning/spec.md`](../specs/008-ticket-opportunity-planning/spec.md)、
+timeline projectionは
+[`specs/003-ticket-opportunity-timeline/spec.md`](../specs/003-ticket-opportunity-timeline/spec.md)、
+その他の未移行domainは temporary static product rules
 ([`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md))
 を参照します。
 
@@ -65,6 +69,10 @@ catalog以外でMVPとして成立させたい主要capabilityです。列挙順
 とsemanticsを確定してから進めます。detailed product semanticsは、Personal Schedule
 lifecycleについては
 [`specs/007-personal-schedule-lifecycle/spec.md`](../specs/007-personal-schedule-lifecycle/spec.md)、
+TicketOpportunity planningについては
+[`specs/008-ticket-opportunity-planning/spec.md`](../specs/008-ticket-opportunity-planning/spec.md)、
+timeline projectionについては
+[`specs/003-ticket-opportunity-timeline/spec.md`](../specs/003-ticket-opportunity-timeline/spec.md)、
 その他の未移行domainについては
 [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)を正本とします。
 

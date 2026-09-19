@@ -28,14 +28,20 @@ authenticated multi-user application として家族・友人等の複数ユー�
 
 現在採用しているtop-level domain conceptは次の5つです。各conceptの内部構造
 （例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
-Event / Occurrenceの詳細は
-[`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、
-Personal Schedule lifecycleは
+ Event / Occurrenceの詳細は
+ [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、
+ Personal Schedule lifecycleは
 [`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)、
 Personal Schedule sharing / recipient privacyは[temporary product rules](../.ai-dev-foundation/product-rules.md)
 の同topic節（#565まで）、
-その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
-を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
+ その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
+ を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
+TicketOpportunity planningは
+[`TicketOpportunity planning Living Spec`](../specs/008-ticket-opportunity-planning/spec.md)、
+timeline projectionは
+[`TicketOpportunity timeline Living Spec`](../specs/003-ticket-opportunity-timeline/spec.md)を
+参照します。current semanticsは各topicのLiving Spec、未移行domainは[temporary static product rules](../.ai-dev-foundation/product-rules.md)
+を参照します。この一覧に現れないことは、実装対象から外れることを意味しません。
 
 - **event** — 公演・イベントそのものの情報
 - **participation / personal schedule** — 自分がそのeventにどう関わる予定か
@@ -77,7 +83,7 @@ ownership transfer は Issue #234 で current schema / runtime から撤去し�
 
 ## Current-approved product-level semantics
 
-Event / Occurrenceのnormativeなconstraintは
+ Event / Occurrenceのnormativeなconstraintは
 [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)を
 参照します。
 Personal Schedule lifecycleのnormativeなconstraintは
@@ -87,9 +93,12 @@ Personal Schedule lifecycleのnormativeなconstraintは
 [temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
 Occurrence Participation とその直接の Invitation convergence / cancellation
 behavior は [Living Spec](../specs/001-occurrence-participation/spec.md) が正本です。
-Invitation の pending-only lifecycle、targeting、privacy / opacity などの broader
-behavior は [Invitation Living Spec](../specs/006-invitation-coordination-opacity/spec.md)
-が正本であり、このPRDでは詳細を複製しません。
+ Invitation の pending-only lifecycle、targeting、privacy / opacity などの broader
+ behavior は [Invitation Living Spec](../specs/006-invitation-coordination-opacity/spec.md)
+ が正本であり、このPRDでは詳細を複製しません。
+TicketOpportunity planningのbroader current semanticsは
+[TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)が正本であり、
+timeline projectionは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)が正本です。
 
 ## Current committed scope
 
@@ -114,11 +123,11 @@ Invitation lifecycleの詳細は [Invitation Living Spec](../specs/006-invitatio
 を参照します。Personal ScheduleやTicketOpportunityの詳細は本PRDの各scopeに
 属し、これらの仕様を再掲しません。
 
-TicketOpportunity planning は、sharedな販売機会・target scope・milestoneと、
-user-ownedな `UserTicketOpportunityState`（statusは exactly `planned` /
-`applied`）を提供します。これは実際の申込内容・希望順位・枚数・当落・
-acquired Ticket inventoryを表しません。`/tickets` と Homeのdeadline blockが
-このcurrent Ticket planning capabilityを利用します。
+TicketOpportunity planningは、sharedな販売機会とuser-ownedなplanning stateを
+提供するcurrent capabilityです。詳細なidentity、target scope、milestone、
+`planned` / `applied`、row absence、およびout-of-scopeは
+ [TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)
+に集約します。`/tickets`とHomeのdeadline blockはこのcurrent capabilityを利用します。
 
 上記の各domainには、generated `Database` typesをinfrastructure層だけで
 consumeするtyped feature-level read/write boundaryがあります。My Calendar
@@ -132,13 +141,18 @@ modelは、Issue #234でcurrent schema・runtime・専用テストから撤去�
 ません。将来そのneedが生じた場合は、TicketOpportunityを前提に新しいbounded
 product Taskで再設計します。
 
-詳細なcurrent product semanticsは、Event / Occurrenceについては
+ 詳細なcurrent product semanticsは、Event / Occurrenceについては
 [`Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、Occurrence
 Participationについては[Living Spec](../specs/001-occurrence-participation/spec.md)、
 その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
 を参照します。
 Personal Schedule lifecycleについては
-[Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)を参照します。
+ [Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)を参照します。
+TicketOpportunity planningについては
+[TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)、
+timeline projectionについては[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)、
+その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
+を参照します。
 calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)を参照してください。
 
 ## Deferred decisions
