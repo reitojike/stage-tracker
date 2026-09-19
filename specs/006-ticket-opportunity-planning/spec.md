@@ -77,7 +77,7 @@ timeline rowの保持を確認する。
 4. **Given** selected targetの一部が未解決、または一部だけが中止である、**When** Opportunityを
    表示する、**Then** 不完全な対象集合から全件中止を推測しない。
 5. **Given** Opportunityが中止として扱われる、**When** timeline projectionを表示する、
-   **Then** timelineから暗黙に削除せず、中止の表示を受付終了やpersonal stateより優先する。
+   **Then** `/tickets`ではtimelineから暗黙に削除せず、中止の表示を受付終了やpersonal stateより優先する。
 
 ### User Story 2 - 自分のplanning stateを管理する (Priority: P1)
 
@@ -138,8 +138,8 @@ timeline rowの保持を確認する。
   推測しない。
 - `/tickets`ではOpportunityの最後のmilestoneが過ぎても、その最終日から7日目までは
   retained historyとして残し、8日目には落とす。Homeのdeadline blockはretained historyを
-  表示対象に含めず、受付中のdeadlineに限定する。中止でも`/tickets`のretentionは維持し、
-  中止表示を優先する。
+  表示対象に含めず、milestone typeを限定せず最初のnon-past primary milestoneを表示する。
+  中止でも`/tickets`のretentionは維持し、中止表示を優先する。
 - row不在、`planned`、`applied`を相互に別の意味として扱い、row不在をerrorやthird statusと混同しない。
 - TicketOpportunity stateとParticipationの片方のread/write失敗を、もう片方のstateの変更として扱わない。
 
@@ -160,15 +160,15 @@ timeline rowの保持を確認する。
 - **FR-008**: Opportunityのmilestone MUST date-only、exact datetime、windowのprecisionを区別する。
 - **FR-009**: product MUST sourceが与えていない時刻を推測してmilestoneへ追加してはならない。
 - **FR-010**: sourceに存在しないmilestone MUST 架空のrow、値、または「不明」statusによって表現してはならない。
-- **FR-011**: application open、application close、result announcement、sale start、payment/settlement windowなどのmilestoneは、sourceが示す範囲で表現する。
+- **FR-011**: application open、application close、result announcement、sale start、payment/settlement windowなどのmilestoneは、sourceが示す範囲で表現する。1つのOpportunityには各milestone typeを最大1件だけ持つ。
 
 ### Effective cancellation and retained history
 
 - **FR-012**: 親Eventが中止なら、TicketOpportunityはtarget scopeに関係なくeffectiveに中止である。
 - **FR-013**: 親Eventがactiveな`event_wide` Opportunityは、Occurrence側の中止だけではeffectiveに中止にならない。
 - **FR-014**: 親Eventがactiveな`selected_occurrences` Opportunityは、対象Occurrence集合が完全に解決済みで非空、かつ全対象が中止の場合だけeffectiveに中止である。未解決・空集合・部分中止は全件中止の根拠にならない。
-- **FR-015**: effective cancellationはtimeline rowの削除を意味せず、cancellationの表示は受付終了およびpersonal stateの表示より優先される。relevant date、past判定、month ownership、ordering、month labelingはSpec 003へ委譲する。
-- **FR-016**: `/tickets`では最後のmilestoneの最終日から7日目まではpost-final retained historyとして表示対象に残し、8日目以降は表示対象から外す。Homeのdeadline blockはこのretained historyを表示対象に含めない。effective cancellationであっても`/tickets`のretentionは短縮せず、中止表示を優先する。
+- **FR-015**: `/tickets`におけるeffective cancellationはtimeline rowの削除を意味せず、cancellationの表示は受付終了およびpersonal stateの表示より優先される。relevant date、past判定、month ownership、ordering、month labelingはSpec 003へ委譲する。Homeは別のcurrent presentationを持ち、この優先順位を暗黙に要求しない。
+- **FR-016**: `/tickets`では最後のmilestoneの最終日から7日目まではpost-final retained historyとして表示対象に残し、8日目以降は表示対象から外す。Homeのdeadline blockはretained historyを表示対象に含めず、milestone typeを限定せず最初のnon-past primary milestoneを表示する。effective cancellationであっても`/tickets`のretentionは短縮しない。
 
 ### Personal state
 
@@ -176,14 +176,15 @@ timeline rowの保持を確認する。
 - **FR-018**: personal state rowの不在 MUST そのユーザーがOpportunityを個人的にtrackingしていないことを意味し、`not_applied`等のthird statusやactual application recordを意味してはならない。
 - **FR-019**: personal state MUST user × Opportunity単位の本人のstateであり、本人だけがそのstateをread/writeできる。他ユーザーのstateやshared Opportunityのidentityを変更してはならない。
 - **FR-020**: `TicketOpportunity`、target scope、milestoneはauthenticated userがreadできるshared catalog dataであり、ordinary authenticated userはshared dataを直接mutationできない。shared writeのoperator procedureはこの文書で定義しない。
-- **FR-021**: actionableな非retained rowについて、利用者はcurrent UIでpersonal stateを`planned`、`applied`、未登録のいずれかへ収束できる。retained rowではstate controlが表示されず、8日目以降はrow自体が表示されないため、この文書は別のcleanup surfaceを定義しない。
-- **FR-022**: personal state MUST 実際の申込内容、希望順位、枚数、席種、当落詳細、seat、ticket inventory、assignment、transferを表現してはならない。
+- **FR-021**: shared catalogの同じOpportunity identityを更新するcurrent refreshは、既存のuser × Opportunity personal state rowを保持しなければならない。shared targetやmilestoneの更新は、personal stateをrewriteまたはdeleteしてはならない。この文書はrefreshのoperator procedureやimport mechanicsを定義しない。
+- **FR-022**: actionableな非retained rowについて、利用者はcurrent UIでpersonal stateを`planned`、`applied`、未登録のいずれかへ収束できる。retained rowではstate controlが表示されず、8日目以降はrow自体が表示されないため、この文書は別のcleanup surfaceを定義しない。
+- **FR-023**: personal state MUST 実際の申込内容、希望順位、枚数、席種、当落詳細、seat、ticket inventory、assignment、transferを表現してはならない。
 
 ### Cross-domain and surface boundary
 
-- **FR-023**: TicketOpportunity personal state（`planned`/`applied`）とOccurrence Participation（`considering`/`attending`）は独立し、一方の変更が他方を自動的に作成・更新・削除してはならない。
-- **FR-024**: `/tickets`とHomeのdeadline blockはこのTicketOpportunity planning modelを利用するが、timelineのrelevant date、month ownership、ordering、month labelingはSpec 003へ委譲する。
-- **FR-025**: Participationのlifecycle、cancellation、Invitationとの直接の意味はSpec 001へ委譲し、Ticket semantics全体をSpec 001へ移してはならない。
+- **FR-024**: TicketOpportunity personal state（`planned`/`applied`）とOccurrence Participation（`considering`/`attending`）は独立し、一方の変更が他方を自動的に作成・更新・削除してはならない。
+- **FR-025**: `/tickets`とHomeのdeadline blockはこのTicketOpportunity planning modelを利用するが、各surfaceのretention/cancellation/presentation差異を新しい意味へ拡張しない。timelineのrelevant date、month ownership、ordering、month labelingはSpec 003へ委譲する。
+- **FR-026**: Participationのlifecycle、cancellation、Invitationとの直接の意味はSpec 001へ委譲し、Ticket semantics全体をSpec 001へ移してはならない。
 
 ## Key Entities
 
@@ -216,7 +217,7 @@ effective cancellation、post-final retention、Participationとの独立性、�
 
 - **SC-001**: Event-wide、selected-occurrence、source provenance、date-only、exact datetime、windowの各current caseについて、利用者がshared Opportunityの意味を一意に判定できる。
 - **SC-002**: すべてのcurrent personal stateが`planned`、`applied`、row不在のいずれかとして解釈でき、third statusやactual application detailを必要としない。
-- **SC-003**: `/tickets`とHomeのdeadline blockで、同じOpportunityに対するpersonal stateの表示が一貫し、shared dataの意味を変えない。
+- **SC-003**: `/tickets`とHomeのdeadline blockは、同じOpportunity identityとuser stateを読み、Participationを代用しない。各surfaceのcurrentなretention、cancellation、presentation差異を新しい意味へ拡張しない。
 - **SC-004**: TicketOpportunity stateとParticipation stateをそれぞれ変更する検証で、相手側のstateに自動変更が0件である。
 - **SC-005**: timelineの日付・月・orderingの検証はSpec 003で完結し、この文書との重複するtimeline ruleが0件である。
 - **SC-006**: shared dataのreadとpersonal stateのread/write境界が区別され、ordinary authenticated userによるshared mutationと他ユーザーのpersonal state参照が0件である。
