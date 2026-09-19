@@ -8,7 +8,7 @@
 
 - [x] 実装mechanicsではなく、current user-visible semanticsを記述している
 - [x] TicketOpportunity planning modelのbounded scopeに集中している
-- [x] 既存Spec 001/003のauthority boundaryを保持している
+- [x] Spec 001/003のauthority boundaryを保持し、Participation independenceはSpec 001 FR-035へ委譲している
 - [x] mandatory sectionsをすべて記述している
 
 ## Requirement Completeness
@@ -22,7 +22,13 @@
 - [x] scope boundaryとout of scopeが明示されている
 - [x] current source evidenceをAssumptionsとAuthority Boundaryで位置付けている
 - [x] shared catalogのread、personal stateのowner-only read/write、shared mutation禁止の境界が明示されている
+- [x] deadline urgency semanticsをSpec 003のdate semanticsと重複せず記述している
+- [x] shared read成功・personal state read失敗時のdegradationとunknown-vs-untrackedを記述している
+- [x] milestone windowのstart <= endをproduct invariantとして記述している
+- [x] user × Opportunityのcurrent personal state最大1件を記述している
+- [x] stable source identityとrefresh後の同一planning identity / personal state保持を記述している
 - [x] Event-wide、selected-occurrences、全件中止、部分・未解決targetのcancellation semanticsが明示されている
+- [x] effective cancellationがpersonal stateを自動変更せず、known non-retained stateのplanning capabilityを自動禁止しない境界を記述している
 - [x] post-final retentionの7日目/8日目境界とcancellationとの独立性が明示されている
 - [x] Opportunityごとのmilestone type cardinalityとshared refresh時のpersonal state保持が明示されている
 
@@ -34,6 +40,8 @@
 - [x] acquired-ticket inventory、seat、assignment、transfer、import redesignをcurrent化していない
 - [x] `/tickets`とHomeはconsuming surfaceとして扱い、UI implementationをこのSpecのauthorityにしていない
 - [x] Homeのnon-retained primary milestone表示と`/tickets`のcancellation表示をsurface境界として区別している
+- [x] Homeのexact 5-row capをdomain invariantにしていない
+- [x] Badge variant、exact copy、CSS、component/helper名、read-state mechanicsをLiving Specへ追加していない
 - [x] Spec 003が除外するretentionとTicketOpportunity cancellationのauthorityを新Specへ集約している
 
 ## Notes
