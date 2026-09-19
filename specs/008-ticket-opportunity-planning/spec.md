@@ -1,6 +1,6 @@
 # Feature Specification: TicketOpportunity planning model / personal state current behavior
 
-**Feature Branch**: `006-ticket-opportunity-planning`
+**Feature Branch**: `008-ticket-opportunity-planning`
 
 **Created**: 2026-09-19
 
@@ -18,6 +18,11 @@ identity、Eventとの関係、target scope、milestone precision、source prove
 TicketOpportunity の timeline における relevant date、月の所有、ordering、month
 label は [`003-ticket-opportunity-timeline`](../003-ticket-opportunity-timeline/spec.md)
 だけが定義する。この文書ではtimelineの計算規則を再定義しない。
+
+Event / Occurrenceのidentity、lifecycle、cancellation、deletionは
+[`005-event-occurrence-lifecycle`](../005-event-occurrence-lifecycle/spec.md)が定義する。
+この文書は、その仕様が確定するEvent / Occurrence側の状態をTicketOpportunityの
+target scopeに従って読む方法だけを定め、Event / Occurrence lifecycle自体を再定義しない。
 
 Occurrence Participation の lifecycle、cancellation、Invitationとの直接の境界は
 [`001-occurrence-participation`](../001-occurrence-participation/spec.md) が定義する。
@@ -149,7 +154,7 @@ timeline rowの保持を確認する。
 
 - **FR-001**: 1つのTicketOpportunity MUST 1つのEventに属し、1つのEventは複数のOpportunityを持てる。
 - **FR-002**: Opportunityのsource display name MUST source固有の表現を保ち、productが閉じた分類へ正規化してはならない。
-- **FR-003**: source provenance MUST Opportunityのidentityとして扱える情報を持ち、Event自身のsource identityやsource URL単体と同一視してはならない。
+- **FR-003**: source provenance MUST Opportunityのidentityとして扱える情報を持ち、Event自身のsource identityやsource URL単体と同一視してはならない。source URL単体をOpportunity identityとして扱ってはならない。
 - **FR-004**: target scope MUST `event_wide`または`selected_occurrences`のいずれかとして解釈される。
 - **FR-005**: `event_wide` MUST Event全体を意味し、当時のOccurrence一覧のsnapshotを意味してはならない。
 - **FR-006**: `selected_occurrences` MUST 明示された1つ以上のOccurrenceを対象とし、対象OccurrenceはOpportunityのEventに属さなければならない。
@@ -184,7 +189,7 @@ timeline rowの保持を確認する。
 
 - **FR-024**: TicketOpportunity personal state（`planned`/`applied`）とOccurrence Participation（`considering`/`attending`）は独立し、一方の変更が他方を自動的に作成・更新・削除してはならない。
 - **FR-025**: `/tickets`とHomeのdeadline blockはこのTicketOpportunity planning modelを利用するが、各surfaceのretention/cancellation/presentation差異を新しい意味へ拡張しない。timelineのrelevant date、month ownership、ordering、month labelingはSpec 003へ委譲する。
-- **FR-026**: Participationのlifecycle、cancellation、Invitationとの直接の意味はSpec 001へ委譲し、Ticket semantics全体をSpec 001へ移してはならない。
+- **FR-026**: Event / Occurrenceのidentity、lifecycle、cancellation、deletionはSpec 005へ委譲し、TicketOpportunityはその状態をtarget scopeに応じて読む境界だけを扱う。Participationのlifecycle、cancellation、Invitationとの直接の意味はSpec 001へ委譲し、Ticket semantics全体をSpec 001へ移してはならない。
 
 ## Key Entities
 

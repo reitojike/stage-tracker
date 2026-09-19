@@ -391,10 +391,10 @@ runtime から撤去しました。これは現行の product concept ではあ�
 status、assignment、provenance、transfer lifecycle を current behavior として
 再承認しません。
 
-## Ticket Opportunity（Ticket planning MVP）— current authority pointer
+## Ticket Opportunity（Ticket planning MVP）— CURRENT-PLANNING pointer
 
 TicketOpportunity の current product behavior は、Issue #562 で作成した
-[TicketOpportunity planning model Living Spec](../specs/006-ticket-opportunity-planning/spec.md)
+[TicketOpportunity planning model Living Spec](../specs/008-ticket-opportunity-planning/spec.md)
 が唯一のnormative authorityです。この文書の旧Ticket Opportunity節は、
 inventory reportと実装へ辿るための historical / supporting provenance に
 de-authorizeされ、current semanticsを定義しません。

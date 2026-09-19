@@ -30,6 +30,7 @@
 
 - [x] Spec 003をtimeline projectionのbounded authorityとして保持している
 - [x] Spec 001をParticipation lifecycleのauthorityとして保持している
+- [x] Spec 005をEvent / Occurrence lifecycleとそのcancellation/deletion authorityとして保持している
 - [x] acquired-ticket inventory、seat、assignment、transfer、import redesignをcurrent化していない
 - [x] `/tickets`とHomeはconsuming surfaceとして扱い、UI implementationをこのSpecのauthorityにしていない
 - [x] Homeのnon-retained primary milestone表示と`/tickets`のcancellation表示をsurface境界として区別している

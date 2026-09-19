@@ -38,7 +38,7 @@ sourceの責務です。ここに書くのは「なぜこの分岐を分ける�
 なるのは身元確認の失敗だけです。
 
 「申し込み期限」が参照するTicketOpportunityのplanning semanticsは
-[TicketOpportunity planning Living Spec](../specs/006-ticket-opportunity-planning/spec.md)、
+[TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)、
 relevant date・月・orderingは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)
 がauthorityです。この画面文書はHomeのblock合成とread-stateだけを扱い、domain
 semanticsを再定義しません。
@@ -174,12 +174,12 @@ privacy contract を定義しません。画面固有のlayout・loading・copy�
 | 通信 | 「チケットスケジュールを読み込めませんでした」       |
 
 TicketOpportunity planning modelは
-[TicketOpportunity planning Living Spec](../specs/006-ticket-opportunity-planning/spec.md)、
+[TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)、
 milestoneのrelevant date・past・月配置・orderingは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)
 のauthorityです。このファイルは`/tickets` routeのscreen stateとsurface pointerを
 案内し、planning semanticsのduplicate current authorityではありません。受付終了済みの
 milestoneのpost-final retentionとTicketOpportunityのeffective cancellation集約は
-[TicketOpportunity planning Living Spec](../specs/006-ticket-opportunity-planning/spec.md)
+[TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)
 のauthorityです。
 
 **decision: 行全体がイベント詳細へのlinkで、状態変更のcontrolだけが
