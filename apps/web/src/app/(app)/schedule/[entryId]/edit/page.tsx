@@ -11,6 +11,11 @@ import { classifyScheduleEntryReadResult } from "../../_lib/entryReadState";
 import { BackLink, PageHeading } from "../../_components/PageChrome";
 import { EditScheduleEntryForm } from "../../_components/EditScheduleEntryForm";
 
+type EditScheduleEntryPageProps = {
+  readonly params: Promise<{ readonly entryId: string }>;
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
 function resolveBackHref(month: string | undefined): string {
   return month !== undefined && month.length > 0
     ? `/calendar?month=${month}`
@@ -20,7 +25,7 @@ function resolveBackHref(month: string | undefined): string {
 export default async function EditScheduleEntryPage({
   params,
   searchParams,
-}: PageProps<"/schedule/[entryId]/edit">) {
+}: EditScheduleEntryPageProps) {
   const { entryId: rawEntryId } = await params;
   const { month: rawMonth } = await searchParams;
   const month = typeof rawMonth === "string" ? rawMonth : undefined;

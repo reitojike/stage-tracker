@@ -27,6 +27,11 @@ import { RecipientList } from "../_components/RecipientList";
 import { LeaveShareButton } from "../_components/LeaveShareButton";
 import { DeleteEntryButton } from "../_components/DeleteEntryButton";
 
+type ScheduleEntryPageProps = {
+  readonly params: Promise<{ readonly entryId: string }>;
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
 function resolveBackHref(month: string | undefined): string {
   return month !== undefined && month.length > 0
     ? `/calendar?month=${month}`
@@ -118,7 +123,7 @@ async function NonOwnerShareStatus({
 export default async function ScheduleEntryDetailPage({
   params,
   searchParams,
-}: PageProps<"/schedule/[entryId]">) {
+}: ScheduleEntryPageProps) {
   const { entryId: rawEntryId } = await params;
   const { month: rawMonth } = await searchParams;
   const month = typeof rawMonth === "string" ? rawMonth : undefined;

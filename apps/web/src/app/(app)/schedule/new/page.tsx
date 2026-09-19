@@ -2,6 +2,10 @@ import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
 import { BackLink, PageHeading } from "../_components/PageChrome";
 import { CreateScheduleEntryForm } from "../_components/CreateScheduleEntryForm";
 
+type NewSchedulePageProps = {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
 /**
  * `/schedule/new`（`docs/v2/oracle-routes-ui.md` §1）。
  *
@@ -22,7 +26,7 @@ function resolvePrefillDate(rawDate: string | undefined): string | undefined {
 
 export default async function NewSchedulePage({
   searchParams,
-}: PageProps<"/schedule/new">) {
+}: NewSchedulePageProps) {
   const params = await searchParams;
   const rawDate = typeof params.date === "string" ? params.date : undefined;
   const prefillDate = resolvePrefillDate(rawDate);
