@@ -136,8 +136,10 @@ timeline rowの保持を確認する。
   扱うこの状態を、product上の別のtarget scopeで補完しない。
 - selected targetの一部が解決できない場合、解決できた対象だけを全対象とみなさず、全件中止を
   推測しない。
-- Opportunityの最後のmilestoneが過ぎても、その最終日から7日目まではretained historyとして
-  残し、8日目には落とす。中止でもこのretentionは維持し、中止表示を優先する。
+- `/tickets`ではOpportunityの最後のmilestoneが過ぎても、その最終日から7日目までは
+  retained historyとして残し、8日目には落とす。Homeのdeadline blockはretained historyを
+  表示対象に含めず、受付中のdeadlineに限定する。中止でも`/tickets`のretentionは維持し、
+  中止表示を優先する。
 - row不在、`planned`、`applied`を相互に別の意味として扱い、row不在をerrorやthird statusと混同しない。
 - TicketOpportunity stateとParticipationの片方のread/write失敗を、もう片方のstateの変更として扱わない。
 
@@ -151,37 +153,37 @@ timeline rowの保持を確認する。
 - **FR-004**: target scope MUST `event_wide`または`selected_occurrences`のいずれかとして解釈される。
 - **FR-005**: `event_wide` MUST Event全体を意味し、当時のOccurrence一覧のsnapshotを意味してはならない。
 - **FR-006**: `selected_occurrences` MUST 明示された1つ以上のOccurrenceを対象とし、対象OccurrenceはOpportunityのEventに属さなければならない。
-- **FR-006**: `selected_occurrences` MUST 明示された1つ以上のOccurrenceを対象とし、対象OccurrenceはOpportunityのEventに属さなければならない。登録後に対象関係が空になった場合、current readはそれをvalidなOpportunityとして再解釈せず、`event_wide`や全件中止へfallbackしてはならない。
+- **FR-007**: `selected_occurrences`の登録後に対象関係が空になった場合、current readはそれをvalidなOpportunityとして再解釈せず、`event_wide`や全件中止へfallbackしてはならない。
 
 ### Milestone and provenance
 
-- **FR-007**: Opportunityのmilestone MUST date-only、exact datetime、windowのprecisionを区別する。
-- **FR-008**: product MUST sourceが与えていない時刻を推測してmilestoneへ追加してはならない。
-- **FR-009**: sourceに存在しないmilestone MUST 架空のrow、値、または「不明」statusによって表現してはならない。
-- **FR-010**: application open、application close、result announcement、sale start、payment/settlement windowなどのmilestoneは、sourceが示す範囲で表現する。
+- **FR-008**: Opportunityのmilestone MUST date-only、exact datetime、windowのprecisionを区別する。
+- **FR-009**: product MUST sourceが与えていない時刻を推測してmilestoneへ追加してはならない。
+- **FR-010**: sourceに存在しないmilestone MUST 架空のrow、値、または「不明」statusによって表現してはならない。
+- **FR-011**: application open、application close、result announcement、sale start、payment/settlement windowなどのmilestoneは、sourceが示す範囲で表現する。
 
 ### Effective cancellation and retained history
 
-- **FR-011**: 親Eventが中止なら、TicketOpportunityはtarget scopeに関係なくeffectiveに中止である。
-- **FR-012**: 親Eventがactiveな`event_wide` Opportunityは、Occurrence側の中止だけではeffectiveに中止にならない。
-- **FR-013**: 親Eventがactiveな`selected_occurrences` Opportunityは、対象Occurrence集合が完全に解決済みで非空、かつ全対象が中止の場合だけeffectiveに中止である。未解決・空集合・部分中止は全件中止の根拠にならない。
-- **FR-014**: effective cancellationはtimeline rowの削除を意味せず、cancellationの表示は受付終了およびpersonal stateの表示より優先される。relevant date、past判定、month ownership、ordering、month labelingはSpec 003へ委譲する。
-- **FR-015**: 最後のmilestoneの最終日から7日目まではpost-final retained historyとして表示対象に残し、8日目以降は表示対象から外す。effective cancellationであってもretentionは短縮せず、中止表示を優先する。
+- **FR-012**: 親Eventが中止なら、TicketOpportunityはtarget scopeに関係なくeffectiveに中止である。
+- **FR-013**: 親Eventがactiveな`event_wide` Opportunityは、Occurrence側の中止だけではeffectiveに中止にならない。
+- **FR-014**: 親Eventがactiveな`selected_occurrences` Opportunityは、対象Occurrence集合が完全に解決済みで非空、かつ全対象が中止の場合だけeffectiveに中止である。未解決・空集合・部分中止は全件中止の根拠にならない。
+- **FR-015**: effective cancellationはtimeline rowの削除を意味せず、cancellationの表示は受付終了およびpersonal stateの表示より優先される。relevant date、past判定、month ownership、ordering、month labelingはSpec 003へ委譲する。
+- **FR-016**: `/tickets`では最後のmilestoneの最終日から7日目まではpost-final retained historyとして表示対象に残し、8日目以降は表示対象から外す。Homeのdeadline blockはこのretained historyを表示対象に含めない。effective cancellationであっても`/tickets`のretentionは短縮せず、中止表示を優先する。
 
 ### Personal state
 
-- **FR-016**: UserTicketOpportunityStateのstatus vocabulary MUST `planned`と`applied`だけである。
-- **FR-017**: personal state rowの不在 MUST そのユーザーがOpportunityを個人的にtrackingしていないことを意味し、`not_applied`等のthird statusやactual application recordを意味してはならない。
-- **FR-018**: personal state MUST user × Opportunity単位の本人のstateであり、本人だけがそのstateをread/writeできる。他ユーザーのstateやshared Opportunityのidentityを変更してはならない。
-- **FR-019**: `TicketOpportunity`、target scope、milestoneはauthenticated userがreadできるshared catalog dataであり、ordinary authenticated userはshared dataを直接mutationできない。shared writeのoperator procedureはこの文書で定義しない。
-- **FR-020**: 利用者はcurrent UIでpersonal stateを`planned`、`applied`、未登録のいずれかへ収束できる。
-- **FR-021**: personal state MUST 実際の申込内容、希望順位、枚数、席種、当落詳細、seat、ticket inventory、assignment、transferを表現してはならない。
+- **FR-017**: UserTicketOpportunityStateのstatus vocabulary MUST `planned`と`applied`だけである。
+- **FR-018**: personal state rowの不在 MUST そのユーザーがOpportunityを個人的にtrackingしていないことを意味し、`not_applied`等のthird statusやactual application recordを意味してはならない。
+- **FR-019**: personal state MUST user × Opportunity単位の本人のstateであり、本人だけがそのstateをread/writeできる。他ユーザーのstateやshared Opportunityのidentityを変更してはならない。
+- **FR-020**: `TicketOpportunity`、target scope、milestoneはauthenticated userがreadできるshared catalog dataであり、ordinary authenticated userはshared dataを直接mutationできない。shared writeのoperator procedureはこの文書で定義しない。
+- **FR-021**: actionableな非retained rowについて、利用者はcurrent UIでpersonal stateを`planned`、`applied`、未登録のいずれかへ収束できる。retained rowではstate controlが表示されず、8日目以降はrow自体が表示されないため、この文書は別のcleanup surfaceを定義しない。
+- **FR-022**: personal state MUST 実際の申込内容、希望順位、枚数、席種、当落詳細、seat、ticket inventory、assignment、transferを表現してはならない。
 
 ### Cross-domain and surface boundary
 
-- **FR-022**: TicketOpportunity personal state（`planned`/`applied`）とOccurrence Participation（`considering`/`attending`）は独立し、一方の変更が他方を自動的に作成・更新・削除してはならない。
-- **FR-023**: `/tickets`とHomeのdeadline blockはこのTicketOpportunity planning modelを利用するが、timelineのrelevant date、month ownership、ordering、month labelingはSpec 003へ委譲する。
-- **FR-024**: Participationのlifecycle、cancellation、Invitationとの直接の意味はSpec 001へ委譲し、Ticket semantics全体をSpec 001へ移してはならない。
+- **FR-023**: TicketOpportunity personal state（`planned`/`applied`）とOccurrence Participation（`considering`/`attending`）は独立し、一方の変更が他方を自動的に作成・更新・削除してはならない。
+- **FR-024**: `/tickets`とHomeのdeadline blockはこのTicketOpportunity planning modelを利用するが、timelineのrelevant date、month ownership、ordering、month labelingはSpec 003へ委譲する。
+- **FR-025**: Participationのlifecycle、cancellation、Invitationとの直接の意味はSpec 001へ委譲し、Ticket semantics全体をSpec 001へ移してはならない。
 
 ## Key Entities
 
