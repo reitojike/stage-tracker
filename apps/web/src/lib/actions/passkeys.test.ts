@@ -12,9 +12,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * `auth.passkey.delete()` を差し替えて Supabase Auth の応答を制御する。
  */
 
-const mockGetUser = vi.fn();
-const mockPasskeyDelete = vi.fn();
-const mockRevalidatePath = vi.fn();
+const mockGetUser = vi.fn<(...args: unknown[]) => unknown>();
+const mockPasskeyDelete = vi.fn<(...args: unknown[]) => unknown>();
+const mockRevalidatePath = vi.fn<(...args: unknown[]) => unknown>();
 const mockConsoleError = vi
   .spyOn(console, "error")
   .mockImplementation(() => undefined);

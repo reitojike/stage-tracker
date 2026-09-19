@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockRequestMagicLink = vi.fn();
-const mockCreateClient = vi.fn();
+const mockRequestMagicLink = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockCreateClient = vi.fn<() => Promise<unknown>>();
 
 vi.mock("@/lib/auth/magic-link", () => ({
   requestMagicLink: (...args: unknown[]) => mockRequestMagicLink(...args),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
-  createSupabaseCookielessServerClient: (...args: unknown[]) =>
-    mockCreateClient(...args),
+  createSupabaseCookielessServerClient: () => mockCreateClient(),
 }));
 
 vi.mock("next/navigation", () => ({

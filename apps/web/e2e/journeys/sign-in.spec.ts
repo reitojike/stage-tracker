@@ -38,11 +38,13 @@ test("anonymous routes are default-deny and public paths are exact", async ({
     const response = await request.get(path, { maxRedirects: 0 });
     expect(response.status(), `${path} should be guarded`).toBe(307);
     const location = response.headers().location;
-    expect(location, `${path} should redirect`).toBeDefined();
-    expect(new URL(location!, "http://localhost:3100").pathname).toBe(
+    if (location === undefined) {
+      throw new Error(`${path} should redirect`);
+    }
+    expect(new URL(location, "http://localhost:3100").pathname).toBe(
       "/sign-in",
     );
-    expect(new URL(location!, "http://localhost:3100").search).toBe("");
+    expect(new URL(location, "http://localhost:3100").search).toBe("");
   }
 
   const signIn = await request.get("/sign-in", { maxRedirects: 0 });

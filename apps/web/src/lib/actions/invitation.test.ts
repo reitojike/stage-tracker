@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { occurrenceIdSchema, userIdSchema } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import { server } from "@/test/msw/server";
 import { inviteToOccurrenceByEmail } from "./invitation";
 
@@ -15,8 +16,8 @@ const inviterUserId = userIdSchema.parse(
   "22222222-2222-4222-8222-222222222222",
 );
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

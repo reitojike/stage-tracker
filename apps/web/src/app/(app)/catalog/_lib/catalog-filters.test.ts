@@ -1,4 +1,14 @@
 import { describe, expect, it } from "vitest";
+import {
+  eventClassificationSchema,
+  eventIdSchema,
+  eventSchema,
+  genreSchema,
+  groupIdSchema,
+  instantSchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   activeFacetForGenre,
@@ -7,6 +17,11 @@ import {
   isCatalogFilterSelectionActive,
   type CatalogFilterOptions,
 } from "./catalog-filters";
+
+const GROUP_A = groupIdSchema.parse("11111111-1111-4111-8111-111111111111");
+const GROUP_B = groupIdSchema.parse("22222222-2222-4222-8222-222222222222");
+const GROUP_C = groupIdSchema.parse("33333333-3333-4333-8333-333333333333");
+const GROUP_D = groupIdSchema.parse("44444444-4444-4444-8444-444444444444");
 
 function entry(
   overrides: Partial<{
@@ -17,33 +32,41 @@ function entry(
 ): EventCatalogEntry {
   const { genreKey = null, groupIds = [], venue = null } = overrides;
   return {
-    event: {
-      id: "22222222-2222-4222-8222-222222222222",
-      ownerId: "11111111-1111-4111-8111-111111111111",
+    event: eventSchema.parse({
+      id: eventIdSchema.parse("55555555-5555-4555-8555-555555555555"),
+      ownerId: userIdSchema.parse("66666666-6666-4666-8666-666666666666"),
       title: "テスト公演",
       venue,
       sourceUrl: null,
       memo: null,
-      startsOn: "2026-03-01",
-      endsOn: "2026-03-31",
+      startsOn: tokyoCalendarDateSchema.parse("2026-03-01"),
+      endsOn: tokyoCalendarDateSchema.parse("2026-03-31"),
       canceledAt: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
+      createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+      updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    }),
     occurrences: [],
-    classification: {
-      eventId: "22222222-2222-4222-8222-222222222222" as never,
+    classification: eventClassificationSchema.parse({
+      eventId: eventIdSchema.parse("55555555-5555-4555-8555-555555555555"),
       genre:
         genreKey === null
           ? null
-          : ({
-              id: `${genreKey}-id`,
+          : genreSchema.parse({
+              id: "77777777-7777-4777-8777-777777777777",
               key: genreKey,
               displayName: genreKey,
               sortOrder: 1,
-            } as never),
-      groupIds: groupIds as never,
-    },
+            }),
+      groupIds: groupIds.map((id) =>
+        id === "group-a"
+          ? GROUP_A
+          : id === "group-b"
+            ? GROUP_B
+            : id === "group-c"
+              ? GROUP_C
+              : GROUP_D,
+      ),
+    }),
   };
 }
 
@@ -51,13 +74,13 @@ const OPTIONS: CatalogFilterOptions = {
   genres: [],
   groupsByGenreKey: {
     takarazuka: [
-      { id: "group-a" as never, key: "a", displayName: "星組" },
-      { id: "group-b" as never, key: "b", displayName: "月組" },
-      { id: "group-c" as never, key: "c", displayName: "花組" },
+      { id: GROUP_A, key: "a", displayName: "星組" },
+      { id: GROUP_B, key: "b", displayName: "月組" },
+      { id: GROUP_C, key: "c", displayName: "花組" },
     ],
     // 別 genre (アイドル) の group. 宝塚選択時の option universe に混ざって
     // はならない (下記「genre ごとに group をスコープする」テスト参照)。
-    idol: [{ id: "group-d" as never, key: "d", displayName: "テストグループ" }],
+    idol: [{ id: GROUP_D, key: "d", displayName: "テストグループ" }],
   },
   venuesByGenreKey: {
     kabuki: ["東京宝塚劇場", "南座"],
@@ -105,7 +128,7 @@ describe("filterCatalogEntries", () => {
       entries,
       {
         genreKey: "takarazuka",
-        groupIds: ["group-a" as never, "group-b" as never],
+        groupIds: [GROUP_A, GROUP_B],
         venues: [],
       },
       OPTIONS,
@@ -122,7 +145,7 @@ describe("filterCatalogEntries", () => {
       entries,
       {
         genreKey: "takarazuka",
-        groupIds: ["group-a" as never, "group-b" as never, "group-c" as never],
+        groupIds: [GROUP_A, GROUP_B, GROUP_C],
         venues: [],
       },
       OPTIONS,
@@ -146,7 +169,7 @@ describe("filterCatalogEntries", () => {
       entries,
       {
         genreKey: "takarazuka",
-        groupIds: ["group-a" as never, "group-b" as never, "group-c" as never],
+        groupIds: [GROUP_A, GROUP_B, GROUP_C],
         venues: [],
       },
       OPTIONS,
@@ -170,14 +193,14 @@ describe("filterCatalogEntries", () => {
       entries,
       {
         genreKey: "takarazuka",
-        groupIds: ["group-a" as never, "group-d" as never],
+        groupIds: [GROUP_A, GROUP_D],
         venues: [],
       },
       OPTIONS,
     );
     // 絞り込みは有効なままのはず: group-a を持つ event だけがヒットする。
     expect(result).toHaveLength(1);
-    expect(result[0]?.classification.groupIds).toEqual(["group-a"]);
+    expect(result[0]?.classification.groupIds).toEqual([GROUP_A]);
   });
 
   it("applies the venue facet only for the genre whose active facet is venue", () => {
@@ -208,12 +231,12 @@ describe("filterCatalogEntries", () => {
 describe("groupDisplayNameById", () => {
   it("flattens every genre's groups into a single id -> displayName map", () => {
     const byId = groupDisplayNameById(OPTIONS);
-    expect(byId.get("group-a" as never)).toBe("星組");
-    expect(byId.get("group-b" as never)).toBe("月組");
-    expect(byId.get("group-c" as never)).toBe("花組");
+    expect(byId.get(GROUP_A)).toBe("星組");
+    expect(byId.get(GROUP_B)).toBe("月組");
+    expect(byId.get(GROUP_C)).toBe("花組");
     // Flattened across genres too (idol's own group), since a Group's
     // canonical identity is genre-independent (.ai-dev-foundation/product-rules.md "Group").
-    expect(byId.get("group-d" as never)).toBe("テストグループ");
+    expect(byId.get(GROUP_D)).toBe("テストグループ");
   });
 
   it("returns an empty map when there are no group facets at all", () => {

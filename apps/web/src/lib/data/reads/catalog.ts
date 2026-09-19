@@ -186,21 +186,22 @@ export async function listCatalogGroups(
   client: SupabaseClient<Database>,
   genreId: string,
 ): Promise<ReadResult<readonly Group[]>> {
-  const rowsResult = await runPagedSupabaseSelect((from, to) =>
-    client
-      .from("event_groups")
-      .select("groups(*), events!inner(genre_id)", { count: "exact" })
-      .eq("events.genre_id", genreId)
-      .order("event_id", { ascending: true })
-      .order("group_id", { ascending: true })
-      .range(from, to),
+  const rowsResult = await runPagedSupabaseSelect<EventGroupGroupRow>(
+    (from, to) =>
+      client
+        .from("event_groups")
+        .select("groups(*), events!inner(genre_id)", { count: "exact" })
+        .eq("events.genre_id", genreId)
+        .order("event_id", { ascending: true })
+        .order("group_id", { ascending: true })
+        .range(from, to),
   );
   if (!rowsResult.ok) {
     return rowsResult;
   }
 
   const byId = new Map<string, Group>();
-  for (const row of rowsResult.value as readonly EventGroupGroupRow[]) {
+  for (const row of rowsResult.value) {
     const groupResult = mapGroupRow(row.groups);
     if (!groupResult.ok) {
       console.error("[read] row mapping failed", groupResult.error);
@@ -250,7 +251,7 @@ export async function listGroupsByIds(
   if (groupIds.length === 0) {
     return ok([]);
   }
-  const rowsResult = await runPagedSupabaseSelect((from, to) =>
+  const rowsResult = await runPagedSupabaseSelect<GroupRow>((from, to) =>
     client
       .from("groups")
       .select("*", { count: "exact" })
@@ -261,7 +262,7 @@ export async function listGroupsByIds(
   if (!rowsResult.ok) {
     return rowsResult;
   }
-  return mapRows(rowsResult.value as readonly GroupRow[], mapGroupRow);
+  return mapRows(rowsResult.value, mapGroupRow);
 }
 
 /**

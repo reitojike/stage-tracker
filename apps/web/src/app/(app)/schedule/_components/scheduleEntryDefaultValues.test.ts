@@ -1,21 +1,31 @@
 import { describe, expect, it } from "vitest";
+import {
+  personalScheduleEntrySchema,
+  instantSchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import type { PersonalScheduleEntry } from "@stage-tracker/domain";
 import { toScheduleEntryDefaultValues } from "./scheduleEntryDefaultValues";
 
 function entry(
   overrides: Partial<PersonalScheduleEntry> = {},
 ): PersonalScheduleEntry {
-  return {
-    id: "id" as PersonalScheduleEntry["id"],
-    ownerId: "owner" as PersonalScheduleEntry["ownerId"],
+  return personalScheduleEntrySchema.parse({
+    id: "11111111-1111-4111-8111-111111111111",
+    ownerId: userIdSchema.parse("22222222-2222-4222-8222-222222222222"),
     title: "旅行",
     memo: null,
     blocking: true,
-    temporal: { kind: "all-day", startsOn: "2026-03-05", endsOn: "2026-03-06" },
-    createdAt: "2026-01-01T00:00:00.000Z" as PersonalScheduleEntry["createdAt"],
-    updatedAt: "2026-01-01T00:00:00.000Z" as PersonalScheduleEntry["updatedAt"],
+    temporal: {
+      kind: "all-day",
+      startsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+      endsOn: tokyoCalendarDateSchema.parse("2026-03-06"),
+    },
+    createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
     ...overrides,
-  } as PersonalScheduleEntry;
+  });
 }
 
 describe("toScheduleEntryDefaultValues", () => {
@@ -35,8 +45,8 @@ describe("toScheduleEntryDefaultValues", () => {
       entry({
         temporal: {
           kind: "time-bounded",
-          startsAt: "2026-03-10T00:00:00.000Z" as never,
-          endsAt: "2026-03-10T09:00:00.000Z" as never,
+          startsAt: instantSchema.parse("2026-03-10T00:00:00.000Z"),
+          endsAt: instantSchema.parse("2026-03-10T09:00:00.000Z"),
         },
       }),
     );
@@ -51,7 +61,7 @@ describe("toScheduleEntryDefaultValues", () => {
       entry({
         temporal: {
           kind: "time-bounded",
-          startsAt: "2026-03-10T00:00:00.000Z" as never,
+          startsAt: instantSchema.parse("2026-03-10T00:00:00.000Z"),
           endsAt: null,
         },
       }),

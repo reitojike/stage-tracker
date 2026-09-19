@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { env } from "@/env";
 import type { Database } from "@/lib/data/database.types";
@@ -28,7 +29,9 @@ import type { Database } from "@/lib/data/database.types";
  * の drift を TypeScript boundary で検知する。これは runtime の client
  * semantics とは独立した type-safety の責務である。
  */
-export async function createSupabaseServerClient() {
+export async function createSupabaseServerClient(): Promise<
+  SupabaseClient<Database>
+> {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -74,7 +77,9 @@ export async function createSupabaseServerClient() {
  * 埋め込まれた `token_hash` を使う `verifyOtp({ token_hash })`
  * （`/auth/confirm`）経由であり、code verifier を必要としない。
  */
-export async function createSupabaseCookielessServerClient() {
+export async function createSupabaseCookielessServerClient(): Promise<
+  SupabaseClient<Database>
+> {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(

@@ -2,11 +2,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import type {
-  PersonalScheduleEntryId,
-  ScheduleShareId,
-  UserId,
+import {
+  personalScheduleEntryIdSchema,
+  scheduleShareIdSchema,
+  userIdSchema,
 } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import {
   addScheduleShareByEmail,
   findOwnScheduleShareId,
@@ -17,19 +18,25 @@ import {
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-const ENTRY_ID =
-  "11111111-1111-4111-8111-111111111111" as PersonalScheduleEntryId;
-const SHARE_ID = "55555555-5555-4555-8555-555555555555" as ScheduleShareId;
-const OTHER_SHARE_ID =
-  "66666666-6666-4666-8666-666666666666" as ScheduleShareId;
-const CALLER_ID = "33333333-3333-4333-8333-333333333333" as UserId;
-const OTHER_RECIPIENT_ID = "44444444-4444-4444-8444-444444444444" as UserId;
+const ENTRY_ID = personalScheduleEntryIdSchema.parse(
+  "11111111-1111-4111-8111-111111111111",
+);
+const SHARE_ID = scheduleShareIdSchema.parse(
+  "55555555-5555-4555-8555-555555555555",
+);
+const OTHER_SHARE_ID = scheduleShareIdSchema.parse(
+  "66666666-6666-4666-8666-666666666666",
+);
+const CALLER_ID = userIdSchema.parse("33333333-3333-4333-8333-333333333333");
+const OTHER_RECIPIENT_ID = userIdSchema.parse(
+  "44444444-4444-4444-8444-444444444444",
+);
 
 afterEach(() => {
   server.resetHandlers();
@@ -330,8 +337,9 @@ describe("removeScheduleShare", () => {
       }),
     );
 
-    const UNRELATED_ENTRY_ID =
-      "77777777-7777-4777-8777-777777777777" as PersonalScheduleEntryId;
+    const UNRELATED_ENTRY_ID = personalScheduleEntryIdSchema.parse(
+      "77777777-7777-4777-8777-777777777777",
+    );
 
     await expect(
       removeScheduleShare(createTestClient(), UNRELATED_ENTRY_ID, SHARE_ID),

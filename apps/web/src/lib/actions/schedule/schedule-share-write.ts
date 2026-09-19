@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { scheduleShareIdSchema } from "@stage-tracker/domain";
 import type {
   ScheduleShareId,
   PersonalScheduleEntryId,
   UserId,
 } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import { ActionError } from "@/lib/action-error";
 import {
   classifyRpcError,
@@ -75,27 +77,14 @@ function resolveShareByEmailBusinessRuleMessage(rejection: {
   return undefined;
 }
 
-interface RawScheduleShareRow {
-  readonly id: string;
-  readonly schedule_entry_id: string;
-  readonly shared_with_user_id: string;
-  readonly created_at: string;
-}
-
 export interface ScheduleShareRecipient {
   readonly shareId: ScheduleShareId;
   readonly recipientEmail: string;
   readonly sharedAt: string;
 }
 
-interface RawScheduleShareRecipientRow {
-  readonly share_id: string;
-  readonly recipient_email: string;
-  readonly shared_at: string;
-}
-
 export async function addScheduleShareByEmail(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
   recipientEmail: string,
 ): Promise<void> {
@@ -144,7 +133,7 @@ export async function addScheduleShareByEmail(
  * 0 行 DELETE（= 下の `not-found`）にする。
  */
 export async function removeScheduleShare(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
   shareId: ScheduleShareId,
 ): Promise<void> {
@@ -153,8 +142,7 @@ export async function removeScheduleShare(
     .delete()
     .eq("id", shareId)
     .eq("schedule_entry_id", entryId)
-    .select("id")
-    .overrideTypes<{ id: string }[]>();
+    .select("id");
 
   if (error !== null) {
     throw classifyWritePostgrestError(error, status);
@@ -186,7 +174,7 @@ export async function removeScheduleShare(
  * 呼び出しが1行を超えて返すことはない。
  */
 export async function findOwnScheduleShareId(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
   userId: UserId,
 ): Promise<ScheduleShareId | null> {
@@ -194,14 +182,13 @@ export async function findOwnScheduleShareId(
     .from("personal_schedule_shares")
     .select("id")
     .eq("schedule_entry_id", entryId)
-    .eq("shared_with_user_id", userId)
-    .overrideTypes<Pick<RawScheduleShareRow, "id">[]>();
+    .eq("shared_with_user_id", userId);
 
   if (error !== null) {
     throw classifyWritePostgrestError(error, status);
   }
   const first = data[0];
-  return first === undefined ? null : (first.id as ScheduleShareId);
+  return first === undefined ? null : scheduleShareIdSchema.parse(first.id);
 }
 
 /**
@@ -216,16 +203,9 @@ export async function findOwnScheduleShareId(
  * 理由は各呼び出し元の現実的な失敗モードの違い）。
  */
 export async function listScheduleShareRecipientEmails(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
 ): Promise<readonly ScheduleShareRecipient[]> {
-  // `.overrideTypes<Row[]>()` は RPC 呼び出しでは
-  // 「single object を array 型へキャストしようとしている」という
-  // postgrest-js 側の型レベル guard に阻まれる（Database 型が未配線の
-  // client では `.rpc()` の既定推論が単一オブジェクト扱いになるため -
-  // `.from().select()` の配列既定とは異なる）。実行時にはこの RPC は常に
-  // `returns table (...)` の行配列を返すため、`data` をここで直接
-  // アサーションする。
   const { data, error, status } = await client.rpc(
     "list_schedule_share_recipient_emails",
     {
@@ -236,9 +216,8 @@ export async function listScheduleShareRecipientEmails(
   if (error !== null) {
     throw classifyRpcError(error, status, "permission-denied");
   }
-  const rows = (data ?? []) as unknown as RawScheduleShareRecipientRow[];
-  return rows.map((row) => ({
-    shareId: row.share_id as ScheduleShareId,
+  return (data ?? []).map((row) => ({
+    shareId: scheduleShareIdSchema.parse(row.share_id),
     recipientEmail: row.recipient_email,
     sharedAt: row.shared_at,
   }));

@@ -1,5 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import {
+  eventClassificationSchema,
+  eventIdSchema,
+  eventSchema,
+  instantSchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import type { EventCatalogEntry } from "@/lib/data";
 import { buildCatalogMonthViewModel } from "../_lib/calendar-view-model";
 import { MonthCalendar } from "./MonthCalendar";
@@ -20,22 +28,31 @@ function entry(
     endsOn = "2026-03-01",
     canceledAt = null,
   } = overrides;
+  const eventId = eventIdSchema.parse(
+    id === "22222222-2222-4222-8222-222222222222"
+      ? id
+      : "22222222-2222-4222-8222-222222222223",
+  );
   return {
-    event: {
-      id,
-      ownerId: "11111111-1111-4111-8111-111111111111",
+    event: eventSchema.parse({
+      id: eventId,
+      ownerId: userIdSchema.parse("11111111-1111-4111-8111-111111111111"),
       title,
       venue: null,
       sourceUrl: null,
       memo: null,
-      startsOn,
-      endsOn,
-      canceledAt,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
+      startsOn: tokyoCalendarDateSchema.parse(startsOn),
+      endsOn: tokyoCalendarDateSchema.parse(endsOn),
+      canceledAt: canceledAt === null ? null : instantSchema.parse(canceledAt),
+      createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+      updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    }),
     occurrences: [],
-    classification: { eventId: id as never, genre: null, groupIds: [] },
+    classification: eventClassificationSchema.parse({
+      eventId,
+      genre: null,
+      groupIds: [],
+    }),
   };
 }
 
@@ -47,7 +64,7 @@ describe("MonthCalendar", () => {
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, [])}
         selectedDate={null}
-        today={"2026-03-01" as never}
+        today={tokyoCalendarDateSchema.parse("2026-03-01")}
       />,
     );
     // No ARIA grid/row/gridcell roles on the day grid itself (codex review
@@ -73,7 +90,7 @@ describe("MonthCalendar", () => {
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, entries)}
         selectedDate={null}
-        today={"2026-03-01" as never}
+        today={tokyoCalendarDateSchema.parse("2026-03-01")}
       />,
     );
     expect(screen.getByText("多日程公演")).toBeInTheDocument();
@@ -93,7 +110,7 @@ describe("MonthCalendar", () => {
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, entries)}
         selectedDate={null}
-        today={"2026-03-01" as never}
+        today={tokyoCalendarDateSchema.parse("2026-03-01")}
       />,
     );
     expect(screen.getByText("中止公演（中止）")).toBeInTheDocument();
@@ -103,8 +120,8 @@ describe("MonthCalendar", () => {
     render(
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, [])}
-        selectedDate={"2026-03-20" as never}
-        today={"2026-03-10" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-20")}
+        today={tokyoCalendarDateSchema.parse("2026-03-10")}
       />,
     );
     const todayLink = screen.getByRole("link", { name: /3月10日、今日/ });
@@ -119,7 +136,7 @@ describe("MonthCalendar", () => {
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel({ year: 2026, month: 1 }, [])}
         selectedDate={null}
-        today={"2026-01-01" as never}
+        today={tokyoCalendarDateSchema.parse("2026-01-01")}
       />,
     );
     const todayHolidayLink = screen.getByRole("link", {
@@ -155,7 +172,7 @@ describe("MonthCalendar", () => {
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, entries)}
         selectedDate={null}
-        today={"2026-03-01" as never}
+        today={tokyoCalendarDateSchema.parse("2026-03-01")}
       />,
     );
     expect(screen.getByText("この週にほか1件：")).toBeInTheDocument();
@@ -167,7 +184,7 @@ describe("MonthCalendar", () => {
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel(MONTH, [])}
         selectedDate={null}
-        today={"2026-03-01" as never}
+        today={tokyoCalendarDateSchema.parse("2026-03-01")}
       />,
     );
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
@@ -176,7 +193,7 @@ describe("MonthCalendar", () => {
       <MonthCalendar
         viewModel={buildCatalogMonthViewModel({ year: 2030, month: 1 }, [])}
         selectedDate={null}
-        today={"2026-03-01" as never}
+        today={tokyoCalendarDateSchema.parse("2026-03-01")}
       />,
     );
     expect(screen.getByRole("note")).toHaveTextContent(

@@ -56,7 +56,7 @@ describe("InviteForm", () => {
     const user = userEvent.setup();
     mockedAction.mockResolvedValueOnce({
       validationErrors: { email: { _errors: ["invalid"] } },
-    } as unknown as Awaited<ReturnType<typeof inviteToOccurrenceAction>>);
+    } satisfies Awaited<ReturnType<typeof inviteToOccurrenceAction>>);
     render(<InviteForm occurrenceId={occurrenceId} />);
     await user.click(screen.getByRole("button", { name: "招待する" }));
     await user.type(

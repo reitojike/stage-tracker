@@ -1,9 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockCreateServerClient = vi.fn();
 const mockGetAll = vi.fn();
 const mockSet = vi.fn();
 const cookieStore = { getAll: mockGetAll, set: mockSet };
+
+type CookieToSet = {
+  readonly name: string;
+  readonly value: string;
+  readonly options: Record<string, unknown>;
+};
+
+type ServerClientOptions = {
+  readonly auth?: { readonly experimental?: { readonly passkey?: boolean } };
+  readonly cookies: {
+    readonly getAll: () => unknown;
+    readonly setAll: (cookies: readonly CookieToSet[]) => void;
+  };
+};
+
+const mockCreateServerClient =
+  vi.fn<
+    (
+      url: string,
+      key: string,
+      options: ServerClientOptions,
+    ) => { readonly options: ServerClientOptions }
+  >();
+
+const createdOptions: ServerClientOptions[] = [];
 
 vi.mock("@/env", () => ({
   env: {
@@ -17,7 +41,11 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: (...args: unknown[]) => mockCreateServerClient(...args),
+  createServerClient: (
+    url: string,
+    key: string,
+    options: ServerClientOptions,
+  ) => mockCreateServerClient(url, key, options),
 }));
 
 const { createSupabaseCookielessServerClient, createSupabaseServerClient } =
@@ -28,29 +56,23 @@ describe("Supabase server factories", () => {
     mockCreateServerClient.mockReset();
     mockGetAll.mockReset();
     mockSet.mockReset();
-    mockCreateServerClient.mockImplementation((_url, _key, options) => ({
-      options,
-    }));
+    createdOptions.length = 0;
+    mockCreateServerClient.mockImplementation(
+      (_url: string, _key: string, options: ServerClientOptions) => {
+        createdOptions.push(options);
+        return { options } satisfies { options: ServerClientOptions };
+      },
+    );
     mockGetAll.mockReturnValue([{ name: "sb-session", value: "session" }]);
   });
 
   it("enables Passkey on the typed shared server client and preserves cookie wiring", async () => {
-    const client = await createSupabaseServerClient();
-    const options = (
-      client as unknown as {
-        options: {
-          auth: { experimental: { passkey: boolean } };
-          cookies: {
-            getAll: () => unknown;
-            setAll: (
-              cookies: { name: string; value: string; options: object }[],
-            ) => void;
-          };
-        };
-      }
-    ).options;
+    await createSupabaseServerClient();
+    const options = createdOptions[0];
+    if (options === undefined || options.auth?.experimental?.passkey !== true) {
+      throw new Error("createServerClient options were not captured");
+    }
 
-    expect(options.auth.experimental.passkey).toBe(true);
     expect(options.cookies.getAll()).toEqual([
       { name: "sb-session", value: "session" },
     ]);
@@ -73,19 +95,11 @@ describe("Supabase server factories", () => {
   });
 
   it("keeps the cookieless client write-free", async () => {
-    const client = await createSupabaseCookielessServerClient();
-    const options = (
-      client as unknown as {
-        options: {
-          cookies: {
-            getAll: () => unknown;
-            setAll: (
-              cookies: { name: string; value: string; options: object }[],
-            ) => void;
-          };
-        };
-      }
-    ).options;
+    await createSupabaseCookielessServerClient();
+    const options = createdOptions[0];
+    if (options === undefined) {
+      throw new Error("createServerClient options were not captured");
+    }
 
     expect(options.cookies.getAll()).toEqual([
       { name: "sb-session", value: "session" },

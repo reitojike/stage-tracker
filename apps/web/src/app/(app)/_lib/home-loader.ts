@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import {
   buildTicketOpportunityTimelineRows,
   compareInstants,
@@ -88,7 +89,7 @@ export interface HomeTicketDeadlineRow {
  * otherwise be indistinguishable to a screen that only looked at `block`.
  */
 export async function loadHomeTicketDeadlines(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   userId: UserId,
   now: ScreenNow,
 ): Promise<OptionalPartBlockState<readonly HomeTicketDeadlineRow[]>> {
@@ -214,7 +215,7 @@ function compareUpcomingItems(
  * caller would see with no failure at all.
  */
 export async function loadHomeUpcomingSchedule(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   userId: UserId,
   now: ScreenNow,
 ): Promise<MergedListBlockState<readonly HomeUpcomingItem[]>> {

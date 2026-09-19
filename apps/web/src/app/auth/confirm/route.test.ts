@@ -1,12 +1,11 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockVerifyOtp = vi.fn();
-const mockCreateSupabaseServerClient = vi.fn();
+const mockVerifyOtp = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockCreateSupabaseServerClient = vi.fn<() => Promise<unknown>>();
 
 vi.mock("@/lib/supabase/server", () => ({
-  createSupabaseServerClient: (...args: unknown[]) =>
-    mockCreateSupabaseServerClient(...args),
+  createSupabaseServerClient: () => mockCreateSupabaseServerClient(),
 }));
 
 const { GET } = await import("./route");

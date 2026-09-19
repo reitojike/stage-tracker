@@ -2,7 +2,15 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import { server } from "@/test/msw/server";
+import {
+  eventClassificationSchema,
+  eventSchema,
+  eventIdSchema,
+  groupIdSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import {
   loadCatalogEntryGroupNames,
   loadCatalogEvents,
@@ -13,8 +21,8 @@ import type { EventCatalogEntry } from "@/lib/data";
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -144,14 +152,27 @@ describe("loadCatalogFilterOptions", () => {
 
 describe("loadCatalogEntryGroupNames", () => {
   function entryWithGroupId(groupId: string): EventCatalogEntry {
+    const eventId = eventIdSchema.parse("11111111-1111-4111-8111-111111111111");
     return {
-      event: { id: "event-1" } as never,
+      event: eventSchema.parse({
+        id: eventId,
+        ownerId: userIdSchema.parse("22222222-2222-4222-8222-222222222222"),
+        title: "テスト公演",
+        venue: null,
+        sourceUrl: null,
+        memo: null,
+        startsOn: "2026-03-01",
+        endsOn: "2026-03-01",
+        canceledAt: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      }),
       occurrences: [],
-      classification: {
-        eventId: "event-1" as never,
+      classification: eventClassificationSchema.parse({
+        eventId,
         genre: null,
-        groupIds: [groupId] as never,
-      },
+        groupIds: [groupIdSchema.parse(groupId)],
+      }),
     };
   }
 
@@ -178,7 +199,9 @@ describe("loadCatalogEntryGroupNames", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(
-        result.byId.get("11111111-1111-4111-8111-111111111111" as never),
+        result.byId.get(
+          groupIdSchema.parse("11111111-1111-4111-8111-111111111111"),
+        ),
       ).toBe("花組");
     }
   });

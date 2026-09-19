@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   eventIdSchema,
+  instantSchema,
   occurrenceIdSchema,
   type Occurrence,
 } from "@stage-tracker/domain";
@@ -15,11 +16,11 @@ function occurrence(overrides: Partial<Occurrence> = {}): Occurrence {
     id: occurrenceIdSchema.parse("11111111-1111-4111-8111-111111111111"),
     eventId: eventIdSchema.parse("22222222-2222-4222-8222-222222222222"),
     doorsAt: null,
-    startsAt: "2026-03-10T09:00:00.000Z" as Occurrence["startsAt"], // 2026-03-10 18:00 JST, a Tuesday
+    startsAt: instantSchema.parse("2026-03-10T09:00:00.000Z"), // 2026-03-10 18:00 JST, a Tuesday
     endsAt: null,
     canceledAt: null,
-    createdAt: "2026-01-01T00:00:00.000Z" as Occurrence["createdAt"],
-    updatedAt: "2026-01-01T00:00:00.000Z" as Occurrence["updatedAt"],
+    createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
     ...overrides,
   };
 }
@@ -34,7 +35,7 @@ describe("formatOccurrenceDateTime", () => {
   it("crosses the Tokyo calendar-day boundary correctly for a late-UTC instant", () => {
     // 2026-03-10T15:30:00Z = 2026-03-11 00:30 JST (a Wednesday).
     const value = occurrence({
-      startsAt: "2026-03-10T15:30:00.000Z" as Occurrence["startsAt"],
+      startsAt: instantSchema.parse("2026-03-10T15:30:00.000Z"),
     });
     expect(formatOccurrenceDateTime(value)).toBe("2026年3月11日(水) 00:30");
   });
@@ -47,22 +48,22 @@ describe("formatOccurrenceDoors", () => {
 
   it("formats a set doorsAt", () => {
     const value = occurrence({
-      doorsAt: "2026-03-10T08:30:00.000Z" as Occurrence["startsAt"],
+      doorsAt: instantSchema.parse("2026-03-10T08:30:00.000Z"),
     });
     expect(formatOccurrenceDoors(value)).toBe("開場 17:30");
   });
 
   it("marks a previous-day opening instead of showing a misleading bare time", () => {
     const value = occurrence({
-      doorsAt: "2026-03-09T14:30:00.000Z" as Occurrence["startsAt"],
-      startsAt: "2026-03-09T15:30:00.000Z" as Occurrence["startsAt"],
+      doorsAt: instantSchema.parse("2026-03-09T14:30:00.000Z"),
+      startsAt: instantSchema.parse("2026-03-09T15:30:00.000Z"),
     });
     expect(formatOccurrenceDoors(value)).toBe("開場 23:30（前日）");
   });
 
   it("shows the actual date when opening is more than one Tokyo day earlier", () => {
     const value = occurrence({
-      doorsAt: "2026-03-07T14:30:00.000Z" as Occurrence["startsAt"],
+      doorsAt: instantSchema.parse("2026-03-07T14:30:00.000Z"),
     });
     expect(formatOccurrenceDoors(value)).toBe("開場 3月7日(土) 23:30");
   });
@@ -75,22 +76,22 @@ describe("formatOccurrenceEnds", () => {
 
   it("formats a set endsAt", () => {
     const value = occurrence({
-      endsAt: "2026-03-10T11:00:00.000Z" as Occurrence["startsAt"],
+      endsAt: instantSchema.parse("2026-03-10T11:00:00.000Z"),
     });
     expect(formatOccurrenceEnds(value)).toBe("終演 20:00");
   });
 
   it("marks a next-day end instead of showing a misleading bare time", () => {
     const value = occurrence({
-      startsAt: "2026-03-10T14:00:00.000Z" as Occurrence["startsAt"],
-      endsAt: "2026-03-10T16:00:00.000Z" as Occurrence["startsAt"],
+      startsAt: instantSchema.parse("2026-03-10T14:00:00.000Z"),
+      endsAt: instantSchema.parse("2026-03-10T16:00:00.000Z"),
     });
     expect(formatOccurrenceEnds(value)).toBe("終演 01:00（翌日）");
   });
 
   it("shows the actual date when an end is more than one Tokyo day later", () => {
     const value = occurrence({
-      endsAt: "2026-03-12T15:30:00.000Z" as Occurrence["startsAt"],
+      endsAt: instantSchema.parse("2026-03-12T15:30:00.000Z"),
     });
     expect(formatOccurrenceEnds(value)).toBe("終演 3月13日(金) 00:30");
   });

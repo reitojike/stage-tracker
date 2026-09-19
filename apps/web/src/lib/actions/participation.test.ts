@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { occurrenceIdSchema, userIdSchema } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import { server } from "@/test/msw/server";
 import { setParticipationChoice } from "./participation";
 
@@ -13,8 +14,8 @@ const occurrenceId = occurrenceIdSchema.parse(
 );
 const userId = userIdSchema.parse("22222222-2222-4222-8222-222222222222");
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -69,8 +70,8 @@ describe("setParticipationChoice", () => {
       http.patch(
         `${REST_URL}/occurrence_participations`,
         async ({ request }) => {
-          const body = (await request.json()) as Record<string, unknown>;
-          expect(body).toEqual({ status: "attending" });
+          const body = await request.text();
+          expect(JSON.parse(body)).toEqual({ status: "attending" });
           // `.select("id")` を付けているため、実際に更新された行を含む
           // 配列（PostgREST の `return=representation`）で応答する。
           return HttpResponse.json([{ id: "row-1" }], { status: 200 });

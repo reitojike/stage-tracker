@@ -15,17 +15,25 @@ export function fieldErrorMessage(
   validationErrors: unknown,
   field: string,
 ): string | undefined {
-  if (typeof validationErrors !== "object" || validationErrors === null) {
+  if (!isUnknownRecord(validationErrors)) {
     return undefined;
   }
-  const entry = (validationErrors as Record<string, unknown>)[field];
-  if (typeof entry !== "object" || entry === null) {
+  const entry = validationErrors[field];
+  if (!isUnknownRecord(entry)) {
     return undefined;
   }
-  const errors = (entry as Record<string, unknown>)._errors;
-  if (!Array.isArray(errors) || errors.length === 0) {
+  const errors = entry._errors;
+  if (!isUnknownArray(errors) || errors.length === 0) {
     return undefined;
   }
-  const [first] = errors as unknown[];
+  const [first] = errors;
   return typeof first === "string" ? first : undefined;
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
 }

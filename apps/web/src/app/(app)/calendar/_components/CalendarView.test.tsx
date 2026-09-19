@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { userIdSchema } from "@stage-tracker/domain";
+import {
+  eventSchema,
+  occurrenceSchema,
+  participationSchema,
+  personalScheduleEntrySchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import type { BlockState } from "@/app/_lib/read-state";
 import type {
   CalendarOccurrenceItem,
@@ -10,7 +17,7 @@ import type {
 import { CalendarView } from "./CalendarView";
 
 const MONTH = { year: 2026, month: 3 };
-const TODAY = "2026-03-05" as never;
+const TODAY = tokyoCalendarDateSchema.parse("2026-03-05");
 const USER_ID = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
 const OTHER_USER_ID = userIdSchema.parse(
   "99999999-9999-4999-8999-999999999999",
@@ -38,7 +45,7 @@ function occurrenceIndex(
   } = {},
 ): TokyoDateIndex<CalendarOccurrenceItem> {
   const item: CalendarOccurrenceItem = {
-    participation: {
+    participation: participationSchema.parse({
       id: "66666666-6666-4666-8666-666666666666",
       occurrenceId: "33333333-3333-4333-8333-333333333333",
       userId: "11111111-1111-4111-8111-111111111111",
@@ -46,8 +53,8 @@ function occurrenceIndex(
       visibility: "private",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
-    occurrence: {
+    }),
+    occurrence: occurrenceSchema.parse({
       id: "33333333-3333-4333-8333-333333333333",
       eventId: "22222222-2222-4222-8222-222222222222",
       doorsAt: null,
@@ -56,8 +63,8 @@ function occurrenceIndex(
       canceledAt: occurrenceCanceledAt,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
-    event: {
+    }),
+    event: eventSchema.parse({
       id: "22222222-2222-4222-8222-222222222222",
       ownerId: "11111111-1111-4111-8111-111111111111",
       title: "テスト公演",
@@ -69,9 +76,12 @@ function occurrenceIndex(
       canceledAt: eventCanceledAt,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
+    }),
   };
-  return { items: [item], byDate: new Map([[date as never, [item]]]) };
+  return {
+    items: [item],
+    byDate: new Map([[tokyoCalendarDateSchema.parse(date), [item]]]),
+  };
 }
 
 function scheduleIndex(
@@ -89,7 +99,7 @@ function scheduleIndex(
   } = {},
 ): TokyoDateIndex<CalendarScheduleItem> {
   const item: CalendarScheduleItem = {
-    entry: {
+    entry: personalScheduleEntrySchema.parse({
       id: "77777777-7777-4777-8777-777777777777",
       ownerId,
       title,
@@ -97,14 +107,17 @@ function scheduleIndex(
       blocking,
       temporal: {
         kind: "all-day",
-        startsOn: date as never,
-        endsOn: date as never,
+        startsOn: tokyoCalendarDateSchema.parse(date),
+        endsOn: tokyoCalendarDateSchema.parse(date),
       },
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
+    }),
   };
-  return { items: [item], byDate: new Map([[date as never, [item]]]) };
+  return {
+    items: [item],
+    byDate: new Map([[tokyoCalendarDateSchema.parse(date), [item]]]),
+  };
 }
 
 describe("CalendarView", () => {
@@ -187,7 +200,7 @@ describe("CalendarView", () => {
       <CalendarView
         month={MONTH}
         today={TODAY}
-        selectedDate={"2026-03-16" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-16")}
         userId={USER_ID}
         occurrenceState={{
           variant: "populated",
@@ -242,7 +255,7 @@ describe("CalendarView", () => {
       <CalendarView
         month={MONTH}
         today={TODAY}
-        selectedDate={"2026-03-15" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-15")}
         userId={USER_ID}
         occurrenceState={{
           variant: "populated",
@@ -265,8 +278,8 @@ describe("CalendarView", () => {
     render(
       <CalendarView
         month={MONTH}
-        today={"2026-03-20" as never}
-        selectedDate={"2026-03-20" as never}
+        today={tokyoCalendarDateSchema.parse("2026-03-20")}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-20")}
         userId={USER_ID}
         occurrenceState={EMPTY_OCCURRENCES}
         scheduleState={EMPTY_SCHEDULE}
@@ -285,7 +298,7 @@ describe("CalendarView", () => {
     render(
       <CalendarView
         month={{ year: 2030, month: 1 }}
-        today={"2030-01-01" as never}
+        today={tokyoCalendarDateSchema.parse("2030-01-01")}
         selectedDate={null}
         userId={USER_ID}
         occurrenceState={EMPTY_OCCURRENCES}
@@ -304,7 +317,7 @@ describe("CalendarView", () => {
       <CalendarView
         month={MONTH}
         today={TODAY}
-        selectedDate={"2026-03-15" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-15")}
         userId={USER_ID}
         occurrenceState={{
           variant: "populated",
@@ -354,7 +367,7 @@ describe("CalendarView", () => {
       <CalendarView
         month={MONTH}
         today={TODAY}
-        selectedDate={"2026-03-16" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-16")}
         userId={USER_ID}
         occurrenceState={EMPTY_OCCURRENCES}
         scheduleState={EMPTY_SCHEDULE}

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 
 export interface AppBarIdentity {
   readonly myPageHref: string;
@@ -26,7 +27,7 @@ const FALLBACK_INITIAL = "?";
  * panel) from rendering.
  */
 export async function resolveMyPageAppBarIdentity(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
 ): Promise<AppBarIdentity> {
   try {
     const {

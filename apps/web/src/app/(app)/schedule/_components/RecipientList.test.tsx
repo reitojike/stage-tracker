@@ -8,10 +8,10 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RecipientList } from "./RecipientList";
 
-const mocks = vi.hoisted(() => ({
-  execute: vi.fn(),
-  results: [] as Array<{ serverError?: { message: string } }>,
-}));
+const mocks = vi.hoisted(() => {
+  const results: Array<{ serverError?: { message: string } }> = [];
+  return { execute: vi.fn(), results };
+});
 
 vi.mock("next-safe-action/hooks", () => ({
   useAction: () => {

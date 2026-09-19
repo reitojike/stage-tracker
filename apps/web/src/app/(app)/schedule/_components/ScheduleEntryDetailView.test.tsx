@@ -1,19 +1,28 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import {
+  personalScheduleEntrySchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import type { PersonalScheduleEntry } from "@stage-tracker/domain";
 import { ScheduleEntryDetailView } from "./ScheduleEntryDetailView";
 
 function entry(blocking: boolean): PersonalScheduleEntry {
-  return {
-    id: "id",
-    ownerId: "owner",
+  return personalScheduleEntrySchema.parse({
+    id: "11111111-1111-4111-8111-111111111111",
+    ownerId: userIdSchema.parse("22222222-2222-4222-8222-222222222222"),
     title: "旅行",
     memo: null,
     blocking,
-    temporal: { kind: "all-day", startsOn: "2026-03-05", endsOn: "2026-03-05" },
+    temporal: {
+      kind: "all-day",
+      startsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+      endsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+    },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
-  } as unknown as PersonalScheduleEntry;
+  });
 }
 
 /**

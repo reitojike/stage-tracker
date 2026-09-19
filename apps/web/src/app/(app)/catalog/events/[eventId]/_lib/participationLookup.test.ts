@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   eventIdSchema,
+  eventSchema,
+  instantSchema,
   occurrenceIdSchema,
   participationIdSchema,
+  occurrenceSchema,
   userIdSchema,
-  type Event,
-  type Occurrence,
   type Participation,
 } from "@stage-tracker/domain";
 import type { ParticipationWithOccurrence, ReadState } from "@/lib/data";
@@ -35,14 +36,32 @@ function row(overrides: {
     userId,
     status: overrides.status ?? "attending",
     visibility: "private",
-    createdAt: "2026-01-01T00:00:00.000Z" as Participation["createdAt"],
-    updatedAt: "2026-01-01T00:00:00.000Z" as Participation["updatedAt"],
+    createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
   };
-  const occurrence = {
+  const occurrence = occurrenceSchema.parse({
     id: rowOccurrenceId,
     eventId: rowEventId,
-  } as unknown as Occurrence;
-  const event = { id: rowEventId } as unknown as Event;
+    doorsAt: null,
+    startsAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    endsAt: null,
+    canceledAt: null,
+    createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+  });
+  const event = eventSchema.parse({
+    id: rowEventId,
+    ownerId: userId,
+    title: "テスト公演",
+    venue: null,
+    sourceUrl: null,
+    memo: null,
+    startsOn: "2026-01-01",
+    endsOn: "2026-01-01",
+    canceledAt: null,
+    createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+  });
   return { participation, occurrence, event };
 }
 

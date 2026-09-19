@@ -91,7 +91,7 @@ describe("ParticipationControls", () => {
         kind: "occurrence-canceled",
         message: "この公演回は中止されているため、この操作はできません。",
       },
-    } as unknown as Awaited<ReturnType<typeof setParticipationChoiceAction>>);
+    } satisfies Awaited<ReturnType<typeof setParticipationChoiceAction>>);
     const user = userEvent.setup();
     render(
       <ParticipationControls

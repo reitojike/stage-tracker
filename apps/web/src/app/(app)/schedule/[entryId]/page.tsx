@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import { StatePanel } from "@stage-tracker/ui";
 import {
   personalScheduleEntryIdSchema,
@@ -50,7 +51,7 @@ async function OwnerShareManagement({
   supabase,
   entryId,
 }: {
-  readonly supabase: SupabaseClient;
+  readonly supabase: SupabaseClient<Database>;
   readonly entryId: PersonalScheduleEntryId;
 }) {
   const result = await safelyCall(() =>
@@ -87,7 +88,7 @@ async function NonOwnerShareStatus({
   entryId,
   userId,
 }: {
-  readonly supabase: SupabaseClient;
+  readonly supabase: SupabaseClient<Database>;
   readonly entryId: PersonalScheduleEntryId;
   readonly userId: string;
 }) {

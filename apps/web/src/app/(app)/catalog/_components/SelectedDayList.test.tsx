@@ -1,12 +1,23 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { EventClassification, GroupId } from "@stage-tracker/domain";
+import {
+  eventIdSchema,
+  eventSchema,
+  genreIdSchema,
+  groupIdSchema,
+  instantSchema,
+  occurrenceSchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+  type EventClassification,
+  type GroupId,
+} from "@stage-tracker/domain";
 import type { EventCatalogEntry } from "@/lib/data";
 import type { SelectedDayOccurrence } from "../_lib/calendar-view-model";
 import { SelectedDayList } from "./SelectedDayList";
 
 const MONTH = { year: 2026, month: 3 };
-const DATE = "2026-03-10" as never;
+const DATE = tokyoCalendarDateSchema.parse("2026-03-10");
 
 function event(
   overrides: Partial<{
@@ -19,26 +30,30 @@ function event(
   }> = {},
 ) {
   const {
-    id = "22222222-2222-4222-8222-222222222222",
     title = "テスト公演",
     startsOn = DATE,
     endsOn = DATE,
     venue = null,
     canceledAt = null,
   } = overrides;
-  return {
-    id,
-    ownerId: "11111111-1111-4111-8111-111111111111",
+  const eventLabel = overrides.id ?? "22222222-2222-4222-8222-222222222222";
+  return eventSchema.parse({
+    id: eventIdSchema.parse(
+      eventLabel.includes("fallback")
+        ? "33333333-3333-4333-8333-333333333333"
+        : "22222222-2222-4222-8222-222222222222",
+    ),
+    ownerId: userIdSchema.parse("11111111-1111-4111-8111-111111111111"),
     title,
     venue,
     sourceUrl: null,
     memo: null,
-    startsOn,
-    endsOn,
-    canceledAt,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  } as never;
+    startsOn: tokyoCalendarDateSchema.parse(startsOn),
+    endsOn: tokyoCalendarDateSchema.parse(endsOn),
+    canceledAt: canceledAt === null ? null : instantSchema.parse(canceledAt),
+    createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+  });
 }
 
 function occurrence(
@@ -48,21 +63,18 @@ function occurrence(
     canceledAt: string | null;
   }> = {},
 ) {
-  const {
-    id = "occ-1",
-    startsAt = "2026-03-10T01:00:00.000Z",
-    canceledAt = null,
-  } = overrides;
-  return {
-    id,
-    eventId: "22222222-2222-4222-8222-222222222222",
+  const { startsAt = "2026-03-10T01:00:00.000Z", canceledAt = null } =
+    overrides;
+  return occurrenceSchema.parse({
+    id: eventIdSchema.parse("44444444-4444-4444-8444-444444444444"),
+    eventId: eventIdSchema.parse("22222222-2222-4222-8222-222222222222"),
     doorsAt: null,
-    startsAt,
+    startsAt: instantSchema.parse(startsAt),
     endsAt: null,
-    canceledAt,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  } as never;
+    canceledAt: canceledAt === null ? null : instantSchema.parse(canceledAt),
+    createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+  });
 }
 
 describe("SelectedDayList", () => {
@@ -96,19 +108,21 @@ describe("SelectedDayList", () => {
       [
         "22222222-2222-4222-8222-222222222222",
         {
-          eventId: "22222222-2222-4222-8222-222222222222" as never,
+          eventId: eventIdSchema.parse("22222222-2222-4222-8222-222222222222"),
           genre: {
-            id: "g1" as never,
+            id: genreIdSchema.parse("11111111-1111-4111-8111-111111111111"),
             key: "takarazuka",
             displayName: "宝塚",
             sortOrder: 1,
           },
-          groupIds: ["group-hana" as never],
+          groupIds: [
+            groupIdSchema.parse("55555555-5555-4555-8555-555555555555"),
+          ],
         },
       ],
     ]);
     const groupNameById = new Map<GroupId, string>([
-      ["group-hana" as never, "花組"],
+      [groupIdSchema.parse("55555555-5555-4555-8555-555555555555"), "花組"],
     ]);
 
     render(
@@ -158,7 +172,7 @@ describe("SelectedDayList", () => {
       }),
       occurrences: [],
       classification: {
-        eventId: "fallback-1" as never,
+        eventId: eventIdSchema.parse("33333333-3333-4333-8333-333333333333"),
         genre: null,
         groupIds: [],
       },
@@ -198,7 +212,7 @@ describe("SelectedDayList", () => {
       }),
       occurrences: [],
       classification: {
-        eventId: "fallback-single-day" as never,
+        eventId: eventIdSchema.parse("33333333-3333-4333-8333-333333333334"),
         genre: null,
         groupIds: [],
       },

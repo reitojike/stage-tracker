@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
-import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
+import { groupIdSchema, tokyoCalendarDateSchema } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import { server } from "@/test/msw/server";
 import {
   listCatalogGenres,
@@ -14,8 +15,8 @@ import {
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -372,7 +373,7 @@ describe("listGroupsByIds", () => {
     );
 
     const result = await listGroupsByIds(createTestClient(), [
-      "11111111-1111-4111-8111-111111111111" as never,
+      groupIdSchema.parse("11111111-1111-4111-8111-111111111111"),
     ]);
 
     expect(result.ok).toBe(false);
@@ -420,10 +421,10 @@ describe("listGroupsByIds", () => {
       }),
     );
 
-    const groupIds = Array.from(
-      { length: 501 },
-      (_, i) =>
-        `00000000-0000-4000-8000-${String(i).padStart(12, "0")}` as never,
+    const groupIds = Array.from({ length: 501 }, (_, i) =>
+      groupIdSchema.parse(
+        `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      ),
     );
     const result = await listGroupsByIds(createTestClient(), groupIds);
 

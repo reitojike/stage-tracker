@@ -18,7 +18,7 @@ describe("classifyBlock1", () => {
 
   it("is empty when the read succeeds but the built data is empty", () => {
     const state = classifyBlock1(
-      ok([] as number[]),
+      ok<number[]>([]),
       (a) => a,
       (data) => data.length === 0,
     );
@@ -27,7 +27,10 @@ describe("classifyBlock1", () => {
 
   it("maps permission-denied to unavailable, not error, without a message field", () => {
     const state = classifyBlock1(
-      err({ kind: "permission-denied" as const, message: "denied" }),
+      err({ kind: "permission-denied", message: "denied" } satisfies {
+        kind: "permission-denied";
+        message: string;
+      }),
       (a: number[]) => a,
       (data) => data.length === 0,
     );
@@ -36,7 +39,10 @@ describe("classifyBlock1", () => {
 
   it("maps failure to error, without a message field", () => {
     const state = classifyBlock1(
-      err({ kind: "failure" as const, message: "boom" }),
+      err({ kind: "failure", message: "boom" } satisfies {
+        kind: "failure";
+        message: string;
+      }),
       (a: number[]) => a,
       (data) => data.length === 0,
     );
@@ -60,7 +66,7 @@ describe("classifyBlock2Optional", () => {
     const state = classifyBlock2Optional(
       ok(["opportunity-1"]),
       ok(["planned"]),
-      [] as string[],
+      [],
       (opportunities, states) => [...opportunities, ...states],
       (data) => data.length === 0,
     );
@@ -72,9 +78,12 @@ describe("classifyBlock2Optional", () => {
 
   it("fails the whole block when the required read fails, regardless of the optional read, but still reports the optional read's own status", () => {
     const state = classifyBlock2Optional(
-      err({ kind: "permission-denied" as const, message: "denied" }),
+      err({ kind: "permission-denied", message: "denied" } satisfies {
+        kind: "permission-denied";
+        message: string;
+      }),
       ok(["planned"]),
-      [] as string[],
+      [],
       (opportunities: string[], states: string[]) => [
         ...opportunities,
         ...states,
@@ -90,8 +99,11 @@ describe("classifyBlock2Optional", () => {
   it("degrades block's data to the fallback (still populated from the required read) when only the optional read fails - never hides the required data - and reports the optional read as failed rather than as empty", () => {
     const state = classifyBlock2Optional(
       ok(["opportunity-1", "opportunity-2"]),
-      err({ kind: "failure" as const, message: "boom" }),
-      [] as string[],
+      err({ kind: "failure", message: "boom" } satisfies {
+        kind: "failure";
+        message: string;
+      }),
+      [],
       (opportunities, states) => opportunities.map((o) => ({ o, states })),
       (data) => data.length === 0,
     );
@@ -115,9 +127,12 @@ describe("classifyBlock2Optional", () => {
 
   it("is empty when the required read succeeds with 0 rows, and still reports the optional read's failure separately rather than losing it", () => {
     const state = classifyBlock2Optional(
-      ok([] as string[]),
-      err({ kind: "failure" as const, message: "boom" }),
-      [] as string[],
+      ok<string[]>([]),
+      err({ kind: "failure", message: "boom" } satisfies {
+        kind: "failure";
+        message: string;
+      }),
+      [],
       (opportunities, states) => [...opportunities, ...states],
       (data) => data.length === 0,
     );
@@ -157,7 +172,10 @@ describe("classifyMergedListBlock2", () => {
   it("reports partial (not populated/empty) with the surviving read's data when the first read fails alone", () => {
     let buildCalled = false;
     const state = classifyMergedListBlock2(
-      err({ kind: "unauthenticated" as const, message: "no session" }),
+      err({ kind: "unauthenticated", message: "no session" } satisfies {
+        kind: "unauthenticated";
+        message: string;
+      }),
       ok(["b"]),
       (a: readonly string[], b: readonly string[]) => {
         buildCalled = true;
@@ -177,7 +195,10 @@ describe("classifyMergedListBlock2", () => {
   it("reports partial (not populated/empty) with the surviving read's data when the second read fails alone", () => {
     const state = classifyMergedListBlock2(
       ok(["a"]),
-      err({ kind: "failure" as const, message: "boom" }),
+      err({ kind: "failure", message: "boom" } satisfies {
+        kind: "failure";
+        message: string;
+      }),
       (a: readonly string[], b: readonly string[]) => [...a, ...b],
       (data) => data.length === 0,
     );
@@ -191,8 +212,8 @@ describe("classifyMergedListBlock2", () => {
 
   it("is empty (not a failure) when both reads succeed with 0 rows", () => {
     const state = classifyMergedListBlock2(
-      ok([] as string[]),
-      ok([] as string[]),
+      ok<string[]>([]),
+      ok<string[]>([]),
       (a, b) => [...a, ...b],
       (data) => data.length === 0,
     );
@@ -201,8 +222,11 @@ describe("classifyMergedListBlock2", () => {
 
   it("is partial, never empty, when the surviving read succeeds with 0 rows and the other read fails - a real failure must not disappear into the same panel as a confirmed 0-row empty state", () => {
     const state = classifyMergedListBlock2(
-      ok([] as string[]),
-      err({ kind: "failure" as const, message: "boom" }),
+      ok<string[]>([]),
+      err({ kind: "failure", message: "boom" } satisfies {
+        kind: "failure";
+        message: string;
+      }),
       (a, b) => [...a, ...b],
       (data) => data.length === 0,
     );
@@ -217,8 +241,14 @@ describe("classifyMergedListBlock2", () => {
 
   it("reports a failure only when both reads fail", () => {
     const state = classifyMergedListBlock2(
-      err({ kind: "permission-denied" as const, message: "denied" }),
-      err({ kind: "failure" as const, message: "boom" }),
+      err({ kind: "permission-denied", message: "denied" } satisfies {
+        kind: "permission-denied";
+        message: string;
+      }),
+      err({ kind: "failure", message: "boom" } satisfies {
+        kind: "failure";
+        message: string;
+      }),
       (a: readonly string[], b: readonly string[]) => [...a, ...b],
       (data) => data.length === 0,
     );

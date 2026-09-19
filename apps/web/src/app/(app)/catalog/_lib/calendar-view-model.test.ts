@@ -1,4 +1,14 @@
 import { describe, expect, it } from "vitest";
+import {
+  eventClassificationSchema,
+  eventIdSchema,
+  eventSchema,
+  instantSchema,
+  occurrenceIdSchema,
+  occurrenceSchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   buildCatalogMonthViewModel,
@@ -8,6 +18,30 @@ import {
   selectDayOccurrences,
   selectEventLevelFallback,
 } from "./calendar-view-model";
+
+const TEST_EVENT_IDS: Readonly<Record<string, string>> = {
+  a: "22222222-2222-4222-8222-222222222224",
+  b: "22222222-2222-4222-8222-222222222225",
+  c1: "22222222-2222-4222-8222-222222222226",
+  multi: "22222222-2222-4222-8222-222222222227",
+};
+const TEST_OCCURRENCE_IDS: Readonly<Record<string, string>> = {
+  early: "33333333-3333-4333-8333-333333333334",
+  late: "33333333-3333-4333-8333-333333333335",
+  "other-day": "33333333-3333-4333-8333-333333333336",
+};
+
+function eventIdFor(value: string) {
+  return eventIdSchema.parse(
+    TEST_EVENT_IDS[value] ?? "22222222-2222-4222-8222-222222222223",
+  );
+}
+
+function occurrenceIdFor(value: string) {
+  return occurrenceIdSchema.parse(
+    TEST_OCCURRENCE_IDS[value] ?? "33333333-3333-4333-8333-333333333333",
+  );
+}
 
 function entry(
   overrides: Partial<{
@@ -31,35 +65,41 @@ function entry(
     canceledAt = null,
     occurrences = [],
   } = overrides;
+  const eventId = eventIdFor(id);
   return {
-    event: {
-      id,
-      ownerId: "11111111-1111-4111-8111-111111111111",
+    event: eventSchema.parse({
+      id: eventId,
+      ownerId: userIdSchema.parse("11111111-1111-4111-8111-111111111111"),
       title,
       venue: null,
       sourceUrl: null,
       memo: null,
-      startsOn,
-      endsOn,
-      canceledAt,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
-    occurrences: occurrences.map((occurrence) => ({
-      id: occurrence.id,
-      eventId: id,
-      doorsAt: null,
-      startsAt: occurrence.startsAt,
-      endsAt: null,
-      canceledAt: occurrence.canceledAt ?? null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    })) as never,
-    classification: {
-      eventId: id as never,
+      startsOn: tokyoCalendarDateSchema.parse(startsOn),
+      endsOn: tokyoCalendarDateSchema.parse(endsOn),
+      canceledAt: canceledAt === null ? null : instantSchema.parse(canceledAt),
+      createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+      updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    }),
+    occurrences: occurrences.map((occurrence) =>
+      occurrenceSchema.parse({
+        id: occurrenceIdFor(occurrence.id),
+        eventId,
+        doorsAt: null,
+        startsAt: instantSchema.parse(occurrence.startsAt),
+        endsAt: null,
+        canceledAt:
+          occurrence.canceledAt === undefined
+            ? null
+            : instantSchema.parse(occurrence.canceledAt),
+        createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+        updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+      }),
+    ),
+    classification: eventClassificationSchema.parse({
+      eventId,
       genre: null,
       groupIds: [],
-    },
+    }),
   };
 }
 
@@ -96,7 +136,7 @@ describe("computeBadgeCounts", () => {
       }),
     ];
     const counts = computeBadgeCounts(entries);
-    expect(counts.get("2026-03-05" as never)).toBe(2);
+    expect(counts.get(tokyoCalendarDateSchema.parse("2026-03-05"))).toBe(2);
   });
 
   it("never counts a multi-day Event", () => {
@@ -126,7 +166,11 @@ describe("computeBadgeCounts", () => {
       }),
     ];
 
-    expect(computeBadgeCounts(entries).get("2026-03-05" as never)).toBe(2);
+    expect(
+      computeBadgeCounts(entries).get(
+        tokyoCalendarDateSchema.parse("2026-03-05"),
+      ),
+    ).toBe(2);
   });
 });
 
@@ -141,7 +185,7 @@ describe("eventRangeBandSegment", () => {
     });
     const segment = eventRangeBandSegment(event);
     expect(segment).toMatchObject({
-      eventId: "c1",
+      eventId: eventIdFor("c1"),
       eventTitle: "中止公演",
       startDate: "2026-03-01",
       endDate: "2026-03-10",
@@ -178,9 +222,9 @@ describe("buildCatalogMonthViewModel", () => {
     const bandSegments = viewModel.weeks.flatMap(
       (week) => week.bandLayout.segments,
     );
-    expect(bandSegments.some((segment) => segment.eventId === "multi")).toBe(
-      true,
-    );
+    expect(
+      bandSegments.some((segment) => segment.eventId === eventIdFor("multi")),
+    ).toBe(true);
     // The multi-day event must never also contribute to a badgeCount.
     const multiDayCells = allDays.filter(
       (day) => day.date >= "2026-03-10" && day.date <= "2026-03-12",
@@ -220,13 +264,24 @@ describe("selectDayOccurrences", () => {
         ],
       }),
     ];
-    const result = selectDayOccurrences(entries, "2026-03-05" as never);
-    expect(result.map((r) => r.occurrence.id)).toEqual(["early", "late"]);
+    const result = selectDayOccurrences(
+      entries,
+      tokyoCalendarDateSchema.parse("2026-03-05"),
+    );
+    expect(result.map((r) => r.occurrence.id)).toEqual([
+      occurrenceIdFor("early"),
+      occurrenceIdFor("late"),
+    ]);
   });
 
   it("returns an empty array when nothing occurs on that date", () => {
     const entries = [entry({ occurrences: [] })];
-    expect(selectDayOccurrences(entries, "2026-03-05" as never)).toEqual([]);
+    expect(
+      selectDayOccurrences(
+        entries,
+        tokyoCalendarDateSchema.parse("2026-03-05"),
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -240,8 +295,11 @@ describe("selectEventLevelFallback", () => {
         occurrences: [],
       }),
     ];
-    const result = selectEventLevelFallback(entries, "2026-03-05" as never);
-    expect(result.map((r) => r.event.id)).toEqual(["a"]);
+    const result = selectEventLevelFallback(
+      entries,
+      tokyoCalendarDateSchema.parse("2026-03-05"),
+    );
+    expect(result.map((r) => r.event.id)).toEqual([eventIdFor("a")]);
   });
 
   it("excludes an Event that has an actual occurrence on the date (selectDayOccurrences' complement)", () => {
@@ -253,9 +311,12 @@ describe("selectEventLevelFallback", () => {
         occurrences: [{ id: "o1", startsAt: "2026-03-05T01:00:00.000Z" }],
       }),
     ];
-    expect(selectEventLevelFallback(entries, "2026-03-05" as never)).toEqual(
-      [],
-    );
+    expect(
+      selectEventLevelFallback(
+        entries,
+        tokyoCalendarDateSchema.parse("2026-03-05"),
+      ),
+    ).toEqual([]);
   });
 
   it("excludes an Event whose range does not cover the date", () => {
@@ -267,8 +328,11 @@ describe("selectEventLevelFallback", () => {
         occurrences: [],
       }),
     ];
-    expect(selectEventLevelFallback(entries, "2026-03-05" as never)).toEqual(
-      [],
-    );
+    expect(
+      selectEventLevelFallback(
+        entries,
+        tokyoCalendarDateSchema.parse("2026-03-05"),
+      ),
+    ).toEqual([]);
   });
 });

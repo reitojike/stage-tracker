@@ -2,10 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const EVENT_ID = "event-1";
 const ENTRY_ID = "entry-1";
-const revalidatePathMock = vi.fn();
+const revalidatePathMock = vi.fn<(path: string, type?: string) => void>();
 
 vi.mock("next/cache", () => ({
-  revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
+  revalidatePath: (path: string, type?: string) => {
+    if (type === undefined) {
+      revalidatePathMock(path);
+      return;
+    }
+    revalidatePathMock(path, type);
+  },
 }));
 
 const { affectedReadSurfaces, revalidateReadSurfaces } =

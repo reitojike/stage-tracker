@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import { requireAuthenticatedUserId } from "./require-authenticated-user-id";
 
@@ -15,9 +14,9 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
  * owns or needs to re-verify.
  */
 function stubSupabaseClient(
-  getUser: SupabaseClient["auth"]["getUser"],
-): SupabaseClient {
-  return { auth: { getUser } } as unknown as SupabaseClient;
+  getUser: Parameters<typeof requireAuthenticatedUserId>[0]["auth"]["getUser"],
+): Parameters<typeof requireAuthenticatedUserId>[0] {
+  return { auth: { getUser } };
 }
 
 describe("requireAuthenticatedUserId", () => {

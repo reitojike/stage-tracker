@@ -2,7 +2,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import type { UserId, PersonalScheduleEntryId } from "@stage-tracker/domain";
+import {
+  personalScheduleEntryIdSchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import {
   deletePersonalScheduleEntry,
   insertPersonalScheduleEntry,
@@ -13,15 +18,16 @@ import {
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-const OWNER_ID = "22222222-2222-4222-8222-222222222222" as UserId;
-const ENTRY_ID =
-  "11111111-1111-4111-8111-111111111111" as PersonalScheduleEntryId;
+const OWNER_ID = userIdSchema.parse("22222222-2222-4222-8222-222222222222");
+const ENTRY_ID = personalScheduleEntryIdSchema.parse(
+  "11111111-1111-4111-8111-111111111111",
+);
 
 const ROW_FIXTURE = {
   id: ENTRY_ID,
@@ -44,9 +50,9 @@ const FIELDS: ScheduleEntryWriteFields = {
   blocking: true,
   temporal: {
     kind: "all-day",
-    startsOn: "2026-03-05",
-    endsOn: "2026-03-06",
-  } as ScheduleEntryWriteFields["temporal"],
+    startsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+    endsOn: tokyoCalendarDateSchema.parse("2026-03-06"),
+  },
 };
 
 afterEach(() => {
@@ -70,8 +76,8 @@ describe("insertPersonalScheduleEntry", () => {
     expect(entry.title).toBe("旅行");
     expect(entry.temporal).toEqual({
       kind: "all-day",
-      startsOn: "2026-03-05",
-      endsOn: "2026-03-06",
+      startsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+      endsOn: tokyoCalendarDateSchema.parse("2026-03-06"),
     });
   });
 

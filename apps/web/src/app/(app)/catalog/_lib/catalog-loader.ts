@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import type { Group, GroupId } from "@stage-tracker/domain";
 import {
   listCatalogGenres,
@@ -27,7 +28,7 @@ import {
  */
 
 export async function loadCatalogEvents(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   range: TokyoCalendarDateRange,
 ): Promise<BlockState<readonly EventCatalogEntry[]>> {
   const result = await listEventCatalogInRange(supabase, range);
@@ -62,7 +63,7 @@ export type CatalogGroupNamesResult =
  * `docs/ux-ui.md`「読み込み失敗をデータなしにしない」）。
  */
 export async function loadCatalogEntryGroupNames(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   entries: readonly EventCatalogEntry[],
 ): Promise<CatalogGroupNamesResult> {
   const ids = [
@@ -111,7 +112,7 @@ export type CatalogFilterOptionsResult =
  * 読む。facet を持たない genre は追加の読み取りを発生させない。
  */
 export async function loadCatalogFilterOptions(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
 ): Promise<CatalogFilterOptionsResult> {
   const genresResult = await listCatalogGenres(supabase);
   if (!genresResult.ok) {

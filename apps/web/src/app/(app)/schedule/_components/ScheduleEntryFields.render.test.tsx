@@ -11,7 +11,10 @@ describe("ScheduleEntryFields selection controls", () => {
         <ScheduleEntryFields />
       </form>,
     );
-    const form = container.querySelector("form")!;
+    const form = container.querySelector("form");
+    if (form === null) {
+      throw new Error("schedule entry form is missing");
+    }
 
     expect(new FormData(form).get("blocking")).toBe("on");
     await user.click(screen.getByRole("checkbox", { name: /blocking/ }));
@@ -25,7 +28,10 @@ describe("ScheduleEntryFields selection controls", () => {
         <ScheduleEntryFields />
       </form>,
     );
-    const form = container.querySelector("form")!;
+    const form = container.querySelector("form");
+    if (form === null) {
+      throw new Error("schedule entry form is missing");
+    }
     const allDay = screen.getByRole("radio", { name: "終日" });
 
     expect(new FormData(form).get("temporalMode")).toBe("all-day");
