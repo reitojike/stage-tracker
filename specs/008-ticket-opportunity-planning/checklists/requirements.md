@@ -31,6 +31,9 @@
 - [x] effective cancellationがpersonal stateを自動変更せず、known non-retained stateのplanning capabilityを自動禁止しない境界を記述している
 - [x] post-final retentionの7日目/8日目境界とcancellationとの独立性が明示されている
 - [x] Opportunityごとのmilestone type cardinalityとshared refresh時のpersonal state保持が明示されている
+- [x] Event deletion operationはSpec 005、TicketOpportunity / personal stateのcross-domain consequenceはSpec 008としてownerが一意である
+- [x] zero-milestone Opportunityはfabricated rowなしでHome / `/tickets`のplanning projectionから除外され、identityの削除やinvalid化と混同していない
+- [x] `/tickets`のsemantic priorityがeffective cancellation > retained history > personal planning stateとして明示され、retained rowのpersonal state削除を意味していない
 
 ## Boundary Readiness
 
@@ -42,6 +45,7 @@
 - [x] Homeのnon-retained primary milestone表示と`/tickets`のcancellation表示をsurface境界として区別している
 - [x] Homeのexact 5-row capをdomain invariantにしていない
 - [x] Badge variant、exact copy、CSS、component/helper名、read-state mechanicsをLiving Specへ追加していない
+- [x] Event deletionのDB mechanism、zero-milestoneのplaceholder実装、retained-historyのexact copy / Badge / componentをLiving Specへ追加していない
 - [x] Spec 003が除外するretentionとTicketOpportunity cancellationのauthorityを新Specへ集約している
 
 ## Notes
