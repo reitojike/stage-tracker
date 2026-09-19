@@ -152,23 +152,12 @@ Event / Occurrenceのowner capability、更新、cancellation、削除の意味�
 
 ## 招待一覧（`/catalog/invitations`）
 
-**decision: pendingだけが行として存在するモデルなので、行数がそのまま
-未対応件数になる。** 見出しの横に「未回答 n件」を出します。
-
-| 状態                               | 表示                                                       |
-| ---------------------------------- | ---------------------------------------------------------- |
-| 0件                                | 「招待はありません」                                       |
-| 招待自体が読めない                 | 「招待を読み込めませんでした」（見出しのみ残す）           |
-| 招待は読めたが公演の詳細が読めない | 一覧を出したまま「招待の詳細を読み込めませんでした」を追加 |
-
-**decision: 辞退とその取り消しはclient側の状態に即座に追随させるため、
-件数は一覧の内部で数える。** 取り消し待ちの行は件数に含めません。
-
-**decision: 受け取った招待だけが並び、送った招待の一覧は存在しない。**
-（product-rules.mdのinvitation opacity boundary）
-
-**decision: 辞退には8秒の取り消し行を出す**
-（[`docs/ux-ui.md`](./ux-ui.md)「一時的に操作できる行」）。
+Invitation の pending-only lifecycle、受信一覧、accept / decline、re-invite、
+targeting、privacy / opacity は
+[`specs/006-invitation-coordination-opacity/spec.md`](../specs/006-invitation-coordination-opacity/spec.md)
+が current product authority です。この画面文書は、Invitation domain の lifecycle や
+privacy contract を定義しません。画面固有のlayout・loading・copyを今後ここに残す
+場合も、Living Specのdomain semanticsと重複させないでください。
 
 ## チケット（`/tickets`）
 

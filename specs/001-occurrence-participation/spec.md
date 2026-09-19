@@ -15,6 +15,11 @@ GitHub Issue #487 is the implementation contract for this initial authority cuto
 Architecture documents, database migrations, schema, and tests retain their respective
 structural and mechanical responsibilities; they are not duplicated here.
 
+Invitation の broader current behavior（pending list、decline、re-invite、targeting、
+opacity）は [`specs/006-invitation-coordination-opacity/spec.md`](../006-invitation-coordination-opacity/spec.md)
+が正本です。このSpecに残る Invitation 要件は、Participation 側から見た receive /
+accept / decline / attending convergence の直接的な contract に限ります。
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Choose participation for an occurrence (Priority: P1)
@@ -162,6 +167,9 @@ The following boundaries are intentionally explicit:
   withdrawal actions.
 
 ### Invitation Requirements
+
+以下は Participation から見た Invitation convergence の contract です。Invitation
+自身の lifecycle、targeting、pending list、re-invite、opacity は Spec 006 を参照します。
 
 - **FR-017**: Receiving an invitation MUST NOT create or change Participation by itself.
 - **FR-018**: Declining an invitation MUST resolve the invitation without creating

@@ -284,102 +284,27 @@ cut overしました。canonical current contractは
 
 ## Authenticated-user targeting（identity boundary）
 
-- MVP で他の authenticated user を明示指定する operation（Invitation の
-  invitee 指定、personal schedule sharing の recipient 指定）は、相手の
-  **Stage Tracker 登録 email address の exact input** で行います。
-- raw internal user UUID を user-facing input として要求しません。
-- generic user directory / user list は提供しません。autocomplete /
-  partial-match search / fuzzy search も提供しません。
-- client-readable な generic `email -> user_id` lookup API は提供しません。
-  `auth.users` 等の privileged identity data を normal client から broad
-  read 可能にはしません。
-- email → internal user id の resolution は、trusted DB/server boundary
-  内で operation-specific に行います（例: `security definer` な RPC が
-  当該 operation の権限確認を行った後にのみ resolve する）。generic な
-  reusable lookup surface は作りません。
-- 未登録 email への external email delivery / pending account invitation /
-  contact system は MVP scope に含めません。
-- この identity boundary は operation ごとに opacity 要件が異なり得ます。
-  Invitation は invitee の private participation state を inviter へ
-  開示しないための opacity を維持します（下記 Invitation 節）。personal
-  schedule sharing にはそれに相当する第三者 private state がないため、
-  対象 email が未登録であることをその operation の呼び出し元（= owner
-  本人）へ知らせて構いません（下記 Event-independent personal schedule
-  節）。
-- reusable な profiles / people / social subsystem は先行構築しません。
+Invitation の current product behavior、exact-address targeting、opacity、
+pending list は [`specs/006-invitation-coordination-opacity/spec.md`](../specs/006-invitation-coordination-opacity/spec.md)
+へ cut over しました。本ファイルは Invitation の current normative authority
+ではなく、同Specを発見するための pointer と migration provenance だけを残します。
 
-## Invitation
+Personal Schedule sharing の recipient targeting は #565 のcutoverまで未移行
+domain の責務として残ります。そこでも raw internal user UUID、generic user
+directory、client-readable な generic email-to-user lookup surface、外部 email
+delivery は提供しません。operation-specific な trusted boundary 内の resolution
+と、Invitation とは異なる sharing-specific な未登録 email の扱いは、Schedule
+sharing の bounded authority cutover で再確認します。
+Personal Schedule sharing では第三者の private Participation state を扱わないため、
+既存の owner 向け未登録 email の扱いは Invitation の opacity と同一視しません。
+reusable な profiles / people / social subsystem は先行構築しません。
 
-Issue #225/#230 で pending-only coordination へ収束しました。以下が現行の
-canonical semantics です（#30 時点の旧 semantics — auto-considering の作成、
-decline 後の re-invite 恒久拒否 — は supersede 済みです）。
+## Invitation（current authority retired）
 
-- invitation の対象は **公演回（occurrence）単位** です。event 単位の
-  invitation は持ちません。
-- Invitation は **未回答の招待という temporary coordination state だけ** を
-  表します。durable な accepted/declined history は保持しません。
-- invite できるのは、対象 occurrence で participation status が
-  `attending` の user だけです。`considering` の user は invite できません。
-- event owner であることは invite eligibility を与えません。owner でも
-  対象 occurrence で `attending` でなければ invite できません。
-- invite 時の invitee 側 participation の扱いは、invite 対象 occurrence
-  における invitee の現在状態ごとに次のとおりです。
-  - participation row なし → pending invitation を作成します。invitee の
-    participation は作成・変更しません（旧 `considering` 自動作成は廃止）。
-  - 既に `considering` → pending invitation を作成し、`considering` を
-    維持します。participation は変更しません。
-  - 既に `attending` → その occurrence への invite 対象外とします。
-    invitation record を新規作成せず、既存の `attending` participation
-    をそのまま維持します（current opacity boundary を維持）。
-- invitation operation によって、invitee 本人が確定した participation
-  status（`attending`）を `considering` へ降格させることはありません。
-- inviter が invitee を `attending` へ確定させることはできません。
-- **Accept（参加する）**: invitee が pending invitation に対して「参加する」
-  を選択した場合、通常の participation write（`considering`/rowなし →
-  `attending`）と全く同じ operation を行います。専用の accept RPC は
-  持ちません。結果として成立する `attending` Participation は
-  self-created attending とデータ上区別しません。`participation_source` /
-  `invited_by_user_id` / `accepted_at` / invited 専用 status 等の
-  origin/history field を Participation へ追加しません。
-- **Generic attending convergence**: invitee が Invitation UI 以外の通常
-  participation UI から `attending` になった場合も、同一 occurrence /
-  invitee に残る pending invitation はすべて解消します。同一 occurrence /
-  invitee に複数 inviter からの pending invitation が存在できる現行
-  schema では、attending 成立時に未解決 pending invitation を全て解消
-  する方向を default とします。
-- **Decline（参加しない）**: invitee が「参加しない」を選択した場合、
-  pending invitation を解消（削除）します。`not_attending` Participation は
-  作りません。invitee に既存の self-created `considering` がある場合は
-  変更しません。decline は invitation へのresponseであり、invitee 自身の
-  別途存在する participation intention を勝手に変更しません。
-- **Re-invite**: 過去の decline を永久 opt-out として扱いません。invitee が
-  現在 `attending` でなければ、後日同じ inviter が再度 invite でき、新しい
-  pending invitation を作成できます。accept 後に invitee 本人が withdraw
-  した場合も、将来の re-invite を永久に block しません。
-- invitation は participation とは別の、最低限の独立 record です。resolve
-  （accept/decline/generic attending convergence のいずれか）された
-  invitation row は削除され、durable な accepted/declined history として
-  保持しません。「誰が誰をどの occurrence へ招待したか」は resolve される
-  までの pending 期間中のみ確認できる data boundary です。
-- invite 操作の結果は inviter に対して不透明です。対象 occurrence における
-  invitee の現在状態（上記 3 分岐のどれが実行されたか）を inviter へ開示
-  しません。invitee の private な participation status を、invite 操作の
-  結果から間接的に推測できる経路を新たに開かないためです。
-- invitation record の通常 read は invitee 本人に限定します。inviter は、
-  自分が作成した invitation であっても、通常 read で対象 invitee 向けの
-  invitation row の有無を確認できません。row の有無が観測できると、上記の
-  opacity と同じ情報が別経路から復元できるためです。
-- inviter 向けの invitation history 表示は MVP committed scope に含みません。
-  必要になった時点で、上記の opacity / read boundary を壊さない形で別途
-  設計します。
-- invitee 指定は「Authenticated-user targeting」節のとおり exact 登録
-  email input です。email から invitee を resolve した後の 3 分岐
-  dispatch・opacity 要件は上記と同一で、resolution を追加したことを
-  理由に緩めません。「no such account」を含む invitee-dependent な分岐は
-  すべて同一の結果を返し、inviter からは区別できません。
-- Invitation semantics（pending-only への収束を含む）は、他の ticket
-  planning state や将来の詳細な application tracking とは独立して決定
-  します。
+Invitation の pending-only lifecycle、eligibility、receive / accept / decline、
+re-invite、targeting、privacy / opacity は上記の Invitation Living Spec を参照して
+ください。ここに旧semanticsを再掲せず、Issue #560 以前の設計・migration は
+historical evidence として Git と既存の implementation artifacts に残します。
 
 ## Event-independent personal schedule
 

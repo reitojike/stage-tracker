@@ -77,9 +77,11 @@ Event / Occurrenceのnormativeなconstraintは
 [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)を
 参照します。その他の未移行domainのconstraintは
 [temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
-Occurrence Participation とその直接の Invitation / cancellation behavior は
-[Living Spec](../specs/001-occurrence-participation/spec.md)が正本であり、このPRDでは
-その詳細を複製しません。
+Occurrence Participation とその直接の Invitation convergence / cancellation
+behavior は [Living Spec](../specs/001-occurrence-participation/spec.md) が正本です。
+Invitation の pending-only lifecycle、targeting、privacy / opacity などの broader
+behavior は [Invitation Living Spec](../specs/006-invitation-coordination-opacity/spec.md)
+が正本であり、このPRDでは詳細を複製しません。
 
 ## Current committed scope
 
@@ -93,10 +95,11 @@ time-bounded、required free-form title、独立した blocking、private defaul
 entry単位の sharing、owner-only recipient管理・entry deletion を備えます。
 occurrence-level Participation は `considering` / `attending` と private/
 public visibility を持ち、Invitation は pending-only の独立 coordination
-recordです。current behaviorの詳細は
-[Occurrence Participation Living Spec](../specs/001-occurrence-participation/spec.md)
+recordです。Participation側から見た直接的な収束は
+[Occurrence Participation Living Spec](../specs/001-occurrence-participation/spec.md)、
+Invitation lifecycleの詳細は [Invitation Living Spec](../specs/006-invitation-coordination-opacity/spec.md)
 を参照します。Personal ScheduleやTicketOpportunityの詳細は本PRDの各scopeに
-属し、Participationの仕様を再掲しません。
+属し、これらの仕様を再掲しません。
 
 TicketOpportunity planning は、sharedな販売機会・target scope・milestoneと、
 user-ownedな `UserTicketOpportunityState`（statusは exactly `planned` /
