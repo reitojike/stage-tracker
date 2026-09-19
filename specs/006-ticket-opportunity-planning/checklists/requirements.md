@@ -21,6 +21,9 @@
 - [x] row absence、source precision、scope mismatch、state independenceのedge caseがある
 - [x] scope boundaryとout of scopeが明示されている
 - [x] current source evidenceをAssumptionsとAuthority Boundaryで位置付けている
+- [x] shared catalogのread、personal stateのowner-only read/write、shared mutation禁止の境界が明示されている
+- [x] Event-wide、selected-occurrences、全件中止、部分・未解決targetのcancellation semanticsが明示されている
+- [x] post-final retentionの7日目/8日目境界とcancellationとの独立性が明示されている
 
 ## Boundary Readiness
 
@@ -28,6 +31,7 @@
 - [x] Spec 001をParticipation lifecycleのauthorityとして保持している
 - [x] acquired-ticket inventory、seat、assignment、transfer、import redesignをcurrent化していない
 - [x] `/tickets`とHomeはconsuming surfaceとして扱い、UI implementationをこのSpecのauthorityにしていない
+- [x] Spec 003が除外するretentionとTicketOpportunity cancellationのauthorityを新Specへ集約している
 
 ## Notes
 

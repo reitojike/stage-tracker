@@ -178,7 +178,9 @@ TicketOpportunity planning modelは
 milestoneのrelevant date・past・月配置・orderingは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)
 のauthorityです。このファイルは`/tickets` routeのscreen stateとsurface pointerを
 案内し、planning semanticsのduplicate current authorityではありません。受付終了済みの
-milestoneをどのsurfaceに残すかも、Spec 003のtimeline projectionへ委譲します。
+milestoneのpost-final retentionとTicketOpportunityのeffective cancellation集約は
+[TicketOpportunity planning Living Spec](../specs/006-ticket-opportunity-planning/spec.md)
+のauthorityです。
 
 **decision: 行全体がイベント詳細へのlinkで、状態変更のcontrolだけが
 その中で別に押せる。** そのcontrolはquietの例外として静止時に淡い面を持ちます
