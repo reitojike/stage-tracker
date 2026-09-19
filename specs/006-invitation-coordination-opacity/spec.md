@@ -151,7 +151,9 @@ account の存在が不用意に開示されないことを期待する。一方
 - **INV-010**: Invitation を受信しただけでは Participation を作成・更新してはならない。
 - **INV-011**: accept は Invitation 専用の別 status を作らず、invitee 自身の通常の
   Participation `attending` transition と同じ意味でなければならない。cancellation
-  rule を迂回してはならない。
+  rule を迂回してはならない。成立した `attending` Participation は self-created な
+  `attending` と data 上区別できず、`participation_source`、`invited_by_user_id`、
+  `accepted_at`、または同等の Invitation origin / history field を持たない。
 - **INV-012**: invitee がいずれかの supported path で `attending` に到達した場合、
   同じ occurrence・invitee に残る全ての pending Invitation を解消しなければならない。
 - **INV-013**: decline は pending Invitation row を即時に削除して解消しなければならず、
