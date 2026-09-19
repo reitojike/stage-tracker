@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ActionError } from "@/lib/action-error";
+import { ActionError, isActionError } from "@/lib/action-error";
 import {
   throwEventCancellationError,
   throwEventCancellationPermissionDenied,
@@ -29,14 +29,12 @@ function rawError(code: string): RawPostgrestLikeError {
   return { code, message: SECRET };
 }
 
-function catchActionError<ExtraKind extends string = never>(
-  fn: () => never,
-): ActionError<ExtraKind> {
+function catchActionError(fn: () => never): ActionError<string> {
   try {
     fn();
   } catch (error) {
-    if (error instanceof ActionError) {
-      return error as ActionError<ExtraKind>;
+    if (isActionError(error)) {
+      return error;
     }
     throw error;
   }

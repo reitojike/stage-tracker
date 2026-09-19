@@ -19,18 +19,15 @@ import { readError } from "./read-error";
  */
 describe("readError", () => {
   it("derives a fixed, non-empty message from kind alone for every ReadErrorKind", () => {
-    expect(readError("unauthenticated")).toEqual({
-      kind: "unauthenticated",
-      message: expect.any(String),
-    });
-    expect(readError("permission-denied")).toEqual({
-      kind: "permission-denied",
-      message: expect.any(String),
-    });
-    expect(readError("failure")).toEqual({
-      kind: "failure",
-      message: expect.any(String),
-    });
+    const unauthenticated = readError("unauthenticated");
+    const permissionDenied = readError("permission-denied");
+    const failure = readError("failure");
+    expect(unauthenticated.kind).toBe("unauthenticated");
+    expect(permissionDenied.kind).toBe("permission-denied");
+    expect(failure.kind).toBe("failure");
+    expect(typeof unauthenticated.message).toBe("string");
+    expect(typeof permissionDenied.message).toBe("string");
+    expect(typeof failure.message).toBe("string");
   });
 
   it("returns a distinct message per kind (never the same generic string for all 3)", () => {

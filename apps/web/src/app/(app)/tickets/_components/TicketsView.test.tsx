@@ -1,10 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import {
+  eventIdSchema,
+  instantSchema,
+  ticketOpportunityIdSchema,
+  ticketOpportunityMilestoneIdSchema,
+  ticketOpportunityMilestoneSchema,
+  tokyoCalendarDateSchema,
+} from "@stage-tracker/domain";
 import type { OptionalPartBlockState } from "@/app/_lib/read-state";
 import type { TicketsTimelineState } from "../_lib/tickets-loader";
 import { TicketsView } from "./TicketsView";
 
-const TODAY = "2026-03-01" as never;
+const TODAY = tokyoCalendarDateSchema.parse("2026-03-01");
 
 // `TicketOpportunityStateControls` (rendered per row) imports the
 // `"use server"` action, which transitively pulls in `src/env.ts` - not
@@ -29,25 +37,29 @@ function row(
     myState = null,
     isPostFinalRetainedHistory = false,
     displayName = "一般発売",
-    opportunityId = "44444444-4444-4444-8444-444444444444",
-    milestoneId = "55555555-5555-4555-8555-555555555555",
     isFirstRowForOpportunity = true,
     isEffectivelyCanceled = false,
   } = overrides;
   return {
-    opportunityId,
+    opportunityId: ticketOpportunityIdSchema.parse(
+      overrides.opportunityId ?? "44444444-4444-4444-8444-444444444444",
+    ),
     displayName,
-    eventId: "22222222-2222-4222-8222-222222222222",
-    milestone: {
-      id: milestoneId,
-      opportunityId,
+    eventId: eventIdSchema.parse("22222222-2222-4222-8222-222222222222"),
+    milestone: ticketOpportunityMilestoneSchema.parse({
+      id: ticketOpportunityMilestoneIdSchema.parse(
+        overrides.milestoneId ?? "55555555-5555-4555-8555-555555555555",
+      ),
+      opportunityId: ticketOpportunityIdSchema.parse(
+        overrides.opportunityId ?? "44444444-4444-4444-8444-444444444444",
+      ),
       milestoneType: "sale_start",
       temporalPrecision: "datetime",
-      at: "2026-03-10T10:00:00.000Z",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-    sortInstant: "2026-03-10T10:00:00.000Z",
+      at: instantSchema.parse("2026-03-10T10:00:00.000Z"),
+      createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+      updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    }),
+    sortInstant: instantSchema.parse("2026-03-10T10:00:00.000Z"),
     myState,
     isFirstRowForOpportunity,
     isPostFinalRetainedHistory,
@@ -57,7 +69,7 @@ function row(
     targetScope: "event_wide",
     targetOccurrences: [],
     sourceUrl: "https://example.com/tickets",
-  } as never;
+  } satisfies import("../_lib/tickets-loader").TicketsTimelineRow;
 }
 
 const POPULATED: OptionalPartBlockState<TicketsTimelineState> = {

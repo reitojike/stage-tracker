@@ -8,6 +8,10 @@ import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
 import storybook from "eslint-plugin-storybook";
+import {
+  projectTypeScriptSafetyProfile,
+  projectTypeScriptTypeAssertionRestrictions,
+} from "../../eslint.quality.config.mjs";
 
 const eslintConfig = defineConfig([
   {
@@ -25,6 +29,18 @@ const eslintConfig = defineConfig([
   // without importing a framework umbrella config.
   next.configs["core-web-vitals"],
   ...tseslint.configs.recommended,
+  ...projectTypeScriptSafetyProfile(),
+  {
+    name: "stage-tracker:storybook-type-aware-config",
+    files: [".storybook/**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: [".storybook/*.ts", ".storybook/*.tsx"],
+        },
+      },
+    },
+  },
   {
     name: "stage-tracker:react",
     files: ["**/*.{jsx,tsx}"],
@@ -98,6 +114,7 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-syntax": [
         "error",
+        ...projectTypeScriptTypeAssertionRestrictions(),
         {
           selector: "JSXOpeningElement[name.name='main']",
           message:

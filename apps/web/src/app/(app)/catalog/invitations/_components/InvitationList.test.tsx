@@ -12,9 +12,9 @@ import {
 import { InvitationList } from "./InvitationList";
 import type { ReceivedInvitation } from "@/lib/data";
 
-const mockAccept = vi.fn();
-const mockDecline = vi.fn();
-const mockRefresh = vi.fn();
+const mockAccept = vi.fn<(...args: unknown[]) => unknown>();
+const mockDecline = vi.fn<(...args: unknown[]) => unknown>();
+const mockRefresh = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/lib/actions/invitations", () => ({
   acceptInvitationAction: (...args: unknown[]) => mockAccept(...args),

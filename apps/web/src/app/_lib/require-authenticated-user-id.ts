@@ -16,9 +16,9 @@ import { readError, type ReadResult } from "@/lib/data";
  * convention - "すべての read が Result を返し、例外で boundary を突き破ら
  * せない").
  */
-export async function requireAuthenticatedUserId(
-  supabase: SupabaseClient,
-): Promise<ReadResult<UserId>> {
+export async function requireAuthenticatedUserId(supabase: {
+  auth: Pick<SupabaseClient["auth"], "getUser">;
+}): Promise<ReadResult<UserId>> {
   let userResponse: Awaited<ReturnType<SupabaseClient["auth"]["getUser"]>>;
   try {
     userResponse = await supabase.auth.getUser();

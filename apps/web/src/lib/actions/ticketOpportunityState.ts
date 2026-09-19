@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import {
   err,
   ok,
@@ -53,7 +54,7 @@ export interface TicketOpportunityStateTarget {
 }
 
 async function updateStatusByUserAndOpportunity(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   target: TicketOpportunityStateTarget,
   status: UserTicketOpportunityStatus,
 ): Promise<Result<boolean, SetTicketOpportunityStateErrorKind>> {
@@ -89,7 +90,7 @@ export interface SetTicketOpportunityStateParams extends TicketOpportunityStateT
  * フォールバックする。
  */
 export async function setMyTicketOpportunityState(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   params: SetTicketOpportunityStateParams,
 ): Promise<Result<void, SetTicketOpportunityStateErrorKind>> {
   const updateResult = await updateStatusByUserAndOpportunity(
@@ -143,7 +144,7 @@ export async function setMyTicketOpportunityState(
  * それ自体は失敗として扱わない（「登録されていない」状態への冪等な収束）。
  */
 export async function removeMyTicketOpportunityState(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   target: TicketOpportunityStateTarget,
 ): Promise<Result<void, SetTicketOpportunityStateErrorKind>> {
   const { error } = await client

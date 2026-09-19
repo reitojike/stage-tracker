@@ -16,6 +16,8 @@ import {
   RadioGroup,
   StatePanel,
 } from "@stage-tracker/ui";
+import { groupIdSchema } from "@stage-tracker/domain";
+import { z } from "zod";
 import {
   Sheet,
   SheetContent,
@@ -59,6 +61,12 @@ import { MonthCalendar } from "./MonthCalendar";
 import { SelectedDayList } from "./SelectedDayList";
 
 const FILTER_STORAGE_KEY = "stage-tracker:catalog-filter:v1";
+
+const storedCatalogFilterSelectionSchema = z.object({
+  genreKey: z.string().nullable(),
+  groupIds: z.array(groupIdSchema),
+  venues: z.array(z.string()),
+});
 
 /**
  * .ai-dev-foundation/product-rules.md「Gate Aの canonical genre identity」の3件。永久 closed world では
@@ -117,16 +125,8 @@ function readStoredSelection(): CatalogFilterSelection | null {
       return null;
     }
     const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "genreKey" in parsed &&
-      "groupIds" in parsed &&
-      "venues" in parsed
-    ) {
-      return parsed as CatalogFilterSelection;
-    }
-    return null;
+    const selection = storedCatalogFilterSelectionSchema.safeParse(parsed);
+    return selection.success ? selection.data : null;
   } catch {
     return null;
   }

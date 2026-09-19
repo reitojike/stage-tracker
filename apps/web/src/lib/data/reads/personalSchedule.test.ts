@@ -2,13 +2,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
+import type { Database } from "@/lib/data/database.types";
 import { listVisiblePersonalSchedule } from "./personalSchedule";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

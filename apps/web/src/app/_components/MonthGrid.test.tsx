@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { TokyoCalendarDate } from "@stage-tracker/domain";
+import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
 import { buildMonthGridDays } from "@/app/_lib/calendar-grid";
 import { calendarDayRole } from "@/app/_lib/calendar-day-role";
 import { MonthGrid, MonthGridDayLink } from "./MonthGrid";
@@ -27,7 +27,8 @@ describe("MonthGrid", () => {
         weeks={viewWeeks}
         hasUnconfirmedHolidayCoverage={false}
         renderDay={(day, columnIndex) => {
-          const isToday = day.date === ("2026-03-20" as TokyoCalendarDate);
+          const isToday =
+            day.date === tokyoCalendarDateSchema.parse("2026-03-20");
           return (
             <MonthGridDayLink
               key={day.date}
@@ -36,7 +37,9 @@ describe("MonthGrid", () => {
               href={`/calendar?date=${day.date}`}
               ariaLabel={`${day.date}${isToday ? "、今日" : ""}${day.role === "holiday" ? "、祝日" : day.role === "saturday" ? "、土曜日" : day.role === "sunday" ? "、日曜日" : ""}`}
               isToday={isToday}
-              isSelected={day.date === ("2026-03-21" as TokyoCalendarDate)}
+              isSelected={
+                day.date === tokyoCalendarDateSchema.parse("2026-03-21")
+              }
             />
           );
         }}

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { TokyoCalendarDate } from "@stage-tracker/domain";
+import {
+  tokyoCalendarDateSchema,
+  type TokyoCalendarDate,
+} from "@stage-tracker/domain";
 import {
   layoutWeekBands,
   MAX_BAND_LANES,
@@ -7,7 +10,7 @@ import {
 } from "./calendar-band-layout";
 
 function date(value: string): TokyoCalendarDate {
-  return value as TokyoCalendarDate;
+  return tokyoCalendarDateSchema.parse(value);
 }
 
 // A Sunday..Saturday week (7 dates), matching buildMonthGridDays' own

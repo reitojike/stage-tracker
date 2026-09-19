@@ -110,7 +110,7 @@ describe("classifyReadResult", () => {
     expect(populated).toEqual({ variant: "populated", data: { count: 3 } });
 
     const empty = classifyReadResult(
-      ok([] as number[]),
+      ok<number[]>([]),
       (rows) => ({ count: rows.length }),
       (data) => data.count === 0,
     );

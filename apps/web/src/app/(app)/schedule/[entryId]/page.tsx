@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import { StatePanel } from "@stage-tracker/ui";
 import {
   personalScheduleEntryIdSchema,
@@ -26,6 +27,11 @@ import { RecipientList } from "../_components/RecipientList";
 import { LeaveShareButton } from "../_components/LeaveShareButton";
 import { DeleteEntryButton } from "../_components/DeleteEntryButton";
 
+type ScheduleEntryPageProps = {
+  readonly params: Promise<{ readonly entryId: string }>;
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
 function resolveBackHref(month: string | undefined): string {
   return month !== undefined && month.length > 0
     ? `/calendar?month=${month}`
@@ -50,7 +56,7 @@ async function OwnerShareManagement({
   supabase,
   entryId,
 }: {
-  readonly supabase: SupabaseClient;
+  readonly supabase: SupabaseClient<Database>;
   readonly entryId: PersonalScheduleEntryId;
 }) {
   const result = await safelyCall(() =>
@@ -87,7 +93,7 @@ async function NonOwnerShareStatus({
   entryId,
   userId,
 }: {
-  readonly supabase: SupabaseClient;
+  readonly supabase: SupabaseClient<Database>;
   readonly entryId: PersonalScheduleEntryId;
   readonly userId: string;
 }) {
@@ -117,7 +123,7 @@ async function NonOwnerShareStatus({
 export default async function ScheduleEntryDetailPage({
   params,
   searchParams,
-}: PageProps<"/schedule/[entryId]">) {
+}: ScheduleEntryPageProps) {
   const { entryId: rawEntryId } = await params;
   const { month: rawMonth } = await searchParams;
   const month = typeof rawMonth === "string" ? rawMonth : undefined;

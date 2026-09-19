@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import type {
   PersonalScheduleEntry,
   PersonalScheduleEntryId,
@@ -89,7 +90,7 @@ function mapRowOrThrow(row: PersonalScheduleEntryRow): PersonalScheduleEntry {
  * 揃え、1行目を自前で取り出す。
  */
 export async function insertPersonalScheduleEntry(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   ownerId: UserId,
   fields: ScheduleEntryWriteFields,
 ): Promise<PersonalScheduleEntry> {
@@ -116,7 +117,7 @@ export async function insertPersonalScheduleEntry(
 }
 
 export async function updatePersonalScheduleEntry(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
   fields: ScheduleEntryWriteFields,
 ): Promise<PersonalScheduleEntry> {
@@ -152,7 +153,7 @@ export async function updatePersonalScheduleEntry(
  * ここでは対象 entry 自体の削除だけを行う。
  */
 export async function deletePersonalScheduleEntry(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
 ): Promise<void> {
   const { data, error, status } = await client

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import type {
   PersonalScheduleEntry,
   PersonalScheduleEntryId,
@@ -36,7 +37,7 @@ import { ok } from "@stage-tracker/domain";
  * 追加する方が本来は望ましく、次の Task で検討する価値がある。
  */
 export async function findVisibleScheduleEntry(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
 ): Promise<ReadResult<PersonalScheduleEntry | null>> {
   const listResult = await listVisiblePersonalSchedule(client);

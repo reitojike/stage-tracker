@@ -41,8 +41,9 @@ export function classifyScheduleEntryReadResult(
   // `isEmpty` 上記のとおり `value === null` を `empty` へ倒すため、
   // `variant === "populated"` の場合の `data` は実行時には常に非 null。
   // `classifyReadResult` は `isEmpty` の中身を型レベルで追跡できない
-  // ジェネリック関数のため、ここで明示的に narrow する。
-  return state.variant === "populated"
-    ? { variant: "populated", data: state.data as PersonalScheduleEntry }
-    : state;
+  // ジェネリック関数のため、ここで明示的に runtime narrow する。
+  if (state.variant === "populated" && state.data !== null) {
+    return { variant: "populated", data: state.data };
+  }
+  return state.variant === "populated" ? { variant: "empty" } : state;
 }

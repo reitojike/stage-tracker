@@ -4,17 +4,20 @@ import { personalScheduleEntryIdSchema } from "@stage-tracker/domain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ShareAddForm } from "./ShareAddForm";
 
-const mocks = vi.hoisted(() => ({
-  execute: vi.fn(),
-  reset: vi.fn(),
-  refresh: vi.fn(),
-  onSuccess: undefined as (() => void) | undefined,
-  result: {
-    serverError: undefined as { message: string } | undefined,
-    validationErrors: undefined as
-      { recipientEmail?: { _errors?: string[] } } | undefined,
-  },
-}));
+const mocks = vi.hoisted(() => {
+  let onSuccess: (() => void) | undefined;
+  const result: {
+    serverError: { message: string } | undefined;
+    validationErrors: { recipientEmail?: { _errors?: string[] } } | undefined;
+  } = { serverError: undefined, validationErrors: undefined };
+  return {
+    execute: vi.fn(),
+    reset: vi.fn(),
+    refresh: vi.fn(),
+    onSuccess,
+    result,
+  };
+});
 
 vi.mock("next-safe-action/hooks", () => ({
   useAction: (_action: unknown, options?: { onSuccess?: () => void }) => {

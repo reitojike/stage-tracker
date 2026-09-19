@@ -11,6 +11,7 @@ import {
   type UserId,
 } from "@stage-tracker/domain";
 import type { ActionErrorShape } from "@/lib/action-error";
+import type { Database } from "@/lib/data/database.types";
 import {
   EFFECTIVELY_CANCELED,
   type RawPostgrestLikeError,
@@ -86,7 +87,7 @@ function isKnownParticipationStatus(
 }
 
 async function fetchOwnParticipationStatus(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   occurrenceId: OccurrenceId,
   userId: UserId,
 ): Promise<Result<ParticipationStatus | null, InviteToOccurrenceErrorKind>> {
@@ -94,8 +95,7 @@ async function fetchOwnParticipationStatus(
     .from("occurrence_participations")
     .select("status")
     .eq("occurrence_id", occurrenceId)
-    .eq("user_id", userId)
-    .overrideTypes<{ status: string }[]>();
+    .eq("user_id", userId);
 
   if (error) {
     return err({
@@ -108,7 +108,7 @@ async function fetchOwnParticipationStatus(
 }
 
 async function fetchIsEffectivelyCanceled(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   occurrenceId: OccurrenceId,
 ): Promise<Result<boolean, InviteToOccurrenceErrorKind>> {
   const { data, error } = await client.rpc(
@@ -140,7 +140,7 @@ export interface InviteToOccurrenceParams {
 }
 
 export async function inviteToOccurrenceByEmail(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   params: InviteToOccurrenceParams,
 ): Promise<Result<InviteOutcome, InviteToOccurrenceErrorKind>> {
   const isSelfInvite =

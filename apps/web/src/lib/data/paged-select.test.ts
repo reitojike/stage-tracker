@@ -1,4 +1,4 @@
-import type { PostgrestError, PostgrestResponse } from "@supabase/supabase-js";
+import { PostgrestError, type PostgrestResponse } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import {
   runKeysetSupabaseSelect,
@@ -16,13 +16,13 @@ function successPage<Row>(
   count: number | null,
 ): PostgrestResponse<Row> {
   return {
-    data: data as Row[],
+    data: [...data],
     error: null,
     count,
     status: 200,
     statusText: "OK",
     success: true,
-  } as PostgrestResponse<Row>;
+  } satisfies PostgrestResponse<Row>;
 }
 
 /** `error` はテストが実際に触れるフィールド（`code`/`message`）だけを持つ
@@ -32,12 +32,17 @@ function failurePage<Row>(
 ): PostgrestResponse<Row> {
   return {
     data: null,
-    error: error as PostgrestError,
+    error: new PostgrestError({
+      message: error.message,
+      code: error.code,
+      details: "",
+      hint: "",
+    }),
     count: null,
     status: 500,
     statusText: "",
     success: false,
-  } as PostgrestResponse<Row>;
+  } satisfies PostgrestResponse<Row>;
 }
 
 describe("runPagedSupabaseSelect", () => {

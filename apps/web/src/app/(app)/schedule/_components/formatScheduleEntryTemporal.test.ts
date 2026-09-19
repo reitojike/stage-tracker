@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { instantSchema, tokyoCalendarDateSchema } from "@stage-tracker/domain";
 import { formatScheduleEntryTemporal } from "./formatScheduleEntryTemporal";
 
 describe("formatScheduleEntryTemporal", () => {
@@ -6,9 +7,9 @@ describe("formatScheduleEntryTemporal", () => {
     expect(
       formatScheduleEntryTemporal({
         kind: "all-day",
-        startsOn: "2026-03-05",
-        endsOn: "2026-03-05",
-      } as never),
+        startsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+        endsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+      }),
     ).toBe("3月5日(木)（終日）");
   });
 
@@ -16,9 +17,9 @@ describe("formatScheduleEntryTemporal", () => {
     expect(
       formatScheduleEntryTemporal({
         kind: "all-day",
-        startsOn: "2026-03-05",
-        endsOn: "2026-03-06",
-      } as never),
+        startsOn: tokyoCalendarDateSchema.parse("2026-03-05"),
+        endsOn: tokyoCalendarDateSchema.parse("2026-03-06"),
+      }),
     ).toBe("3月5日(木) 〜 3月6日(金)（終日）");
   });
 
@@ -26,9 +27,9 @@ describe("formatScheduleEntryTemporal", () => {
     expect(
       formatScheduleEntryTemporal({
         kind: "time-bounded",
-        startsAt: "2026-03-10T00:00:00.000Z",
-        endsAt: "2026-03-10T09:00:00.000Z",
-      } as never),
+        startsAt: instantSchema.parse("2026-03-10T00:00:00.000Z"),
+        endsAt: instantSchema.parse("2026-03-10T09:00:00.000Z"),
+      }),
     ).toBe("3月10日(火) 09:00 〜 18:00");
   });
 
@@ -36,9 +37,9 @@ describe("formatScheduleEntryTemporal", () => {
     expect(
       formatScheduleEntryTemporal({
         kind: "time-bounded",
-        startsAt: "2026-03-10T00:00:00.000Z",
+        startsAt: instantSchema.parse("2026-03-10T00:00:00.000Z"),
         endsAt: null,
-      } as never),
+      }),
     ).toBe("3月10日(火) 09:00 〜（終了時刻未定）");
   });
 
@@ -46,9 +47,9 @@ describe("formatScheduleEntryTemporal", () => {
     expect(
       formatScheduleEntryTemporal({
         kind: "time-bounded",
-        startsAt: "2026-03-10T00:00:00.000Z",
-        endsAt: "2026-03-11T00:00:00.000Z",
-      } as never),
+        startsAt: instantSchema.parse("2026-03-10T00:00:00.000Z"),
+        endsAt: instantSchema.parse("2026-03-11T00:00:00.000Z"),
+      }),
     ).toBe("3月10日(火) 09:00 〜 3月11日(水) 09:00");
   });
 
@@ -57,9 +58,9 @@ describe("formatScheduleEntryTemporal", () => {
       formatScheduleEntryTemporal(
         {
           kind: "time-bounded",
-          startsAt: "2026-03-10T00:00:00.000Z",
-          endsAt: "2026-03-10T09:00:00.000Z",
-        } as never,
+          startsAt: instantSchema.parse("2026-03-10T00:00:00.000Z"),
+          endsAt: instantSchema.parse("2026-03-10T09:00:00.000Z"),
+        },
         { includeYear: true },
       ),
     ).toBe("2026年3月10日(火) 09:00 〜 18:00");

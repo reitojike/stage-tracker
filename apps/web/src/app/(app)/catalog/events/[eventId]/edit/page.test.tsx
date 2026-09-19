@@ -10,9 +10,9 @@ import {
 import EditEventPage from "./page";
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
-  getEventWithOccurrences: vi.fn(),
-  refresh: vi.fn(),
+  getUser: vi.fn<(...args: unknown[]) => unknown>(),
+  getEventWithOccurrences: vi.fn<(...args: unknown[]) => unknown>(),
+  refresh: vi.fn<(...args: unknown[]) => unknown>(),
 }));
 
 vi.mock("next/navigation", () => ({

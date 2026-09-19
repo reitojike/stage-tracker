@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import {
   buildTicketOpportunityTimelineRows,
   groupTicketOpportunityTimelineRowsByMonth,
@@ -67,7 +68,7 @@ export interface TicketsTimelineState {
 }
 
 export async function loadTicketsTimeline(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   userId: UserId,
   now: ScreenNow,
 ): Promise<OptionalPartBlockState<TicketsTimelineState>> {

@@ -23,11 +23,10 @@ interface ActionSlot {
   readonly reset: ReturnType<typeof vi.fn>;
 }
 
-const mocks = vi.hoisted(() => ({
-  execute: vi.fn(),
-  refresh: vi.fn(),
-  slots: [] as ActionSlot[],
-}));
+const mocks = vi.hoisted(() => {
+  const slots: ActionSlot[] = [];
+  return { execute: vi.fn(), refresh: vi.fn(), slots };
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh }),

@@ -1,8 +1,4 @@
-import {
-  PostgrestError,
-  createClient,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
+import { PostgrestError, createClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/test/msw/server";
@@ -31,7 +27,7 @@ const SUPABASE_URL = "https://example-project.supabase.test";
 const SUPABASE_ANON_KEY = "test-anon-key";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
+function createTestClient() {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });

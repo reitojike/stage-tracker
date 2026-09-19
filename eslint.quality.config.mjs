@@ -27,11 +27,24 @@ const noEslintDisable = {
   },
 };
 
+export function projectTypeScriptTypeAssertionRestrictions() {
+  return [
+    {
+      selector: "TSAsExpression:not([typeAnnotation.typeName.name='const'])",
+      message: 'Type assertions are forbidden; narrow unknown instead.',
+    },
+    {
+      selector: 'TSTypeAssertion',
+      message: 'Type assertions are forbidden; narrow unknown instead.',
+    },
+  ];
+}
+
 /**
- * The blocking TypeScript quality floor owned by this repository. Package
+ * The blocking TypeScript safety floor owned by this repository. Package
  * configs add their own architecture rules after this shared baseline.
  */
-export function projectTypeScriptQualityProfile() {
+export function projectTypeScriptSafetyProfile() {
   return [
     {
       linterOptions: {
@@ -39,11 +52,6 @@ export function projectTypeScriptQualityProfile() {
         reportUnusedDisableDirectives: 'error',
       },
     },
-    ...tseslint.configs.strictTypeChecked.map((config) => ({
-      ...config,
-      files: ['**/*.{ts,tsx}'],
-    })),
-    eslintConfigPrettier,
     {
       files: ['**/*.{ts,tsx}'],
       languageOptions: {
@@ -72,19 +80,24 @@ export function projectTypeScriptQualityProfile() {
         '@typescript-eslint/no-unsafe-call': 'error',
         '@typescript-eslint/no-unsafe-member-access': 'error',
         '@typescript-eslint/no-unsafe-return': 'error',
-        'no-restricted-syntax': [
-          'error',
-          {
-            selector: "TSAsExpression:not([typeAnnotation.typeName.name='const'])",
-            message: 'Type assertions are forbidden; narrow unknown instead.',
-          },
-          {
-            selector: 'TSTypeAssertion',
-            message: 'Type assertions are forbidden; narrow unknown instead.',
-          },
-        ],
+        'no-restricted-syntax': ['error', ...projectTypeScriptTypeAssertionRestrictions()],
       },
     },
+  ];
+}
+
+/**
+ * The full repository TypeScript quality floor. Package configs add their own
+ * architecture rules after this shared baseline.
+ */
+export function projectTypeScriptQualityProfile() {
+  return [
+    ...tseslint.configs.strictTypeChecked.map((config) => ({
+      ...config,
+      files: ['**/*.{ts,tsx}'],
+    })),
+    eslintConfigPrettier,
+    ...projectTypeScriptSafetyProfile(),
   ];
 }
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { TokyoCalendarDate } from "@stage-tracker/domain";
+import {
+  tokyoCalendarDateSchema,
+  type TokyoCalendarDate,
+} from "@stage-tracker/domain";
 import {
   calendarDayRole,
   calendarDayRoleLabel,
@@ -7,7 +10,7 @@ import {
 } from "./calendar-day-role";
 
 function date(value: string): TokyoCalendarDate {
-  return value as TokyoCalendarDate;
+  return tokyoCalendarDateSchema.parse(value);
 }
 
 describe("calendarDayRole", () => {

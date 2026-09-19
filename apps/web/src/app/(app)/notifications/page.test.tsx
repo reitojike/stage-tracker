@@ -3,9 +3,9 @@ import { render, screen } from "@testing-library/react";
 import NotificationsPage from "./page";
 import NotificationsLoading from "./loading";
 
-const mockCreateSupabaseServerClient = vi.fn();
-const mockRequireAuthenticatedUserId = vi.fn();
-const mockListMyNotifications = vi.fn();
+const mockCreateSupabaseServerClient = vi.fn<(...args: unknown[]) => unknown>();
+const mockRequireAuthenticatedUserId = vi.fn<(...args: unknown[]) => unknown>();
+const mockListMyNotifications = vi.fn<(...args: unknown[]) => unknown>();
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: () => mockCreateSupabaseServerClient(),

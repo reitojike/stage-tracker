@@ -11,7 +11,8 @@ import {
 import type { NotificationListItem } from "@/lib/data/reads/notifications";
 import { NotificationsList } from "./NotificationsList";
 
-const mockMarkNotificationsReadAction = vi.fn();
+const mockMarkNotificationsReadAction =
+  vi.fn<(...args: unknown[]) => unknown>();
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -280,8 +281,10 @@ describe("NotificationsList", () => {
       .find(
         (row) => row.getAttribute("data-notification-id") === NOTIFICATION_ID_B,
       );
-    expect(currentRow).not.toBeUndefined();
-    expect(within(currentRow!).getByLabelText("既読")).toBeInTheDocument();
+    if (currentRow === undefined) {
+      throw new Error("notification row is missing");
+    }
+    expect(within(currentRow).getByLabelText("既読")).toBeInTheDocument();
   });
 
   it("remains safe when React development remounts the effect", async () => {

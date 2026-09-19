@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Instant } from "@stage-tracker/domain";
 import {
   Button,
   CompactList,
@@ -9,6 +8,7 @@ import {
   ListRowLink,
   StatePanel,
 } from "@stage-tracker/ui";
+import { instantSchema } from "@stage-tracker/domain";
 import { markNotificationsReadAction } from "@/lib/actions/notifications";
 import type { NotificationListItem } from "@/lib/data/reads/notifications";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
@@ -154,10 +154,10 @@ function NotificationRow({
         </span>
       </span>
       <time
-        dateTime={notification.createdAt}
+        dateTime={instantSchema.parse(notification.createdAt)}
         className="text-body-sm text-muted-foreground"
       >
-        {formatTokyoDateTimeJa(notification.createdAt as Instant)}
+        {formatTokyoDateTimeJa(instantSchema.parse(notification.createdAt))}
       </time>
       {notification.source.status === "resolved" ? (
         <span className="text-body-sm text-muted-foreground">

@@ -2,22 +2,25 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
+import { personalScheduleEntryIdSchema } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import { findVisibleScheduleEntry } from "./entryLookup";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-const VISIBLE_ID =
-  "11111111-1111-4111-8111-111111111111" as PersonalScheduleEntryId;
-const OTHER_ID =
-  "99999999-9999-4999-8999-999999999999" as PersonalScheduleEntryId;
+const VISIBLE_ID = personalScheduleEntryIdSchema.parse(
+  "11111111-1111-4111-8111-111111111111",
+);
+const OTHER_ID = personalScheduleEntryIdSchema.parse(
+  "99999999-9999-4999-8999-999999999999",
+);
 
 const VISIBLE_ROW = {
   id: VISIBLE_ID,

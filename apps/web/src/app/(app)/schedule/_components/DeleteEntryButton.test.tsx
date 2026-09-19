@@ -4,11 +4,12 @@ import { personalScheduleEntryIdSchema } from "@stage-tracker/domain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DeleteEntryButton } from "./DeleteEntryButton";
 
-const mocks = vi.hoisted(() => ({
-  execute: vi.fn(),
-  reset: vi.fn(),
-  result: { serverError: undefined as { message: string } | undefined },
-}));
+const mocks = vi.hoisted(() => {
+  const result: { serverError: { message: string } | undefined } = {
+    serverError: undefined,
+  };
+  return { execute: vi.fn(), reset: vi.fn(), result };
+});
 
 vi.mock("next-safe-action/hooks", () => ({
   useAction: () => ({

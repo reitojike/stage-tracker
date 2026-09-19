@@ -1,5 +1,11 @@
 import {
+  eventSchema,
+  instantSchema,
+  occurrenceSchema,
   instantToTokyoCalendarDate,
+  participationSchema,
+  personalScheduleEntrySchema,
+  tokyoCalendarDateSchema,
   userIdSchema,
   type PersonalScheduleEntry,
   type TokyoCalendarDate,
@@ -23,8 +29,9 @@ import {
 } from "./calendar-view-model";
 
 const USER_ID = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
-const DATE = (value: string): TokyoCalendarDate => value as never;
-const INSTANT = (value: string) => value as never;
+const DATE = (value: string): TokyoCalendarDate =>
+  tokyoCalendarDateSchema.parse(value);
+const INSTANT = (value: string) => instantSchema.parse(value);
 
 function occurrenceItem({
   id = "33333333-3333-4333-8333-333333333333",
@@ -40,7 +47,7 @@ function occurrenceItem({
   readonly occurrenceCanceledAt?: string | null;
 } = {}): CalendarOccurrenceItem {
   return {
-    participation: {
+    participation: participationSchema.parse({
       id: `66666666-6666-4666-8666-${id.slice(-12)}`,
       occurrenceId: id,
       userId: USER_ID,
@@ -48,8 +55,8 @@ function occurrenceItem({
       visibility: "private",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-    occurrence: {
+    }),
+    occurrence: occurrenceSchema.parse({
       id,
       eventId: "22222222-2222-4222-8222-222222222222",
       doorsAt: null,
@@ -58,8 +65,8 @@ function occurrenceItem({
       canceledAt: occurrenceCanceledAt,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-    event: {
+    }),
+    event: eventSchema.parse({
       id: "22222222-2222-4222-8222-222222222222",
       ownerId: USER_ID,
       title: "テスト公演",
@@ -71,8 +78,8 @@ function occurrenceItem({
       canceledAt: eventCanceledAt,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-  } as never;
+    }),
+  };
 }
 
 function occurrenceIndex(
@@ -111,7 +118,7 @@ function scheduleItem({
   readonly memo?: string | null;
 } = {}): CalendarScheduleItem {
   return {
-    entry: {
+    entry: personalScheduleEntrySchema.parse({
       id,
       ownerId,
       title,
@@ -120,8 +127,8 @@ function scheduleItem({
       temporal,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-  } as never;
+    }),
+  };
 }
 
 function scheduleIndex(

@@ -81,6 +81,22 @@ export class ActionError<ExtraKind extends string = never> extends Error {
   }
 }
 
+export function isActionError(error: unknown): error is ActionError<string> {
+  if (!(error instanceof ActionError)) {
+    return false;
+  }
+  return typeof error.kind === "string" && typeof error.message === "string";
+}
+
+export function isBaseActionError(
+  error: unknown,
+): error is ActionError<BaseActionErrorKind> {
+  if (!isActionError(error)) {
+    return false;
+  }
+  return BASE_ACTION_ERROR_KINDS.some((kind) => kind === error.kind);
+}
+
 /**
  * `failure`/`validation` kind の既定文言。write boundary ごとの
  * classifier（`lib/actions/postgrest-error.ts`、

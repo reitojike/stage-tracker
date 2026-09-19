@@ -153,8 +153,13 @@ describe("buildMonthGridDays", () => {
 
   it("starts on a Sunday and ends on a Saturday", () => {
     const days = buildMonthGridDays({ year: 2026, month: 3 });
-    expect(dayOfWeek(days[0]!)).toBe(0);
-    expect(dayOfWeek(days[days.length - 1]!)).toBe(6);
+    const firstDay = days[0];
+    const lastDay = days.at(-1);
+    if (firstDay === undefined || lastDay === undefined) {
+      throw new Error("month grid must contain both boundary days");
+    }
+    expect(dayOfWeek(firstDay)).toBe(0);
+    expect(dayOfWeek(lastDay)).toBe(6);
   });
 
   it("includes leading/trailing days from adjacent months when the month doesn't start/end on a week boundary", () => {
@@ -206,7 +211,7 @@ describe("境界年の月（PR #381 review）", () => {
     // 0001-01-01 は月曜。したがってグリッドは前日の日曜 0000-12-31 から
     // 始まる。dayOfWeek が Date.UTC のままだと 1901 年の曜日で計算され、
     // 0000-12-30 起点になって 1 月 1 日が火曜列へずれる。
-    expect(dayOfWeek("0001-01-01" as never)).toBe(1);
+    expect(dayOfWeek(tokyoCalendarDateSchema.parse("0001-01-01"))).toBe(1);
     expect(buildMonthGridDays({ year: 1, month: 1 })[0]).toBe("0000-12-31");
   });
 

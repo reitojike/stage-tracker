@@ -5,16 +5,16 @@ const notificationIdB = "22222222-2222-4222-8222-222222222222";
 const notificationIdC = "33333333-3333-4333-8333-333333333333";
 const userId = "44444444-4444-4444-8444-444444444444";
 
-const mockGetUser = vi.fn();
-const mockRpc = vi.fn();
-const mockRevalidatePath = vi.fn();
+const mockGetUser = vi.fn<(...args: unknown[]) => unknown>();
+const mockRpc = vi.fn<(...args: unknown[]) => unknown>();
+const mockRevalidatePath = vi.fn<(...args: unknown[]) => unknown>();
 const supabaseStub = {
   auth: { getUser: mockGetUser },
   rpc: mockRpc,
 };
 
 vi.mock("@/lib/supabase/server", () => ({
-  createSupabaseServerClient: vi.fn(async () => supabaseStub),
+  createSupabaseServerClient: () => Promise.resolve(supabaseStub),
 }));
 
 vi.mock("next/cache", () => ({

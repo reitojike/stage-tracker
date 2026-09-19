@@ -3,8 +3,22 @@ import userEvent from "@testing-library/user-event";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  eventClassificationSchema,
+  eventIdSchema,
+  eventSchema,
+  genreIdSchema,
+  groupIdSchema,
+  genreSchema,
+  instantSchema,
+  occurrenceIdSchema,
+  occurrenceSchema,
+  tokyoCalendarDateSchema,
+  userIdSchema,
+} from "@stage-tracker/domain";
 import type { EventCatalogEntry } from "@/lib/data";
 import type { CatalogFilterOptionsResult } from "../_lib/catalog-loader";
+import type { CatalogFilterOptions } from "../_lib/catalog-filters";
 import {
   CatalogView,
   filterSummaryLabel,
@@ -12,7 +26,7 @@ import {
 } from "./CatalogView";
 
 const MONTH = { year: 2026, month: 3 };
-const TODAY = "2026-03-15" as never;
+const TODAY = tokyoCalendarDateSchema.parse("2026-03-15");
 
 function entry(
   overrides: Partial<{
@@ -37,43 +51,56 @@ function entry(
     endsOn = "2026-03-31",
     occurrences = [],
   } = overrides;
+  const eventId = eventIdSchema.parse(
+    id === "22222222-2222-4222-8222-222222222222"
+      ? id
+      : "22222222-2222-4222-8222-222222222223",
+  );
   return {
-    event: {
-      id,
-      ownerId: "11111111-1111-4111-8111-111111111111",
+    event: eventSchema.parse({
+      id: eventId,
+      ownerId: userIdSchema.parse("11111111-1111-4111-8111-111111111111"),
       title,
       venue: null,
       sourceUrl: null,
       memo: null,
-      startsOn,
-      endsOn,
+      startsOn: tokyoCalendarDateSchema.parse(startsOn),
+      endsOn: tokyoCalendarDateSchema.parse(endsOn),
       canceledAt: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    } as never,
-    occurrences: occurrences.map((occurrence) => ({
-      id: occurrence.id,
-      eventId: id,
-      doorsAt: null,
-      startsAt: occurrence.startsAt,
-      endsAt: null,
-      canceledAt: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    })) as never,
-    classification: {
-      eventId: id as never,
+      createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+      updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+    }),
+    occurrences: occurrences.map((occurrence) =>
+      occurrenceSchema.parse({
+        id: occurrenceIdSchema.parse("33333333-3333-4333-8333-333333333333"),
+        eventId,
+        doorsAt: null,
+        startsAt: instantSchema.parse(occurrence.startsAt),
+        endsAt: null,
+        canceledAt: null,
+        createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+        updatedAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
+      }),
+    ),
+    classification: eventClassificationSchema.parse({
+      eventId,
       genre:
         genreKey === null
           ? null
-          : ({
-              id: `${genreKey}-id`,
+          : genreSchema.parse({
+              id: genreIdSchema.parse("44444444-4444-4444-8444-444444444444"),
               key: genreKey,
               displayName: "宝塚",
               sortOrder: 1,
-            } as never),
-      groupIds: groupIds as never,
-    },
+            }),
+      groupIds: groupIds.map((value) =>
+        groupIdSchema.parse(
+          value === "group-hana"
+            ? "55555555-5555-4555-8555-555555555555"
+            : "66666666-6666-4666-8666-666666666666",
+        ),
+      ),
+    }),
   };
 }
 
@@ -87,13 +114,13 @@ const FILTER_OPTIONS: CatalogFilterOptionsResult = {
   options: {
     genres: [
       {
-        id: "genre-takarazuka" as never,
+        id: genreIdSchema.parse("77777777-7777-4777-8777-777777777777"),
         key: "takarazuka",
         displayName: "宝塚",
         sortOrder: 1,
       },
       {
-        id: "genre-kabuki" as never,
+        id: genreIdSchema.parse("88888888-8888-4888-8888-888888888888"),
         key: "kabuki",
         displayName: "歌舞伎",
         sortOrder: 2,
@@ -118,17 +145,28 @@ describe("CatalogView", () => {
       genres: [],
       groupsByGenreKey: {
         takarazuka: [
-          { id: "group-a", displayName: "花組" },
-          { id: "group-b", displayName: "月組" },
+          {
+            id: groupIdSchema.parse("55555555-5555-4555-8555-555555555555"),
+            key: "hana",
+            displayName: "花組",
+          },
+          {
+            id: groupIdSchema.parse("66666666-6666-4666-8666-666666666666"),
+            key: "tsuki",
+            displayName: "月組",
+          },
         ],
       },
       venuesByGenreKey: {},
-    } as never;
+    } satisfies CatalogFilterOptions;
     expect(
       filterSummaryLabel(
         {
           genreKey: "takarazuka",
-          groupIds: ["group-a", "group-b"] as never,
+          groupIds: [
+            groupIdSchema.parse("55555555-5555-4555-8555-555555555555"),
+            groupIdSchema.parse("66666666-6666-4666-8666-666666666666"),
+          ],
           venues: [],
         },
         options,
@@ -164,7 +202,7 @@ describe("CatalogView", () => {
       <CatalogView
         month={MONTH}
         today={TODAY}
-        selectedDate={"2026-03-10" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-10")}
         eventsState={{ variant: "empty" }}
         filterOptionsResult={OK_FILTER_OPTIONS}
         groupNamesResult={{ ok: true, byId: new Map() }}
@@ -231,7 +269,7 @@ describe("CatalogView", () => {
       <CatalogView
         month={MONTH}
         today={TODAY}
-        selectedDate={"2026-03-10" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-10")}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={OK_FILTER_OPTIONS}
         groupNamesResult={{ ok: false, variant: "error" }}
@@ -288,7 +326,7 @@ describe("CatalogView", () => {
           options: {
             genres: [
               {
-                id: "g1" as never,
+                id: genreIdSchema.parse("44444444-4444-4444-8444-444444444444"),
                 key: "takarazuka",
                 displayName: "宝塚",
                 sortOrder: 1,
@@ -313,10 +351,14 @@ describe("CatalogView", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("歌舞伎公演")).not.toBeInTheDocument();
 
+    const emptyState = screen
+      .getByText("条件に合うイベントがありません")
+      .closest("div");
+    if (emptyState === null) {
+      throw new Error("catalog empty state container is missing");
+    }
     await user.click(
-      within(
-        screen.getByText("条件に合うイベントがありません").closest("div")!,
-      ).getByRole("button", { name: "条件を解除する" }),
+      within(emptyState).getByRole("button", { name: "条件を解除する" }),
     );
 
     expect(screen.getAllByText("歌舞伎公演").length).toBeGreaterThan(0);
@@ -574,7 +616,7 @@ describe("CatalogView", () => {
           options: {
             genres: [
               {
-                id: "g1" as never,
+                id: genreIdSchema.parse("44444444-4444-4444-8444-444444444444"),
                 key: "takarazuka",
                 displayName: "宝塚",
                 sortOrder: 1,
@@ -628,11 +670,22 @@ describe("CatalogView", () => {
     // this, `renderToString` here would run inside jsdom - where `window`
     // is always defined - and would silently "see" the same stored value
     // the real server never can, hiding exactly the bug this test targets.
-    const originalWindow = globalThis.window;
-    // @ts-expect-error -- deliberately simulating a Node SSR environment
-    delete globalThis.window;
-    const serverHtml = renderToString(element);
-    globalThis.window = originalWindow;
+    const originalWindowDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "window",
+    );
+    let serverHtml: string;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: undefined,
+    });
+    try {
+      serverHtml = renderToString(element);
+    } finally {
+      if (originalWindowDescriptor !== undefined) {
+        Object.defineProperty(globalThis, "window", originalWindowDescriptor);
+      }
+    }
 
     expect(serverHtml).not.toContain("絞り込み中");
 
@@ -718,14 +771,14 @@ describe("CatalogView", () => {
       <CatalogView
         month={MONTH}
         today={TODAY}
-        selectedDate={"2026-03-10" as never}
+        selectedDate={tokyoCalendarDateSchema.parse("2026-03-10")}
         eventsState={{ variant: "populated", data: entries }}
         filterOptionsResult={{
           ok: true,
           options: {
             genres: [
               {
-                id: "g1" as never,
+                id: genreIdSchema.parse("44444444-4444-4444-8444-444444444444"),
                 key: "takarazuka",
                 displayName: "宝塚",
                 sortOrder: 1,
@@ -733,7 +786,13 @@ describe("CatalogView", () => {
             ],
             groupsByGenreKey: {
               takarazuka: [
-                { id: "group-hana" as never, key: "hana", displayName: "花組" },
+                {
+                  id: groupIdSchema.parse(
+                    "55555555-5555-4555-8555-555555555555",
+                  ),
+                  key: "hana",
+                  displayName: "花組",
+                },
               ],
             },
             venuesByGenreKey: {},
@@ -741,7 +800,12 @@ describe("CatalogView", () => {
         }}
         groupNamesResult={{
           ok: true,
-          byId: new Map([["group-hana" as never, "花組"]]),
+          byId: new Map([
+            [
+              groupIdSchema.parse("55555555-5555-4555-8555-555555555555"),
+              "花組",
+            ],
+          ]),
         }}
       />,
     );

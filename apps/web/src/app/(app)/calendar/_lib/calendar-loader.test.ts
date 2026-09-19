@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
-import { userIdSchema } from "@stage-tracker/domain";
+import { tokyoCalendarDateSchema, userIdSchema } from "@stage-tracker/domain";
+import type { Database } from "@/lib/data/database.types";
 import { server } from "@/test/msw/server";
 import {
   loadCalendarOccurrences,
@@ -11,8 +12,8 @@ import {
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
 
-function createTestClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, "anon-key", {
+function createTestClient(): SupabaseClient<Database> {
+  return createClient<Database>(SUPABASE_URL, "anon-key", {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -22,8 +23,8 @@ afterEach(() => {
 });
 
 const USER_ID = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
-const GRID_START = "2026-02-22" as never;
-const GRID_END = "2026-04-04" as never;
+const GRID_START = tokyoCalendarDateSchema.parse("2026-02-22");
+const GRID_END = tokyoCalendarDateSchema.parse("2026-04-04");
 
 function eventRow() {
   return {
@@ -88,7 +89,9 @@ describe("loadCalendarOccurrences", () => {
 
     expect(state.variant).toBe("populated");
     if (state.variant === "populated") {
-      expect(state.data.byDate.get("2026-03-15" as never)).toHaveLength(1);
+      expect(
+        state.data.byDate.get(tokyoCalendarDateSchema.parse("2026-03-15")),
+      ).toHaveLength(1);
     }
   });
 
@@ -181,9 +184,15 @@ describe("loadCalendarSchedule", () => {
 
     expect(state.variant).toBe("populated");
     if (state.variant === "populated") {
-      expect(state.data.byDate.get("2026-03-14" as never)).toHaveLength(1);
-      expect(state.data.byDate.get("2026-03-15" as never)).toHaveLength(1);
-      expect(state.data.byDate.get("2026-03-16" as never)).toHaveLength(1);
+      expect(
+        state.data.byDate.get(tokyoCalendarDateSchema.parse("2026-03-14")),
+      ).toHaveLength(1);
+      expect(
+        state.data.byDate.get(tokyoCalendarDateSchema.parse("2026-03-15")),
+      ).toHaveLength(1);
+      expect(
+        state.data.byDate.get(tokyoCalendarDateSchema.parse("2026-03-16")),
+      ).toHaveLength(1);
       expect(state.data.items).toHaveLength(1);
     }
   });
@@ -235,9 +244,15 @@ describe("loadCalendarSchedule", () => {
 
     expect(state.variant).toBe("populated");
     if (state.variant === "populated") {
-      expect(state.data.byDate.get("2026-03-05" as never)).toHaveLength(1);
-      expect(state.data.byDate.get("2026-03-06" as never)).toHaveLength(1);
-      expect(state.data.byDate.get("2026-03-07" as never)).toHaveLength(1);
+      expect(
+        state.data.byDate.get(tokyoCalendarDateSchema.parse("2026-03-05")),
+      ).toHaveLength(1);
+      expect(
+        state.data.byDate.get(tokyoCalendarDateSchema.parse("2026-03-06")),
+      ).toHaveLength(1);
+      expect(
+        state.data.byDate.get(tokyoCalendarDateSchema.parse("2026-03-07")),
+      ).toHaveLength(1);
       expect(state.data.items).toHaveLength(2);
     }
   });

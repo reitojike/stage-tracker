@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import {
   err,
   ok,
@@ -76,9 +77,9 @@ const CONCURRENT_WRITE_LOST: SetParticipationChoiceErrorKind = {
  * 確認し、0 行だった場合は呼び出し元が fallback できるよう区別する。
  */
 async function updateStatusById(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   id: string,
-  status: ParticipationChoice,
+  status: Exclude<ParticipationChoice, "withdraw">,
 ): Promise<Result<boolean, SetParticipationChoiceErrorKind>> {
   const { data, error } = await client
     .from("occurrence_participations")
@@ -106,7 +107,7 @@ async function updateStatusById(
  * なる。既存行の有無を確認してから INSERT/UPDATE を明示的に使い分ける。
  */
 export async function setParticipationChoice(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   params: SetParticipationChoiceParams,
 ): Promise<Result<void, SetParticipationChoiceErrorKind>> {
   if (params.choice === "withdraw") {

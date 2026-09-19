@@ -2,8 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import InvitationsPage from "./page";
 
-const mockGetUser = vi.fn();
-const mockListMyReceivedInvitations = vi.fn();
+const mockGetUser = vi.fn<(...args: unknown[]) => unknown>();
+const mockListMyReceivedInvitations = vi.fn<(...args: unknown[]) => unknown>();
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/lib/supabase/server", () => ({

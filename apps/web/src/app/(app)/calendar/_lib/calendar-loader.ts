@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import {
   instantToTokyoCalendarDate,
   compareTokyoCalendarDates,
@@ -64,7 +65,7 @@ export interface CalendarOccurrenceItem {
  * days - oracle's "表示グリッド範囲内のみ" for `/calendar`).
  */
 export async function loadCalendarOccurrences(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   userId: UserId,
   gridStart: TokyoCalendarDate,
   gridEnd: TokyoCalendarDate,
@@ -103,7 +104,7 @@ export interface CalendarScheduleItem {
  * time-bounded end is limited to the start date.
  */
 export async function loadCalendarSchedule(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   gridStart: TokyoCalendarDate,
   gridEnd: TokyoCalendarDate,
 ): Promise<BlockState<TokyoDateIndex<CalendarScheduleItem>>> {
