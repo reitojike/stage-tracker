@@ -88,6 +88,12 @@ sourceの責務です。ここに書くのは「なぜこの分岐を分ける�
 
 ## イベント詳細（`/catalog/events/[eventId]`）
 
+Event / Occurrenceのidentity、ownership、更新、cancellation、削除 capabilityの
+現行正本は
+[`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
+です。このsectionでは、その仕様を画面上でどう表示するかという状態・文言だけを
+扱い、capability自体を再定義しません。
+
 Participation の current behavior は
 [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)
 を正本とします。画面上の capability と DB/RLS が許可する capability は同じとは
@@ -105,9 +111,6 @@ Participation の current behavior は
 **decision: 参加予定が読めなかったときに「参加なし」として描かない。**
 参加していない状態と、参加状態が読めない状態は別物だからです。
 
-**decision: 閲覧内容は全員同じで、「編集」への導線だけが所有者に出る。**
-権限で見える情報自体は変えません。
-
 **decision: 公演回のうち1件を選んで来た場合はその回に焦点を当てるが、
 他イベントの・古い・不正なIDは無効化して「焦点なし」の一般表示に戻す。**
 別の回を指してしまわないためです。戻り先は、選択日があればその日、
@@ -115,16 +118,9 @@ Participation の current behavior は
 
 ## イベントを登録（`/catalog/events/new`）
 
-**decision: 権限まわりを3つに分ける。** 作成者でないことと、権限の確認が
-失敗したことを同じ扱いにすると、実際には作成者である人へ「権限がない」と
-言ってしまうためです。
-
-| 状態                     | 表示                                                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 指定カタログ作成者       | フォーム                                                                                                                                                     |
-| 作成者でない             | 「イベントを作成する権限がありません」／「イベントの新規作成は、カタログ登録を担当するユーザーのみが行えます。登録が必要な場合は管理者に連絡してください。」 |
-| 権限の確認自体が失敗     | 「権限を確認できませんでした」／「しばらくしてから再度お試しください。」                                                                                     |
-| サインイン状態が読めない | 「サインイン状態を確認できませんでした」／「サインインしてからもう一度お試しください。」                                                                     |
+Eventの作成 capabilityと作成者がownerになる境界は、上記のEvent / Occurrence
+Living Specを正本とします。権限分岐に応じた画面表示・文言の詳細は、実装側の
+screen feedbackとこの文書の全画面共通state規則が担います。
 
 **decision: いずれの分岐でもBackLink（「カレンダーに戻る」）は残す。**
 行き止まりにしないためです。
@@ -133,6 +129,11 @@ Participation の current behavior は
 DBが決める。** URLへ直接来ても作成はできません。
 
 ## イベントを編集（`/catalog/events/[eventId]/edit`）
+
+Event / Occurrenceのowner capability、更新、cancellation、削除の意味は
+[`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
+を正本とします。このsectionは独立した書き込み単位と、画面のstate / feedbackの
+表現だけを記録します。
 
 **decision: 1画面だが独立した書き込み単位が並ぶ。** 基本情報、開催期間、
 公演回の追加、公演回の編集、event / 公演回の中止と中止解除、event / 公演回の

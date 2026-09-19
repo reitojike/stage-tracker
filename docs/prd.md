@@ -28,7 +28,9 @@ authenticated multi-user application として家族・友人等の複数ユー�
 
 現在採用しているtop-level domain conceptは次の5つです。各conceptの内部構造
 （例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
-未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
+Event / Occurrenceの詳細は
+[`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、
+その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
 を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
 
 - **event** — 公演・イベントそのものの情報
@@ -71,7 +73,9 @@ ownership transfer は Issue #234 で current schema / runtime から撤去し�
 
 ## Current-approved product-level semantics
 
-未移行domainの normative な constraint は
+Event / Occurrenceのnormativeなconstraintは
+[`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)を
+参照します。その他の未移行domainのconstraintは
 [temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
 Occurrence Participation とその直接の Invitation / cancellation behavior は
 [Living Spec](../specs/001-occurrence-participation/spec.md)が正本であり、このPRDでは
@@ -112,9 +116,11 @@ modelは、Issue #234でcurrent schema・runtime・専用テストから撤去�
 ません。将来そのneedが生じた場合は、TicketOpportunityを前提に新しいbounded
 product Taskで再設計します。
 
-詳細なcurrent product semanticsは、Occurrence Participationについては
-[Living Spec](../specs/001-occurrence-participation/spec.md)、未移行domainについては
-[temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
+詳細なcurrent product semanticsは、Event / Occurrenceについては
+[`Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、Occurrence
+Participationについては[Living Spec](../specs/001-occurrence-participation/spec.md)、
+その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
+を参照します。
 calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)を参照してください。
 
 ## Deferred decisions

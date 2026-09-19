@@ -47,7 +47,9 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
   decommissionしました。将来の詳細な申込管理やinventoryは、
   TicketOpportunityを前提に新しいbounded product Taskで再設計します。
 
-これらのうち Occurrence Participation の current behavior は
+これらのうち Event / Occurrence lifecycle の current behavior は
+[`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)、
+Occurrence Participation の current behavior は
 [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)、
 未移行domainは temporary static product rules
 ([`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md))
@@ -84,8 +86,8 @@ TicketOpportunityを前提に新しいbounded product Taskで再設計します�
 - 宝塚 streaming
 - movie release / admin-curated movie catalog
 - broader Event create permissions（一般authenticated userへの拡大）＋
-  verification / moderation mechanism（[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  のPost-MVP governance gate参照）
+  verification / moderation mechanism（将来planning authorityは
+  [Issue #232](https://github.com/reitojike/stage-tracker/issues/232)）
 
 ## 4. Deferred / uncommitted areas
 
