@@ -168,7 +168,7 @@ timeline rowの保持を確認する。
 - **FR-013**: 親Eventがactiveな`event_wide` Opportunityは、Occurrence側の中止だけではeffectiveに中止にならない。
 - **FR-014**: 親Eventがactiveな`selected_occurrences` Opportunityは、対象Occurrence集合が完全に解決済みで非空、かつ全対象が中止の場合だけeffectiveに中止である。未解決・空集合・部分中止は全件中止の根拠にならない。
 - **FR-015**: `/tickets`におけるeffective cancellationはtimeline rowの削除を意味せず、cancellationの表示は受付終了およびpersonal stateの表示より優先される。relevant date、past判定、month ownership、ordering、month labelingはSpec 003へ委譲する。Homeは別のcurrent presentationを持ち、この優先順位を暗黙に要求しない。
-- **FR-016**: `/tickets`は1つのOpportunityにつきprimary rowを最大1件に投影する。current/next milestoneがある場合は、そのOpportunityのchronologicalな最初のnon-past rowを選び、全milestoneがpastの場合だけ最終milestoneをpost-final retained historyとして最終日から7日目まで表示対象に残し、8日目以降は表示対象から外す。Homeのdeadline blockはretained historyを表示対象に含めず、milestone typeを限定せず最初のnon-past primary milestoneを表示する。effective cancellationであっても`/tickets`のretentionは短縮しない。milestoneのrelevant date、past判定、ordering、month ownership、month labelingの定義はSpec 003へ委譲する。
+- **FR-016**: `/tickets`は1つのOpportunityにつきprimary rowを最大1件に投影する。current/next milestoneがある場合は、そのOpportunityのchronologicalな最初のnon-past rowを選び、全milestoneがpastの場合だけ最終milestoneをpost-final retained historyとして最終日から7日目まで表示対象に残し、8日目以降は表示対象から外す。Homeのdeadline blockはretained historyを表示対象に含めず、milestone typeを限定せず各Opportunityの最初のnon-past primary milestoneを選び、表示対象を先頭5件に制限する。effective cancellationであっても`/tickets`のretentionは短縮しない。milestoneのrelevant date、past判定、ordering、month ownership、month labelingの定義はSpec 003へ委譲する。
 
 ### Personal state
 
