@@ -49,6 +49,8 @@ privacy / RLS等）は、UIより先に固めることを原則とします。
 
 これらのうち Event / Occurrence lifecycle の current behavior は
 [`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)、
+これらのうち Personal Schedule lifecycleのcurrent behaviorは
+[`specs/007-personal-schedule-lifecycle/spec.md`](../specs/007-personal-schedule-lifecycle/spec.md)、
 Occurrence Participation の current behavior は
 [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)、
 未移行domainは temporary static product rules
@@ -60,9 +62,11 @@ Occurrence Participation の current behavior は
 以下は、[`docs/prd.md`](./prd.md) のmain domain conceptsのうち、event
 catalog以外でMVPとして成立させたい主要capabilityです。列挙順は実装順序の
 固定を意味しません。それぞれ、着手時に専用のbounded product Taskでscope
-とsemanticsを確定してから進めます。detailed product semanticsは
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-を正本とします。
+とsemanticsを確定してから進めます。detailed product semanticsは、Personal Schedule
+lifecycleについては
+[`specs/007-personal-schedule-lifecycle/spec.md`](../specs/007-personal-schedule-lifecycle/spec.md)、
+その他の未移行domainについては
+[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)を正本とします。
 
 - **expense / budget** — event単位の支出と横断的な予算管理（semanticsは
   未確定）

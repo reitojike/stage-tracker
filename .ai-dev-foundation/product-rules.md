@@ -306,49 +306,22 @@ re-invite、targeting、privacy / opacity は上記の Invitation Living Spec �
 ください。ここに旧semanticsを再掲せず、Issue #560 以前の設計・migration は
 historical evidence として Git と既存の implementation artifacts に残します。
 
-## Event-independent personal schedule
+## Historical Personal Schedule lifecycle notes (not current authority)
 
-- event とは独立した personal schedule concept を持ちます。単純な
-  `blocked` boolean にはしません。
-- all-day / multi-day all-day / time-bounded の schedule を表現できます。
-- schedule entry は固定 category を持たず、required free-form `title`
-  （件名）を持ちます（Issue #121。旧 `paid_leave` / `work` / `travel` /
-  `other` の closed schedule type vocabulary を supersede）。
-- 各 entry は独立した `blocking` boolean を持ちます。
-  - `blocking = true`: この時間には event 予定を入れたくない/availability
-    上予定ありとして扱います。
-  - `blocking = false`: schedule/calendar には表示しますが availability
-    を block しません。
-  - `blocking` は entry 本体の属性であり、share 先にも同じ semantics で
-    伝播します。per-recipient の blocking override は設けません。
-- schedule entry の作成者が owner です。
-- default は private（owner 本人のみ）です。
-- owner は entry 単位で authenticated user を明示指定して共有できます。
-  共有は approval flow を持たず、owner が共有した時点で即時反映します。
-- 共有された schedule は、その entry の `blocking` 値どおりに共有先 user
-  の calendar / availability へ反映されます（blocking entry は共有先でも
-  block 対象、non-blocking entry は共有先でも表示のみで block 対象には
-  なりません）。
-- 共有先 user は schedule 本体を編集できません。また、他の共有相手を
-  追加・削除できません。共有相手の追加・削除は owner だけが行えます。
-- 共有先 user は自分自身をその共有 schedule から外せます（entry 全体の
-  削除とは独立した operation - 「Entry deletion semantics」参照）。
-- MVP では共有先 user に busy-only ではなく、schedule の通常表示内容を
-  見せます。
-- collaborative editing、field 単位の privacy、共有相手ごとの権限差は
-  Post-MVP です。
-- recipient 指定は「Authenticated-user targeting」節のとおり exact 登録
-  email input です。未登録 email への pending/external share は作成せず、
-  この operation は対象 email が未登録であることを owner へ知らせて
-  構いません（Invitation の opacity 要件とは異なります。理由は
-  「Authenticated-user targeting」節を参照）。
-- owner は、自分が recipient 管理権限を持つ schedule entry について、
-  実際に share 済みの recipient を email で識別できる bounded read
-  projection を持ちます。これは global user directory ではなく、その
-  owner が管理する既存 share relation に限定されます。non-owner /
-  unrelated user はこの projection を読めません。
+Personal Schedule lifecycleの現行正本は
+[`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)
+です。以下はcutover前の承認内容と実装判断を追跡するためのhistorical / supporting
+provenanceであり、現行lifecycle semanticsの正本としては解決しません。
 
-### Entry deletion semantics
+- eventとは独立したPersonal Schedule conceptです。
+- all-day / multi-day all-day / time-boundedのscheduleを表現できます。
+- schedule entryは固定categoryではなく、required free-form `title`を持ちます。
+  旧来の固定種別vocabularyはhistorical evidenceとしてのみ扱います。
+- entryは独立した`blocking` booleanを持ち、trueは空き時間として扱わず、falseは表示
+  してもavailabilityをblockしない意味です。
+- schedule entryの作成者がownerです。
+
+### Historical Entry deletion notes (not current authority)
 
 - Personal Schedule entry は、owner による hard delete を正式 operation
   として提供します（Issue #121）。soft delete / trash / restore /
@@ -366,6 +339,46 @@ historical evidence として Git と既存の implementation artifacts に残�
   recipient に残ります）。
 - Event / Event Occurrence の deletion/cancellation semantics とは性質が
   異なるため、この決定はそちらの scope へ影響しません。
+
+## Personal Schedule sharing / recipient privacy (temporary authority until #565)
+
+Personal Scheduleのsharing / recipient privacyは#565で専用Living Specへcut overするまで、
+この節をtemporary product authorityとして扱います。#561のlifecycle Living Specは、この
+sharing semanticsを吸収しません。
+
+- entryはprivate by defaultであり、shareはentry単位かつrecipient単位のvisibility grantです。
+- ownerだけがrecipientを追加・revokeできます。approval flowはなく、share成功後は即時に
+  recipientのvisibilityが成立します。
+- ownerは既存recipientをrevokeできます。revokeは対象recipientだけのvisibilityを失わせ、
+  entry自体とowner・他のrecipientは維持します。これはentry deletionではありません。
+- 共有先userはschedule本体を編集できず、他のrecipientを追加・削除できません。recipientは
+  自分自身のshare relationだけをself-leaveのために扱えます。
+- recipientのself-leaveは自分だけのshare relationとvisibilityを外すoperationであり、entry
+  deletionではありません。durableなopt-out / decline historyは作らず、後から同じentryを
+  再共有できます。
+- ownerによるentry hard deleteはentry自体を削除し、全recipientからも消えます。
+- recipient指定はAuthenticated-user targeting節に従うexact登録email inputです。raw internal
+  UUIDをuser-facing inputにせず、generic user directory、generic autocomplete / fuzzy /
+  partial search、generic client-readable email-to-user lookupは提供しません。resolutionは
+  operation-specificなtrusted boundaryで行います。
+- 未登録emailへのpending / external shareとexternal email deliveryは作成しません。ただし
+  ownerへ対象emailが未登録であることを知らせるcurrent behaviorは許容します。これは
+  Invitationのopacityとは異なり、Invitationのprivate Participation stateを開示するもの
+  ではありません。既存のgeneric identity boundaryはAuthenticated-user targeting節を
+  参照します。
+- self-shareは作成しません。active shareはentry + recipient単位でset-likeに扱い、既に
+  share済みのrecipientへのsupportedなshare operationはduplicate grantを作らずidempotentです。
+- 共有されたscheduleはrecipientにもentry自身の通常表示内容を見せ、busy-only projectionには
+  しません。entryのblocking semanticsはそのまま適用し、per-recipientのblocking overrideは
+  設けません。
+- ownerは自分が管理するentryについて、既存share済みrecipientをemailで識別できるbounded
+  read projectionを持ちます。このprojectionはそのentryの既存share relationに限定され、
+  global user directoryではありません。
+- recipientはself-leaveに必要な範囲で自分のshare relationを扱えますが、他のrecipientを
+  enumerateできません。unrelated / non-owner userもrecipient relationやownerのemail
+  projectionをenumerateできません。
+- normal detail readでは、existing-but-non-visible entryとnonexistent entryを区別させません。
+  screen上の同一のempty outcome / copyはこのtemporary sharing/privacy authorityの表現です。
 
 ## Ticket model removal
 
