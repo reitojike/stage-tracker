@@ -55,7 +55,8 @@ application route は、公開を明示する product/security 判断がない�
 installability の評価に必要な manifest / icon などの bounded public resource は
 認証境界の狭い例外です。これは authenticated application route を公開する意味
 ではありません。installable / standalone Web App の利用者向け semantics は
-後続の #566 が定義し、この仕様ではその内容を定義しません。
+この仕様では定義しません。#566がcutoverを完了するまでは、現行のinstallability
+semanticsはtemporary static product authorityに残ります。
 
 ### Scenario 5: 認証後の遷移先を安全に扱う
 
@@ -65,8 +66,10 @@ protected route から sign-in へ送るとき、元 route の query string を�
 不正な値は既定の安全な入口へ戻します。
 
 `error` や `requested` などの sign-in UI state は、それを発生させた認証 flow
-だけが明示します。protected-route redirect が任意の query をそのまま持ち回る
-ことはありません。
+の境界で扱います。protected-route redirect はこれらの state を独自に生成せず、
+元 route の任意の query をそのまま持ち回ることもありません。直接 sign-in URLへ
+与えられた query の扱いは、この protected-route redirect boundaryの保証対象に
+含めません。
 
 ### Scenario 6: My Page で自分の account を管理する
 
@@ -83,24 +86,28 @@ authenticated user は My Page で自分の account identity と sign-out の導
 - **AUTH-002**: 未登録のメールアドレスによる sign-in request は account を作成せず、account eligibility を付与しない。
 - **AUTH-003**: Passkey の登録・削除・利用は、認証済みの本人 account に属する credential だけを対象にする。
 
+### Authentication surface
+
+- **AUTH-004**: current authentication surface は Magic Link と optional Passkey に限り、password login、external OAuth、anonymous sign-in は提供しない。
+
 ### Magic Link
 
-- **AUTH-004**: Magic Link は provisioned account の bootstrap / recovery と、Passkeyが利用できない場合の fallback を担い、Passkeyによって置き換えられない。
-- **AUTH-005**: Magic Link request は、登録済み・未登録、送信成功・失敗の違いを利用者または外部観測者へ account enumeration oracle として提供しない。
-- **AUTH-006**: sign-in request の中立的な受付案内は account の存在、メール送信成功、session 確立を意味しない。
+- **AUTH-005**: Magic Link は provisioned account の bootstrap / recovery と、Passkeyが利用できない場合の fallback を担い、Passkeyによって置き換えられない。
+- **AUTH-006**: Magic Link request は、登録済み・未登録、送信成功・失敗の違いを利用者または外部観測者へ account enumeration oracle として提供しない。
+- **AUTH-007**: sign-in request の中立的な受付案内は account の存在、メール送信成功、session 確立を意味しない。
 
 ### Passkey
 
-- **AUTH-007**: Passkey は current daily primary credential になり得る optional capability であり、登録や利用を必須にしない。
-- **AUTH-008**: browser / device が Passkey ceremony を提供できない場合や ceremony が失敗した場合も、provisioned account は Magic Link fallback を利用できる。
-- **AUTH-009**: Passkey の利用可能性は account eligibility を拡張せず、未認証の credential management を許可しない。
+- **AUTH-008**: Passkey は current daily primary credential になり得る optional capability であり、登録や利用を必須にしない。
+- **AUTH-009**: browser / device が Passkey ceremony を提供できない場合や ceremony が失敗した場合も、provisioned account は Magic Link fallback を利用できる。
+- **AUTH-010**: Passkey の利用可能性は account eligibility を拡張せず、未認証の credential management を許可しない。
 
 ### Protected access and redirect safety
 
-- **AUTH-010**: authenticated application route は default-deny とし、明示された認証入口と bounded public resource 以外を未認証で利用可能にしない。
-- **AUTH-011**: protected-route redirect は元 route の query string を任意に forward せず、外部 URL や任意の redirect state を正当化しない。
-- **AUTH-012**: 認証後の遷移先は安全な同一 application 内部 path に限定し、不正・外部・制御文字を含む値は安全な既定先へ戻す。
-- **AUTH-013**: 認証 flow が生成した UI state と protected-route redirect の state を混同せず、前者だけが明示的な Auth UI state を付与できる。
+- **AUTH-011**: authenticated application route は default-deny とし、明示された認証入口と bounded public resource 以外を未認証で利用可能にしない。
+- **AUTH-012**: protected-route redirect は元 route の query string を任意に forward せず、外部 URL や任意の redirect state を正当化しない。
+- **AUTH-013**: 認証後の遷移先は安全な同一 application 内部 path に限定し、不正・外部・制御文字を含む値は安全な既定先へ戻す。
+- **AUTH-014**: protected-route redirect は `error` / `requested` などの Auth UI state を独自に生成せず、認証 flowが生成した stateや任意の queryを無条件にforwardしない。
 
 ## Cross-domain Boundary
 
@@ -109,9 +116,11 @@ authenticated user は My Page で自分の account identity と sign-out の導
   [`docs/architecture/authentication.md`](../../docs/architecture/authentication.md)
   と code / test が担い、この仕様はその機構を規定しない。
 - manifest、application icon、standalone launch、offline、Service Worker、Web Push
-  は #566 の Installable standalone Web App authorityに属する。この仕様は、
-  authenticated application route が default-deny であることと、bounded public
-  resource exception が認証境界を広げないことだけを扱う。
+  は #566 の downstream cutover対象です。#566が完了するまでは、現行の
+  installability semanticsは[temporary static product rules](../../.ai-dev-foundation/product-rules.md)
+  に残ります。この仕様は、authenticated application route が default-deny
+  であることと、bounded public resource exception が認証境界を広げないこと
+  だけを扱います。
 - Event、Occurrence Participation、Invitation、Personal Schedule、TicketOpportunity
   の lifecycle / privacy semantics は各domainのLiving Specが定義し、この仕様で
   再定義しない。
