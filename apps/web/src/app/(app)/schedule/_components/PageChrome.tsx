@@ -15,4 +15,4 @@ export function BackLink({
   return <SharedBackLink href={href}>{children}</SharedBackLink>;
 }
 
-export { PageHeading } from "@stage-tracker/ui";
+export { PageHeading, SectionHeading } from "@stage-tracker/ui";

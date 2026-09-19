@@ -51,11 +51,6 @@ export function participationStatusLabel(status: ParticipationStatus): string {
   return status === "attending" ? "参加する" : "気になる";
 }
 
-/** Shared availability label for personal schedule list/detail surfaces. */
-export function scheduleBlockingLabel(blocking: boolean): string {
-  return blocking ? "予定を確保する" : "予定を確保しない";
-}
-
 const UNKNOWN_END_TIME_LABEL = "終了時刻未定";
 const NEXT_DAY_SUFFIX = "（翌日）";
 

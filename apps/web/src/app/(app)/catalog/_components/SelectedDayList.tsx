@@ -5,7 +5,12 @@ import {
   type GroupId,
   type TokyoCalendarDate,
 } from "@stage-tracker/domain";
-import { CompactList, ListRowLink, StatePanel } from "@stage-tracker/ui";
+import {
+  CompactList,
+  ListRowLink,
+  SectionHeading,
+  StatePanel,
+} from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
 import {
   formatTokyoCalendarDateJa,
@@ -61,9 +66,7 @@ export function SelectedDayList({
           aria-label="開催期間で該当するイベント"
           className="flex flex-col gap-sm"
         >
-          <h2 className="text-title font-semibold text-foreground">
-            開催期間で該当するイベント
-          </h2>
+          <SectionHeading>開催期間で該当するイベント</SectionHeading>
           <CompactList>
             {fallbackEntries.map((entry) => (
               <li key={entry.event.id}>
@@ -100,9 +103,7 @@ export function SelectedDayList({
         aria-label={`${formatTokyoCalendarDateJa(date)}の公演回一覧`}
         className="flex flex-col gap-sm"
       >
-        <h2 className="text-title font-semibold text-foreground">
-          {formatTokyoCalendarDateJa(date)}
-        </h2>
+        <SectionHeading>{formatTokyoCalendarDateJa(date)}</SectionHeading>
         {occurrences.length === 0 ? (
           <StatePanel
             variant="empty"

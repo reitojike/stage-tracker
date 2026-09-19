@@ -4,7 +4,13 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import type { Event, Occurrence } from "@stage-tracker/domain";
-import { Badge, Field, Input, Textarea } from "@stage-tracker/ui";
+import {
+  Badge,
+  Field,
+  Input,
+  SectionHeading,
+  Textarea,
+} from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
   Sheet,
@@ -30,10 +36,10 @@ import { OccurrenceList } from "./OccurrenceList";
  * `/catalog/events/[eventId]/edit` の owner 専用フォーム群
  * （`docs/v2/oracle-routes-ui.md` §2「Event 編集」）。
  *
- * - 詳細編集: 成功時は画面に留まり、簡易な成功メッセージで通知
- *   （`WriteNotice` 相当。専用 `aria-live` component は `packages/ui` に
- *   まだ無く、この Task の編集許可範囲にも含まれないため、role属性付きの
- *   plain text で代替する）。
+ * - 詳細編集: 成功時は画面に留まり、action が提供する success state を
+ *   role=status の plain text で通知する。shared `WriteNotice` は同一文言の
+ *   再試行を表す `attempt` contract を必要とするため、この lifecycle には
+ *   無理に導入しない。
  * - 期間編集: Oracle に従い shared Sheet 内のフォームで編集し、成功時に
  *   自動 close する。入力失敗時は Sheet を開いたままにする。
  * - 中止/解除: 確認ダイアログなし（可逆操作）。
@@ -109,9 +115,7 @@ export function EditEventForm({
         onSubmit={handleDetailsSubmit}
         className="flex flex-col gap-md border-b-2 border-border pb-lg"
       >
-        <h2 className="text-title leading-title font-semibold text-foreground">
-          基本情報
-        </h2>
+        <SectionHeading>基本情報</SectionHeading>
         <Field
           id="event-edit-title"
           label="タイトル"
@@ -153,9 +157,7 @@ export function EditEventForm({
       </form>
 
       <div className="flex flex-col gap-sm border-b-2 border-border pb-lg">
-        <h2 className="text-title leading-title font-semibold text-foreground">
-          開催期間
-        </h2>
+        <SectionHeading>開催期間</SectionHeading>
         <p className="text-body-sm text-muted-foreground">
           {formatTokyoCalendarDateRangeJa(event.startsOn, event.endsOn)}
         </p>
@@ -228,9 +230,7 @@ export function EditEventForm({
       </div>
 
       <div className="flex flex-col gap-sm border-b-2 border-border pb-lg">
-        <h2 className="text-title leading-title font-semibold text-foreground">
-          中止
-        </h2>
+        <SectionHeading>中止</SectionHeading>
         {isCanceled ? (
           <Button
             type="button"
@@ -269,9 +269,7 @@ export function EditEventForm({
       />
 
       <div className="flex flex-col gap-sm">
-        <h2 className="text-title leading-title font-semibold text-foreground">
-          削除
-        </h2>
+        <SectionHeading>削除</SectionHeading>
         <Sheet open={deleteOpen} onOpenChange={handleDeleteOpenChange}>
           <SheetTrigger
             render={

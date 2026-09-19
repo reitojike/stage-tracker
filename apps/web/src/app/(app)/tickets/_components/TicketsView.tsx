@@ -12,6 +12,7 @@ import {
   ListRowChevron,
   ListRowOverlayLink,
   PageHeading,
+  SectionHeading,
   StatePanel,
 } from "@stage-tracker/ui";
 import {
@@ -106,9 +107,7 @@ export function TicketsView({ state, today }: TicketsViewProps) {
               aria-label={formatMonthJa(group.monthKey)}
               className="flex flex-col gap-sm"
             >
-              <h2 className="text-title font-semibold text-foreground">
-                {formatMonthJa(group.monthKey)}
-              </h2>
+              <SectionHeading>{formatMonthJa(group.monthKey)}</SectionHeading>
               <CompactList>
                 {group.rows.map((row) => (
                   <li key={`${row.opportunityId}-${row.milestone.id}`}>

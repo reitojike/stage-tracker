@@ -9,9 +9,9 @@ import { cn } from 'cn';
  * see docs/v2/oracle-routes-ui.md §3 "Badge" and §4 "色". Every variant maps
  * to exactly one existing design token; no new color was invented here.
  *
- * - `outline`  : classification (組 / 一般発売 etc.) - a neutral label, not
- *                a status.
- * - `subtle`   : an ongoing / not-yet-complete intention.
+ * - `outline`  : neutral secondary metadata, classification, or a low-emphasis
+ *                informational state (組 / 一般発売 / unknown, etc.).
+ * - `subtle`   : an active, ongoing, or contextual non-terminal state.
  * - `done`     : an action the *user* completed. Distinguished from
  *                `subtle` by tone *and* by an always-rendered checkmark
  *                glyph (docs: "トーン＋component側チェックマークで区別") -

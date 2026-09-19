@@ -1,4 +1,4 @@
-import { StatePanel } from "@stage-tracker/ui";
+import { SectionHeading, StatePanel } from "@stage-tracker/ui";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { passkeyDisplayLabel } from "../_data/passkeyDisplay";
@@ -20,12 +20,7 @@ export async function PasskeySection() {
       aria-labelledby="mypage-passkey-heading"
       className="flex flex-col gap-sm"
     >
-      <h2
-        id="mypage-passkey-heading"
-        className="text-title leading-title font-semibold text-foreground"
-      >
-        Passkey
-      </h2>
+      <SectionHeading id="mypage-passkey-heading">Passkey</SectionHeading>
       <p className="text-body-sm text-muted-foreground">
         登録した端末では、次回以降メールアドレス入力なしでサインインできます。
       </p>

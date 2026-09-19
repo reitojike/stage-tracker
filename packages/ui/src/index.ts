@@ -1,5 +1,7 @@
 export * from './state-panel';
 export * from './page-heading';
+export * from './section-heading';
+export * from './write-notice';
 export * from './back-link';
 export * from './list-row';
 export * from './link-button';

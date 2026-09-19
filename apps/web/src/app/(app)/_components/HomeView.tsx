@@ -12,8 +12,10 @@ import {
   ListRowChevron,
   ListRowLink,
   PageHeading,
+  SectionHeading,
   StatePanel,
 } from "@stage-tracker/ui";
+import { ScheduleEntryBadges } from "@/app/_components/ScheduleEntryBadges";
 import {
   formatMilestoneTypeJa,
   formatMilestoneWhenJa,
@@ -22,7 +24,6 @@ import {
   formatTokyoCalendarDateJa,
   occurrenceTimeRangeLabel,
   participationStatusLabel,
-  scheduleBlockingLabel,
 } from "@/app/_lib/format";
 import {
   ticketDeadlineBadgeDisplay,
@@ -138,12 +139,9 @@ function TicketDeadlineSection({
       className="flex flex-col gap-sm"
     >
       <div className="flex items-baseline justify-between">
-        <h2
-          id="home-ticket-deadlines-heading"
-          className="text-title font-semibold text-foreground"
-        >
+        <SectionHeading id="home-ticket-deadlines-heading">
           申し込み期限
-        </h2>
+        </SectionHeading>
         <LinkButton href="/tickets" variant="link" size="sm">
           すべて見る
         </LinkButton>
@@ -270,12 +268,9 @@ function UpcomingScheduleSection({
       aria-labelledby="home-upcoming-schedule-heading"
       className="flex flex-col gap-sm"
     >
-      <h2
-        id="home-upcoming-schedule-heading"
-        className="text-title font-semibold text-foreground"
-      >
+      <SectionHeading id="home-upcoming-schedule-heading">
         直近の予定
-      </h2>
+      </SectionHeading>
 
       {state.variant === "populated" || state.variant === "partial" ? (
         <>
@@ -358,12 +353,10 @@ function UpcomingScheduleRow({ item }: { readonly item: HomeUpcomingItem }) {
     <ListRowLink href={`/schedule/${item.entry.id}`}>
       <span className="flex flex-col gap-2xs">
         <span className="flex flex-wrap gap-2xs">
-          <Badge variant="subtle">
-            {item.isOwner ? "自分の予定" : "共有されている予定"}
-          </Badge>
-          <Badge variant={item.entry.blocking ? "subtle" : "outline"}>
-            {scheduleBlockingLabel(item.entry.blocking)}
-          </Badge>
+          <ScheduleEntryBadges
+            isOwner={item.isOwner}
+            blocking={item.entry.blocking}
+          />
         </span>
         <span className="text-title font-medium text-foreground">
           {item.entry.title}

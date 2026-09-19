@@ -15,7 +15,11 @@ import {
 import { findVisibleScheduleEntry } from "../_lib/entryLookup";
 import { classifyScheduleEntryReadResult } from "../_lib/entryReadState";
 import { safelyCall } from "../_lib/safelyCall";
-import { BackLink, PageHeading } from "../_components/PageChrome";
+import {
+  BackLink,
+  PageHeading,
+  SectionHeading,
+} from "../_components/PageChrome";
 import { ScheduleEntryDetailView } from "../_components/ScheduleEntryDetailView";
 import { ShareAddForm } from "../_components/ShareAddForm";
 import { RecipientList } from "../_components/RecipientList";
@@ -56,7 +60,7 @@ async function OwnerShareManagement({
   return (
     <section className="flex flex-col gap-sm border-t-2 border-border pt-card-block">
       <div className="flex items-center justify-between gap-sm">
-        <h2 className="text-title font-semibold text-foreground">共有</h2>
+        <SectionHeading>共有</SectionHeading>
         <ShareAddForm entryId={entryId} />
       </div>
       {result.ok ? (
@@ -211,9 +215,9 @@ async function ScheduleEntryDetailBody({
         <>
           <OwnerShareManagement supabase={supabase} entryId={entryId} />
           <section className="flex flex-col items-start gap-sm border-t-2 border-border pt-card-block">
-            <h2 className="w-full border-b border-destructive pb-card-block text-title font-semibold text-destructive">
+            <SectionHeading className="w-full border-b border-destructive pb-card-block text-destructive">
               この予定を削除
-            </h2>
+            </SectionHeading>
             <p className="text-body-sm text-muted-foreground">
               元に戻せません。共有相手からも見えなくなります。
             </p>

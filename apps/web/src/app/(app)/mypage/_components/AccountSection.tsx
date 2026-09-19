@@ -1,4 +1,4 @@
-import { Button } from "@stage-tracker/ui";
+import { Button, SectionHeading } from "@stage-tracker/ui";
 import { signOut } from "@/app/sign-out/actions";
 
 /**
@@ -11,12 +11,7 @@ export function AccountSection({ email }: { email: string | null }) {
       aria-labelledby="mypage-account-heading"
       className="flex flex-col gap-sm border-b-2 border-border pb-lg"
     >
-      <h2
-        id="mypage-account-heading"
-        className="text-title leading-title font-semibold text-foreground"
-      >
-        アカウント
-      </h2>
+      <SectionHeading id="mypage-account-heading">アカウント</SectionHeading>
       {email !== null ? (
         <p className="text-body-sm text-muted-foreground">{email}</p>
       ) : null}
