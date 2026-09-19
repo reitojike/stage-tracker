@@ -1,13 +1,13 @@
 import { createSafeActionClient } from "next-safe-action";
 import {
   ActionError,
-  isBaseActionError,
+  isActionError,
   type ActionErrorShape,
 } from "@/lib/action-error";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-function toActionErrorShape(error: Error): ActionErrorShape {
-  if (isBaseActionError(error)) {
+export function toActionErrorShape(error: Error): ActionErrorShape<string> {
+  if (isActionError(error)) {
     return { kind: error.kind, message: error.message };
   }
 
