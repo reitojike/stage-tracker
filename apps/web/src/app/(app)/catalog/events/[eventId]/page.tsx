@@ -15,6 +15,7 @@ import {
   ListRow,
   ListRowActions,
   PageHeading,
+  SectionHeading,
   StatePanel,
 } from "@stage-tracker/ui";
 import {
@@ -25,6 +26,7 @@ import {
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { InviteForm } from "./_components/InviteForm";
+import { OccurrenceFocusCue } from "./_components/OccurrenceFocusCue";
 import { ParticipationControls } from "./_components/ParticipationControls";
 import { ScrollToFocusedOccurrence } from "./_components/ScrollToFocusedOccurrence";
 import {
@@ -235,15 +237,15 @@ export default async function EventDetailPage({
         aria-labelledby="event-occurrences-heading"
         className="flex flex-col gap-sm"
       >
-        <h2
+        <SectionHeading
           id="event-occurrences-heading"
-          className="flex items-baseline justify-between border-b-2 border-foreground pb-card-block text-title font-semibold text-foreground"
+          className="flex items-baseline justify-between border-b-2 border-foreground pb-card-block"
         >
           公演回{" "}
           <span className="font-normal text-muted-foreground">
             {occurrences.length}件
           </span>
-        </h2>
+        </SectionHeading>
         {occurrences.length === 0 ? (
           <StatePanel
             variant="empty"
@@ -285,7 +287,7 @@ export default async function EventDetailPage({
                         <Badge variant="terminal">中止</Badge>
                       ) : null}
                       {focusOccurrenceId === occurrence.id ? (
-                        <Badge variant="outline">選択した公演回</Badge>
+                        <OccurrenceFocusCue />
                       ) : null}
                     </div>
                     {doors !== null || ends !== null ? (

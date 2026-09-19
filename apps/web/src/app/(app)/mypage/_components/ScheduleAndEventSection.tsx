@@ -1,4 +1,9 @@
-import { Badge, CompactList, ListRowLink } from "@stage-tracker/ui";
+import {
+  Badge,
+  CompactList,
+  ListRowLink,
+  SectionHeading,
+} from "@stage-tracker/ui";
 
 /**
  * .ai-dev-foundation/product-rules.md「マイページ」: 「招待一覧」行は常時表示（0件でも消えない）、
@@ -17,12 +22,9 @@ export function ScheduleAndEventSection({
       aria-labelledby="mypage-schedule-event-heading"
       className="flex flex-col gap-sm border-b-2 border-border pb-lg"
     >
-      <h2
-        id="mypage-schedule-event-heading"
-        className="text-title leading-title font-semibold text-foreground"
-      >
+      <SectionHeading id="mypage-schedule-event-heading">
         予定とイベント
-      </h2>
+      </SectionHeading>
       <CompactList>
         <li>
           <ListRowLink href="/catalog/invitations">

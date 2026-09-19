@@ -1,8 +1,8 @@
 import type { PersonalScheduleEntry } from "@stage-tracker/domain";
 import { personalScheduleEntryBlockingForViewer } from "@stage-tracker/domain";
-import { Badge, LinkButton, PageHeading } from "@stage-tracker/ui";
+import { LinkButton, PageHeading } from "@stage-tracker/ui";
 import { formatScheduleEntryTemporal } from "./formatScheduleEntryTemporal";
-import { scheduleBlockingLabel } from "@/app/_lib/format";
+import { ScheduleEntryBadges } from "@/app/_components/ScheduleEntryBadges";
 
 interface ScheduleEntryDetailViewProps {
   readonly entry: PersonalScheduleEntry;
@@ -33,14 +33,7 @@ export function ScheduleEntryDetailView({
     <div className="flex flex-col gap-sm">
       <header className="flex flex-col gap-xs">
         <div className="flex flex-wrap gap-2xs">
-          <Badge variant="subtle">
-            {isOwner ? "自分の予定" : "共有されている予定"}
-          </Badge>
-          <span data-testid="blocking-indicator">
-            <Badge variant={blocking ? "subtle" : "outline"}>
-              {scheduleBlockingLabel(blocking)}
-            </Badge>
-          </span>
+          <ScheduleEntryBadges isOwner={isOwner} blocking={blocking} />
         </div>
         <div className="flex items-start justify-between gap-sm border-b-2 border-foreground pb-card-block">
           <PageHeading className="min-w-0 break-words">

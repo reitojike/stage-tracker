@@ -13,12 +13,12 @@ const meta: Meta<typeof Badge> = {
 export default meta;
 type Story = StoryObj<typeof Badge>;
 
-/** 分類（組 / 一般発売 等）。トーンを持たないニュートラルなラベル。 */
+/** 分類や低強調の補助情報（組 / 一般発売 / 不明 等）。 */
 export const Outline: Story = {
   args: { variant: 'outline', children: '花組' },
 };
 
-/** 進行中・未完了の意思（例: `/tickets` の「申し込む予定」）。 */
+/** 進行中・未完了の意思や文脈的な非終端状態。 */
 export const Subtle: Story = {
   args: { variant: 'subtle', children: '申し込む予定' },
 };

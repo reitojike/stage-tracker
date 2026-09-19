@@ -124,6 +124,11 @@ title は body より単純に大きくするのではなく、weight と line-h
 で階層を作ります。現在地の navigation label は非現在地より明確に強調します。
 見出しが直下の subordinate な本文より小さくなる構成は作りません。
 
+genuine section の `h2` は shared `SectionHeading` の typography を使えます。
+この component は `h2` semantics、title typography、canonical line-height と
+`className` passthrough だけを所有します。heading 自身の強い下線、section の
+separator、destructive section の罫と色は caller が semantic ownership を持ちます。
+
 ## 面と区切り
 
 - card 面を global default にせず、罫と縦の間隔で情報を区切ります。
@@ -211,6 +216,11 @@ screen ごとに作りません。
 
 write notice と undo row は別の語彙です。
 
+shared `WriteNotice` は domain-independent な presentation です。`polite` live
+region、current の body-sm typography、同一文言を再試行時にも再通知できる
+`attempt` keyed message node だけを所有します。success/error taxonomy、domain
+copy、toast や notification framework は所有しません。
+
 - notice は「終わったこと」の控えで、操作を持ちません。
 - undo row は「まだ操作できる」ことを示し、tap target を満たす行と1つの action を
   持ちます。client-local な表示差し替えであり、新しい persisted state を作りません。
@@ -263,15 +273,17 @@ neutral base と restrained cool accent の low-noise UI とします。色は�
 
 Badge は色の名前ではなく、次の固定した意味を持つ semantic variant です。
 
-| variant  | 意味                     | 例                               |
-| -------- | ------------------------ | -------------------------------- |
-| outline  | 分類                     | 宝塚、月組、一般発売             |
-| subtle   | 進行中の状態・意思       | 参加する、気になる、申し込む予定 |
-| done     | 自分が終えたこと         | 申し込み済み                     |
-| deadline | まだ間に合う期限         | 残り1日                          |
-| terminal | もう行動できない終了状態 | 中止、受付終了                   |
+| variant  | 意味                                          | 例                                       |
+| -------- | --------------------------------------------- | ---------------------------------------- |
+| outline  | neutral な補助 metadata / 分類 / 低強調の情報 | 宝塚、月組、一般発売、不明、非blocking   |
+| subtle   | active / ongoing / non-terminal の状態・文脈  | 参加する、気になる、申し込む予定、所有者 |
+| done     | 自分が終えたこと                              | 申し込み済み                             |
+| deadline | まだ間に合う期限                              | 残り1日                                  |
+| terminal | もう行動できない終了状態                      | 中止、受付終了                           |
 
 text label と必要な非色 cue を併用し、done は check cue と組み合わせます。
+temporary な selection / focus state は classification Badge に載せず、
+control の ring / border / background と必要な plain text cue で表します。
 
 ## Design token と styling boundary
 

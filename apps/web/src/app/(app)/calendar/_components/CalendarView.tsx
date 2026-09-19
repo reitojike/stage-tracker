@@ -11,6 +11,7 @@ import {
   ListRowLink,
   MonthNavigation,
   PageHeading,
+  SectionHeading,
   StatePanel,
 } from "@stage-tracker/ui";
 import { cn } from "cn";
@@ -31,8 +32,8 @@ import {
   formatTokyoCalendarDateJa,
   occurrenceTimeRangeLabel,
   participationStatusLabel,
-  scheduleBlockingLabel,
 } from "@/app/_lib/format";
+import { ScheduleEntryBadges } from "@/app/_components/ScheduleEntryBadges";
 import {
   READ_FAILURE_RETRY_HINT_JA,
   type BlockState,
@@ -181,9 +182,9 @@ export function CalendarView({
       />
 
       {selectedDate !== null ? (
-        <h2 className="border-b-2 border-foreground pb-card-block text-title font-semibold text-primary">
+        <SectionHeading className="border-b-2 border-foreground pb-card-block text-primary">
           {formatTokyoCalendarDateJa(selectedDate)}
-        </h2>
+        </SectionHeading>
       ) : null}
 
       {bothReadEmpty ? (
@@ -433,12 +434,9 @@ function OccurrenceSection({
       aria-labelledby="calendar-occurrences-heading"
       className="flex flex-col gap-sm"
     >
-      <h2
-        id="calendar-occurrences-heading"
-        className="text-title font-semibold text-foreground"
-      >
+      <SectionHeading id="calendar-occurrences-heading">
         参加予定
-      </h2>
+      </SectionHeading>
       {state.variant === "populated" ? (
         <OccurrenceList
           month={month}
@@ -562,12 +560,7 @@ function ScheduleSection({
       aria-labelledby="calendar-schedule-heading"
       className="flex flex-col gap-sm"
     >
-      <h2
-        id="calendar-schedule-heading"
-        className="text-title font-semibold text-foreground"
-      >
-        個人の予定
-      </h2>
+      <SectionHeading id="calendar-schedule-heading">個人の予定</SectionHeading>
       {state.variant === "populated" ? (
         <ScheduleList
           month={month}
@@ -647,12 +640,10 @@ function ScheduleRow({
     >
       <span className="flex flex-col gap-2xs">
         <span className="flex flex-wrap gap-2xs">
-          <Badge variant="subtle">
-            {item.isOwner ? "自分の予定" : "共有されている予定"}
-          </Badge>
-          <Badge variant={item.entry.blocking ? "subtle" : "outline"}>
-            {scheduleBlockingLabel(item.entry.blocking)}
-          </Badge>
+          <ScheduleEntryBadges
+            isOwner={item.isOwner}
+            blocking={item.entry.blocking}
+          />
         </span>
         <span className="text-title font-medium text-foreground">
           {item.entry.title}

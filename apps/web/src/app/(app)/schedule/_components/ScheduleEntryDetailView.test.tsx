@@ -28,21 +28,28 @@ describe("ScheduleEntryDetailView - blocking has no per-viewer override", () => 
     const { unmount } = render(
       <ScheduleEntryDetailView entry={entry(true)} isOwner />,
     );
-    const ownerViewText = screen.getByTestId("blocking-indicator").textContent;
+    const ownerBlockingBadge = screen.getByText("予定を確保する", {
+      selector: '[data-slot="badge"]',
+    });
+    const ownerViewVariant = ownerBlockingBadge.getAttribute("data-variant");
     unmount();
 
     render(<ScheduleEntryDetailView entry={entry(true)} isOwner={false} />);
-    const recipientViewText =
-      screen.getByTestId("blocking-indicator").textContent;
+    const recipientBlockingBadge = screen.getByText("予定を確保する", {
+      selector: '[data-slot="badge"]',
+    });
 
-    expect(recipientViewText).toBe(ownerViewText);
-    expect(recipientViewText).toContain("予定を確保する");
+    expect(recipientBlockingBadge.getAttribute("data-variant")).toBe(
+      ownerViewVariant,
+    );
   });
 
   it("renders the non-blocking indicator identically across renders when blocking=false", () => {
     render(<ScheduleEntryDetailView entry={entry(false)} isOwner={false} />);
-    expect(screen.getByTestId("blocking-indicator").textContent).toContain(
-      "予定を確保しない",
-    );
+    expect(
+      screen.getByText("予定を確保しない", {
+        selector: '[data-slot="badge"]',
+      }),
+    ).toBeInTheDocument();
   });
 });

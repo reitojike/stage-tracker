@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
-import { Button, Field, Input } from "@stage-tracker/ui";
+import { Button, Field, Input, WriteNotice } from "@stage-tracker/ui";
 import {
   Sheet,
   SheetContent,
@@ -16,7 +16,6 @@ import {
 import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
 import { addScheduleShareByEmailAction } from "@/lib/actions/schedule/schedule-share-actions";
 import { fieldErrorMessage } from "@/lib/actions/validationErrors";
-import { WriteNotice } from "./WriteNotice";
 
 interface ShareAddFormProps {
   readonly entryId: PersonalScheduleEntryId;

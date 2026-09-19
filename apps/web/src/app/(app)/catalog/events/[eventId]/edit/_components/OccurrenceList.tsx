@@ -3,6 +3,7 @@ import type {
   Occurrence,
   TokyoCalendarDate,
 } from "@stage-tracker/domain";
+import { SectionHeading } from "@stage-tracker/ui";
 import { formatTokyoCalendarDateRangeJa } from "@/app/_lib/format";
 import { AddOccurrenceForm } from "./AddOccurrenceForm";
 import { OccurrenceItem } from "./OccurrenceItem";
@@ -23,9 +24,7 @@ export function OccurrenceList({
 }) {
   return (
     <div className="flex flex-col gap-sm border-b-2 border-border pb-lg">
-      <h2 className="text-title leading-title font-semibold text-foreground">
-        公演回
-      </h2>
+      <SectionHeading>公演回</SectionHeading>
       <p className="text-body-sm text-muted-foreground">
         開催期間:{" "}
         {formatTokyoCalendarDateRangeJa(eventRange.startsOn, eventRange.endsOn)}
