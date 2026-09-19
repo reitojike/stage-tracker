@@ -78,6 +78,12 @@ venueはcurrent modelではEvent-levelの情報であり、Occurrence独自のve
 識別子、作成日時、ownerなどのsystem-managed identityは通常の管理対象では
 ありません。
 
+Event ownerは、Event rangeと影響するOccurrenceの時刻を、最終状態が
+containment invariantを満たす別期間へcoordinatedに移動できます。どちらか一方の
+中間状態が一時的にinvariant違反となることだけを理由に、正当なcoordinated
+rescheduleを恒久的に不可能にしてはなりません。ここではrescheduleを実現する
+特定のwrite mechanismや、特定UIがこの操作全体を公開していることは定義しません。
+
 ### Scenario 6: cancellationとdeletionを区別する
 
 Cancellationは、公演を中止扱いにする可逆な状態変更です。Event-levelと
@@ -172,6 +178,9 @@ cascadeで消すことはありません。その他のdomainのdependent state�
   与えるが、それだけでParticipation stateやInvitation eligibilityを与えない。
 - **EV-023**: venueはEvent-level product informationであり、Occurrenceは独立した
   venueを持たない。独立したvenue / time identityが必要な並行公演は別Eventで表す。
+- **EV-024**: Event ownerは、Event rangeと影響するOccurrenceの時刻を、最終状態が
+  containment invariantを満たす別期間へcoordinatedに移動できる。中間状態の一時的な
+  invariant違反だけを理由に、正当なcoordinated rescheduleを恒久的に拒否しない。
 
 ## Cross-domain Boundary
 
@@ -230,6 +239,9 @@ migration history、classification/filter、Participation lifecycleの実装詳�
 - **SC-009**: Event detailのOccurrence collectionも開始時刻順であり、Event ownerの
   management capabilityとParticipation / Invitationのstatus・eligibility、および
   Event-level venueとOccurrence-level identityの境界を混同しないことを検証可能である。
+- **SC-010**: Event rangeと影響するOccurrenceの時刻を同時に別期間へ移す正当な
+  coordinated rescheduleが、最終状態のcontainment invariantを満たす限り、中間状態の
+  一時的な違反だけを理由に恒久的に不可能とされないことを検証可能である。
 
 ## Assumptions
 

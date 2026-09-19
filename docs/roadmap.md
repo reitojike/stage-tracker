@@ -86,8 +86,8 @@ TicketOpportunityを前提に新しいbounded product Taskで再設計します�
 - 宝塚 streaming
 - movie release / admin-curated movie catalog
 - broader Event create permissions（一般authenticated userへの拡大）＋
-  verification / moderation mechanism（[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  のPost-MVP governance gate参照）
+  verification / moderation mechanism（将来planning authorityは
+  [Issue #232](https://github.com/reitojike/stage-tracker/issues/232)）
 
 ## 4. Deferred / uncommitted areas
 

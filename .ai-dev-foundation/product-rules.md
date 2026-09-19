@@ -14,14 +14,25 @@ semantics が schema / RLS として実装済みであるとは限りません�
 `docs/prd.md` の Current committed scope と `docs/roadmap.md` の
 Completed baseline を参照してください。
 
-## Historical Event catalog notes (not current authority)
+## Event / Occurrence lifecycle — CURRENT-SPEC005
 
-Event / Occurrenceの現行product authorityは
+Event / Occurrenceの現行product authorityは引き続き
 [`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
-です。以下の旧sectionは、cutover前の承認内容と実装判断を追跡するための
-historical / supporting provenanceとして残します。現行semanticsの正本としては
-解決しません。Catalog classification / venue boundaryは、このTaskの対象外であり、
-後続の#564まで下記の専用sectionを参照します。
+です。このファイルでは、その現行semanticsを再掲せず、必要な旧承認内容と実装判断は
+下記の `HISTORICAL` / `STRUCTURE-MECHANICAL` sectionに限定して保持します。
+Catalog classification / venue boundaryは別topicであり、#564完了までは
+`CURRENT-OTHER-TOPIC` の専用sectionをtemporary current authorityとして参照します。
+
+## Event / Occurrence implementation boundary — STRUCTURE-MECHANICAL
+
+Event / Occurrenceのschema、RLS、RPC、runtime、test、migrationおよびwrite boundaryの
+機械的な実現は、それぞれのsourceとarchitectureが担います。このファイルの旧実装判断は
+current implementation authorityではありません。
+
+## Event / Occurrence provenance — HISTORICAL
+
+以下はcutover前の承認内容・実装判断を追跡するためのhistorical / supporting provenance
+です。現行Event / Occurrence semanticsの正本としては使用しません。
 
 - Event 情報は authenticated users 間の共有 catalog です。anonymous user は
   catalog を閲覧・変更できません。
@@ -524,7 +535,12 @@ Issue #157 で確定した、現行 MVP の canonical ticket journey です。�
   transfer はこの model に追加しません。必要になった場合は、別の bounded
   product Task で TicketOpportunity を前提に設計します。
 
-## Catalog classification / venue boundary
+## Catalog classification / venue boundary — CURRENT-OTHER-TOPIC
+
+このsectionはEvent / Occurrence lifecycleから分離されたCatalog classification / filter
+topicのtemporary current authorityです。#564が完了するまでは、このsectionがgenre、group、
+venue、facet、filter composition、option universe、filter persistenceのcurrent product
+semanticsを保持します。
 
 Issue #158（PO decision）により、Event Catalog classification / filter は
 Post-MVP early から **Gate A pre-dogfood** へ promote 済みです。Issue #167
@@ -651,13 +667,12 @@ AND venue IN (東京宝塚劇場)` のように拡張することを、この fa
 - group hierarchy / alias platform
 - classification に対する recommendation / ranking
 
-## Historical MVP Event catalog write boundary (not current authority)
+## Event write boundary provenance — HISTORICAL
 
 Event作成・owner・Occurrence管理の現行capabilityは
 [`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
-で定義します。以下はcutover前のMVP境界と、将来のgovernance gateに関する
-historical / supporting materialです。ここを現行Event / Occurrence authorityとして
-使用しません。
+で定義します。以下はcutover前のMVP write boundaryに関するhistorical / supporting
+materialです。ここを現行Event / Occurrence authorityとして使用しません。
 
 - minimal な Event + occurrence の create/update UI を MVP へ含めます。
 - shared catalog の read は引き続き authenticated users 全員へ維持します。
@@ -676,7 +691,12 @@ historical / supporting materialです。ここを現行Event / Occurrence autho
   admin/role framework でもない、membership 単位の allowlist として
   確定しています。
 
-### Post-MVP governance gate
+## Post-MVP catalog governance — FUTURE-PLANNING
+
+Post-MVPのbroader Event create permission、registration verification、moderationの
+planning authorityは [Issue #232](https://github.com/reitojike/stage-tracker/issues/232)
+です。以下は将来のproduct checkpointで扱う候補であり、current Living Spec behaviorや
+現行のcreate capabilityには昇格しません。
 
 - Administrator 以外へ Event create 権限を広げる場合、作成された Event が
   実在する shared catalog entry として妥当か確認する verification /
