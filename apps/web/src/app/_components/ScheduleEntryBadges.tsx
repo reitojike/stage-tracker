@@ -19,7 +19,10 @@ export function ScheduleEntryBadges({
       <Badge variant="subtle">
         {isOwner ? "自分の予定" : "共有されている予定"}
       </Badge>
-      <Badge variant={blocking ? "subtle" : "outline"}>
+      <Badge
+        data-testid="blocking-indicator"
+        variant={blocking ? "subtle" : "outline"}
+      >
         {blocking ? "予定を確保する" : "予定を確保しない"}
       </Badge>
     </>
