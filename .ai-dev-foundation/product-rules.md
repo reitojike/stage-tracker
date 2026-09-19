@@ -674,7 +674,15 @@ AND venue IN (東京宝塚劇場)` のように拡張することを、この fa
 - 上記 verification status 等の schema を、将来可能性だけを理由に MVP へ
   先行追加しません。
 
-## 認証: サインイン redirect の query string 境界
+## 認証: サインイン redirect の query string 境界（historical / supporting）
+
+Authentication / account-access の現行 user/security semantics は
+[`specs/006-authentication-account-access/spec.md`](../specs/006-authentication-account-access/spec.md)
+が正本です。以下はcutover前の redirect boundary の判断と provenance を追跡する
+ための historical / supporting materialであり、現行の認証・account-access
+authorityとしては解決しません。provider / runtime mechanismは
+[`docs/architecture/authentication.md`](../docs/architecture/authentication.md)を
+参照します。
 
 - 未認証 user を protected route から `/sign-in` へ default-deny redirect
   する際、元 URL の query string を無条件に転送しません（PO 判断、
