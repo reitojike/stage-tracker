@@ -189,6 +189,18 @@ milestone）だけを月ごとに並べる。** 受付終了済みのものは�
 **decision: 中止された公演回は、bandのtitle自体が中止を示す表記になる。**
 色や記号だけで中止を表しません。
 
+## Personal Schedule lifecycleのauthority boundary
+
+Personal Schedule entryのidentity、Event / Occurrenceからの独立性、時間表現、blocking、
+ownerによるcreate / edit / deleteの現行正本は
+[`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)
+です。この文書は、以下のsectionで画面上の状態・操作入口・文言だけを扱い、lifecycleの
+product semanticsを再定義しません。
+
+sharing / recipient privacyの現行authorityは、#565で専用Living Specへcut overされるまで
+[temporary product rules](../.ai-dev-foundation/product-rules.md)です。この文書の共有に
+関する画面状態は、そのauthorityの現行semanticsを画面に表す責務に限ります。
+
 ## 予定を追加 / 編集（`/schedule/new`、`/schedule/[entryId]/edit`）
 
 **decision: 追加と編集は同じ `ScheduleFields` を共有する。** 同じ入力に
@@ -203,6 +215,10 @@ milestone）だけを月ごとに並べる。** 受付終了済みのものは�
 | 権限の確認が失敗 | 「権限を確認できませんでした」                |
 
 ## 予定詳細（`/schedule/[entryId]`）
+
+Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とします。このsection
+では、owner / sharedの立場、blocking表示、操作入口、状態・文言のscreen presentationを
+記録します。
 
 **decision: 先頭のBadgeが立場を示す。** 所有者＝「自分の予定」、共有された側＝
 「共有されている予定」。予定を確保しない設定のときは `outline` で
@@ -224,8 +240,8 @@ milestone）だけを月ごとに並べる。** 受付終了済みのものは�
 | 共有相手一覧の読み取り失敗 | 「共有中の共有相手を読み込めませんでした」            |
 
 **decision: 「存在しない」と「見えない」は区別できないので、どちらも
-「見つかりません」にする。** RLSで見えないことを、存在しないことと別の文言で
-伝えると、その予定の存在自体を漏らすためです。
+「見つかりません」にする。** この画面上のoutcome / copyは、[temporary product rules](../.ai-dev-foundation/product-rules.md)
+のPersonal Schedule sharing / recipient privacy authorityを表現します。
 
 **decision: 立場の確認が失敗したときに「共有された側」として扱わない。**
 所有者から操作を隠してしまうためです。同じ理由で、自分の共有状態が読めない

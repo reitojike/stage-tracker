@@ -30,6 +30,10 @@ authenticated multi-user application として家族・友人等の複数ユー�
 （例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
 Event / Occurrenceの詳細は
 [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、
+Personal Schedule lifecycleは
+[`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)、
+Personal Schedule sharing / recipient privacyは[temporary product rules](../.ai-dev-foundation/product-rules.md)
+の同topic節（#565まで）、
 その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
 を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
 
@@ -75,7 +79,11 @@ ownership transfer は Issue #234 で current schema / runtime から撤去し�
 
 Event / Occurrenceのnormativeなconstraintは
 [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)を
-参照します。その他の未移行domainのconstraintは
+参照します。
+Personal Schedule lifecycleのnormativeなconstraintは
+[`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)を
+参照します。
+その他の未移行domainのconstraintは
 [temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
 Occurrence Participation とその直接の Invitation convergence / cancellation
 behavior は [Living Spec](../specs/001-occurrence-participation/spec.md) が正本です。
@@ -93,6 +101,11 @@ owner-only hard deletion、および Event/Occurrence cancellation です。
 event-independent Personal Schedule は、all-day / multi-day all-day /
 time-bounded、required free-form title、独立した blocking、private default、
 entry単位の sharing、owner-only recipient管理・entry deletion を備えます。
+Personal Schedule lifecycleのcurrent behavior詳細は
+[Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)を参照します。sharing /
+recipient privacyのcurrent semanticsは[temporary product rules](../.ai-dev-foundation/product-rules.md)
+のPersonal Schedule sharing / recipient privacy節を参照し、#565で専用Living Specへauthorityを
+移行します。
 occurrence-level Participation は `considering` / `attending` と private/
 public visibility を持ち、Invitation は pending-only の独立 coordination
 recordです。Participation側から見た直接的な収束は
@@ -124,6 +137,8 @@ product Taskで再設計します。
 Participationについては[Living Spec](../specs/001-occurrence-participation/spec.md)、
 その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
 を参照します。
+Personal Schedule lifecycleについては
+[Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)を参照します。
 calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)を参照してください。
 
 ## Deferred decisions
@@ -174,7 +189,8 @@ deferred項目として扱いません。
 ## Canonical constraints
 
 実装agentが従うべきnormativeなproduct/domain constraint（permission /
-invariant / default / 禁止事項等）の正本は
-Occurrence Participationについては[Living Spec](../specs/001-occurrence-participation/spec.md)、
-その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
-です。本PRDと矛盾する記述がある場合は、該当domainのcurrent authorityを優先します。
+invariant / default / 禁止事項等）の正本は、Personal Schedule lifecycleについては
+[Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)、Occurrence Participation
+については[Living Spec](../specs/001-occurrence-participation/spec.md)、その他の未移行domain
+については[temporary static product rules](../.ai-dev-foundation/product-rules.md)です。
+本PRDと矛盾する記述がある場合は、該当domainのcurrent authorityを優先します。
