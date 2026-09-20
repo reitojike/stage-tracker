@@ -57,58 +57,13 @@ describe("addScheduleShareByEmail", () => {
     ).resolves.toBeUndefined();
   });
 
-  /**
-   * `share_schedule_entry_by_email` の「対象 email が未登録アカウント」
-   * 拒否は、product rule（「Authenticated-user targeting」節: sharing に
-   * Invitation のような opacity 要件がないため owner へ知らせてよい）が
-   * 開示を許可した唯一の classified な状態。`postgrest-error.ts`/
-   * `resolveShareByEmailBusinessRuleMessage`（このファイル上部の doc
-   * comment参照）が、この1件だけ RPC の生メッセージ（`error.message`）を
-   * 見て固定の安全な日本語文言へ差し替える - 生メッセージ自体は
-   * `ActionError.message` に一切現れない。
-   */
-  it("classifies an unregistered-recipient-email P0001 rejection as validation with a classified message (never the raw PostgREST message)", async () => {
-    server.use(
-      http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
-        HttpResponse.json(
-          {
-            code: "P0001",
-            message: "recipient email is not a registered account",
-            details: "",
-            hint: "",
-          },
-          { status: 400 },
-        ),
-      ),
-    );
-
-    await expect(
-      addScheduleShareByEmail(
-        createTestClient(),
-        ENTRY_ID,
-        "nobody@example.test",
-      ),
-    ).rejects.toMatchObject({
-      kind: "validation",
-      message: "このメールアドレスは、Stage Trackerに登録されていません。",
-    });
-  });
-
-  /**
-   * PR #389 の migration 適用**後**の形。`share_schedule_entry_by_email` が
-   * 「未登録 email」を custom SQLSTATE `90010` で返すようになる。
-   *
-   * 上の `P0001` のテストと**両方が通る**ことが、この PR を単独で deploy
-   * して安全である根拠。現行 DB（`P0001`）でも切替後の DB（`90010`）でも
-   * 同じ classified 文言になる。
-   */
   it("classifies an unregistered-recipient-email 90010 rejection as validation with the classified message", async () => {
     server.use(
       http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
         HttpResponse.json(
           {
             code: "90010",
-            message: "recipient email is not a registered account",
+            message: "database detail may change",
             details: "",
             hint: "",
           },
@@ -143,7 +98,7 @@ describe("addScheduleShareByEmail", () => {
         HttpResponse.json(
           {
             code: "90010",
-            message: "recipient email is not a registered account",
+            message: "another database detail",
             details: "",
             hint: "",
           },
@@ -192,15 +147,7 @@ describe("addScheduleShareByEmail", () => {
     });
   });
 
-  /**
-   * 未登録 email 以外の P0001 業務ルール違反（自己共有・owner以外からの
-   * 呼び出し等）はすべて同一の SQLSTATE で返り、`resolveShareByEmailBusinessRuleMessage`
-   * が一致しないため generic な安全文言へ fail-closed する
-   * （`postgrest-error.ts` の doc comment参照）。ここでは
-   * message 文字列の中身で分岐せず（A8）、生メッセージが `ActionError`
-   * へ一切転記されないことを検証する。
-   */
-  it("classifies any other P0001 business-rule rejection as validation with the generic safe message (never the raw PostgREST message)", async () => {
+  it("does not classify a generic write-side P0001 as a share validation and never exposes its raw message", async () => {
     server.use(
       http.post(`${REST_URL}/rpc/share_schedule_entry_by_email`, () =>
         HttpResponse.json(
@@ -218,8 +165,8 @@ describe("addScheduleShareByEmail", () => {
     await expect(
       addScheduleShareByEmail(createTestClient(), ENTRY_ID, "me@example.test"),
     ).rejects.toMatchObject({
-      kind: "validation",
-      message: "入力内容をご確認のうえ、再度お試しください。",
+      kind: "failure",
+      message: "処理に失敗しました。しばらくしてから再度お試しください。",
     });
   });
 

@@ -4,9 +4,8 @@
 -- 以前は SQLSTATE を持たず、呼び出し側がメッセージ本文の完全一致で意味を
 -- 復元していた。この結合は migration の文言を変えた瞬間に静かに壊れる。
 --
--- **メッセージ本文もあわせて確認する。** app 側は移行期間中まだ文字列一致で
--- 動いており、本文を変えると壊れるため。文字列一致を撤去する PR で、この
--- 本文の assertion も外す。
+-- DB が公開する structured code を確認する。application compatibility のために
+-- PostgreSQL の raw message literal を固定する assertion は置かない。
 \ir helpers/auth.psql
 
 begin;
@@ -33,7 +32,7 @@ call pg_temp.auth_as_user(:'owner_id');
 select throws_ok(
   format('select share_schedule_entry_by_email(%L, %L)', :'entry_id', 'nobody-a8@example.test'),
   '90010',
-  'recipient email is not a registered account',
+  null,
   'unregistered recipient raises SQLSTATE 90010'
 );
 
@@ -41,7 +40,7 @@ select throws_ok(
 select throws_ok(
   format('select share_schedule_entry_by_email(%L, %L)', :'entry_id', :'owner_email'),
   '90011',
-  'cannot share with yourself',
+  null,
   'self-share raises SQLSTATE 90011'
 );
 
