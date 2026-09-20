@@ -12,6 +12,9 @@ begin;
 -- column-level INSERT grant is removed, including the column grant created by
 -- the original personal-schedule migration.
 revoke all on public.personal_schedule_shares from authenticated;
+revoke insert (schedule_entry_id, shared_with_user_id)
+  on public.personal_schedule_shares
+  from authenticated;
 grant select, delete on public.personal_schedule_shares to authenticated;
 
 -- With no authenticated INSERT privilege, this policy is unreachable and must
