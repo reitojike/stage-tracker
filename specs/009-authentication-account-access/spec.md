@@ -57,8 +57,8 @@ application route は、公開を明示する product/security 判断がない�
 installability の評価に必要な manifest / icon などの bounded public resource は
 認証境界の狭い例外です。これは authenticated application route を公開する意味
 ではありません。installable / standalone Web App の利用者向け semantics は
-この仕様では定義しません。#566がcutoverを完了するまでは、現行のinstallability
-semanticsはtemporary static product authorityに残ります。
+[`specs/010-installable-standalone-web-app/spec.md`](../010-installable-standalone-web-app/spec.md)
+が定義し、この仕様では再定義しません。
 
 ### Scenario 5: 認証後の遷移先を安全に扱う
 
@@ -118,9 +118,9 @@ authenticated user は My Page で自分の account identity と sign-out の導
   [`docs/architecture/authentication.md`](../../docs/architecture/authentication.md)
   と code / test が担い、この仕様はその機構を規定しない。
 - manifest、application icon、standalone launch、offline、Service Worker、Web Push
-  は #566 の downstream cutover対象です。#566が完了するまでは、現行の
-  installability semanticsは[temporary static product rules](../../.ai-dev-foundation/product-rules.md)
-  に残ります。この仕様は、authenticated application route が default-deny
+  の current / non-current delivery semantics は
+  [`specs/010-installable-standalone-web-app/spec.md`](../010-installable-standalone-web-app/spec.md)
+  が定義します。この仕様は、authenticated application route が default-deny
   であることと、bounded public resource exception が認証境界を広げないこと
   だけを扱います。
 - Event、Occurrence Participation、Invitation、Personal Schedule、TicketOpportunity
@@ -155,4 +155,4 @@ offline / Push、browser platform の実装差分、hosted provider の運用手
 - account provisioning は利用者向け sign-up flow ではなく、既存の運用・管理境界で行われる。
 - account eligibility と credential ownership の機械的 enforcement は、current runtime、Auth provider、schema / RLS、unit / E2E testが担う。
 - #563 は current semantics の authority cutoverであり、新しい認証方法、account lifecycle、redirect featureを追加しない。
-- 後続の #566 は installable / standalone Web App の user-visible semantics を定義するが、認証 provider や authenticated route boundary は変更しない。
+- Spec 010 は installable / standalone Web App の user-visible semantics を定義するが、認証 provider や authenticated route boundary は変更しない。

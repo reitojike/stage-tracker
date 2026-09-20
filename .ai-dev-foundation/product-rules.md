@@ -615,31 +615,22 @@ authorityとしては解決しません。provider / runtime mechanismは
 - product 上の日付境界は `Asia/Tokyo` です。
 - persisted timestamp は PostgreSQL `timestamptz` です。
 
-## App delivery surface（installable standalone Web App）
+## App delivery surface（installable standalone Web App）— historical supporting context
 
-Issue #304 で確定した、product が supported と認める起動経路です。ここで
-決めたのは installability と standalone 起動までで、offline 動作は含み
-ません。
+Current normative authority は
+[`specs/010-installable-standalone-web-app/spec.md`](../specs/010-installable-standalone-web-app/spec.md)
+です。この節は Issue #304 で materialize された provenance を保持するための
+supporting context であり、現在の installable / standalone Web App semantics の
+別の正本ではありません。
 
-- stage-tracker は browser で開く Web App であることに加えて、Android /
-  iOS のホーム画面へ追加して **standalone Web App として起動できる**こと
-  を supported な利用形態とします。
-- installable であることと offline で動作することは別の概念として扱い、
-  offline 対応を installable PWA の必須条件にしません。current scope で
-  offline 動作は提供しません。
-- installed app の identity（manifest の `id` / `start_url` / `scope`）は
-  stable に扱います。route 変更等の実装都合でこれらを動かすと、既に
-  install 済みの app が別 app として扱われ orphan になるためです。
-- PWA の public resource（manifest / application icon）は未認証でも取得
-  できます。install prompt は sign-in より前に評価されるためです。この
-  公開は当該 resource の exact path に閉じ、authenticated application
-  route の default-deny boundary を緩めません（実装詳細は
-  `docs/architecture/authentication.md`）。
-- Service Worker / offline cache / Web Push / background sync は current
-  scope に含みません。用途が確定していない段階で空の Service Worker や
-  cache strategy を先行導入しません。
-- native 配布（TWA / Google Play / Capacitor / React Native）は current
-  scope に含みません。
+Issue #304 では、通常の browser 利用に加えて Android / iOS の home screen から
+standalone Web App として起動する delivery surface、stable application identity、
+および認証前に評価される bounded manifest / icon resources が確認されました。
+これらの current behavior、authenticated application route との境界、ならびに
+Service Worker / offline / Web Push / native packaging を current behavior と
+しない範囲は Spec 010 を参照してください。exact runtime / matcher / public-path
+mechanics は [`docs/architecture/authentication.md`](../docs/architecture/authentication.md)
+と code / test が担います。
 
 ## 先行実装しないもの
 
