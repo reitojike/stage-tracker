@@ -194,6 +194,16 @@ describe("throwEventDeleteError", () => {
     },
   );
 
+  it("describes the occurrence delete blocker without claiming it is participation/invitation only", () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const result = catchActionError(() =>
+      throwEventDeleteError("delete-occurrence", rawError("90001")),
+    );
+    expect(result.message).toContain("抽選・販売スケジュール");
+    expect(result.message).toContain("参加・招待");
+    expect(result.message).not.toContain(SECRET);
+  });
+
   it("gives each delete operation a distinct delete-blocked message", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const messages = DELETE_OPERATIONS.map(
