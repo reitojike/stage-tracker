@@ -12,6 +12,12 @@ import {
   createEventWithOccurrence,
   createEventWithoutOccurrence,
 } from './support/eventFixtures.ts';
+import {
+  createEventWithOpportunity,
+  importOpportunity,
+  opportunitySourceKey,
+  readTargetOccurrencesAsAdmin,
+} from './support/ticketOpportunityFixtures.ts';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 import { setParticipation } from './support/participationFixtures.ts';
 
@@ -22,8 +28,9 @@ import { setParticipation } from './support/participationFixtures.ts';
 //
 // Product semantics under test (product-rules.md "Deletion"):
 // - owner-only, for both RPCs.
-// - an occurrence cannot be deleted while occurrence_participations /
-//   occurrence_invitations reference it - no cascade.
+// - a standalone occurrence cannot be deleted while occurrence_participations /
+//   occurrence_invitations reference it, or while it is an explicit target of
+//   a selected TicketOpportunity - no cascade/silent target narrowing.
 // - an event's delete is atomic across itself and every child occurrence:
 //   it only proceeds if EVERY child is independently safe to delete: one
 //   unsafe child rejects the whole operation, never a partial delete.
@@ -80,6 +87,18 @@ async function eventExists(eventId: string): Promise<boolean> {
   const { data, error } = await admin.from('events').select('id').eq('id', eventId);
   if (error) {
     throw new Error(`admin event read failed: ${error.message}`);
+  }
+  return data.length === 1;
+}
+
+async function opportunityExists(opportunityId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('ticket_opportunities')
+    .select('id')
+    .eq('id', opportunityId);
+  if (error) {
+    throw new Error(`admin opportunity read failed: ${error.message}`);
   }
   return data.length === 1;
 }
@@ -179,6 +198,59 @@ void test('occurrence delete is blocked while an invitation references it', asyn
   assert.equal(await occurrenceExists(occurrence.id), true);
 });
 
+void test('occurrence delete is blocked while a selected TicketOpportunity explicitly targets it', async () => {
+  const { event, occurrence } = await createEventWithOccurrence(owner);
+  const opportunity = await importOpportunity(event.id, {
+    targetScope: 'selected_occurrences',
+    occurrenceIds: [occurrence.id],
+  });
+
+  const { error } = await owner.client.rpc('delete_event_occurrence', {
+    p_occurrence_id: occurrence.id,
+  });
+  assert.ok(error, 'expected the delete to be blocked by an explicit TicketOpportunity target');
+  assert.equal(error.code, '90001');
+  assert.equal(await occurrenceExists(occurrence.id), true);
+  assert.equal(await opportunityExists(opportunity.id), true);
+
+  const targets = await readTargetOccurrencesAsAdmin(opportunity.id);
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0]?.occurrence_id, occurrence.id);
+});
+
+void test('after target reconciliation removes an occurrence, standalone delete succeeds', async () => {
+  const sourceKey = opportunitySourceKey();
+  const { event, occurrence, secondOccurrence, opportunity } = await createEventWithOpportunity(
+    owner,
+    { sourceKey },
+  );
+
+  const { error: blockedError } = await owner.client.rpc('delete_event_occurrence', {
+    p_occurrence_id: occurrence.id,
+  });
+  assert.ok(blockedError, 'expected the initial targeted delete to be blocked');
+  assert.equal(blockedError.code, '90001');
+
+  const refreshed = await importOpportunity(event.id, {
+    sourceKey,
+    targetScope: 'selected_occurrences',
+    occurrenceIds: [secondOccurrence.id],
+  });
+  assert.equal(refreshed.id, opportunity.id);
+
+  const targets = await readTargetOccurrencesAsAdmin(opportunity.id);
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0]?.occurrence_id, secondOccurrence.id);
+
+  const { error: deleteError } = await owner.client.rpc('delete_event_occurrence', {
+    p_occurrence_id: occurrence.id,
+  });
+  assert.equal(deleteError, null);
+  assert.equal(await occurrenceExists(occurrence.id), false);
+  assert.equal(await occurrenceExists(secondOccurrence.id), true);
+  assert.equal(await opportunityExists(opportunity.id), true);
+});
+
 void test('a blocked occurrence delete does not disturb an unrelated occurrence’s downstream data', async () => {
   const { occurrence: blockedOccurrence } = await createEventWithOccurrence(owner);
   await setParticipation(nonOwner, blockedOccurrence.id, 'considering');
@@ -207,6 +279,18 @@ void test('owner can delete a 0-occurrence event', async () => {
   const { error } = await owner.client.rpc('delete_event', { p_event_id: event.id });
   assert.equal(error, null);
   assert.equal(await eventExists(event.id), false);
+});
+
+void test('whole-event delete is not blocked solely by selected TicketOpportunity targets', async () => {
+  const { event, occurrence, secondOccurrence, opportunity } =
+    await createEventWithOpportunity(owner);
+
+  const { error } = await owner.client.rpc('delete_event', { p_event_id: event.id });
+  assert.equal(error, null);
+  assert.equal(await eventExists(event.id), false);
+  assert.equal(await occurrenceExists(occurrence.id), false);
+  assert.equal(await occurrenceExists(secondOccurrence.id), false);
+  assert.equal(await opportunityExists(opportunity.id), false);
 });
 
 void test('owner can atomically delete an event whose children are all safe to delete', async () => {
