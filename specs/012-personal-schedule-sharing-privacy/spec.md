@@ -17,11 +17,11 @@ entry identity、Event / Occurrence からの独立性、時間表現、blocking
 create / edit / delete、および Calendar / Home composition の authority です。この文書は
 それらを再定義せず、sharing がそれらを変えない境界だけを定義します。
 
-画面の layout、copy、Share Sheet、recipient list、loading / error / empty state、成功・
-失敗 feedback は [`docs/screens.md`](../../docs/screens.md) が presentation authority です。
-runtime、schema、RLS、read / write boundary、migration、RPC、action、component、route、
-tests は current behavior を裏付ける supporting evidence であり、この文書へ mechanics と
-して再定義しません。
+cross-screen UX convention は [`docs/ux-ui.md`](../../docs/ux-ui.md) が所有します。
+Share Sheet、recipient list、loading / error / empty state、成功・失敗の exact presentation
+と copy は current runtime と tests が所有します。runtime、schema、RLS、read / write
+boundary、migration、RPC、action、component、route、tests は current behavior を裏付ける
+supporting evidence であり、この文書へ mechanics として再定義しません。
 
 ## User Scenarios & Testing
 
@@ -161,8 +161,8 @@ source entry より長く存続しません。recipient はその entry を見�
   です。authenticated owner の自分の entry に対する operation-specific な share flow を、
   「authenticated なら account lookup 可能」という一般則にしません。
 - Share Sheet、recipient list、button placement、owner / shared UI state、empty / loading /
-  error / success presentation と exact copy は [`docs/screens.md`](../../docs/screens.md) の
-  presentation authority です。
+  error / success presentation と exact copy は current runtime と tests が所有し、
+  cross-screen UX convention は [`docs/ux-ui.md`](../../docs/ux-ui.md) に従います。
 
 ## Scope Boundaries
 

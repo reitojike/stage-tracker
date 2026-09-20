@@ -1,20 +1,24 @@
 # stage-tracker UX/UI baseline
 
 この document は、stage-tracker の screen / feature 横断で適用する global
-UX/UI rule の canonical source です。個別 screen の状態・権限・実文言は
-[`docs/screens.md`](./screens.md) を正本とします。
+UX/UI rule の canonical source です。product / domain semantics は relevant Living
+Spec または current product authority、feature-local な exact presentation / copy /
+layout / state rendering は current runtime と tests が所有します。
 
 ## Canonical ownership と current implementation pointer
 
 - smartphone-first、information hierarchy、interaction principle、visual
   semantics、accessibility baseline など、screen 横断の UX/UI rule は本書で
   固定します。
-- 画面ごとの状態・権限・実文言は [`docs/screens.md`](./screens.md) を参照します。
-  Occurrence Participation の current behavior は
+- product / domain semantics は relevant Living Spec または current product authority が
+  所有し、本書では画面単位・domain 単位に再掲しません。Occurrence Participation の
+  current behavior は
   [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)、
   未移行 domain の semantics は temporary static authority である
   `.ai-dev-foundation/product-rules.md` を参照します。
-  本書はそれらを画面単位・domain 単位で再掲しません。
+- cross-screen UX/UI convention は本書が所有します。feature-local な exact
+  presentation、copy、layout、state rendering とその deterministic exactness は
+  current runtime / action と tests を参照します。exact literal の一覧を本書へ複製しません。
 - Storybook は rendered examples / states catalog です。Storybook や実装の
   class 名は本書の design rule の正本ではありません。
 - current runtime の実装参照先は `apps/web/`、shared UI ownership は
@@ -90,8 +94,10 @@ current PrimaryNav は **ホーム / イベント / チケット / カレンダ�
 
 AppBar は画面上部に残り、左のお知らせ affordance、中央の logotype、右の My Page
 affordance という3領域で構成します。左右の affordance の位置を揃え、本文とは
-面を増やさず細い境界で区切ります。お知らせ機能が未提供の間も affordance の
-tap target と disabled semantics は維持します。
+面を増やさず細い境界で区切ります。お知らせ affordance は current `/notifications`
+への link として扱い、お知らせの product semantics は
+[`specs/002-notifications-screen/spec.md`](../specs/002-notifications-screen/spec.md) が、
+feature-local な exact UI は current runtime / tests が所有します。
 
 `/sign-in` は PrimaryNav と AppBar actions を表示しない認証外側の画面です。
 Search の独立 tab、Settings の配置、future feature nav は追加の product decision
@@ -209,8 +215,8 @@ screen ごとに作りません。
 - 送信中は form を busy として扱い、入力を無効化し、button label だけを action の
   動詞に沿って変えます。label の変化で layout が跳ねないようにします。
 - 失敗文言は「権限がない」「対象が見つからない」「入力に問題がある」「通信に
-  失敗した」を区別します。screen ごとの実文言は [`docs/screens.md`](./screens.md)
-  を参照します。
+  失敗した」を区別します。screen ごとの実文言と operation-specific な feedback は
+  current action / runtime と tests を参照します。
 
 ## 一時的に操作できる行
 
@@ -248,8 +254,8 @@ loading fallback には、data read や permission check の結果より前か�
 stable な page chrome（heading や戻る affordance など）を、同じ hierarchy と destination
 で残します。data-dependent な chrome を fallback で推測して追加しません。これは
 transition 中の layout shift と navigation semantics の変化を防ぐための cross-screen
-invariant です。どの chrome が stable かという route 単位の判断は各 route の実装で
-行い、screen 固有の状態や文言は [`docs/screens.md`](./screens.md) を参照します。
+invariant です。どの chrome が stable かという route 単位の判断と、screen 固有の
+状態や文言は current route implementation と tests が所有します。
 
 reduced motion を尊重します。
 
@@ -409,15 +415,14 @@ Storybook の a11y addon や test は QA aid として使いますが、complian
 Storybook は current shared UI の rendered examples / states catalog として使います。
 current framework adapter は `@storybook/nextjs-vite` です。Storybook は app production
 runtime と不要に coupling せず、static build と relevant a11y verification を通します。
-本書が rule を、`docs/screens.md` が screen decision を、source / tests / Storybook が
-implementation と example をそれぞれ担います。
+本書が cross-screen UX rule を、current runtime が feature-local な presentation / state
+を、tests が deterministic evidence を、Storybook が rendered example をそれぞれ担います。
 
 ## 本ドキュメントで固定しないもの
 
 次の項目は実装都合で先行確定しません。関連する product task / PO checkpoint で決めます。
 
 - exact accent hue の将来の final decision
-- お知らせ (`/notifications`) の trigger、保持期間、既読 domain、完成 UI
 - feature-specific calendar marker semantics
 - Event range 内で occurrence が存在しない日の表示方法
 - event / occurrence / participation / invitation / personal schedule /

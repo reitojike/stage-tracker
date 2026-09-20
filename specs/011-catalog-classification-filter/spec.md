@@ -16,11 +16,11 @@ Event / Occurrence の identity、range、ownership、通常の Event update、v
 定義します。cancellation の month-grid projection と count は
 [Calendar month-grid Living Spec](../004-calendar-month-grid/spec.md) が定義します。
 
-この文書は filter の意味を定義しますが、画面の layout、copy、loading / empty
-feedback、draft / applied interaction は [`docs/screens.md`](../../docs/screens.md)
-が presentation authority です。schema、RLS、read boundary、import procedure、
-runtime implementation、tests は mechanics / deterministic evidence であり、この
-文書へ再定義しません。
+この文書は filter の意味を定義します。cross-screen UX convention は
+[`docs/ux-ui.md`](../../docs/ux-ui.md) が所有し、`/catalog` の summary row、icon dot、
+draft / applied rendering、loading、metadata failure、empty state、exact copy、layout は
+current runtime と tests が所有します。schema、RLS、read boundary、import procedure、
+runtime mechanics は各実装責務と deterministic evidence に残し、この文書へ再定義しません。
 
 ## User Scenarios & Testing
 
@@ -169,9 +169,9 @@ venue text の value と owner write capability を operator-only とする意�
 - cancellation の month-grid count、range projection、selected-day cancellation
   presentation は [Spec 004](../004-calendar-month-grid/spec.md) が authority です。
   classification/filter matching は Spec 004 に委譲しません。
-- `/catalog` の summary row、icon dot、draft / applied state、loading、metadata
-  failure、empty state、exact copy、layout / state feedback は
-  [`docs/screens.md`](../../docs/screens.md) が presentation authority です。
+- `/catalog` の cross-screen UX convention は [`docs/ux-ui.md`](../../docs/ux-ui.md) が
+  所有し、summary row、icon dot、draft / applied state、loading、metadata failure、
+  empty state、exact copy、layout / state feedback は current runtime と tests が所有します。
 - catalog import の reviewed seed、operator procedure、schema、RLS、RPC、typed read
   boundary、loader、component state は runbook / architecture / implementation / tests
   の責務です。この文書は「誰が classification を書けるか」という product boundary
