@@ -238,7 +238,8 @@ const DELETE_BLOCKED_FEEDBACK: Record<
   },
   "delete-occurrence": {
     title: "この公演回は削除できません",
-    description: "関連する参加・招待があるため削除できません。",
+    description:
+      "関連する参加・招待、またはこの公演回を対象にした抽選・販売スケジュールがあるため削除できません。関連情報を整理してから、もう一度お試しください。",
   },
 };
 
