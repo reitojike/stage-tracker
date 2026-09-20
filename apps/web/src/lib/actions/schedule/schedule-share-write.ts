@@ -1,9 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { scheduleShareIdSchema } from "@stage-tracker/domain";
 import type {
   ScheduleShareId,
   PersonalScheduleEntryId,
-  UserId,
 } from "@stage-tracker/domain";
 import type { Database } from "@/lib/data/database.types";
 import { ActionError } from "@/lib/action-error";
@@ -77,12 +75,6 @@ function resolveShareByEmailBusinessRuleMessage(rejection: {
   return undefined;
 }
 
-export interface ScheduleShareRecipient {
-  readonly shareId: ScheduleShareId;
-  readonly recipientEmail: string;
-  readonly sharedAt: string;
-}
-
 export async function addScheduleShareByEmail(
   client: SupabaseClient<Database>,
   entryId: PersonalScheduleEntryId,
@@ -150,75 +142,4 @@ export async function removeScheduleShare(
   if (data.length === 0) {
     throw new ActionError("not-found", "対象の共有が見つかりませんでした。");
   }
-}
-
-/**
- * 非owner が、自分が受け取っている共有のうち特定 entry のものの
- * shareId を得るための read。plain table SELECT で十分な理由:
- * `personal_schedule_shares_select_owner_or_recipient` RLS が
- * 「recipient は自分の share row だけを見られる」を既に保証しており、
- * この読み取りは RPC を必要としない（owner 視点の email 一覧取得
- * （`list_schedule_share_recipient_emails`）とは異なり、email 列を
- * 必要としないため）。
- *
- * `shared_with_user_id` を呼び出し元の `userId` で明示的に絞る。
- * `personal_schedule_shares_select_owner_or_recipient` RLS は recipient
- * 本人だけでなく **entry owner にもその entry の全 share row の SELECT を
- * 許可している**ため、`schedule_entry_id` だけの絞り込みでは、この関数を
- * owner が呼んだ場合に recipient 全員の share row が返り得る。self-leave
- * の呼び出し元（`removeScheduleShareAction`）は「自分自身の share だけを
- * 対象にする」という契約のため、`shared_with_user_id = userId` まで
- * 絞ってはじめて「自分の共有」に束縛される。
- *
- * 一意制約 `(schedule_entry_id, shared_with_user_id)` により、この
- * 呼び出しが1行を超えて返すことはない。
- */
-export async function findOwnScheduleShareId(
-  client: SupabaseClient<Database>,
-  entryId: PersonalScheduleEntryId,
-  userId: UserId,
-): Promise<ScheduleShareId | null> {
-  const { data, error, status } = await client
-    .from("personal_schedule_shares")
-    .select("id")
-    .eq("schedule_entry_id", entryId)
-    .eq("shared_with_user_id", userId);
-
-  if (error !== null) {
-    throw classifyWritePostgrestError(error, status);
-  }
-  const first = data[0];
-  return first === undefined ? null : scheduleShareIdSchema.parse(first.id);
-}
-
-/**
- * owner 視点の recipient-email 一覧（`list_schedule_share_recipient_emails`
- * RPC）。この RPC は SECURITY DEFINER で owner-only を再チェックしており
- * （migration の doc comment 参照）、通常この関数は owner だと確認済みの
- * 呼び出し元（`/schedule/[entryId]` が既に `entry.ownerId === callerId` を
- * 確認した後）からのみ呼ぶ。そのため、この RPC が返す唯一現実的な業務
- * ルール違反は「owner ではない」であり、`classifyRpcError` の
- * `businessRuleKind` に `permission-denied` を渡す
- * （`addScheduleShareByEmail` が `validation` を渡すのとは異なる選択 -
- * 理由は各呼び出し元の現実的な失敗モードの違い）。
- */
-export async function listScheduleShareRecipientEmails(
-  client: SupabaseClient<Database>,
-  entryId: PersonalScheduleEntryId,
-): Promise<readonly ScheduleShareRecipient[]> {
-  const { data, error, status } = await client.rpc(
-    "list_schedule_share_recipient_emails",
-    {
-      p_schedule_entry_id: entryId,
-    },
-  );
-
-  if (error !== null) {
-    throw classifyRpcError(error, status, "permission-denied");
-  }
-  return (data ?? []).map((row) => ({
-    shareId: scheduleShareIdSchema.parse(row.share_id),
-    recipientEmail: row.recipient_email,
-    sharedAt: row.shared_at,
-  }));
 }

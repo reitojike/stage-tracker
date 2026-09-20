@@ -54,8 +54,12 @@ export function classifyPostgrestError(
  * （「すべての read が Result を返し、例外で boundary を突き破らせない」
  * という絶対要件）。
  */
-export async function runSupabaseSelect<Row>(
+async function runSupabaseQuery<Row>(
   query: PromiseLike<PostgrestResponse<Row>>,
+  classifyError: (
+    error: PostgrestError,
+    status: number,
+  ) => ReadError = classifyPostgrestError,
 ): Promise<ReadResult<readonly Row[]>> {
   let response: PostgrestResponse<Row>;
   try {
@@ -69,7 +73,7 @@ export async function runSupabaseSelect<Row>(
   }
 
   if (response.error !== null) {
-    return err(classifyPostgrestError(response.error, response.status));
+    return err(classifyError(response.error, response.status));
   }
   // PostgREST は成功した SELECT に対して常に JSON 配列 body を返すため
   // `data` は実質 non-null。この null チェックは型を満たすためと、
@@ -81,4 +85,22 @@ export async function runSupabaseSelect<Row>(
     return err(readError("failure"));
   }
   return ok(response.data);
+}
+
+export function runSupabaseSelect<Row>(
+  query: PromiseLike<PostgrestResponse<Row>>,
+): Promise<ReadResult<readonly Row[]>> {
+  return runSupabaseQuery(query);
+}
+
+/**
+ * Run a table-valued RPC through the same typed read boundary as a SELECT.
+ * RPCs used by read modules still need the same exception, PostgREST error,
+ * and null-data handling as ordinary queries.
+ */
+export function runSupabaseRpc<Row>(
+  query: PromiseLike<PostgrestResponse<Row>>,
+  classifyError?: (error: PostgrestError, status: number) => ReadError,
+): Promise<ReadResult<readonly Row[]>> {
+  return runSupabaseQuery(query, classifyError);
 }

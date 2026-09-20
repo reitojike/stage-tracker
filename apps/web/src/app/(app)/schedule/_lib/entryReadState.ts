@@ -22,7 +22,7 @@ import {
  * 型として保たず、そのままの alias にして二重管理をやめる。
  *
  * ここに残る schedule 固有のロジックは1点だけ: `PersonalScheduleEntry |
- * null` の `null`（`_lib/entryLookup.ts` の doc comment のとおり「そもそも
+ * null` の `null`（single-entry read boundary が「そもそも
  * 存在しない entry」と「存在するが自分に見えない（非公開）entry」を RLS が
  * 区別できないため意図的に一体化した empty）を `classifyReadResult` の
  * `isEmpty` へそのまま渡すことだけで、kind → variant の写像そのものは

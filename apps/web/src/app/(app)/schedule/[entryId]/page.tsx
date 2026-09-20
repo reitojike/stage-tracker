@@ -10,12 +10,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import {
+  getOwnScheduleShareId,
+  getVisiblePersonalScheduleEntry,
   listScheduleShareRecipientEmails,
-  findOwnScheduleShareId,
-} from "@/lib/actions/schedule/schedule-share-write";
-import { findVisibleScheduleEntry } from "../_lib/entryLookup";
+} from "@/lib/data";
 import { classifyScheduleEntryReadResult } from "../_lib/entryReadState";
-import { safelyCall } from "../_lib/safelyCall";
 import {
   BackLink,
   PageHeading,
@@ -46,11 +45,8 @@ function resolveBackHref(month: string | undefined): string {
  *
  * `description` は `(app)/` 配下の read panel（例:
  * `../../page.tsx`）と同じ `READ_FAILURE_RETRY_HINT_JA` を使う固定文言
- * であり、`safelyCall` が拾った例外の内容（`ActionError.message` を含む）を
- * 一切表示に使わない。`description={...message}` の形を全廃する M6c の
- * 修正対象であり、`safelyCall` 自体もこの節を受けて「呼び出し元が dynamic
- * な message を表示できないよう、そもそも message を返さない」形へ変更した
- * （`_lib/safelyCall.ts` 参照）。
+ * であり、read boundary の `ReadResult` が返す error detail を画面へ表示せず、
+ * variant 固有の固定文言だけを使う。
  */
 async function OwnerShareManagement({
   supabase,
@@ -59,9 +55,7 @@ async function OwnerShareManagement({
   readonly supabase: SupabaseClient<Database>;
   readonly entryId: PersonalScheduleEntryId;
 }) {
-  const result = await safelyCall(() =>
-    listScheduleShareRecipientEmails(supabase, entryId),
-  );
+  const result = await listScheduleShareRecipientEmails(supabase, entryId);
 
   return (
     <section className="flex flex-col gap-sm border-t-2 border-border pt-card-block">
@@ -97,8 +91,10 @@ async function NonOwnerShareStatus({
   readonly entryId: PersonalScheduleEntryId;
   readonly userId: string;
 }) {
-  const result = await safelyCall(() =>
-    findOwnScheduleShareId(supabase, entryId, userIdSchema.parse(userId)),
+  const result = await getOwnScheduleShareId(
+    supabase,
+    entryId,
+    userIdSchema.parse(userId),
   );
 
   if (!result.ok) {
@@ -154,7 +150,7 @@ async function ScheduleEntryDetailBody({
   const supabase = await createSupabaseServerClient();
   const [authResult, entryReadResult] = await Promise.all([
     supabase.auth.getUser(),
-    findVisibleScheduleEntry(supabase, entryId),
+    getVisiblePersonalScheduleEntry(supabase, entryId),
   ]);
   const {
     data: { user },
@@ -178,7 +174,7 @@ async function ScheduleEntryDetailBody({
 
   if (entryState.variant === "empty") {
     // 存在しない entry と非公開 entry は同一の empty 扱い（意図的。
-    // `_lib/entryLookup.ts` の doc comment参照）。
+    // RLS intentionally gives both cases the same successful null result.
     return (
       <>
         <PageHeading>予定の詳細</PageHeading>
