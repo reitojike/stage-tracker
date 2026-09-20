@@ -151,8 +151,7 @@ const EXACT_GRANTS: ExactGrantExpectation[] = [
   {
     table: 'personal_schedule_shares',
     grantee: 'authenticated',
-    privileges: ['SELECT', 'INSERT', 'DELETE'],
-    columns: { INSERT: ['schedule_entry_id', 'shared_with_user_id'] },
+    privileges: ['SELECT', 'DELETE'],
   },
 ];
 

@@ -54,8 +54,7 @@ async function createEventAsOwner(client) {
 
 // Issue #31: personal_schedule_entries has no atomicity invariant, so a
 // plain INSERT (unlike events' RPC) is the fixture create path. Takes the
-// full actor (not just its client) because, unlike create_event_with_
-// occurrence, owner_id here is an explicit column the caller supplies.
+// full actor (not just its client) because owner_id is an explicit column.
 async function createScheduleEntryAsOwner(actor) {
   const startsOn = new Date().toISOString().slice(0, 10);
   const { data, error } = await actor.client
@@ -72,6 +71,21 @@ async function createScheduleEntryAsOwner(actor) {
     .single();
   if (error || !data) {
     throw new Error(`fixture personal_schedule_entries insert failed: ${error?.message}`);
+  }
+  return data;
+}
+
+async function shareScheduleEntryByEmailAsOwner(owner, entryId, recipient) {
+  const recipientEmail = recipient.user.email;
+  if (!recipientEmail) {
+    throw new Error(`fixture recipient ${recipient.user.id} has no email`);
+  }
+  const { data, error } = await owner.client.rpc('share_schedule_entry_by_email', {
+    p_schedule_entry_id: entryId,
+    p_recipient_email: recipientEmail,
+  });
+  if (error || !data) {
+    throw new Error(`fixture share_schedule_entry_by_email failed: ${error?.message}`);
   }
   return data;
 }
@@ -598,12 +612,7 @@ try {
        using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
     async () => {
       const created = await createScheduleEntryAsOwner(actorA);
-      const { error: shareError } = await actorA.client
-        .from('personal_schedule_shares')
-        .insert({ schedule_entry_id: created.id, shared_with_user_id: actorB.user.id });
-      if (shareError) {
-        throw new Error(`fixture share insert failed: ${shareError.message}`);
-      }
+      await shareScheduleEntryByEmailAsOwner(actorA, created.id, actorB);
       const hijackedMemo = `hijacked while policy is broken ${Date.now()}-${Math.random().toString(36).slice(2)}`;
       // No .select() here, for the same reason as guardrail item 11 above:
       // personal_schedule_entries' SELECT policy stays intact throughout,
@@ -633,36 +642,7 @@ try {
     },
   );
 
-  // 13. personal_schedule_shares_insert_owner: replacing its WITH CHECK
-  // with `true` must let a non-owner add a recipient to someone else's
-  // entry, proving "a recipient cannot add another recipient to an entry
-  // they don't own" depends on this policy.
-  await withBrokenPolicy(
-    'personal_schedule_shares_insert_owner',
-    `drop policy personal_schedule_shares_insert_owner on public.personal_schedule_shares;
-     create policy personal_schedule_shares_insert_owner
-       on public.personal_schedule_shares for insert to authenticated with check (true);`,
-    `drop policy personal_schedule_shares_insert_owner on public.personal_schedule_shares;
-     create policy personal_schedule_shares_insert_owner
-       on public.personal_schedule_shares for insert to authenticated
-       with check (public.is_personal_schedule_entry_owner(schedule_entry_id));`,
-    async () => {
-      const created = await createScheduleEntryAsOwner(actorA);
-      const { data, error } = await actorB.client
-        .from('personal_schedule_shares')
-        .insert({ schedule_entry_id: created.id, shared_with_user_id: actorB.user.id })
-        .select()
-        .single();
-      assert.equal(
-        error,
-        null,
-        'expected a non-owner adding a recipient to go red (succeed) with the insert policy broken',
-      );
-      assert.equal(data.schedule_entry_id, created.id);
-    },
-  );
-
-  // 14. personal_schedule_shares_delete_owner_or_self (relaxed together with
+  // personal_schedule_shares_delete_owner_or_self (relaxed together with
   // its SELECT policy, like guardrail item 2 above): replacing DELETE's
   // USING with `true` must let a stranger (neither the entry owner nor the
   // share's own recipient) delete someone else's share row, proving "a
@@ -697,14 +677,7 @@ try {
        );`,
     async () => {
       const created = await createScheduleEntryAsOwner(actorA);
-      const { data: share, error: shareError } = await actorA.client
-        .from('personal_schedule_shares')
-        .insert({ schedule_entry_id: created.id, shared_with_user_id: actorB.user.id })
-        .select()
-        .single();
-      if (shareError || !share) {
-        throw new Error(`fixture share insert failed: ${shareError?.message}`);
-      }
+      const share = await shareScheduleEntryByEmailAsOwner(actorA, created.id, actorB);
       const { data, error } = await stranger.client
         .from('personal_schedule_shares')
         .delete()

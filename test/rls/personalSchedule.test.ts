@@ -242,7 +242,7 @@ void test('owner_id cannot be spoofed on insert', async () => {
 
 void test('owner sharing an entry lets the recipient read it', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  await shareScheduleEntry(owner, entry.id, recipient);
 
   const { data, error } = await recipient.client
     .from('personal_schedule_entries')
@@ -259,7 +259,7 @@ void test('owner sharing an entry lets the recipient read it', async () => {
 
 void test('owner can see the recipients they have shared an entry with', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  await shareScheduleEntry(owner, entry.id, recipient);
 
   const { data, error } = await owner.client
     .from('personal_schedule_shares')
@@ -272,7 +272,7 @@ void test('owner can see the recipients they have shared an entry with', async (
 
 void test('recipient can see their own share row', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  const share = await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  const share = await shareScheduleEntry(owner, entry.id, recipient);
 
   const { data, error } = await recipient.client
     .from('personal_schedule_shares')
@@ -282,21 +282,57 @@ void test('recipient can see their own share row', async () => {
   assert.equal(data.length, 1);
 });
 
-void test('sharing the same entry with the same recipient twice is rejected', async () => {
+void test('authenticated owner cannot directly insert a share for another user UUID', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  await shareScheduleEntry(owner, entry.id, recipient.user.id);
 
   const { error } = await owner.client
     .from('personal_schedule_shares')
     .insert({ schedule_entry_id: entry.id, shared_with_user_id: recipient.user.id });
-  assert.ok(error, 'expected the unique constraint to reject a duplicate share');
+  assert.ok(error, 'expected direct raw-UUID share INSERT to be denied');
+});
+
+void test('authenticated owner cannot directly insert a self-share UUID', async () => {
+  const entry = await createTimedScheduleEntry(owner);
+
+  const { error } = await owner.client
+    .from('personal_schedule_shares')
+    .insert({ schedule_entry_id: entry.id, shared_with_user_id: owner.user.id });
+  assert.ok(error, 'expected direct self-share INSERT to be denied');
+});
+
+void test('the owner self-share email is rejected by the RPC', async () => {
+  const entry = await createTimedScheduleEntry(owner);
+  const ownerEmail = owner.user.email;
+  assert.ok(ownerEmail);
+
+  const { error } = await owner.client.rpc('share_schedule_entry_by_email', {
+    p_schedule_entry_id: entry.id,
+    p_recipient_email: ownerEmail,
+  });
+  assert.ok(error, 'expected the RPC to reject an owner sharing with themselves');
+});
+
+void test('sharing the same entry with the same recipient is idempotent through the RPC', async () => {
+  const entry = await createTimedScheduleEntry(owner);
+  const firstShare = await shareScheduleEntry(owner, entry.id, recipient);
+  const secondShare = await shareScheduleEntry(owner, entry.id, recipient);
+
+  assert.equal(secondShare.id, firstShare.id);
+
+  const { data, error } = await owner.client
+    .from('personal_schedule_shares')
+    .select('id')
+    .eq('schedule_entry_id', entry.id)
+    .eq('shared_with_user_id', recipient.user.id);
+  assert.equal(error, null);
+  assert.equal(data.length, 1);
 });
 
 // --- Negative: a shared user cannot edit the entry or manage recipients ---
 
 void test('a recipient cannot update the shared entry, and the row stays unchanged', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  await shareScheduleEntry(owner, entry.id, recipient);
 
   const { data: updateData, error: updateError } = await recipient.client
     .from('personal_schedule_entries')
@@ -316,18 +352,21 @@ void test('a recipient cannot update the shared entry, and the row stays unchang
 
 void test('a recipient cannot add another recipient to an entry they don’t own', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  await shareScheduleEntry(owner, entry.id, recipient);
 
-  const { error } = await recipient.client
-    .from('personal_schedule_shares')
-    .insert({ schedule_entry_id: entry.id, shared_with_user_id: stranger.user.id });
-  assert.ok(error, 'expected a permission error for a recipient adding another recipient');
+  const strangerEmail = stranger.user.email;
+  assert.ok(strangerEmail);
+  const { error } = await recipient.client.rpc('share_schedule_entry_by_email', {
+    p_schedule_entry_id: entry.id,
+    p_recipient_email: strangerEmail,
+  });
+  assert.ok(error, 'expected the RPC to reject a non-owner adding another recipient');
 });
 
 void test('a recipient cannot remove another recipient’s share', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  await shareScheduleEntry(owner, entry.id, recipient.user.id);
-  const otherShare = await shareScheduleEntry(owner, entry.id, stranger.user.id);
+  await shareScheduleEntry(owner, entry.id, recipient);
+  const otherShare = await shareScheduleEntry(owner, entry.id, stranger);
 
   const { data: deleteData, error: deleteError } = await recipient.client
     .from('personal_schedule_shares')
@@ -348,7 +387,7 @@ void test('a recipient cannot remove another recipient’s share', async () => {
 
 void test('a recipient can remove themselves from a share, losing read access', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  const share = await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  const share = await shareScheduleEntry(owner, entry.id, recipient);
 
   const { error: deleteError } = await recipient.client
     .from('personal_schedule_shares')
@@ -365,7 +404,7 @@ void test('a recipient can remove themselves from a share, losing read access', 
 
 void test('the owner can remove a recipient, revoking their read access', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  const share = await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  const share = await shareScheduleEntry(owner, entry.id, recipient);
 
   const { error: deleteError } = await owner.client
     .from('personal_schedule_shares')
@@ -436,7 +475,7 @@ void test('anonymous cannot insert schedule shares', async () => {
 
 void test('anonymous cannot delete schedule shares', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  const share = await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  const share = await shareScheduleEntry(owner, entry.id, recipient);
   const anon = createAnonymousClient();
   const { error } = await anon.from('personal_schedule_shares').delete().eq('id', share.id);
   assert.ok(error, 'expected a permission error for anonymous delete');
@@ -522,7 +561,7 @@ void test('owner can delete their own entry', async () => {
 
 void test('deleting an entry cascades to its shares, leaving no orphan row', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  const share = await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  const share = await shareScheduleEntry(owner, entry.id, recipient);
 
   const { error: deleteError } = await owner.client
     .from('personal_schedule_entries')
@@ -555,7 +594,7 @@ void test('deleting an entry cascades to its shares, leaving no orphan row', asy
 
 void test('a recipient cannot delete a shared entry, and it remains visible to the owner', async () => {
   const entry = await createTimedScheduleEntry(owner);
-  await shareScheduleEntry(owner, entry.id, recipient.user.id);
+  await shareScheduleEntry(owner, entry.id, recipient);
 
   const { data: deleteData, error: deleteError } = await recipient.client
     .from('personal_schedule_entries')
