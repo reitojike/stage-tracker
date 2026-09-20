@@ -1,7 +1,7 @@
 # 認証フロー（Magic Link / Passkey）
 
 Current user/security semantics の正本は
-[`specs/006-authentication-account-access/spec.md`](../../specs/006-authentication-account-access/spec.md)
+[`specs/009-authentication-account-access/spec.md`](../../specs/009-authentication-account-access/spec.md)
 です。この文書は、その仕様を実現する provider、runtime、browser/server
 capability、設定、検証の mechanism / structure を記録します。ここにある
 product wordingは実装境界を説明するための contextであり、user/security semantics

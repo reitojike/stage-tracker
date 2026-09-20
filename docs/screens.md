@@ -262,7 +262,7 @@ Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とし
 ## マイページ（`/mypage`）
 
 account eligibility、protected route、account identity、Passkeyのsecurity roleは
-[`specs/006-authentication-account-access/spec.md`](../specs/006-authentication-account-access/spec.md)
+[`specs/009-authentication-account-access/spec.md`](../specs/009-authentication-account-access/spec.md)
 を正本とします。このsectionは、authenticated My Pageのlayout、screen state、
 導線および表示上の例外だけを扱い、認証・credentialの意味を再定義しません。
 
@@ -293,7 +293,7 @@ section構成は「予定とイベント」（個人予定の管理・イベン�
 
 account eligibility、Magic Link / Passkeyのrole、enumeration safety、protected
 routeおよびredirect stateのsecurity boundaryは
-[`specs/006-authentication-account-access/spec.md`](../specs/006-authentication-account-access/spec.md)
+[`specs/009-authentication-account-access/spec.md`](../specs/009-authentication-account-access/spec.md)
 を正本とします。このsectionは、sign-in screenのstate、layout、導線および
 rendered copyだけを扱います。
 

@@ -585,7 +585,7 @@ planning authorityは [Issue #232](https://github.com/reitojike/stage-tracker/is
 ## 認証: サインイン redirect の query string 境界（historical / supporting）
 
 Authentication / account-access の現行 user/security semantics は
-[`specs/006-authentication-account-access/spec.md`](../specs/006-authentication-account-access/spec.md)
+[`specs/009-authentication-account-access/spec.md`](../specs/009-authentication-account-access/spec.md)
 が正本です。以下はcutover前の redirect boundary の判断と provenance を追跡する
 ための historical / supporting materialであり、現行の認証・account-access
 authorityとしては解決しません。provider / runtime mechanismは

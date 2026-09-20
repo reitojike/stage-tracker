@@ -1,5 +1,7 @@
 # Authentication / account-access 現行仕様
 
+**Feature Branch**: `codex/issue-563-authentication-authority`
+
 **Status**: Current behavior contract
 **Scope**: provisioned account の認証、日常の credential、application route へのアクセス境界
 
