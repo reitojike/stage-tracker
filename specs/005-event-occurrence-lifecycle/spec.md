@@ -103,16 +103,19 @@ Deletionは誤登録を除去するhard deleteです。soft delete、trash、res
 
 ### Scenario 7: 依存状態があるEvent / Occurrenceを安全に削除する
 
-Occurrenceはownerだけが削除できます。対象OccurrenceにParticipationまたは
-Invitationが1件でも存在する場合、削除は拒否され、これらの状態をcascadeで削除
-しません。最後のOccurrenceを削除してEventが0件の状態になることは許可されます。
+Occurrenceはownerだけが削除できます。対象OccurrenceにParticipation、Invitation、
+またはselected TicketOpportunity targetが1件でも存在する場合、standaloneな削除は
+拒否され、これらの状態をcascadeで削除しません。selected targetを削除対象から外す
+場合は、official target scopeを先にreconcileします。最後のOccurrenceを削除してEvent
+が0件の状態になることは許可されます。
 
 Eventはownerだけが削除できます。OccurrenceがないEventは削除できます。子
-Occurrenceがある場合は、すべての子が個別削除の条件を満たすときだけEventと子を
-一体として削除します。削除できない子が1件でもあれば全体を拒否し、部分削除を
-発生させません。Participation / Invitationのdownstream stateをEvent削除が
-cascadeで消すことはありません。その他のdomainのdependent stateは、この仕様の
-保証対象外です。
+Occurrenceがある場合は、Participation / Invitationによる削除blockerがない子を
+対象にEventと子を一体として削除します。削除できない子が1件でもあれば全体を拒否し、
+部分削除を発生させません。selected TicketOpportunity targetの存在だけではwhole-Event
+削除をblockせず、TicketOpportunityとpersonal planning stateを含むEvent lifecycleの
+cross-domain consequenceはSpec 008が定義します。Participation / Invitationの
+downstream stateをEvent削除がcascadeで消すことはありません。
 
 ## Requirements
 
@@ -159,9 +162,14 @@ cascadeで消すことはありません。その他のdomainのdependent state�
 - **EV-015**: cancellationはdeletionと異なり、既存のParticipation / Invitationを
   保持し、cascadeで削除・書き換えない。
 - **EV-016**: Event / Occurrenceのhard deletionはowner-onlyで、依存Participation /
-  InvitationがあるOccurrenceの削除を拒否する。
-- **EV-017**: Event削除は0件のEventを許可し、子を含む場合は削除可能な子だけが全件
-  そろったときにatomicに行い、Participation / Invitationをcascadeしない。
+  Invitation、またはselected TicketOpportunity targetがあるOccurrenceのstandalone
+  削除を拒否する。selected targetを対象範囲から外す場合は、official target scopeを
+  先にreconcileする。
+- **EV-017**: Event削除は0件のEventを許可し、子を含む場合はParticipation / Invitation
+  によるblockerがない子が全件そろったときにatomicに行い、Participation / Invitationを
+  cascadeしない。selected TicketOpportunity targetの存在だけを理由にwhole-Event削除を
+  拒否せず、そのTicketOpportunityとpersonal planning stateのlifecycle consequenceは
+  Spec 008に委譲する。
 
 ### Catalog read semantics
 
@@ -199,8 +207,10 @@ cascadeで消すことはありません。その他のdomainのdependent state�
 - Event rangeとcatalog対象期間のoverlapによるEvent visibilityはこの文書が定義する。
   genre、group、venueのclassification、facet / filter composition、option universe、
   filter persistenceはこの文書に含めず、後続のclassification / filter authorityが扱う。
-- Personal Schedule、TicketOpportunity、Calendar / Homeの各domain lifecycleは
-  この文書に含めない。各domainのauthorityと合成ルールを横断的に再定義しない。
+- Personal Schedule、Calendar / Homeの各domain lifecycleはこの文書に含めない。
+  TicketOpportunityについては、selected targetによるstandalone Occurrence削除の
+  safety boundaryだけを定義し、official target integrityとEvent deletion consequence
+  はSpec 008に委譲する。各domainのauthorityと合成ルールを横断的に再定義しない。
 
 ## Scope Boundaries
 
@@ -222,8 +232,9 @@ migration history、classification/filter、Participation lifecycleの実装詳�
   capability結果が、EventとOccurrenceの両方で検証可能である。
 - **SC-003**: cancellationとhard deletionが、可逆性・依存stateの保持・削除拒否の
   観点で混同なく検証可能である。
-- **SC-004**: 依存Participation / Invitationがある場合の削除安全性が、部分削除や
-  downstream cascadeを許さない結果として検証可能である。
+- **SC-004**: 依存Participation / Invitationまたはselected TicketOpportunity targetが
+  ある場合のstandalone Occurrence削除安全性が、部分削除やdownstream cascadeを許さない
+  結果として検証可能である。
 - **SC-005**: Catalog classification/filterとParticipation lifecycleをこの文書へ
   重複して取り込まず、各authorityへの境界参照だけで現行責務を追跡できる。
 - **SC-006**: effective cancellation中のOccurrenceへの新規Invitation作成拒否が、
@@ -242,6 +253,9 @@ migration history、classification/filter、Participation lifecycleの実装詳�
 - **SC-010**: Event rangeと影響するOccurrenceの時刻を同時に別期間へ移す正当な
   coordinated rescheduleが、最終状態のcontainment invariantを満たす限り、中間状態の
   一時的な違反だけを理由に恒久的に不可能とされないことを検証可能である。
+- **SC-011**: selected TicketOpportunity targetがstandalone Occurrence削除を阻止し、
+  target scopeのreconciliation後に削除可能となる一方、selected targetの存在だけでは
+  whole-Event削除を阻止しないことを検証可能である。
 
 ## Assumptions
 
