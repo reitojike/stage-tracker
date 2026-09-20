@@ -110,12 +110,12 @@ Occurrenceはownerだけが削除できます。対象OccurrenceにParticipation
 が0件の状態になることは許可されます。
 
 Eventはownerだけが削除できます。OccurrenceがないEventは削除できます。子
-Occurrenceがある場合は、すべての子が個別削除の条件を満たすときだけEventと子を
-一体として削除します。削除できない子が1件でもあれば全体を拒否し、部分削除を
-発生させません。Participation / Invitationのdownstream stateをEvent削除が
-cascadeで消すことはありません。selected TicketOpportunity targetの存在だけを理由に
-whole-Event削除をblockせず、TicketOpportunityとpersonal planning stateを含むEvent
-lifecycleのcross-domain consequenceはSpec 008が定義します。
+Occurrenceがある場合は、Participation / Invitationによる削除blockerがない子を
+対象にEventと子を一体として削除します。削除できない子が1件でもあれば全体を拒否し、
+部分削除を発生させません。selected TicketOpportunity targetの存在だけではwhole-Event
+削除をblockせず、TicketOpportunityとpersonal planning stateを含むEvent lifecycleの
+cross-domain consequenceはSpec 008が定義します。Participation / Invitationの
+downstream stateをEvent削除がcascadeで消すことはありません。
 
 ## Requirements
 
@@ -165,11 +165,11 @@ lifecycleのcross-domain consequenceはSpec 008が定義します。
   Invitation、またはselected TicketOpportunity targetがあるOccurrenceのstandalone
   削除を拒否する。selected targetを対象範囲から外す場合は、official target scopeを
   先にreconcileする。
-- **EV-017**: Event削除は0件のEventを許可し、子を含む場合は削除可能な子だけが全件
-  そろったときにatomicに行い、Participation / Invitationをcascadeしない。selected
-  TicketOpportunity targetの存在だけを理由にwhole-Event削除を拒否せず、その
-  TicketOpportunityとpersonal planning stateのlifecycle consequenceはSpec 008に
-  委譲する。
+- **EV-017**: Event削除は0件のEventを許可し、子を含む場合はParticipation / Invitation
+  によるblockerがない子が全件そろったときにatomicに行い、Participation / Invitationを
+  cascadeしない。selected TicketOpportunity targetの存在だけを理由にwhole-Event削除を
+  拒否せず、そのTicketOpportunityとpersonal planning stateのlifecycle consequenceは
+  Spec 008に委譲する。
 
 ### Catalog read semantics
 
