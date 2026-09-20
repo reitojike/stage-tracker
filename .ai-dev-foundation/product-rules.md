@@ -291,15 +291,12 @@ pending list は [`specs/006-invitation-coordination-opacity/spec.md`](../specs/
 へ cut over しました。本ファイルは Invitation の current normative authority
 ではなく、同Specを発見するための pointer と migration provenance だけを残します。
 
-Personal Schedule sharing の recipient targeting は #565 のcutoverまで未移行
-domain の責務として残ります。そこでも raw internal user UUID、generic user
-directory、client-readable な generic email-to-user lookup surface、外部 email
-delivery は提供しません。operation-specific な trusted boundary 内の resolution
-と、Invitation とは異なる sharing-specific な未登録 email の扱いは、Schedule
-sharing の bounded authority cutover で再確認します。
-Personal Schedule sharing では第三者の private Participation state を扱わないため、
-既存の owner 向け未登録 email の扱いは Invitation の opacity と同一視しません。
-reusable な profiles / people / social subsystem は先行構築しません。
+Personal Schedule sharing の recipient targeting と sharing-specific な privacy boundary は
+[Personal Schedule sharing / recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md)
+が current authority です。本節はそのSpecへの discovery pointer と、Invitation の opacityを
+Schedule sharingへ一般化しないという migration provenance だけを残します。raw internal user
+UUID、generic user directory、reusable な profiles / people / social subsystem、外部 email
+deliveryを一般的な identity capability として導入する根拠にはしません。
 
 ## Invitation（current authority retired）
 
@@ -342,45 +339,16 @@ provenanceであり、現行lifecycle semanticsの正本としては解決しま
 - Event / Event Occurrence の deletion/cancellation semantics とは性質が
   異なるため、この決定はそちらの scope へ影響しません。
 
-## Personal Schedule sharing / recipient privacy (temporary authority until #565)
+## Personal Schedule sharing / recipient privacy (current authority moved to Spec 012)
 
-Personal Scheduleのsharing / recipient privacyは#565で専用Living Specへcut overするまで、
-この節をtemporary product authorityとして扱います。#561のlifecycle Living Specは、この
-sharing semanticsを吸収しません。
+Personal Scheduleのsharing / recipient privacyのcurrent normative authorityは、
+[Personal Schedule sharing / recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md)
+へ cut over しました。本節は旧temporary authorityの同topic semanticsを再掲せず、
+移行の provenance と cross-domain boundary だけを保持します。
 
-- entryはprivate by defaultであり、shareはentry単位かつrecipient単位のvisibility grantです。
-- ownerだけがrecipientを追加・revokeできます。approval flowはなく、share成功後は即時に
-  recipientのvisibilityが成立します。
-- ownerは既存recipientをrevokeできます。revokeは対象recipientだけのvisibilityを失わせ、
-  entry自体とowner・他のrecipientは維持します。これはentry deletionではありません。
-- 共有先userはschedule本体を編集できず、他のrecipientを追加・削除できません。recipientは
-  自分自身のshare relationだけをself-leaveのために扱えます。
-- recipientのself-leaveは自分だけのshare relationとvisibilityを外すoperationであり、entry
-  deletionではありません。durableなopt-out / decline historyは作らず、後から同じentryを
-  再共有できます。
-- ownerによるentry hard deleteはentry自体を削除し、全recipientからも消えます。
-- recipient指定はAuthenticated-user targeting節に従うexact登録email inputです。raw internal
-  UUIDをuser-facing inputにせず、generic user directory、generic autocomplete / fuzzy /
-  partial search、generic client-readable email-to-user lookupは提供しません。resolutionは
-  operation-specificなtrusted boundaryで行います。
-- 未登録emailへのpending / external shareとexternal email deliveryは作成しません。ただし
-  ownerへ対象emailが未登録であることを知らせるcurrent behaviorは許容します。これは
-  Invitationのopacityとは異なり、Invitationのprivate Participation stateを開示するもの
-  ではありません。既存のgeneric identity boundaryはAuthenticated-user targeting節を
-  参照します。
-- self-shareは作成しません。active shareはentry + recipient単位でset-likeに扱い、既に
-  share済みのrecipientへのsupportedなshare operationはduplicate grantを作らずidempotentです。
-- 共有されたscheduleはrecipientにもentry自身の通常表示内容を見せ、busy-only projectionには
-  しません。entryのblocking semanticsはそのまま適用し、per-recipientのblocking overrideは
-  設けません。
-- ownerは自分が管理するentryについて、既存share済みrecipientをemailで識別できるbounded
-  read projectionを持ちます。このprojectionはそのentryの既存share relationに限定され、
-  global user directoryではありません。
-- recipientはself-leaveに必要な範囲で自分のshare relationを扱えますが、他のrecipientを
-  enumerateできません。unrelated / non-owner userもrecipient relationやownerのemail
-  projectionをenumerateできません。
-- normal detail readでは、existing-but-non-visible entryとnonexistent entryを区別させません。
-  screen上の同一のempty outcome / copyはこのtemporary sharing/privacy authorityの表現です。
+Schedule sharing は active visibility grant を表す一方、Invitation は pending coordination
+と invitee privacy opacity を表します。Schedule sharing の operation-specific な narrow
+disclosureを Invitation や generic account lookupへ一般化してはいけません。
 
 ## Ticket model removal
 

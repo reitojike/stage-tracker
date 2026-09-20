@@ -216,9 +216,10 @@ ownerによるcreate / edit / deleteの現行正本は
 です。この文書は、以下のsectionで画面上の状態・操作入口・文言だけを扱い、lifecycleの
 product semanticsを再定義しません。
 
-sharing / recipient privacyの現行authorityは、#565で専用Living Specへcut overされるまで
-[temporary product rules](../.ai-dev-foundation/product-rules.md)です。この文書の共有に
-関する画面状態は、そのauthorityの現行semanticsを画面に表す責務に限ります。
+sharing / recipient privacyの現行product authorityは
+[Personal Schedule sharing / recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md)
+です。この文書の共有に関する画面状態は、そのauthorityの現行semanticsを画面に表す責務に
+限り、layout、copy、操作入口、feedback、loading / empty / error presentationを定義します。
 
 ## 予定を追加 / 編集（`/schedule/new`、`/schedule/[entryId]/edit`）
 
@@ -251,16 +252,17 @@ Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とし
 
 | 状態                       | 表示                                                  |
 | -------------------------- | ----------------------------------------------------- |
-| 存在しない／見えない       | どちらも「指定された予定が見つかりません」（`empty`） |
+| 存在しない／見えない       | どちらも「この予定は見つかりませんでした」（`empty`） |
 | 通信失敗                   | 「予定を読み込めませんでした」（`error`）             |
 | 立場の確認自体が失敗       | 「権限を確認できませんでした」                        |
 | 自分の共有状態が読めない   | 「共有状態を確認できませんでした」                    |
 | 共有相手一覧が空           | 「まだ誰とも共有していません」                        |
-| 共有相手一覧の読み取り失敗 | 「共有中の共有相手を読み込めませんでした」            |
+| 共有相手一覧の読み取り失敗 | 「共有相手の一覧を読み込めませんでした」              |
 
 **decision: 「存在しない」と「見えない」は区別できないので、どちらも
-「見つかりません」にする。** この画面上のoutcome / copyは、[temporary product rules](../.ai-dev-foundation/product-rules.md)
-のPersonal Schedule sharing / recipient privacy authorityを表現します。
+「この予定は見つかりませんでした」にする。** この画面上のoutcome / copyは、[Personal Schedule sharing /
+recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md) の
+privacy contractを表現します。
 
 **decision: 立場の確認が失敗したときに「共有された側」として扱わない。**
 所有者から操作を隠してしまうためです。同じ理由で、自分の共有状態が読めない
@@ -337,16 +339,17 @@ rendered copyだけを扱います。
 `attending → considering` 降格と withdraw の導線は失いません。absence と
 read failure は別状態です。
 
-成功時は選択を反映してSheetを閉じます。現在のruntimeでは独立したsuccess
-notificationは表示しません。これは `docs/ux-ui.md` のglobal success-notice
-requirementに対する既知のcurrent deviationです。
+成功時は変更結果を反映してSheetを閉じます。共有相手の追加もこの挙動で、現在の
+runtimeでは独立したsuccess notificationは表示しません。これは `docs/ux-ui.md` の
+global success-notice requirementに対する既知のcurrent deviationです。
 
 ### 招待する / 共有相手を追加
 
 **decision: どちらも登録済みメールアドレスの正確な入力方式。** ユーザー検索や
 候補表示は持ちません（相手を探せる面にしないため。product-rules.mdの
-identity boundary）。失敗は「入力されたメールアドレスを確認して、もう一度
-お試しください。」です。
+identity boundary）。Invitationの失敗は「入力されたメールアドレスを確認して、もう一度
+お試しください。」です。Schedule sharingで指定したemailが未登録の場合は、
+「このメールアドレスは、Stage Trackerに登録されていません。」と表示します。
 
 submit-basedな「招待する」「共有相手を追加」は、submitをfooterへ置き、headerの
 「閉じる」を出しません。入力bodyが伸びてもprimary actionをscroll領域の外で到達
@@ -425,7 +428,6 @@ footerの `danger` ボタンでのみ実行します。覆いのtapとEscapeが�
 - 「「参加する」に設定しました。」／「「気になる」に設定しました。」／
   「参加予定を解除しました。」
 - 「招待を送信しました。」／「招待を辞退しました。」
-- 「共有相手を追加しました。」
 - 「「申し込む予定」に設定しました。」／「「申し込み済み」に設定しました。」／
   「登録を解除しました。」
 
