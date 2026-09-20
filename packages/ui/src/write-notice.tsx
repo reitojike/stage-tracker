@@ -9,7 +9,11 @@ export interface WriteNoticeProps {
  */
 export function WriteNotice({ notice, attempt }: WriteNoticeProps) {
   return (
-    <div role="status" aria-live="polite" className="text-body-sm text-muted-foreground">
+    <div
+      role={notice ? 'status' : undefined}
+      aria-live={notice ? 'polite' : undefined}
+      className="text-body-sm text-muted-foreground"
+    >
       {notice ? <p key={attempt}>{notice}</p> : null}
     </div>
   );
