@@ -30,6 +30,8 @@ authenticated multi-user application として家族・友人等の複数ユー�
 （例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
 Event / Occurrenceの詳細は
 [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、
+Catalog classification / filterのcurrent semanticsは
+[`Catalog classification / filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)、
 Personal Schedule lifecycleは
 [`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)、
 Personal Schedule sharing / recipient privacyは[temporary product rules](../.ai-dev-foundation/product-rules.md)
@@ -99,6 +101,8 @@ behavior は [Invitation Living Spec](../specs/006-invitation-coordination-opaci
 TicketOpportunity planningのbroader current semanticsは
 [TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)が正本であり、
 timeline projectionは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)が正本です。
+Catalog classification / filterのcurrent semanticsは
+[Spec 011](../specs/011-catalog-classification-filter/spec.md)が正本です。
 
 ## Current committed scope
 
@@ -106,6 +110,12 @@ timeline projectionは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.m
 scopeは、shared Event catalog と owner semantics（owner限定更新・owner
 transfer不可・owner spoofing防止）、Event/Occurrenceのtemporal model、
 owner-only hard deletion、および Event/Occurrence cancellation です。
+
+Catalog classification / filter も Gate-A の current capability です。genre / group /
+venue facet、filter composition、catalog-wide option universe、browser-local filter
+persistence の product semantics は [Spec 011](../specs/011-catalog-classification-filter/spec.md)
+を参照し、classification の import / schema / RLS mechanics は実装側のauthorityを
+参照します。
 
 event-independent Personal Schedule は、all-day / multi-day all-day /
 time-bounded、required free-form title、独立した blocking、private default、
@@ -162,13 +172,12 @@ uncommitted）です。current committed scopeには含みません。
 
 - Event/公演回の cancellation（中止）の exact UI workflow（semanticsは
   Issue #123で決定済み、実装はIssue #125）
-- 各domain concept（classification / venue）の exact persistence・
-  mechanism詳細。event-independent personal schedule、occurrence-level
-  participation / invitation、および TicketOpportunity planning は
-  persistence / RLS baseline が実装済みのため対象外です
-  （[Current committed scope](#current-committed-scope) 参照）。これらに
-  ついて残っているのは将来の追加UIであって、current baselineの
-  persistence shapeではありません。designated catalog creator（Administrator）の
+- 各domain concept（classification / venue）の将来拡張に関する exact
+  persistence・mechanism詳細。current Catalog classification / filter baseline は
+  [Spec 011](../specs/011-catalog-classification-filter/spec.md)で定義し、schema / RLS /
+  importのmechanicsは実装側のauthorityに残します。将来の追加UI、canonical venue
+  identity、alias normalization、visual cue、追加facet、multi-genre、
+  occurrence-level classificationはcurrent baselineへ昇格しません。designated catalog creator（Administrator）の
   permission mechanismも、UUID hard-codeでもgenericなadmin/role
   frameworkでもないmembership allowlistとして確定済みのため対象外です。
   未決定なのは、Administrator以外へのEvent create権限拡大に伴う
@@ -203,7 +212,8 @@ deferred項目として扱いません。
 ## Canonical constraints
 
 実装agentが従うべきnormativeなproduct/domain constraint（permission /
-invariant / default / 禁止事項等）の正本は、Personal Schedule lifecycleについては
+invariant / default / 禁止事項等）の正本は、Catalog classification / filterについては
+[Spec 011](../specs/011-catalog-classification-filter/spec.md)、Personal Schedule lifecycleについては
 [Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)、Occurrence Participation
 については[Living Spec](../specs/001-occurrence-participation/spec.md)、その他の未移行domain
 については[temporary static product rules](../.ai-dev-foundation/product-rules.md)です。

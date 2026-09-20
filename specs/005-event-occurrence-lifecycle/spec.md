@@ -206,7 +206,8 @@ downstream stateをEvent削除がcascadeで消すことはありません。
   あることだけを扱います。Event ownerであること自体はInvitation eligibilityを決めません。
 - Event rangeとcatalog対象期間のoverlapによるEvent visibilityはこの文書が定義する。
   genre、group、venueのclassification、facet / filter composition、option universe、
-  filter persistenceはこの文書に含めず、後続のclassification / filter authorityが扱う。
+  filter persistenceは [`Catalog classification / filter Living Spec`](../011-catalog-classification-filter/spec.md)
+  が定義する。Event-level venue value と owner write は引き続きこの文書の責務である。
 - Personal Schedule、Calendar / Homeの各domain lifecycleはこの文書に含めない。
   TicketOpportunityについては、selected targetによるstandalone Occurrence削除の
   safety boundaryだけを定義し、official target integrityとEvent deletion consequence
@@ -236,7 +237,9 @@ migration history、classification/filter、Participation lifecycleの実装詳�
   ある場合のstandalone Occurrence削除安全性が、部分削除やdownstream cascadeを許さない
   結果として検証可能である。
 - **SC-005**: Catalog classification/filterとParticipation lifecycleをこの文書へ
-  重複して取り込まず、各authorityへの境界参照だけで現行責務を追跡できる。
+  重複して取り込まず、各authorityへの境界参照だけで現行責務を追跡できる。Catalog
+  classification/filterは [Spec 011](../011-catalog-classification-filter/spec.md) が
+  authorityである。
 - **SC-006**: effective cancellation中のOccurrenceへの新規Invitation作成拒否が、
   Spec 001のParticipation transition semanticsと、#560完了まではtemporary static
   product rulesが定義するInvitationのpending lifecycle / eligibility / targeting /
