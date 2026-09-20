@@ -72,10 +72,10 @@ flowchart LR
 
 1. PR が `main` へ merge される（repository の review / merge policy に従う
    通常の PR フロー）。
-2. Vercel がその push を検知し、Production ビルドを自動実行・デプロイします。
-   Vercel 側の deploy を起動する専用の GitHub Actions ステップは存在しません
-   （`vercel.json` もリポジトリに存在せず、Vercel プロジェクト側の連携設定に
-   委ねられています）。
+2. Vercel が `main` の push を検知し、Production ビルドを自動実行・デプロイ
+   します。`main` 以外の branch push は `apps/web/vercel.json` の
+   `git.deploymentEnabled` により Git-triggered deployment を作成しません。
+   Vercel 側の deploy を起動する専用の GitHub Actions ステップは存在しません。
 3. スキーマ変更を伴う PR の場合、`main` への push を検知した
    `.github/workflows/apply-migrations.yml`（Issue #387、PO 判断 D1 = D）が
    `supabase db push` を自動実行し、Supabase 側へ migration を適用します。
@@ -105,44 +105,39 @@ flowchart LR
 `docs/runbooks/gate-a-remote-environment.md` の「Deploy / update」節が、この
 判断基準の canonical な記述です。
 
-### merge-ready fence が見ない外部 status（Vercel、Issue #394）
+### main-only Git deployment と merge-ready contract（Issue #583）
 
-repository の merge-ready review gate が評価するのは repository review contract
-と deterministic verification であり、Vercel の deployment status のような外部
-commit status は見ない。`Verify /*`（Code / Build / Database / E2E / Migration
-Ordering Fence）が全て green でも、Vercel Preview deployment は独立に failure
-になり得る。
+Vercel Project はこの repository に接続され、Production Branch は `main`、
+Root Directory は `apps/web` です。Vercel の project root に置く設定として
+`apps/web/vercel.json` の `git.deploymentEnabled` を使用します。`**: false`
+で non-main branch を抑止し、`main: true` を重ねます。Vercel の minimatch
+ルールは複数 match 時に 1 つでも `true` なら deployment するため、`main` の
+Production auto-deployだけが維持されます。
 
-PR #392 は `apps/web/src/env.ts` の `NEXT_PUBLIC_SUPABASE_URL` が URL 形式を
-要求するのに対し、当時の Vercel Preview scope の placeholder が URL として
-不正だったため、`Verify/*` と merge-ready fence が pass したまま Vercel
-Preview だけ failure（2 revision とも）の状態で merge された（原因と対処は
-Issue #394。Preview scope の値を `https://preview-disabled.invalid` へ修正
-済み — A24 を維持したまま到達不能な有効 URL にする形）。main は Production
-env で build するため、この事故は Production の実害にはならなかった。
+non-main branch の push では、GitHub CI と Codex review は従来どおり実行され、
+Vercel Preview Deployment は意図的に作成されません。したがって non-main PR
+head に Vercel commit status が存在しないことは expected state であり、
+blocker ではありません。merge-ready は次の repository evidence で判定します。
 
-Vercel は Root Directory（`apps/web`）に基づき、**runtime code を変更しない
-PR も含めて全ての PR**に Preview deployment を作る（PR #399 自身が docs-only
-にもかかわらず Preview deployment を持つことで確認済み）。したがって「`apps/web`
-を変更する PR だけ確認する」という限定はしない。PR を merge する前は、
-`Verify/*` の green だけで deploy の健全性を確認したことにせず、次のいずれかで
-Vercel の commit status を確認する。
+- base が fresh で mergeable であること
+- `Verify / Code`、`Verify / Build`、`Verify / Database`、`Verify / E2E`、
+  `Verify / Migration Ordering Fence` が green であること
+- current exact-head の Codex review が clean であること
+- unresolved review threads が 0 であること
 
-```bash
-gh pr checks <PR番号>
-# または（owner/repo を実際の値に置き換える。gh api は `:owner` 形式の
-# placeholder を展開しないため、{owner}/{repo} の中括弧形式を使う）
-gh api repos/{owner}/{repo}/commits/<sha>/status
-```
+GitHub Verify / Build が引き続き pre-merge の deterministic build verification
+を担います。Vercel Production deployment は `main` push 後に作成される外部
+evidence であり、Production failure は正常扱いしません。Preview を作らない
+trade-offとして、Vercel 固有の environment/config failure が pre-merge では
+なく Production deployment 後に初めて見つかる可能性があります。その場合は
+Production deployment evidence を確認し、必要に応じて correction / rollback
+を行います。
 
-`failure` / `pending` のままの Vercel status を、`Verify/*` green を根拠に
-無視して merge しない。**Vercel の commit status 自体が付いていない場合も
-同様に blocker として扱う**（`unknown` を `success` とみなさない）。
-Vercel integration の停止や dashboard 設定変更で status が生成されなく
-なる可能性があり、その場合に「project に Vercel の項目が無いから確認不要」
-と読み替えると、今回防ごうとしている未検証 deploy のまま merge する事故が
-再現する。`context: "Vercel"` の状態が明示的に `success` であることを
-確認できて初めて merge してよい。
+Issue #394 の Preview build / isolation evidence は historical evidence として
+保持します。今回の main-only contract は Preview verification を再構築する
+ものではありません。migration ordering fence が明示的に Production へ
+deploy 済みの runtime evidence を要求する場合の判断は、#387 / #393 の
+separate migration contract として引き続き有効です。
 
 ### migration pre-merge ordering fence（Issue #131、語彙は #393 で改訂）
 
