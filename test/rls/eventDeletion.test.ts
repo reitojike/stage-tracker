@@ -220,8 +220,10 @@ void test('occurrence delete is blocked while a selected TicketOpportunity expli
 
 void test('after target reconciliation removes an occurrence, standalone delete succeeds', async () => {
   const sourceKey = opportunitySourceKey();
-  const { event, occurrence, secondOccurrence, opportunity } =
-    await createEventWithOpportunity(owner, { sourceKey });
+  const { event, occurrence, secondOccurrence, opportunity } = await createEventWithOpportunity(
+    owner,
+    { sourceKey },
+  );
 
   const { error: blockedError } = await owner.client.rpc('delete_event_occurrence', {
     p_occurrence_id: occurrence.id,
