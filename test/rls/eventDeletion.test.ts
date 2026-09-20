@@ -210,10 +210,7 @@ void test(
     const { error } = await owner.client.rpc('delete_event_occurrence', {
       p_occurrence_id: occurrence.id,
     });
-    assert.ok(
-      error,
-      'expected the delete to be blocked by an explicit TicketOpportunity target',
-    );
+    assert.ok(error, 'expected the delete to be blocked by an explicit TicketOpportunity target');
     assert.equal(error.code, '90001');
     assert.equal(await occurrenceExists(occurrence.id), true);
     assert.equal(await opportunityExists(opportunity.id), true);
