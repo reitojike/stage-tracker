@@ -31,6 +31,7 @@ function row(
     milestoneId: string;
     isFirstRowForOpportunity: boolean;
     isEffectivelyCanceled: boolean;
+    sourceUrl: string | null;
   }> = {},
 ) {
   const {
@@ -39,6 +40,7 @@ function row(
     displayName = "一般発売",
     isFirstRowForOpportunity = true,
     isEffectivelyCanceled = false,
+    sourceUrl = "https://example.com/tickets",
   } = overrides;
   return {
     opportunityId: ticketOpportunityIdSchema.parse(
@@ -68,7 +70,7 @@ function row(
     eventVenue: "テスト劇場",
     targetScope: "event_wide",
     targetOccurrences: [],
-    sourceUrl: "https://example.com/tickets",
+    sourceUrl,
   } satisfies import("../_lib/tickets-loader").TicketsTimelineRow;
 }
 
@@ -129,6 +131,42 @@ describe("TicketsView", () => {
     expect(screen.getByText("申し込み済み")).toBeInTheDocument();
     expect(screen.getByText("販売開始")).toBeInTheDocument();
   });
+
+  it("provides official-source access for a renderable source URL", () => {
+    render(<TicketsView today={TODAY} state={POPULATED} />);
+
+    expect(screen.getByRole("link", { name: "公式情報" })).toHaveAttribute(
+      "href",
+      "https://example.com/tickets",
+    );
+  });
+
+  it.each([
+    ["missing", null],
+    ["non-renderable", "javascript:alert(1)"],
+  ] as const)(
+    "does not fabricate official-source access for a %s source URL",
+    (_caseName, sourceUrl) => {
+      render(
+        <TicketsView
+          today={TODAY}
+          state={{
+            block: {
+              variant: "populated",
+              data: {
+                groups: [{ monthKey: "2026-03", rows: [row({ sourceUrl })] }],
+              },
+            },
+            optional: { ok: true },
+          }}
+        />,
+      );
+
+      expect(
+        screen.queryByRole("link", { name: "公式情報" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("keeps non-contiguous same-month sections distinct without duplicate-key warnings", () => {
     const consoleError = vi
