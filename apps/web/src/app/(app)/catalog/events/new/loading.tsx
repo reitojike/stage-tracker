@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { BackLink } from "@stage-tracker/ui";
 
 /**
  * `docs/v2/oracle-routes-ui.md` §1/§5: `loading.tsx` は `params`/
@@ -33,28 +33,14 @@ function BackToCatalogLink() {
   const qs = query.toString();
   const backHref = qs.length > 0 ? `/catalog?${qs}` : "/catalog";
 
-  return (
-    <Link
-      href={backHref}
-      className="text-body-sm text-muted-foreground hover:text-foreground"
-    >
-      ← イベントカタログへ戻る
-    </Link>
-  );
+  return <BackLink href={backHref}>イベントカタログへ戻る</BackLink>;
 }
 
 export default function NewEventLoading() {
   return (
     <>
       <Suspense
-        fallback={
-          <Link
-            href="/catalog"
-            className="text-body-sm text-muted-foreground hover:text-foreground"
-          >
-            ← イベントカタログへ戻る
-          </Link>
-        }
+        fallback={<BackLink href="/catalog">イベントカタログへ戻る</BackLink>}
       >
         <BackToCatalogLink />
       </Suspense>

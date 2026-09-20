@@ -1,3 +1,5 @@
+import { PageHeading } from "@stage-tracker/ui";
+
 /**
  * `docs/v2/oracle-routes-ui.md` §5: legacy の `loading.tsx` は
  * `params`/`searchParams` を受け取れない制約への対処として Client
@@ -8,8 +10,11 @@
  */
 export default function EditEventLoading() {
   return (
-    <p role="status" className="text-body-sm text-muted-foreground">
-      読み込み中…
-    </p>
+    <>
+      <PageHeading>イベントを編集</PageHeading>
+      <p role="status" className="text-body-sm text-muted-foreground">
+        読み込み中…
+      </p>
+    </>
   );
 }
