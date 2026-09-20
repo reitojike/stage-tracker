@@ -7,6 +7,7 @@ describe('WriteNotice', () => {
     const { container } = render(<WriteNotice notice={null} attempt={0} />);
 
     expect(container.firstElementChild).toHaveAttribute('aria-live', 'polite');
+    expect(container.firstElementChild).toHaveAttribute('role', 'status');
     expect(container.firstElementChild).toBeEmptyDOMElement();
   });
 
