@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
-import { Button, Field, Input, WriteNotice } from "@stage-tracker/ui";
+import { Button, Field, Input } from "@stage-tracker/ui";
 import {
   Sheet,
   SheetContent,
@@ -45,14 +45,12 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const formId = `share-add-${entryId}`;
   const [open, setOpen] = useState(false);
-  const [attempt, setAttempt] = useState(0);
   const router = useRouter();
   const { execute, result, isExecuting, reset } = useAction(
     addScheduleShareByEmailAction,
     {
       onSuccess: () => {
         formRef.current?.reset();
-        setAttempt((value) => value + 1);
         setOpen(false);
         router.refresh();
       },
@@ -61,9 +59,7 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setAttempt(0);
-    } else {
+    if (!nextOpen) {
       reset();
     }
   }
@@ -105,17 +101,18 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
               id="recipientEmail"
               label="共有する相手のメールアドレス"
               required
-              error={
-                result.serverError?.message ??
-                fieldErrorMessage(result.validationErrors, "recipientEmail")
-              }
+              error={fieldErrorMessage(
+                result.validationErrors,
+                "recipientEmail",
+              )}
             >
               <Input name="recipientEmail" type="email" required />
             </Field>
-            <WriteNotice
-              notice={attempt > 0 ? "共有に追加しました。" : null}
-              attempt={attempt}
-            />
+            {result.serverError ? (
+              <p role="alert" className="text-body-sm text-destructive">
+                {result.serverError.message}
+              </p>
+            ) : null}
           </form>
         </div>
         <SheetFooter>

@@ -10,6 +10,7 @@ import {
   Input,
   SectionHeading,
   Textarea,
+  WriteNotice,
 } from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
@@ -36,10 +37,7 @@ import { OccurrenceList } from "./OccurrenceList";
  * `/catalog/events/[eventId]/edit` の owner 専用フォーム群
  * （`docs/v2/oracle-routes-ui.md` §2「Event 編集」）。
  *
- * - 詳細編集: 成功時は画面に留まり、action が提供する success state を
- *   role=status の plain text で通知する。shared `WriteNotice` は同一文言の
- *   再試行を表す `attempt` contract を必要とするため、この lifecycle には
- *   無理に導入しない。
+ * - 詳細編集: 成功時は画面に留まり、shared `WriteNotice` で通知する。
  * - 期間編集: Oracle に従い shared Sheet 内のフォームで編集し、成功時に
  *   自動 close する。入力失敗時は Sheet を開いたままにする。
  * - 中止/解除: 確認ダイアログなし（可逆操作）。
@@ -56,19 +54,43 @@ export function EditEventForm({
   const router = useRouter();
   const [rangeOpen, setRangeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const detailsAction = useAction(updateEventDetailsAction);
+  const [detailsNotice, setDetailsNotice] = useState<string | null>(null);
+  const [detailsAttempt, setDetailsAttempt] = useState(0);
+  const [cancellationNotice, setCancellationNotice] = useState<string | null>(
+    null,
+  );
+  const [cancellationAttempt, setCancellationAttempt] = useState(0);
+  const detailsAction = useAction(updateEventDetailsAction, {
+    onSuccess: () => {
+      setDetailsNotice("保存しました。");
+      setDetailsAttempt((value) => value + 1);
+    },
+  });
   const rangeAction = useAction(updateEventRangeAction, {
     onSuccess: () => {
       setRangeOpen(false);
       router.refresh();
     },
   });
-  const cancelAction = useAction(cancelEventAction);
-  const uncancelAction = useAction(uncancelEventAction);
+  const cancelAction = useAction(cancelEventAction, {
+    onSuccess: () => {
+      setCancellationNotice("このイベントを中止にしました。");
+      setCancellationAttempt((value) => value + 1);
+      router.refresh();
+    },
+  });
+  const uncancelAction = useAction(uncancelEventAction, {
+    onSuccess: () => {
+      setCancellationNotice("このイベントの中止を解除しました。");
+      setCancellationAttempt((value) => value + 1);
+      router.refresh();
+    },
+  });
   const deleteAction = useAction(deleteEventAction);
 
   function handleDetailsSubmit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
+    setDetailsNotice(null);
     const formData = new FormData(formEvent.currentTarget);
     detailsAction.execute({
       eventId: event.id,
@@ -146,11 +168,7 @@ export function EditEventForm({
             {detailsAction.result.serverError.message}
           </p>
         ) : null}
-        {detailsAction.hasSucceeded ? (
-          <p role="status" className="text-body-sm text-muted-foreground">
-            保存しました。
-          </p>
-        ) : null}
+        <WriteNotice notice={detailsNotice} attempt={detailsAttempt} />
         <Button type="submit" disabled={detailsAction.isExecuting}>
           {detailsAction.isExecuting ? "保存中…" : "基本情報を保存"}
         </Button>
@@ -231,12 +249,19 @@ export function EditEventForm({
 
       <div className="flex flex-col gap-sm border-b-2 border-border pb-lg">
         <SectionHeading>中止</SectionHeading>
+        <WriteNotice
+          notice={cancellationNotice}
+          attempt={cancellationAttempt}
+        />
         {isCanceled ? (
           <Button
             type="button"
             variant="outline"
             disabled={uncancelAction.isExecuting}
-            onClick={() => uncancelAction.execute({ eventId: event.id })}
+            onClick={() => {
+              setCancellationNotice(null);
+              uncancelAction.execute({ eventId: event.id });
+            }}
           >
             {uncancelAction.isExecuting ? "処理中…" : "中止を解除する"}
           </Button>
@@ -245,7 +270,10 @@ export function EditEventForm({
             type="button"
             variant="outline"
             disabled={cancelAction.isExecuting}
-            onClick={() => cancelAction.execute({ eventId: event.id })}
+            onClick={() => {
+              setCancellationNotice(null);
+              cancelAction.execute({ eventId: event.id });
+            }}
           >
             {cancelAction.isExecuting ? "処理中…" : "このイベントを中止にする"}
           </Button>

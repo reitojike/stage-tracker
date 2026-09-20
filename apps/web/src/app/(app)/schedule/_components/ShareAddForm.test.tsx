@@ -143,6 +143,7 @@ describe("ShareAddForm", () => {
       screen.getByRole("heading", { name: "共有相手を追加" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(input).not.toHaveAttribute("aria-invalid");
     expect(input).toHaveValue("friend@example.com");
   });
 });

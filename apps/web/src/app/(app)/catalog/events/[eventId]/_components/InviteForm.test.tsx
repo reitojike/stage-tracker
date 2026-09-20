@@ -90,6 +90,9 @@ describe("InviteForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "自分自身を招待することはできません。",
     );
+    expect(screen.getByLabelText("招待するメールアドレス")).not.toHaveAttribute(
+      "aria-invalid",
+    );
     expect(
       screen.getByRole("heading", { name: "招待する" }),
     ).toBeInTheDocument();

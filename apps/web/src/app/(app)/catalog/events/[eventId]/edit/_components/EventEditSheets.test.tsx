@@ -113,6 +113,22 @@ beforeEach(() => {
 });
 
 describe("Event edit Sheets", () => {
+  it("uses the shared WriteNotice for basic-information success", async () => {
+    const user = userEvent.setup();
+    render(<EditEventForm event={event} occurrences={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "基本情報を保存" }));
+
+    const detailsAction = mocks.slots[0];
+    if (detailsAction === undefined) {
+      throw new Error("details action was not initialized");
+    }
+    await act(async () => detailsAction.onSuccess?.());
+
+    const notice = screen.getByText("保存しました。");
+    expect(notice.parentElement).toHaveAttribute("aria-live", "polite");
+  });
+
   it("opens range editing, closes on success, and refreshes the page", async () => {
     const user = userEvent.setup();
     render(<EditEventForm event={event} occurrences={[]} />);
@@ -187,9 +203,10 @@ describe("Event edit Sheets", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(startsAt).toHaveValue("");
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "次の公演回を入力できます。",
+    const notice = screen.getByText(
+      "公演回を追加しました。次の公演回を入力できます。",
     );
+    expect(notice.parentElement).toHaveAttribute("aria-live", "polite");
 
     fireEvent.change(startsAt, { target: { value: "2026-05-11T18:30" } });
     await user.click(
@@ -382,10 +399,59 @@ describe("Event edit Sheets", () => {
       screen.getByRole("button", { name: "このイベントを中止にする" }),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const cancelAction = mocks.slots[2];
+    if (cancelAction === undefined) {
+      throw new Error("cancel action was not initialized");
+    }
+    await act(async () => cancelAction.onSuccess?.());
+    expect(
+      screen.getByText("このイベントを中止にしました。"),
+    ).toBeInTheDocument();
 
     const canceledEvent = { ...event, canceledAt: event.updatedAt };
     rerender(<EditEventForm event={canceledEvent} occurrences={[]} />);
     await user.click(screen.getByRole("button", { name: "中止を解除する" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const uncancelAction = mocks.slots[3];
+    if (uncancelAction === undefined) {
+      throw new Error("uncancel action was not initialized");
+    }
+    await act(async () => uncancelAction.onSuccess?.());
+    expect(
+      screen.getByText("このイベントの中止を解除しました。"),
+    ).toBeInTheDocument();
+  });
+
+  it("announces occurrence cancel and uncancel success through WriteNotice", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <OccurrenceItem eventId={EVENT_ID} occurrence={occurrence} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "中止にする" }));
+    const cancelAction = mocks.slots[1];
+    if (cancelAction === undefined) {
+      throw new Error("occurrence cancel action was not initialized");
+    }
+    await act(async () => cancelAction.onSuccess?.());
+    expect(
+      screen.getByText("この公演回を中止にしました。"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <OccurrenceItem
+        eventId={EVENT_ID}
+        occurrence={{ ...occurrence, canceledAt: occurrence.updatedAt }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "中止を解除" }));
+    const uncancelAction = mocks.slots[2];
+    if (uncancelAction === undefined) {
+      throw new Error("occurrence uncancel action was not initialized");
+    }
+    await act(async () => uncancelAction.onSuccess?.());
+    expect(
+      screen.getByText("この公演回の中止を解除しました。"),
+    ).toBeInTheDocument();
   });
 });

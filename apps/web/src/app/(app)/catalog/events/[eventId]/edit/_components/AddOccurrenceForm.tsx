@@ -4,7 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import type { EventId } from "@stage-tracker/domain";
-import { Button, Field, Input } from "@stage-tracker/ui";
+import { Button, Field, Input, WriteNotice } from "@stage-tracker/ui";
 import {
   Sheet,
   SheetContent,
@@ -28,13 +28,15 @@ export function AddOccurrenceForm({ eventId }: { eventId: EventId }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [open, setOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const { execute, isExecuting, result, reset } = useAction(
     addOccurrenceAction,
     {
       onSuccess: () => {
         formRef.current?.reset();
-        setSuccessMessage(true);
+        setNotice("公演回を追加しました。次の公演回を入力できます。");
+        setAttempt((value) => value + 1);
         router.refresh();
       },
     },
@@ -44,13 +46,13 @@ export function AddOccurrenceForm({ eventId }: { eventId: EventId }) {
     setOpen(nextOpen);
     if (!nextOpen) {
       reset();
-      setSuccessMessage(false);
+      setNotice(null);
     }
   }
 
   function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
-    setSuccessMessage(false);
+    setNotice(null);
     const formData = new FormData(formEvent.currentTarget);
     execute({
       eventId,
@@ -127,11 +129,7 @@ export function AddOccurrenceForm({ eventId }: { eventId: EventId }) {
                 {result.serverError.message}
               </p>
             ) : null}
-            {successMessage ? (
-              <p role="status" className="text-body-sm text-muted-foreground">
-                公演回を追加しました。次の公演回を入力できます。
-              </p>
-            ) : null}
+            <WriteNotice notice={notice} attempt={attempt} />
           </form>
         </div>
         <SheetFooter>

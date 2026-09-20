@@ -1,6 +1,7 @@
 import { createSafeActionClient } from "next-safe-action";
 import {
   ActionError,
+  GENERIC_FAILURE_MESSAGE_JA,
   isActionError,
   type ActionErrorShape,
 } from "@/lib/action-error";
@@ -14,7 +15,7 @@ export function toActionErrorShape(error: Error): ActionErrorShape<string> {
   // 分類されていない例外の詳細（DB/RLS の生メッセージ、スタック等）を
   // client へ渡さない。原因は server 側のログから追う。
   console.error(error);
-  return { kind: "failure", message: "予期しないエラーが発生しました。" };
+  return { kind: "failure", message: GENERIC_FAILURE_MESSAGE_JA };
 }
 
 /**

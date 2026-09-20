@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ActionError } from "@/lib/action-error";
+import { ActionError, GENERIC_FAILURE_MESSAGE_JA } from "@/lib/action-error";
 import { toActionErrorShape } from "@/lib/safe-action";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -58,7 +58,7 @@ describe("toActionErrorShape", () => {
 
     expect(toActionErrorShape(error)).toEqual({
       kind: "failure",
-      message: "予期しないエラーが発生しました。",
+      message: GENERIC_FAILURE_MESSAGE_JA,
     });
     expect(consoleError).toHaveBeenCalledWith(error);
   });

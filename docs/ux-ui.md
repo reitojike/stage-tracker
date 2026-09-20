@@ -207,10 +207,14 @@ screen ごとに作りません。
 
 ## 書き込みのフィードバック
 
-- 成功は読み上げ対象の notice として、書き込みを起こしたまとまりの先頭に置きます。
-  ボタンの隣に置いて action row を崩しません。
-- 失敗は StatePanel の error semantics で伝え、同じ試行でも再度読み上げられるよう
-  にします。error を赤や icon だけで表現しません。
+- 成功は、書き込みを起こしたまとまりの lifecycle に応じて、読み上げ対象の notice、
+  navigation、Sheet close と durable な更新済み state、または visibly changed state
+  で完了を伝えます。standalone な notice はすべての mutation に必須ではありません。
+  notice を使う場合はまとまりの先頭に置き、ボタンの隣に置いて action row を崩しません。
+- mutation / action の失敗は feature-local な compact alert で伝え、同じ試行でも再度
+  読み上げられるようにします。`StatePanel` は block-level の read / render failure、
+  empty、unavailable を所有し、write error をその代わりにはしません。error を赤や
+  icon だけで表現しません。
 - 送信中は form を busy として扱い、入力を無効化し、button label だけを action の
   動詞に沿って変えます。label の変化で layout が跳ねないようにします。
 - 失敗文言は「権限がない」「対象が見つからない」「入力に問題がある」「通信に

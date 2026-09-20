@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import type { EventId, Occurrence } from "@stage-tracker/domain";
-import { Badge, Field, Input } from "@stage-tracker/ui";
+import { Badge, Field, Input, WriteNotice } from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
   Sheet,
@@ -39,14 +39,30 @@ export function OccurrenceItem({
   const router = useRouter();
   const [updateOpen, setUpdateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [cancellationNotice, setCancellationNotice] = useState<string | null>(
+    null,
+  );
+  const [cancellationAttempt, setCancellationAttempt] = useState(0);
   const updateAction = useAction(updateOccurrenceAction, {
     onSuccess: () => {
       setUpdateOpen(false);
       router.refresh();
     },
   });
-  const cancelAction = useAction(cancelEventOccurrenceAction);
-  const uncancelAction = useAction(uncancelEventOccurrenceAction);
+  const cancelAction = useAction(cancelEventOccurrenceAction, {
+    onSuccess: () => {
+      setCancellationNotice("この公演回を中止にしました。");
+      setCancellationAttempt((value) => value + 1);
+      router.refresh();
+    },
+  });
+  const uncancelAction = useAction(uncancelEventOccurrenceAction, {
+    onSuccess: () => {
+      setCancellationNotice("この公演回の中止を解除しました。");
+      setCancellationAttempt((value) => value + 1);
+      router.refresh();
+    },
+  });
   const deleteAction = useAction(deleteEventOccurrenceAction, {
     onSuccess: () => {
       setDeleteOpen(false);
@@ -196,9 +212,10 @@ export function OccurrenceItem({
             variant="outline"
             size="sm"
             disabled={uncancelAction.isExecuting}
-            onClick={() =>
-              uncancelAction.execute({ occurrenceId: occurrence.id })
-            }
+            onClick={() => {
+              setCancellationNotice(null);
+              uncancelAction.execute({ occurrenceId: occurrence.id });
+            }}
           >
             {uncancelAction.isExecuting ? "処理中…" : "中止を解除"}
           </Button>
@@ -208,9 +225,10 @@ export function OccurrenceItem({
             variant="outline"
             size="sm"
             disabled={cancelAction.isExecuting}
-            onClick={() =>
-              cancelAction.execute({ occurrenceId: occurrence.id })
-            }
+            onClick={() => {
+              setCancellationNotice(null);
+              cancelAction.execute({ occurrenceId: occurrence.id });
+            }}
           >
             {cancelAction.isExecuting ? "処理中…" : "中止にする"}
           </Button>
@@ -268,6 +286,7 @@ export function OccurrenceItem({
           </SheetContent>
         </Sheet>
       </div>
+      <WriteNotice notice={cancellationNotice} attempt={cancellationAttempt} />
       {cancelAction.result.serverError ? (
         <p role="alert" className="text-body-sm text-destructive">
           {cancelAction.result.serverError.message}
