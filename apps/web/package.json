@@ -71,5 +71,5 @@
     "vitest": "^5.0.0",
     "wait-on": "9.1.0"
   },
-  "packageManager": "pnpm@12.4.1"
+  "packageManager": "pnpm@12.5.1"
 }
