@@ -545,7 +545,7 @@ mechanics は [`docs/architecture/authentication.md`](../docs/architecture/authe
 - budget 集計の期間基準
 - canonical venue identity の具体形（Gate A では venue master を作らず、
   current exact text match / filtering semantics は [`Catalog classification /
-  filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)、
+filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)、
   venue value / owner write は Spec 005 を参照）
 - 公演回ごとに会場が異なる興行の扱い
 - 開催期間（Event range）そのものが未公表の event を表現する手段（Issue
