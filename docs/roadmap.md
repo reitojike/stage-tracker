@@ -92,9 +92,8 @@ TicketOpportunityを前提に新しいbounded product Taskで再設計します�
 
 - week-start preference
 - photo upload / attendance memory・impression
-- venue filtering / canonical venue identity
-- 宝塚の組filter / visual cue UI、アイドルのグループfilter UI
-- classification persistence / filter UI
+- canonical venue identity / venue master / venue alias normalization
+- classification-derived visual cue / color cue UI、将来の追加facet（例: 宝塚の venue facet）
 - 宝塚 streaming
 - movie release / admin-curated movie catalog
 - broader Event create permissions（一般authenticated userへの拡大）＋

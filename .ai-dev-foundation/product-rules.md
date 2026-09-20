@@ -20,8 +20,11 @@ Event / Occurrenceの現行product authorityは引き続き
 [`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
 です。このファイルでは、その現行semanticsを再掲せず、必要な旧承認内容と実装判断は
 下記の `HISTORICAL` / `STRUCTURE-MECHANICAL` sectionに限定して保持します。
-Catalog classification / venue boundaryは別topicであり、#564完了までは
-`CURRENT-OTHER-TOPIC` の専用sectionをtemporary current authorityとして参照します。
+Catalog classification / filter semanticsは [`Catalog classification / filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)
+がcurrent authorityです。Event-level venue valueとowner writeはSpec 005が、
+venueをfilter dimensionとして解釈する意味はSpec 011が扱います。このファイルの
+旧classification sectionはhistorical / supporting provenanceに限り、current authority
+として参照しません。
 
 ## Event / Occurrence implementation boundary — STRUCTURE-MECHANICAL
 
@@ -161,10 +164,9 @@ ends_at` という順序 invariant が成立します。doors_at / ends_at は�
 
 ### 分類
 
-- catalog を関心のある分類で絞り込みたいという requirement があります。
-- 分類の boundary（event-level であること、複数 event へまたがる
-  classification mechanism の方向性、persistence/filter UI の扱い）は
-  下記「Catalog classification / venue boundary」を正本とします。
+- Catalog classification / filterのcurrent semanticsは
+  [`Catalog classification / filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)
+  がauthorityです。このlegacy Event sectionはclassification semanticsを再定義しません。
 
 ### Ownership
 
@@ -410,137 +412,27 @@ modelではないことは、上の「Ticket model removal」に残るhistoryで
 詳細な申込管理をcurrent behaviorとして扱う場合は、TicketOpportunityを前提に
 別のbounded product Taskで新たに定義します。
 
-## Catalog classification / venue boundary — CURRENT-OTHER-TOPIC
+## Catalog classification / venue boundary — HISTORICAL / SUPPORTING
 
-このsectionはEvent / Occurrence lifecycleから分離されたCatalog classification / filter
-topicのtemporary current authorityです。#564が完了するまでは、このsectionがgenre、group、
-venue、facet、filter composition、option universe、filter persistenceのcurrent product
-semanticsを保持します。
+Catalog classification / filter の current normative authority は
+[`Catalog classification / filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)
+です。この節は #564 以前の temporary authority の provenance を示す supporting
+record であり、genre、group、venue filter、facet、option universe、filter persistence
+の current semantics を定義しません。
 
-Issue #158（PO decision）により、Event Catalog classification / filter は
-Post-MVP early から **Gate A pre-dogfood** へ promote 済みです。Issue #167
-で persistence / operator import / typed read boundary を materialize
-しました。このセクションは #158 の確定 semantics を canonical 化します。
+Issue #158 は Gate-A classification / filter の product decision、Issue #167 は
+その persistence、operator import、typed read boundary の materialization に関する
+provenance です。これらの change intent と実装証拠は Issue / PR、runbook、schema、
+runtime、tests に残ります。
 
-### Genre
+Event-level venue value と owner write は [Spec 005](../specs/005-event-occurrence-lifecycle/spec.md)、
+venue を filter dimension として解釈する意味は Spec 011 が扱います。classification
+association の operator/import boundary を Event venue text の owner write と混同
+しません。
 
-- genre は Event-level の情報です。公演回ごとに異なる genre を持ちません。
-- Event の genre は Gate A では **0..1** です。classified な Event は 1 つの
-  primary genre だけを持ちます。
-- unclassified Event（genre なし）は valid です。「すべて」表示では見え、
-  specific genre filter にはヒットしません。「その他 / 未分類」という
-  fabricated classification は作りません。
-- Gate A の canonical genre identity は次の 3 つです。
-  - 宝塚（`takarazuka`）
-  - 歌舞伎（`kabuki`）
-  - アイドル（`idol`）
-- 上記 3 genre を永久 closed world として固定しません。genre は
-  canonical identity を持つ lookup data（UI string や DB enum ではなく、
-  行として追加可能な table）として持続し、将来の genre 追加や
-  cross-genre Event の具体的 need が出た場合の multi-genre 化を妨げません。
-  ただし future-only な理由で multi-genre 用 many-to-many machinery を
-  先行実装しません。
-
-### Group
-
-- 宝塚の「組」とアイドルの「グループ」は、同じ generic canonical group
-  identity mechanism で扱います。`troupe` / `idol_group` 等の
-  domain-specific column や、genre ごとの別 group table は作りません。
-- group の identity は stable canonical identity + display name +
-  Event association 程度に bounded です。alias / hierarchy /
-  recommendation / social-follow 等の generic group platform は作りません。
-  raw group color / visual cue の domain data も先行追加しません。
-- Event と group の関連は **0..N** です。1 Event が複数 group と関連付け
-  られ、合同 event / festival Event を複数 group association で表現
-  できます。selected group が Event の groups のいずれか 1 つと一致すれば
-  その group facet にヒットします（OR）。
-- group は特定 genre へ hard-bind されません。canonical identity 自体は
-  genre と無関係に持続し、「この genre に関連する group」は、その genre の
-  Event に実際に associate されている group から動的に導出します。
-
-### Venue
-
-- 現行の `events.venue`（nullable text）を維持します。canonical venue
-  identity / venue master は Gate A では作りません（Post-MVP early に
-  据え置き）。将来 migration を避けたいという理由だけで venue master を
-  先行実装しません。
-- venue filter は `events.venue` の exact text match です。
-- venue は歌舞伎専用の domain concept ではありません。Gate A の UI では
-  歌舞伎だけが venue facet を有効にしますが、これは UI 上の構成であり、
-  将来他の genre（例: 宝塚）で venue facet を有効にすることを domain は
-  妨げません。
-
-### Facet model（genre ごとに有効な secondary facet）
-
-- genre / group / venue は独立した semantic dimension です。共通の
-  filter model の中で、選択中の genre ごとに「現在有効な facet」を
-  切り替えます。これは domain 上の hard restriction ではありません。
-- Gate A の facet 構成:
-  | genre    | active facet | UI label |
-  | -------- | ------------ | -------- |
-  | 宝塚     | group        | 組       |
-  | 歌舞伎   | venue        | 会場     |
-  | アイドル | group        | グループ |
-- 将来、宝塚に venue facet を追加して `genre = 宝塚 AND group IN (星組)
-AND venue IN (東京宝塚劇場)` のように拡張することを、この facet model は
-  妨げません。
-
-### Filter semantics
-
-- top-level genre は single-select です（「すべて」を含む）。
-- 同一 facet 内の複数 selection は OR です（例: `group IN (月組, 星組)`）。
-- 複数 facet が active な場合は AND です（例:
-  `genre = 宝塚 AND group IN (星組)`）。
-- facet について、何も選択していない場合と、catalog 全体の known option
-  を全選択している場合は、どちらも「その facet では絞り込まない」と
-  解釈します。
-- explicit な classification が無い Event を推測で hit させません
-  （unclassified Event は specific genre filter に非ヒット、group 未
-  associate の Event は group filter に非ヒット、venue が null または
-  不一致の Event は venue filter に非ヒット）。
-
-### Filter option universe
-
-- secondary filter option は、表示中の月やその他の期間に限定されず、
-  **catalog 全体で known な values** から構成します。月を移動しただけで
-  option universe が変わることはありません。
-- 件数表示は Gate A では不要です。
-
-### Filter persistence
-
-- Gate A では filter 選択状態を server-side user preference として
-  persist しません。browser-local persistence で十分とし、その具体的な
-  実装（localStorage key / versioning 等）は #147（Filter Sheet）の
-  ownership とします。
-
-### Import / write authority
-
-- classification（genre 関連付け・group 関連付け）は shared Event
-  catalog data です。authenticated user は read 可能ですが、ordinary
-  authenticated user 向けの classification 編集 UI/API は Gate A に
-  ありません。
-- classification の write path は、既存の operator-assisted Event
-  import flow（`docs/runbooks/catalog-import.md`）に統合された経路のみ
-  です。Event owner を含む ordinary authenticated user は、通常の
-  owner-authenticated write path からも classification を変更できません
-  （classification 導入を理由に既存の shared catalog write authority を
-  広げません）。
-- 既存 Event への classification 付与は、machine heuristic（title や
-  venue からの推測）による一括 backfill を行いません。genre / group が
-  不明な既存 Event は unclassified のまま valid とし、必要な
-  classification は operator-reviewed import seed から個別に追加します。
-
-### Gate A から明示的に defer するもの
-
-- ★ favorites（classification / group / venue に対する）
-- Calendar Event range band への category / group short-label 表示
-- classification-derived な color cue、raw color code の domain data
-  persistence
-- canonical venue master / venue alias 正規化
-- multi-genre Event support（cross-genre Event の具体的 need が出るまで）
-- occurrence-level classification
-- group hierarchy / alias platform
-- classification に対する recommendation / ranking
+canonical venue master、alias normalization、favorites、recommendation / ranking、
+visual cue、multi-genre、occurrence-level classification、future facet は current
+behaviorへ昇格していない future / planning scopeです。
 
 ## Event write boundary provenance — HISTORICAL
 
@@ -651,9 +543,10 @@ mechanics は [`docs/architecture/authentication.md`](../docs/architecture/authe
 - Post-MVP の Event create 権限拡大に伴う verification / moderation の
   exact workflow
 - budget 集計の期間基準
-- canonical venue identity の具体形（Gate A では venue master を作らず
-  exact text match のまま - 「Catalog classification / venue boundary」
-  参照）
+- canonical venue identity の具体形（Gate A では venue master を作らず、
+  current exact text match / filtering semantics は [`Catalog classification /
+filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)、
+  venue value / owner write は Spec 005 を参照）
 - 公演回ごとに会場が異なる興行の扱い
 - 開催期間（Event range）そのものが未公表の event を表現する手段（Issue
   #87 では Event range を必須データとして確定したのみで、この状態は

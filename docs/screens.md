@@ -74,6 +74,13 @@ semanticsを再定義しません。
 
 ### 絞り込み
 
+Catalog classification / filter の product semantics（genre、facet、classification
+matching、option universe、browser-local persistence）は
+[`Catalog classification / filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)
+が正本です。ここではその意味を再定義せず、filter summary、draft / applied state、
+loading、metadata failure、empty state、copy、layout といった画面上の表現・操作を
+定義します。
+
 **decision: 未適用のときは要約行を出さず、場所も確保しない。** 常時空の行を
 置くと、適用中との差が読み取りにくくなるためです。
 
@@ -81,16 +88,16 @@ semanticsを再定義しません。
 | -------------------- | ---------------------------------------------------------------------- |
 | 未適用               | 要約行なし。絞り込みiconにドットなし                                   |
 | 適用中               | iconに藍のドット＋「絞り込み中: ジャンル / 下位条件」の要約行と解除の× |
-| 保存条件の復元中     | 本体を描かず「絞り込みを準備中」（spinner）                            |
 | メタデータの取得失敗 | 「絞り込みを利用できません」。一覧の閲覧は継続可                       |
 
 **decision: 絞り込みのメタデータが読めなくても一覧は出す。** 絞り込みは
 補助機能であり、その失敗でcatalogそのものを見せない理由がないためです。
 
 **decision: 編集中の下書きと適用済みの条件を分けて持ち、適用するまで一覧を
-変えない。** ジャンルを変えたときは、見えている範囲外になった下位条件の選択を
-落とします（前のジャンルの選択が残らないようにするため）。条件はbrowser側に
-保存し、次に開いたときに復元します。
+変えない。** ジャンルを変えたときは、表示対象外になった下位条件を画面上の
+selectionから落とします。条件の組み合わせの意味とbrowser-local persistenceの
+product ruleは上記Living Specが定義し、このsectionは適用済み条件の要約・解除と
+draft / applied interactionの表現を定義します。
 
 ## イベント詳細（`/catalog/events/[eventId]`）
 
