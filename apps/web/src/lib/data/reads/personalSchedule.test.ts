@@ -2,8 +2,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
+import { personalScheduleEntryIdSchema } from "@stage-tracker/domain";
 import type { Database } from "@/lib/data/database.types";
-import { listVisiblePersonalSchedule } from "./personalSchedule";
+import {
+  getVisiblePersonalScheduleEntry,
+  listVisiblePersonalSchedule,
+} from "./personalSchedule";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
 const REST_URL = `${SUPABASE_URL}/rest/v1`;
@@ -13,6 +17,27 @@ function createTestClient(): SupabaseClient<Database> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+const VISIBLE_ID = personalScheduleEntryIdSchema.parse(
+  "11111111-1111-4111-8111-111111111111",
+);
+const INVISIBLE_ID = personalScheduleEntryIdSchema.parse(
+  "99999999-9999-4999-8999-999999999999",
+);
+const VISIBLE_ROW = {
+  id: VISIBLE_ID,
+  owner_id: "22222222-2222-4222-8222-222222222222",
+  memo: null,
+  is_all_day: true,
+  starts_on: "2026-03-05",
+  ends_on: "2026-03-06",
+  starts_at: null,
+  ends_at: null,
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+  title: "旅行",
+  blocking: true,
+};
 
 afterEach(() => {
   server.resetHandlers();
@@ -172,5 +197,63 @@ describe("listVisiblePersonalSchedule", () => {
       expect(result.value.at(-1)?.id).toBe(rows.at(-1)?.id);
       expect(new Set(result.value.map((entry) => entry.id)).size).toBe(1001);
     }
+  });
+});
+
+describe("getVisiblePersonalScheduleEntry", () => {
+  it("uses one bounded ID query and maps the visible entry", async () => {
+    let capturedUrl: URL | undefined;
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_entries`, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json([VISIBLE_ROW], { status: 200 });
+      }),
+    );
+
+    const result = await getVisiblePersonalScheduleEntry(
+      createTestClient(),
+      VISIBLE_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value?.id).toBe(VISIBLE_ID);
+    }
+    expect(capturedUrl?.searchParams.get("id")).toBe(`eq.${VISIBLE_ID}`);
+    expect(capturedUrl?.searchParams.get("limit")).toBe("1");
+    expect(capturedUrl?.searchParams.has("offset")).toBe(false);
+    expect(capturedUrl?.searchParams.has("order")).toBe(false);
+  });
+
+  it("returns the same absence for nonexistent and RLS-invisible entries", async () => {
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_entries`, () =>
+        HttpResponse.json([], { status: 200 }),
+      ),
+    );
+
+    const [nonexistent, invisible] = await Promise.all([
+      getVisiblePersonalScheduleEntry(createTestClient(), VISIBLE_ID),
+      getVisiblePersonalScheduleEntry(createTestClient(), INVISIBLE_ID),
+    ]);
+
+    expect(nonexistent).toEqual({ ok: true, value: null });
+    expect(invisible).toEqual({ ok: true, value: null });
+  });
+
+  it("keeps malformed row mapping as a read failure", async () => {
+    server.use(
+      http.get(`${REST_URL}/personal_schedule_entries`, () =>
+        HttpResponse.json([{ ...VISIBLE_ROW, starts_on: null }], {
+          status: 200,
+        }),
+      ),
+    );
+
+    const result = await getVisiblePersonalScheduleEntry(
+      createTestClient(),
+      VISIBLE_ID,
+    );
+    expect(result).toMatchObject({ ok: false, error: { kind: "failure" } });
   });
 });

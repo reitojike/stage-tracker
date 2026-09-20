@@ -4,7 +4,7 @@ import { useAction } from "next-safe-action/hooks";
 import { Button, StatePanel } from "@stage-tracker/ui";
 import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
 import { removeScheduleShareAsOwnerAction } from "@/lib/actions/schedule/schedule-share-actions";
-import type { ScheduleShareRecipient } from "@/lib/actions/schedule/schedule-share-write";
+import type { ScheduleShareRecipient } from "@/lib/data";
 
 interface RecipientRowProps {
   readonly entryId: PersonalScheduleEntryId;

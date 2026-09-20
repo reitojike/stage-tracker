@@ -20,6 +20,7 @@ export * from "./mappers/classificationRow";
 
 export * from "./reads/participations";
 export * from "./reads/personalSchedule";
+export * from "./reads/scheduleShare";
 export * from "./reads/catalog";
 export * from "./reads/tickets";
 export * from "./reads/notifications";

@@ -6,7 +6,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
-import { findVisibleScheduleEntry } from "../../_lib/entryLookup";
+import { getVisiblePersonalScheduleEntry } from "@/lib/data";
 import { classifyScheduleEntryReadResult } from "../../_lib/entryReadState";
 import { BackLink, PageHeading } from "../../_components/PageChrome";
 import { EditScheduleEntryForm } from "../../_components/EditScheduleEntryForm";
@@ -67,7 +67,10 @@ async function EditScheduleEntryBody({
     );
   }
 
-  const entryReadResult = await findVisibleScheduleEntry(supabase, entryId);
+  const entryReadResult = await getVisiblePersonalScheduleEntry(
+    supabase,
+    entryId,
+  );
   const entryState = classifyScheduleEntryReadResult(entryReadResult);
 
   if (entryState.variant === "empty") {

@@ -44,7 +44,7 @@ const PERMISSION_DENIED_MESSAGE_JA = "権限がありません。";
 /**
  * `error.code === "P0001"` かつ `resolveBusinessRuleMessage` が一致しない
  * 場合の generic fallback。`businessRuleKind` ごとに文言を分けるのは、
- * 呼び出し元（`listScheduleShareRecipientEmails` 等）が
+ * 呼び出し元（`addScheduleShareByEmail` 等）が
  * `businessRuleKind: "permission-denied"` を選んだ場合にまで
  * validation 向けの文言（「入力内容をご確認のうえ…」）を返すと、kind と
  * 文言が食い違うため。

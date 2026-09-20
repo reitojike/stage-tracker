@@ -1,10 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type PersonalScheduleEntry } from "@stage-tracker/domain";
+import {
+  ok,
+  type PersonalScheduleEntry,
+  type PersonalScheduleEntryId,
+} from "@stage-tracker/domain";
 import type { Database } from "../database.types";
 import { mapPersonalScheduleEntryRow } from "../mappers/scheduleEntryRow";
 import { mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
 import { runKeysetSupabaseSelect } from "../paged-select";
+import { runSupabaseSelect } from "../supabase-select";
 
 async function listPersonalScheduleRows(client: SupabaseClient<Database>) {
   return runKeysetSupabaseSelect((cursor, limit) => {
@@ -48,4 +53,34 @@ export async function listVisiblePersonalSchedule(
     return rowsResult;
   }
   return mapRows(rowsResult.value, mapPersonalScheduleEntryRow);
+}
+
+/**
+ * Read one entry from the caller's RLS-visible schedule.
+ *
+ * The ID predicate keeps detail/edit reads bounded while leaving visibility to
+ * the same `personal_schedule_entries` SELECT policy as the list read. RLS
+ * therefore makes an invisible row look exactly like an absent row: both
+ * produce a successful empty result and are returned as `null`.
+ */
+export async function getVisiblePersonalScheduleEntry(
+  client: SupabaseClient<Database>,
+  entryId: PersonalScheduleEntryId,
+): Promise<ReadResult<PersonalScheduleEntry | null>> {
+  const rowsResult = await runSupabaseSelect(
+    client
+      .from("personal_schedule_entries")
+      .select("*")
+      .eq("id", entryId)
+      .limit(1),
+  );
+  if (!rowsResult.ok) {
+    return rowsResult;
+  }
+
+  const mappedResult = mapRows(rowsResult.value, mapPersonalScheduleEntryRow);
+  if (!mappedResult.ok) {
+    return mappedResult;
+  }
+  return ok(mappedResult.value[0] ?? null);
 }

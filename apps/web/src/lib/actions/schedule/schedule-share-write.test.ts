@@ -5,13 +5,10 @@ import { server } from "@/test/msw/server";
 import {
   personalScheduleEntryIdSchema,
   scheduleShareIdSchema,
-  userIdSchema,
 } from "@stage-tracker/domain";
 import type { Database } from "@/lib/data/database.types";
 import {
   addScheduleShareByEmail,
-  findOwnScheduleShareId,
-  listScheduleShareRecipientEmails,
   removeScheduleShare,
 } from "./schedule-share-write";
 
@@ -29,13 +26,6 @@ const ENTRY_ID = personalScheduleEntryIdSchema.parse(
 );
 const SHARE_ID = scheduleShareIdSchema.parse(
   "55555555-5555-4555-8555-555555555555",
-);
-const OTHER_SHARE_ID = scheduleShareIdSchema.parse(
-  "66666666-6666-4666-8666-666666666666",
-);
-const CALLER_ID = userIdSchema.parse("33333333-3333-4333-8333-333333333333");
-const OTHER_RECIPIENT_ID = userIdSchema.parse(
-  "44444444-4444-4444-8444-444444444444",
 );
 
 afterEach(() => {
@@ -345,149 +335,6 @@ describe("removeScheduleShare", () => {
       removeScheduleShare(createTestClient(), UNRELATED_ENTRY_ID, SHARE_ID),
     ).rejects.toMatchObject({
       kind: "not-found",
-    });
-  });
-});
-
-describe("findOwnScheduleShareId", () => {
-  it("returns the caller's own share id when RLS returns exactly their row", async () => {
-    server.use(
-      http.get(`${REST_URL}/personal_schedule_shares`, () =>
-        HttpResponse.json([{ id: SHARE_ID }], { status: 200 }),
-      ),
-    );
-
-    await expect(
-      findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID),
-    ).resolves.toBe(SHARE_ID);
-  });
-
-  it("returns null when the caller has no share row for this entry (not a recipient)", async () => {
-    server.use(
-      http.get(`${REST_URL}/personal_schedule_shares`, () =>
-        HttpResponse.json([], { status: 200 }),
-      ),
-    );
-
-    await expect(
-      findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID),
-    ).resolves.toBeNull();
-  });
-
-  /**
-   * finding 1 の回帰テスト: self-leave の対象を「呼び出した本人の share」に
-   * 束縛するのは `schedule_entry_id` だけでは不十分で、
-   * `shared_with_user_id` も query 条件に乗せなければならない
-   * （`personal_schedule_shares_select_owner_or_recipient` RLS は entry
-   * owner にもその entry の全 share row の SELECT を許可しているため）。
-   * ここでは実際に発行される GET request の query に
-   * `shared_with_user_id=eq.<callerId>` が乗ることを検証する。
-   */
-  it("sends shared_with_user_id as a query filter alongside schedule_entry_id", async () => {
-    let capturedUrl: URL | undefined;
-    server.use(
-      http.get(`${REST_URL}/personal_schedule_shares`, ({ request }) => {
-        capturedUrl = new URL(request.url);
-        return HttpResponse.json([{ id: SHARE_ID }], { status: 200 });
-      }),
-    );
-
-    await findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID);
-
-    expect(capturedUrl?.searchParams.get("schedule_entry_id")).toBe(
-      `eq.${ENTRY_ID}`,
-    );
-    expect(capturedUrl?.searchParams.get("shared_with_user_id")).toBe(
-      `eq.${CALLER_ID}`,
-    );
-  });
-
-  /**
-   * finding 1 が指摘した実害の再現。MSW handler は実際の PostgREST の
-   * 絞り込み挙動を忠実に再現する: query に `eq.` フィルタが**乗っていない**
-   * 列は絞り込み対象外として通過させ、乗っている列だけ一致判定する。この
-   * handler は、対象 entry に caller 以外（`OTHER_RECIPIENT_ID`）の share
-   * row だけが実在する状態を模す。
-   *
-   * `shared_with_user_id` を条件に送らない実装（fix 前）だと、
-   * `schedule_entry_id` の一致だけで他人の share row（`OTHER_SHARE_ID`）が
-   * 返ってしまい、self-leave がそれを「自分の共有」として削除対象にできて
-   * しまう（finding 1 の実害）。`shared_with_user_id = callerId` も条件に
-   * 送る実装（fix 後）では、この行の実際の recipient
-   * （`OTHER_RECIPIENT_ID`）と一致せず 0 行になり `null` を返す。
-   */
-  it("resolves to null (not another recipient's share) when only another user's share row exists for this entry", async () => {
-    server.use(
-      http.get(`${REST_URL}/personal_schedule_shares`, ({ request }) => {
-        const url = new URL(request.url);
-        const entryFilter = url.searchParams.get("schedule_entry_id");
-        const userFilter = url.searchParams.get("shared_with_user_id");
-        const row = { id: OTHER_SHARE_ID, sharedWith: OTHER_RECIPIENT_ID };
-        const matches =
-          (entryFilter === null || entryFilter === `eq.${ENTRY_ID}`) &&
-          (userFilter === null || userFilter === `eq.${row.sharedWith}`);
-        return HttpResponse.json(matches ? [{ id: row.id }] : [], {
-          status: 200,
-        });
-      }),
-    );
-
-    await expect(
-      findOwnScheduleShareId(createTestClient(), ENTRY_ID, CALLER_ID),
-    ).resolves.toBeNull();
-  });
-});
-
-describe("listScheduleShareRecipientEmails", () => {
-  it("maps the RPC rows into ScheduleShareRecipient values", async () => {
-    server.use(
-      http.post(`${REST_URL}/rpc/list_schedule_share_recipient_emails`, () =>
-        HttpResponse.json(
-          [
-            {
-              share_id: SHARE_ID,
-              recipient_email: "friend@example.test",
-              shared_at: "2026-01-01T00:00:00Z",
-            },
-          ],
-          { status: 200 },
-        ),
-      ),
-    );
-
-    const result = await listScheduleShareRecipientEmails(
-      createTestClient(),
-      ENTRY_ID,
-    );
-    expect(result).toEqual([
-      {
-        shareId: SHARE_ID,
-        recipientEmail: "friend@example.test",
-        sharedAt: "2026-01-01T00:00:00Z",
-      },
-    ]);
-  });
-
-  it("classifies a P0001 (non-owner caller) rejection as permission-denied with a fixed safe message (never the raw PostgREST message)", async () => {
-    server.use(
-      http.post(`${REST_URL}/rpc/list_schedule_share_recipient_emails`, () =>
-        HttpResponse.json(
-          {
-            code: "P0001",
-            message: "only the schedule entry owner can view recipient emails",
-            details: "",
-            hint: "",
-          },
-          { status: 400 },
-        ),
-      ),
-    );
-
-    await expect(
-      listScheduleShareRecipientEmails(createTestClient(), ENTRY_ID),
-    ).rejects.toMatchObject({
-      kind: "permission-denied",
-      message: "権限がありません。",
     });
   });
 });
