@@ -347,8 +347,9 @@ requirementに対する既知のcurrent deviationです。
 
 **decision: どちらも登録済みメールアドレスの正確な入力方式。** ユーザー検索や
 候補表示は持ちません（相手を探せる面にしないため。product-rules.mdの
-identity boundary）。失敗は「入力されたメールアドレスを確認して、もう一度
-お試しください。」です。
+identity boundary）。Invitationの失敗は「入力されたメールアドレスを確認して、もう一度
+お試しください。」です。Schedule sharingで指定したemailが未登録の場合は、
+「このメールアドレスは、Stage Trackerに登録されていません。」と表示します。
 
 submit-basedな「招待する」「共有相手を追加」は、submitをfooterへ置き、headerの
 「閉じる」を出しません。入力bodyが伸びてもprimary actionをscroll領域の外で到達
