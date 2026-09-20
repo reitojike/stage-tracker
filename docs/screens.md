@@ -88,7 +88,6 @@ loading、metadata failure、empty state、copy、layout といった画面上�
 | -------------------- | ---------------------------------------------------------------------- |
 | 未適用               | 要約行なし。絞り込みiconにドットなし                                   |
 | 適用中               | iconに藍のドット＋「絞り込み中: ジャンル / 下位条件」の要約行と解除の× |
-| 保存条件の復元中     | 本体を描かず「絞り込みを準備中」（spinner）                            |
 | メタデータの取得失敗 | 「絞り込みを利用できません」。一覧の閲覧は継続可                       |
 
 **decision: 絞り込みのメタデータが読めなくても一覧は出す。** 絞り込みは
@@ -97,7 +96,7 @@ loading、metadata failure、empty state、copy、layout といった画面上�
 **decision: 編集中の下書きと適用済みの条件を分けて持ち、適用するまで一覧を
 変えない。** ジャンルを変えたときは、表示対象外になった下位条件を画面上の
 selectionから落とします。条件の組み合わせの意味とbrowser-local persistenceの
-product ruleは上記Living Specが定義し、このsectionは保存条件の復元中表示と
+product ruleは上記Living Specが定義し、このsectionは適用済み条件の要約・解除と
 draft / applied interactionの表現を定義します。
 
 ## イベント詳細（`/catalog/events/[eventId]`）
