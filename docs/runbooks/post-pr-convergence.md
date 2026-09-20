@@ -52,9 +52,14 @@ configuration framework.
 CodeRabbit is currently configured as advisory (`auto_review.enabled: false`)
 and is not the required clearing evidence for this phase.
 
-The Vercel deployment status remains a separate pre-merge check, as defined by
-[`docs/architecture/runtime-stack.md`](../architecture/runtime-stack.md). It
-is intentionally not part of this repository merge-ready evaluator.
+Vercel is intentionally not a pre-merge check under the current main-only
+deployment contract. Non-main PR heads are expected to have no Vercel status
+because no Preview Deployment is created. This evaluator therefore continues to
+use only the repository gates above: Verify, current exact-head review, zero
+unresolved threads, and fresh base state. Vercel Production deployment is
+observed after a `main` push; a missing, pending, failed, or quota-blocked
+Production deployment is not normal and must not be treated as merge-ready
+evidence.
 
 ## Deterministic and semantic boundaries
 
