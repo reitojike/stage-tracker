@@ -257,7 +257,7 @@ Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とし
 | 立場の確認自体が失敗       | 「権限を確認できませんでした」                        |
 | 自分の共有状態が読めない   | 「共有状態を確認できませんでした」                    |
 | 共有相手一覧が空           | 「まだ誰とも共有していません」                        |
-| 共有相手一覧の読み取り失敗 | 「共有中の共有相手を読み込めませんでした」            |
+| 共有相手一覧の読み取り失敗 | 「共有相手の一覧を読み込めませんでした」              |
 
 **decision: 「存在しない」と「見えない」は区別できないので、どちらも
 「この予定は見つかりませんでした」にする。** この画面上のoutcome / copyは、[Personal Schedule sharing /
@@ -339,9 +339,9 @@ rendered copyだけを扱います。
 `attending → considering` 降格と withdraw の導線は失いません。absence と
 read failure は別状態です。
 
-成功時は選択を反映してSheetを閉じます。現在のruntimeでは独立したsuccess
-notificationは表示しません。これは `docs/ux-ui.md` のglobal success-notice
-requirementに対する既知のcurrent deviationです。
+成功時は変更結果を反映してSheetを閉じます。共有相手の追加もこの挙動で、現在の
+runtimeでは独立したsuccess notificationは表示しません。これは `docs/ux-ui.md` の
+global success-notice requirementに対する既知のcurrent deviationです。
 
 ### 招待する / 共有相手を追加
 
@@ -428,7 +428,6 @@ footerの `danger` ボタンでのみ実行します。覆いのtapとEscapeが�
 - 「「参加する」に設定しました。」／「「気になる」に設定しました。」／
   「参加予定を解除しました。」
 - 「招待を送信しました。」／「招待を辞退しました。」
-- 「共有相手を追加しました。」
 - 「「申し込む予定」に設定しました。」／「「申し込み済み」に設定しました。」／
   「登録を解除しました。」
 
