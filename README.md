@@ -16,7 +16,6 @@ Foundation harness への runtime dependency は持ちません。
 | [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope   |
 | [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）      |
 | [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本 |
-| [`docs/screens.md`](./docs/screens.md)                                         | 画面ごとの状態・権限分岐と実文言のdecisionの正本                        |
 | [`.specify/`](./.specify/)                                                     | Spec Kit standard workflow / template / integration metadata            |
 | [`.claude/skills/`](./.claude/skills/)                                         | Claude の Spec Kit standard integration                                 |
 | [`.agents/skills/`](./.agents/skills/)                                         | Codex の Spec Kit standard integration                                  |
