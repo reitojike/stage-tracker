@@ -1,20 +1,21 @@
-# stage-tracker temporary static product rules
+# stage-tracker legacy product-rules record
 
-これは `reitojike/stage-tracker` の、まだ Living Spec へ移行していない domain
-向けの temporary static product authority です。`reitojike/stage-tracker-old` は
-historical evidence に過ぎず、この source を上書きしません。product semantics
-はここで再承認したものだけを記載します。
+これは `reitojike/stage-tracker` の legacy product-rules に残る historical /
+supporting provenance と、過去の deferred / future intent の記録です。
+`reitojike/stage-tracker-old` も historical evidence に過ぎず、この source を
+上書きしません。本ファイルは current product authority ではありません。
 
 このファイルは外部 Foundation checkout から sync / regenerate する配布物では
-ありません。domain の current behavior を Living Spec へ移行した後は、対象
-sectionをここへ再掲しません。
+ありません。current product semantics は relevant Living Spec、cross-screen UX は
+`docs/ux-ui.md`、structure / mechanics は architecture・source・tests、procedure
+は runbook が所有します。
 
-このファイルは承認済みの product semantics を記載します。記載されている
-semantics が schema / RLS として実装済みであるとは限りません。実装状況は
-`docs/prd.md` の Current committed scope と `docs/roadmap.md` の
-Completed baseline を参照してください。
+本ファイルに残る semantics は cutover 前の provenance としてのみ読み、current
+behavior をここから再承認しません。future / deferred intent の current planning
+destination は PRD、roadmap、関連 Issue であり、本ファイル自体を future normative
+authority にしません。
 
-## Event / Occurrence lifecycle — CURRENT-SPEC005
+## Event / Occurrence lifecycle — HISTORICAL POINTER
 
 Event / Occurrenceの現行product authorityは引き続き
 [`specs/005-event-occurrence-lifecycle/spec.md`](../specs/005-event-occurrence-lifecycle/spec.md)
@@ -276,13 +277,14 @@ update_own` / `event_occurrences_update_own`）に乗る通常の column-level
     明示チェックとして DB level で強制します。拒否は application-defined
     custom SQLSTATE `90002` として表現します。
 
-## Participation
+## Participation — HISTORICAL POINTER
 
 Occurrence Participation の current product behavior は Spec Kit Living Specへ
 cut overしました。canonical current contractは
 [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)
 です。legacy domain authorityとして本ファイルに詳細 semanticsを再掲せず、
-未移行domainの product rulesだけをここに保持します。
+旧承認内容と migration provenance だけを保持します。本ファイルを未移行domainの
+current product-rules fallback として参照しません。
 
 ## Authenticated-user targeting（identity boundary）
 
@@ -361,7 +363,7 @@ runtime から撤去しました。これは現行の product concept ではあ�
 status、assignment、provenance、transfer lifecycle を current behavior として
 再承認しません。
 
-## Ticket Opportunity（Ticket planning MVP）— CURRENT-PLANNING pointer
+## Ticket Opportunity（Ticket planning MVP）— HISTORICAL POINTER
 
 TicketOpportunity の current product behavior は、Issue #562 で作成した
 [TicketOpportunity planning model Living Spec](../specs/008-ticket-opportunity-planning/spec.md)
@@ -470,7 +472,7 @@ authorityとしては解決しません。provider / runtime mechanismは
   踏ませるケースまでは対象にしません（`/sign-in` を到達不能にはできない
   ため、この経路は別の課題として残ります）。
 
-## 時刻・タイムゾーン
+## 時刻・タイムゾーン — HISTORICAL / SUPPORTING
 
 - product 上の日付境界は `Asia/Tokyo` です。
 - persisted timestamp は PostgreSQL `timestamptz` です。
@@ -492,7 +494,7 @@ Service Worker / offline / Web Push / native packaging を current behavior と
 mechanics は [`docs/architecture/authentication.md`](../docs/architecture/authentication.md)
 と code / test が担います。
 
-## 先行実装しないもの
+## 先行実装しないもの — HISTORICAL / SUPPORTING
 
 - 将来用の invite approval states / `profiles.is_admin` 等を、「後で
   migration したくない」という理由だけで先行実装しません。
@@ -503,9 +505,10 @@ mechanics は [`docs/architecture/authentication.md`](../docs/architecture/authe
 - MVP 後の変更を不必要に阻害する不可逆 coupling は避けますが、将来可能性
   だけを理由にした speculative machinery も作りません。
 
-## まだ決めていないもの
+## まだ決めていないもの — HISTORICAL / FUTURE PROVENANCE
 
-以下は関連する product task が起票されるまで、このファイルへ追記しません。
+以下は過去の未決定項目を追跡するための記録です。新しい future intent や未決定事項は
+本PRD、roadmap、関連 Issue で管理し、このファイルを更新先・正本にしません。
 
 - Ticket の deletion / correction semantics
 - Post-MVP の Event create 権限拡大に伴う verification / moderation の
@@ -527,7 +530,7 @@ filter Living Spec`](../specs/011-catalog-classification-filter/spec.md)、
   subscription lifecycle）。Issue #304 の follow-up として別途扱います
 - MCP product scope
 
-## Supabase
+## Supabase — HISTORICAL / SUPPORTING
 
 - database development の source of truth は repository migrations です。
 - development / schema / RLS / generated types / DB tests は local-first

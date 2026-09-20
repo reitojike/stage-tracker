@@ -5,10 +5,10 @@ product/UI authority ではありません。Occurrence Participation の curren
 behavior は
 [`specs/001-occurrence-participation/spec.md`](../../specs/001-occurrence-participation/spec.md)
 を正本とし、現行画面の確認には `apps/web/**` とその tests を使います。
-未移行 domain の product semantics は temporary static authority である
-[`.ai-dev-foundation/product-rules.md`](../../.ai-dev-foundation/product-rules.md)
-を参照します。本書は historical context と migration-era evidence を保持する
-ために残しており、これだけを見て現行実装を再構築しません。
+その他の current product semantics も relevant Living Spec (`specs/**/spec.md`)を
+参照します。未実装 / future intent は PRD、roadmap、関連 Issue で扱います。本書は
+historical context と migration-era evidence を保持するために残しており、legacy
+product-rules と同様、current product/UI authority ではありません。
 
 対象外: `src/domain/**` / `src/infrastructure/**` の内部実装詳細、
 DB migration / RLS の SQL 本文（テーブル名・RPC 名のみ本書に登場する）。
