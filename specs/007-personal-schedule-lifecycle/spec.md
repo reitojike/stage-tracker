@@ -64,9 +64,9 @@ ownerは自分のentryを作成、編集、削除できます。編集ではtitl
 Personal Scheduleの現行lifecycleとして扱ったりしません。
 
 この文書は、別の利用者にentryを見せるためのsharing、recipientのprivacy、共有相手の
-操作については定義しません。#565で専用Living Specへcut overされるまでの現行sharing /
-recipient privacy authorityは、[temporary product rules](../../.ai-dev-foundation/product-rules.md)
-に残る同topicの節です。
+操作については定義しません。現行のsharing / recipient privacy authorityは
+[Personal Schedule sharing / recipient privacy Living Spec](../012-personal-schedule-sharing-privacy/spec.md)
+です。
 
 ## Requirements
 
@@ -116,11 +116,10 @@ recipient privacy authorityは、[temporary product rules](../../.ai-dev-foundat
 ## Cross-domain Boundary
 
 Personal Scheduleのsharing、recipient privacy、共有相手のcapabilityは、この文書の
-scope外です。#565で専用Living Specへcut overされるまで、現行semanticsは
-[temporary product rules](../../.ai-dev-foundation/product-rules.md)の同topic節がauthorityです。
-#565はその後続authorityをmaterialize
-する別のbounded taskです。この文書は、sharingの有無がentryのidentity、owner、時間表現、
-blocking、Calendar / Homeでの合成境界を変えないことだけを前提とします。
+scope外です。現行semanticsは
+[Personal Schedule sharing / recipient privacy Living Spec](../012-personal-schedule-sharing-privacy/spec.md)
+がauthorityです。この文書は、sharingの有無がentryのidentity、owner、時間表現、blocking、
+Calendar / Homeでの合成境界を変えないことだけを前提とします。
 
 ParticipationのstatusやvisibilityはParticipationのLiving Specが定義します。Event /
 Occurrenceのlifecycleは[Event / Occurrence Living Spec](../../specs/005-event-occurrence-lifecycle/spec.md)

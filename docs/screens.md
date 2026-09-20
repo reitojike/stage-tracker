@@ -216,9 +216,10 @@ ownerによるcreate / edit / deleteの現行正本は
 です。この文書は、以下のsectionで画面上の状態・操作入口・文言だけを扱い、lifecycleの
 product semanticsを再定義しません。
 
-sharing / recipient privacyの現行authorityは、#565で専用Living Specへcut overされるまで
-[temporary product rules](../.ai-dev-foundation/product-rules.md)です。この文書の共有に
-関する画面状態は、そのauthorityの現行semanticsを画面に表す責務に限ります。
+sharing / recipient privacyの現行product authorityは
+[Personal Schedule sharing / recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md)
+です。この文書の共有に関する画面状態は、そのauthorityの現行semanticsを画面に表す責務に
+限り、layout、copy、操作入口、feedback、loading / empty / error presentationを定義します。
 
 ## 予定を追加 / 編集（`/schedule/new`、`/schedule/[entryId]/edit`）
 
@@ -259,8 +260,9 @@ Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とし
 | 共有相手一覧の読み取り失敗 | 「共有中の共有相手を読み込めませんでした」            |
 
 **decision: 「存在しない」と「見えない」は区別できないので、どちらも
-「見つかりません」にする。** この画面上のoutcome / copyは、[temporary product rules](../.ai-dev-foundation/product-rules.md)
-のPersonal Schedule sharing / recipient privacy authorityを表現します。
+「見つかりません」にする。** この画面上のoutcome / copyは、[Personal Schedule sharing /
+recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md) の
+privacy contractを表現します。
 
 **decision: 立場の確認が失敗したときに「共有された側」として扱わない。**
 所有者から操作を隠してしまうためです。同じ理由で、自分の共有状態が読めない
