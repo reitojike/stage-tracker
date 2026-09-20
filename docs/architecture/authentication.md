@@ -1,7 +1,13 @@
 # 認証フロー（Magic Link / Passkey）
 
-Canonical context: Issue #66（Magic Link）、Issue #106（Passkey）。現時点で
-実装済みの認証フローの記録です。新しい設計の提案ではありません。
+Current user/security semantics の正本は
+[`specs/009-authentication-account-access/spec.md`](../../specs/009-authentication-account-access/spec.md)
+です。この文書は、その仕様を実現する provider、runtime、browser/server
+capability、設定、検証の mechanism / structure を記録します。ここにある
+product wordingは実装境界を説明するための contextであり、user/security semantics
+の別の正本ではありません。新しい設計の提案ではありません。
+
+Canonical context: Issue #66（Magic Link）、Issue #106（Passkey）。
 
 関連: [docs/architecture/runtime-stack.md](runtime-stack.md)（サービス構成
 全体）。
