@@ -20,6 +20,7 @@
 - [x] shared identity、target scope、milestone、personal state、cross-boundaryのacceptance scenariosがある
 - [x] row absence、source precision、scope mismatch、state independenceのedge caseがある
 - [x] scope boundaryとout of scopeが明示されている
+- [x] selected targetのofficial scopeをstandalone deletionでsilentに狭めず、reconciliationを先行させる境界が明示されている
 - [x] current source evidenceをAssumptionsとAuthority Boundaryで位置付けている
 - [x] shared catalogのread、personal stateのowner-only read/write、shared mutation禁止の境界が明示されている
 - [x] deadline urgency semanticsをSpec 003のdate semanticsと重複せず記述している
@@ -32,6 +33,7 @@
 - [x] post-final retentionの7日目/8日目境界とcancellationとの独立性が明示されている
 - [x] Opportunityごとのmilestone type cardinalityとshared refresh時のpersonal state保持が明示されている
 - [x] Event deletion operationはSpec 005、TicketOpportunity / personal stateのcross-domain consequenceはSpec 008としてownerが一意である
+- [x] selected target integrity / reconciliation consequenceはSpec 008、standalone Occurrence deletion safetyはSpec 005としてownerが一意である
 - [x] zero-milestone Opportunityはfabricated rowなしでHome / `/tickets`のplanning projectionから除外され、identityの削除やinvalid化と混同していない
 - [x] `/tickets`のsemantic priorityがeffective cancellation > retained history > personal planning stateとして明示され、retained rowのpersonal state削除を意味していない
 - [x] current `/tickets` planning projectionにrowとして現れ、validなofficial source URLがある場合のsource access capabilityを、非投影Opportunity向けの別surface・Opportunity identity・exact UI implementationと混同せず記述している
@@ -48,6 +50,7 @@
 - [x] Badge variant、exact copy、CSS、component/helper名、read-state mechanicsをLiving Specへ追加していない
 - [x] Event deletionのDB mechanism、zero-milestoneのplaceholder実装、retained-historyのexact copy / Badge / componentをLiving Specへ追加していない
 - [x] official source accessのexact copy / link component / styling / browser mechanicsをLiving Specへ追加していない
+- [x] selected targetの存在だけではwhole-Event deletionをblockしない非対称性をFR-030と整合して明示している
 - [x] Spec 003が除外するretentionとTicketOpportunity cancellationのauthorityを新Specへ集約している
 
 ## Notes
