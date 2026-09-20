@@ -2,7 +2,7 @@
 
 この document は、stage-tracker の screen / feature 横断で適用する global
 UX/UI rule の canonical source です。product / domain semantics は relevant Living
-Spec または current product authority、feature-local な exact presentation / copy /
+Spec、feature-local な exact presentation / copy /
 layout / state rendering は current runtime と tests が所有します。
 
 ## Canonical ownership と current implementation pointer
@@ -10,12 +10,11 @@ layout / state rendering は current runtime と tests が所有します。
 - smartphone-first、information hierarchy、interaction principle、visual
   semantics、accessibility baseline など、screen 横断の UX/UI rule は本書で
   固定します。
-- product / domain semantics は relevant Living Spec または current product authority が
-  所有し、本書では画面単位・domain 単位に再掲しません。Occurrence Participation の
+- product / domain semantics は relevant Living Spec が所有し、本書では画面単位・domain
+  単位に再掲しません。Occurrence Participation の
   current behavior は
   [`specs/001-occurrence-participation/spec.md`](../specs/001-occurrence-participation/spec.md)、
-  未移行 domain の semantics は temporary static authority である
-  `.ai-dev-foundation/product-rules.md` を参照します。
+  その他の current semantics も各 topic の Living Spec を参照します。
 - cross-screen UX/UI convention は本書が所有します。feature-local な exact
   presentation、copy、layout、state rendering とその deterministic exactness は
   current runtime / action と tests を参照します。exact literal の一覧を本書へ複製しません。
@@ -378,8 +377,9 @@ semantics とは分離します。
 - calendar band、badge、control の shape は別の意味 role として扱います。
 
 Holiday data の authority は内閣府「国民の祝日について」掲載データ / CSV です。
-公式に公表されていない将来年を推測しません。product の日付境界は未移行
-domain では `.ai-dev-foundation/product-rules.md` を参照します。
+公式に公表されていない将来年を推測しません。product の日付境界は relevant
+Living Spec と runtime / test の責務に従い、本書では cross-screen presentation
+だけを定めます。
 
 ## Component-specific treatment
 

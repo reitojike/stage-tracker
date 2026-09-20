@@ -1,7 +1,13 @@
-# v2 決定ログ
+# v2 決定ログ（migration-era historical record）
 
-oracle 抽出中に見つかった、v2 で判断が必要な論点。
-`OPEN` は未決、`AGENT` は実装側で決めてよい技術判断、`PO` は product 判断が要るもの。
+本書は oracle 抽出・cutover 時代の判断経緯と申し送りを保持する historical record
+です。current product semantics は relevant Living Spec、cross-screen UX は
+`docs/ux-ui.md`、structure / mechanics は architecture・source・tests、procedure
+は runbook を参照します。本書、`docs/v2/**`、legacy product-rules は current
+product/runtime oracle ではありません。
+
+以下の `OPEN` / `AGENT` / `PO` は作成時点の v2 planning context における分類です。
+現在の behavior や future intent の正本をここから導出しません。
 
 ## PO 判断が必要
 

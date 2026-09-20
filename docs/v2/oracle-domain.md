@@ -4,9 +4,9 @@
 移行期の記録です。現在の product authority ではありません。Occurrence
 Participation の current product behavior は
 [`specs/001-occurrence-participation/spec.md`](../../specs/001-occurrence-participation/spec.md)
-を正本とします。未移行 domain の product semantics は temporary static authority
-である [`.ai-dev-foundation/product-rules.md`](../../.ai-dev-foundation/product-rules.md)
-を参照します。
+を正本とします。その他の current product semantics も relevant Living Spec
+(`specs/**/spec.md`)を参照し、未実装 / future intent は PRD、roadmap、関連 Issue
+で扱います。legacy product-rules や本書を current product authority として参照しません。
 
 現在の domain implementation / architecture の確認には現行コードとテストを使い、
 DB schema / RLS / trigger の mechanical authority には

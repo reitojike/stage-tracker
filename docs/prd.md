@@ -36,14 +36,16 @@ Personal Schedule lifecycleは
 [`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)、
 Personal Schedule sharing / recipient privacyは
 [Personal Schedule sharing / recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md)、
-その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
-を正本とします。この一覧に現れないことは、実装対象から外れることを意味しません。
+その他の current product semantics は relevant topic の Living Spec
+(`specs/**/spec.md`) を参照します。この一覧に現れないことは、実装対象から
+外れることを意味しません。未実装 / future intent は本PRD、roadmap、関連 Issue
+で扱い、current behaviorへ昇格させません。
 TicketOpportunity planningは
 [`TicketOpportunity planning Living Spec`](../specs/008-ticket-opportunity-planning/spec.md)、
 timeline projectionは
 [`TicketOpportunity timeline Living Spec`](../specs/003-ticket-opportunity-timeline/spec.md)を
-参照します。current semanticsは各topicのLiving Spec、未移行domainは[temporary static product rules](../.ai-dev-foundation/product-rules.md)
-を参照します。この一覧に現れないことは、実装対象から外れることを意味しません。
+参照します。current semantics は各 topic の relevant Living Spec を参照します。
+この一覧に現れないことは、実装対象から外れることを意味しません。
 
 - **event** — 公演・イベントそのものの情報
 - **participation / personal schedule** — 自分がそのeventにどう関わる予定か
@@ -91,8 +93,8 @@ Event / Occurrenceのnormativeなconstraintは
 Personal Schedule lifecycleのnormativeなconstraintは
 [`Personal Schedule lifecycle Living Spec`](../specs/007-personal-schedule-lifecycle/spec.md)を
 参照します。
-その他の未移行domainのconstraintは
-[temporary static product rules](../.ai-dev-foundation/product-rules.md)を参照します。
+その他の current domain constraint も該当する Living Spec
+(`specs/**/spec.md`)を参照します。
 Occurrence Participation とその直接の Invitation convergence / cancellation
 behavior は [Living Spec](../specs/001-occurrence-participation/spec.md) が正本です。
 Invitation の pending-only lifecycle、targeting、privacy / opacity などの broader
@@ -153,16 +155,15 @@ product Taskで再設計します。
 
 詳細なcurrent product semanticsは、Event / Occurrenceについては
 [`Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)、Occurrence
-Participationについては[Living Spec](../specs/001-occurrence-participation/spec.md)、
-その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
-を参照します。
+Participationについては[Living Spec](../specs/001-occurrence-participation/spec.md)を
+参照します。その他の current semantics も各 topic の Living Spec を参照し、
+schema / RLS / runtime / test の mechanics はそれぞれの実装側 authority に残します。
 Personal Schedule lifecycleについては
 [Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)を参照します。
 TicketOpportunity planningについては
 [TicketOpportunity planning Living Spec](../specs/008-ticket-opportunity-planning/spec.md)、
 timeline projectionについては[Spec 003](../specs/003-ticket-opportunity-timeline/spec.md)、
-その他の未移行domainについては[temporary static product rules](../.ai-dev-foundation/product-rules.md)
-を参照します。
+その他の current semantics は各 topic の relevant Living Spec を参照します。
 calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)を参照してください。
 
 ## Deferred decisions
@@ -182,16 +183,14 @@ uncommitted）です。current committed scopeには含みません。
   frameworkでもないmembership allowlistとして確定済みのため対象外です。
   未決定なのは、Administrator以外へのEvent create権限拡大に伴う
   verification / moderationのexact workflow（Post-MVP）です
-  （未決定項目の一覧は
-  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  の「まだ決めていないもの」を正本とし、本PRDでは複製しません）
+  （未決定項目は本PRD、roadmap、関連 Issue で管理し、本PRDでは
+  implementation-level detailを複製しません）
 - budget集計の期間基準
 - MCP product scope
 - production hosting provider（Gate A dogfood限定でVercel Hobbyを
   bounded operational choiceとして採用済み。broader/general production
-  hosting platformの恒久決定は引き続きuncommitted。詳細は
-  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)
-  および Issue #61）
+  hosting platformの恒久決定は引き続きuncommitted。詳細は Issue #61 と
+  roadmapで扱います）
 - PWAのoffline capability（offline read / offline write / cache戦略）と
   Web Push notificationのproduct scope。installabilityとstandalone起動は
   Issue #304で確定済みで、canonicalな記述は
@@ -212,9 +211,7 @@ deferred項目として扱いません。
 ## Canonical constraints
 
 実装agentが従うべきnormativeなproduct/domain constraint（permission /
-invariant / default / 禁止事項等）の正本は、Catalog classification / filterについては
-[Spec 011](../specs/011-catalog-classification-filter/spec.md)、Personal Schedule lifecycleについては
-[Living Spec](../specs/007-personal-schedule-lifecycle/spec.md)、Occurrence Participation
-については[Living Spec](../specs/001-occurrence-participation/spec.md)、その他の未移行domain
-については[temporary static product rules](../.ai-dev-foundation/product-rules.md)です。
+invariant / default / 禁止事項等）は、該当する domain の Living Spec
+(`specs/**/spec.md`) が所有します。schema / RLS / runtime / test の mechanics は
+それぞれの実装側 authority が所有します。
 本PRDと矛盾する記述がある場合は、該当domainのcurrent authorityを優先します。

@@ -11,21 +11,22 @@ Foundation harness への runtime dependency は持ちません。
 
 ## Canonical docs
 
-| Document                                                                       | 内容                                                                    |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| [`docs/prd.md`](./docs/prd.md)                                                 | product intent / user problem / target user / domain concepts / scope   |
-| [`docs/roadmap.md`](./docs/roadmap.md)                                         | productとして何をどの方向に成立させていくか（directional roadmap）      |
-| [`docs/ux-ui.md`](./docs/ux-ui.md)                                             | global UX/UI principle・design token semantics・shared UI patternの正本 |
-| [`.specify/`](./.specify/)                                                     | Spec Kit standard workflow / template / integration metadata            |
-| [`.claude/skills/`](./.claude/skills/)                                         | Claude の Spec Kit standard integration                                 |
-| [`.agents/skills/`](./.agents/skills/)                                         | Codex の Spec Kit standard integration                                  |
-| [`specs/`](./specs/)                                                           | current product behavior の Living Spec（`specs/**/spec.md`）           |
-| [`.ai-dev-foundation/product-rules.md`](./.ai-dev-foundation/product-rules.md) | 未移行 domain の temporary static product authority                     |
+| Document                               | 内容                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| [`docs/prd.md`](./docs/prd.md)         | product intent / user problem / target user / domain concepts / scope   |
+| [`docs/roadmap.md`](./docs/roadmap.md) | productとして何をどの方向に成立させていくか（directional roadmap）      |
+| [`docs/ux-ui.md`](./docs/ux-ui.md)     | global UX/UI principle・design token semantics・shared UI patternの正本 |
+| [`.specify/`](./.specify/)             | Spec Kit standard workflow / template / integration metadata            |
+| [`.claude/skills/`](./.claude/skills/) | Claude の Spec Kit standard integration                                 |
+| [`.agents/skills/`](./.agents/skills/) | Codex の Spec Kit standard integration                                  |
+| [`specs/`](./specs/)                   | current product behavior の Living Spec（`specs/**/spec.md`）           |
 
 Foundation generated `AGENTS.md` / `CLAUDE.md`、Foundation Skills、reviewer
 routing、pin、checkout、sync/check は post-cutover harness に含めません。
-新しい product rule は対象 domain の Living Spec、または未移行 domain の
-temporary static product rules に、その責務に応じて記録します。
+current product semantics は対象 domain の Living Spec に、その責務に応じて記録します。
+future / deferred intent は PRD、roadmap、または関連 Issue で扱います。
+`.ai-dev-foundation/product-rules.md` と `docs/v2/**` は migration-era の
+historical / supporting record であり、current authority ではありません。
 
 ## Setup
 
@@ -53,8 +54,9 @@ guidance limitationであり、managed filesはproject側でpatchしません。
 
 Current behavior の authority は、Occurrence Participation については
 [`specs/001-occurrence-participation/spec.md`](./specs/001-occurrence-participation/spec.md)
-です。未移行 domain は temporary static product rules、architecture / runbook /
-schema / migration / test はそれぞれの既存責務の文書・コードを参照します。
+です。その他の current product semantics も relevant Living Spec
+(`specs/**/spec.md`) を参照します。architecture / runbook / schema / migration /
+test はそれぞれの既存責務の文書・コードを参照します。
 
 Issue #487 は既存 behavior の authority cutover と initial bootstrap です。
 新規 feature の implementation plan を必要とする Task ではないため、Participation

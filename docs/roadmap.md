@@ -57,9 +57,9 @@ TicketOpportunity planningのcurrent behaviorは
 [`specs/008-ticket-opportunity-planning/spec.md`](../specs/008-ticket-opportunity-planning/spec.md)、
 timeline projectionは
 [`specs/003-ticket-opportunity-timeline/spec.md`](../specs/003-ticket-opportunity-timeline/spec.md)、
-その他の未移行domainは temporary static product rules
-([`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md))
-を参照します。
+その他の current product semantics は該当する Living Spec
+(`specs/**/spec.md`)を参照します。未実装 / future intent は専用の product
+Task と Issue で確定してから current behaviorへ昇格します。
 
 ## 2. MVP personal planning capabilities（成立させたい方向性）
 
@@ -73,8 +73,7 @@ TicketOpportunity planningについては
 [`specs/008-ticket-opportunity-planning/spec.md`](../specs/008-ticket-opportunity-planning/spec.md)、
 timeline projectionについては
 [`specs/003-ticket-opportunity-timeline/spec.md`](../specs/003-ticket-opportunity-timeline/spec.md)、
-その他の未移行domainについては
-[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)を正本とします。
+その他の current semantics については該当する Living Specを参照します。
 
 - **expense / budget** — event単位の支出と横断的な予算管理（semanticsは
   未確定）
