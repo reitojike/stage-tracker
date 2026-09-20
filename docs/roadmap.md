@@ -110,8 +110,7 @@ TicketOpportunityを前提に新しいbounded product Taskで再設計します�
 - MCP product scope
 - PWAのoffline capabilityとWeb Push notificationのproduct scope
   （installabilityとstandalone起動はIssue #304で確定済み。canonicalな
-  記述は[`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)の
-  「App delivery surface」）
+  記述は[`Installable standalone Web App Living Spec`](../specs/010-installable-standalone-web-app/spec.md)）
 - production hosting provider（Gate A dogfood限定でVercel Hobbyを
   bounded operational choiceとして採用済み。broader/general production
   hosting platformの恒久決定は引き続きuncommitted）

@@ -186,8 +186,8 @@ uncommitted）です。current committed scopeには含みません。
 - PWAのoffline capability（offline read / offline write / cache戦略）と
   Web Push notificationのproduct scope。installabilityとstandalone起動は
   Issue #304で確定済みで、canonicalな記述は
-  [`.ai-dev-foundation/product-rules.md`](../.ai-dev-foundation/product-rules.md)の
-  「App delivery surface」です
+  [`Installable standalone Web App Living Spec`](../specs/010-installable-standalone-web-app/spec.md)
+  です
 - 家族・友人への本格展開時期（現時点の実runtimeはGate Aの本人 + 妻の
   bounded 2-user dogfoodであり、broader rolloutは確約していません）
 
