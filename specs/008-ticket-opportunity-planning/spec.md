@@ -60,6 +60,9 @@ occurrence、source固有のdisplay name、date/datetime/window milestoneを確�
    **Then** productは時刻を推測して補完しない。
 5. **Given** source固有のdisplay nameまたはsource provenanceがある、**When** 利用者が確認する、
    **Then** sourceの識別情報は別のOpportunityやEventのsource identityと混同されない。
+6. **Given** Opportunityがcurrent `/tickets` planning projectionにrowとして現れ、利用可能なofficial source URLがある、**When** 利用者がそのrowを確認する、
+   **Then** そのofficial sourceへ到達できる。current projectionにrowを生成しないOpportunityに別のsource surfaceを要求せず、source URLが存在しない、または利用可能なweb linkとして扱えない場合に、
+   productは架空のofficial source accessを作らない。
 
 ### User Story 1a - 中止状態を販売機会の意味として読む (Priority: P1)
 
@@ -198,6 +201,7 @@ timeline rowの保持を確認する。
 - **FR-030**: Event deletion operation自体のauthorityはSpec 005である。Eventがhard-deleteされた場合、そのEventに属するTicketOpportunityはcurrent planning modelから消え、それに従属するpersonal planning stateもcurrent planning stateとして残らない。TicketOpportunityの存在だけを理由にEvent deletionをblockせず、orphanedなTicketOpportunityやpersonal planning stateを残さない。この文書はdeletion mechanismを定義しない。
 - **FR-031**: TicketOpportunityはmilestone 0件でもshared Opportunityとして存在し得る。milestoneが0件の場合、fabricated milestoneやplaceholder rowを作らず、Homeと`/tickets`のplanning projectionにはrowを出さない。このprojection上の不在はOpportunity identityの削除・invalid化・`event_wide`への再解釈を意味しない。
 - **FR-032**: `/tickets`のsemantic priorityは、effective cancellation、post-final retained history、personal planning stateの順である。retained-history rowでも`planned`/`applied`のpersonal state自体は削除しないが、current presentationではretained terminal meaningをactiveな`planned`/`applied` presentationとして扱わない。exact copy、Badge variant、color、componentはこの文書で定義しない。
+- **FR-033**: Opportunityがcurrent `/tickets` planning projectionにrowとして現れ、利用可能なofficial source URLがある場合、その`/tickets` rowは利用者がofficial sourceへ到達できるaccess pathを提供する。zero-milestoneまたはretention外などcurrent projectionにrowを生成しないOpportunityについて、この文書は別のsource access surfaceを要求しない。source URLはOpportunity identityそのものではなく、URLが存在しない、または利用可能なweb linkとして扱えない場合に架空のlinkやsource accessを補完してはならない。exact copy、link component、styling、browser遷移mechanicsはこの文書で定義しない。
 
 ## Key Entities
 
@@ -214,7 +218,7 @@ Event relation、target scope、milestone precision、source provenance、person
 `planned`/`applied` state、row absence、state cardinality、shared/personal read/write boundary、
 stable source identity、effective cancellation、post-final retention、deadline urgency、
 personal-state read degradation、Participation independenceのSpec 001 FR-035へのboundary pointer、および
-Event deletion consequence、zero-milestone projection、retained-history priority、ならびに
+Event deletion consequence、zero-milestone projection、retained-history priority、official source access、ならびに
 それらが`/tickets`とHomeで消費される境界である。
 
 次の事項はこの文書に含めない。
@@ -240,6 +244,7 @@ Event deletion consequence、zero-milestone projection、retained-history priori
 - **SC-007**: Event cancellation、event-wide、全対象中止、部分・未解決対象のcurrent casesを区別し、取りこぼしから全件中止を推測するケースが0件である。
 - **SC-008**: post-final retentionは7日目を含めて維持し、8日目に落ちる。cancellationによってこのretentionが短縮されるケースが0件である。
 - **SC-009**: Event deletion consequence、zero-milestone projection、`/tickets`のeffective cancellation > retained history > personal planning stateのpriorityが、mechanicsやexact presentation detailに依存せず一意に解釈できる。
+- **SC-010**: current `/tickets` planning projectionにrowとして現れ、official source URLが利用可能なOpportunityでは、そのrowからofficial sourceへ到達できる。current projectionにrowを生成しないOpportunityへ別のsource access surfaceを要求せず、source URLの有無・利用可否とOpportunity identityを混同せず、架空のsource accessを生成しないことを検証できる。
 
 ## Assumptions
 

@@ -34,6 +34,7 @@
 - [x] Event deletion operationはSpec 005、TicketOpportunity / personal stateのcross-domain consequenceはSpec 008としてownerが一意である
 - [x] zero-milestone Opportunityはfabricated rowなしでHome / `/tickets`のplanning projectionから除外され、identityの削除やinvalid化と混同していない
 - [x] `/tickets`のsemantic priorityがeffective cancellation > retained history > personal planning stateとして明示され、retained rowのpersonal state削除を意味していない
+- [x] current `/tickets` planning projectionにrowとして現れ、validなofficial source URLがある場合のsource access capabilityを、非投影Opportunity向けの別surface・Opportunity identity・exact UI implementationと混同せず記述している
 
 ## Boundary Readiness
 
@@ -46,6 +47,7 @@
 - [x] Homeのexact 5-row capをdomain invariantにしていない
 - [x] Badge variant、exact copy、CSS、component/helper名、read-state mechanicsをLiving Specへ追加していない
 - [x] Event deletionのDB mechanism、zero-milestoneのplaceholder実装、retained-historyのexact copy / Badge / componentをLiving Specへ追加していない
+- [x] official source accessのexact copy / link component / styling / browser mechanicsをLiving Specへ追加していない
 - [x] Spec 003が除外するretentionとTicketOpportunity cancellationのauthorityを新Specへ集約している
 
 ## Notes
