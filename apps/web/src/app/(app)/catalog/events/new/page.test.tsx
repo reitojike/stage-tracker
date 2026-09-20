@@ -59,6 +59,11 @@ describe("NewEventPage", () => {
     expect(
       screen.getByRole("button", { name: "作成する" }),
     ).toBeInTheDocument();
+    const backLink = screen.getByRole("link", {
+      name: "イベントカタログへ戻る",
+    });
+    expect(backLink).toHaveAttribute("href", "/catalog");
+    expect(backLink).toHaveAttribute("data-slot", "back-link");
   });
 
   it("renders an unauthenticated panel when there is no session", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { BackLink } from "@stage-tracker/ui";
 import { buildCatalogBackHref } from "./_lib/backHref";
 
 /**
@@ -22,13 +22,8 @@ export default function EventDetailLoading() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-lg p-md">
-      <Link
-        href={backHref}
-        className="w-fit text-body-sm text-muted-foreground underline-offset-4 hover:underline"
-      >
-        ← 一覧へ戻る
-      </Link>
+    <div className="flex w-full flex-col gap-md">
+      <BackLink href={backHref}>一覧へ戻る</BackLink>
       <p role="status" className="text-body-sm text-muted-foreground">
         読み込み中…
       </p>

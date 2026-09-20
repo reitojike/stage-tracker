@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { userIdSchema } from "@stage-tracker/domain";
-import { PageHeading, StatePanel } from "@stage-tracker/ui";
+import { BackLink, PageHeading, StatePanel } from "@stage-tracker/ui";
 import { isDesignatedCatalogCreator } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
@@ -76,12 +75,7 @@ export default async function NewEventPage({
 
   return (
     <>
-      <Link
-        href={backHref(params)}
-        className="text-body-sm text-muted-foreground hover:text-foreground"
-      >
-        ← イベントカタログへ戻る
-      </Link>
+      <BackLink href={backHref(params)}>イベントカタログへ戻る</BackLink>
       <PageHeading>イベントを作成</PageHeading>
       <NewEventForm />
     </>
