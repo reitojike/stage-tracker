@@ -5,7 +5,8 @@ import type { TestActor } from './testActors.ts';
 // schedule_type vocabulary to free-form title + blocking by Issue #121).
 // Unlike events, entry creation has no atomicity invariant that requires an
 // RPC (see 20260822000000_create_personal_schedule.sql): a plain INSERT is
-// the supported create path.
+// the supported create path. Share creation is different: the exact-email RPC
+// is the only supported authenticated path.
 
 export function scheduleEntryTitle(): string {
   return `rls test schedule entry ${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
@@ -83,21 +84,26 @@ export async function createTimedScheduleEntry(
 }
 
 /**
- * Shares an existing entry with a recipient, as the entry owner. Returns
- * the created personal_schedule_shares row.
+ * Shares an existing entry with a recipient, as the entry owner, through the
+ * supported exact-email RPC. Returns the created personal_schedule_shares
+ * row.
  */
 export async function shareScheduleEntry(
   ownerActor: TestActor,
   scheduleEntryId: string,
-  recipientUserId: string,
+  recipientActor: TestActor,
 ) {
-  const { data, error } = await ownerActor.client
-    .from('personal_schedule_shares')
-    .insert({ schedule_entry_id: scheduleEntryId, shared_with_user_id: recipientUserId })
-    .select()
-    .single();
+  const recipientEmail = recipientActor.user.email;
+  if (recipientEmail === undefined) {
+    throw new Error(`fixture recipient ${recipientActor.user.id} has no email`);
+  }
+
+  const { data, error } = await ownerActor.client.rpc('share_schedule_entry_by_email', {
+    p_schedule_entry_id: scheduleEntryId,
+    p_recipient_email: recipientEmail,
+  });
   if (error) {
-    throw new Error(`fixture schedule share insert failed: ${error.message}`);
+    throw new Error(`fixture share_schedule_entry_by_email failed: ${error.message}`);
   }
   return data;
 }
