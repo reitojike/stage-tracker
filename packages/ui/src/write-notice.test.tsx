@@ -3,19 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { WriteNotice } from './write-notice';
 
 describe('WriteNotice', () => {
-  it('does not expose an empty status region when there is no notice', () => {
+  it('keeps a polite live region empty when there is no notice', () => {
     const { container } = render(<WriteNotice notice={null} attempt={0} />);
 
-    expect(container.firstElementChild).not.toHaveAttribute('aria-live');
-    expect(container.firstElementChild).not.toHaveAttribute('role');
+    expect(container.firstElementChild).toHaveAttribute('aria-live', 'polite');
     expect(container.firstElementChild).toBeEmptyDOMElement();
   });
 
   it('renders the current notice with the shared typography', () => {
     const { container } = render(<WriteNotice notice="保存しました。" attempt={1} />);
 
-    expect(container.firstElementChild).toHaveAttribute('aria-live', 'polite');
-    expect(container.firstElementChild).toHaveAttribute('role', 'status');
     expect(container.firstElementChild).toHaveClass('text-body-sm', 'text-muted-foreground');
     expect(screen.getByText('保存しました。')).toBeInTheDocument();
   });
