@@ -252,7 +252,7 @@ Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とし
 
 | 状態                       | 表示                                                  |
 | -------------------------- | ----------------------------------------------------- |
-| 存在しない／見えない       | どちらも「指定された予定が見つかりません」（`empty`） |
+| 存在しない／見えない       | どちらも「この予定は見つかりませんでした」（`empty`） |
 | 通信失敗                   | 「予定を読み込めませんでした」（`error`）             |
 | 立場の確認自体が失敗       | 「権限を確認できませんでした」                        |
 | 自分の共有状態が読めない   | 「共有状態を確認できませんでした」                    |
@@ -260,7 +260,7 @@ Personal Schedule entryのlifecycle semanticsは上記Living Specを正本とし
 | 共有相手一覧の読み取り失敗 | 「共有中の共有相手を読み込めませんでした」            |
 
 **decision: 「存在しない」と「見えない」は区別できないので、どちらも
-「見つかりません」にする。** この画面上のoutcome / copyは、[Personal Schedule sharing /
+「この予定は見つかりませんでした」にする。** この画面上のoutcome / copyは、[Personal Schedule sharing /
 recipient privacy Living Spec](../specs/012-personal-schedule-sharing-privacy/spec.md) の
 privacy contractを表現します。
 
