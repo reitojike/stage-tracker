@@ -9,6 +9,7 @@ import {
   type TicketOpportunityMilestone,
   type UserTicketOpportunityState,
 } from "@stage-tracker/domain";
+import { invalidRowSchemaError } from "../row-mapping";
 
 /** Raw `ticket_opportunities` row shape, validated by this mapper. */
 export interface TicketOpportunityRow {
@@ -39,7 +40,7 @@ export function mapTicketOpportunityRow(
   });
   if (!parsed.success) {
     return err(
-      `Invalid ticket_opportunities row (id=${row.id}): ${parsed.error.message}`,
+      invalidRowSchemaError("ticket_opportunities", row.id, parsed.error),
     );
   }
   return ok(parsed.data);
@@ -117,7 +118,11 @@ export function mapTicketOpportunityMilestoneRow(
   const parsed = ticketOpportunityMilestoneSchema.safeParse(candidate);
   if (!parsed.success) {
     return err(
-      `Invalid ticket_opportunity_milestones row (id=${row.id}): ${parsed.error.message}`,
+      invalidRowSchemaError(
+        "ticket_opportunity_milestones",
+        row.id,
+        parsed.error,
+      ),
     );
   }
   return ok(parsed.data);
@@ -146,7 +151,11 @@ export function mapUserTicketOpportunityStateRow(
   });
   if (!parsed.success) {
     return err(
-      `Invalid user_ticket_opportunity_states row (id=${row.id}): ${parsed.error.message}`,
+      invalidRowSchemaError(
+        "user_ticket_opportunity_states",
+        row.id,
+        parsed.error,
+      ),
     );
   }
   return ok(parsed.data);

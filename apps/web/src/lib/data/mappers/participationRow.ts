@@ -5,6 +5,7 @@ import {
   type Participation,
   type Result,
 } from "@stage-tracker/domain";
+import { invalidRowSchemaError } from "../row-mapping";
 
 /** Raw `occurrence_participations` row shape, validated by this mapper. */
 export interface ParticipationRow {
@@ -31,7 +32,7 @@ export function mapParticipationRow(
   });
   if (!parsed.success) {
     return err(
-      `Invalid occurrence_participations row (id=${row.id}): ${parsed.error.message}`,
+      invalidRowSchemaError("occurrence_participations", row.id, parsed.error),
     );
   }
   return ok(parsed.data);

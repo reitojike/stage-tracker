@@ -70,6 +70,9 @@ describe("mapEventRow", () => {
     expect(() => mapEventRow(baseEventRow({ id: "not-a-uuid" }))).not.toThrow();
     const result = mapEventRow(baseEventRow({ id: "not-a-uuid" }));
     expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/^Invalid events row \(id=not-a-uuid\): /);
+    }
   });
 });
 

@@ -250,6 +250,81 @@ describe("listMyNotifications", () => {
     expect(sourceRequestCount).toBe(1);
   });
 
+  it("fails closed for a malformed notification row instead of widening its source id", async () => {
+    server.use(
+      http.get(`${REST_URL}/notifications`, () =>
+        HttpResponse.json([
+          {
+            ...notificationRow(
+              notificationIdA,
+              "not-an-invitation-id",
+              "2026-09-17T00:00:00.000Z",
+            ),
+          },
+        ]),
+      ),
+    );
+
+    const result = await listMyNotifications(createTestClient());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.phase).toBe("notification-list");
+      expect(result.error.kind).toBe("failure");
+      expect(result.error.message).not.toContain("not-an-invitation-id");
+    }
+  });
+
+  it("fails closed for a malformed invitation source row", async () => {
+    server.use(
+      http.get(`${REST_URL}/notifications`, () =>
+        HttpResponse.json([
+          notificationRow(
+            notificationIdA,
+            sourceIdA,
+            "2026-09-17T00:00:00.000Z",
+          ),
+        ]),
+      ),
+      http.get(`${REST_URL}/occurrence_invitations`, () =>
+        HttpResponse.json([sourceRow("not-an-invitation-id")]),
+      ),
+    );
+
+    const result = await listMyNotifications(createTestClient());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.phase).toBe("source-resolution");
+      expect(result.error.kind).toBe("failure");
+      expect(result.error.message).not.toContain("not-an-invitation-id");
+    }
+  });
+
+  it("rejects notification kinds outside the current one-kind contract", async () => {
+    server.use(
+      http.get(`${REST_URL}/notifications`, () =>
+        HttpResponse.json([
+          {
+            ...notificationRow(
+              notificationIdA,
+              sourceIdA,
+              "2026-09-17T00:00:00.000Z",
+            ),
+            kind: "future_kind",
+          },
+        ]),
+      ),
+    );
+
+    const result = await listMyNotifications(createTestClient());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.phase).toBe("notification-list");
+    }
+  });
+
   it("reads a bounded previous window with a stable snapshot", async () => {
     const ids = Array.from(
       { length: NOTIFICATION_PAGE_SIZE + 1 },

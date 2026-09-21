@@ -5,6 +5,7 @@ import {
   type PersonalScheduleEntry,
   type Result,
 } from "@stage-tracker/domain";
+import { invalidRowSchemaError } from "../row-mapping";
 
 /**
  * Raw `personal_schedule_entries` row shape, validated by this mapper.
@@ -72,7 +73,7 @@ export function mapPersonalScheduleEntryRow(
   });
   if (!parsed.success) {
     return err(
-      `Invalid personal_schedule_entries row (id=${row.id}): ${parsed.error.message}`,
+      invalidRowSchemaError("personal_schedule_entries", row.id, parsed.error),
     );
   }
   return ok(parsed.data);

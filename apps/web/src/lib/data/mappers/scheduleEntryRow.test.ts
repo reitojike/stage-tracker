@@ -67,6 +67,11 @@ describe("mapPersonalScheduleEntryRow", () => {
       }),
     );
     expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe(
+        "Invalid personal_schedule_entries row (id=11111111-1111-4111-8111-111111111111): is_all_day=true but starts_on/ends_on missing.",
+      );
+    }
   });
 
   it("returns an error (never throws) when is_all_day=false but starts_at is missing", () => {

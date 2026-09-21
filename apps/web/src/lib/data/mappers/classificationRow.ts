@@ -7,6 +7,7 @@ import {
   type Group,
   type Result,
 } from "@stage-tracker/domain";
+import { invalidRowSchemaError } from "../row-mapping";
 
 /** `genres` の生 row 形（current classification schema / mapper tests）。 */
 export interface GenreRow {
@@ -24,7 +25,7 @@ export function mapGenreRow(row: GenreRow): Result<Genre, string> {
     sortOrder: row.sort_order,
   });
   if (!parsed.success) {
-    return err(`Invalid genres row (id=${row.id}): ${parsed.error.message}`);
+    return err(invalidRowSchemaError("genres", row.id, parsed.error));
   }
   return ok(parsed.data);
 }
@@ -43,7 +44,7 @@ export function mapGroupRow(row: GroupRow): Result<Group, string> {
     displayName: row.display_name,
   });
   if (!parsed.success) {
-    return err(`Invalid groups row (id=${row.id}): ${parsed.error.message}`);
+    return err(invalidRowSchemaError("groups", row.id, parsed.error));
   }
   return ok(parsed.data);
 }

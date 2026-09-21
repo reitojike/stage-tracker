@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  err,
   invitationIdSchema,
   occurrenceIdSchema,
   ok,
   userIdSchema,
   type Event,
+  type InvitationId,
   type Occurrence,
   type OccurrenceId,
   type Result,
@@ -18,11 +20,11 @@ import {
   type OccurrenceRow,
 } from "../mappers/eventRow";
 import { runKeysetSupabaseSelect } from "../paged-select";
-import { mapRows } from "../row-mapping";
+import { invalidRowSchemaError, mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
 
 export interface ReceivedInvitation {
-  readonly invitationId: string;
+  readonly invitationId: InvitationId;
   readonly occurrenceId: OccurrenceId;
   readonly inviterId: UserId;
   readonly context: {
@@ -60,24 +62,33 @@ function mapInvitationRow(
 ): Result<ReceivedInvitation, string> {
   const invitationIdParsed = invitationIdSchema.safeParse(row.id);
   if (!invitationIdParsed.success) {
-    return {
-      ok: false,
-      error: `Invalid occurrence_invitations row (id=${row.id}): ${invitationIdParsed.error.message}`,
-    };
+    return err(
+      invalidRowSchemaError(
+        "occurrence_invitations",
+        row.id,
+        invitationIdParsed.error,
+      ),
+    );
   }
   const occurrenceIdParsed = occurrenceIdSchema.safeParse(row.occurrence_id);
   if (!occurrenceIdParsed.success) {
-    return {
-      ok: false,
-      error: `Invalid occurrence_invitations row (id=${row.id}): ${occurrenceIdParsed.error.message}`,
-    };
+    return err(
+      invalidRowSchemaError(
+        "occurrence_invitations",
+        row.id,
+        occurrenceIdParsed.error,
+      ),
+    );
   }
   const inviterIdParsed = userIdSchema.safeParse(row.inviter_id);
   if (!inviterIdParsed.success) {
-    return {
-      ok: false,
-      error: `Invalid occurrence_invitations row (id=${row.id}): ${inviterIdParsed.error.message}`,
-    };
+    return err(
+      invalidRowSchemaError(
+        "occurrence_invitations",
+        row.id,
+        inviterIdParsed.error,
+      ),
+    );
   }
 
   let context: ReceivedInvitation["context"] = null;

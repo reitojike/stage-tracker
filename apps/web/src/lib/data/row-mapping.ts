@@ -3,6 +3,20 @@ import { readError } from "./read-error";
 import type { ReadResult } from "./read-result";
 
 /**
+ * Keep the bounded schema-parse diagnostics consistent across row boundaries.
+ * This is deliberately only for the shared `Invalid <table> row (id=...)`
+ * shape; feature-specific invariants and aggregate-integrity failures keep
+ * their local context at the mapper/read site.
+ */
+export function invalidRowSchemaError(
+  table: string,
+  id: unknown,
+  error: { readonly message: string },
+): string {
+  return `Invalid ${table} row (id=${String(id)}): ${error.message}`;
+}
+
+/**
  * Pure row mappingは`throw`せず、周囲が全て
  * `Result` 規約なのに、ここだけ例外が boundary を突き破っていた。
  *
