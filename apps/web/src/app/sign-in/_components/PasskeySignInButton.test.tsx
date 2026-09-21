@@ -21,8 +21,8 @@ vi.mock("@/lib/supabase/browser", () => ({
 
 describe("PasskeySignInButton", () => {
   it("redirects to / and refreshes on a successful ceremony", async () => {
-    // Issue #406: `specs/009-authentication-account-access/spec.md`:49 の Passkey サインイン導線が
-    // 実際に配線されていることを確認する regression test。
+    // Issue #406: the Passkey sign-in path is wired through the real component
+    // and keeps the surrounding Magic Link fallback available.
     signInWithPasskey.mockResolvedValueOnce({ data: {}, error: null });
     const user = userEvent.setup();
 

@@ -7,10 +7,10 @@ import { loadTicketsTimeline } from "./_lib/tickets-loader";
 import { TicketsView } from "./_components/TicketsView";
 
 /**
- * `/tickets` (`specs/008-ticket-opportunity-planning/spec.md` `/tickets`). Read-only - no
- * Server Action/mutation on this screen (this Task's scope; the current contract's
- * per-row planning-state controls are not rendered - see
- * `./_components/TicketsView.tsx`'s own header).
+ * `/tickets` (`specs/008-ticket-opportunity-planning/spec.md` `/tickets`).
+ * This page owns authentication and timeline reads, then delegates the
+ * rendered surface to `TicketsView`, which also renders the per-row
+ * planning-state controls.
  */
 export default async function TicketsPage() {
   const supabase = await createSupabaseServerClient();

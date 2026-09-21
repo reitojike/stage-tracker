@@ -198,12 +198,12 @@ downstream stateをEvent削除がcascadeで消すことはありません。
   Event / Occurrence deletion safety、cancellationによる既存stateの保持、および
   effective cancellationが新規Invitation作成をgateするEvent / Occurrence側の境界だけを
   定義する。Event ownerであること自体はParticipation stateを決めない。
-- Invitationのpending lifecycle、招待資格、targeting、opacityは、#560で専用Living
-  Specへcut overするまで[temporary static product rules](../../.ai-dev-foundation/product-rules.md)
-  のInvitation / identity boundaryがauthorityです。この文書は、Invitation lifecycle
-  全体を定義せず、effective cancellation中のOccurrenceへの新規Invitation作成を拒否する
-  cancellation gateと、InvitationがOccurrence deletionを阻止するdependent stateで
-  あることだけを扱います。Event ownerであること自体はInvitation eligibilityを決めません。
+- Invitationのpending lifecycle、招待資格、targeting、opacityは
+  [`specs/006-invitation-coordination-opacity/spec.md`](../006-invitation-coordination-opacity/spec.md)
+  がauthorityです。この文書は、Invitation lifecycle全体を定義せず、effective
+  cancellation中のOccurrenceへの新規Invitation作成を拒否するcancellation gateと、
+  InvitationがOccurrence deletionを阻止するdependent stateであることだけを扱います。
+  Event ownerであること自体はInvitation eligibilityを決めません。
 - Event rangeとcatalog対象期間のoverlapによるEvent visibilityはこの文書が定義する。
   genre、group、venueのclassification、facet / filter composition、option universe、
   filter persistenceは [`Catalog classification / filter Living Spec`](../011-catalog-classification-filter/spec.md)
@@ -241,9 +241,8 @@ migration history、classification/filter、Participation lifecycleの実装詳�
   classification/filterは [Spec 011](../011-catalog-classification-filter/spec.md) が
   authorityである。
 - **SC-006**: effective cancellation中のOccurrenceへの新規Invitation作成拒否が、
-  Spec 001のParticipation transition semanticsと、#560完了まではtemporary static
-  product rulesが定義するInvitationのpending lifecycle / eligibility / targeting /
-  opacityを吸収せず検証可能である。#560完了後はInvitation Living Specへcut overする。
+  Spec 001のParticipation transition semanticsと、Spec 006が定義するInvitationの
+  pending lifecycle / eligibility / targeting / opacityを吸収せず検証可能である。
 - **SC-007**: Event rangeとcatalog対象期間が重なるEventが、Occurrence 0件を含めて
   discoverableであり、classification / filter semanticsとは別のauthorityであることを
   検証可能である。

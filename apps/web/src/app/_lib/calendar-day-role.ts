@@ -13,10 +13,8 @@ import {
  *
  * This is a *global* month-calendar rule, not `/catalog`-specific - kept in
  * `app/_lib` (like `./calendar-grid.ts`, whose own header already documents
- * being "shared by `/calendar` and `/catalog`") rather than under
- * `(app)/catalog/_lib`, so a later Task giving `/calendar` (My Calendar) the
- * same day-role coloring (a separate, already-known gap - see this Task's
- * report) can import this module unchanged instead of duplicating it.
+ * being "shared by `/calendar` and `/catalog`") because both My Calendar and
+ * Catalog use the same day-role coloring.
  *
  * Rule from the Calendar contract:
  *   - Saturday is the "blue" role, Sunday and a Japanese national holiday

@@ -5,9 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * サインアウトの Server Action（`specs/009-authentication-account-access/spec.md`
- * `/sign-out`）。専用ページは持たず、認証済み画面（例: `/mypage`）の
- * フォームから呼ばれる想定。`/mypage` 自体は本 Task の scope 外のため
- * 未実装 —— この action はまだどの画面からも呼ばれていない。
+ * `/sign-out`）。専用ページは持たず、実装済みの `/mypage` の
+ * `AccountSection` フォームから呼ばれる。
  */
 export async function signOut(): Promise<void> {
   const supabase = await createSupabaseServerClient();

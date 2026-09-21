@@ -9,22 +9,18 @@ export interface AppBarIdentity {
 const FALLBACK_INITIAL = "?";
 
 /**
- * `resolveMyPageAppBarIdentity()` (`this route and its tests`): each
- * authenticated route's `layout.tsx` resolves the caller's email initial and
+ * `resolveMyPageAppBarIdentity()` (`this route and its tests`): the shared
+ * authenticated-screen layout resolves the caller's email initial and
  * `/mypage` href, purely to feed `AppShell`/`AppBar`'s presentational props
- * (`packages/ui/src/app-bar.tsx`). `/mypage` itself is out of this Task's
- * scope (only `/`, `/calendar`, `/catalog`, `/tickets` are implemented here),
- * so the href legitimately 404s for now - this Task's instructions allow
- * that ("遷移先が未実装なら404になっても構わない").
+ * (`packages/ui/src/app-bar.tsx`). `/mypage` is a real implemented screen;
+ * this helper only supplies its navigation identity.
  *
- * This never fails the page: the real auth gate is each page's own
- * `requireAuthenticatedUserId` (`@/app/_lib/require-authenticated-user-id`),
- * not this layout-level chrome helper. If the session can't be read here for
- * any reason, this falls back to a placeholder initial rather than
- * throwing - the current contract's division of responsibility is "layout は
- * chrome を描画するだけ", so a chrome-level identity lookup failing must not
- * prevent the page's own content (including that page's own auth-failure
- * panel) from rendering.
+ * This never fails the page: authentication enforcement belongs to the route
+ * or data boundary that owns each screen, not to this layout-level chrome
+ * helper. If the session can't be read here for any reason, this falls back
+ * to a placeholder initial rather than throwing - the layout renders shared
+ * chrome only, so a chrome-level identity lookup failure must not prevent the
+ * screen's own content or error handling from rendering.
  */
 export async function resolveMyPageAppBarIdentity(
   supabase: SupabaseClient<Database>,

@@ -70,8 +70,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           {/* Passkey登録済みuserの日常sign-in path（Issue #106/#406）。
               discoverable credentialなのでメールアドレス入力は不要 -
               下のMagic Link formは未登録user向けのfallbackとして常に
-              併記する（`specs/009-authentication-account-access/spec.md`:49「Passkey優先＋
-              Magic Linkフォールバック」）。 */}
+              併記する（Passkey優先＋Magic Linkフォールバック）。 */}
           <PasskeySignInButton />
           <div
             role="separator"

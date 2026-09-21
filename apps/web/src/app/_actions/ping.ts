@@ -16,7 +16,8 @@ const pingInputSchema = z.object({
  * error kind 語彙（`src/lib/action-error.ts`）の配線が実際に動作している
  * ことを確認するためのアクション。認証済みセッションが無い状態で呼べば
  * `unauthenticated` kind のエラーが返り、これも配線が正しく動いている
- * ことの証跡になる（サインイン UI は本 Task の scope 外のため未実装）。
+ * ことの証跡になる。サインイン UI は別の route/component ownership に属し、
+ * この action はその画面を実装・制御しない。
  *
  * `serverTokyoDate` は `@stage-tracker/ui` 配線と同じく M6 で新たに配線した
  * `@stage-tracker/domain` の実使用箇所。「今」を読む（`Date.now()`）のは

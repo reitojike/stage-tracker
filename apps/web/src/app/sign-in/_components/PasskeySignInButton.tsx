@@ -11,9 +11,9 @@ import {
 } from "@/lib/passkey-ceremony-error";
 
 /**
- * `specs/009-authentication-account-access/spec.md`:49` `/sign-in`「サインイン（Passkey優先＋
- * Magic Linkフォールバック）...Passkeyは Server Action ではなくブラウザ
- * 直接 `supabase.auth.signInWithPasskey()`」（Issue #406）。
+ * Current `/sign-in` account-access behavior is implemented by this component
+ * and the surrounding sign-in page: Passkey is preferred and Magic Link is
+ * kept as the fallback（Issue #406）。
  *
  * Passkey capability は shared browser factory が所有するため、ceremony
  * ごとに同じ factory から client を取得する。

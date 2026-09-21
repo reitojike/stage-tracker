@@ -4,11 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { BackLink, PageHeading } from "../_components/PageChrome";
 
 /**
- * `specs/007-personal-schedule-lifecycle/spec.md`: `page.tsx` と同一の見出し/戻り先を
- * `useSearchParams()` から再構築する（`new/loading.tsx` と同じ理由）。
+ * Reconstruct the same heading/back link as `page.tsx` from
+ * `useSearchParams()` because Next.js does not pass query params to
+ * `loading.tsx` (the same reason as `new/loading.tsx`).
  * `entryId` 自体は見出しに使わない（データ依存の見出しを先取り表示しない
- * 原則 - the current contract「なおこの loading.tsx は『データ依存の見出しは先取り
- * して表示しない』…原則も併せ持つ」）ため `useParams()` は不要。
+ * 原則 - data-dependent headings are not shown before the page resolves）ため
+ * `useParams()` は不要。
  */
 export default function ScheduleEntryDetailLoading() {
   const searchParams = useSearchParams();

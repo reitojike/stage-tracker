@@ -8,10 +8,8 @@ import type { TokyoCalendarDate } from "@stage-tracker/domain";
  *
  * Kept generic and feature-agnostic (like `./calendar-grid.ts` and
  * `./calendar-day-role.ts`) rather than living under `(app)/catalog/_lib`:
- * the Calendar contract uses the same `MAX_BAND_LANES = 2` cap for My Calendar's own
- * multi-day PersonalSchedule bands, so a later Task giving `/calendar` band
- * rendering (a separate, already-known gap - see this Task's report) can
- * reuse this algorithm unchanged instead of duplicating it.
+ * both Catalog and My Calendar use this algorithm with the shared
+ * `MAX_BAND_LANES = 2` cap for multi-day bands.
  */
 
 export interface BandSegment {

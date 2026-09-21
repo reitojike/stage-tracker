@@ -1,8 +1,8 @@
 import { PageHeading } from "@stage-tracker/ui";
 
 /**
- * `specs/009-authentication-account-access/spec.md`: `/mypage` の `loading` は Server
- * Component で十分（URL 依存の見出し再構築は不要）。
+ * `/mypage` has no URL-dependent heading or back-link state, so its loading
+ * boundary can remain a Server Component.
  */
 export default function MyPageLoading() {
   return (
