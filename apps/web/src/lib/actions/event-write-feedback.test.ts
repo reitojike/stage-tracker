@@ -17,8 +17,8 @@ import type { RawPostgrestLikeError } from "./postgrest-error";
  * 不具合修正: v2 は Event write/delete/cancellation の全 operation を
  * `classifyPostgrestLikeError` 経由の単一の汎用メッセージへ collapse して
  * いた。legacy の `eventWriteFeedback.ts` は operation ごとに異なる文言を
- * 返す（`specs/005-event-occurrence-lifecycle/spec.md:576-580`）。ここでは、各 error family に
- * ついて operation ごとに文言が実際に異なること（silent collapse への
+ * 返す。現在の契約は `event-write-feedback.ts` にあり、ここでは各 error
+ * family について operation ごとに文言が実際に異なること（silent collapse への
  * regression guard）と、生の PostgREST message が client 向け message へ
  * 漏れないことを検証する。
  */
