@@ -218,8 +218,7 @@ export interface CatalogViewProps {
  * reached by selecting a day, exactly mirrored here - see this Task's report
  * for why the flat list is removed rather than kept alongside the calendar.
  *
- * The filter controls use the shared Sheet consumer described by
- * `specs/005-event-occurrence-lifecycle/spec.md`. The applied/draft distinction and
+ * The filter controls use the shared Sheet consumer. The applied/draft distinction and
  * localStorage persistence are kept in this consumer because they are
  * Catalog-specific lifecycle state, while the Sheet owns modal presentation,
  * dismiss, focus containment, and focus return.

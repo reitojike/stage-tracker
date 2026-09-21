@@ -7,7 +7,7 @@ import {
 
 /**
  * `/catalog`'s own month/day/event href builders (`specs/011-catalog-classification-filter/spec.md`
- * §2.10 "Catalog navigation"). Kept local to this feature (unlike
+ * "Catalog navigation"). Kept local to this feature (unlike
  * `@/app/_lib/calendar-grid.ts`'s date math) since the destination paths
  * (`/catalog`, `/catalog/events/[id]`) are `/catalog`-specific, mirroring
  * the M8 catalog-navigation the current contract's href helpers.

@@ -47,9 +47,8 @@ export function AppShell({
         myPageHref={myPageHref}
         myPageInitial={myPageInitial}
       />
-      {/* Bounded content column: 640px matches the legacy fixed-width
-          content contract (see `docs/ux-ui.md`
-          fixedSubmitBar.module.css). `<main>` (not `<div>`) matches
+      {/* Bounded content column: 640px is the implemented max width for this
+          content column. `<main>` (not `<div>`) matches
           apps/legacy-web/src/ui/AppShell.tsx, which owns the page's single
           `<main>` landmark here - lost in the initial v2 port and caught by
           an axe-core run against the AppShell stories (PR #377 review,

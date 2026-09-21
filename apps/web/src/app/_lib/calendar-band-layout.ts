@@ -1,15 +1,13 @@
 import type { TokyoCalendarDate } from "@stage-tracker/domain";
 
 /**
- * Generic multi-day "band" week-layout algorithm, ported from the M8
- * `layoutWeekBands` current implementation contract
- * (`specs/004-calendar-month-grid/spec.md` "Personal schedule / My Calendar": "月表示
- * の band...1 週あたり同時表示できる band は最大 `MAX_BAND_LANES = 2`").
+ * Generic multi-day "band" week-layout algorithm owned by this shared helper
+ * and its tests.
  *
  * Kept generic and feature-agnostic (like `./calendar-grid.ts` and
  * `./calendar-day-role.ts`) rather than living under `(app)/catalog/_lib`:
- * both Catalog and My Calendar use this algorithm with the shared
- * `MAX_BAND_LANES = 2` cap for multi-day bands.
+ * both Catalog and My Calendar use this algorithm with the shared two-lane
+ * cap for multi-day bands.
  */
 
 export interface BandSegment {

@@ -4,8 +4,7 @@ import { readError, type ReadError } from "./read-error";
 import type { ReadResult } from "./read-result";
 
 /**
- * `specs/009-authentication-account-access/spec.md` のカスタム SQLSTATE 慣習: `42501`
- * （insufficient_privilege）は「権限が無い、または存在しない/所有して
+ * PostgreSQL の `42501`（`insufficient_privilege`）は「権限が無い、または存在しない/所有して
  * いないことを意図的に区別しない」ケースに使われる唯一の permission 系
  * コードである。RLS の row-level policy（`using` 句）が行を除外する場合は
  * Postgres が一切エラーを返さず、単に0件の成功として応答するため、ここに

@@ -26,7 +26,7 @@ import {
 /**
  * `/catalog`'s month-calendar presentation derivation, retained from the M8
  * historical comparison (`specs/011-catalog-classification-filter/spec.md`
- * §2.9 "Personal schedule / My Calendar": the multi-day-band-only-for-
+ * "Personal schedule / My Calendar": the multi-day-band-only-for-
  * multi-day-Events rule is stated there for "Event Catalog" specifically,
  * distinct from My Calendar's own PersonalSchedule bands). Everything here
  * is derived, read-only presentation computed from an already-fetched

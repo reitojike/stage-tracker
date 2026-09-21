@@ -6,9 +6,8 @@ import { resolveMyPageAppBarIdentity } from "./_lib/app-bar-identity";
 
 /**
  * Shared `layout.tsx` for authenticated screens under the `(app)` route group.
- * `the current route implementation and its tests`
- * §0 describes each route segment's `layout.tsx` as an identical, minimal
- * Server Component that resolves the AppBar identity and renders
+ * The current route implementation and its tests define this as an identical,
+ * minimal Server Component that resolves the AppBar identity and renders
  * `AppShell` - the legacy app duplicated this file once per route folder
  * (a consequence of not having used a route group there). This Task uses a
  * single Next.js route group (`(app)`) instead so the 4 pages below share

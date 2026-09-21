@@ -64,7 +64,7 @@ export const addScheduleShareByEmailAction = authActionClient
 /**
  * owner が既存 recipient を除去する
  * （`specs/012-personal-schedule-sharing-privacy/spec.md` `removeScheduleShareAsOwnerAction`）。
- * 「owner の recipient『解除』は確認なしの即時実行」（同 §2）につき、
+ * 「owner の recipient『解除』は確認なしの即時実行」につき、
  * 削除（entry 自体の hard delete）とは異なり画面に留まる - `redirect` せず
  * affected read surface の再検証のみ。
  */

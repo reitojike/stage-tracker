@@ -8,7 +8,7 @@ import { fieldErrorMessage } from "@/lib/actions/validationErrors";
 
 /**
  * `/catalog/events/new` のフォーム本体（`specs/005-event-occurrence-lifecycle/spec.md`
- * §2「Event 作成」）。バリデーションはサーバ側（`createEventInputSchema`）
+ * 「Event 作成」）。バリデーションはサーバ側（`createEventInputSchema`）
  * で行い、`fieldErrors` を各フィールド直下に表示する。全体エラーは
  * フォーム先頭に表示する。occurrence 欄は3つとも空なら「occurrence なし」
  * として受理される（Issue #87/#88）。

@@ -26,7 +26,7 @@ import { instantToDateTimeLocalValue } from "../_lib/instantFormat";
 
 /**
  * 1件の occurrence の表示 + owner 操作（`specs/005-event-occurrence-lifecycle/spec.md`
- * §2「Event 編集」: 更新成功後は値を保持したまま編集 Sheet を閉じる、
+ * 「Event 編集」: 更新成功後は値を保持したまま編集 Sheet を閉じる、
  * 中止/解除はトグル・確認なし、削除は確認 Sheet 必須）。
  */
 export function OccurrenceItem({

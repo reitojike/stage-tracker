@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * `/mypage` が必要とする identity/権限 read（`specs/009-authentication-account-access/spec.md`
- * §1 `/mypage`: `getAuthenticatedUser`）。Auth API orchestration remains
+ * `/mypage`: `getAuthenticatedUser`）。Auth API orchestration remains
  * route-local; reusable table reads are kept in `lib/data`.
  */
 

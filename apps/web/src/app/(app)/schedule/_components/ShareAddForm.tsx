@@ -23,7 +23,7 @@ interface ShareAddFormProps {
 
 /**
  * owner の共有追加（`specs/012-personal-schedule-sharing-privacy/spec.md`
- * `addScheduleShareByEmailAction`、§2「予定詳細」: 「owner の『+ 追加』→
+ * `addScheduleShareByEmailAction`、「予定詳細」: 「owner の『+ 追加』→
  * `ShareAddSheet`、成功で自動 close」）。共有追加の action semantics は
  * この consumer に残し、Sheet は presentation と lifecycle だけを担当する。
  *

@@ -6,8 +6,8 @@ import { personalScheduleEntryIdSchema } from './ids';
 
 /**
  * PersonalScheduleEntry: an Event-independent personal schedule item
- * (`specs/007-personal-schedule-lifecycle/spec.md` "Event-independent personal schedule",
- * §1.8). Unlike the superseded `paid_leave`/`work`/`travel`/`other` closed
+ * (`specs/007-personal-schedule-lifecycle/spec.md` "Event-independent personal schedule").
+ * Unlike the superseded `paid_leave`/`work`/`travel`/`other` closed
  * vocabulary (Issue #121), an entry has no fixed category - only a required
  * free-form `title`.
  *
