@@ -47,9 +47,8 @@ export interface InvitationListProps {
  *   pending invitation も自動解決される（DB trigger）ため、client 側でも
  *   同一 occurrenceId のカードをまとめて除去する。
  * - 「参加しない」: P3 決定どおり即座に hard delete で確定
- *   （`declineInvitationAction`）。undo は無い（`docs/v2/decisions.md`
- *   「P3 の実装可否」節 - invitee 側から invitation を作り直す経路が現行
- *   スキーマに存在しないため、PO 判断で Issue #382 へ切り出し済み）。
+ *   （`declineInvitationAction`）。確定後の undo や declined history は提供しない
+ *   （pending-only の current Invitation contract）。
  *   確定後は取り消せないため、実行前に一段階の確認を挟む
  *   （押し間違い対策 - undo が無い現状ではここでしか防げない）。
  * - 効果的に中止済みの招待（event/occurrence どちらかが cancel 済み）は

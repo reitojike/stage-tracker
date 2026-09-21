@@ -18,8 +18,6 @@ export * from './participation/participationCancellationGate';
 export * from './invitation/invitation';
 export * from './invitation/inviteEligibility';
 export * from './invitation/inviteOpacity';
-export * from './invitation/attendingConvergence';
-export * from './invitation/declineUndo';
 
 export * from './schedule/ids';
 export * from './schedule/scheduleEntry';

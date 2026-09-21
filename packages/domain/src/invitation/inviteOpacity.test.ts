@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ParticipationStatus } from '../participation/participation';
-import {
-  evaluateInvite,
-  INVITE_OUTCOME,
-  planInviteWrite,
-  type InviteRequest,
-} from './inviteOpacity';
+import { evaluateInvite, INVITE_OUTCOME, type InviteRequest } from './inviteOpacity';
 
 function baseRequest(inviteeParticipationStatus: ParticipationStatus | null): InviteRequest {
   return {
@@ -15,20 +10,6 @@ function baseRequest(inviteeParticipationStatus: ParticipationStatus | null): In
     inviteeParticipationStatus,
   };
 }
-
-describe('planInviteWrite - the three invitee-state branches', () => {
-  it('branch 1 (no existing row): creates a pending invitation', () => {
-    expect(planInviteWrite(null)).toEqual({ createInvitation: true });
-  });
-
-  it('branch 2 (existing considering): creates a pending invitation', () => {
-    expect(planInviteWrite('considering')).toEqual({ createInvitation: true });
-  });
-
-  it('branch 3 (existing attending): does not create a pending invitation', () => {
-    expect(planInviteWrite('attending')).toEqual({ createInvitation: false });
-  });
-});
 
 describe('evaluateInvite - opacity: the inviter-facing outcome must not distinguish the 3 branches', () => {
   const branches: (ParticipationStatus | null)[] = [null, 'considering', 'attending'];
@@ -84,29 +65,6 @@ describe('evaluateInvite - opacity: the inviter-facing outcome must not distingu
       expect(result.value).not.toHaveProperty('writePlan');
     }
   });
-});
-
-describe('trusted write-boundary flow: evaluateInvite and planInviteWrite are obtained separately', () => {
-  const branches: (ParticipationStatus | null)[] = [null, 'considering', 'attending'];
-
-  it.each(branches)(
-    'for invitee state %s, the write boundary calls planInviteWrite itself after evaluateInvite succeeds',
-    (inviteeStatus) => {
-      const request = baseRequest(inviteeStatus);
-
-      const decision = evaluateInvite(request);
-      if (!decision.ok) {
-        throw new Error('expected all 3 branches to be eligible in this test setup');
-      }
-      expect(decision.value).toBe(INVITE_OUTCOME);
-
-      // The write boundary derives the write plan from the same
-      // `inviteeParticipationStatus` it already holds on `request` - not
-      // from anything returned by `evaluateInvite`.
-      const writePlan = planInviteWrite(request.inviteeParticipationStatus);
-      expect(writePlan.createInvitation).toBe(inviteeStatus !== 'attending');
-    },
-  );
 });
 
 describe('evaluateInvite - eligibility and guards (inviter-visible rejections)', () => {

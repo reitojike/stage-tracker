@@ -81,18 +81,6 @@ const declineInvitationInputSchema = z.object({
   invitationId: invitationIdSchema,
 });
 
-const declinedInvitationRowSchema = z.object({
-  occurrence_id: occurrenceIdSchema,
-  inviter_id: userIdSchema,
-  invitee_id: userIdSchema,
-});
-
-export interface DeclinedInvitationSnapshotOutput {
-  readonly occurrenceId: string;
-  readonly inviterId: string;
-  readonly inviteeId: string;
-}
-
 /**
  * Decline: P3 決定（`docs/v2/decisions.md`）どおり、即座に hard delete して
  * 確定させる。`decline_occurrence_invitation` RPC
@@ -101,12 +89,6 @@ export interface DeclinedInvitationSnapshotOutput {
  *
  * 既に解決済み（他のタブ/操作で先に resolve された）場合、RPC は `null`
  * を返す（idempotent）。
- *
- * この action は削除された行の `snapshot`（occurrence/inviter/invitee）を
- * 引き続き返す。M6d の client はこれを消費しない（undo UI を持たないため -
- * 下記コメント参照）が、Issue #382 が「同じ inviter からの pending
- * invitation を作り直す」undo を実装する際にこの情報が必要になるため、
- * RPC が無償で返す値を捨てずに残す。
  *
  * **エラー分類は単一の opaque failure。** `decline_occurrence_invitation`
  * （`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`）
@@ -121,10 +103,9 @@ export interface DeclinedInvitationSnapshotOutput {
 export const declineInvitationAction = authActionClient
   .inputSchema(declineInvitationInputSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const { data, error } = await ctx.supabase.rpc(
-      "decline_occurrence_invitation",
-      { p_invitation_id: parsedInput.invitationId },
-    );
+    const { error } = await ctx.supabase.rpc("decline_occurrence_invitation", {
+      p_invitation_id: parsedInput.invitationId,
+    });
     if (error) {
       console.error("[invitation decline] unclassified PostgREST error", {
         code: error.code,
@@ -134,35 +115,5 @@ export const declineInvitationAction = authActionClient
     }
 
     revalidateReadSurfaces(affectedReadSurfaces.invitationDecline());
-
-    const parsed = declinedInvitationRowSchema.safeParse(data);
-    const snapshot: DeclinedInvitationSnapshotOutput | null = parsed.success
-      ? {
-          occurrenceId: parsed.data.occurrence_id,
-          inviterId: parsed.data.inviter_id,
-          inviteeId: parsed.data.invitee_id,
-        }
-      : null;
-    return { snapshot };
+    return { ok: true as const };
   });
-
-/**
- * Undo（decline の取り消し）は M6d の scope に無い。実測により、現行の
- * RPC/RLS 構成では invitee 側から invitation を作り直す経路が存在しない
- * ことが判明したため（PO 判断、`docs/v2/decisions.md`「P3 の実装可否」
- * 節参照）:
- *
- * - `occurrence_invitations` への `authenticated` grant は SELECT のみで
- *   INSERT が無い（SECURITY DEFINER RPC 経由の書き込みのみを許可する設計）。
- * - `invite_to_occurrence` / `_by_email` は `inviter_id := auth.uid()` に
- *   束縛される。invitee 本人が呼ぶと元の invitee（= 自分自身）との
- *   self-invite になり無条件に拒否される。
- * - `apps/web/src/env.ts` が明記するとおりこの app runtime は service role
- *   key を意図的に持たないため、RLS を迂回した代理挿入もできない。
- *
- * 復元には invitee が代理で pending invitation を作れる新しい SECURITY
- * DEFINER RPC が要り、migration の追加を伴うため、この Task の許可された
- * 編集範囲の外にある。**Issue #382 で undo（復元 RPC 追加）を対応する。**
- * それまで、動かない undo action/UI は持たない（成功を装う・確実に失敗する
- * `invite_to_occurrence` 呼び出しへ迂回する、のいずれも行わない）。
- */
