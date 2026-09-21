@@ -1,11 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import {
-  invitationIdSchema,
-  occurrenceIdSchema,
-  userIdSchema,
-} from "@stage-tracker/domain";
+import { invitationIdSchema, occurrenceIdSchema } from "@stage-tracker/domain";
 import { ActionError, GENERIC_FAILURE_MESSAGE_JA } from "@/lib/action-error";
 import { authActionClient } from "@/lib/safe-action";
 import { setParticipationChoice } from "./participation";
@@ -43,11 +39,9 @@ const acceptInvitationInputSchema = z.object({
 export const acceptInvitationAction = authActionClient
   .inputSchema(acceptInvitationInputSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const userId = userIdSchema.parse(ctx.userId);
-
     const result = await setParticipationChoice(ctx.supabase, {
       occurrenceId: parsedInput.occurrenceId,
-      userId,
+      userId: ctx.userId,
       choice: "attending",
     });
 

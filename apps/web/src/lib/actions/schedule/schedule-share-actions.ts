@@ -5,7 +5,6 @@ import { z } from "zod";
 import {
   personalScheduleEntryIdSchema,
   scheduleShareIdSchema,
-  userIdSchema,
 } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
@@ -99,7 +98,7 @@ export const removeScheduleShareAsOwnerAction = authActionClient
  * entry の全 share row の SELECT を許可している**ため、owner がこの action
  * を直接呼んだ場合、`entryId` だけの絞り込みでは recipient 全員の share
  * row が見えてしまう。そのため `getOwnScheduleShareId` へ
- * `userIdSchema.parse(ctx.userId)` を明示的に渡し、
+ * 認証済み context の `ctx.userId` を渡し、
  * `shared_with_user_id = ctx.userId` まで絞ってはじめて「自分の共有だけを
  * 対象にする」不変条件が成立する。
  *
@@ -118,7 +117,7 @@ export const removeScheduleShareAction = authActionClient
     const ownShareResult = await getOwnScheduleShareId(
       ctx.supabase,
       parsedInput.entryId,
-      userIdSchema.parse(ctx.userId),
+      ctx.userId,
     );
     if (!ownShareResult.ok) {
       throw new ActionError(
