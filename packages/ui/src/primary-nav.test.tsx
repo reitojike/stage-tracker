@@ -77,14 +77,17 @@ describe('PrimaryNav', () => {
       expect(nav.className).toMatch(/pb-\[env\(safe-area-inset-bottom,0px\)\]/);
     });
 
-    it('gives the nav shell its own stacking context (does not rely on DOM order alone)', () => {
+    it('keeps the nav shell above content-side row interactions', () => {
       usePathname.mockReturnValue('/');
       render(<PrimaryNav />);
 
       const nav = screen.getByRole('navigation', {
         name: '主要ナビゲーション',
       });
-      expect(nav.className).toMatch(/z-\[1\]/);
+      // ListRowActions/ListRowChevron use z-10 to stay above their row
+      // overlay link; the shared bottom nav must remain above that local
+      // interaction layer when their boxes overlap on mobile.
+      expect(nav.className).toMatch(/\bz-20\b/);
     });
 
     it('bounds the inner row to the same 640px content column as AppShell', () => {
