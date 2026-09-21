@@ -6,16 +6,16 @@ import type {
 import type { ParticipationWithOccurrence, ReadState } from "@/lib/data";
 
 /**
- * `docs/v2/decisions.md`「M6が負う責任: StatePanelの3状態を正しく分類する
- * こと」を、このイベント詳細画面専用に体現する。`listMyParticipations`
+ * This event-detail helper preserves the independent read-state boundary
+ * originally recorded as historical M6 rationale in `docs/v2/decisions.md`.
+ * `listMyParticipations`
  * （`@/lib/data`、caller 全体の参加を横断的に返す）の read 失敗
  * (`unavailable`/`error`) を、occurrence ごとの「参加していない」
  * （= lookup に存在しない）へ**絶対に**潰さない。
  *
  * `ok: false` の場合、呼び出し元 (`page.tsx`) はこの event の全 occurrence
  * について「参加状況を読み込めなかった」ものとして扱う責任を負う
- * （event 本体は表示継続 - specs/001-occurrence-participation/spec.md §2 イベント詳細の
- * 「participation の個別読込失敗は event 本体とは別枠で表示」）。
+ * event本体の読み込みとは別に扱うため、参加状況の失敗でもevent本体は表示を継続する。
  *
  * `unavailable`/`error` はどちらも `message` を持たない（PR #381 review
  * finding 2 / `@/lib/data`の`ReadState`と同じ方針）。生の PostgREST/network

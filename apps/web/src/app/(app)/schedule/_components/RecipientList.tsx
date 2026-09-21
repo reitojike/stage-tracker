@@ -22,8 +22,7 @@ function RecipientRow({ entryId, recipient }: RecipientRowProps) {
         <span className="text-body-sm text-foreground">
           {recipient.recipientEmail}
         </span>
-        {/* 「owner の recipient『解除』は確認なしの即時実行」
-          （specs/012-personal-schedule-sharing-privacy/spec.md §2「予定詳細」）。 */}
+        {/* Owner-side recipient removal is an immediate action without confirmation. */}
         <Button
           type="button"
           variant="outline"

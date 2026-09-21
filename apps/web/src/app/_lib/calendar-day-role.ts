@@ -7,16 +7,15 @@ import {
 } from "./japanese-holidays";
 
 /**
- * Weekday / Japanese-holiday calendar presentation role, ported from the
- * Current Calendar day-role helper
- * (`specs/004-calendar-month-grid/spec.md` "Calendar day role (曜日・祝日表示)").
+ * Weekday / Japanese-holiday calendar presentation role owned by this shared
+ * helper and its tests.
  *
  * This is a *global* month-calendar rule, not `/catalog`-specific - kept in
  * `app/_lib` (like `./calendar-grid.ts`, whose own header already documents
  * being "shared by `/calendar` and `/catalog`") because both My Calendar and
  * Catalog use the same day-role coloring.
  *
- * Rule from the Calendar contract:
+ * Implemented rule:
  *   - Saturday is the "blue" role, Sunday and a Japanese national holiday
  *     are both the "red" role.
  *   - Saturday + holiday: holiday role wins.
