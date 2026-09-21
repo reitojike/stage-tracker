@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import type { Database } from "@/lib/data/database.types";
 import {
+  decodeNotificationCursor,
+  encodeNotificationCursor,
   hasUnreadNotifications,
   listMyNotifications,
-  NOTIFICATION_FIRST_PAGE_SIZE,
+  NOTIFICATION_PAGE_SIZE,
 } from "./notifications";
 
 const SUPABASE_URL = "https://example-project.supabase.test";
@@ -54,13 +56,24 @@ afterEach(() => {
 });
 
 describe("listMyNotifications", () => {
+  it("preserves sub-millisecond precision in notification cursors", () => {
+    const cursor = {
+      createdAt: "2026-09-17T00:00:00.123456Z",
+      id: notificationIdA,
+    };
+
+    expect(decodeNotificationCursor(encodeNotificationCursor(cursor))).toEqual(
+      cursor,
+    );
+  });
+
   it("uses an explicit bounded newest-first window with an id tie-breaker", async () => {
     let sourceRequestCount = 0;
     server.use(
       http.get(`${REST_URL}/notifications`, ({ request }) => {
         const url = new URL(request.url);
         expect(url.searchParams.get("limit")).toBe(
-          String(NOTIFICATION_FIRST_PAGE_SIZE),
+          String(NOTIFICATION_PAGE_SIZE + 1),
         );
         expect(url.searchParams.get("order")).toBe("created_at.desc,id.desc");
         expect(url.searchParams.has("offset")).toBe(false);
@@ -89,26 +102,112 @@ describe("listMyNotifications", () => {
 
     expect(result).toEqual({
       ok: true,
-      value: [
-        {
-          id: notificationIdB,
-          kind: "invitation_received",
-          sourceId: sourceIdB,
-          createdAt: "2026-09-17T00:00:00.000Z",
-          readAt: null,
-          source: { status: "resolved" },
-        },
-        {
-          id: notificationIdA,
-          kind: "invitation_received",
-          sourceId: sourceIdA,
-          createdAt: "2026-09-17T00:00:00.000Z",
-          readAt: "2026-09-17T00:01:00.000Z",
-          source: { status: "resolved" },
-        },
-      ],
+      value: {
+        items: [
+          {
+            id: notificationIdB,
+            kind: "invitation_received",
+            sourceId: sourceIdB,
+            createdAt: "2026-09-17T00:00:00.000Z",
+            readAt: null,
+            source: { status: "resolved" },
+          },
+          {
+            id: notificationIdA,
+            kind: "invitation_received",
+            sourceId: sourceIdA,
+            createdAt: "2026-09-17T00:00:00.000Z",
+            readAt: "2026-09-17T00:01:00.000Z",
+            source: { status: "resolved" },
+          },
+        ],
+        nextCursor: null,
+        hasPrevious: false,
+      },
     });
     expect(sourceRequestCount).toBe(1);
+  });
+
+  it("uses a bounded composite cursor without duplicates or skips across a same-timestamp boundary", async () => {
+    const createdAt = "2026-09-17T00:00:00.000Z";
+    const ids = Array.from(
+      { length: NOTIFICATION_PAGE_SIZE + 1 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${String(NOTIFICATION_PAGE_SIZE + 1 - index).padStart(12, "0")}`,
+    );
+    let notificationRequestCount = 0;
+    server.use(
+      http.get(`${REST_URL}/notifications`, ({ request }) => {
+        const url = new URL(request.url);
+        notificationRequestCount += 1;
+        expect(url.searchParams.get("limit")).toBe(
+          String(NOTIFICATION_PAGE_SIZE + 1),
+        );
+        expect(url.searchParams.get("order")).toBe("created_at.desc,id.desc");
+        if (notificationRequestCount === 1) {
+          expect(url.searchParams.has("or")).toBe(false);
+          return HttpResponse.json(
+            ids.map((id) => notificationRow(id, sourceIdA, createdAt)),
+          );
+        }
+
+        const cursorFilter = url.searchParams.get("or") ?? "";
+        expect(cursorFilter).toContain(`created_at.lt.${createdAt}`);
+        const cursorId = ids[NOTIFICATION_PAGE_SIZE - 1];
+        const olderId = ids[NOTIFICATION_PAGE_SIZE];
+        if (cursorId === undefined || olderId === undefined) {
+          throw new Error("notification cursor fixture is incomplete");
+        }
+        expect(cursorFilter).toContain(
+          `created_at.eq.${createdAt},id.lt.${cursorId}`,
+        );
+        return HttpResponse.json([
+          notificationRow(olderId, sourceIdA, createdAt),
+        ]);
+      }),
+      http.get(`${REST_URL}/occurrence_invitations`, () =>
+        HttpResponse.json([]),
+      ),
+    );
+
+    const first = await listMyNotifications(createTestClient());
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      return;
+    }
+    expect(first.value.items).toHaveLength(NOTIFICATION_PAGE_SIZE);
+    expect(new Set(first.value.items.map(({ id }) => id)).size).toBe(
+      NOTIFICATION_PAGE_SIZE,
+    );
+    expect(first.value.nextCursor).toEqual({
+      createdAt,
+      id: ids[NOTIFICATION_PAGE_SIZE - 1],
+    });
+
+    const second = await listMyNotifications(
+      createTestClient(),
+      first.value.nextCursor,
+    );
+    expect(second).toEqual({
+      ok: true,
+      value: {
+        items: [
+          {
+            id: ids[NOTIFICATION_PAGE_SIZE],
+            kind: "invitation_received",
+            sourceId: sourceIdA,
+            createdAt,
+            readAt: null,
+            source: { status: "resolved" },
+          },
+        ],
+        nextCursor: null,
+        hasPrevious: false,
+      },
+    });
+    expect(
+      first.value.items.some((item) => item.id === ids[NOTIFICATION_PAGE_SIZE]),
+    ).toBe(false);
   });
 
   it("batch-resolves multiple invitation sources in one query and keeps absent rows resolved", async () => {
@@ -140,15 +239,71 @@ describe("listMyNotifications", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value[0]?.source).toEqual({
+      expect(result.value.items[0]?.source).toEqual({
         status: "active",
         invitationId: sourceIdA,
         occurrenceId,
         inviterId,
       });
-      expect(result.value[1]?.source).toEqual({ status: "resolved" });
+      expect(result.value.items[1]?.source).toEqual({ status: "resolved" });
     }
     expect(sourceRequestCount).toBe(1);
+  });
+
+  it("reads a bounded previous window with a stable snapshot", async () => {
+    const ids = Array.from(
+      { length: NOTIFICATION_PAGE_SIZE + 1 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    );
+    const before = {
+      createdAt: "2026-09-17T00:00:00.000Z",
+      id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    };
+    const snapshot = {
+      createdAt: "2026-09-17T00:01:00.000Z",
+      id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    };
+    server.use(
+      http.get(`${REST_URL}/notifications`, ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("order")).toBe("created_at.asc,id.asc");
+        expect(url.searchParams.get("limit")).toBe(
+          String(NOTIFICATION_PAGE_SIZE + 1),
+        );
+        expect(
+          url.searchParams.getAll("or").map((value) => value.slice(1, -1)),
+        ).toEqual(
+          expect.arrayContaining([
+            `created_at.gt.${before.createdAt},and(created_at.eq.${before.createdAt},id.gt.${before.id})`,
+            `created_at.lt.${snapshot.createdAt},and(created_at.eq.${snapshot.createdAt},id.lte.${snapshot.id})`,
+          ]),
+        );
+        return HttpResponse.json(
+          ids.map((id) => notificationRow(id, sourceIdA, before.createdAt)),
+        );
+      }),
+      http.get(`${REST_URL}/occurrence_invitations`, () =>
+        HttpResponse.json([]),
+      ),
+    );
+
+    const result = await listMyNotifications(createTestClient(), null, {
+      before,
+      snapshot,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.items).toHaveLength(NOTIFICATION_PAGE_SIZE);
+      expect(result.value.items[0]?.id).toBe(ids[NOTIFICATION_PAGE_SIZE - 1]);
+      expect(result.value.items.at(-1)?.id).toBe(ids[0]);
+      expect(result.value.nextCursor).toEqual({
+        createdAt: before.createdAt,
+        id: ids[0],
+      });
+      expect(result.value.hasPrevious).toBe(true);
+    }
   });
 
   it("keeps a notification query failure distinct from an empty success", async () => {
@@ -220,7 +375,10 @@ describe("listMyNotifications", () => {
 
     const result = await listMyNotifications(createTestClient());
 
-    expect(result).toEqual({ ok: true, value: [] });
+    expect(result).toEqual({
+      ok: true,
+      value: { items: [], nextCursor: null, hasPrevious: false },
+    });
     expect(sourceRequestCount).toBe(0);
   });
 });

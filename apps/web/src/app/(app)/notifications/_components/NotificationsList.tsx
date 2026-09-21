@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   CompactList,
+  LinkButton,
   ListRow,
   ListRowLink,
   StatePanel,
@@ -20,6 +21,8 @@ const READ_STATE_FAILURE_TITLE = "お知らせを既読にできませんでし�
 
 export interface NotificationsListProps {
   readonly initialNotifications: readonly NotificationListItem[];
+  readonly previousHref?: string;
+  readonly nextHref?: string;
 }
 
 type ReadActionResult = Awaited<ReturnType<typeof markNotificationsReadAction>>;
@@ -33,6 +36,8 @@ type ReadActionResult = Awaited<ReturnType<typeof markNotificationsReadAction>>;
  */
 export function NotificationsList({
   initialNotifications,
+  previousHref,
+  nextHref,
 }: NotificationsListProps) {
   const renderedIds = useMemo(
     () => initialNotifications.map((notification) => notification.id),
@@ -125,6 +130,26 @@ export function NotificationsList({
           </li>
         ))}
       </CompactList>
+
+      {previousHref !== undefined || nextHref !== undefined ? (
+        <nav
+          aria-label="お知らせのページ移動"
+          className="flex items-center justify-between gap-sm"
+        >
+          {previousHref !== undefined ? (
+            <LinkButton href={previousHref} variant="outline" size="sm">
+              前の50件
+            </LinkButton>
+          ) : (
+            <span />
+          )}
+          {nextHref !== undefined ? (
+            <LinkButton href={nextHref} variant="outline" size="sm">
+              次の50件
+            </LinkButton>
+          ) : null}
+        </nav>
+      ) : null}
     </div>
   );
 }

@@ -34,15 +34,20 @@ invitation copy, timestamp, and non-destructive unread distinction.
 
 1. **Given** persisted invitation notices for the authenticated recipient,
    **when** the user opens `/notifications`, **then** the page shows `お知らせ`
-   and the supplied first window in `created_at` descending order with `id` as
+   and the current bounded window in `created_at` descending order with `id` as
    the deterministic tie-breaker.
-2. **Given** an `invitation_received` notice, **when** it is shown, **then** its
+2. **Given** more than one bounded window of persisted invitation notices,
+   **when** the user activates older- or previous-window navigation, **then**
+   the next bounded window is reachable without skipping or duplicating a
+   notice; the navigation keeps a bounded high-water snapshot so later arrivals
+   do not shift the sequence.
+3. **Given** an `invitation_received` notice, **when** it is shown, **then** its
    title is exactly `参加への招待が届いています` and its Notification timestamp
    is visible without copying event, occurrence, inviter, or participation details.
-3. **Given** a notice with no read timestamp, **when** it is shown, **then** it
+4. **Given** a notice with no read timestamp, **when** it is shown, **then** it
    has a visible non-destructive unread cue and an accessible `未読` indication;
    read notices do not use that cue.
-4. **Given** notices belonging to another recipient, **when** the user opens the
+5. **Given** notices belonging to another recipient, **when** the user opens the
    screen, **then** those notices are not shown.
 
 ---
@@ -91,7 +96,7 @@ execution and a failed write without treating the items as successfully read.
 
 **Acceptance Scenarios**:
 
-1. **Given** a successful list read, **when** the first window is rendered,
+1. **Given** a successful list read, **when** the current bounded window is rendered,
    **then** only the exact rendered Notification IDs are passed to the existing
    bounded read operation after render.
 2. **Given** a notice arriving after the rendered snapshot was obtained, **when**
@@ -110,8 +115,10 @@ execution and a failed write without treating the items as successfully read.
   `しばらくしてから再度お試しください。` and only a confirmed network cause
   may use the network-specific guidance.
 - A source read failure is distinct from a successful source read with no row.
-- The bounded first window remains bounded; this feature does not add pagination,
-  load more, infinite scroll, filtering, grouping, bulk read, or dismissal.
+- Each Notification window remains bounded and older windows are reachable by
+  explicit page navigation using composite keyset cursors and a stable
+  high-water snapshot; this feature does not add load more, infinite scroll,
+  filtering, grouping, bulk read, or dismissal.
 - Loading presentation keeps the `お知らせ` heading chrome consistent with the
   production page and avoids an unbounded layout shift.
 
@@ -124,8 +131,11 @@ execution and a failed write without treating the items as successfully read.
 - **FR-002**: The page MUST use the shared `PageHeading` with the exact heading
   `お知らせ`, including in its loading presentation.
 - **FR-003**: The page MUST consume the existing recipient-owned, bounded
-  Notification list boundary and preserve newest-first ordering without issuing
-  a duplicate direct Notification query in the route.
+  Notification page boundary and preserve newest-first ordering across reachable
+  windows without issuing a duplicate direct Notification query in the route.
+  Forward and previous navigation MUST use bounded composite cursors and keep a
+  constant-size high-water snapshot rather than serializing an unbounded page
+  trail; cursor timestamps MUST preserve persisted sub-millisecond precision.
 - **FR-004**: The page MUST render only the MVP `invitation_received` title
   `参加への招待が届いています`, the Notification timestamp, unread/read cue,
   and source navigation state; it MUST NOT copy source-domain details.
@@ -144,7 +154,7 @@ execution and a failed write without treating the items as successfully read.
   destructive/error semantic.
 - **FR-010**: After render, the system MUST submit only the exact IDs in the
   rendered snapshot to the existing bounded read action; it MUST not mark all
-  unread rows or snapshot-after rows as read.
+  unread rows, an unseen window, or snapshot-after rows as read.
 - **FR-011**: A failed read-state write MUST remain visibly/notionally unread and
   retryable; the UI MUST NOT claim canonical read success before the write
   succeeds.
@@ -172,12 +182,14 @@ authenticated AppBar bell entry point, the persisted recipient-owned
 `invitation_received` inbox rows, exact unread/read semantics, Notification
 timestamps, active Invitation source navigation, resolved/unavailable fallback,
 loading, empty, read-error behavior, and the boolean unread projection
-described above.
+described above. Older bounded windows are reachable through page navigation;
+each window remains an independent rendered snapshot within a bounded
+high-water navigation snapshot.
 
 The following are not current behavior of this topic: unread count, direct
 accept/decline, other Notification kinds, Push, email, preferences, filters,
-grouping, pagination/load-more, mark-all-read, dismiss/delete, or an Invitation
-history ledger.
+grouping, load-more, infinite scroll, mark-all-read, dismiss/delete, or an
+Invitation history ledger.
 
 ### Key Entities _(include if feature involves data)_
 
@@ -207,8 +219,10 @@ history ledger.
 - The existing authenticated route group, Supabase client boundary, Notification
   list/read action, PageHeading, StatePanel, and Tokyo date/time utilities are
   available and remain authoritative.
-- The first Notification window is the existing explicit bound of 50 rows; no
-  paging UI is needed for this feature.
+- Each Notification window is bounded to the existing explicit limit of 50 rows;
+  composite-cursor page navigation reaches older and previous windows without
+  changing rendered-only read semantics, and later arrivals do not shift an
+  in-progress navigation snapshot.
 - MVP contains only `invitation_received`; the AppBar bell is the authenticated
   entry point and its unread cue is boolean-only as described above.
 - The app supports mobile and desktop widths through the existing design system;

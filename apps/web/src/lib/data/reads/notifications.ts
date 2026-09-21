@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   err,
+  instantSchema,
   invitationIdSchema,
   ok,
   occurrenceIdSchema,
@@ -41,8 +42,48 @@ type InvitationSourceRow = Pick<
   "id" | "occurrence_id" | "inviter_id" | "invitee_id"
 >;
 
-/** The explicit first-window bound for the future Notifications screen. */
-export const NOTIFICATION_FIRST_PAGE_SIZE = 50;
+/** The bounded number of Notifications rendered in one navigable window. */
+export const NOTIFICATION_PAGE_SIZE = 50;
+/** @deprecated Use NOTIFICATION_PAGE_SIZE for the current bounded window. */
+export const NOTIFICATION_FIRST_PAGE_SIZE = NOTIFICATION_PAGE_SIZE;
+
+const notificationCursorSchema = z.object({
+  // Validate as an Instant without using its Date-backed transformed output:
+  // PostgreSQL timestamptz can contain microseconds that a JS Date truncates.
+  createdAt: z
+    .string()
+    .refine(
+      (value) => instantSchema.safeParse(value).success,
+      "Expected a valid instant",
+    ),
+  id: z.uuid(),
+});
+
+export interface NotificationCursor {
+  readonly createdAt: string;
+  readonly id: string;
+}
+
+export function encodeNotificationCursor(cursor: NotificationCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+export function decodeNotificationCursor(
+  value: string | null | undefined,
+): NotificationCursor | null {
+  if (value === null || value === undefined || value.length === 0) {
+    return null;
+  }
+
+  try {
+    const parsed = notificationCursorSchema.safeParse(
+      JSON.parse(Buffer.from(value, "base64url").toString("utf8")),
+    );
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 export type NotificationSource =
   | {
@@ -60,6 +101,17 @@ export interface NotificationListItem {
   readonly createdAt: string;
   readonly readAt: string | null;
   readonly source: NotificationSource;
+}
+
+export interface NotificationPage {
+  readonly items: readonly NotificationListItem[];
+  readonly nextCursor: NotificationCursor | null;
+  readonly hasPrevious: boolean;
+}
+
+export interface NotificationPageOptions {
+  readonly before?: NotificationCursor | null;
+  readonly snapshot?: NotificationCursor | null;
 }
 
 export type NotificationQueryPhase = "notification-list" | "source-resolution";
@@ -153,26 +205,50 @@ async function resolveInvitationSources(
 }
 
 /**
- * Read the caller's explicit first Notifications window.
+ * Read one bounded Notifications window after the supplied cursor.
  *
  * The recipient is intentionally not an argument. The authenticated Supabase
  * client and `notifications_select_recipient` RLS policy are the ownership
- * boundary. This is a bounded first window, not an implicit full-read: the
- * query has its own small limit and deterministic newest-first ordering.
+ * boundary. This is a bounded page, not an implicit full-read: the query has
+ * its own small look-ahead limit and deterministic keyset ordering. A
+ * snapshot cursor keeps all navigated windows on one high-water mark, while a
+ * before cursor supports bounded previous-window navigation without a growing
+ * URL trail.
  * Source invitations are resolved in one batched RLS-scoped read; a
  * missing/invisible source is a normal resolved fallback, while a failed
  * source query remains a source-resolution error.
  */
 export async function listMyNotifications(
   client: SupabaseClient<Database>,
-): Promise<NotificationReadResult<readonly NotificationListItem[]>> {
+  cursor: NotificationCursor | null = null,
+  options: NotificationPageOptions = {},
+): Promise<NotificationReadResult<NotificationPage>> {
+  let query = client
+    .from("notifications")
+    .select("id, kind, source_id, created_at, read_at");
+
+  const before = options.before ?? null;
+  const snapshot = options.snapshot ?? null;
+  if (before !== null) {
+    query = query.or(
+      `created_at.gt.${before.createdAt},and(created_at.eq.${before.createdAt},id.gt.${before.id})`,
+    );
+  } else if (cursor !== null) {
+    query = query.or(
+      `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+    );
+  }
+  if (snapshot !== null) {
+    query = query.or(
+      `created_at.lt.${snapshot.createdAt},and(created_at.eq.${snapshot.createdAt},id.lte.${snapshot.id})`,
+    );
+  }
+
   const rowsResult = await runSupabaseSelect(
-    client
-      .from("notifications")
-      .select("id, kind, source_id, created_at, read_at")
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(NOTIFICATION_FIRST_PAGE_SIZE),
+    query
+      .order("created_at", { ascending: before !== null })
+      .order("id", { ascending: before !== null })
+      .limit(NOTIFICATION_PAGE_SIZE + 1),
   );
   if (!rowsResult.ok) {
     return err(phaseError(rowsResult, "notification-list"));
@@ -183,22 +259,33 @@ export async function listMyNotifications(
     return err(phaseError(mappedResult, "notification-list"));
   }
 
-  const sourcesResult = await resolveInvitationSources(
-    client,
-    mappedResult.value,
-  );
+  const pageRows =
+    before === null
+      ? mappedResult.value.slice(0, NOTIFICATION_PAGE_SIZE)
+      : mappedResult.value.slice(0, NOTIFICATION_PAGE_SIZE).reverse();
+  const hasNextPage = mappedResult.value.length > NOTIFICATION_PAGE_SIZE;
+  const lastRow = pageRows.at(-1);
+  const nextCursor =
+    (before !== null || hasNextPage) && lastRow !== undefined
+      ? { createdAt: lastRow.createdAt, id: lastRow.id }
+      : null;
+
+  const sourcesResult = await resolveInvitationSources(client, pageRows);
   if (!sourcesResult.ok) {
     return sourcesResult;
   }
 
-  return ok(
-    mappedResult.value.map((notification) => ({
+  return ok({
+    items: pageRows.map((notification) => ({
       ...notification,
       source: sourcesResult.value.get(notification.sourceId) ?? {
         status: "resolved" as const,
       },
     })),
-  );
+    nextCursor,
+    hasPrevious:
+      before !== null ? hasNextPage : cursor !== null && snapshot !== null,
+  });
 }
 
 /**
