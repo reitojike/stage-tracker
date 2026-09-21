@@ -22,9 +22,9 @@ export const DEFAULT_CATALOG_FILTER_SELECTION: CatalogFilterSelection = {
 };
 
 /**
- * group/venue option は genre ごとにスコープする（Spec 011「Group」:
- * 「この genre に関連する group」は、その genre の Event に実際に
- * associate されている group から動的に導出する）。genre の `key` を index
+ * group/venue options are scoped by genre under Spec 011's classification
+ * semantics: a genre's related groups are derived from the groups actually
+ * associated with Events of that genre. The genre `key` is the index
  * にする（M8 で確定した v2 の不具合の修正 - 旧実装は genre 非依存の flat
  * list を全 genre で共有しており、例えば宝塚選択時にアイドルの group まで
  * 選択肢に混ざっていた）。
@@ -35,8 +35,8 @@ export interface CatalogFilterOptions {
   readonly venuesByGenreKey: Readonly<Record<string, readonly string[]>>;
 }
 
-/** The 1 secondary facet active for a given genre (Spec 011 "Facet model
- * (genreごとに有効なsecondary facet)"). `null` for "すべて" or a genre this
+/** The one secondary facet active for a given genre under Spec 011's current
+ * facet topology. `null` for "すべて" or a genre this
  * Task's Gate-A facet table does not name. */
 export type CatalogFacet = "group" | "venue" | null;
 
@@ -55,8 +55,8 @@ export function activeFacetForGenre(genreKey: string | null): CatalogFacet {
 
 /**
  * Selecting every known option in a facet means "don't filter by this facet"
- * (Spec 011 "Filter semantics": "何も選択していない場合と...全選択している
- * 場合は、どちらも「その facet では絞り込まない」と解釈").
+ * (Spec 011's filter-matching semantics treat no selection and all-known
+ * selection as no filtering for that facet).
  *
  * `selectedIds` may contain ids that are not in `knownIds` - most commonly a
  * stale `localStorage`-persisted selection saved before the known-option set
@@ -156,8 +156,8 @@ export function isCatalogFilterSelectionActive(
  * separately-read catalog-wide Group lookup...to get display names,
  * mirroring how the Group lookup itself is genre-independent").
  *
- * A `Group`'s canonical identity is genre-independent (Spec 011 "Group":
- * "group は特定 genre へ hard-bind されません"), so flattening across every
+ * A `Group`'s canonical identity is genre-independent under Spec 011's
+ * classification semantics, so flattening across every
  * genre key and de-duplicating by id is correct - the same group can only
  * ever resolve to the same displayName regardless of which genre's option
  * chain it was reached through.
@@ -165,9 +165,9 @@ export function isCatalogFilterSelectionActive(
  * Coverage caveat (documented, not fixed here - out of this Task's scope):
  * `groupsByGenreKey` is itself derived from `listCatalogGroups(genreId)`,
  * which only returns groups actually associated with an Event of that
- * genre (`../../_lib`'s own "Filter option universe" contract). An Event
- * with a group but *no* genre (classification-wise possible per Spec 011
- * "Group", even if the current operator-import flow does not produce this
+ * genre (`../../_lib`'s own option-universe contract). An Event with a group
+ * but *no* genre (classification-wise possible under Spec 011, even if the
+ * current operator-import flow does not produce this
  * combination) would not resolve here - the same limitation the existing
  * genre-scoped filter option chain already has.
  */

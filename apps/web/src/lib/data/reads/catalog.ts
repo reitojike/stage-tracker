@@ -112,7 +112,8 @@ export interface TokyoCalendarDateRange {
  * 005; `listEventCatalogInRange` and the query/read mechanics are data-layer
  * owned。
  *
- * Spec 005「Catalog の日程参照要件」の2つの要件——(a) 期間内に公演回が
+ * Spec 005's Event-range catalog visibility semantics have two consequences—
+ * (a) 期間内に公演回が
  * ある event を引ける、(b) 期間と Event range が重なる event を公演回の
  * 有無にかかわらず引ける——を、単一の Event range overlap フィルタ
  * (`starts_on <= endsOn AND ends_on >= startsOn`) だけで両方満たす。これは
@@ -146,7 +147,7 @@ export async function listEventCatalogInRange(
 
 /**
  * `/catalog` のフィルタ option chain（genre）。catalog 全体で known な
- * values を返す（Spec 011「Filter option universe」: 表示中の月には
+ * values を返す（Spec 011's option-universe semantics: 表示中の月には
  * 限定しない）。`genres` は shared catalog なので0件は常に「本当に0件」。
  */
 export async function listCatalogGenres(
@@ -170,13 +171,13 @@ interface EventGroupGroupRow {
 
 /**
  * `/catalog` のフィルタ option chain（genre ごとの group）。group の
- * canonical identity は genre へ hard-bind されないが（Spec 011
- * 「Group」）、「この genre に関連する group」は、その genre の Event に
- * 実際に associate されている group から動的に導出する、と同じ節が定める
+ * canonical identity は genre へ hard-bind されないが（Spec 011の
+ * classification semantics）、「この genre に関連する group」は、その genre
+ * の Event に実際に associate されている group から動的に導出する
  * とおり、この読み方は `genreId` にスコープする（M8 で確定した v2 の
  * 不具合の修正 - 旧実装は genre を無視して全 group を返していた）。
  * catalog 全体が対象で、表示中の月には限定しない
- * （Spec 011「Filter option universe」）。
+ * （Spec 011's option-universe semantics）。
  *
  * `event_groups` の該当行数（group 数ではなく Event-group 関連の延べ数）が
  * `supabase/config.toml` の `api.max_rows` を超えると PostgREST は silently
@@ -225,13 +226,13 @@ export async function listCatalogGroups(
  * facet の genre（歌舞伎）に属しつつ `group` association も持つ Event が
  * あった場合、その group はフィルタ option chain 経由では一切解決されず
  * バッジが黙って欠落する。group の canonical identity は genre へ
- * hard-bind されない（Spec 011「Group」）ため、この読み方は genre に
+ * hard-bind されないため、この読み方は genre に
  * 一切スコープせず、呼び出し元が実際にロード済みの Event 群から集めた
  * `groupIds` をそのまま `id IN (...)` で引く - catalog 全体を舐めるより
  * 安価かつ、facet の有無に依存しない。
  *
  * `groupIds` の件数（1 event に associate される group 数の上限が無い -
- * Spec 011「Group」の 0..N）が `supabase/config.toml` の `api.max_rows`
+ * Spec 011のgroup-association semantics（0..N）が `supabase/config.toml` の `api.max_rows`
  * を超えると PostgREST は silently truncate するため、`listCatalogGroups`
  * / `listCatalogVenues` と同じく `runPagedSupabaseSelect` で全件読む
  * （codex review 指摘）。
@@ -239,8 +240,8 @@ export async function listCatalogGroups(
  * `groupIds` はここでは呼び出し元が集めた **unique な canonical group
  * identity 数**（表示中の1ヶ月分に登場する Event の延べ group 関連数では
  * ない）で、Gate A の canonical group 数自体が小規模（宝塚の組・アイドル
- * グループとも数十件規模、Spec 011「Catalog classification / venue
- * boundary」）なため、`.in("id", groupIds)` の URL 長で問題になる規模には
+ * グループとも数十件規模、Spec 011のclassification/venue semantics）なため、
+ * `.in("id", groupIds)` の URL 長で問題になる規模には
  * 現状達しない - `listCatalogVenues` の「catalog 全体の event 数が M6a
  * 時点で大きくない想定」と同じ技術判断（codex review 指摘: ID 自体の
  * chunk 化。将来 group 数が現実的にこの規模を超えた場合に対応する）。
@@ -268,7 +269,7 @@ export async function listGroupsByIds(
 
 /**
  * `/catalog` のフィルタ option chain（genre ごとの venue）。`events.venue`
- * は canonical master を持たない生 text（Spec 011「Venue」）なので、
+ * は canonical master を持たない生 text（Spec 011のvenue semantics）なので、
  * `genreId` の Event が持つ既存 venue 値を distinct に列挙する（M8 で確定
  * した v2 の不具合の修正 - 旧実装は genre を無視して catalog 全体の venue
  * を返していた）。PostgREST に `DISTINCT` を直接指定する手段が無いため、

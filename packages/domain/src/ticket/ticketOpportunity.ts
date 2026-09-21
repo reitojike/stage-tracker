@@ -20,9 +20,8 @@ export type TicketOpportunityTargetScope = z.infer<typeof ticketOpportunityTarge
 /**
  * TicketOpportunity: a single sales/lottery opportunity against one Event.
  * `displayName` preserves the source's own vocabulary (e.g. "FC先行")
- * rather than normalizing into a closed enum - see `specs/008-ticket-opportunity-planning/spec.md` "source 上の
- * display name をそのまま保持し、`FC先行` 等の source 固有名称を premature
- * な closed enum へ潰さない". `sourceKey` is a distinct identity space from
+ * rather than normalizing into a closed enum - see Spec 008's source-provided
+ * display-name semantics. `sourceKey` is a distinct identity space from
  * the parent Event's own `source_key` (`specs/008-ticket-opportunity-planning/spec.md`).
  */
 export const ticketOpportunitySchema = z.object({
@@ -43,9 +42,8 @@ export type TicketOpportunity = z.infer<typeof ticketOpportunitySchema>;
  * TicketOpportunity + its explicit target Occurrence set.
  *
  * `event_wide` is a semantic fact about the whole Event, not a snapshot of
- * whichever Occurrences exist right now (`specs/008-ticket-opportunity-planning/spec.md` "`event_wide` は Event
- * 全体という semantic fact であり、その時点で存在する Occurrence 一覧の
- * snapshot へ暗黙変換しません") - so an `event_wide` Opportunity must never
+ * whichever Occurrences exist right now (Spec 008's event-wide target
+ * semantics) - so an `event_wide` Opportunity must never
  * carry target Occurrence ids, and this schema enforces that as a
  * structural invariant rather than leaving it to callers to remember.
  * `selected_occurrences`, symmetrically, must specify at least one target
@@ -85,9 +83,8 @@ export type UserTicketOpportunityStatus = z.infer<typeof userTicketOpportunitySt
 /**
  * UserTicketOpportunityState: personal, owner-only planning state. Absence
  * of a row is the only representation of "not registered as a personal
- * planning target" - it is not an application record (`specs/008-ticket-opportunity-planning/spec.md` "行が無い
- * = その Opportunity を personal planning 対象として登録していない、という
- * 意味です。actual application record ではありません").
+ * planning target - it is not an application record (Spec 008's distinction
+ * between an Opportunity and the absence of a planning row).
  */
 export const userTicketOpportunityStateSchema = z.object({
   id: userTicketOpportunityStateIdSchema,

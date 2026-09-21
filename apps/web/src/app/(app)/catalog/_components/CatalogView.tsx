@@ -69,10 +69,11 @@ const storedCatalogFilterSelectionSchema = z.object({
 });
 
 /**
- * `specs/011-catalog-classification-filter/spec.md`「Gate Aの canonical genre identity」の3件。永久 closed world では
- * ないが（同節参照）、この Gate A 実装は known な3件だけを選択肢として示す -
+ * The current Spec 011 classification identity has three Gate-A examples;
+ * this is not a permanent closed world. This implementation shows those
+ * known three choices -
  * 将来 genre が increaseした場合は `filterOptionsResult.options.genres`
- * （catalog全体の known values、`specs/011-catalog-classification-filter/spec.md`「Filter option universe」）を
+ * （catalog全体の known values defined by Spec 011's option-universe semantics）を
  * そのまま列挙する形に変えられる。ここでは genre の表示順・ラベルを
  * 固定するために、読み込んだ genre 行のうち Gate A の3件のみ使う。
  */
@@ -206,9 +207,9 @@ export interface CatalogViewProps {
  * `/catalog`'s presentational + interactive layer. Catalog lifecycle semantics
  * follow Spec 005 and filter semantics follow Spec 011. Exact presentation,
  * layout, and Sheet behavior are owned by this runtime component. A Client Component because filter
- * selection is held client-local and persisted to `localStorage`
- * (Spec 011 "Filter persistence": "browser-local persistenceで十分" - no
- * server round-trip, no user preference row).
+ * selection is held client-local and persisted to `localStorage`. Spec 011
+ * owns the browser-local persistence semantics; this component owns the
+ * storage and React-state mechanics.
  *
  * Renders the month calendar grid (`MonthCalendar`) + selected-day list
  * (`SelectedDayList`) - this Task's confirmed-gap fix, replacing this

@@ -5,8 +5,8 @@ import { compareTokyoCalendarDates, tokyoCalendarDateSchema } from '../time/toky
 import { personalScheduleEntryIdSchema } from './ids';
 
 /**
- * PersonalScheduleEntry: an Event-independent personal schedule item
- * (`specs/007-personal-schedule-lifecycle/spec.md "Event-independent personal schedule").
+ * PersonalScheduleEntry: a personal schedule item independent of any
+ * Event or Occurrence, as defined by Spec 007.
  * Unlike the superseded `paid_leave`/`work`/`travel`/`other` closed
  * vocabulary (Issue #121), an entry has no fixed category - only a required
  * free-form `title`.
@@ -69,8 +69,8 @@ export type PersonalScheduleEntryTemporal = z.infer<typeof personalScheduleEntry
 
 /**
  * `blocking` is documented separately from `temporal` on purpose: it is an
- * independent attribute of the entry (`specs/007-personal-schedule-lifecycle/spec.md` "各 entry は独立した
- * blocking boolean を持ちます"), not derived from the temporal shape - an
+ * independent attribute of the entry (Spec 007's independent blocking
+ * semantics), not derived from the temporal shape - an
  * all-day entry can be non-blocking (e.g. a reminder) and a time-bounded
  * entry can be blocking.
  */

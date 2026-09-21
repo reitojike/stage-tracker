@@ -31,9 +31,9 @@ const CALENDAR_PATH = "/calendar";
  * action はそれを呼ぶだけ - runtime/schema contract の「各 action は
  * 権限判定を一切行わない」という設計をそのまま踏襲する。
  *
- * `email` の未登録は「知らせてよい」（Spec 012 PSH-006
- * 「Authenticated-user targeting」節・「Event-independent personal
- * schedule」節: sharing に Invitation のような第三者 private state が
+ * `email` の未登録は「知らせてよい」（Spec 012 PSH-006 and its
+ * authenticated-user targeting / personal-schedule semantics: sharing に
+ * Invitation のような第三者 private state が
  * ないため opacity が要らない）。この action・その先の RPC はどちらも
  * email の存在有無で分岐や隠蔽をせず、RPC が返す結果（成功 or
  * `validation` エラー）をそのまま client へ伝える - これが「知らせてよい」

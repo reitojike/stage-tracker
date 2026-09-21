@@ -7,8 +7,7 @@ import type { PersonalScheduleEntry } from './scheduleEntry';
 
 /**
  * ScheduleShare: one recipient a PersonalScheduleEntry has been shared with
- * (`specs/012-personal-schedule-sharing-privacy/spec.md` - "owner は entry 単位で
- * authenticated user を明示指定して共有できます"). Sharing has no approval
+ * (Spec 012's entry-scoped owner/recipient sharing semantics). Sharing has no approval
  * flow: a share row existing IS the (immediate) grant.
  *
  * This is a minimal, independent record on purpose - no per-share
@@ -26,8 +25,8 @@ export type ScheduleShare = z.infer<typeof scheduleShareSchema>;
 
 /**
  * Whether `userId` may see `entry`: the owner always can, and so can anyone
- * appearing in `shares` as a recipient (`specs/012-personal-schedule-sharing-privacy/spec.md` "SELECT
- * policy は owner-or-shared として一括で許可される"). This mirrors the RLS
+ * appearing in `shares` as a recipient (Spec 012's owner-scoped share-read
+ * semantics). This mirrors the RLS
  * union at the domain level - the RLS policy itself remains the actual
  * enforcement boundary; this function is for callers (e.g. UI-side
  * filtering, tests) that need the same predicate without a DB round trip.
@@ -45,8 +44,8 @@ export function canUserViewPersonalScheduleEntry(
 
 /**
  * `blocking` is a property of the entry itself, never of the viewer
- * (`specs/012-personal-schedule-sharing-privacy/spec.md`: "`blocking` は entry 本体の属性であり、share 先にも同じ
- * semantics で伝播する。per-recipient の blocking override は設けません").
+ * (Spec 012's rule that blocking belongs to the entry and is visible to
+ * share recipients; there is no per-recipient blocking override).
  * This function is intentionally trivial - it exists to give that invariant
  * a single, testable call site: whichever viewer asks (owner or any
  * recipient), the answer is the same `entry.blocking` value, because this

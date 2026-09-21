@@ -11,7 +11,7 @@ import { formatTokyoCalendarDateJa, formatTokyoTime } from "./format";
  * by `/` (home's "申し込み期限" block) and `/tickets` (the full timeline) -
  * both render the same milestone rows, just filtered/grouped differently.
  * The TicketOpportunity contract names the 5 milestone kinds
- * (`specs/008-ticket-opportunity-planning/spec.md` "Milestone") but does not specify
+ * (Spec 008's milestone/provenance semantics) but does not specify
  * their exact Japanese label text; these are this Task's own reasonable
  * choice (see this Task's report).
  */

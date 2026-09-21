@@ -10,8 +10,8 @@ import { completeMagicLinkSignIn } from "../support/signIn";
 
 /**
  * Event create/edit journey (Issue #380 primary journey 4): as a
- * designated catalog creator (`specs/005-event-occurrence-lifecycle/spec.md` "MVP Event catalog write
- * boundary"), create a 0-occurrence Event through `/catalog/events/new`
+ * designated catalog creator (the Spec 005 creator-permission semantics),
+ * create a 0-occurrence Event through `/catalog/events/new`
  * (the real `create_event` RPC), then edit its details through
  * `/catalog/events/[eventId]/edit`.
  *
@@ -44,8 +44,8 @@ test("event management: a designated catalog creator creates and edits an event"
   try {
     await completeMagicLinkSignIn(page, actor.email);
 
-    // Create (occurrence-less: `specs/005-event-occurrence-lifecycle/spec.md` "Event と公演回" allows a
-    // 0-occurrence Event, so this journey leaves the occurrence fields
+    // Create (occurrence-less: Spec 005 allows a valid Event with zero
+    // Occurrences, so this journey leaves the occurrence fields
     // blank rather than duplicating `participation.spec.ts`'s occurrence
     // setup).
     await page.goto("/catalog/events/new");

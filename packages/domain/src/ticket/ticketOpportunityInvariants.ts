@@ -29,8 +29,7 @@ export type TicketOpportunityInvariantViolation =
  * invariants:
  *
  * - every target Occurrence belongs to the same Event as the Opportunity
- *   itself (`specs/008-ticket-opportunity-planning/spec.md` "selected target の Occurrence は、必ずその
- *   Opportunity の Event に属していなければなりません");
+ *   itself (Spec 008's selected-occurrence target-membership invariant);
  * - at most one milestone per `milestoneType` for this Opportunity
  *   (the schema's unique constraint on `(opportunity_id, milestone_type)`
  *   - "同一 Opportunity に同種 milestone は最大1件").

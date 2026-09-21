@@ -18,8 +18,8 @@ import type { Occurrence } from './occurrence';
  * The Event range containment invariant compares the Occurrence's `startsAt`
  * *Tokyo calendar date* against the Event range - `doorsAt`/`endsAt` are
  * never consulted here, even if they fall on a different calendar day
- * (`specs/005-event-occurrence-lifecycle/spec.md`: "開場日時（doors 相当）や終演日時
- * （ends_at）が日付をまたいでも、それらは range 判定の対象に含めません").
+ * (Spec 005's range semantics exclude doorsAt and endsAt even when those
+ * timestamps cross a calendar date boundary).
  */
 export function isOccurrenceStartWithinEventRange(
   startsAt: Instant,
@@ -49,8 +49,8 @@ export type EventOccurrenceInvariantViolation =
  * - every Occurrence's `startsAt` Tokyo calendar date falls within the
  *   Event's range;
  * - no two Occurrences in the set share the same `startsAt` *instant*
- *   (`specs/005-event-occurrence-lifecycle/spec.md`: "同一 Event 内で Occurrence の startsAt
- *   instant は一意（壁時計表記の一意性ではない）") - duplicates are detected
+ *   (Spec 005's duplicate-start invariant requires unique startsAt instants,
+ *   not unique wall-clock strings) - duplicates are detected
  *   by comparing the underlying instant (via `compareInstants`), not by
  *   comparing the raw wire strings, so two Occurrences whose `startsAt`
  *   strings differ but denote the same instant (e.g. one written with a "Z"

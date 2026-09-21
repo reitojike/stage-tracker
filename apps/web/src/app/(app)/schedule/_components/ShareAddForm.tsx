@@ -27,8 +27,8 @@ interface ShareAddFormProps {
  * the sharing/privacy semantics. The Sheet owns presentation and lifecycle.
  *
  * email が未登録の場合、この operation は「知らせてよい」
- * （Spec 012 PSH-006・「Invitation
- * とは異なりこの operation には opacity 要件がない」）。この画面は
+ * （Spec 012 PSH-006 and its Invitation-opacity boundaryとは異なり、この
+ * operation には opacity 要件がない）。この画面は
  * サーバから返る `validation` kind の `ActionError.message` をそのまま
  * 表示するだけで、未登録かどうかで分岐や隠蔽を一切行わない - それ自体が
  * 「知らせてよい」という判断の実装である。この `message` は生の PostgREST

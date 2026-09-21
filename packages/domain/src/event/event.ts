@@ -5,8 +5,8 @@ import { compareTokyoCalendarDates, tokyoCalendarDateSchema } from '../time/toky
 
 /**
  * The Event range ("公演期間"): a required, inclusive-both-ends Asia/Tokyo
- * calendar date range (`specs/005-event-occurrence-lifecycle/spec.md` "Event 開催
- * 期間 (Event range)"). This is first-class Event data, not derived from its
+ * calendar date range (Spec 005's Event-range semantics). This is first-class
+ * Event data, not derived from its
  * Occurrences - an Event may have zero Occurrences while its range is known.
  */
 export const eventRangeSchema = z

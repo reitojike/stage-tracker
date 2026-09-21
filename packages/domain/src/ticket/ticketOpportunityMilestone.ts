@@ -9,9 +9,8 @@ import { ticketOpportunityIdSchema, ticketOpportunityMilestoneIdSchema } from '.
  * payment window - `specs/008-ticket-opportunity-planning/spec.md`).
  *
  * A milestone the source never gave is represented by simply not creating a
- * row - never by a sentinel "unknown" value (`specs/008-ticket-opportunity-planning/spec.md` "source に存在しない
- * milestone...は、行を作らないことでそのまま表現します。「不明」を表す
- * 特別な値は持ちません"). That rule lives one level up, in the aggregate
+ * row - never by a sentinel "unknown" value (Spec 008's rule that a
+ * source-absent milestone is represented by no row). That rule lives one level up, in the aggregate
  * that holds `readonly TicketOpportunityMilestone[]` (see
  * ./ticketOpportunityTimeline.ts) - this module only shapes one milestone
  * once it exists.
@@ -24,8 +23,7 @@ import { ticketOpportunityIdSchema, ticketOpportunityMilestoneIdSchema } from '.
  * than three nullable sibling fields on one flat object. This makes it a
  * type error, not just a runtime possibility, to read `at` off a
  * `date`-precision milestone or to fabricate a time a `date`-precision
- * milestone never had (`specs/008-ticket-opportunity-planning/spec.md` "source が与えていない時刻を補完しません
- * （例: date-only を `00:00` timestamp へ fake 変換しない）").
+ * milestone never had (Spec 008's source-precision rule).
  */
 
 export const ticketOpportunityMilestoneTypeSchema = z.enum([

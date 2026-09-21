@@ -30,8 +30,8 @@ export interface SelectedDayListProps {
   readonly occurrences: readonly SelectedDayOccurrence[];
   /** Events whose Event range covers `date` but have no actual occurrence
    * on it (`selectEventLevelFallback`) - e.g. a 0-occurrence Event whose
-   * range overlaps `date` (`specs/005-event-occurrence-lifecycle/spec.md` "Catalog の日程参照要件": a 0-occurrence
-   * Event within its Event range must still be reachable). */
+   * range overlaps `date` (Spec 005's Event-range catalog visibility semantics:
+   * a 0-occurrence Event within its Event range must still be reachable). */
   readonly fallbackEntries: readonly EventCatalogEntry[];
   readonly classificationByEventId: ReadonlyMap<string, EventClassification>;
   readonly groupNameById: ReadonlyMap<GroupId, string>;

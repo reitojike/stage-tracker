@@ -34,9 +34,9 @@ export type ParticipationVisibility = z.infer<typeof participationVisibilitySche
 export const DEFAULT_PARTICIPATION_VISIBILITY: ParticipationVisibility = 'private';
 
 /**
- * Participation is scoped to an Occurrence, never an Event
- * (`specs/001-occurrence-participation/spec.md`: "定義: occurrence 単位の... event 単位の
- * participation は存在しない"). There is deliberately no `eventId` field -
+ * Participation is scoped to an Occurrence, never an Event (Spec 001's
+ * occurrence-scoped participation semantics). There is deliberately no
+ * `eventId` field -
  * adding one would make "which Occurrence(s) does this apply to" ambiguous.
  */
 export const participationSchema = z.object({

@@ -30,8 +30,8 @@ function classifyWriteError(
 ): SetTicketOpportunityStateErrorKind {
   // `occurrence_participations` の `occurrence-canceled` (90002) に相当する
   // actor 事実由来の分岐はこのテーブルには無い（TicketOpportunity の
-  // cancellation 状態はこの write の対象外 - Spec 008「Ticket
-  // Opportunity」に cancellation gate の記述は無い）。単一の opaque
+  // cancellation 状態はこの write の対象外 - Spec 008's ticket-opportunity
+  // semanticsに cancellation gate の記述は無い）。単一の opaque
   // failure として扱う。生の code/message は client へ渡さず、server 側
   // ログにのみ残す（`postgrest-error.ts` の `classifyPostgrestLikeError`
   // と同じ方針）。
