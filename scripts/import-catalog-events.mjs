@@ -87,7 +87,9 @@ console.log(
 );
 if (!apply) process.exit();
 
-const result = await applyEventPlans(admin, resolved.plans, { ownerId: owner.id });
-for (const sourceKey of result.applied) console.log(`applied ${sourceKey}`);
+const result = await applyEventPlans(admin, resolved.plans, {
+  ownerId: owner.id,
+  onApplied: (sourceKey) => console.log(`applied ${sourceKey}`),
+});
 if (!result.ok) fail(result.error);
 console.log('\nDone.\n');

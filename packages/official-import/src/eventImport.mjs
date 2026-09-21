@@ -525,7 +525,7 @@ export function formatEventPlanReport(plans, { apply, remote, ownerEmail, ownerI
   return lines.join('\n');
 }
 
-export async function applyEventPlans(admin, plans, { ownerId } = {}) {
+export async function applyEventPlans(admin, plans, { ownerId, onApplied = () => {} } = {}) {
   const applied = [];
   for (const plan of plans) {
     const { entry } = plan;
@@ -601,7 +601,10 @@ export async function applyEventPlans(admin, plans, { ownerId } = {}) {
           applied,
         };
     }
-    if (plan.action !== 'unchanged' || classificationChanged) applied.push(entry.sourceKey);
+    if (plan.action !== 'unchanged' || classificationChanged) {
+      applied.push(entry.sourceKey);
+      onApplied(entry.sourceKey);
+    }
   }
   return { ok: true, applied };
 }

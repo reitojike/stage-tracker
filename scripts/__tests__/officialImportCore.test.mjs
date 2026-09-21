@@ -162,7 +162,42 @@ void test('Event apply returns committed progress when a later RPC fails', async
     ownerEmail: owner.email,
   });
   assert.equal(resolved.ok, true);
-  const result = await applyEventPlans(admin, resolved.plans, { ownerId: owner.id });
+  const progress = [];
+  const result = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    onApplied: (sourceKey) => progress.push(sourceKey),
+  });
   assert.equal(result.ok, false);
   assert.deepEqual(result.applied, ['first']);
+  assert.deepEqual(progress, ['first']);
+});
+
+void test('Event apply emits prior progress before a later RPC rejection', async () => {
+  const admin = fakeAdmin();
+  let calls = 0;
+  const originalRpc = admin.rpc;
+  admin.rpc = async (name, args) => {
+    calls += 1;
+    if (calls === 2) throw new Error('later rejection');
+    return originalRpc.call(admin, name, args);
+  };
+  const validated = validateEventEntries([
+    { raw: validEvent({ sourceKey: 'first' }), where: 'seed.json[0]' },
+    { raw: validEvent({ sourceKey: 'second' }), where: 'seed.json[1]' },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, {
+    owner,
+    ownerEmail: owner.email,
+  });
+  assert.equal(resolved.ok, true);
+  const progress = [];
+  await assert.rejects(
+    applyEventPlans(admin, resolved.plans, {
+      ownerId: owner.id,
+      onApplied: (sourceKey) => progress.push(sourceKey),
+    }),
+    /later rejection/,
+  );
+  assert.deepEqual(progress, ['first']);
 });
