@@ -1,4 +1,5 @@
 import { createSafeActionClient } from "next-safe-action";
+import { userIdSchema } from "@stage-tracker/domain";
 import {
   ActionError,
   GENERIC_FAILURE_MESSAGE_JA,
@@ -35,8 +36,10 @@ export const actionClient = createSafeActionClient({
  *
  * Supabase server client で `auth.getUser()` を呼び、セッションが無ければ
  * `unauthenticated` kind の `ActionError` を投げる。取得できた Supabase
- * client と userId は `ctx` 経由で action 本体へ渡し、action 内で
- * client を作り直さなくてよいようにする。
+ * client と検証済みの `userId` は `ctx` 経由で action 本体へ渡し、action 内で
+ * client を作り直したり identity を再検証したりしなくてよいようにする。
+ * Invitation の self-invite pre-check に必要な email だけは
+ * `userEmail` として bounded に渡す。
  *
  * Actions do not replace the database's permission boundary: DB (RLS/RPC
  * membership checks) remains responsible for authorization. ここでの認証チェックは
@@ -56,5 +59,20 @@ export const authActionClient = actionClient.use(async ({ next }) => {
     throw new ActionError("unauthenticated", "サインインが必要です。");
   }
 
-  return next({ ctx: { supabase, userId: user.id } });
+  const parsedUserId = userIdSchema.safeParse(user.id);
+  if (!parsedUserId.success) {
+    console.error(
+      "[action auth] unexpected auth user id shape",
+      parsedUserId.error.message,
+    );
+    throw new ActionError("failure", GENERIC_FAILURE_MESSAGE_JA);
+  }
+
+  return next({
+    ctx: {
+      supabase,
+      userId: parsedUserId.data,
+      userEmail: user.email ?? null,
+    },
+  });
 });

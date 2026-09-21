@@ -2,10 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import {
-  personalScheduleEntryIdSchema,
-  userIdSchema,
-} from "@stage-tracker/domain";
+import { personalScheduleEntryIdSchema } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
 import {
   normalizeMemo,
@@ -49,16 +46,12 @@ export const createScheduleEntryAction = authActionClient
   .inputSchema(scheduleEntryFormSchema)
   .action(async ({ parsedInput, ctx }) => {
     const temporal = resolveTemporalOrThrow(parsedInput);
-    await insertPersonalScheduleEntry(
-      ctx.supabase,
-      userIdSchema.parse(ctx.userId),
-      {
-        title: parsedInput.title,
-        memo: normalizeMemo(parsedInput.memo),
-        blocking: parsedInput.blocking,
-        temporal,
-      },
-    );
+    await insertPersonalScheduleEntry(ctx.supabase, ctx.userId, {
+      title: parsedInput.title,
+      memo: normalizeMemo(parsedInput.memo),
+      blocking: parsedInput.blocking,
+      temporal,
+    });
     revalidateReadSurfaces(affectedReadSurfaces.scheduleEntryCreate());
     redirect(CALENDAR_PATH);
   });

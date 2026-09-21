@@ -3,7 +3,6 @@
 import { z } from "zod";
 import {
   ticketOpportunityIdSchema,
-  userIdSchema,
   userTicketOpportunityStatusSchema,
 } from "@stage-tracker/domain";
 import { ActionError } from "@/lib/action-error";
@@ -42,12 +41,10 @@ const updateTicketOpportunityStateInputSchema = z.object({
 export const updateTicketOpportunityStateAction = authActionClient
   .inputSchema(updateTicketOpportunityStateInputSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const userId = userIdSchema.parse(ctx.userId);
-
     if (parsedInput.intent === "remove") {
       const result = await removeMyTicketOpportunityState(ctx.supabase, {
         opportunityId: parsedInput.opportunityId,
-        userId,
+        userId: ctx.userId,
       });
       if (!result.ok) {
         throw new ActionError(result.error.kind, result.error.message);
@@ -63,7 +60,7 @@ export const updateTicketOpportunityStateAction = authActionClient
     const status = userTicketOpportunityStatusSchema.parse(parsedInput.intent);
     const result = await setMyTicketOpportunityState(ctx.supabase, {
       opportunityId: parsedInput.opportunityId,
-      userId,
+      userId: ctx.userId,
       status,
     });
     if (!result.ok) {

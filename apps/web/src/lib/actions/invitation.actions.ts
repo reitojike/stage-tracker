@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { occurrenceIdSchema, userIdSchema } from "@stage-tracker/domain";
+import { occurrenceIdSchema } from "@stage-tracker/domain";
 import { ActionError } from "@/lib/action-error";
 import { authActionClient } from "@/lib/safe-action";
 import { inviteToOccurrenceByEmail } from "./invitation";
@@ -40,15 +40,10 @@ const inviteToOccurrenceInputSchema = z.object({
 export const inviteToOccurrenceAction = authActionClient
   .inputSchema(inviteToOccurrenceInputSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const userId = userIdSchema.parse(ctx.userId);
-    const {
-      data: { user },
-    } = await ctx.supabase.auth.getUser();
-
     const result = await inviteToOccurrenceByEmail(ctx.supabase, {
       occurrenceId: parsedInput.occurrenceId,
-      inviterUserId: userId,
-      inviterEmail: user?.email ?? null,
+      inviterUserId: ctx.userId,
+      inviterEmail: ctx.userEmail,
       inviteeEmail: parsedInput.email,
     });
 
