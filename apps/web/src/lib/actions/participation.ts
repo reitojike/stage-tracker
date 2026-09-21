@@ -97,7 +97,9 @@ async function updateStatusById(
  * `specs/001-occurrence-participation/spec.md` の `setParticipation`/`withdrawParticipation`
  * を1関数にまとめた write boundary。
  *
- * **真の `upsert()` は使わない**（specs/001-occurrence-participation/spec.md §1.6 の明示的な指示）。
+ * **真の `upsert()` は使わない**。`occurrence_participations` の RLS grant と
+ * `20260822010000_create_occurrence_participations.sql` の制約に合わせ、
+ * 既存行の有無を確認してから INSERT/UPDATE を明示的に使い分ける。
  * `occurrence_participations` の UPDATE 列 grant は `(status, visibility)`
  * のみで `occurrence_id`/`user_id` を含まない
  * (`20260822010000_create_occurrence_participations.sql`)。PostgREST の

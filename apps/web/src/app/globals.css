@@ -21,8 +21,9 @@
  * Design tokens: stage-tracker's semantic tokens ported from the M8
  * primitive -> semantic CSS variables
  * onto Tailwind v4 `@theme`. Source of truth for the *values* and their
- * product meaning: the current route implementation and its tests "Design token" and
- * docs/v2/decisions.md (A2/A3/A4).
+ * product meaning: this stylesheet's implemented values, exercised by the
+ * current route implementation and its tests; `docs/ux-ui.md` supplies
+ * semantic-role guidance only.
  *
  * Naming policy:
  * - Where shadcn/ui's generated components (Button etc.) already reserve a

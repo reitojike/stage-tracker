@@ -6,7 +6,7 @@ import {
   type Result,
 } from "@stage-tracker/domain";
 
-/** `occurrence_participations` の生 row 形（specs/001-occurrence-participation/spec.md §1.6）。 */
+/** Raw `occurrence_participations` row shape, validated by this mapper. */
 export interface ParticipationRow {
   readonly id: string;
   readonly occurrence_id: string;
