@@ -1,4 +1,5 @@
 import {
+  differenceTokyoCalendarDates,
   instantToTokyoCalendarDate,
   isCanceled,
   ticketOpportunityMilestoneTokyoCalendarDate,
@@ -41,19 +42,6 @@ export function ticketPersonalStateBadgeDisplay(
   return null;
 }
 
-function calendarDayDifference(
-  from: TokyoCalendarDate,
-  to: TokyoCalendarDate,
-): number {
-  const [fromYear, fromMonth, fromDay] = from.split("-").map(Number);
-  const [toYear, toMonth, toDay] = to.split("-").map(Number);
-  return Math.round(
-    (Date.UTC(toYear ?? 0, (toMonth ?? 1) - 1, toDay ?? 1) -
-      Date.UTC(fromYear ?? 0, (fromMonth ?? 1) - 1, fromDay ?? 1)) /
-      86_400_000,
-  );
-}
-
 /** Shared Home/Tickets urgency cue; it never changes timeline visibility. */
 export function ticketDeadlineBadgeDisplay(
   row: Pick<
@@ -74,7 +62,7 @@ export function ticketDeadlineBadgeDisplay(
   const deadlineDate = ticketOpportunityMilestoneTokyoCalendarDate(
     row.milestone,
   );
-  const days = calendarDayDifference(today, deadlineDate);
+  const days = differenceTokyoCalendarDates(today, deadlineDate);
   if (days < 0 || days >= 14) {
     return null;
   }

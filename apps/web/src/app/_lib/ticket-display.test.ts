@@ -74,6 +74,14 @@ describe("ticketDeadlineBadgeDisplay", () => {
     ).toBeNull();
     expect(ticketDeadlineBadgeDisplay(row("2026-03-24"), TODAY)).toBeNull();
   });
+
+  it("keeps deadline day arithmetic correct across the 0099 to 0100 year boundary", () => {
+    const today = tokyoCalendarDateSchema.parse("0099-12-31");
+    expect(ticketDeadlineBadgeDisplay(row("0100-01-01"), today)).toEqual({
+      variant: "deadline",
+      label: "残り1日",
+    });
+  });
 });
 
 describe("ticketPersonalStateBadgeDisplay", () => {

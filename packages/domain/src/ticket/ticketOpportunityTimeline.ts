@@ -1,6 +1,9 @@
-import { dateUtcRoundTripMs } from '../time/dateUtcRoundTrip';
 import { compareInstants, isInstantBefore, type Instant } from '../time/instant';
-import { compareTokyoCalendarDates, type TokyoCalendarDate } from '../time/tokyoCalendarDate';
+import {
+  compareTokyoCalendarDates,
+  differenceTokyoCalendarDates,
+  type TokyoCalendarDate,
+} from '../time/tokyoCalendarDate';
 import { instantToTokyoCalendarDate, tokyoCalendarDayRangeUtc } from '../time/tokyoConversion';
 import type { TicketOpportunityId } from './ids';
 import type { TicketOpportunityMilestone } from './ticketOpportunityMilestone';
@@ -127,48 +130,6 @@ export function isTicketOpportunityMilestonePast(
   }
 }
 
-/** Whole Tokyo-calendar-day difference (`to` - `from`), by plain calendar
- * arithmetic - reuses the same `dateUtcRoundTripMs` UTC-field trick every
- * other calendar computation in this package uses (../time/tokyoConversion.ts),
- * since both dates are already-validated `TokyoCalendarDate`s. */
-function tokyoCalendarDateDiffDays(from: TokyoCalendarDate, to: TokyoCalendarDate): number {
-  const fromMs = tokyoCalendarDateToUtcFieldMs(from);
-  const toMs = tokyoCalendarDateToUtcFieldMs(to);
-  return Math.round((toMs - fromMs) / (24 * 60 * 60 * 1000));
-}
-
-const TOKYO_CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
-
-function tokyoCalendarDateToUtcFieldMs(date: TokyoCalendarDate): number {
-  const match = TOKYO_CALENDAR_DATE_PATTERN.exec(date);
-  if (match === null) {
-    throw new Error(
-      'unreachable: TokyoCalendarDate is guaranteed valid by tokyoCalendarDateSchema',
-    );
-  }
-  const [, yearStr, monthStr, dayStr] = match;
-  if (yearStr === undefined || monthStr === undefined || dayStr === undefined) {
-    throw new Error(
-      'unreachable: TokyoCalendarDate is guaranteed valid by tokyoCalendarDateSchema',
-    );
-  }
-  const ms = dateUtcRoundTripMs({
-    year: Number(yearStr),
-    month: Number(monthStr),
-    day: Number(dayStr),
-    hour: 0,
-    minute: 0,
-    second: 0,
-    millisecond: 0,
-  });
-  if (ms === null) {
-    throw new Error(
-      'unreachable: TokyoCalendarDate is guaranteed valid by tokyoCalendarDateSchema',
-    );
-  }
-  return ms;
-}
-
 /**
  * Whether an Opportunity's own chronologically-final milestone - which the
  * caller has already confirmed is past (see `selectTicketOpportunityPrimaryRows`,
@@ -182,7 +143,7 @@ export function isTicketOpportunityPostFinalRetained(
   todayTokyoDate: TokyoCalendarDate,
 ): boolean {
   const finalDay = ticketOpportunityMilestoneTokyoCalendarDate(finalMilestone);
-  const daysSinceFinal = tokyoCalendarDateDiffDays(finalDay, todayTokyoDate);
+  const daysSinceFinal = differenceTokyoCalendarDates(finalDay, todayTokyoDate);
   return daysSinceFinal <= TICKET_POST_FINAL_RETENTION_DAYS;
 }
 

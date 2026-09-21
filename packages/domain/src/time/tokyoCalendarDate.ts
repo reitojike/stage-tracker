@@ -17,21 +17,34 @@ import { dateUtcRoundTripMs } from './dateUtcRoundTrip';
 
 const TOKYO_CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
-function isValidTokyoCalendarDateString(value: string): boolean {
+export interface TokyoCalendarDateComponents {
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+}
+
+function parseTokyoCalendarDateComponents(value: string): TokyoCalendarDateComponents | null {
   const match = TOKYO_CALENDAR_DATE_PATTERN.exec(value);
   if (match === null) {
-    return false;
+    return null;
   }
 
   const [, yearStr, monthStr, dayStr] = match;
   if (yearStr === undefined || monthStr === undefined || dayStr === undefined) {
+    return null;
+  }
+
+  return { year: Number(yearStr), month: Number(monthStr), day: Number(dayStr) };
+}
+
+function isValidTokyoCalendarDateString(value: string): boolean {
+  const components = parseTokyoCalendarDateComponents(value);
+  if (components === null) {
     return false;
   }
 
   const roundTripMs = dateUtcRoundTripMs({
-    year: Number(yearStr),
-    month: Number(monthStr),
-    day: Number(dayStr),
+    ...components,
     hour: 0,
     minute: 0,
     second: 0,
@@ -53,6 +66,55 @@ const rawTokyoCalendarDateSchema = z.string().transform((value, ctx) => {
 
 export const tokyoCalendarDateSchema = rawTokyoCalendarDateSchema.brand<'TokyoCalendarDate'>();
 export type TokyoCalendarDate = z.infer<typeof tokyoCalendarDateSchema>;
+
+/**
+ * Decomposes a schema-validated Tokyo calendar date into numeric components.
+ *
+ * This is intentionally an invariant-enforcing boundary: callers must provide
+ * a `TokyoCalendarDate`, and an impossible runtime value throws instead of
+ * silently substituting default components.
+ */
+export function decomposeTokyoCalendarDate(date: TokyoCalendarDate): TokyoCalendarDateComponents {
+  const components = parseTokyoCalendarDateComponents(date);
+  if (components === null) {
+    throw new Error(
+      'invariant violation: TokyoCalendarDate must be a validated YYYY-MM-DD calendar date',
+    );
+  }
+  return components;
+}
+
+/**
+ * Returns a UTC-field millisecond representation of a Tokyo calendar date.
+ *
+ * This is an ordinal-like value for calendar arithmetic, not a Tokyo instant.
+ * It uses `dateUtcRoundTripMs` so years 0-99 are not remapped to 1900-1999 by
+ * the legacy `Date.UTC` behavior.
+ */
+export function tokyoCalendarDateToUtcFieldMs(date: TokyoCalendarDate): number {
+  const components = decomposeTokyoCalendarDate(date);
+  const roundTripMs = dateUtcRoundTripMs({
+    ...components,
+    hour: 0,
+    minute: 0,
+    second: 0,
+    millisecond: 0,
+  });
+  if (roundTripMs === null) {
+    throw new Error('invariant violation: TokyoCalendarDate must represent a real calendar date');
+  }
+  return roundTripMs;
+}
+
+/** Returns the whole Tokyo calendar-day difference (`to` - `from`). */
+export function differenceTokyoCalendarDates(
+  from: TokyoCalendarDate,
+  to: TokyoCalendarDate,
+): number {
+  return Math.round(
+    (tokyoCalendarDateToUtcFieldMs(to) - tokyoCalendarDateToUtcFieldMs(from)) / 86_400_000,
+  );
+}
 
 /**
  * `TokyoCalendarDate` values are always fixed-width zero-padded "YYYY-MM-DD"

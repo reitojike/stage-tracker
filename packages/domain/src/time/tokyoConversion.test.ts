@@ -62,6 +62,14 @@ describe('tokyoCalendarDayRangeUtc', () => {
     );
     expect(instantToTokyoCalendarDate(oneMsBeforeEnd)).toBe('2026-01-02');
   });
+
+  it('preserves the 0099 to 0100 Tokyo calendar boundary', () => {
+    const date = tokyoCalendarDateSchema.parse('0099-12-31');
+    const range = tokyoCalendarDayRangeUtc(date);
+
+    expect(instantToTokyoCalendarDate(range.startInstant)).toBe('0099-12-31');
+    expect(instantToTokyoCalendarDate(range.endInstantExclusive)).toBe('0100-01-01');
+  });
 });
 
 describe('instantToTokyoWallClock / tokyoWallClockToInstant', () => {

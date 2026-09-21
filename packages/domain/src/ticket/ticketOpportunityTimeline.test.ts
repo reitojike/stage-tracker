@@ -197,6 +197,13 @@ describe('isTicketOpportunityPostFinalRetained', () => {
     const today = tokyoCalendarDateSchema.parse('2026-03-01');
     expect(isTicketOpportunityPostFinalRetained(milestone, today)).toBe(true);
   });
+
+  it('retains across the 0099 to 0100 year boundary', () => {
+    const milestone = dateMilestone(1, 'application_close', '0099-12-31');
+    const today = tokyoCalendarDateSchema.parse('0100-01-01');
+
+    expect(isTicketOpportunityPostFinalRetained(milestone, today)).toBe(true);
+  });
 });
 
 describe('buildTicketOpportunityTimelineRows', () => {
