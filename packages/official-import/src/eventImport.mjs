@@ -547,7 +547,11 @@ export async function applyEventPlans(admin, plans, { ownerId } = {}) {
         p_memo: entry.memo,
       });
       if (error)
-        return { ok: false, error: `Failed to create ${entry.sourceKey}: ${error.message}` };
+        return {
+          ok: false,
+          error: `Failed to create ${entry.sourceKey}: ${error.message}`,
+          applied,
+        };
       createdEvent = data;
     } else if (plan.action === 'update') {
       const fixesById = new Map();
@@ -571,7 +575,11 @@ export async function applyEventPlans(admin, plans, { ownerId } = {}) {
         p_occurrence_fixes: [...fixesById.values()],
       });
       if (error)
-        return { ok: false, error: `Failed to update ${entry.sourceKey}: ${error.message}` };
+        return {
+          ok: false,
+          error: `Failed to update ${entry.sourceKey}: ${error.message}`,
+          applied,
+        };
     }
     const eventId = plan.action === 'create' ? createdEvent.id : plan.event.id;
     const classificationChanged = plan.genrePlan.changed || plan.groupsPlan.changed;
@@ -590,6 +598,7 @@ export async function applyEventPlans(admin, plans, { ownerId } = {}) {
         return {
           ok: false,
           error: `Failed to update classification for ${entry.sourceKey}: ${error.message}`,
+          applied,
         };
     }
     if (plan.action !== 'unchanged' || classificationChanged) applied.push(entry.sourceKey);

@@ -142,3 +142,27 @@ void test('Event core refuses an existing Event owned by another user during res
   assert.equal(resolved.ok, false);
   assert.match(resolved.problems[0], /Refusing to touch it/);
 });
+
+void test('Event apply returns committed progress when a later RPC fails', async () => {
+  const admin = fakeAdmin();
+  let calls = 0;
+  const originalRpc = admin.rpc;
+  admin.rpc = async (name, args) => {
+    calls += 1;
+    if (calls === 2) return { data: null, error: { message: 'later failure' } };
+    return originalRpc.call(admin, name, args);
+  };
+  const validated = validateEventEntries([
+    { raw: validEvent({ sourceKey: 'first' }), where: 'seed.json[0]' },
+    { raw: validEvent({ sourceKey: 'second' }), where: 'seed.json[1]' },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, {
+    owner,
+    ownerEmail: owner.email,
+  });
+  assert.equal(resolved.ok, true);
+  const result = await applyEventPlans(admin, resolved.plans, { ownerId: owner.id });
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.applied, ['first']);
+});
