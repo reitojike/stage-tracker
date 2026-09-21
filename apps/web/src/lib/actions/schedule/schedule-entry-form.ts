@@ -4,10 +4,10 @@ import {
   ok,
   personalScheduleEntryIdSchema,
   personalScheduleEntryTemporalSchema,
-  tokyoWallClockToInstant,
   type PersonalScheduleEntryTemporal,
   type Result,
 } from "@stage-tracker/domain";
+import { parseDateTimeLocal } from "../../datetime-local";
 
 /**
  * `/schedule/new` と `/schedule/[entryId]/edit` が共有するフォーム入力の
@@ -35,43 +35,6 @@ export interface ScheduleEntryFormFieldError {
     | "timeBoundedStartsAt"
     | "timeBoundedEndsAt";
   readonly message: string;
-}
-
-const DATETIME_LOCAL_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/u;
-
-/**
- * `<input type="datetime-local">` の値（オフセットなし、Asia/Tokyo の
- * ローカル壁時計時刻として入力される）を `Instant` へ変換する。
- * `tokyoWallClockToInstant`（`@stage-tracker/domain`）がまさにこの
- * 変換を提供している - 秒/ミリ秒は datetime-local に存在しないため
- * 既定の 0 に委ねる。
- */
-function parseDatetimeLocalAsTokyoInstant(raw: string): Result<string, string> {
-  const match = DATETIME_LOCAL_PATTERN.exec(raw);
-  if (match === null) {
-    return err("日時の形式が正しくありません。");
-  }
-  const [, yearStr, monthStr, dayStr, hourStr, minuteStr] = match;
-  if (
-    yearStr === undefined ||
-    monthStr === undefined ||
-    dayStr === undefined ||
-    hourStr === undefined ||
-    minuteStr === undefined
-  ) {
-    return err("日時の形式が正しくありません。");
-  }
-  const result = tokyoWallClockToInstant({
-    year: Number(yearStr),
-    month: Number(monthStr),
-    day: Number(dayStr),
-    hour: Number(hourStr),
-    minute: Number(minuteStr),
-  });
-  if (!result.ok) {
-    return err("実在する日時を入力してください。");
-  }
-  return ok(result.value);
 }
 
 /**
@@ -134,17 +97,33 @@ export function parseScheduleEntryTemporal(
       message: "開始日時を入力してください。",
     });
   }
-  const startsAtResult = parseDatetimeLocalAsTokyoInstant(startsAtRaw);
-  if (!startsAtResult.ok) {
-    return err({ field: "timeBoundedStartsAt", message: startsAtResult.error });
+  const startsAtResult = parseDateTimeLocal(startsAtRaw, {
+    syntax: "minute-only",
+  });
+  if (startsAtResult.kind !== "ok") {
+    return err({
+      field: "timeBoundedStartsAt",
+      message:
+        startsAtResult.kind === "invalid-format"
+          ? "日時の形式が正しくありません。"
+          : "実在する日時を入力してください。",
+    });
   }
 
   const endsAtRaw = input.timeBoundedEndsAt?.trim();
   let endsAt: string | null = null;
   if (endsAtRaw !== undefined && endsAtRaw.length > 0) {
-    const endsAtResult = parseDatetimeLocalAsTokyoInstant(endsAtRaw);
-    if (!endsAtResult.ok) {
-      return err({ field: "timeBoundedEndsAt", message: endsAtResult.error });
+    const endsAtResult = parseDateTimeLocal(endsAtRaw, {
+      syntax: "minute-only",
+    });
+    if (endsAtResult.kind !== "ok") {
+      return err({
+        field: "timeBoundedEndsAt",
+        message:
+          endsAtResult.kind === "invalid-format"
+            ? "日時の形式が正しくありません。"
+            : "実在する日時を入力してください。",
+      });
     }
     endsAt = endsAtResult.value;
   }

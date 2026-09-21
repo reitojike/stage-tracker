@@ -83,6 +83,56 @@ describe("parseScheduleEntryTemporal", () => {
     }
   });
 
+  it("rejects seconds with the format message while keeping the start field", () => {
+    const result = parseScheduleEntryTemporal({
+      temporalMode: "time-bounded",
+      timeBoundedStartsAt: "2026-03-10T09:00:30",
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        field: "timeBoundedStartsAt",
+        message: "日時の形式が正しくありません。",
+      },
+    });
+  });
+
+  it("classifies malformed and nonexistent schedule datetimes separately", () => {
+    expect(
+      parseScheduleEntryTemporal({
+        temporalMode: "time-bounded",
+        timeBoundedStartsAt: "not-a-datetime",
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        field: "timeBoundedStartsAt",
+        message: "日時の形式が正しくありません。",
+      },
+    });
+    expect(
+      parseScheduleEntryTemporal({
+        temporalMode: "time-bounded",
+        timeBoundedStartsAt: "2026-02-30T09:00",
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        field: "timeBoundedStartsAt",
+        message: "実在する日時を入力してください。",
+      },
+    });
+  });
+
+  it("preserves schedule trim behavior for start and end values", () => {
+    const result = parseScheduleEntryTemporal({
+      temporalMode: "time-bounded",
+      timeBoundedStartsAt: " 2026-03-10T09:00 ",
+      timeBoundedEndsAt: " 2026-03-10T18:00 ",
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it("rejects a missing time-bounded startsAt on the timeBoundedStartsAt field", () => {
     const result = parseScheduleEntryTemporal({ temporalMode: "time-bounded" });
     expect(result.ok).toBe(false);

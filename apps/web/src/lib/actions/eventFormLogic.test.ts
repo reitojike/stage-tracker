@@ -154,6 +154,54 @@ describe("parseOccurrenceFields", () => {
     );
     expect(result.kind).toBe("ok");
   });
+
+  it("accepts Event datetime-local values with optional seconds", () => {
+    const result = parseOccurrenceFields(
+      {
+        startsAt: "2026-05-10T18:00:30",
+        endsAt: "",
+        doorsAt: " 2026-05-10T17:30:15 ",
+      },
+      { allowBlank: true },
+    );
+    expect(result).toEqual({
+      kind: "ok",
+      value: {
+        startsAt: "2026-05-10T09:00:30.000Z",
+        endsAt: null,
+        doorsAt: "2026-05-10T08:30:15.000Z",
+      },
+    });
+  });
+
+  it("keeps field-specific Event copy for malformed and nonexistent datetimes", () => {
+    expect(
+      parseOccurrenceFields(
+        {
+          startsAt: "not-a-datetime",
+          endsAt: "not-an-end",
+          doorsAt: "not-a-door",
+        },
+        { allowBlank: true },
+      ),
+    ).toEqual({
+      kind: "errors",
+      errors: {
+        startsAt: "開演日時の形式が正しくありません。",
+        endsAt: "終演日時の形式が正しくありません。",
+        doorsAt: "開場日時の形式が正しくありません。",
+      },
+    });
+    expect(
+      parseOccurrenceFields(
+        { startsAt: "2026-02-30T18:00", endsAt: "", doorsAt: "" },
+        { allowBlank: true },
+      ),
+    ).toEqual({
+      kind: "errors",
+      errors: { startsAt: "開演日時の形式が正しくありません。" },
+    });
+  });
 });
 
 describe("occurrenceWithinRangeError", () => {
