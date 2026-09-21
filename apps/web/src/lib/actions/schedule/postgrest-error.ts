@@ -33,9 +33,11 @@ const PERMISSION_DENIED_POSTGRES_CODES: ReadonlySet<string> = new Set([
  * UPDATE/DELETE が 0 行にしか一致しなかった」ケースにのみ現れる
  * （呼び出し側は必ず単一 id で絞り込むため「複数行」は起こらない）。
  * 0 行の理由は「そもそも存在しない」と「RLS が見せない（所有者不一致）」の
- * 両方があり得るが、区別できない/しないのは意図的: `/schedule/[entryId]`
- * の「存在しない entry と非公開 entry を同一の empty 扱いにする」設計
- * （Spec 007 の entry visibility semantics）を write 側でも一貫させ、`not-found` へ畳み込む。
+ * 両方があり得るが、区別できない/しないのは意図的: normal detail read で
+ * existing but non-visible entry と nonexistent entry を non-owner に区別させない
+ * Spec 012 PSH-017 の privacy boundary を write 側でも一貫させ、`not-found` へ
+ * 畳み込む。`PGRST116` / 0-row の write 分類自体はこの runtime module の
+ * mechanical contract であり、RLS policy は DB boundary が所有する。
  */
 const SINGLE_ROW_NOT_MATCHED_CODE = "PGRST116";
 
