@@ -52,6 +52,7 @@
     "supabase:migrations:apply": "node scripts/apply-pending-migrations.mjs"
   },
   "devDependencies": {
+    "@stage-tracker/official-import": "workspace:*",
     "@supabase/supabase-js": "^2.115.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

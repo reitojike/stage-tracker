@@ -1,10 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { resolveAdminTarget } from './lib/adminTarget.mjs';
 import {
-  loadAndValidateSeed,
+  validateSeedEntries,
   resolvePlans,
   formatPlanReport,
   applyPlans,
-} from './lib/ticketOpportunityImport.mjs';
+} from '@stage-tracker/official-import/ticket';
 
 // Operator-assisted TicketOpportunity import (Issue #163, over the #162
 // landed model).
@@ -69,7 +71,36 @@ if (typeof target !== 'string') {
   );
 }
 
-const loaded = loadAndValidateSeed(target);
+function seedFilePaths(entry) {
+  const stat = fs.statSync(entry);
+  if (stat.isDirectory())
+    return fs
+      .readdirSync(entry)
+      .filter((name) => name.endsWith('.json'))
+      .sort()
+      .map((name) => path.join(entry, name));
+  return [entry];
+}
+
+function loadEntries(entry) {
+  const rawEntries = [];
+  const problems = [];
+  for (const file of seedFilePaths(entry)) {
+    let parsed;
+    try {
+      parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (error) {
+      problems.push(`${file}: not valid JSON (${error.message})`);
+      continue;
+    }
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    list.forEach((raw, index) => rawEntries.push({ raw, where: `${file}[${index}]` }));
+  }
+  if (problems.length > 0) return { ok: false, problems };
+  return validateSeedEntries(rawEntries);
+}
+
+const loaded = loadEntries(target);
 if (!loaded.ok) {
   fail(`Invalid seed:\n  - ${loaded.problems.join('\n  - ')}`);
 }
