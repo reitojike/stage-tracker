@@ -5,7 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { authActionClient, toActionErrorShape } from "@/lib/safe-action";
 import { z } from "zod";
 
-const mockGetUser = vi.fn();
+const { mockGetUser } = vi.hoisted(() => ({
+  mockGetUser: vi.fn(),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
