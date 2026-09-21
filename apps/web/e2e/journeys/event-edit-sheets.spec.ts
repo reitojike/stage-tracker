@@ -18,11 +18,11 @@ function nextTokyoDate(): string {
 }
 
 /**
- * Event edit Sheet journey (Issue #422): exercise the Oracle-defined
- * range/occurrence/delete interactions through the real route, Server
- * Actions, shared Sheet, and local Supabase. The fixture is seeded directly
- * because this journey is scoped to the edit interactions rather than Event
- * creation (that path is covered by `event-management.spec.ts`).
+ * Event edit Sheet journey (Issue #422): exercise the range/occurrence/delete
+ * interactions through the real route, Server Actions, shared Sheet, and
+ * local Supabase. The fixture is seeded directly because this journey is
+ * scoped to the edit interactions rather than Event creation (that path is
+ * covered by `event-management.spec.ts`).
  */
 test("event edit: range, occurrence, deletion, and cancellation boundaries", async ({
   page,

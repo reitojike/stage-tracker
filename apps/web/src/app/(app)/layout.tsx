@@ -15,9 +15,9 @@ import { resolveMyPageAppBarIdentity } from "./_lib/app-bar-identity";
  * not change any URL (`(app)/page.tsx` is still served at `/`), and
  * `/sign-in`/`/sign-out`/`/auth/confirm` stay outside this group entirely so
  * they keep using only the bare root `layout.tsx` (no AppShell chrome, no
- * PrimaryNav) - matching the oracle's "未認証面で nav を隠す" requirement
- * without needing a `showPrimaryNav={false}` prop threaded through those
- * pages. The authenticated route group owns the shared chrome boundary.
+ * PrimaryNav). This keeps public authentication routes separate from the
+ * shared chrome boundary owned by authenticated routes without threading a
+ * `showPrimaryNav={false}` prop through those pages.
  */
 export default async function AppShellLayout({
   children,
