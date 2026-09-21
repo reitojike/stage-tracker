@@ -4,6 +4,7 @@ import { classifyListReadResult, getEventWithOccurrences } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
+import { EVENT_NOT_FOUND_TITLE } from "../_lib/eventCopy";
 import { EditEventForm } from "./_components/EditEventForm";
 
 interface EditEventPageProps {
@@ -24,9 +25,7 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
 
   const parsedEventId = eventIdSchema.safeParse(eventId);
   if (!parsedEventId.success) {
-    return (
-      <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
-    );
+    return <StatePanel variant="empty" title={EVENT_NOT_FOUND_TITLE} />;
   }
 
   const supabase = await createSupabaseServerClient();
@@ -62,16 +61,12 @@ export default async function EditEventPage({ params }: EditEventPageProps) {
     );
   }
   if (state.variant === "empty") {
-    return (
-      <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
-    );
+    return <StatePanel variant="empty" title={EVENT_NOT_FOUND_TITLE} />;
   }
 
   const [entry] = state.data;
   if (entry === undefined) {
-    return (
-      <StatePanel variant="empty" title="指定されたイベントが見つかりません" />
-    );
+    return <StatePanel variant="empty" title={EVENT_NOT_FOUND_TITLE} />;
   }
   const { event, occurrences } = entry;
 

@@ -104,7 +104,7 @@ describe("InvitationList", () => {
     expect(mockDecline).toHaveBeenCalledWith({
       invitationId: INVITATION_ID,
     });
-    expect(await screen.findByText("招待はありません。")).toBeInTheDocument();
+    expect(await screen.findByText("招待はありません")).toBeInTheDocument();
   });
 
   it("returns to pending without calling the server when decline is canceled", async () => {
@@ -180,6 +180,20 @@ describe("InvitationList", () => {
     expect(screen.getByRole("button", { name: "閉じる" })).toBeEnabled();
   });
 
+  it("shows the shared empty copy after closing a canceled invitation", async () => {
+    const user = userEvent.setup();
+    mockDecline.mockResolvedValue({ data: { ok: true } });
+
+    render(
+      <InvitationList
+        initialInvitations={[buildInvitation({ canceled: true })]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+
+    expect(await screen.findByText("招待はありません")).toBeInTheDocument();
+  });
+
   it("removes every card for the same occurrence when one is accepted", async () => {
     const user = userEvent.setup();
     mockAccept.mockResolvedValue({ data: { ok: true } });
@@ -188,6 +202,6 @@ describe("InvitationList", () => {
     await user.click(screen.getByRole("button", { name: "参加する" }));
 
     expect(mockAccept).toHaveBeenCalledWith({ occurrenceId: OCCURRENCE_ID });
-    expect(await screen.findByText("招待はありません。")).toBeInTheDocument();
+    expect(await screen.findByText("招待はありません")).toBeInTheDocument();
   });
 });

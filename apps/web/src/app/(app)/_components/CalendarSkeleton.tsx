@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   buildMonthGridDays,
+  formatMonthParam,
   isRenderableMonth,
   parseDateParam,
   parseMonthParam,
@@ -11,6 +12,7 @@ import {
   weekdayLabelJa,
   type TokyoYearMonth,
 } from "@/app/_lib/calendar-grid";
+import { formatMonthJa } from "@/app/_lib/format";
 
 const WEEKDAYS = 7;
 
@@ -39,10 +41,6 @@ function resolveSkeletonMonth(
     : null;
 }
 
-function monthLabel(month: TokyoYearMonth): string {
-  return String(month.year) + "年" + String(month.month) + "月";
-}
-
 function CalendarSkeletonContent({
   sectionLabel,
   fallbackLabel,
@@ -58,6 +56,7 @@ function CalendarSkeletonContent({
     );
   }
 
+  const formattedMonth = formatMonthJa(formatMonthParam(month));
   const days = buildMonthGridDays(month);
   const weeks = Array.from(
     { length: Math.ceil(days.length / WEEKDAYS) },
@@ -68,7 +67,7 @@ function CalendarSkeletonContent({
   return (
     <section
       role="status"
-      aria-label={monthLabel(month) + "の" + sectionLabel + "を読み込み中"}
+      aria-label={formattedMonth + "の" + sectionLabel + "を読み込み中"}
       className="flex flex-col gap-sm"
     >
       <div
@@ -77,7 +76,7 @@ function CalendarSkeletonContent({
       >
         <span className="size-11 rounded-control-sm bg-muted/70" />
         <span className="text-title font-semibold text-muted-foreground">
-          {monthLabel(month)}
+          {formattedMonth}
         </span>
         <span className="size-11 rounded-control-sm bg-muted/70" />
       </div>

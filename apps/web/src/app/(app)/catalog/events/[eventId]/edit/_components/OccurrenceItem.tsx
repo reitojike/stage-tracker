@@ -3,7 +3,11 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import type { EventId, Occurrence } from "@stage-tracker/domain";
+import {
+  isCanceled,
+  type EventId,
+  type Occurrence,
+} from "@stage-tracker/domain";
 import { Badge, Field, Input, WriteNotice } from "@stage-tracker/ui";
 import { Button } from "@stage-tracker/ui/components/button";
 import {
@@ -70,7 +74,7 @@ export function OccurrenceItem({
     },
   });
 
-  const isCanceled = occurrence.canceledAt !== null;
+  const canceled = isCanceled(occurrence);
   const updateFormId = `occurrence-update-form-${occurrence.id}`;
 
   function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
@@ -106,7 +110,7 @@ export function OccurrenceItem({
         <span className="text-body text-foreground">
           {instantToDateTimeLocalValue(occurrence.startsAt).replace("T", " ")}
         </span>
-        {isCanceled ? <Badge variant="terminal">中止</Badge> : null}
+        {canceled ? <Badge variant="terminal">中止</Badge> : null}
       </div>
       <div className="flex flex-wrap gap-sm">
         <Sheet open={updateOpen} onOpenChange={handleUpdateOpenChange}>
@@ -206,7 +210,7 @@ export function OccurrenceItem({
             </SheetFooter>
           </SheetContent>
         </Sheet>
-        {isCanceled ? (
+        {canceled ? (
           <Button
             type="button"
             variant="outline"
