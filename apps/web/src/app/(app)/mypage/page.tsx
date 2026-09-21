@@ -7,7 +7,8 @@ import { PasskeySection } from "./_components/PasskeySection";
 import { ScheduleAndEventSection } from "./_components/ScheduleAndEventSection";
 
 /**
- * マイページ（`docs/v2/oracle-routes-ui.md` §1/§2 `/mypage`）。
+ * My Page route and exact screen composition are runtime-owned; account
+ * access semantics are defined by Spec 009。
  * 到達可能性は既存の default-deny 境界（`proxy.ts`）で保証されるため、
  * ここで追加の認証チェックは行わない。
  */

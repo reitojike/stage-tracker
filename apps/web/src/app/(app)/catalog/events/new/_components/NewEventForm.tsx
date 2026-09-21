@@ -7,8 +7,9 @@ import { createEventAction } from "@/lib/actions/events";
 import { fieldErrorMessage } from "@/lib/actions/validationErrors";
 
 /**
- * `/catalog/events/new` のフォーム本体（`docs/v2/oracle-routes-ui.md`
- * §2「Event 作成」）。バリデーションはサーバ側（`createEventInputSchema`）
+ * `/catalog/events/new` のフォーム本体。Event creation semantics follow Spec
+ * 005; exact form validation/presentation remains in the schema and runtime
+ * (`createEventInputSchema`)
  * で行い、`fieldErrors` を各フィールド直下に表示する。全体エラーは
  * フォーム先頭に表示する。occurrence 欄は3つとも空なら「occurrence なし」
  * として受理される（Issue #87/#88）。

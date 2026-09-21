@@ -8,7 +8,7 @@ import {
   type Result,
 } from "@stage-tracker/domain";
 
-/** `genres` の生 row 形（oracle-database.md §1.12）。 */
+/** `genres` の生 row 形（current classification schema / mapper tests）。 */
 export interface GenreRow {
   readonly id: string;
   readonly key: string;
@@ -29,7 +29,7 @@ export function mapGenreRow(row: GenreRow): Result<Genre, string> {
   return ok(parsed.data);
 }
 
-/** `groups` の生 row 形（oracle-database.md §1.13）。 */
+/** `groups` の生 row 形（current classification schema / mapper tests）。 */
 export interface GroupRow {
   readonly id: string;
   readonly key: string;

@@ -14,9 +14,9 @@ import { ActionError } from "@/lib/action-error";
 import { classifyWritePostgrestError } from "./postgrest-error";
 
 /**
- * `personal_schedule_entries` の write 層（`docs/v2/oracle-routes-ui.md` §1
- * の `createScheduleEntryAction` / `updateScheduleEntryAction` /
- * `deleteScheduleEntryAction` が呼ぶ Supabase 呼び出し本体）。
+ * `personal_schedule_entries` の write 層。Personal Schedule lifecycle
+ * semantics は Spec 007、write mechanics はこの module が所有する。
+ * create/update/delete actions が呼ぶ Supabase 呼び出し本体。
  *
  * `apps/web/src/lib/data/reads/personalSchedule.ts` と対になる write 版だが、
  * このタスクの制約で `lib/data/` 配下には置けない
@@ -147,7 +147,7 @@ export async function updatePersonalScheduleEntry(
 }
 
 /**
- * owner-only hard delete（product-rules.md「Deletion」節）。
+ * owner-only hard delete（Spec 007 の lifecycle semantics）。
  * `personal_schedule_shares` への cascade は DB 側の `ON DELETE CASCADE`
  * が担う（`20260826000000_personal_schedule_title_blocking.sql`）ため、
  * ここでは対象 entry 自体の削除だけを行う。

@@ -4,8 +4,8 @@ import { z } from "zod";
 /**
  * 型付き環境変数スキーマ。
  *
- * 現時点で必要なのは Supabase 接続情報のみ（`docs/v2/oracle-domain.md`
- * §4.1「Supabase client の使い分け」参照）。app runtime（このアプリ）が
+ * 現時点で必要なのは Supabase 接続情報のみ。environment/client separation は
+ * `docs/architecture/authentication.md` が所有し、app runtime（このアプリ）が
  * 使う Supabase client は anon key のみで、service role key を必要と
  * する操作（operator import 等）は app runtime の外（CI/operator
  * script/Trigger.dev job）に閉じる設計を v2 でも維持する。したがって

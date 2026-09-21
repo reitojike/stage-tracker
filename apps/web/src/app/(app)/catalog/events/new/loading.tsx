@@ -5,9 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { BackLink } from "@stage-tracker/ui";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1/§5: `loading.tsx` は `params`/
- * `searchParams` を受け取れない Next.js の制約への対処として Client
- * Component 化し、`useSearchParams` で戻り先（`month`/`date`）を
+ * `loading.tsx` is a Client Component because Next.js does not pass `params`/
+ * `searchParams` to it; `useSearchParams` reconstructs the back link
+ * (`month`/`date`) while the page is pending so the resolved and loading views
  * 再構築する。データ依存の見出しは先取りして表示しない
  * （権限判定前の見出しを出さない）。
  *

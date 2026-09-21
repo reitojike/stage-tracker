@@ -2,24 +2,16 @@ import type { ParticipationStatus } from './participation';
 
 /**
  * Mirrors the DB-level cancellation gate on `occurrence_participations`
- * writes (docs/v2/oracle-database.md §3.2 `check_occurrence_participation_
- * insert_not_canceled`/`_update_not_canceled`, §5 invariant 12; see
- * specs/001-occurrence-participation/spec.md: FR-012–FR-015): while an Occurrence is effectively canceled (see
+ * writes; see `specs/001-occurrence-participation/spec.md` FR-012–FR-015):
+ * while an Occurrence is effectively canceled (see
  * `../event/cancellation.ts` `isEffectivelyCanceled`), creating a *new*
  * active Participation is rejected, but withdraw (row deletion) and
  * downgrading an existing `attending` back to `considering` remain allowed
  * regardless of cancellation.
  *
- * Oracle ambiguity (reported, not guessed away - see this task's report):
- * oracle-database.md §3.2/§5 literally describes the INSERT trigger as
- * rejecting *any* new row while canceled (not only a new row whose status is
- * `attending`), which is the reading this function implements (the `create`
- * case below returns `true` unconditionally). oracle-domain.md §1.6/§2.4's
- * prose ("新規 attending 遷移（行の新規作成、または considering ->
- * attending）") could also be read as scoping the new-row case to `attending`
- * only. Both readings agree on every other branch: withdraw is always
- * allowed, `attending -> considering` is always allowed, and `considering ->
- * attending` is always blocked while canceled.
+ * FR-013 rejects creation of either persistable status while the Occurrence is
+ * effectively canceled. Withdraw is always allowed, `attending -> considering`
+ * is always allowed, and `considering -> attending` is blocked while canceled.
  */
 export type ParticipationWriteTransition =
   | { readonly kind: 'create'; readonly status: ParticipationStatus }

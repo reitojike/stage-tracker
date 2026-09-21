@@ -4,8 +4,7 @@ import { instantSchema } from '../time/instant';
 
 /**
  * Participation ("参加予定"): a per-Occurrence, per-user intention to attend
- * (specs/001-occurrence-participation/spec.md, with migration-era context in
- * docs/v2/oracle-domain.md §1.6).
+ * (`specs/001-occurrence-participation/spec.md`).
  *
  * `ParticipationId` is defined locally rather than in `../ids` per this
  * task's instructions (the parent package wires new id types into the shared
@@ -19,7 +18,6 @@ export type ParticipationId = z.infer<typeof participationIdSchema>;
  * intentionally absent - "not attending" is represented by the *absence* of
  * a Participation row, never persisted as a status value (see
  * specs/001-occurrence-participation/spec.md: FR-003–FR-005).
- * しません"; docs/v2/oracle-database.md §5 invariant 7).
  */
 export const participationStatusSchema = z.enum(['considering', 'attending']);
 export type ParticipationStatus = z.infer<typeof participationStatusSchema>;
@@ -35,9 +33,9 @@ export type ParticipationVisibility = z.infer<typeof participationVisibilitySche
 export const DEFAULT_PARTICIPATION_VISIBILITY: ParticipationVisibility = 'private';
 
 /**
- * Participation is scoped to an Occurrence, never an Event
- * (docs/v2/oracle-domain.md §1.6: "定義: occurrence 単位の... event 単位の
- * participation は存在しない"). There is deliberately no `eventId` field -
+ * Participation is scoped to an Occurrence, never an Event (Spec 001's
+ * occurrence-scoped participation semantics). There is deliberately no
+ * `eventId` field -
  * adding one would make "which Occurrence(s) does this apply to" ambiguous.
  */
 export const participationSchema = z.object({

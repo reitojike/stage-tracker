@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // このルートが recovery / invite / email_change の token も消費してしまい
 // 得る（一見普通のサインインに見える操作の副作用として email change が
 // 完了してしまう等）。サインインは magic link のみを消費する
-// （`docs/v2/oracle-routes-ui.md` §1 `/auth/confirm`）。
+// （Spec 009 の magic-link authentication semantics。exact route mechanics are runtime-owned）。
 const SUPPORTED_OTP_TYPE = "email";
 
 // セッション cookie を含むレスポンスなので、CDN・reverse proxy にキャッシュ
@@ -29,8 +29,8 @@ function redirectWithoutCaching(target: string): NextResponse {
 }
 
 /**
- * Magic Link コールバック（`docs/v2/oracle-routes-ui.md` §1
- * `/auth/confirm`）。`token_hash` を `verifyOtp` で検証し、セッションを
+ * Magic Link callback. Spec 009 owns the authentication semantics; this route
+ * owns the exact `token_hash` / `verifyOtp` mechanics. セッションを
  * 確立する。`next` は `safeRedirectPath`（同一オリジンのみ許可）を通す。
  */
 export async function GET(request: NextRequest) {

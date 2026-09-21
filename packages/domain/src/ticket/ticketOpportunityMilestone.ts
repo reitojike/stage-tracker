@@ -6,12 +6,11 @@ import { ticketOpportunityIdSchema, ticketOpportunityMilestoneIdSchema } from '.
 /**
  * TicketOpportunityMilestone: one dated event in an Opportunity's own
  * lifecycle (application open/close, result announcement, sale start,
- * payment window - .ai-dev-foundation/product-rules.md "TicketOpportunity（Ticket planning MVP）").
+ * payment window - `specs/008-ticket-opportunity-planning/spec.md`).
  *
  * A milestone the source never gave is represented by simply not creating a
- * row - never by a sentinel "unknown" value (.ai-dev-foundation/product-rules.md "source に存在しない
- * milestone...は、行を作らないことでそのまま表現します。「不明」を表す
- * 特別な値は持ちません"). That rule lives one level up, in the aggregate
+ * row - never by a sentinel "unknown" value (Spec 008's rule that a
+ * source-absent milestone is represented by no row). That rule lives one level up, in the aggregate
  * that holds `readonly TicketOpportunityMilestone[]` (see
  * ./ticketOpportunityTimeline.ts) - this module only shapes one milestone
  * once it exists.
@@ -20,12 +19,11 @@ import { ticketOpportunityIdSchema, ticketOpportunityMilestoneIdSchema } from '.
  * source gave - a bare date, an exact instant, or a window - and this is
  * modeled as a discriminated union (mirroring the underlying
  * `ticket_opportunity_milestones` table's own CHECK constraint - "精度に
- * 対応する列グループだけが非null", docs/v2/oracle-database.md §1.10) rather
+ * 対応する列グループだけが非null") rather
  * than three nullable sibling fields on one flat object. This makes it a
  * type error, not just a runtime possibility, to read `at` off a
  * `date`-precision milestone or to fabricate a time a `date`-precision
- * milestone never had (.ai-dev-foundation/product-rules.md "source が与えていない時刻を補完しません
- * （例: date-only を `00:00` timestamp へ fake 変換しない）").
+ * milestone never had (Spec 008's source-precision rule).
  */
 
 export const ticketOpportunityMilestoneTypeSchema = z.enum([

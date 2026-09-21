@@ -6,7 +6,7 @@ import { cn } from 'cn';
 /**
  * stage-tracker's Badge is a 5-variant, shape-based semantic vocabulary, not
  * shadcn's default default/secondary/destructive/outline/ghost/link set -
- * see docs/v2/oracle-routes-ui.md §3 "Badge" and §4 "色". Every variant maps
+ * see `docs/ux-ui.md` for the shared Badge and color rules. Every variant maps
  * to exactly one existing design token; no new color was invented here.
  *
  * - `outline`  : neutral secondary metadata, classification, or a low-emphasis
@@ -20,7 +20,7 @@ import { cn } from 'cn';
  * - `deadline` : a deadline that is still reachable (in time).
  * - `terminal` : ended / no longer actionable.
  *
- * The oracle is explicit that these 5 are *not* told apart by color alone
+ * The shared UI contract is explicit that these 5 are *not* told apart by color alone
  * (`terminal` and `deadline` are both "serious" tones); each variant's
  * meaning must be read from its label text, same principle as StatePanel.
  */

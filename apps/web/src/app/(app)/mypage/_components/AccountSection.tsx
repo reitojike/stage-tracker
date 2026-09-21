@@ -2,8 +2,8 @@ import { Button, SectionHeading } from "@stage-tracker/ui";
 import { signOut } from "@/app/sign-out/actions";
 
 /**
- * .ai-dev-foundation/product-rules.md「マイページ」: email 取得失敗時は識別情報行を出さず
- * サインアウトボタンのみ（明示エラー表示はなし）。
+ * Exact My Page rendering for a failed email read is owned by this component;
+ * account/access semantics remain in Spec 009.
  */
 export function AccountSection({ email }: { email: string | null }) {
   return (

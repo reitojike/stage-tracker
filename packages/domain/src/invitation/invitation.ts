@@ -4,16 +4,13 @@ import { instantSchema } from '../time/instant';
 
 /**
  * Invitation ("招待"): a pending-only coordination record
- * (specs/001-occurrence-participation/spec.md Invitation Requirements,
- * migration-era context in docs/v2/oracle-domain.md §1.7, Issue #225/#230).
+ * (`specs/006-invitation-coordination-opacity/spec.md`, historical Issue #225/#230).
  * A row's existence *is* the entire state - there is no durable
  * accepted/declined history. Resolution (accept, decline, or "generic
  * attending convergence") deletes the row outright.
  *
  * `declined_at`/`updated_at` from the underlying table are intentionally NOT
- * modeled here (docs/v2/decisions.md A7: both are dead columns that no
- * current write path ever sets - "pending invitation を INSERT / DELETE
- * のみの不変レコードとして設計し直し、両列を持ち越さない"). A pending
+ * modeled here: the current write paths never set them. A pending
  * Invitation is an immutable INSERT/DELETE-only record; it has no
  * update-side lifecycle worth a domain field.
  *

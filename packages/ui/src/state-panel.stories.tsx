@@ -4,7 +4,7 @@ import { StatePanel } from './state-panel';
 
 /**
  * `StatePanel` is the cross-screen primitive for "there is nothing (useful)
- * to render". docs/v2/oracle-routes-ui.md §2 documents each screen's usage;
+ * to render". `docs/ux-ui.md` documents the cross-screen usage rule;
  * a few representative ones are reproduced here as stories.
  */
 const meta: Meta<typeof StatePanel> = {

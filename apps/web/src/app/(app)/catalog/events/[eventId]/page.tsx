@@ -49,15 +49,13 @@ interface EventDetailPageProps {
 const CONTENT_CLASS = "flex w-full flex-col gap-md";
 
 /**
- * `/catalog/events/[eventId]`（`docs/v2/oracle-routes-ui.md` §1/§2
- * イベント詳細）。occurrence 一覧・participation 状態の表示と、
- * participation の書き込み・invite の起点となる Server Component。
+ * `/catalog/events/[eventId]` event detail route. Event/Occurrence lifecycle
+ * semantics follow Spec 005; this Server Component owns the exact route,
+ * read orchestration, and presentation.
  *
- * 認証チェックはここでも行う（`docs/v2/oracle-routes-ui.md` §0 の
- * 「各page.tsx側の認証チェックはこの一次防御(`src/proxy.ts`)の上に乗る
- * 二次チェック」）。`src/proxy.ts` の default-deny により実際にはここへ
- * 未認証で到達しない想定だが、真の書き込み権限境界は常に RLS/RPC 側にある
- * という位置づけ（`docs/v2/decisions.md`「引き継ぐと決めた不変原則」）。
+ * The page-level auth check complements the default-deny proxy boundary.
+ * Database RLS/RPC remains the write authorization boundary; exact route and
+ * component behavior stay owned by runtime and tests.
  */
 export default async function EventDetailPage({
   params,
@@ -140,9 +138,8 @@ export default async function EventDetailPage({
     );
   }
 
-  // specs/001-occurrence-participation/spec.md: participation の個別読込失敗は event 本体
-  // とは別枠で表示する（event は表示継続）。「read ごとに独立して劣化」
-  // (docs/v2/decisions.md P4)。
+  // Participation read failure is shown separately while the event remains visible.
+  // The page keeps each read independently degradable.
   const participationState = classifyListReadResult(participationsReadResult);
   const participationLookup = buildParticipationLookup(
     participationState,

@@ -9,7 +9,7 @@ import {
 } from "@stage-tracker/domain";
 
 /**
- * `events` テーブルの生 row 形（`docs/v2/oracle-database.md` §1.1）。
+ * `events` テーブルの生 row 形（current schema and mapper tests）。
  * snake_case はそのまま Supabase/PostgREST の wire 形式。
  */
 export interface EventRow {
@@ -47,7 +47,7 @@ export function mapEventRow(row: EventRow): Result<Event, string> {
   return ok(parsed.data);
 }
 
-/** `event_occurrences` テーブルの生 row 形（oracle-database.md §1.2）。 */
+/** `event_occurrences` テーブルの生 row 形（current schema and mapper tests）。 */
 export interface OccurrenceRow {
   readonly id: string;
   readonly event_id: string;

@@ -15,9 +15,9 @@ export type AppShellProps = Pick<
 
 /**
  * The all-screen shell: AppBar + bounded content column + PrimaryNav
- * (docs/v2/oracle-routes-ui.md §3 AppShell). Purely presentational - no
+ * (see the shared shell rules in `docs/ux-ui.md`). Purely presentational - no
  * Supabase dependency. Every authenticated route's `layout.tsx` renders
- * this and nothing else (oracle §0), passing through the identity and
+ * this and nothing else, passing through the identity and
  * canonical unread presentation values resolved server-side.
  *
  * `showPrimaryNav`/`showActions` exist so an unauthenticated-but-still-
@@ -47,9 +47,8 @@ export function AppShell({
         myPageHref={myPageHref}
         myPageInitial={myPageInitial}
       />
-      {/* Bounded content column: 640px matches the legacy fixed-width
-          content contract (docs/v2/oracle-routes-ui.md §3
-          fixedSubmitBar.module.css). `<main>` (not `<div>`) matches
+      {/* Bounded content column: 640px is the implemented max width for this
+          content column. `<main>` (not `<div>`) matches
           apps/legacy-web/src/ui/AppShell.tsx, which owns the page's single
           `<main>` landmark here - lost in the initial v2 port and caught by
           an axe-core run against the AppShell stories (PR #377 review,

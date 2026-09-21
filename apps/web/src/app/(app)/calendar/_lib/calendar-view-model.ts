@@ -36,7 +36,8 @@ import type {
 } from "./calendar-loader";
 
 /**
- * Pure My Calendar projection (`docs/v2/oracle-domain.md` §2.9/§2.11).
+ * Pure My Calendar projection. Effective-cancellation marker/count semantics
+ * follow Spec 004; route, data, and view-model mechanics remain local.
  *
  * The loader owns read classification and only indexes data that is actually
  * visible in the grid. This module owns the deterministic presentation

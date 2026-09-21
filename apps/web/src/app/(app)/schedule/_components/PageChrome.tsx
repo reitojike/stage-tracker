@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { BackLink as SharedBackLink } from "@stage-tracker/ui";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §3 の `BackLink`（「文脈的な『戻る』
- * リンク」）に相当する feature-local wrapper。
+ * Feature-local wrapper around the shared `BackLink`; exact navigation and
+ * presentation are owned by this runtime component.
  */
 export function BackLink({
   href,

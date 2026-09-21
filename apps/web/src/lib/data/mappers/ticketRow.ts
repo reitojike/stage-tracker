@@ -10,7 +10,7 @@ import {
   type UserTicketOpportunityState,
 } from "@stage-tracker/domain";
 
-/** `ticket_opportunities` の生 row 形（oracle-database.md §1.8）。 */
+/** Raw `ticket_opportunities` row shape, validated by this mapper. */
 export interface TicketOpportunityRow {
   readonly id: string;
   readonly event_id: string;
@@ -45,7 +45,7 @@ export function mapTicketOpportunityRow(
   return ok(parsed.data);
 }
 
-/** `ticket_opportunity_milestones` の生 row 形（oracle-database.md §1.10）。 */
+/** Raw `ticket_opportunity_milestones` row shape, validated by this mapper. */
 export interface TicketOpportunityMilestoneRow {
   readonly id: string;
   readonly opportunity_id: string;
@@ -123,7 +123,7 @@ export function mapTicketOpportunityMilestoneRow(
   return ok(parsed.data);
 }
 
-/** `user_ticket_opportunity_states` の生 row 形（oracle-database.md §1.11）。 */
+/** Raw `user_ticket_opportunity_states` row shape, validated by this mapper. */
 export interface UserTicketOpportunityStateRow {
   readonly id: string;
   readonly user_id: string;

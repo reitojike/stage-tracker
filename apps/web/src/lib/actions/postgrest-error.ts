@@ -1,15 +1,12 @@
 /**
  * この write boundary（Event/Occurrence/Invitation/Participation）全体で
- * 共有する、Postgrest/RPC error 分類の SQLSTATE 語彙・型の正本。
+ * 共有する、Postgrest/RPC error 分類の SQLSTATE 語彙・型を所有する module。
  *
- * `docs/v2/decisions.md` A8 の決定「invite / decline / share 系も custom
- * SQLSTATE へ寄せ、message matching を撤去する」は
- * `supabase/migrations/20260826000100_create_event_delete_rpcs.sql` /
- * `20260830000000_simplify_invitation_pending_only.sql` 等で実装済み
+ * The migrations implement the structured SQLSTATE boundary for invite,
+ * decline, and share writes
  * （`42501`/`90001`/`90002` を全て `using errcode = ...` で明示）。
  * したがってこの write boundary の分類は SQLSTATE のみを見る。**message
- * 文字列マッチは一切行わない**（.ai-dev-foundation/product-rules.md 制約
- * 「エラー分類は message 文字列マッチで行わない（A8）」）。
+ * 文字列マッチは一切行わない**（この SQLSTATE 分類 module の制約）。
  *
  * このファイル自体は分類関数を持たない。各 write core
  * （`./event-write-feedback.ts`/`./participation.ts`/`./invitation.ts`/
@@ -73,8 +70,8 @@ export const DELETE_BLOCKED = "90001";
  * `occurrence-canceled`（`@/lib/action-error.ts`）へ分類する
  * （Issue #500: 以前はこの共通 classifier だけが `validation` へ折り畳んで
  * おり、`participation.ts`/`invitation.ts` の `occurrence-canceled` 分類と
- * 経路によって異なる kind に分裂していた）。この write boundary の唯一の
- * SQLSTATE 正本として、`participation.ts`/`invitation.ts` もこの定数を
+ * 経路によって異なる kind に分裂していた）。この write boundary の共有定数として、
+ * `participation.ts`/`invitation.ts` もこの定数を
  * re-export せず直接 import する。
  */
 export const EFFECTIVELY_CANCELED = "90002";

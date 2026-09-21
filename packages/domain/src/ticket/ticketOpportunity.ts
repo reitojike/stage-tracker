@@ -4,14 +4,13 @@ import { instantSchema } from '../time/instant';
 import { ticketOpportunityIdSchema, userTicketOpportunityStateIdSchema } from './ids';
 
 /**
- * TicketOpportunity domain model (.ai-dev-foundation/product-rules.md "Ticket Opportunity（Ticket
- * planning MVP）", docs/v2/oracle-domain.md §1.9, PO decision Issue #157).
+ * TicketOpportunity domain model (`specs/008-ticket-opportunity-planning/spec.md`,
+ * PO decision Issue #157).
  * Scope is deliberately narrow: "いつ、何の抽選・先行・販売開始があるのか
  * を漏らさず見られる" - not a full application-tracking/inventory model
  * (Issue #162, #234's removal of the old acquired-ticket model).
  *
- * This module is pure domain logic: no I/O, no clock access (see .ai-dev-foundation/product-rules.md
- * 設計方針 / docs/v2/decisions.md A6) - "now" is always a caller-supplied
+ * This module is pure domain logic: no I/O, no clock access - "now" is always a caller-supplied
  * parameter wherever a computation needs it (see ./ticketOpportunityTimeline.ts).
  */
 
@@ -21,10 +20,9 @@ export type TicketOpportunityTargetScope = z.infer<typeof ticketOpportunityTarge
 /**
  * TicketOpportunity: a single sales/lottery opportunity against one Event.
  * `displayName` preserves the source's own vocabulary (e.g. "FC先行")
- * rather than normalizing into a closed enum - see .ai-dev-foundation/product-rules.md "source 上の
- * display name をそのまま保持し、`FC先行` 等の source 固有名称を premature
- * な closed enum へ潰さない". `sourceKey` is a distinct identity space from
- * the parent Event's own `source_key` (docs/v2/oracle-domain.md §1.9).
+ * rather than normalizing into a closed enum - see Spec 008's source-provided
+ * display-name semantics. `sourceKey` is a distinct identity space from
+ * the parent Event's own `source_key` (`specs/008-ticket-opportunity-planning/spec.md`).
  */
 export const ticketOpportunitySchema = z.object({
   id: ticketOpportunityIdSchema,
@@ -44,14 +42,13 @@ export type TicketOpportunity = z.infer<typeof ticketOpportunitySchema>;
  * TicketOpportunity + its explicit target Occurrence set.
  *
  * `event_wide` is a semantic fact about the whole Event, not a snapshot of
- * whichever Occurrences exist right now (.ai-dev-foundation/product-rules.md "`event_wide` は Event
- * 全体という semantic fact であり、その時点で存在する Occurrence 一覧の
- * snapshot へ暗黙変換しません") - so an `event_wide` Opportunity must never
+ * whichever Occurrences exist right now (Spec 008's event-wide target
+ * semantics) - so an `event_wide` Opportunity must never
  * carry target Occurrence ids, and this schema enforces that as a
  * structural invariant rather than leaving it to callers to remember.
  * `selected_occurrences`, symmetrically, must specify at least one target
  * (the import RPC itself rejects a `selected_occurrences` request with zero
- * occurrence ids - docs/v2/oracle-database.md §3.5).
+ * occurrence ids - current schema/RPC contract).
  */
 export const ticketOpportunityWithTargetsSchema = z
   .object({
@@ -86,9 +83,8 @@ export type UserTicketOpportunityStatus = z.infer<typeof userTicketOpportunitySt
 /**
  * UserTicketOpportunityState: personal, owner-only planning state. Absence
  * of a row is the only representation of "not registered as a personal
- * planning target" - it is not an application record (.ai-dev-foundation/product-rules.md "行が無い
- * = その Opportunity を personal planning 対象として登録していない、という
- * 意味です。actual application record ではありません").
+ * planning target - it is not an application record (Spec 008's distinction
+ * between an Opportunity and the absence of a planning row).
  */
 export const userTicketOpportunityStateSchema = z.object({
   id: userTicketOpportunityStateIdSchema,

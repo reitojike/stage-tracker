@@ -11,14 +11,13 @@ interface EditEventPageProps {
 }
 
 /**
- * owner 専用の Event/Occurrence 編集画面
- * （`docs/v2/oracle-routes-ui.md` §1/§2
- * `/catalog/events/[eventId]/edit`）。
+ * owner 専用の Event/Occurrence 編集 route。Lifecycle semantics follow Spec
+ * 005; exact route/render mechanics are runtime-owned。
  *
  * 空状態/error/unavailable の3分岐は `@/lib/data` の
  * `classifyListReadResult` をそのまま使う。owner 判定はここでの
  * レンダー制御であり、真の書き込み権限境界は常に RLS/RPC 側
- * （.ai-dev-foundation/product-rules.md 制約）。
+ * （current RPC/RLS/schema contract）。
  */
 export default async function EditEventPage({ params }: EditEventPageProps) {
   const { eventId } = await params;

@@ -23,17 +23,17 @@ const CALENDAR_PATH = "/calendar";
 
 /**
  * owner が entry に recipient を email 指定で追加する
- * （`docs/v2/oracle-routes-ui.md` §1 `addScheduleShareByEmailAction`）。
+ * （Spec 012 の sharing semantics; exact action implementation is runtime-owned）。
  *
  * ownership の真の enforcement は
  * `share_schedule_entry_by_email` RPC 自身（SECURITY DEFINER が
  * `is_personal_schedule_entry_owner` を再チェックする）にあり、この
- * action はそれを呼ぶだけ - `docs/v2/oracle-domain.md` §3 の「各 action は
+ * action はそれを呼ぶだけ - runtime/schema contract の「各 action は
  * 権限判定を一切行わない」という設計をそのまま踏襲する。
  *
- * `email` の未登録は「知らせてよい」（product-rules.md
- * 「Authenticated-user targeting」節・「Event-independent personal
- * schedule」節: sharing に Invitation のような第三者 private state が
+ * `email` の未登録は「知らせてよい」（Spec 012 PSH-006 and its
+ * authenticated-user targeting / personal-schedule semantics: sharing に
+ * Invitation のような第三者 private state が
  * ないため opacity が要らない）。この action・その先の RPC はどちらも
  * email の存在有無で分岐や隠蔽をせず、RPC が返す結果（成功 or
  * `validation` エラー）をそのまま client へ伝える - これが「知らせてよい」
@@ -63,8 +63,8 @@ export const addScheduleShareByEmailAction = authActionClient
 
 /**
  * owner が既存 recipient を除去する
- * （`docs/v2/oracle-routes-ui.md` §1 `removeScheduleShareAsOwnerAction`）。
- * 「owner の recipient『解除』は確認なしの即時実行」（同 §2）につき、
+ * （Spec 012 の owner revoke semantics）。「owner の recipient『解除』は
+ * 確認なしの即時実行」につき、
  * 削除（entry 自体の hard delete）とは異なり画面に留まる - `redirect` せず
  * affected read surface の再検証のみ。
  */
@@ -87,8 +87,7 @@ export const removeScheduleShareAsOwnerAction = authActionClient
   });
 
 /**
- * 非owner の自己離脱（`docs/v2/oracle-routes-ui.md` §1
- * `removeScheduleShareAction`）。**削除（owner-only hard delete）とは
+ * 非owner の自己離脱（Spec 012 の recipient self-leave semantics）。**削除（owner-only hard delete）とは
  * 別の operation** であることをこの action の入力形状自体で表現する:
  * 引数は `shareId` ではなく `entryId` のみ受け取り、削除対象の shareId は
  * 「呼び出した本人（`ctx.userId`）が、この entry に対して持つ自分自身の
@@ -104,8 +103,8 @@ export const removeScheduleShareAsOwnerAction = authActionClient
  * `shared_with_user_id = ctx.userId` まで絞ってはじめて「自分の共有だけを
  * 対象にする」不変条件が成立する。
  *
- * 成功時は `/calendar` へ redirect（`docs/v2/oracle-routes-ui.md` §2
- * 「予定詳細」: 「非owner の『共有から外れる』は確認なしの即時実行、
+ * 成功時は `/calendar` へ redirect（runtime contract; 「非owner の
+ * 『共有から外れる』は確認なしの即時実行、
  * 成功で `/calendar` へ redirect」）- owner の recipient 解除が画面に
  * 留まるのとは異なる導線。
  */

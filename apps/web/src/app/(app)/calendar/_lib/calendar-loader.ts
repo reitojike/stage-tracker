@@ -15,11 +15,11 @@ import { classifyBlock1, type BlockState } from "@/app/_lib/read-state";
 import { scheduleEntryDatesInRange } from "./calendar-view-model";
 
 /**
- * `/calendar`'s data layer (`docs/v2/oracle-routes-ui.md` §1 `/calendar`).
+ * `/calendar` data loading and read-state classification are owned by this
+ * module; month-grid cancellation semantics follow Spec 004.
  *
- * `docs/v2/decisions.md` P4 explicitly supersedes the legacy calendar's
- * single-panel degradation ("カレンダーは複数readの失敗を単一の汎用エラーへ
- * 縮退させる") in favor of the same "read ごとに独立して劣化" rule as home.
+ * The calendar keeps its reads independently degradable instead of collapsing
+ * multiple read failures into one generic panel.
  * This is why the 2 reads this screen needs (`listMyParticipations`,
  * `listVisiblePersonalSchedule`) are 2 separate exported loaders below, each
  * with its own `BlockState`, rather than one function that combines them -
@@ -58,11 +58,11 @@ export interface CalendarOccurrenceItem {
 /**
  * "参加予定" block: occurrences the caller has a Participation for, indexed
  * by the Asia/Tokyo calendar date of `occurrence.startsAt` (this Task's
- * "date the item concerns", matching .ai-dev-foundation/product-rules.md's own choice of `startsAt`'s
+ * "date the item concerns" is a runtime indexing rule based on `startsAt`'s
  * date over `doorsAt`/`endsAt` for the Event range containment invariant -
  * the same reasoning applies here). Restricted to `[gridStart, gridEnd]`
  * (the visible month grid, including its leading/trailing adjacent-month
- * days - oracle's "表示グリッド範囲内のみ" for `/calendar`).
+ * days - the current calendar loader contract).
  */
 export async function loadCalendarOccurrences(
   supabase: SupabaseClient<Database>,
@@ -148,6 +148,6 @@ export async function loadCalendarSchedule(
 export { compareCalendarOccurrenceItems } from "./calendar-view-model";
 
 /** Re-exported for callers that only have 2 `TokyoCalendarDate`s and want
- * the oracle's own chronological ordering guarantee, without importing
+ * this module's chronological ordering guarantee, without importing
  * `@stage-tracker/domain` directly just for this. */
 export { compareTokyoCalendarDates };

@@ -27,9 +27,10 @@ const setParticipationChoiceInputSchema = z.object({
 });
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 `setParticipationChoiceAction`。
+ * Participation transition semantics are defined by Spec 001; this module
+ * owns the exact `setParticipationChoiceAction` and revalidation wiring。
  *
- * revalidate 対象（oracle §1 補足「影響する経路だけを個別指定する」）:
+ * revalidate 対象（runtime contract）:
  * - `/catalog/events/[eventId]`: この画面自体の participation 表示
  * - `/calendar`: `listMyParticipations` を読む個人カレンダー
  * - `/`: ホームの「直近の予定」ブロックも同じ read を使う

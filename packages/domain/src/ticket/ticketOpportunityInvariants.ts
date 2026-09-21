@@ -4,7 +4,7 @@ import type { TicketOpportunityMilestoneType } from './ticketOpportunityMileston
 
 /**
  * Cross-entity invariants for a TicketOpportunity aggregate
- * (docs/v2/oracle-domain.md §1.9/§2.7). These cannot live on
+ * (`specs/008-ticket-opportunity-planning/spec.md`). These cannot live on
  * `ticketOpportunitySchema`/`ticketOpportunityMilestoneSchema` alone
  * because they need sibling records (the Opportunity's target Occurrences,
  * its full milestone set) as context - the same reason
@@ -29,10 +29,9 @@ export type TicketOpportunityInvariantViolation =
  * invariants:
  *
  * - every target Occurrence belongs to the same Event as the Opportunity
- *   itself (.ai-dev-foundation/product-rules.md "selected target の Occurrence は、必ずその
- *   Opportunity の Event に属していなければなりません");
+ *   itself (Spec 008's selected-occurrence target-membership invariant);
  * - at most one milestone per `milestoneType` for this Opportunity
- *   (docs/v2/oracle-database.md §1.10 UK `(opportunity_id, milestone_type)`
+ *   (the schema's unique constraint on `(opportunity_id, milestone_type)`
  *   - "同一 Opportunity に同種 milestone は最大1件").
  *
  * Returns every violation found (not just the first), mirroring

@@ -7,18 +7,15 @@ import {
 } from "./japanese-holidays";
 
 /**
- * Weekday / Japanese-holiday calendar presentation role, ported from the
- * M8 calendar-day-role oracle
- * (`docs/v2/oracle-domain.md` §2.11 "Calendar day role (曜日・祝日表示)").
+ * Weekday / Japanese-holiday calendar presentation role owned by this shared
+ * helper and its tests.
  *
  * This is a *global* month-calendar rule, not `/catalog`-specific - kept in
  * `app/_lib` (like `./calendar-grid.ts`, whose own header already documents
- * being "shared by `/calendar` and `/catalog`") rather than under
- * `(app)/catalog/_lib`, so a later Task giving `/calendar` (My Calendar) the
- * same day-role coloring (a separate, already-known gap - see this Task's
- * report) can import this module unchanged instead of duplicating it.
+ * being "shared by `/calendar` and `/catalog`") because both My Calendar and
+ * Catalog use the same day-role coloring.
  *
- * Rule (verbatim from the oracle):
+ * Implemented rule:
  *   - Saturday is the "blue" role, Sunday and a Japanese national holiday
  *     are both the "red" role.
  *   - Saturday + holiday: holiday role wins.

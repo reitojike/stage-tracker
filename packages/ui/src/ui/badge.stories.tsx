@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { Badge } from './badge';
 
 /**
- * 5-variant shape-based Badge (docs/v2/oracle-routes-ui.md §3). Variants are
+ * 5-variant shape-based Badge (see `docs/ux-ui.md`). Variants are
  * not distinguished by color alone - see each story's usage note.
  */
 const meta: Meta<typeof Badge> = {
@@ -42,8 +42,10 @@ export const Terminal: Story = {
 };
 
 /**
- * `/tickets` のバッジ優先順位（oracle §2）: ①中止 ②受付終了 ③申し込み済み
- * ④申し込む予定 ⑤バッジなし、のうち1つだけを表示する実例。
+ * `/tickets` の優先順位 semantics are defined by Spec 008; exact Japanese
+ * labels, Badge variants, and this rendered Storybook example are
+ * Storybook/runtime-owned: ①中止 ②受付終了 ③申し込み済み ④申し込む予定
+ * ⑤バッジなし、のうち1つだけを表示する実例。
  */
 export const TicketPriorityExample: Story = {
   render: () => (

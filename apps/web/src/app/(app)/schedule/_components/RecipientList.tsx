@@ -22,8 +22,7 @@ function RecipientRow({ entryId, recipient }: RecipientRowProps) {
         <span className="text-body-sm text-foreground">
           {recipient.recipientEmail}
         </span>
-        {/* 「owner の recipient『解除』は確認なしの即時実行」
-          （oracle-routes-ui.md §2「予定詳細」）。 */}
+        {/* Owner-side recipient removal is an immediate action without confirmation. */}
         <Button
           type="button"
           variant="outline"
@@ -56,8 +55,8 @@ interface RecipientListProps {
 }
 
 /**
- * owner 向けの共有相手一覧（`docs/v2/oracle-routes-ui.md` §2「予定詳細」:
- * 「空状態（共有先0件）: owner視点で『まだ誰とも共有していません』」）。
+ * Owner recipient projection under Spec 012's bounded sharing semantics;
+ * empty-state copy and list presentation are owned by this runtime component.
  */
 export function RecipientList({ entryId, recipients }: RecipientListProps) {
   if (recipients.length === 0) {

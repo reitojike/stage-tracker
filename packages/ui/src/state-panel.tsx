@@ -10,7 +10,7 @@ import { cn } from './lib/utils';
  * - `unavailable`: the caller is not allowed to see this (RLS denial,
  *   permission check failed, ...).
  *
- * docs/v2/oracle-routes-ui.md §2 records this as the cross-screen invariant:
+ * `docs/ux-ui.md` records this as the cross-screen invariant:
  * an auth/permission failure or a fetch failure must never be silently
  * rendered as "0 results" (`empty`). decisions.md keeps this as one of the
  * explicitly-carried-forward invariants for v2.
@@ -37,7 +37,7 @@ export type StatePanelProps = {
 /**
  * Shared presentation for the "there is nothing (useful) to show" family of
  * screen states. All 3 variants render the exact same structure (title ->
- * description -> action) and the exact same visual treatment - the oracle
+ * description -> action) and the exact same visual treatment - the shared UI
  * explicitly records that these are *not* distinguished by color or icon,
  * only by the words in `title`/`description` and (for `error`) by
  * `role="alert"`. The reasoning: a color/icon distinction invites a reader
