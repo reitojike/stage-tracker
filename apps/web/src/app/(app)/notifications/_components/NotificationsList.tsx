@@ -13,7 +13,7 @@ import { instantSchema } from "@stage-tracker/domain";
 import { markNotificationsReadAction } from "@/lib/actions/notifications";
 import type { NotificationListItem } from "@/lib/data/reads/notifications";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
-import { formatTokyoDateTimeJa } from "@/app/_lib/format";
+import { formatTokyoDateTimeJa } from "@/lib/tokyo-format";
 
 const INVITATION_NOTIFICATION_TITLE = "参加への招待が届いています";
 const RESOLVED_INVITATION_MESSAGE = "この招待はすでに終了しています。";

@@ -2,6 +2,9 @@ import {
   tokyoCalendarDateSchema,
   type TokyoCalendarDate,
 } from "@stage-tracker/domain";
+import { dayOfWeek } from "@/lib/tokyo-format";
+
+export { dayOfWeek, weekdayLabelJa } from "@/lib/tokyo-format";
 
 /**
  * Month-grid calendar arithmetic shared by `/calendar` and `/catalog`. This is
@@ -197,16 +200,6 @@ export function addDays(
   return dateFromYmd(year, month, day + delta);
 }
 
-/** 0 = Sunday, matching `Date.prototype.getUTCDay()`.
- *
- * Uses `utcFromYmd` for the same reason `dateFromYmd` does: `Date.UTC` maps
- * years 0-99 to 1900+year, so year 0001 would be given 1901's weekday and the
- * grid would start one column off (PR #381 review). */
-export function dayOfWeek(date: TokyoCalendarDate): number {
-  const [year, month, day] = splitYmd(date);
-  return utcFromYmd(year, month, day).getUTCDay();
-}
-
 /**
  * The full 7-column grid of `TokyoCalendarDate`s covering every week that
  * touches `yearMonth`'s month (leading/trailing adjacent-month days
@@ -231,12 +224,6 @@ export function buildMonthGridDays(
     cursor = addDays(cursor, 1);
   }
   return days;
-}
-
-const WEEKDAY_LABELS_JA = ["日", "月", "火", "水", "木", "金", "土"] as const;
-
-export function weekdayLabelJa(date: TokyoCalendarDate): string {
-  return WEEKDAY_LABELS_JA[dayOfWeek(date)] ?? "";
 }
 
 export function maxTokyoCalendarDate(

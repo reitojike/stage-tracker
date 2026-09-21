@@ -7,7 +7,7 @@ import {
   type Instant,
   type TokyoCalendarDate,
 } from "@stage-tracker/domain";
-import { formatTokyoCalendarDateRangeJa } from "@/app/_lib/format";
+import { formatTokyoCalendarDateRangeJa } from "@/lib/tokyo-format";
 import { parseTokyoDateTimeLocal } from "./tokyo-form";
 
 /**

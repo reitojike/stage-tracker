@@ -9,10 +9,8 @@ import {
   declineInvitationAction,
 } from "@/lib/actions/invitations";
 import type { ReceivedInvitation } from "@/lib/data";
-import {
-  formatTokyoCalendarDateWithYearJa,
-  occurrenceTimeRangeLabel,
-} from "@/app/_lib/format";
+import { occurrenceTimeRangeLabel } from "@/app/_lib/format";
+import { formatTokyoCalendarDateWithYearJa } from "@/lib/tokyo-format";
 
 type CardPhase =
   | { readonly kind: "pending" }

@@ -7,7 +7,7 @@ import {
   formatTokyoCalendarDateWithYearJa,
   formatTokyoDateTimeJa,
   formatTokyoTime,
-} from "@/app/_lib/format";
+} from "@/lib/tokyo-format";
 
 /**
  * `/schedule/[entryId]` の詳細表示用、entry の `temporal` を人間可読な

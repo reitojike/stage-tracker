@@ -29,10 +29,10 @@ import { MAX_BAND_LANES } from "@/app/_lib/calendar-band-layout";
 import { bandDisplayTitle } from "@/app/_lib/calendar-presentation";
 import {
   formatMonthJa,
-  formatTokyoCalendarDateJa,
   occurrenceTimeRangeLabel,
   participationStatusLabel,
 } from "@/app/_lib/format";
+import { formatTokyoCalendarDateJa } from "@/lib/tokyo-format";
 import { ScheduleEntryBadges } from "@/app/_components/ScheduleEntryBadges";
 import {
   READ_FAILURE_RETRY_HINT_JA,

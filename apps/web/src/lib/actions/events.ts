@@ -10,7 +10,7 @@ import {
 } from "@stage-tracker/domain";
 import { authActionClient } from "@/lib/safe-action";
 import { ActionError } from "@/lib/action-error";
-import { formatTokyoDateTimeJa } from "@/app/_lib/format";
+import { formatTokyoDateTimeJa } from "@/lib/tokyo-format";
 import { runPagedSupabaseSelect } from "@/lib/data/paged-select";
 import {
   throwEventCancellationError,

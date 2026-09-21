@@ -9,11 +9,8 @@ import {
   type TokyoCalendarDate,
   type UserTicketOpportunityStatus,
 } from "@stage-tracker/domain";
-import {
-  formatTokyoCalendarDateJa,
-  formatTokyoTime,
-  occurrenceTimeRangeLabel,
-} from "./format";
+import { occurrenceTimeRangeLabel } from "./format";
+import { formatTokyoCalendarDateJa, formatTokyoTime } from "@/lib/tokyo-format";
 
 export interface TicketDeadlineBadgeDisplay {
   readonly variant: "deadline" | "outline";
