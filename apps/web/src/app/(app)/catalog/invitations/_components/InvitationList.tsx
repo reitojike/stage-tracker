@@ -26,7 +26,7 @@ interface CardError {
 }
 
 interface CardEntry {
-  readonly key: string;
+  readonly key: ReceivedInvitation["invitationId"];
   readonly invitation: ReceivedInvitation;
   readonly phase: CardPhase;
   readonly error: CardError | null;
@@ -67,7 +67,7 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
   );
 
   function setPhase(
-    key: string,
+    key: ReceivedInvitation["invitationId"],
     phase: CardPhase,
     error: CardError | null = null,
   ) {

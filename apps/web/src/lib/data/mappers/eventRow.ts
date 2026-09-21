@@ -7,6 +7,7 @@ import {
   type Occurrence,
   type Result,
 } from "@stage-tracker/domain";
+import { invalidRowSchemaError } from "../row-mapping";
 
 /**
  * `events` テーブルの生 row 形（current schema and mapper tests）。
@@ -42,7 +43,7 @@ export function mapEventRow(row: EventRow): Result<Event, string> {
     updatedAt: row.updated_at,
   });
   if (!parsed.success) {
-    return err(`Invalid events row (id=${row.id}): ${parsed.error.message}`);
+    return err(invalidRowSchemaError("events", row.id, parsed.error));
   }
   return ok(parsed.data);
 }
@@ -74,7 +75,7 @@ export function mapOccurrenceRow(
   });
   if (!parsed.success) {
     return err(
-      `Invalid event_occurrences row (id=${row.id}): ${parsed.error.message}`,
+      invalidRowSchemaError("event_occurrences", row.id, parsed.error),
     );
   }
   return ok(parsed.data);

@@ -6,6 +6,7 @@ import {
   ok,
   occurrenceIdSchema,
   type OccurrenceId,
+  type InvitationId,
   type Result,
   userIdSchema,
   type UserId,
@@ -13,7 +14,7 @@ import {
 import { z } from "zod";
 import type { Database, Tables } from "../database.types";
 import { readError, type ReadError } from "../read-error";
-import { mapRows } from "../row-mapping";
+import { invalidRowSchemaError, mapRows } from "../row-mapping";
 import type { ReadResult } from "../read-result";
 import { runSupabaseSelect } from "../supabase-select";
 
@@ -26,7 +27,7 @@ const notificationRowSchema = z.object({
 });
 
 const invitationSourceRowSchema = z.object({
-  id: z.uuid(),
+  id: invitationIdSchema,
   occurrence_id: occurrenceIdSchema,
   inviter_id: userIdSchema,
   invitee_id: userIdSchema,
@@ -88,7 +89,7 @@ export function decodeNotificationCursor(
 export type NotificationSource =
   | {
       readonly status: "active";
-      readonly invitationId: string;
+      readonly invitationId: InvitationId;
       readonly occurrenceId: OccurrenceId;
       readonly inviterId: UserId;
     }
@@ -96,8 +97,8 @@ export type NotificationSource =
 
 export interface NotificationListItem {
   readonly id: string;
-  readonly kind: Database["public"]["Enums"]["notification_kind"];
-  readonly sourceId: string;
+  readonly kind: "invitation_received";
+  readonly sourceId: InvitationId;
   readonly createdAt: string;
   readonly readAt: string | null;
   readonly source: NotificationSource;
@@ -137,9 +138,7 @@ function mapNotificationRow(
 ): Result<Omit<NotificationListItem, "source">, string> {
   const parsed = notificationRowSchema.safeParse(row);
   if (!parsed.success) {
-    return err(
-      `Invalid notifications row (id=${String(row.id)}): ${parsed.error.message}`,
-    );
+    return err(invalidRowSchemaError("notifications", row.id, parsed.error));
   }
   return ok({
     id: parsed.data.id,
@@ -156,7 +155,11 @@ function mapInvitationSourceRow(
   const parsed = invitationSourceRowSchema.safeParse(row);
   if (!parsed.success) {
     return err(
-      `Invalid occurrence_invitations source row (id=${String(row.id)}): ${parsed.error.message}`,
+      invalidRowSchemaError(
+        "occurrence_invitations source",
+        row.id,
+        parsed.error,
+      ),
     );
   }
   return ok({
@@ -170,7 +173,9 @@ function mapInvitationSourceRow(
 async function resolveInvitationSources(
   client: SupabaseClient<Database>,
   notifications: readonly Omit<NotificationListItem, "source">[],
-): Promise<NotificationReadResult<ReadonlyMap<string, NotificationSource>>> {
+): Promise<
+  NotificationReadResult<ReadonlyMap<InvitationId, NotificationSource>>
+> {
   const sourceIds = [...new Set(notifications.map(({ sourceId }) => sourceId))];
   if (sourceIds.length === 0) {
     return ok(new Map());
@@ -191,7 +196,7 @@ async function resolveInvitationSources(
     return err(phaseError(mappedResult, "source-resolution"));
   }
 
-  const sources = new Map<string, NotificationSource>();
+  const sources = new Map<InvitationId, NotificationSource>();
   for (const source of mappedResult.value) {
     if (sources.has(source.invitationId)) {
       console.error(

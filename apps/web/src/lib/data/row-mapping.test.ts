@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { err, ok, type Result } from "@stage-tracker/domain";
-import { mapRows } from "./row-mapping";
+import { invalidRowSchemaError, mapRows } from "./row-mapping";
 
 interface Row {
   readonly id: string;
@@ -20,6 +20,14 @@ function mapRow(row: Row): Result<string, string> {
  * 失敗行だけをサイレントに間引かない。
  */
 describe("mapRows", () => {
+  it("formats only the shared schema-parse row failure shape", () => {
+    expect(
+      invalidRowSchemaError("events", "row-id", {
+        message: "Expected a valid UUID",
+      }),
+    ).toBe("Invalid events row (id=row-id): Expected a valid UUID");
+  });
+
   it("maps every row successfully when all rows are valid", () => {
     const result = mapRows(
       [
