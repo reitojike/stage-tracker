@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@stage-tracker/ui";
-import { instantToTokyoCalendarDate } from "@stage-tracker/domain";
+import {
+  instantToTokyoCalendarDate,
+  isEffectivelyCanceled,
+} from "@stage-tracker/domain";
 import {
   acceptInvitationAction,
   declineInvitationAction,
@@ -129,7 +132,7 @@ export function InvitationList({ initialInvitations }: InvitationListProps) {
 
   if (visibleEntries.length === 0) {
     return (
-      <p className="text-body-sm text-muted-foreground">招待はありません。</p>
+      <p className="text-body-sm text-muted-foreground">招待はありません</p>
     );
   }
 
@@ -179,10 +182,9 @@ function InvitationCard({
 }) {
   const { invitation, phase } = entry;
   const context = invitation.context;
-  const isEffectivelyCanceled =
+  const effectivelyCanceled =
     context !== null &&
-    (context.event.canceledAt !== null ||
-      context.occurrence.canceledAt !== null);
+    isEffectivelyCanceled(context.event, context.occurrence);
 
   return (
     <li className="flex flex-col gap-xs border-b border-border py-sm">
@@ -196,7 +198,7 @@ function InvitationCard({
             <span className="text-title font-semibold text-foreground">
               {context.event.title}
             </span>
-            {isEffectivelyCanceled ? (
+            {effectivelyCanceled ? (
               <Badge variant="terminal">中止</Badge>
             ) : null}
           </div>
@@ -235,7 +237,7 @@ function InvitationCard({
             はい、参加しない
           </Button>
         </div>
-      ) : isEffectivelyCanceled ? (
+      ) : effectivelyCanceled ? (
         <Button
           type="button"
           variant="outline"

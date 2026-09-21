@@ -39,6 +39,7 @@ import {
   formatOccurrenceDoors,
   formatOccurrenceEnds,
 } from "./_lib/formatOccurrence";
+import { EVENT_NOT_FOUND_TITLE } from "./_lib/eventCopy";
 import { buildParticipationLookup } from "./_lib/participationLookup";
 
 interface EventDetailPageProps {
@@ -70,10 +71,7 @@ export default async function EventDetailPage({
     return (
       <div className={CONTENT_CLASS}>
         <BackLink href={backHref}>一覧へ戻る</BackLink>
-        <StatePanel
-          variant="empty"
-          title="指定されたイベントが見つかりません"
-        />
+        <StatePanel variant="empty" title={EVENT_NOT_FOUND_TITLE} />
       </div>
     );
   }
@@ -109,7 +107,7 @@ export default async function EventDetailPage({
           variant={eventState.variant}
           title={
             eventState.variant === "empty"
-              ? "指定されたイベントが見つかりません"
+              ? EVENT_NOT_FOUND_TITLE
               : eventState.variant === "unavailable"
                 ? "イベントを確認できません"
                 : "イベントを読み込めませんでした"
@@ -130,10 +128,7 @@ export default async function EventDetailPage({
     return (
       <div className={CONTENT_CLASS}>
         <BackLink href={backHref}>一覧へ戻る</BackLink>
-        <StatePanel
-          variant="empty"
-          title="指定されたイベントが見つかりません"
-        />
+        <StatePanel variant="empty" title={EVENT_NOT_FOUND_TITLE} />
       </div>
     );
   }

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
-import type { Event, Occurrence } from "@stage-tracker/domain";
+import { isCanceled, type Event, type Occurrence } from "@stage-tracker/domain";
 import {
   Badge,
   Field,
@@ -111,7 +111,7 @@ export function EditEventForm({
     });
   }
 
-  const isCanceled = event.canceledAt !== null;
+  const canceled = isCanceled(event);
   const detailsErrors = detailsAction.result.validationErrors;
   const rangeErrors = rangeAction.result.validationErrors;
 
@@ -131,7 +131,7 @@ export function EditEventForm({
 
   return (
     <div className="flex flex-col gap-lg">
-      {isCanceled ? <Badge variant="terminal">中止</Badge> : null}
+      {canceled ? <Badge variant="terminal">中止</Badge> : null}
 
       <form
         onSubmit={handleDetailsSubmit}
@@ -253,7 +253,7 @@ export function EditEventForm({
           notice={cancellationNotice}
           attempt={cancellationAttempt}
         />
-        {isCanceled ? (
+        {canceled ? (
           <Button
             type="button"
             variant="outline"
