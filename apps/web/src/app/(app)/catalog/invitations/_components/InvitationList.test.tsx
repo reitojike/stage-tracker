@@ -73,8 +73,7 @@ function buildInvitation(options?: {
 }
 
 /**
- * M6d: undo は Issue #382 へ切り出し済み（`docs/v2/decisions.md`「P3 の
- * 実装可否」節）。decline は即座に hard delete で確定し、取り消せないため、
+ * decline は即座に hard delete で確定し、取り消せないため、
  * client は実行前に一段階の確認を挟む。この test はその確認フロー
  * （「参加しない」-> 確認 -> 確定 でカードが消える、キャンセルで pending に
  * 戻る）だけを検証する（DB を使わない）。
@@ -88,7 +87,7 @@ describe("InvitationList", () => {
 
   it("removes the card only after decline is confirmed", async () => {
     const user = userEvent.setup();
-    mockDecline.mockResolvedValue({ data: { snapshot: null } });
+    mockDecline.mockResolvedValue({ data: { ok: true } });
 
     render(<InvitationList initialInvitations={[buildInvitation()]} />);
 

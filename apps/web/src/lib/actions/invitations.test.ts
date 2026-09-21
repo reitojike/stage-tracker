@@ -32,6 +32,7 @@ const occurrenceQuery = {
 const supabaseStub = {
   auth: { getUser: vi.fn() },
   from: vi.fn(() => occurrenceQuery),
+  rpc: vi.fn(),
 };
 
 vi.mock("@/env", () => ({
@@ -58,7 +59,8 @@ vi.mock("./participation", async (importOriginal) => {
   };
 });
 
-const { acceptInvitationAction } = await import("./invitations.js");
+const { acceptInvitationAction, declineInvitationAction } =
+  await import("./invitations.js");
 
 function signedIn() {
   supabaseStub.auth.getUser.mockResolvedValue({
@@ -74,6 +76,7 @@ describe("acceptInvitationAction", () => {
     occurrenceQuery.select.mockClear();
     occurrenceQuery.eq.mockClear();
     occurrenceQuery.maybeSingle.mockClear();
+    supabaseStub.rpc.mockReset();
   });
 
   it("participation の canonical write boundary をそのまま呼ぶ", async () => {
@@ -123,5 +126,28 @@ describe("acceptInvitationAction", () => {
     expect(result.data).toBeUndefined();
     expect(result.serverError).toBeDefined();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("decline は RPC の返却 row を公開せず、成功 lifecycle だけを返す", async () => {
+    signedIn();
+    supabaseStub.rpc.mockResolvedValue({
+      data: {
+        occurrence_id: OCCURRENCE_ID,
+        inviter_id: USER_ID,
+        invitee_id: USER_ID,
+      },
+      error: null,
+    });
+
+    const result = await declineInvitationAction({
+      invitationId: OCCURRENCE_ID,
+    });
+
+    expect(supabaseStub.rpc).toHaveBeenCalledWith(
+      "decline_occurrence_invitation",
+      { p_invitation_id: OCCURRENCE_ID },
+    );
+    expect(result.data).toEqual({ ok: true });
+    expect(result.data).not.toHaveProperty("snapshot");
   });
 });

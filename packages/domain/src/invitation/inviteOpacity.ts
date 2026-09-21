@@ -20,47 +20,7 @@ import { canInviteToOccurrence } from './inviteEligibility';
  * invitee-state-dependent, because there is nothing else in the value to
  * leak. Widening `InviteOutcome` into an object with a second field would be
  * a visible, reviewable type change, not a silent regression.
- *
- * `planInviteWrite` is the separate, trusted-write-boundary-only function
- * that computes what to actually write, from the invitee's private
- * participation state. It is never combined into the same value as
- * `InviteOutcome` - the trusted write boundary calls it directly, using the
- * same `inviteeParticipationStatus` it already read to build the
- * `InviteRequest`, strictly after confirming `evaluateInvite` succeeded (a
- * rejection must never write anything). Keeping these as two independently
- * returned values, rather than one object with both fields, is what removes
- * the "accidentally serialize the whole result" leak this module used to
- * have.
  */
-
-/**
- * Whether a pending Invitation row should be created for this invite. This
- * is the only thing that differs across the three invitee-state branches
- * (see specs/001-occurrence-participation/spec.md Invitation Requirements):
- *
- * 1. no existing Participation row -> create (invitee's Participation is
- *    left untouched, no auto-`considering`)
- * 2. existing `considering` -> create (status untouched)
- * 3. existing `attending` -> do not create (invite is a no-op; the existing
- *    `attending` row is left exactly as-is)
- *
- * `createInvitation` is derived from the invitee's *private* participation
- * state, so it must stay on the trusted side of the opacity boundary and
- * never be forwarded to the inviter. Call this directly from the trusted
- * write boundary (after `evaluateInvite` has confirmed the invite is
- * eligible) - never route it through, or attach it to, `evaluateInvite`'s
- * return value. See the module-level comment above and `InviteOutcome`
- * below for the value that IS safe to report back to the inviter.
- */
-export interface InviteWritePlan {
-  readonly createInvitation: boolean;
-}
-
-export function planInviteWrite(
-  inviteeParticipationStatus: ParticipationStatus | null,
-): InviteWritePlan {
-  return { createInvitation: inviteeParticipationStatus !== 'attending' };
-}
 
 /**
  * The value reported back to the inviter on a successful invite. This type
@@ -96,10 +56,8 @@ export interface InviteRequest {
  * inviter-visible and branch-specific.
  *
  * This function's success value is `INVITE_OUTCOME` and nothing else - it
- * never touches `inviteeParticipationStatus`. Callers that need the actual
- * write plan (the trusted write boundary only) call `planInviteWrite`
- * separately once this has confirmed the invite is eligible; see the
- * module-level comment above.
+ * never touches `inviteeParticipationStatus`. The actual invitee-dependent
+ * write remains exclusively inside the trusted RPC boundary.
  */
 export function evaluateInvite(
   request: InviteRequest,
