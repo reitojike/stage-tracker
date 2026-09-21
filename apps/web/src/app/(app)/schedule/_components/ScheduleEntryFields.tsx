@@ -97,7 +97,7 @@ export function ScheduleEntryFields({
               ? "temporalMode-error"
               : undefined
           }
-          className="flex flex-col gap-2"
+          className="grid grid-cols-2 gap-2"
         >
           <RadioChip value="all-day">終日</RadioChip>
           <RadioChip value="time-bounded">時刻指定</RadioChip>
