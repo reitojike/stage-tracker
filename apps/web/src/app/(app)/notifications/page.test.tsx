@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import NotificationsPage from "./page";
 import NotificationsLoading from "./loading";
 
@@ -18,19 +18,42 @@ vi.mock("@/app/_lib/require-authenticated-user-id", () => ({
 
 vi.mock("@/lib/data/reads/notifications", () => ({
   listMyNotifications: (...args: unknown[]) => mockListMyNotifications(...args),
+  encodeNotificationCursor: (cursor: { createdAt: string; id: string }) =>
+    Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url"),
+  decodeNotificationCursor: (value: string | null | undefined) => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    try {
+      const parsed: unknown = JSON.parse(
+        Buffer.from(value, "base64url").toString("utf8"),
+      );
+      return parsed;
+    } catch {
+      return null;
+    }
+  },
 }));
 
 vi.mock("./_components/NotificationsList", () => ({
   NotificationsList: ({
     initialNotifications,
+    previousHref,
+    nextHref,
   }: {
     readonly initialNotifications: readonly { id: string }[];
+    readonly previousHref?: string;
+    readonly nextHref?: string;
   }) => (
-    <ul aria-label="お知らせ一覧">
-      {initialNotifications.map((notification) => (
-        <li key={notification.id}>{notification.id}</li>
-      ))}
-    </ul>
+    <>
+      <ul aria-label="お知らせ一覧">
+        {initialNotifications.map((notification) => (
+          <li key={notification.id}>{notification.id}</li>
+        ))}
+      </ul>
+      {previousHref ? <a href={previousHref}>前の50件</a> : null}
+      {nextHref ? <a href={nextHref}>次の50件</a> : null}
+    </>
   ),
 }));
 
@@ -51,16 +74,20 @@ describe("NotificationsPage", () => {
   it("renders the page heading and supplied populated window", async () => {
     mockListMyNotifications.mockResolvedValue({
       ok: true,
-      value: [
-        {
-          id: "22222222-2222-4222-8222-222222222222",
-          kind: "invitation_received",
-          sourceId: "33333333-3333-4333-8333-333333333333",
-          createdAt: "2026-09-17T00:00:00.000Z",
-          readAt: null,
-          source: { status: "resolved" },
-        },
-      ],
+      value: {
+        items: [
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            kind: "invitation_received",
+            sourceId: "33333333-3333-4333-8333-333333333333",
+            createdAt: "2026-09-17T00:00:00.000Z",
+            readAt: null,
+            source: { status: "resolved" },
+          },
+        ],
+        nextCursor: null,
+        hasPrevious: false,
+      },
     });
 
     const ui = await NotificationsPage();
@@ -75,11 +102,17 @@ describe("NotificationsPage", () => {
     expect(
       screen.getByText("22222222-2222-4222-8222-222222222222"),
     ).toBeInTheDocument();
-    expect(mockListMyNotifications).toHaveBeenCalledWith({});
+    expect(mockListMyNotifications).toHaveBeenCalledWith({}, null, {
+      before: null,
+      snapshot: null,
+    });
   });
 
   it("uses the canonical empty StatePanel copy", async () => {
-    mockListMyNotifications.mockResolvedValue({ ok: true, value: [] });
+    mockListMyNotifications.mockResolvedValue({
+      ok: true,
+      value: { items: [], nextCursor: null, hasPrevious: false },
+    });
 
     const ui = await NotificationsPage();
     render(ui);
@@ -141,6 +174,51 @@ describe("NotificationsPage", () => {
     expect(
       screen.queryByText("この招待はすでに終了しています。"),
     ).not.toBeInTheDocument();
+  });
+
+  it("exposes bounded older and previous-window navigation", async () => {
+    mockListMyNotifications.mockResolvedValue({
+      ok: true,
+      value: {
+        items: [
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            kind: "invitation_received",
+            sourceId: "33333333-3333-4333-8333-333333333333",
+            createdAt: "2026-09-17T00:00:00.000Z",
+            readAt: null,
+            source: { status: "resolved" },
+          },
+        ],
+        nextCursor: {
+          createdAt: "2026-09-17T00:00:00.000Z",
+          id: "22222222-2222-4222-8222-222222222222",
+        },
+        hasPrevious: true,
+      },
+    });
+
+    const firstUi = await NotificationsPage();
+    render(firstUi);
+    expect(screen.getByRole("link", { name: "次の50件" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("cursor="),
+    );
+    cleanup();
+
+    const olderUi = await NotificationsPage({
+      searchParams: Promise.resolve({
+        cursor:
+          "eyJjcmVhdGVkQXQiOiIyMDI2LTA5LTE3VDAwOjAwOjAwLjAwMFoiLCJpZCI6IjIyMjIyMjIyLTIyMjItNDIyMi04MjIyLTIyMjIyMjIyMjIyMiJ9",
+        snapshot:
+          "eyJjcmVhdGVkQXQiOiIyMDI2LTA5LTE3VDAwOjAwOjAwLjAwMFoiLCJpZCI6IjIyMjIyMjIyLTIyMjItNDIyMi04MjIyLTIyMjIyMjIyMjIyMiJ9",
+      }),
+    });
+    render(olderUi);
+    expect(screen.getByRole("link", { name: "前の50件" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("before="),
+    );
   });
 
   it("renders an unavailable StatePanel when auth is unavailable", async () => {
