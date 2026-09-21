@@ -10,8 +10,9 @@ import {
 import { HomeView } from "./_components/HomeView";
 
 /**
- * `/` home (`docs/v2/oracle-routes-ui.md` §1 `/`). Read-only - no Server
- * Action/mutation on this screen (this Task's scope).
+ * `/` home. Read-only - no Server Action/mutation on this screen (this
+ * Task's scope); cross-screen independent-read semantics are documented in
+ * `docs/ux-ui.md`.
  */
 export default async function HomePage() {
   const supabase = await createSupabaseServerClient();

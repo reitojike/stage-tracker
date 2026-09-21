@@ -63,8 +63,7 @@ export async function deleteActor(
 }
 
 /**
- * Grants designated catalog creator membership (product-rules.md "MVP
- * Event catalog write boundary"): an upsert into
+ * Grants designated catalog creator membership required by Spec 005: an upsert into
  * `public.catalog_creators`, never a hard-coded user id.
  */
 export async function grantCatalogCreator(

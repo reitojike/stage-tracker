@@ -8,8 +8,8 @@ import type { ReadError } from "./read-error";
 export type ReadResult<T> = Result<T, ReadError>;
 
 /**
- * `docs/v2/decisions.md`「M6 が負う責任」節が定義する StatePanel 向けの
- * 3状態 + `populated`（実データがあり、そもそも empty/error/unavailable
+ * StatePanel向けの3状態 + `populated`（実データがあり、そもそも
+ * empty/error/unavailable
  * パネルを描画しない状態）。
  *
  * ```

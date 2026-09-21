@@ -39,8 +39,10 @@ export interface InvitationListProps {
 }
 
 /**
- * `/catalog/invitations` の操作本体（`docs/v2/oracle-routes-ui.md` §2
- * 「Invitation 一覧」）。
+ * `/catalog/invitations` の操作本体。Invitation lifecycle and opacity
+ * semantics are owned by
+ * `specs/006-invitation-coordination-opacity/spec.md`; exact controls and
+ * presentation remain runtime-owned.
  *
  * - 「参加する」: 通常の participation write と同一の operation
  *   （`acceptInvitationAction`）。成功時、同一 occurrence への他の

@@ -3,8 +3,8 @@ import type { BaseActionErrorKind } from "@/lib/action-error";
 /**
  * Read boundary の失敗分類。
  *
- * `docs/v2/decisions.md` の M6 責務（「fetch 成功+0行 -> empty / fetch 失敗
- * -> error / 権限が無い・見えない -> unavailable」）を、書き込み系の
+ * Read failures are kept distinct: fetch成功+0行 -> empty / fetch失敗 -> error /
+ * 権限が無い・見えない -> unavailable. 書き込み系の
  * `ActionError`（`@/lib/action-error.ts`）が既に持つ共通 kind 語彙
  * （`BaseActionErrorKind`）を再利用して表現する。read 専用の別語彙は
  * 新設しない（このタスクの指示どおり）。
@@ -12,8 +12,7 @@ import type { BaseActionErrorKind } from "@/lib/action-error";
  * read で実際に起こり得るのはこの3種だけ:
  *
  * - `unauthenticated`: セッションが無い/期限切れ。PostgREST/GoTrue が
- *   HTTP 401 を返す場合（`docs/v2/oracle-database.md` §0 の SQLSTATE
- *   慣習には現れないが、`@supabase/supabase-js` は未認証呼び出しを
+ *   HTTP 401を返す場合（`@supabase/supabase-js`は未認証呼び出しを
  *   401 として返す）。
  * - `permission-denied`: RLS の table-level grant が無い、または
  *   Postgres が `42501`（insufficient_privilege）を投げる、明確な拒否。

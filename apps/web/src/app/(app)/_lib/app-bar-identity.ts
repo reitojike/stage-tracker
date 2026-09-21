@@ -9,8 +9,8 @@ export interface AppBarIdentity {
 const FALLBACK_INITIAL = "?";
 
 /**
- * `resolveMyPageAppBarIdentity()` (`docs/v2/oracle-routes-ui.md` §0): each
- * authenticated route's `layout.tsx` resolves the caller's email initial and
+ * `resolveMyPageAppBarIdentity()`: each authenticated route's `layout.tsx`
+ * resolves the caller's email initial and
  * `/mypage` href, purely to feed `AppShell`/`AppBar`'s presentational props
  * (`packages/ui/src/app-bar.tsx`). `/mypage` itself is out of this Task's
  * scope (only `/`, `/calendar`, `/catalog`, `/tickets` are implemented here),

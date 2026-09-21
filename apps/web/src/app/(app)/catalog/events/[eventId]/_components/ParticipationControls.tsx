@@ -48,8 +48,7 @@ function transitionFor(
 }
 
 /**
- * `docs/v2/oracle-routes-ui.md` §2 イベント詳細の participation 操作
- * （`attending`/`considering`/`withdraw`）。Sheet は presentation と
+ * Event detail の participation 操作（`attending`/`considering`/`withdraw`）。Sheet は presentation と
  * lifecycle だけを担当し、choice の即時保存と cancellation の判定は
  * この consumer が担当する。
  *

@@ -7,8 +7,7 @@ import { RegisterPasskeyButton } from "./RegisterPasskeyButton";
 
 /**
  * 未サインインでは表示自体をしない（呼び出し元の `page.tsx` 参照）。
- * `docs/v2/decisions.md`「M6 が負う責任」節どおり、読込失敗は必ず
- * `unavailable`/`error`（`StatePanel`）へ分類し、0件（empty文言）へ
+ * 読込失敗は必ず `unavailable`/`error`（`StatePanel`）へ分類し、0件（empty文言）へ
  * 誤変換しない。
  */
 export async function PasskeySection() {

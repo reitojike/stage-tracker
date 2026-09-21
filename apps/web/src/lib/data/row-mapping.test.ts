@@ -15,7 +15,7 @@ function mapRow(row: Row): Result<string, string> {
 }
 
 /**
- * A10 (`docs/v2/decisions.md`) の決定を検証する: mapper は throw せず、
+ * Mapperはthrowせず、
  * 1件でも mapping に失敗したら bulk 全体を `failure` として返し、
  * 失敗行だけをサイレントに間引かない。
  */

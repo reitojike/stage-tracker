@@ -3,8 +3,7 @@ import { readError } from "./read-error";
 import type { ReadResult } from "./read-result";
 
 /**
- * A10 (`docs/v2/decisions.md`): pre-v2 の `mapXRow` 系は pure boundary 内で
- * `throw` していた（zod の `.parse()` を使っていたため）。周囲が全て
+ * Pure row mappingは`throw`せず、周囲が全て
  * `Result` 規約なのに、ここだけ例外が boundary を突き破っていた。
  *
  * v2 の決定: 個々の row mapper は **決して throw しない**契約にする

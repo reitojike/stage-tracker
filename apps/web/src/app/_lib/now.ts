@@ -9,11 +9,7 @@ import {
  * The single clock-read boundary shared by every screen implemented in this
  * Task (`/`, `/calendar`, `/catalog`, `/tickets`).
  *
- * `docs/v2/decisions.md` A6 records that the legacy app read "now" via a
- * `_lib/today.ts`/`_lib/now.ts` duplicated per route (an intentional
- * consequence of keeping `@stage-tracker/domain` clock-free) and flags
- * "clock 境界を1箇所に集約し直す" as the v2 technical judgment. This Task's
- * edit scope is limited to `apps/web/src/app/**`, so this file is that single
+ * The domain package stays clock-free, so this file is the single application
  * collection point for the 4 screens built here (a screen-loader takes
  * `ScreenNow` as an explicit parameter and never reads the clock itself,
  * which is also what keeps the loaders unit-testable with a fixed "now"

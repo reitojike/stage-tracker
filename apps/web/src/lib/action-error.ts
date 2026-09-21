@@ -9,7 +9,8 @@ import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
  * （participation/invitation/personal schedule/ticket opportunity 共通。
  * `unauthenticated`/`not-found`/`permission-denied`/`validation`/
  * `failure` の5種）という、由来の異なる2つの Result 型に分裂している
- * （`docs/v2/oracle-domain.md` §7、`docs/v2/decisions.md` A9）。
+ * This module keeps those result families in the shared current application
+ * vocabulary.
  *
  * v2 ではこれを1つの共通語彙へ統一する。base kind は `PlanningErrorKind`
  * の5種をそのまま採用する（`EventCatalogWriteErrorKind` の
@@ -36,8 +37,7 @@ export const BASE_ACTION_ERROR_KINDS = [
   /** 対象リソースが存在しない、または RLS 上見えない。 */
   "not-found",
   /** 権限が無い。真の権限判定は DB（RLS/RPC）が行い、action はその結果を
-   * この kind へ変換するだけで、自ら権限判定はしない
-   * （`docs/v2/oracle-domain.md` §3 冒頭の設計判断を維持する）。 */
+   * この kind へ変換するだけで、自ら権限判定はしない。 */
   "permission-denied",
   /** スキーマ形状では表現できない業務的な入力エラー
    * （next-safe-action 自身のスキーマ検証エラーとは別の経路）。 */
@@ -47,7 +47,7 @@ export const BASE_ACTION_ERROR_KINDS = [
    * 理由という点で `validation` とは区別する（Issue #500）。 */
   "occurrence-canceled",
   /** 5xx・レート制限・ネットワーク断等、分類できない/一時的な失敗。
-   * `unauthenticated` と明確に区別する（`docs/v2/oracle-domain.md` §2.13）。 */
+   * `unauthenticated` と明確に区別する。 */
   "failure",
 ] as const;
 

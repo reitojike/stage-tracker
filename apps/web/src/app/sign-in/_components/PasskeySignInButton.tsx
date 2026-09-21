@@ -11,9 +11,10 @@ import {
 } from "@/lib/passkey-ceremony-error";
 
 /**
- * `docs/v2/oracle-routes-ui.md:49` `/sign-in`「サインイン（Passkey優先＋
- * Magic Linkフォールバック）...Passkeyは Server Action ではなくブラウザ
- * 直接 `supabase.auth.signInWithPasskey()`」（Issue #406）。
+ * Authentication semantics, including the Passkey/Magic Link fallback, are
+ * owned by `specs/009-authentication-account-access/spec.md`. The browser
+ * ceremony is intentionally performed through the client Supabase API rather
+ * than a Server Action.
  *
  * Passkey capability は shared browser factory が所有するため、ceremony
  * ごとに同じ factory から client を取得する。

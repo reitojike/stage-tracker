@@ -12,8 +12,7 @@ import { parseTokyoDateTimeLocal } from "./tokyo-form";
 
 /**
  * Event/Occurrence 書き込みフォームの純粋な validation ロジック
- * （zod に依存しない）。`docs/v2/decisions.md` A12「Zod schema を入力契約に
- * すれば層ごと不要」の方針どおり、実際の schema wiring（`./eventSchemas.ts`）
+ * （zod に依存しない）。実際の schema wiring（`./eventSchemas.ts`）
  * は本モジュールが返す field-keyed error を `ctx.addIssue` へ渡すだけの
  * 薄い adapter にする。フォーマット/相互整合性チェックはここに集約する。
  *

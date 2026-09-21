@@ -20,8 +20,9 @@ const inviteToOccurrenceInputSchema = z.object({
 });
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細の
- * `inviteToOccurrenceAction`。
+ * Event-detail `inviteToOccurrenceAction` boundary. Invitation lifecycle and
+ * opacity semantics are owned by Spec 006; this action owns the exact action
+ * wiring.
  *
  * **opacity**: 成功時に返すのは `./invitation.ts` の
  * `inviteToOccurrenceByEmail` が返す `InviteOutcome`

@@ -8,7 +8,7 @@ import {
 
 /**
  * このタスクで最も重要なテスト（タスク指示の「受け入れ条件」節）:
- * `docs/v2/decisions.md`「M6 が負う責任」の3状態分類が正しいこと。
+ * current read boundaryの3状態分類が正しいこと。
  *
  * ```
  * fetch 成功 + 0 行   -> empty
