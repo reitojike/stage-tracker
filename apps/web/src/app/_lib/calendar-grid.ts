@@ -4,8 +4,7 @@ import {
 } from "@stage-tracker/domain";
 
 /**
- * Month-grid calendar arithmetic shared by `/calendar` and `/catalog` (both
- * render a month calendar per `docs/v2/oracle-routes-ui.md` §2). This is
+ * Month-grid calendar arithmetic shared by `/calendar` and `/catalog`. This is
  * deliberately *not* in `@stage-tracker/domain`: it is UI-layer "which cells
  * does a calendar grid need" arithmetic, not a product invariant - unlike
  * `@stage-tracker/domain`'s `TokyoCalendarDate` parsing (which exists to

@@ -6,9 +6,8 @@ import { resolveMyPageAppBarIdentity } from "./_lib/app-bar-identity";
 
 /**
  * Shared `layout.tsx` for authenticated screens under the `(app)` route group.
- * `docs/v2/oracle-routes-ui.md`
- * §0 describes each route segment's `layout.tsx` as an identical, minimal
- * Server Component that resolves the AppBar identity and renders
+ * Each route segment uses an identical, minimal Server Component that
+ * resolves the AppBar identity and renders
  * `AppShell` - the legacy app duplicated this file once per route folder
  * (a consequence of not having used a route group there). This Task uses a
  * single Next.js route group (`(app)`) instead so the 4 pages below share
@@ -18,7 +17,7 @@ import { resolveMyPageAppBarIdentity } from "./_lib/app-bar-identity";
  * they keep using only the bare root `layout.tsx` (no AppShell chrome, no
  * PrimaryNav) - matching the oracle's "未認証面で nav を隠す" requirement
  * without needing a `showPrimaryNav={false}` prop threaded through those
- * pages.
+ * pages. The authenticated route group owns the shared chrome boundary.
  */
 export default async function AppShellLayout({
   children,

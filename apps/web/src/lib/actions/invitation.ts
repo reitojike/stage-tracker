@@ -18,11 +18,11 @@ import {
 } from "./postgrest-error";
 
 /**
- * invite の書き込み core（`docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細
- * の `inviteToOccurrenceAction`）。
+ * invite の書き込み core。Invitation lifecycle and opacity semantics are
+ * owned by `specs/006-invitation-coordination-opacity/spec.md`; this module
+ * owns the exact write mechanics.
  *
- * **opacity boundary（specs/001-occurrence-participation/spec.md の Invitation Requirements、`docs/v2/decisions.md`
- * 「v2実装で踏んではいけない地雷」）**: invitee の private な participation
+ * **opacity boundary**: invitee の private な participation
  * 状態が inviter へ漏れる経路を作らないこと。この関数が inviter へ返す
  * 成功値は `@stage-tracker/domain` の `evaluateInvite` が返す
  * `InviteOutcome`（`'invite-sent'` という単一リテラル型）そのものであり、
@@ -71,8 +71,8 @@ function classifyInviteRpcError(
       message: "この公演回は中止されているため、招待できません。",
     };
   }
-  // `docs/v2/decisions.md` A8: message match をしない。事前チェック
-  // (`evaluateInvite`) を通過した後に RPC 自身が拒否するのは、
+  // Error-message matchingはしない。事前チェック (`evaluateInvite`) を
+  // 通過した後に RPC 自身が拒否するのは、
   // self-invite/inviter-not-attending の再チェックが引っかかる race
   // くらいで、いずれも custom SQLSTATE を持たない generic exception
   // （`20260830000000_simplify_invitation_pending_only.sql`）。区別する

@@ -50,14 +50,15 @@ export interface HomeViewProps {
 }
 
 /**
- * `/` home's presentational layer (`docs/v2/oracle-routes-ui.md` §2
- * 「ホーム」). Takes both blocks' already-classified state as props - this
+ * `/` home's presentational layer. The cross-screen independent-read
+ * convention is documented in `docs/ux-ui.md`; this component takes both
+ * blocks' already-classified state as props - it
  * component makes no `empty`/RLS judgment of its own, it only chooses which
  * `StatePanel` variant/copy to show for a variant it is handed
- * (`docs/v2/decisions.md` "M6 が負う責任" - that judgment belongs to
- * `../_lib/home-loader.ts`, already made before this component ever runs).
+ * (that judgment belongs to `../_lib/home-loader.ts`, already made before this
+ * component ever runs).
  *
- * The 2 blocks are rendered independently (`docs/v2/decisions.md` P4): a
+ * The 2 blocks are rendered independently: a
  * failure in one never prevents the other from rendering its own state. The
  * *only* place the 2 blocks' states are compared against each other is the
  * "both empty -> 1 merged empty panel" rule below - `unavailable`/`error` is

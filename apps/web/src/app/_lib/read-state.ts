@@ -21,9 +21,8 @@ import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
  * `apps/web/src/lib/data/` per this Task's constraint that directory must not
  * change.
  *
- * `docs/v2/decisions.md` P4 ("エラー表示は「read ごとに独立して劣化」へ統一
- * する") is a **read-granularity** decision: each independent read degrades
- * on its own, never forcing a sibling read's data to disappear because of an
+ * Each independent read degrades on its own, never forcing a sibling read's
+ * data to disappear because of an
  * unrelated failure. `/calendar`'s 2 fully-independent loaders
  * (`../calendar/_lib/calendar-loader.ts`) already apply this literally (2
  * separate `BlockState`s, each backed by exactly 1 read via
@@ -199,7 +198,7 @@ export type MergedListBlockState<T> =
  * than hiding everything because of an unrelated read's failure - this is
  * the concrete fix for PR #381 review finding 1 (the block previously
  * failed outright whenever *either* read failed, contradicting both this
- * combinator's own callers' doc comments and `docs/v2/decisions.md` P4).
+ * combinator's own callers' doc comments).
  *
  * When exactly 1 read fails, this reports `variant: "partial"` -
  * deliberately never `"empty"`, even if the surviving read's own data is an

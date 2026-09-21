@@ -2,8 +2,7 @@
  * `next-safe-action` の `useAction`/`useAction().result.validationErrors` は
  * zod の `.format()` に似た tree 形状（`{ field: { _errors: string[] } }`）
  * を返す。Client Component からフィールド単位のエラー文言を取り出すための
- * 共有 helper（`docs/v2/decisions.md` A12: 手書き `FieldErrors` reader を
- * 増やさない —— schema 側で `path` を明示した issue をそのまま読むだけの
+ * 共有 helper。schema側で `path` を明示した issue をそのまま読むだけの
  * 薄い adapter）。
  *
  * 型を厳密に絞り込まず `unknown` から安全に読む: `.transform()` を含む

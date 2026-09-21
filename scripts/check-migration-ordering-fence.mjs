@@ -11,7 +11,7 @@ import {
 // ("runtime-first-required" - which also requires a "Runtime dependency
 // deployed: <evidence>" line - merging the dependency is not enough, since
 // Vercel's deploy is asynchronous), per docs/architecture/runtime-stack.md
-// "デプロイ・実行経路" and docs/v2/decisions.md "A8 追補". This cannot verify
+// "デプロイ・実行経路". This cannot verify
 // that the declared runtime dependency was actually deployed first - this
 // job has no Production credentials by design (see runtime-stack.md
 // "Environment Variables の所有境界") - it only prevents the ordering

@@ -1,4 +1,4 @@
-// PO 判断 D1 = D（`docs/v2/decisions.md`）の deterministic fence。
+// Deterministic artifact-sequencing fence。
 //
 // **migration と、deploy に届く artifact を同一 PR に含めない。**
 //
@@ -21,8 +21,7 @@
 // column を足す変更では migration が先でよいが、**DB が出す値を変える変更
 // （error code 等）では runtime が先**になる。`raise ... using errcode` は
 // 1 つの値しか持てず、「新旧どちらの code も出す」という DB 側だけの expand が
-// 原理的にできないため、読む側を先に広げるしかない（PR #389 / #392 で実際に
-// 間違えた。`docs/v2/decisions.md`「A8 追補」）。
+// 原理的にできないため、読む側を先に広げるしかない（過去の migration incident）。
 //
 // したがってこの checker のメッセージは順序を指示しない。**artifact を分ける
 // ことだけを要求する。**
@@ -91,9 +90,7 @@ const ALLOWED_ALONGSIDE_PATTERNS = [
   // 文書。deploy されない
   /^docs\//,
 
-  // DB/RLS integration test。`docs/v2/decisions.md` が
-  // 「PR A — Expand: migration + DB tests だけ」と定めているので、
-  // migration の回帰テストは同居できなければならない
+  // DB/RLS integration test。migrationの回帰テストは同居できなければならない
   /^test\/rls\//,
 
   // `supabase/config.toml` / `supabase/seed.sql` は意図的に入れていない。

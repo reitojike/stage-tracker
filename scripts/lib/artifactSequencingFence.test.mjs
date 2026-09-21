@@ -20,7 +20,7 @@ describe('evaluateArtifactSequencingFence', () => {
       MIGRATION,
       'supabase/tests/11_x_test.sql',
       'test/rls/personalSchedule.test.ts',
-      'docs/v2/decisions.md',
+      'docs/runbooks/pre-pr-verification.md',
     ]);
     assert.equal(r.ok, true);
     assert.equal(r.migrations.length, 1);

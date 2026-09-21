@@ -11,19 +11,18 @@
 // Supabase migration apply lagged the Vercel auto-deploy, so the new code
 // ran against a schema that didn't have it yet. The Artifact Sequencing
 // Fence (scripts/lib/artifactSequencingFence.mjs, Issue #387 PO 判断
-// D1 = D) rejects any *single* PR that puts a migration and deployable app
+// rejects any *single* PR that puts a migration and deployable app
 // code together, but it does **not** guarantee merge order *across* two
-// separate PRs (docs/v2/decisions.md "D が保証しないこと（残存リスク）") -
+// separate PRs -
 // an app-code-only PR can still be merged before the migration PR it
 // depends on, reproducing the same failure. That residual risk is still a
 // reviewer-discipline concern - but for the *dependent* app-code PR's
-// reviewer (docs/v2/decisions.md: "依存する側の PR をレビューする際に相手側
-// が既に land / 適用済みかを確認する"), confirming the migration it needs
+// reviewer, confirming the migration it needs
 // has already landed and applied, not the other way around; this fence does
 // not attempt to gate it mechanically (Issue #393 Out of Scope: no cross-PR
 // merge-order gate, per PR #388's 4-round failure).
 //
-// PR #389 (docs/v2/decisions.md "A8 追補") showed the second, opposite
+// A schema-to-code incident showed the second, opposite
 // direction: **schema → code**. The migration itself changed a value that
 // *already-deployed* code reads (an `error.code` emitted by a RPC), and the
 // already-deployed reader (`apps/web`'s `classifyRpcError`) gated on the old
@@ -41,8 +40,7 @@
 // was actually deployed (CI has no Production credentials for this job by
 // design; see docs/architecture/runtime-stack.md "Environment Variables の
 // 所有境界"), only that the judgment and its evidence were recorded.
-// Judgment *correctness* is the reviewer's job (docs/v2/decisions.md "fence
-// が判定すること / しないこと"); this fence only prevents the judgment from
+// Judgment *correctness* is the reviewer's job; this fence only prevents the judgment from
 // being silently skipped.
 
 const MIGRATION_DIR = 'supabase/migrations/';

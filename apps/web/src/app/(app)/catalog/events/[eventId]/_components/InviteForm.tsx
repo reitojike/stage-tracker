@@ -19,12 +19,11 @@ export interface InviteFormProps {
 }
 
 /**
- * `docs/v2/oracle-routes-ui.md` §2 イベント詳細の招待フォーム
- * （legacy の `InviteSheet` 相当）。Sheet は presentation と lifecycle
- * だけを担当し、招待 action と opacity semantics はこの consumer が持つ。
+ * Sheet は presentation と lifecycleだけを担当し、招待 actionとopacity
+ * semanticsはこの consumerが持つ。Invitation semantics are owned by
+ * `specs/006-invitation-coordination-opacity/spec.md`.
  *
- * **opacity（specs/001-occurrence-participation/spec.md の Invitation Requirements、`docs/v2/decisions.md`「踏んでは
- * いけない地雷」）**: 成功時は invitee の3分岐（行なし/considering/
+ * **opacity**: 成功時は invitee の3分岐（行なし/considering/
  * attending）によらず常に同一の文言・同一のタイミングで完了する。
  * `inviteToOccurrenceAction` が返す成功値は `@stage-tracker/domain` の
  * `InviteOutcome`（`'invite-sent'` の単一リテラル）だけであり、

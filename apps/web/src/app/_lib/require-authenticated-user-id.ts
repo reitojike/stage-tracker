@@ -3,8 +3,8 @@ import { err, ok, userIdSchema, type UserId } from "@stage-tracker/domain";
 import { readError, type ReadResult } from "@/lib/data";
 
 /**
- * Page-level "二次チェック" (`docs/v2/oracle-routes-ui.md` §0 / §1 `/`):
- * `proxy.ts`'s default-deny middleware is the primary auth boundary, but
+ * Page-level second check: `proxy.ts`'s default-deny middleware is the primary
+ * auth boundary, but
  * each page re-confirms the session itself and renders an
  * `unavailable`/`error` panel instead of a redirect when it fails ("失敗時は
  * redirect せず error パネル表示"). This is display-only, same as

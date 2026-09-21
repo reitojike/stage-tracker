@@ -120,8 +120,8 @@ function opportunityRow(overrides: Record<string, unknown> = {}) {
 /**
  * `listTicketOpportunities`（shared catalog）と
  * `listMyTicketOpportunityStates`（personal, own only）は
- * `docs/v2/decisions.md` P4「read ごとに独立して劣化」に従い意図的に
- * 分離している（`./tickets.ts` の docstring）。ここではその独立性を、
+ * 独立した read として意図的に分離している（`./tickets.ts` の docstring）。
+ * ここではその独立性を、
  * 片方が失敗しても他方の分類結果に影響しないことで検証する。
  */
 describe("listTicketOpportunities (shared catalog)", () => {

@@ -69,5 +69,7 @@ for (const f of result.blocked) console.error(`    ${f}`);
 console.error('');
 console.error(result.reason);
 console.error('');
-console.error('See docs/v2/decisions.md (PO 判断: D1 = D) for why this is enforced.');
+console.error(
+  'This fence intentionally requires migration and deployable artifacts to be separated.',
+);
 process.exit(1);

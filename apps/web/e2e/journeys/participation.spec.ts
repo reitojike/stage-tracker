@@ -47,10 +47,9 @@ test("participation: register attending for an occurrence, then withdraw", async
   try {
     await completeMagicLinkSignIn(page, actor.email);
 
-    // `/catalog`'s month landing has no flat per-event list (M8 Catalog
-    // parity fix: this Task's own `docs/v2/oracle-domain.md` §2.9/§2.10
-    // port removed it to match legacy's own CatalogView, which never had
-    // one either) - the event link only appears once a day is selected.
+    // `/catalog`'s month landing has no flat per-event list. Historical M8
+    // parity provenance: the port removed it to match legacy's own CatalogView,
+    // which never had one either. The event link only appears once a day is selected.
     await page.goto(`/catalog?date=${tokyoDate}`);
     await page.getByRole("link", { name: title }).click();
     await expect(page.getByRole("heading", { name: title })).toBeVisible();

@@ -21,8 +21,8 @@ vi.mock("@/lib/supabase/browser", () => ({
 
 describe("PasskeySignInButton", () => {
   it("redirects to / and refreshes on a successful ceremony", async () => {
-    // Issue #406: oracle-routes-ui.md:49 の Passkey サインイン導線が
-    // 実際に配線されていることを確認する regression test。
+    // Issue #406で導入したPasskeyサインイン導線が実際に配線されている
+    // ことを確認する regression test。
     signInWithPasskey.mockResolvedValueOnce({ data: {}, error: null });
     const user = userEvent.setup();
 

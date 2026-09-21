@@ -49,8 +49,8 @@ import {
 //
 // Dry run is the default. Nothing is written without --apply. Unlike
 // import-catalog-events.mjs, no --owner is required: a TicketOpportunity
-// has no owner concept (product-rules.md "Ticket Opportunity" /
-// "Shared / personal authority boundary").
+// has no owner concept in the current TicketOpportunity planning model; this
+// script only imports the shared planning rows and never accepts --owner.
 
 const args = process.argv.slice(2);
 const remote = args.includes('--remote');

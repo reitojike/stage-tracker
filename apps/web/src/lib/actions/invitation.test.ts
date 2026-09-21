@@ -44,8 +44,7 @@ function mockEligibleInviter() {
 
 describe("inviteToOccurrenceByEmail — opacity", () => {
   /**
-   * The core of specs/001-occurrence-participation/spec.md's Invitation opacity requirement and
-   * `docs/v2/decisions.md`'s "踏んではいけない地雷": the inviter must not be
+   * Spec 006's Invitation opacity requirement: the inviter must not be
    * able to tell which of the 3 invitee-state branches
    * (no row / considering / attending) the DB actually took. Since this
    * module never reads the invitee's participation at all — the RPC

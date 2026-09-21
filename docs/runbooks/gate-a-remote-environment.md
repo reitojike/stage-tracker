@@ -249,7 +249,7 @@ the hosted project」の手動手順は、この自動 workflow が使えない�
 **Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
 migration と app code の同一 PR 同居を拒否する**ため、migration PR 自身に
 app code が同居することはありません。ただし**これは PR をまたぐ merge
-順序までは保証しません**（docs/v2/decisions.md「D が保証しないこと
+順序までは保証しません**（historical decision record: docs/v2/decisions.md「D が保証しないこと
 （残存リスク）」）。新しいビルドが直ちに参照する migration を別 PR に
 分離した場合、その migration PR が app code PR より先に merge・適用済み
 であることを、app code PR の reviewer が確認してください。これを怠ると
@@ -267,7 +267,7 @@ migration PR 自身については、逆方向（schema → code）を判断し�
   なりません。**merge しただけでは不十分です** — Vercel の deploy は
   非同期で、merge 直後は build 中・待機中・失敗のいずれもあり得ます
   （PR #389 は当時この判断を誤り、後から runtime 側の PR #392 を先に
-  merge・deploy して是正した実例です。詳細は docs/v2/decisions.md
+  merge・deploy して是正した実例です。詳細は historical decision record（docs/v2/decisions.md）
   「A8 追補」）。
 
 PR 本文には `Migration ordering: additive` または `Migration ordering:

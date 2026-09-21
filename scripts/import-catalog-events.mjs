@@ -441,7 +441,8 @@ for (const entry of entries) {
   // Ownership is never rewritten. If a seed file is applied against an
   // event someone else owns, that is a mistake to surface, not to silently
   // correct - and owner transfer is not a product operation
-  // (product-rules.md), so this script must not become one.
+  // This import path does not provide an owner-transfer operation, so it must
+  // not silently rewrite ownership.
   if (existing.owner_id !== owner.id) {
     fail(
       `${entry.sourceKey} already exists and is owned by ${existing.owner_id}, not ${ownerEmail} (${owner.id}). Refusing to touch it.`,

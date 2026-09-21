@@ -1,8 +1,8 @@
 /**
  * read boundary（M6a）の barrel export。
  *
- * `docs/v2/decisions.md`「M6 が負う責任: StatePanel の 3 状態を正しく
- * 分類すること」を実装する層。すべての read が `ReadResult`（`Result`）を
+ * This layer classifies read failures without collapsing them into empty data.
+ * すべての read が `ReadResult`（`Result`）を
  * 返し、権限起因の失敗を空の成功へ潰さない。詳細は各ファイルの docstring
  * を参照。
  */

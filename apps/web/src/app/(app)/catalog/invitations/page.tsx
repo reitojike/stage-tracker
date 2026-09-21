@@ -10,8 +10,8 @@ import { catalogMonthHref } from "../_lib/catalog-links";
 import { InvitationList } from "./_components/InvitationList";
 
 /**
- * 自分宛 pending Invitation 一覧（`docs/v2/oracle-routes-ui.md` §1/§2
- * `/catalog/invitations`）。
+ * 自分宛 pending Invitation 一覧。Invitation lifecycle semantics are owned
+ * by Spec 006; this route owns the current read and presentation mechanics.
  */
 export default async function InvitationsPage() {
   const backHref = catalogMonthHref(

@@ -4,7 +4,7 @@ const purityMessage =
   'packages/domain must stay pure: no I/O, no framework/provider dependency. See the package architecture boundary.';
 
 const clockMessage =
-  'packages/domain must stay clock-free: accept "now" as a parameter instead of reading the current time (see docs/v2/decisions.md A6).';
+  'packages/domain must stay clock-free: accept "now" as a parameter instead of reading the current time.';
 
 export default [
   ...projectTypeScriptQualityProfile(),

@@ -85,7 +85,7 @@ flowchart LR
    migration と app code の**同一 PR 同居**を拒否しているため、「この PR
    自身のコードが、まだ Production に無い schema を必要とする」状態は
    単一 PR の中ではもう作れません。**ただし PR をまたぐ merge 順序までは
-   保証しません**（docs/v2/decisions.md「D が保証しないこと（残存
+   保証しません**（historical decision record: docs/v2/decisions.md「D が保証しないこと（残存
    リスク）」）。新しい build が直ちに参照する migration を分離した場合、
    その migration PR が app code PR より先に merge・適用済みであることを、
    app code PR の reviewer が確認する運用は引き続き必要です
@@ -100,7 +100,7 @@ flowchart LR
      なければなりません。**merge だけでは不十分です** — Vercel の deploy
      は非同期で、merge 直後は build 中・待機中・失敗のいずれもあり得ます。
      下記の ordering fence ではこれを `runtime-first-required` と呼びます
-     （Issue #393、docs/v2/decisions.md「A8 追補」）。
+     （Issue #393、historical decision record: docs/v2/decisions.md「A8 追補」）。
 
 `docs/runbooks/gate-a-remote-environment.md` の「Deploy / update」節が、この
 判断基準の canonical な記述です。
@@ -152,10 +152,10 @@ recurring failure になったため、次の 2 段構えの deterministic fence
 その後 Issue #387（PO 判断 D1 = D）で Artifact Sequencing Fence が
 migration と app code の**同一 PR** 同居を拒否するようになった。これは
 code → schema 方向の事故を単一 PR 内では防ぐが、**PR をまたぐ merge 順序は
-保証しない**（docs/v2/decisions.md「D が保証しないこと（残存リスク）」。
+保証しない**（historical decision record: docs/v2/decisions.md「D が保証しないこと（残存リスク）」。
 PO 判断 D 自身が、この機械的な gate を作らないという判断である）。
 一方 PR #389 は逆方向（schema → code: migration 自体が既存 deploy 済み
-コードを壊す）で実際に P1 を出した（docs/v2/decisions.md「A8 追補」）。
+コードを壊す）で実際に P1 を出した（historical decision record: docs/v2/decisions.md「A8 追補」）。
 **当時の語彙にこの方向を表す言葉が無かった**ため、Issue #393 で語彙を
 schema → code 方向へ置き換えた。code → schema 方向の判断は、この fence の
 marker ではなく、依然として reviewer の運用規律が担う。
@@ -186,7 +186,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
    だけを見る）、宣言した runtime 依存が実際に deploy 済みかを検証
    できない — 検証できるのは「その判断が PR evidence として記録されて
    いるか」だけである。判断の正しさは reviewer が担う
-   （docs/v2/decisions.md「fence が判定すること / しないこと」）。
+   （historical decision record: docs/v2/decisions.md「fence が判定すること / しないこと」）。
    `SUPABASE_DB_URL` を下記 3 の workflow 専用の CI secret として追加した
    Issue #387 の判断は、この job（`Verify / Migration Ordering Fence`）
    自体には影響しない。
@@ -221,7 +221,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
    `main` に限定される（`docs/runbooks/v2-migration-apply-setup.md`）。
    pending 以外（remote-only / unknown）を検知した場合は書き込まずに stop
    し、適用後も同じ classify 経路で `skip` を再確認する（詳細は runbook と
-   `docs/v2/decisions.md` の A8 追補）。deploy の起動・抑止には一切関与せず、
+   historical decision record（docs/v2/decisions.md の A8 追補）。deploy の起動・抑止には一切関与せず、
    Vercel の Git auto-deploy とは独立に動く。
 
 ## Environment Variables の所有境界

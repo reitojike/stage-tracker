@@ -30,8 +30,8 @@ vi.mock("@/app/_lib/now", () => ({
 }));
 
 /**
- * 受け入れ条件「StatePanel の 3 状態」の検証。`docs/v2/decisions.md`
- * 「M6 が負う責任」節どおり、fetch 失敗 -> error、権限が無い -> unavailable、
+ * 受け入れ条件「StatePanel の 3 状態」の検証。fetch 失敗 -> error、
+ * 権限が無い -> unavailable、
  * 0件 -> empty を正しく描画すること（DB を使わない - read boundary の結果を
  * モックする）。
  */
