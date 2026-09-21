@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareTokyoCalendarDates,
+  decomposeTokyoCalendarDate,
+  differenceTokyoCalendarDates,
   isTokyoCalendarDateWithinRange,
   tokyoCalendarDateSchema,
+  tokyoCalendarDateToUtcFieldMs,
   tokyoCalendarDatesAreEqual,
 } from './tokyoCalendarDate';
 
@@ -75,6 +78,43 @@ describe('compareTokyoCalendarDates / tokyoCalendarDatesAreEqual', () => {
     const a = tokyoCalendarDateSchema.parse('2026-01-01');
     expect(tokyoCalendarDatesAreEqual(a, a)).toBe(true);
     expect(compareTokyoCalendarDates(a, a)).toBe(0);
+  });
+});
+
+describe('TokyoCalendarDate decomposition and day arithmetic', () => {
+  it('decomposes only an already-validated date into numeric components', () => {
+    expect(decomposeTokyoCalendarDate(tokyoCalendarDateSchema.parse('0026-01-02'))).toEqual({
+      year: 26,
+      month: 1,
+      day: 2,
+    });
+  });
+
+  it('keeps the safe UTC-field representation across the 0-99 year range', () => {
+    const before = tokyoCalendarDateSchema.parse('0099-12-31');
+    const after = tokyoCalendarDateSchema.parse('0100-01-01');
+
+    expect(differenceTokyoCalendarDates(before, after)).toBe(1);
+    expect(differenceTokyoCalendarDates(after, before)).toBe(-1);
+    expect(tokyoCalendarDateToUtcFieldMs(after) - tokyoCalendarDateToUtcFieldMs(before)).toBe(
+      86_400_000,
+    );
+  });
+
+  it.each([
+    ['same date', '2026-01-01', '2026-01-01', 0],
+    ['consecutive ordinary dates', '2026-01-01', '2026-01-02', 1],
+    ['month boundary', '2026-01-31', '2026-02-01', 1],
+    ['year boundary', '2026-12-31', '2027-01-01', 1],
+    ['leap-day boundary', '2028-02-28', '2028-02-29', 1],
+    ['after leap day', '2028-02-29', '2028-03-01', 1],
+  ])('%s has the expected whole-day difference', (_label, from, to, expected) => {
+    expect(
+      differenceTokyoCalendarDates(
+        tokyoCalendarDateSchema.parse(from),
+        tokyoCalendarDateSchema.parse(to),
+      ),
+    ).toBe(expected);
   });
 });
 

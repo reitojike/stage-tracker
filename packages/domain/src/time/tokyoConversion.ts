@@ -1,6 +1,10 @@
 import { dateUtcRoundTripMs } from './dateUtcRoundTrip';
 import { epochMsToInstant, instantToEpochMs, type Instant } from './instant';
-import { tokyoCalendarDateSchema, type TokyoCalendarDate } from './tokyoCalendarDate';
+import {
+  tokyoCalendarDateSchema,
+  tokyoCalendarDateToUtcFieldMs,
+  type TokyoCalendarDate,
+} from './tokyoCalendarDate';
 import { err, ok, type Result } from '../result';
 
 /**
@@ -14,28 +18,6 @@ import { err, ok, type Result } from '../result';
  * differed) and why that assumption is safe for this product.
  */
 export const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-const TOKYO_CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
-
-function decomposeTokyoCalendarDate(date: TokyoCalendarDate): {
-  year: number;
-  month: number;
-  day: number;
-} {
-  const match = TOKYO_CALENDAR_DATE_PATTERN.exec(date);
-  if (match === null) {
-    throw new Error(
-      'unreachable: TokyoCalendarDate is guaranteed valid by tokyoCalendarDateSchema',
-    );
-  }
-  const [, yearStr, monthStr, dayStr] = match;
-  if (yearStr === undefined || monthStr === undefined || dayStr === undefined) {
-    throw new Error(
-      'unreachable: TokyoCalendarDate is guaranteed valid by tokyoCalendarDateSchema',
-    );
-  }
-  return { year: Number(yearStr), month: Number(monthStr), day: Number(dayStr) };
-}
 
 /** Reads an `Instant`'s Asia/Tokyo local calendar date (fixed +9h offset, see above). */
 export function instantToTokyoCalendarDate(instant: Instant): TokyoCalendarDate {
@@ -55,21 +37,7 @@ export interface TokyoCalendarDayUtcRange {
 }
 
 export function tokyoCalendarDayRangeUtc(date: TokyoCalendarDate): TokyoCalendarDayUtcRange {
-  const { year, month, day } = decomposeTokyoCalendarDate(date);
-  const localMidnightMs = dateUtcRoundTripMs({
-    year,
-    month,
-    day,
-    hour: 0,
-    minute: 0,
-    second: 0,
-    millisecond: 0,
-  });
-  if (localMidnightMs === null) {
-    throw new Error(
-      'unreachable: TokyoCalendarDate is guaranteed valid by tokyoCalendarDateSchema',
-    );
-  }
+  const localMidnightMs = tokyoCalendarDateToUtcFieldMs(date);
   const startMs = localMidnightMs - TOKYO_OFFSET_MS;
   return {
     startInstant: epochMsToInstant(startMs),
