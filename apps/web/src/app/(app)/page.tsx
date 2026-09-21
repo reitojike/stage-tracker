@@ -19,10 +19,9 @@ export default async function HomePage() {
   const userResult = await requireAuthenticatedUserId(supabase);
 
   if (!userResult.ok) {
-    // Page-level 二次チェック (oracle §1 `/`: "失敗時は redirect せず error
-    // パネル表示"). Distinguishes "not signed in" from a genuine failure to
-    // even resolve the session (oracle §2: "unauthenticated と failure を
-    // 区別").
+    // Page-level 二次チェック。認証されていない状態と、セッションを解決
+    // できなかった状態を区別し、どちらも redirect ではなく画面内の状態
+    // パネルとして表示する。
     return userResult.error.kind === "unauthenticated" ? (
       <StatePanel variant="unavailable" title="サインインが必要です" />
     ) : (

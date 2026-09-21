@@ -62,8 +62,8 @@ export interface HomeViewProps {
  * failure in one never prevents the other from rendering its own state. The
  * *only* place the 2 blocks' states are compared against each other is the
  * "both empty -> 1 merged empty panel" rule below - `unavailable`/`error` is
- * deliberately never folded into that merge (oracle §2: "unavailable はこの
- * 統合に絶対に含めない"). `ticketState.block`/`scheduleState` are compared
+ * deliberately never folded into that merge (unavailable はこの統合に絶対に
+ * 含めない). `ticketState.block`/`scheduleState` are compared
  * for that merge, never `ticketState.optional`/`scheduleState`'s `a`/`b`
  * parts - a failed non-backbone read must never turn a genuinely-populated
  * block into part of the "both empty" merge (PR #381 P4 follow-up review

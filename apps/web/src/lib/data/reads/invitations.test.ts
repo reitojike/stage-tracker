@@ -22,7 +22,7 @@ afterEach(() => {
 
 /**
  * review finding 2 への回帰テスト: embed そのものが null な場合
- * （oracle どおり context unavailable として継続表示）と、embed は
+ * （context unavailable として継続表示）と、embed は
  * 存在するが `mapOccurrenceRow`/`mapEventRow` の mapping に失敗する場合
  * （A10「読めない行を黙って間引かない」に従い `Result` を error にする）
  * を別ケースとして区別する（`./invitations.ts` の `mapInvitationRow`）。
