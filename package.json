@@ -13,7 +13,7 @@
     "typecheck": "turbo run typecheck && pnpm run typecheck:rls",
     "typecheck:rls": "tsc --noEmit -p test/rls/tsconfig.json",
     "test:unit": "turbo run test:unit",
-    "test:storybook": "pnpm run build-storybook && pnpm --filter @stage-tracker/web run test-storybook:ci",
+    "test:storybook": "pnpm run build-storybook && pnpm --filter @stage-tracker/web run test-storybook:vitest",
     "build": "turbo run build",
     "build-storybook": "turbo run build-storybook",
     "db:start": "supabase start",
@@ -60,7 +60,7 @@
     "@types/pg": "^8.11.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "6.1.1",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^30.0.1",
@@ -72,7 +72,9 @@
     "turbo": "2.11.2",
     "typescript": "^5",
     "typescript-eslint": "^8.69.0",
-    "vite": "^7.3.6",
-    "vitest": "^5.0.0"
+    "vite": "8.3.0",
+    "vitest": "5.0.1",
+    "@vitest/browser": "5.0.1",
+    "@vitest/browser-playwright": "5.0.1"
   }
 }
