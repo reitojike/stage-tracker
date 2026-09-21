@@ -15,13 +15,12 @@ import {
 } from "@/lib/revalidation";
 
 /**
- * `/catalog/invitations` の書き込み層
- * （`docs/v2/oracle-routes-ui.md` §1 `/catalog/invitations`）。
+ * Invitation lifecycle and opacity semantics are defined by Spec 006; this
+ * module owns the exact `/catalog/invitations` action implementation.
  */
 
 /**
- * Accept: specs/001-occurrence-participation/spec.md Invitation Requirements /
- * decisions.md 「accept は専用 RPC を持た
+ * Accept: Spec 006 Invitation coordination semantics. Acceptance has no dedicated RPC;
  * ない」— 通常の participation write（`considering`/rowなし ->
  * `attending`）と全く同一の operation として実装する。書き込みが成功すると
  * DB 側の `resolve_pending_invitations_on_attending` トリガーが、同一
@@ -82,7 +81,7 @@ const declineInvitationInputSchema = z.object({
 });
 
 /**
- * Decline: P3 決定（`docs/v2/decisions.md`）どおり、即座に hard delete して
+ * Decline: the pending invitation is resolved by an immediate hard delete;
  * 確定させる。`decline_occurrence_invitation` RPC
  * （`supabase/migrations/20260830000000_simplify_invitation_pending_only.sql`）
  * が対象行を削除して返す。中間状態はサーバに一切持たない。

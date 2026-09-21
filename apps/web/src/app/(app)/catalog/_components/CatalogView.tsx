@@ -69,10 +69,10 @@ const storedCatalogFilterSelectionSchema = z.object({
 });
 
 /**
- * .ai-dev-foundation/product-rules.md「Gate Aの canonical genre identity」の3件。永久 closed world では
+ * `specs/011-catalog-classification-filter/spec.md`「Gate Aの canonical genre identity」の3件。永久 closed world では
  * ないが（同節参照）、この Gate A 実装は known な3件だけを選択肢として示す -
  * 将来 genre が increaseした場合は `filterOptionsResult.options.genres`
- * （catalog全体の known values、.ai-dev-foundation/product-rules.md「Filter option universe」）を
+ * （catalog全体の known values、`specs/011-catalog-classification-filter/spec.md`「Filter option universe」）を
  * そのまま列挙する形に変えられる。ここでは genre の表示順・ラベルを
  * 固定するために、読み込んだ genre 行のうち Gate A の3件のみ使う。
  */
@@ -189,7 +189,7 @@ function subscribeStoredSelection(onStoreChange: () => void): () => void {
 export interface CatalogViewProps {
   readonly month: TokyoYearMonth;
   readonly today: TokyoCalendarDate;
-  /** `null` = 月ランディング（未選択）。`docs/v2/oracle-domain.md` §2.10。 */
+  /** `null` = 月ランディング（未選択）。Filter semantics: Spec 011。 */
   readonly selectedDate: TokyoCalendarDate | null;
   readonly eventsState: BlockState<readonly EventCatalogEntry[]>;
   readonly filterOptionsResult: CatalogFilterOptionsResult;
@@ -203,23 +203,22 @@ export interface CatalogViewProps {
 }
 
 /**
- * `/catalog`'s presentational + interactive layer
- * (`docs/v2/oracle-routes-ui.md` §2 「イベントカタログ一覧」,
- * `docs/v2/oracle-domain.md` §2.9/§2.10). A Client Component because filter
+ * `/catalog`'s presentational + interactive layer. Catalog lifecycle semantics
+ * follow Spec 005 and filter semantics follow Spec 011. Exact presentation,
+ * layout, and Sheet behavior are owned by this runtime component. A Client Component because filter
  * selection is held client-local and persisted to `localStorage`
- * (.ai-dev-foundation/product-rules.md "Filter persistence": "browser-local persistenceで十分" - no
+ * (Spec 011 "Filter persistence": "browser-local persistenceで十分" - no
  * server round-trip, no user preference row).
  *
  * Renders the month calendar grid (`MonthCalendar`) + selected-day list
  * (`SelectedDayList`) - this Task's confirmed-gap fix, replacing this
  * component's previous flat `<ul>` of every event in the raw range. Legacy's
- * own `CatalogView.tsx` (the oracle) never renders such a flat landing list
+ * own legacy `CatalogView.tsx` is historical comparison material and never renders such a flat landing list
  * either: full per-event detail (genre/group/venue/cancellation badges) is
  * reached by selecting a day, exactly mirrored here - see this Task's report
  * for why the flat list is removed rather than kept alongside the calendar.
  *
- * The filter controls use the shared Sheet consumer described by
- * `docs/v2/oracle-routes-ui.md`. The applied/draft distinction and
+ * The filter controls use the shared Sheet consumer. The applied/draft distinction and
  * localStorage persistence are kept in this consumer because they are
  * Catalog-specific lifecycle state, while the Sheet owns modal presentation,
  * dismiss, focus containment, and focus return.
@@ -326,7 +325,7 @@ export function CatalogView({
   // 潰しており、空月ではカレンダー自体・絞り込みUI・選択日一覧まで消えて
   // いた。legacy の `CatalogView.tsx` は `isEmptyRange` を「カレンダーは
   // 描画するが月レベルの空メッセージを追加する」フラグとしてのみ使う -
-  // M8 oracle の「A failed catalog read leaves nothing to filter」
+  // Historical M8 comparison の「A failed catalog read leaves nothing to filter」
   // コメント参照）。
   const isRawEmpty = eventsState.variant === "empty";
   // legacy の `isFilteredZero` 定義そのまま: raw range が既に空の場合は

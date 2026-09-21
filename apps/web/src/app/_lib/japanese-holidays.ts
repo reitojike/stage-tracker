@@ -7,9 +7,7 @@ import {
 } from "./japanese-holidays-data";
 
 /**
- * Japanese national holiday lookup, ported from the M8 oracle
- * (`docs/v2/oracle-domain.md`
- * §2.11 "Calendar day role"). Reuses the same generated snapshot data
+ * Japanese national holiday lookup using the generated snapshot data
  * (`./japanese-holidays-data.ts`) as the *only* canonical source - this
  * module never computes a holiday from a rule (equinox calculation, "N-th
  * Monday of month", etc.) and never extrapolates past the snapshot's

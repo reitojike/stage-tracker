@@ -18,11 +18,12 @@ import { addOccurrenceAction } from "@/lib/actions/events";
 import { fieldErrorMessage } from "@/lib/actions/validationErrors";
 
 /**
- * 公演回の追加（`docs/v2/oracle-routes-ui.md` §2「occurrence 追加/更新」:
+ * Event/Occurrence lifecycle semantics follow Spec 005; this form owns the
+ * exact occurrence-add presentation（
  * 追加成功後はフィールドをクリアして次の追加に備える）。
  *
  * 追加は成功しても Sheet を閉じない。入力を reset して、同じ Sheet から
- * 次の公演回を続けて追加できることが Oracle の success contract である。
+ * 次の公演回を続けて追加できることが runtime の success contract である。
  */
 export function AddOccurrenceForm({ eventId }: { eventId: EventId }) {
   const router = useRouter();

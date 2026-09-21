@@ -53,10 +53,12 @@ function ticketTimelineMonthGroupKey(
 }
 
 /**
- * `/tickets`'s presentational layer (`docs/v2/oracle-routes-ui.md` §2
- * 「チケット一覧」). Takes the already-classified state as a prop. The
+ * `/tickets`'s presentational layer. TicketOpportunity planning semantics are
+ * defined by Spec 008 and timeline date/month semantics by Spec 003. Takes the
+ * already-classified state as a prop. The
  * shared read boundary supplies the canonical effective-cancellation result,
- * while the component only applies the Oracle presentation priority.
+ * while the component applies the exact presentation priority owned by this
+ * runtime component.
  *
  * `state.optional` (PR #381 P4 follow-up review finding 2) is the personal
  * planning-state read's own status, kept separate from `state.block`'s data:
@@ -66,7 +68,7 @@ function ticketTimelineMonthGroupKey(
  * this fix closes), and a small inline note says so next to the still-
  * rendered shared timeline.
  *
- * Planning-state controls (`TicketOpportunityStateControls`, the oracle's
+ * Planning-state controls (`TicketOpportunityStateControls`, the runtime's
  * "planning state 変更" per-row buttons) are now rendered too (M8 で確定した
  * v2 の不具合の修正 - この write UI 自体が過去のタスクで意図的に scope 外に
  * されていた）. Rendered once per Opportunity via
@@ -151,7 +153,7 @@ function PersonalStateFailureNote({
 }
 
 /**
- * Badge priority (oracle §2 「チケット一覧」): effective cancellation
+ * Badge priority is an exact runtime presentation rule: effective cancellation
  * (中止) is the objective terminal fact and outranks retained post-final
  * history (受付終了), personal-state degradation (不明), and planned/applied
  * badges. At most 1 badge is ever shown, matching "1つだけ表示".
@@ -223,7 +225,7 @@ function TicketTimelineRow({
           遷移と衝突するため、兄弟要素として置く。personalStateUnknown の
           場合は現在の状態が分からないまま操作させない（M8 で確定した v2 の
           不具合の修正）。post-final（受付終了確定後）行はコントロール自体を
-          非表示にする（`docs/v2/oracle-routes-ui.md`「チケット一覧」;
+          非表示にする（Spec 008 の post-final planning boundary;
           review finding: 受付終了後に planning state を変更・解除できて
           しまっていた）。 */}
         <ListRowActions className="mt-xs">

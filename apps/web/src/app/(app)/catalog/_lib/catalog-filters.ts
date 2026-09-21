@@ -2,9 +2,9 @@ import type { EventCatalogEntry } from "@/lib/data";
 import type { Genre, Group, GroupId } from "@stage-tracker/domain";
 
 /**
- * Client-local catalog filter state (`docs/v2/oracle-routes-ui.md` §2
- * 「イベントカタログ一覧」, .ai-dev-foundation/product-rules.md "Catalog classification / venue
- * boundary"). Genre is single-select (including "すべて" = `null`); group/
+ * Client-local catalog filter state. Filter semantics belong to
+ * `specs/011-catalog-classification-filter/spec.md`; this module owns the
+ * client state mechanics. Genre is single-select (including "すべて" = `null`); group/
  * venue are OR-within-facet multi-select. Persisted to `localStorage` by the
  * caller (`../_components/CatalogView.tsx`) - this module is pure and has
  * no I/O of its own.
@@ -22,7 +22,7 @@ export const DEFAULT_CATALOG_FILTER_SELECTION: CatalogFilterSelection = {
 };
 
 /**
- * group/venue option は genre ごとにスコープする（.ai-dev-foundation/product-rules.md「Group」:
+ * group/venue option は genre ごとにスコープする（Spec 011「Group」:
  * 「この genre に関連する group」は、その genre の Event に実際に
  * associate されている group から動的に導出する）。genre の `key` を index
  * にする（M8 で確定した v2 の不具合の修正 - 旧実装は genre 非依存の flat
@@ -35,7 +35,7 @@ export interface CatalogFilterOptions {
   readonly venuesByGenreKey: Readonly<Record<string, readonly string[]>>;
 }
 
-/** The 1 secondary facet active for a given genre (.ai-dev-foundation/product-rules.md "Facet model
+/** The 1 secondary facet active for a given genre (Spec 011 "Facet model
  * (genreごとに有効なsecondary facet)"). `null` for "すべて" or a genre this
  * Task's Gate-A facet table does not name. */
 export type CatalogFacet = "group" | "venue" | null;
@@ -55,7 +55,7 @@ export function activeFacetForGenre(genreKey: string | null): CatalogFacet {
 
 /**
  * Selecting every known option in a facet means "don't filter by this facet"
- * (.ai-dev-foundation/product-rules.md "Filter semantics": "何も選択していない場合と...全選択している
+ * (Spec 011 "Filter semantics": "何も選択していない場合と...全選択している
  * 場合は、どちらも「その facet では絞り込まない」と解釈").
  *
  * `selectedIds` may contain ids that are not in `knownIds` - most commonly a
@@ -156,7 +156,7 @@ export function isCatalogFilterSelectionActive(
  * separately-read catalog-wide Group lookup...to get display names,
  * mirroring how the Group lookup itself is genre-independent").
  *
- * A `Group`'s canonical identity is genre-independent (.ai-dev-foundation/product-rules.md "Group":
+ * A `Group`'s canonical identity is genre-independent (Spec 011 "Group":
  * "group は特定 genre へ hard-bind されません"), so flattening across every
  * genre key and de-duplicating by id is correct - the same group can only
  * ever resolve to the same displayName regardless of which genre's option
@@ -166,7 +166,7 @@ export function isCatalogFilterSelectionActive(
  * `groupsByGenreKey` is itself derived from `listCatalogGroups(genreId)`,
  * which only returns groups actually associated with an Event of that
  * genre (`../../_lib`'s own "Filter option universe" contract). An Event
- * with a group but *no* genre (classification-wise possible per .ai-dev-foundation/product-rules.md
+ * with a group but *no* genre (classification-wise possible per Spec 011
  * "Group", even if the current operator-import flow does not produce this
  * combination) would not resolve here - the same limitation the existing
  * genre-scoped filter option chain already has.

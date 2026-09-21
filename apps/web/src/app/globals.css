@@ -4,8 +4,8 @@
 /*
  * `packages/ui` is a pnpm workspace package - it lives behind a
  * `node_modules/@stage-tracker/ui` symlink from apps/web's point of view,
- * which Tailwind v4's automatic content detection does not follow (verified
- * both directions in docs/v2/decisions.md "packages/ui 抽出の実測結果").
+ * which Tailwind v4's automatic content detection does not follow. The
+ * explicit source is required for the generated CSS to include shared UI.
  * Without this explicit `@source`, none of packages/ui's Tailwind classes
  * (state-panel.tsx, app-shell.tsx, app-bar.tsx, primary-nav.tsx,
  * ui/badge.tsx, ui/button.tsx) would be scanned and their utility classes
@@ -21,8 +21,9 @@
  * Design tokens: stage-tracker's semantic tokens ported from the M8
  * primitive -> semantic CSS variables
  * onto Tailwind v4 `@theme`. Source of truth for the *values* and their
- * product meaning: docs/v2/oracle-routes-ui.md §4 "Design token" and
- * docs/v2/decisions.md (A2/A3/A4).
+ * product meaning: this stylesheet's implemented values, exercised by the
+ * current route implementation and its tests; `docs/ux-ui.md` supplies
+ * semantic-role guidance only.
  *
  * Naming policy:
  * - Where shadcn/ui's generated components (Button etc.) already reserve a
@@ -38,9 +39,8 @@
  *   tokens below (either the shadcn-named ones or the added ones), never
  *   the small primitive set - this is enforced structurally: primitives
  *   live as plain `:root` custom properties outside `@theme`, so Tailwind
- *   never turns them into utility classes (docs/v2/decisions.md A3 - the
- *   legacy primitive-leak in monthCalendarGrid.module.css is not carried
- *   forward).
+ *   never turns them into utility classes; the legacy primitive leak in
+ *   monthCalendarGrid.module.css is not carried forward.
  *
  * Dark mode: docs/ux-ui.md confirms dark mode is architecturally possible
  * (semantic-token-only swap) but its UI was never implemented, and no
@@ -166,8 +166,8 @@
 :root {
   /*
    * next/font/google (Geist) はビルド時に Google Fonts へのネットワーク
-   * アクセスを発生させ、CI のビルド再現性を損なう（docs/v2/decisions.md
-   * A20）。v2 のこの段階ではブランド上のフォント選定が未確定であり、
+   * アクセスを発生させ、CI のビルド再現性を損なう。ブランド上のフォント
+   * 選定が未確定であり、
    * self-host する固有フォントの資産もまだ無いため、資産追加なしで
    * ネットワークアクセスを完全に除去できる system font stack を採用する。
    * 日本語表記が中心のプロダクトのため、主要 OS の日本語 UI フォントを
@@ -181,8 +181,8 @@
   /*
    * ---- primitive layer ----
    * Deliberately trimmed to the handful of steps that still have an actual
-   * semantic consumer after the orphan pruning below (docs/v2/decisions.md
-   * A4). The legacy file carries a full neutral 0-900 / accent 50-900
+   * semantic consumer after the orphan pruning below. The legacy file carries
+   * a full neutral 0-900 / accent 50-900
    * scale, but after Issue #137's "repin semantic tokens to literal
    * values" refresh, only these steps are still referenced by a semantic
    * token that this migration keeps. Historical values remain available in
@@ -278,9 +278,8 @@
   /*
    * ---- semantic: stage-tracker-specific, no shadcn slot ----
    * Real, currently-used legacy tokens with no shadcn/ui counterpart.
-   * Kept under their original legacy name (docs/v2/decisions.md A4:
-   * carry forward tokens with actual usage, not orphans - see the report
-   * for which tokens were pruned instead).
+   * Kept under their original legacy name because these tokens have actual
+   * semantic consumers; unused legacy tokens are not carried forward.
    */
 
   /* legacy --color-surface-active (#dde1e4): pressed-state background for

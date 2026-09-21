@@ -5,15 +5,13 @@ import { BackLink } from "@stage-tracker/ui";
 import { buildCatalogBackHref } from "./_lib/backHref";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1: このルートの `loading` は Client
- * Component。Next.js は `loading.tsx` に `searchParams` を渡さないため
- * （decisions.md A5 が引き継ぐ価値ありとする「pending 中も見出し/戻り先が
- * 変わらない」UX を保つには、`useSearchParams` で自前に読む必要がある）。
- * `month`/`date` を保った「← 一覧へ戻る」リンクを、データ取得中も
- * 同じ場所に表示し続ける。
+ * This loading boundary owns the pending-state presentation for the event
+ * detail route. Because Next.js does not pass `searchParams` to
+ * `loading.tsx`, the component reads them locally so the month/date-aware
+ * back link remains stable while data is loading.
  *
  * データ依存の見出し（event title 等）は先取り表示しない
- * （decisions.md A5 が維持を推奨する原則）。
+ * Data-dependent headings are not shown before the event has been read.
  */
 export default function EventDetailLoading() {
   const searchParams = useSearchParams();

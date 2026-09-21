@@ -235,7 +235,7 @@ describe("groupDisplayNameById", () => {
     expect(byId.get(GROUP_B)).toBe("月組");
     expect(byId.get(GROUP_C)).toBe("花組");
     // Flattened across genres too (idol's own group), since a Group's
-    // canonical identity is genre-independent (.ai-dev-foundation/product-rules.md "Group").
+    // canonical identity is genre-independent (`specs/011-catalog-classification-filter/spec.md` "Group").
     expect(byId.get(GROUP_D)).toBe("テストグループ");
   });
 

@@ -24,9 +24,9 @@ function backHref(params: Record<string, string | string[] | undefined>) {
 }
 
 /**
- * Event 新規作成（`docs/v2/oracle-routes-ui.md` §1/§2
- * `/catalog/events/new`）。designated catalog creator 限定 —— ただし
- * ここでの判定は .ai-dev-foundation/product-rules.md の位置づけどおり**レンダー制御に過ぎない**。
+ * Event 新規作成。Designated catalog creator semantics follow Spec 005;
+ * exact route and render guard are runtime-owned. ここでの判定は
+ * **レンダー制御に過ぎない**。
  * 真の権限境界は `create_event` RPC 側の membership check にある。
  */
 export default async function NewEventPage({

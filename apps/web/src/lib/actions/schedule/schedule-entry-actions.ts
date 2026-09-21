@@ -25,7 +25,8 @@ import {
 } from "@/lib/revalidation";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 の補足: 「schedule 系は成功時に必ず
+ * Schedule-entry lifecycle semantics are defined by Spec 007. The runtime
+ * contract is that these actions successfully
  * `/calendar` へ redirect する（詳細作成/編集/共有解除いずれも「戻って
  * カレンダーを見る」導線に収束）」。create/update/delete の3 action は
  * すべてこの1点に redirect する。

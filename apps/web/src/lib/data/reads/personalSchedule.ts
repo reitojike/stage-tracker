@@ -23,12 +23,13 @@ async function listPersonalScheduleRows(client: SupabaseClient<Database>) {
 
 /**
  * 自分に見える personal schedule entry（owner本人 + 自分宛に共有された
- * もの）を読む（`/` home、`/calendar` が使う -
- * `docs/v2/oracle-routes-ui.md` §1 の `listVisiblePersonalSchedule`)。
+ * もの）を読む（`/` home、`/calendar` が使う。Personal Schedule lifecycle
+ * semantics are in Spec 007; `listVisiblePersonalSchedule` and its read
+ * strategy are data-layer mechanics）。
  *
  * 明示的な owner/share フィルタを一切かけない: RLS の SELECT policy
  * (`personal_schedule_entries_select_owner_or_shared` - owner本人 OR
- * 自分宛の share がある、`docs/v2/oracle-database.md` §2) が「この
+ * 自分宛の share がある、current RLS policy) が「この
  * caller に見えるべき行」を過不足なく定義しており、この read の意図
  * （「自分に見える予定を全部見たい」）と RLS の可視範囲が完全に一致する。
  * したがって0件は常に「本当に0件」であり、unavailable が empty へ化ける

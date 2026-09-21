@@ -4,9 +4,9 @@ import type { Database } from "@/lib/data/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
- * `/mypage` が必要とする identity/権限 read（`docs/v2/oracle-routes-ui.md`
- * §1 `/mypage`: `getAuthenticatedUser`）。Auth API orchestration remains
- * route-local; reusable table reads are kept in `lib/data`.
+ * `/mypage` が必要とする identity/権限 read。Auth account semantics are in
+ * Spec 009; exact API orchestration remains route-local and reusable table
+ * reads are kept in `lib/data`.
  */
 
 export interface MyPageAccount {
@@ -15,7 +15,7 @@ export interface MyPageAccount {
 }
 
 /** 認証済みでなければ `null`。email 取得失敗は「識別情報行を出さない」
- * という product rule（.ai-dev-foundation/product-rules.md「マイページ」節）に従い `email: null`
+ * という account-access rule（Spec 009）に従い `email: null`
  * として扱う（呼び出し元は行自体を非表示にする）。 */
 export async function getMyPageAccount(): Promise<MyPageAccount | null> {
   const supabase = await createSupabaseServerClient();

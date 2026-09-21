@@ -6,9 +6,10 @@ import { CalendarDays, Home, Theater, Ticket } from 'lucide-react';
 import { cn } from './lib/utils';
 
 /**
- * Fixed 4-item bottom navigation (docs/v2/oracle-routes-ui.md §3 PrimaryNav).
- * PO decision P2 (docs/v2/decisions.md, 2026-09-07): this stays exactly
- * these 4 items. `/schedule` and `/mypage` are reached through contextual
+ * Fixed 4-item bottom navigation (see the shared navigation rules in
+ * `docs/ux-ui.md`).
+ * The current shared navigation rule keeps exactly these 4 items.
+ * `/schedule` and `/mypage` are reached through contextual
  * entry points (the calendar's day picker, the AppBar avatar) rather than
  * from here - do not add items without a new PO decision superseding P2.
  */
@@ -26,10 +27,10 @@ function isActive(pathname: string, href: string) {
 
 /**
  * No props - it determines the current location itself via `usePathname`
- * (docs/v2/oracle-routes-ui.md §3: "props なし（usePathnameで自己判定）").
+ * (`usePathname` keeps the active item derived from the current route).
  * The active item is marked by both a color cue *and* a non-color cue
  * (bold label + underline bar + `aria-current="page"`), matching the
- * oracle's "色＋非色的手がかりの両方で表現".
+ * shared navigation contract の "色＋非色的手がかりの両方で表現".
  *
  * Structure is split into a nav shell and an inner row (PR #377 review:
  * apps/legacy-web/src/ui/PrimaryNav.module.css `.nav`/`.items`/`.link` had

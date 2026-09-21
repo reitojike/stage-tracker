@@ -11,8 +11,7 @@ import {
 
 /**
  * `/schedule/new` と `/schedule/[entryId]/edit` が共有するフォーム入力の
- * 生形。両画面ともバリデーションルールは共通（oracle-routes-ui.md §2
- * 「予定作成」「予定編集」: 件名必須、temporalMode 必須、all-day なら
+ * 生形。両画面ともバリデーションルールは共通: 件名必須、temporalMode 必須、all-day なら
  * 開始日必須＋終了日≧開始日、time-bounded なら開始日時必須＋
  * 終了日時≧開始日時）。
  *
@@ -98,7 +97,7 @@ export function parseScheduleEntryTemporal(
         message: "開始日を入力してください。",
       });
     }
-    // 終了日省略時は開始日と同日（product-rules.md「単発の公演は…」と同じ
+    // 終了日省略時は開始日と同日（Spec 007 の単日 lifecycle semantics と同じ
     // 「単日は startsOn === endsOn」慣習）。
     const endsOnRaw = input.allDayEndsOn?.trim();
     const endsOn =

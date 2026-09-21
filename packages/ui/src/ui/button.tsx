@@ -52,7 +52,7 @@ const buttonVariants = cva(
         lg: 'h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
         // 40x40 rather than shadcn's default size-8 (32px): this is the
         // exact dimension of legacy's `icon` Button variant
-        // (docs/v2/oracle-routes-ui.md §3). Uses Tailwind's built-in
+        // (see the shared action affordance rules in `docs/ux-ui.md`). Uses Tailwind's built-in
         // `size-10` spacing step, not an invented dimension.
         icon: 'size-10',
         'icon-xs':

@@ -96,7 +96,9 @@ async function EditScheduleEntryBody({
   const entry = entryState.data;
   // owner 以外が直接 URL へ到達した場合、明示的な permission-denied
   // パネルを表示しフォーム自体は描画しない
-  // （`docs/v2/oracle-routes-ui.md` §2「予定編集」）。真の書き込み権限
+  // Personal Schedule owner lifecycle is defined by Spec 007; this permission
+  // panel and the decision not to render the form are runtime behavior. The
+  // true write permission
   // 境界は常に RLS 側（`personal_schedule_entries_update_own`）であり、
   // このチェックはレンダー制御のみ。
   if (entry.ownerId !== user.id) {

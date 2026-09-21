@@ -21,14 +21,16 @@ import {
 import type { ScreenNow } from "@/app/_lib/now";
 
 /**
- * `/tickets`'s data layer (`docs/v2/oracle-routes-ui.md` §1 `/tickets`).
+ * `/tickets`'s data layer. TicketOpportunity planning semantics are in Spec
+ * 008 and milestone date/month semantics are in Spec 003; read and grouping
+ * mechanics remain in this loader.
  *
  * Unlike home's "申し込み期限" block (`../../_lib/home-loader.ts`), this
  * screen is the full timeline: every Opportunity's current/next milestone
  * *and* its bounded post-final retained history
  * (`@stage-tracker/domain`'s `selectTicketOpportunityPrimaryRows` -
  * `isPostFinalRetainedHistory` rows are kept here, not filtered out), grouped
- * into month buckets for display (oracle §2 「チケット一覧」's month-grouped
+ * into month buckets for display (the runtime's month-grouped
  * timeline).
  *
  * Same read-granularity P4 shape as home's "申し込み期限" block (PR #381

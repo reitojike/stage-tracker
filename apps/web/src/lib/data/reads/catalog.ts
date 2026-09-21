@@ -108,21 +108,22 @@ export interface TokyoCalendarDateRange {
 }
 
 /**
- * `/catalog` の月表示が必要とする read
- * (`docs/v2/oracle-routes-ui.md` §1 の `listEventCatalogInRange`)。
+ * `/catalog` の月表示が必要とする read。Event range semantics follow Spec
+ * 005; `listEventCatalogInRange` and the query/read mechanics are data-layer
+ * owned。
  *
- * .ai-dev-foundation/product-rules.md「Catalog の日程参照要件」の2つの要件——(a) 期間内に公演回が
+ * Spec 005「Catalog の日程参照要件」の2つの要件——(a) 期間内に公演回が
  * ある event を引ける、(b) 期間と Event range が重なる event を公演回の
  * 有無にかかわらず引ける——を、単一の Event range overlap フィルタ
  * (`starts_on <= endsOn AND ends_on >= startsOn`) だけで両方満たす。これは
  * 推測ではなく DB invariant から導ける: occurrence の `starts_at` の
  * Asia/Tokyo calendar date は常に親 event の `[starts_on, ends_on]` に
- * 収まる（`docs/v2/oracle-database.md` §5 invariant 4）ため、「期間内に
+ * 収まる（current schema invariant）ため、「期間内に
  * occurrence がある event」は必然的に「その event の range が期間と
  * 重なる」の部分集合であり、後者のフィルタ一発で両方をカバーできる。
  *
  * `events`/`event_occurrences`/`genres`/`event_groups` はいずれも
- * `using (true)` の shared catalog（`docs/v2/oracle-database.md` §2）
+ * `using (true)` の shared catalog（current schema/RLS contract）
  * なので、authenticated である限り0件は常に「本当に0件」——unavailable が
  * empty へ化ける余地はない。
  */
@@ -145,7 +146,7 @@ export async function listEventCatalogInRange(
 
 /**
  * `/catalog` のフィルタ option chain（genre）。catalog 全体で known な
- * values を返す（.ai-dev-foundation/product-rules.md「Filter option universe」: 表示中の月には
+ * values を返す（Spec 011「Filter option universe」: 表示中の月には
  * 限定しない）。`genres` は shared catalog なので0件は常に「本当に0件」。
  */
 export async function listCatalogGenres(
@@ -169,13 +170,13 @@ interface EventGroupGroupRow {
 
 /**
  * `/catalog` のフィルタ option chain（genre ごとの group）。group の
- * canonical identity は genre へ hard-bind されないが（.ai-dev-foundation/product-rules.md
+ * canonical identity は genre へ hard-bind されないが（Spec 011
  * 「Group」）、「この genre に関連する group」は、その genre の Event に
  * 実際に associate されている group から動的に導出する、と同じ節が定める
  * とおり、この読み方は `genreId` にスコープする（M8 で確定した v2 の
  * 不具合の修正 - 旧実装は genre を無視して全 group を返していた）。
  * catalog 全体が対象で、表示中の月には限定しない
- * （.ai-dev-foundation/product-rules.md「Filter option universe」）。
+ * （Spec 011「Filter option universe」）。
  *
  * `event_groups` の該当行数（group 数ではなく Event-group 関連の延べ数）が
  * `supabase/config.toml` の `api.max_rows` を超えると PostgREST は silently
@@ -224,13 +225,13 @@ export async function listCatalogGroups(
  * facet の genre（歌舞伎）に属しつつ `group` association も持つ Event が
  * あった場合、その group はフィルタ option chain 経由では一切解決されず
  * バッジが黙って欠落する。group の canonical identity は genre へ
- * hard-bind されない（.ai-dev-foundation/product-rules.md「Group」）ため、この読み方は genre に
+ * hard-bind されない（Spec 011「Group」）ため、この読み方は genre に
  * 一切スコープせず、呼び出し元が実際にロード済みの Event 群から集めた
  * `groupIds` をそのまま `id IN (...)` で引く - catalog 全体を舐めるより
  * 安価かつ、facet の有無に依存しない。
  *
  * `groupIds` の件数（1 event に associate される group 数の上限が無い -
- * .ai-dev-foundation/product-rules.md「Group」の 0..N）が `supabase/config.toml` の `api.max_rows`
+ * Spec 011「Group」の 0..N）が `supabase/config.toml` の `api.max_rows`
  * を超えると PostgREST は silently truncate するため、`listCatalogGroups`
  * / `listCatalogVenues` と同じく `runPagedSupabaseSelect` で全件読む
  * （codex review 指摘）。
@@ -238,7 +239,7 @@ export async function listCatalogGroups(
  * `groupIds` はここでは呼び出し元が集めた **unique な canonical group
  * identity 数**（表示中の1ヶ月分に登場する Event の延べ group 関連数では
  * ない）で、Gate A の canonical group 数自体が小規模（宝塚の組・アイドル
- * グループとも数十件規模、.ai-dev-foundation/product-rules.md「Catalog classification / venue
+ * グループとも数十件規模、Spec 011「Catalog classification / venue
  * boundary」）なため、`.in("id", groupIds)` の URL 長で問題になる規模には
  * 現状達しない - `listCatalogVenues` の「catalog 全体の event 数が M6a
  * 時点で大きくない想定」と同じ技術判断（codex review 指摘: ID 自体の
@@ -267,7 +268,7 @@ export async function listGroupsByIds(
 
 /**
  * `/catalog` のフィルタ option chain（genre ごとの venue）。`events.venue`
- * は canonical master を持たない生 text（.ai-dev-foundation/product-rules.md「Venue」）なので、
+ * は canonical master を持たない生 text（Spec 011「Venue」）なので、
  * `genreId` の Event が持つ既存 venue 値を distinct に列挙する（M8 で確定
  * した v2 の不具合の修正 - 旧実装は genre を無視して catalog 全体の venue
  * を返していた）。PostgREST に `DISTINCT` を直接指定する手段が無いため、

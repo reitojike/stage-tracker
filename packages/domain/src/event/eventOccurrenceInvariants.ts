@@ -9,7 +9,7 @@ import type { Occurrence } from './occurrence';
 
 /**
  * Cross-entity invariants between an Event and its Occurrences
- * (docs/v2/oracle-domain.md §2.2). These cannot live on `occurrenceSchema`
+ * (`specs/005-event-occurrence-lifecycle/spec.md`). These cannot live on `occurrenceSchema`
  * alone because they need the parent Event's range and/or sibling
  * Occurrences as context.
  */
@@ -18,7 +18,7 @@ import type { Occurrence } from './occurrence';
  * The Event range containment invariant compares the Occurrence's `startsAt`
  * *Tokyo calendar date* against the Event range - `doorsAt`/`endsAt` are
  * never consulted here, even if they fall on a different calendar day
- * (.ai-dev-foundation/product-rules.md "開催期間（Event range）": "開場日時（doors 相当）や終演日時
+ * (`specs/005-event-occurrence-lifecycle/spec.md`: "開場日時（doors 相当）や終演日時
  * （ends_at）が日付をまたいでも、それらは range 判定の対象に含めません").
  */
 export function isOccurrenceStartWithinEventRange(
@@ -43,13 +43,13 @@ export type EventOccurrenceInvariantViolation =
 
 /**
  * Validates a full Event + Occurrence-set aggregate (e.g. before submitting a
- * `reschedule_event`-style atomic update, docs/v2/oracle-domain.md §2.6)
+ * `reschedule_event`-style atomic update, as required by the Event/Occurrence lifecycle contract)
  * against both cross-entity invariants:
  *
  * - every Occurrence's `startsAt` Tokyo calendar date falls within the
  *   Event's range;
  * - no two Occurrences in the set share the same `startsAt` *instant*
- *   (docs/v2/oracle-domain.md §2.2: "同一 Event 内で Occurrence の startsAt
+ *   (`specs/005-event-occurrence-lifecycle/spec.md`: "同一 Event 内で Occurrence の startsAt
  *   instant は一意（壁時計表記の一意性ではない）") - duplicates are detected
  *   by comparing the underlying instant (via `compareInstants`), not by
  *   comparing the raw wire strings, so two Occurrences whose `startsAt`

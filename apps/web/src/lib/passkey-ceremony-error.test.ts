@@ -58,9 +58,10 @@ describe("classifyPasskeyCeremonyError", () => {
 
 describe("resolveRegisterPasskeyFeedback", () => {
   it("returns a distinct title for every kind (no silent collapse to a single generic message)", () => {
-    // M8 journey 比較（docs/v2/m8-journey-comparison.md）で確定した分類2の
-    // regression test: oracle-routes-ui.md:245 が要求する「エラー種別分類
-    // →パネル表示」を満たすには、5種類すべてが異なる文言を返す必要がある。
+    // Historical M8 journey comparison (docs/v2/m8-journey-comparison.md)
+    // identified this classification-2 regression; the
+    // regression test: the current registration feedback mapping must classify
+    // each ceremony outcome and return distinct user-facing titles.
     const kinds = [
       "cancelled",
       "unsupported",
@@ -84,8 +85,8 @@ describe("resolveRegisterPasskeyFeedback", () => {
 
 describe("resolveSignInPasskeyFeedback", () => {
   // Issue #406（M8 journey 比較で確定した分類2の regression test）:
-  // oracle-routes-ui.md:49「サインイン（Passkey優先＋Magic Linkフォール
-  // バック）」を満たすには、失敗時に単一の汎用メッセージへ collapse せず、
+  // The current sign-in account-access flow must not collapse every failure
+  // into a single generic message and must include the Magic Link fallback,
   // かつ常に Magic Link への案内を含める必要がある。legacy の
   // `SIGN_IN_FEEDBACK` は duplicate/too-many を意図的に同一文言へ寄せる
   // （原因を問わずサインイン不可という意味では同じ結果のため）ので、

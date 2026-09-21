@@ -6,7 +6,7 @@ import { dateUtcRoundTripMs } from './dateUtcRoundTrip';
  * time-of-day component. It is a distinct type from `Instant` (./instant.ts)
  * on purpose: an Event range (`starts_on`/`ends_on`) and the calendar-date
  * projection of an Occurrence's `starts_at` are both *dates*, not instants,
- * per docs/v2/oracle-domain.md §2.1/§2.2.
+ * according to the product/domain rule that owns the calling feature.
  *
  * Validation round-trips the components through `Date.UTC`-equivalent
  * component assignment (see dateUtcRoundTrip.ts) rather than trusting

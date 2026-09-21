@@ -10,10 +10,10 @@ import {
 } from "@/app/_lib/format";
 
 /**
- * `Asia/Tokyo` 表示用の日時整形（.ai-dev-foundation/product-rules.md「時刻・タイムゾーン」）。
- * この route 専用の pure/clock-free ヘルパー
- * （`docs/v2/decisions.md` A6: 「今」を読まない限り各 route が個別に
- * 持ってよい）。
+ * `Asia/Tokyo` 表示用の日時整形。Event time semantics follow Spec 005;
+ * this route-local formatter owns exact presentation.
+ * この route 専用の pure/clock-free ヘルパー。現在時刻は読まず、入力値
+ * だけを整形するため、実装とテストがこの helper の契約を所有する。
  */
 
 /** 例: "2026年3月10日(火) 18:00" */
@@ -23,7 +23,7 @@ export function formatOccurrenceDateTime(occurrence: Occurrence): string {
   )} ${formatTokyoTime(occurrence.startsAt)}`;
 }
 
-/** doorsAt が null の場合は null（未公表を正当な状態として扱う - .ai-dev-foundation/product-rules.md「開場 / 開演 / 終演」）。 */
+/** doorsAt が null の場合は null（未公表を正当な状態として扱う - Spec 005）。 */
 export function formatOccurrenceDoors(occurrence: Occurrence): string | null {
   if (occurrence.doorsAt === null) {
     return null;

@@ -26,7 +26,7 @@ function entry(blocking: boolean): PersonalScheduleEntry {
 }
 
 /**
- * `blocking` に per-recipient override が無いこと（.ai-dev-foundation/product-rules.md「各 entry は
+ * `blocking` に per-recipient override が無いこと（Spec 012 PSH-002 の sharing boundary: 各 entry は
  * 独立した blocking boolean を持ちます…per-recipient の blocking
  * override は設けません」）を、この画面の実際の表示コンポーネントで
  * 検証する。owner/shared badge の表示は変わっても、同じ entry の blocking

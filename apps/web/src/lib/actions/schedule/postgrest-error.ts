@@ -8,8 +8,8 @@ import {
 
 /**
  * PostgREST/RPC 呼び出しの失敗を `ActionError` へ分類する、この write 層の
- * 唯一の判定場所。`docs/v2/decisions.md` A8「エラー分類を
- * `error.message.includes(...)` の文字列マッチングで行わない」を守り、
+ * 唯一の判定場所。エラー分類を `error.message.includes(...)` の文字列
+ * マッチングで行わず、
  * PostgREST の HTTP status と Postgres の SQLSTATE（`error.code`）という
  * 構造化された情報だけで判定する（read boundary の
  * `lib/data/supabase-select.ts` の `classifyPostgrestError` と対の write 版）。
@@ -35,7 +35,7 @@ const PERMISSION_DENIED_POSTGRES_CODES: ReadonlySet<string> = new Set([
  * 0 行の理由は「そもそも存在しない」と「RLS が見せない（所有者不一致）」の
  * 両方があり得るが、区別できない/しないのは意図的: `/schedule/[entryId]`
  * の「存在しない entry と非公開 entry を同一の empty 扱いにする」設計
- * （product-rules.md 由来）を write 側でも一貫させ、`not-found` へ畳み込む。
+ * （Spec 007 の entry visibility semantics）を write 側でも一貫させ、`not-found` へ畳み込む。
  */
 const SINGLE_ROW_NOT_MATCHED_CODE = "PGRST116";
 
@@ -106,11 +106,11 @@ export function classifyWritePostgrestError(
  *
  * **`90010` を Invitation 側で再利用してはいけない。** share by email は
  * 「対象 email が未登録であることを owner へ知らせてよい」operation だが
- * （product-rules.md「Authenticated-user targeting」節）、Invitation は
+ * （Spec 012 PSH-006）、Invitation は
  * invitee の状態を inviter へ開示してはいけない。opacity boundary が違うため、
  * 同じ code を使うと handler を共有した瞬間に Invitation 側の opacity が壊れる。
  *
- * **この module が、この write 層で使う SQLSTATE 語彙の唯一の正本。**
+ * **この module が、この write 層で使う SQLSTATE 語彙を所有する。**
  * 呼び出し元は literal を再定義せず、ここから import する。片方だけ変更すると
  * 「gate は通るのに resolver が一致せず汎用文言へ退行する」あるいは
  * 「resolver の分岐が到達不能になる」という、test では気付きにくい壊れ方を

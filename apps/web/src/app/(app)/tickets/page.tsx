@@ -7,10 +7,10 @@ import { loadTicketsTimeline } from "./_lib/tickets-loader";
 import { TicketsView } from "./_components/TicketsView";
 
 /**
- * `/tickets` (`docs/v2/oracle-routes-ui.md` §1 `/tickets`). Read-only - no
- * Server Action/mutation on this screen (this Task's scope; the oracle's
- * per-row planning-state controls are not rendered - see
- * `./_components/TicketsView.tsx`'s own header).
+ * `/tickets` route and exact composition are runtime-owned. TicketOpportunity
+ * planning semantics are in Spec 008 and timeline date/month semantics in
+ * Spec 003. This page performs the authenticated read and delegates the
+ * rendered surface to `TicketsView`.
  */
 export default async function TicketsPage() {
   const supabase = await createSupabaseServerClient();

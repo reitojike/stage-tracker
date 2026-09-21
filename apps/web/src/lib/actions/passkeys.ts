@@ -13,12 +13,13 @@ import {
 } from "@/lib/revalidation";
 
 /**
- * `/mypage` の Passkey 削除（`docs/v2/oracle-routes-ui.md` §1 `/mypage`）。
+ * `/mypage` の Passkey deletion is an account credential operation under Spec 009;
+ * the Server Action/API wiring is runtime-owned.
  * 削除は `auth.passkey.delete()`（Supabase Auth 自体の API、WebAuthn
  * ceremony を伴わない通常の authenticated request）で、Server Action に
  * できる —— 登録（`registerPasskey()`）はブラウザの
  * `navigator.credentials.create()` を要するため Client Component 側で
- * 直接呼ぶ（oracle の記述どおり）。
+ * 直接呼ぶ（browser/runtime mechanism）。
  *
  * `auth.passkey.*` の experimental capability と cookie wiring は
  * `@/lib/supabase/server.ts` の shared factory が所有する。認証済み
