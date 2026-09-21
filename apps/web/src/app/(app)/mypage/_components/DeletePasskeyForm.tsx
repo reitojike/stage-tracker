@@ -5,8 +5,8 @@ import { Button } from "@stage-tracker/ui";
 import { deletePasskeyAction } from "@/lib/actions/passkeys";
 
 /**
- * specs/009-authentication-account-access/spec.md「マイページ」/ specs/009-authentication-account-access/spec.md: 削除は行内即時ボタン、
- * 確認ダイアログなし（低リスク・再登録可能なため意図的に省略）。
+ * Passkey deletion is an inline immediate action without a confirmation
+ * dialog because the credential can be registered again.
  *
  * `passkeyLabel`（`PasskeySection` が同じ行に表示するラベルと同一）を
  * `aria-label` に含める。可視テキストの「削除」は全行で同一のため、これが

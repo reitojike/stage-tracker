@@ -7,9 +7,7 @@ import {
 } from "./japanese-holidays-data";
 
 /**
- * Japanese national holiday lookup, ported from the historical M8 comparison
- * (`specs/004-calendar-month-grid/spec.md` "Calendar day role"). Reuses the
- * same generated snapshot data
+ * Japanese national holiday lookup using the generated snapshot data
  * (`./japanese-holidays-data.ts`) as the *only* canonical source - this
  * module never computes a holiday from a rule (equinox calculation, "N-th
  * Monday of month", etc.) and never extrapolates past the snapshot's

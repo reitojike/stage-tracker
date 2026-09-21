@@ -20,9 +20,8 @@ interface DeleteEntryButtonProps {
 }
 
 /**
- * owner-only hard delete（specs/007-personal-schedule-lifecycle/spec.md「Deletion」節、
- * `specs/007-personal-schedule-lifecycle/spec.md`「予定詳細」: 「owner の『削除』は
- * 確認 Sheet 必須」）。
+ * Owner-only hard delete. This consumer requires explicit confirmation before
+ * the irreversible action.
  *
  * shared Sheet は presentation と modal lifecycle を担当し、hard delete の
  * action semantics と共有相手への影響文言はこの consumer に残す。

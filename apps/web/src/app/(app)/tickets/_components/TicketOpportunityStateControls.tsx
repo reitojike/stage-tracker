@@ -8,10 +8,8 @@ import type {
 import { Button, WriteNotice } from "@stage-tracker/ui";
 import { updateTicketOpportunityStateAction } from "@/lib/actions/ticketOpportunityState.actions";
 
-/** legacy の `resolveTicketOpportunityStateSetNotice`/
- * `ticketOpportunityRemoveNotice`（`domain/ticketOpportunityFeedback.ts`）
- * と同じ文言。`specs/008-ticket-opportunity-planning/spec.md`「チケット一覧」の「成功時
- * `WriteNotice` で通知」要件（review finding: 未実装だった）。 */
+/** Mirrors the domain feedback strings and delivers them through this
+ * component's `WriteNotice`; the UI owner keeps the exact presentation. */
 function noticeForIntent(intent: "planned" | "applied" | "remove"): string {
   if (intent === "remove") {
     return "登録を解除しました。";
