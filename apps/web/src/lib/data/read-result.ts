@@ -12,11 +12,11 @@ export type ReadResult<T> = Result<T, ReadError>;
  * 3状態 + `populated`（実データがあり、そもそも empty/error/unavailable
  * パネルを描画しない状態）。
  *
- * ```
+ * ``
  * fetch 成功 + 0 行   -> empty
  * fetch 失敗           -> error
  * 権限が無い / 見えない -> unavailable
- * ```
+ * ``
  *
  * この分類の判定はここ（read boundary）だけが行う。画面層は
  * `variant` を見て StatePanel を描画するかデータを描画するかを選ぶだけで、

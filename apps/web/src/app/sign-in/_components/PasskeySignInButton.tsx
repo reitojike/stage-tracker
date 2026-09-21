@@ -11,7 +11,7 @@ import {
 } from "@/lib/passkey-ceremony-error";
 
 /**
- * `docs/v2/oracle-routes-ui.md:49` `/sign-in`「サインイン（Passkey優先＋
+ * `specs/009-authentication-account-access/spec.md`:49` `/sign-in`「サインイン（Passkey優先＋
  * Magic Linkフォールバック）...Passkeyは Server Action ではなくブラウザ
  * 直接 `supabase.auth.signInWithPasskey()`」（Issue #406）。
  *

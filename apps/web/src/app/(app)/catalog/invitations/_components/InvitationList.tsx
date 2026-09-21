@@ -39,7 +39,7 @@ export interface InvitationListProps {
 }
 
 /**
- * `/catalog/invitations` の操作本体（`docs/v2/oracle-routes-ui.md` §2
+ * `/catalog/invitations` の操作本体（`specs/006-invitation-coordination-opacity/spec.md`
  * 「Invitation 一覧」）。
  *
  * - 「参加する」: 通常の participation write と同一の operation

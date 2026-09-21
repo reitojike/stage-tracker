@@ -4,11 +4,11 @@ import { compareInstants, instantSchema } from '../time/instant';
 
 /**
  * Occurrence ("公演回"): one performance belonging to an Event
- * (docs/v2/oracle-domain.md §1.2). `doorsAt`/`endsAt` are nullable - an
+ * (`specs/005-event-occurrence-lifecycle/spec.md`). `doorsAt`/`endsAt` are nullable - an
  * unknown door/end time is a valid state, never defaulted.
  *
  * Enforces the ordering invariant `doorsAt <= startsAt <= endsAt`
- * (.ai-dev-foundation/product-rules.md "開場 / 開演 / 終演"), comparing only the fields that are
+ * (`specs/005-event-occurrence-lifecycle/spec.md`), comparing only the fields that are
  * actually set: a null field is not compared, per the same product rule.
  *
  * This schema does NOT enforce "occurrence's startsAt falls within the

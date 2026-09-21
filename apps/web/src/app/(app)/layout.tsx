@@ -6,7 +6,7 @@ import { resolveMyPageAppBarIdentity } from "./_lib/app-bar-identity";
 
 /**
  * Shared `layout.tsx` for authenticated screens under the `(app)` route group.
- * `docs/v2/oracle-routes-ui.md`
+ * `the current route implementation and its tests`
  * §0 describes each route segment's `layout.tsx` as an identical, minimal
  * Server Component that resolves the AppBar identity and renders
  * `AppShell` - the legacy app duplicated this file once per route folder
@@ -16,7 +16,7 @@ import { resolveMyPageAppBarIdentity } from "./_lib/app-bar-identity";
  * not change any URL (`(app)/page.tsx` is still served at `/`), and
  * `/sign-in`/`/sign-out`/`/auth/confirm` stay outside this group entirely so
  * they keep using only the bare root `layout.tsx` (no AppShell chrome, no
- * PrimaryNav) - matching the oracle's "未認証面で nav を隠す" requirement
+ * PrimaryNav) - matching the authentication contract's "未認証面で nav を隠す" requirement
  * without needing a `showPrimaryNav={false}` prop threaded through those
  * pages.
  */

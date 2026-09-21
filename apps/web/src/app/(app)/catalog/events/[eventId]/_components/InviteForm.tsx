@@ -19,7 +19,7 @@ export interface InviteFormProps {
 }
 
 /**
- * `docs/v2/oracle-routes-ui.md` §2 イベント詳細の招待フォーム
+ * `specs/006-invitation-coordination-opacity/spec.md` イベント詳細の招待フォーム
  * （legacy の `InviteSheet` 相当）。Sheet は presentation と lifecycle
  * だけを担当し、招待 action と opacity semantics はこの consumer が持つ。
  *

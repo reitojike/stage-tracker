@@ -4,7 +4,7 @@ import { dateUtcRoundTripMs } from './dateUtcRoundTrip';
 /**
  * An `Instant` is an absolute point in time - the domain-level counterpart of
  * a persisted PostgreSQL `timestamptz`, which is itself a UTC instant on the
- * wire (docs/v2/oracle-domain.md §2.1). It is intentionally a distinct type
+ * wire. It is intentionally a distinct type
  * from `TokyoCalendarDate` (see ./tokyoCalendarDate.ts): conflating "an
  * absolute instant" with "an Asia/Tokyo calendar day" is exactly the
  * confusion that produces date-boundary bugs (UTC midnight is 9am in Tokyo,

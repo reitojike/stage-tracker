@@ -2,13 +2,13 @@ import type { TokyoCalendarDate } from "@stage-tracker/domain";
 
 /**
  * Generic multi-day "band" week-layout algorithm, ported from the M8
- * `layoutWeekBands` oracle
- * (`docs/v2/oracle-domain.md` §2.9 "Personal schedule / My Calendar": "月表示
+ * `layoutWeekBands` current implementation contract
+ * (`specs/004-calendar-month-grid/spec.md` "Personal schedule / My Calendar": "月表示
  * の band...1 週あたり同時表示できる band は最大 `MAX_BAND_LANES = 2`").
  *
  * Kept generic and feature-agnostic (like `./calendar-grid.ts` and
  * `./calendar-day-role.ts`) rather than living under `(app)/catalog/_lib`:
- * the oracle names the same `MAX_BAND_LANES = 2` cap for My Calendar's own
+ * the Calendar contract uses the same `MAX_BAND_LANES = 2` cap for My Calendar's own
  * multi-day PersonalSchedule bands, so a later Task giving `/calendar` band
  * rendering (a separate, already-known gap - see this Task's report) can
  * reuse this algorithm unchanged instead of duplicating it.

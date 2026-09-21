@@ -8,7 +8,7 @@ import { waitForMagicLinkToken } from "./mailpit";
  * (`src/app/auth/confirm/route.ts`); creating a session any other way
  * would leave that route entirely unexercised by this suite.
  *
- * Steps (mirrors the real user journey `docs/v2/oracle-routes-ui.md` §1
+ * Steps (mirrors the real user journey `specs/009-authentication-account-access/spec.md`
  * `/sign-in` describes):
  * 1. Submit the `/sign-in` form for `email` (exercises
  *    `requestSignInLink` / `requestMagicLink`, which sends the email via

@@ -10,7 +10,7 @@ import { createSupabaseCookielessServerClient } from "@/lib/supabase/server";
 /**
  * この action が返す唯一の acknowledgement。`sent=1` ではなく
  * `requested=1` にしているのは、実際にメールが送信されたかをこの
- * action は知り得ないため（`docs/v2/oracle-routes-ui.md` §1 `/sign-in`）。
+ * action は知り得ないため（`specs/009-authentication-account-access/spec.md` `/sign-in`）。
  */
 const ACKNOWLEDGEMENT = "/sign-in?requested=1";
 
@@ -26,7 +26,7 @@ const diagnostics: MagicLinkDiagnostics = {
  * Magic link サインインをリクエストする Server Action。
  *
  * enumeration 対策: アカウントの有無・送信成否のいずれによっても
- * このレスポンスを変えてはならない（`docs/v2/oracle-routes-ui.md` §1
+ * このレスポンスを変えてはならない（`specs/009-authentication-account-access/spec.md`
  * `requestSignInLink` の記述）。`requestMagicLink` は分岐材料を一切
  * 返さないため、この関数にも分岐すべき outcome が存在しない——最後は
  * 常に同じ `redirect(ACKNOWLEDGEMENT)` に到達する。
@@ -34,7 +34,7 @@ const diagnostics: MagicLinkDiagnostics = {
  * cookieless client を使うのは、通常の server client だと PKCE code
  * verifier cookie の有無がアカウント存在の oracle になるため
  * （`src/lib/supabase/server.ts` の `createSupabaseCookielessServerClient`
- * doc comment、`docs/v2/oracle-domain.md` §4.1 参照）。
+ * doc comment、`specs/009-authentication-account-access/spec.md` 参照）。
  */
 export async function requestSignInLink(formData: FormData): Promise<void> {
   const emailValue = formData.get("email");

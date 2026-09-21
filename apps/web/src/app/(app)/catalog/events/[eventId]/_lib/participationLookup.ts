@@ -14,7 +14,7 @@ import type { ParticipationWithOccurrence, ReadState } from "@/lib/data";
  *
  * `ok: false` の場合、呼び出し元 (`page.tsx`) はこの event の全 occurrence
  * について「参加状況を読み込めなかった」ものとして扱う責任を負う
- * （event 本体は表示継続 - oracle-routes-ui.md §2 イベント詳細の
+ * （event 本体は表示継続 - specs/001-occurrence-participation/spec.md §2 イベント詳細の
  * 「participation の個別読込失敗は event 本体とは別枠で表示」）。
  *
  * `unavailable`/`error` はどちらも `message` を持たない（PR #381 review

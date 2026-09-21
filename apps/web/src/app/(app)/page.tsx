@@ -10,7 +10,7 @@ import {
 import { HomeView } from "./_components/HomeView";
 
 /**
- * `/` home (`docs/v2/oracle-routes-ui.md` §1 `/`). Read-only - no Server
+ * `/` home (`this route and its tests` `/`). Read-only - no Server
  * Action/mutation on this screen (this Task's scope).
  */
 export default async function HomePage() {
@@ -18,9 +18,10 @@ export default async function HomePage() {
   const userResult = await requireAuthenticatedUserId(supabase);
 
   if (!userResult.ok) {
-    // Page-level 二次チェック (oracle §1 `/`: "失敗時は redirect せず error
+    // Page-level 二次チェック (`specs/009-authentication-account-access/spec.md` `/`:
+    // "失敗時は redirect せず error
     // パネル表示"). Distinguishes "not signed in" from a genuine failure to
-    // even resolve the session (oracle §2: "unauthenticated と failure を
+    // even resolve the session (historical comparison: "unauthenticated と failure を
     // 区別").
     return userResult.error.kind === "unauthenticated" ? (
       <StatePanel variant="unavailable" title="サインインが必要です" />

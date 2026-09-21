@@ -5,7 +5,7 @@ import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
 import { BackLink, PageHeading } from "../_components/PageChrome";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §5: `loading.tsx` は Next.js が
+ * `specs/007-personal-schedule-lifecycle/spec.md`: `loading.tsx` は Next.js が
  * `params`/`searchParams` を渡さない制約への対処として、`page.tsx` と
  * 同一の見出し/戻り先を Client Component 側で `useSearchParams()` から
  * 再構築する（レイアウトシフト防止）。`page.tsx` の

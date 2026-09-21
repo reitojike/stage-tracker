@@ -7,7 +7,7 @@ import type { PersonalScheduleEntry } from './scheduleEntry';
 
 /**
  * ScheduleShare: one recipient a PersonalScheduleEntry has been shared with
- * (.ai-dev-foundation/product-rules.md "Event-independent personal schedule" - "owner は entry 単位で
+ * (`specs/007-personal-schedule-lifecycle/spec.md` "Event-independent personal schedule" - "owner は entry 単位で
  * authenticated user を明示指定して共有できます"). Sharing has no approval
  * flow: a share row existing IS the (immediate) grant.
  *
@@ -26,7 +26,7 @@ export type ScheduleShare = z.infer<typeof scheduleShareSchema>;
 
 /**
  * Whether `userId` may see `entry`: the owner always can, and so can anyone
- * appearing in `shares` as a recipient (docs/v2/oracle-domain.md §1.8 "SELECT
+ * appearing in `shares` as a recipient (`specs/012-personal-schedule-sharing-privacy/spec.md` "SELECT
  * policy は owner-or-shared として一括で許可される"). This mirrors the RLS
  * union at the domain level - the RLS policy itself remains the actual
  * enforcement boundary; this function is for callers (e.g. UI-side
@@ -45,7 +45,7 @@ export function canUserViewPersonalScheduleEntry(
 
 /**
  * `blocking` is a property of the entry itself, never of the viewer
- * (.ai-dev-foundation/product-rules.md: "`blocking` は entry 本体の属性であり、share 先にも同じ
+ * (`specs/012-personal-schedule-sharing-privacy/spec.md`: "`blocking` は entry 本体の属性であり、share 先にも同じ
  * semantics で伝播する。per-recipient の blocking override は設けません").
  * This function is intentionally trivial - it exists to give that invariant
  * a single, testable call site: whichever viewer asks (owner or any

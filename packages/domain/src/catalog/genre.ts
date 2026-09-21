@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { genreIdSchema } from './ids';
 
 /**
- * Genre: a canonical lookup row, not a closed DB enum (.ai-dev-foundation/product-rules.md "Catalog
- * classification / venue boundary" §Genre, docs/v2/oracle-database.md
+ * Genre: a canonical lookup row, not a closed DB enum (`specs/011-catalog-classification-filter/spec.md`
+ * §Genre,
  * §1.12/§4). Gate A ships exactly 3 seed rows (宝塚/歌舞伎/アイドル), but
  * this schema does not hard-code that closed set - new genres are meant to
  * be addable as new rows, not as a schema/enum migration. An Event's genre

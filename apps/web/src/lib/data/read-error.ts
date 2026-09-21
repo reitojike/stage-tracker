@@ -12,7 +12,7 @@ import type { BaseActionErrorKind } from "@/lib/action-error";
  * read で実際に起こり得るのはこの3種だけ:
  *
  * - `unauthenticated`: セッションが無い/期限切れ。PostgREST/GoTrue が
- *   HTTP 401 を返す場合（`docs/v2/oracle-database.md` §0 の SQLSTATE
+ *   HTTP 401 を返す場合（`the current schema and tests` の SQLSTATE
  *   慣習には現れないが、`@supabase/supabase-js` は未認証呼び出しを
  *   401 として返す）。
  * - `permission-denied`: RLS の table-level grant が無い、または

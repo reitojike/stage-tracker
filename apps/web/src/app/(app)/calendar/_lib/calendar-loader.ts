@@ -15,7 +15,7 @@ import { classifyBlock1, type BlockState } from "@/app/_lib/read-state";
 import { scheduleEntryDatesInRange } from "./calendar-view-model";
 
 /**
- * `/calendar`'s data layer (`docs/v2/oracle-routes-ui.md` §1 `/calendar`).
+ * `/calendar`'s data layer (`specs/004-calendar-month-grid/spec.md` `/calendar`).
  *
  * `docs/v2/decisions.md` P4 explicitly supersedes the legacy calendar's
  * single-panel degradation ("カレンダーは複数readの失敗を単一の汎用エラーへ
@@ -58,11 +58,11 @@ export interface CalendarOccurrenceItem {
 /**
  * "参加予定" block: occurrences the caller has a Participation for, indexed
  * by the Asia/Tokyo calendar date of `occurrence.startsAt` (this Task's
- * "date the item concerns", matching .ai-dev-foundation/product-rules.md's own choice of `startsAt`'s
+ * "date the item concerns", matching specs/004-calendar-month-grid/spec.md's own choice of `startsAt`'s
  * date over `doorsAt`/`endsAt` for the Event range containment invariant -
  * the same reasoning applies here). Restricted to `[gridStart, gridEnd]`
  * (the visible month grid, including its leading/trailing adjacent-month
- * days - oracle's "表示グリッド範囲内のみ" for `/calendar`).
+ * days - the Calendar contract's "表示グリッド範囲内のみ" rule for `/calendar`).
  */
 export async function loadCalendarOccurrences(
   supabase: SupabaseClient<Database>,
@@ -148,6 +148,6 @@ export async function loadCalendarSchedule(
 export { compareCalendarOccurrenceItems } from "./calendar-view-model";
 
 /** Re-exported for callers that only have 2 `TokyoCalendarDate`s and want
- * the oracle's own chronological ordering guarantee, without importing
+ * the current timeline contract's chronological ordering guarantee, without importing
  * `@stage-tracker/domain` directly just for this. */
 export { compareTokyoCalendarDates };

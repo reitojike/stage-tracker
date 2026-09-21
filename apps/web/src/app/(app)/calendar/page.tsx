@@ -23,7 +23,7 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 }
 
 /**
- * `/calendar` (`docs/v2/oracle-routes-ui.md` §1 `/calendar`). Read-only - no
+ * `/calendar` (`specs/004-calendar-month-grid/spec.md` `/calendar`). Read-only - no
  * Server Action/mutation on this screen (this Task's scope).
  */
 export default async function CalendarPage({

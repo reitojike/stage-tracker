@@ -5,7 +5,7 @@ import {
 
 /**
  * Month-grid calendar arithmetic shared by `/calendar` and `/catalog` (both
- * render a month calendar per `docs/v2/oracle-routes-ui.md` §2). This is
+ * render a month calendar per `specs/004-calendar-month-grid/spec.md`). This is
  * deliberately *not* in `@stage-tracker/domain`: it is UI-layer "which cells
  * does a calendar grid need" arithmetic, not a product invariant - unlike
  * `@stage-tracker/domain`'s `TokyoCalendarDate` parsing (which exists to
@@ -22,7 +22,7 @@ export interface TokyoYearMonth {
 const MONTH_PARAM_PATTERN = /^(\d{4})-(\d{2})$/u;
 
 /** Parses a `?month=YYYY-MM` search param. Falls back (never throws) on a
- * missing/malformed/out-of-range value, matching the oracle's "不正値は今日
+ * missing/malformed/out-of-range value, matching the current contract's "不正値は今日
  * にフォールバック" rule for calendar params. */
 export function parseMonthParam(
   raw: string | undefined,
@@ -55,7 +55,7 @@ export function tokyoYearMonthOf(date: TokyoCalendarDate): TokyoYearMonth {
 
 /** Parses a `?date=YYYY-MM-DD` search param via the domain's own validator.
  * Returns `null` (never throws) for a missing/malformed value - callers
- * decide their own fallback (the oracle's "月ランディング" `null` state for
+ * decide their own fallback (the current contract's "月ランディング" `null` state for
  * `/calendar`, or simply "no day selected" for `/catalog`). */
 export function parseDateParam(
   raw: string | undefined,
@@ -147,7 +147,7 @@ const MS_PER_DAY = 86_400_000;
  * `tokyoCalendarDateSchema` rejects: `?date=9999-12-31` produced a grid
  * ending 10000-01-06 and threw, turning the whole page into a 500
  * (PR #381 review). Months whose grid cannot be represented are treated as
- * invalid navigation state and fall back, matching the oracle's "不正値は
+ * invalid navigation state and fall back, matching the current contract's "不正値は
  * 今日にフォールバック" rule rather than surfacing an error.
  */
 export function isRenderableMonth(yearMonth: TokyoYearMonth): boolean {

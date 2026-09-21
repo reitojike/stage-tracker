@@ -25,7 +25,7 @@ import {
 } from "@/lib/revalidation";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 の補足: 「schedule 系は成功時に必ず
+ * `specs/007-personal-schedule-lifecycle/spec.md` の補足: 「schedule 系は成功時に必ず
  * `/calendar` へ redirect する（詳細作成/編集/共有解除いずれも「戻って
  * カレンダーを見る」導線に収束）」。create/update/delete の3 action は
  * すべてこの1点に redirect する。

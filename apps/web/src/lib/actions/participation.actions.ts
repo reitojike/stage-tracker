@@ -27,9 +27,9 @@ const setParticipationChoiceInputSchema = z.object({
 });
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 `setParticipationChoiceAction`。
+ * `specs/001-occurrence-participation/spec.md` `setParticipationChoiceAction`。
  *
- * revalidate 対象（oracle §1 補足「影響する経路だけを個別指定する」）:
+ * revalidate 対象（the current contract 補足「影響する経路だけを個別指定する」）:
  * - `/catalog/events/[eventId]`: この画面自体の participation 表示
  * - `/calendar`: `listMyParticipations` を読む個人カレンダー
  * - `/`: ホームの「直近の予定」ブロックも同じ read を使う

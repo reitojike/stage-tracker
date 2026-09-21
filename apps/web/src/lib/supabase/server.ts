@@ -8,7 +8,7 @@ import type { Database } from "@/lib/data/database.types";
  * Server Component / Route Handler / Server Action からの通常の
  * read/write 用の Supabase client。
  *
- * `docs/v2/oracle-domain.md` §4.1 の現行 3 系統のうち、server client に
+ * `specs/009-authentication-account-access/spec.md` の現行 3 系統のうち、server client に
  * 対応する。anon key のみを使い、`next/headers` の `cookies()` から
  * セッションを読み書きする。
  *
@@ -19,7 +19,7 @@ import type { Database } from "@/lib/data/database.types";
  * Server Component のレンダー中は cookie ストアが read-only であり
  * `setAll` が失敗し得る。この失敗は握りつぶしてよい設計とする——ただし、
  * この判断は「middleware 相当の層が毎リクエストでセッション refresh を
- * 担保している」ことに依存する（`docs/v2/oracle-domain.md` §4.3）。
+ * 担保している」ことに依存する（`specs/009-authentication-account-access/spec.md`）。
  * その前提は `src/proxy.ts` の default-deny middleware で満たされている。
  *
  * 呼び出しごとに新しい client を生成すること（request をまたいで
@@ -62,7 +62,7 @@ export async function createSupabaseServerClient(): Promise<
 /**
  * cookie を読むが一切書き込まない Supabase client。
  *
- * `docs/v2/oracle-domain.md` §4.1 の現行 3 系統のうち、cookieless server
+ * `specs/009-authentication-account-access/spec.md` の現行 3 系統のうち、cookieless server
  * client に対応する。唯一の用途は magic link 送信（`signInWithOtp`）。
  *
  * 理由: `@supabase/ssr` は PKCE code verifier を、対象アドレスにアカウントが

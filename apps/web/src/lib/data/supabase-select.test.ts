@@ -104,7 +104,7 @@ describe("runSupabaseSelect", () => {
 
   it("classifies a table-level-grant-denied 42501 as permission-denied even without a 401/403 status", async () => {
     // This is the exact SQLSTATE convention documented in
-    // docs/v2/oracle-database.md §0: "42501 (insufficient_privilege):
+    // specs/009-authentication-account-access/spec.md §0: "42501 (insufficient_privilege):
     // 権限がない...". PostgREST typically also sets a 4xx status for this,
     // but this test asserts the *code* alone is a sufficient signal so a
     // permission failure is never miscategorized as a generic `failure`.

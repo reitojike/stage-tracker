@@ -1,15 +1,15 @@
 import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 
 /**
- * `docs/v2/oracle-routes-ui.md:245`（`/mypage` Passkey 登録）「失敗時は
- * エラー種別分類→パネル表示」、および `docs/v2/oracle-routes-ui.md:49`
+ * `specs/009-authentication-account-access/spec.md:245`（`/mypage` Passkey 登録）「失敗時は
+ * エラー種別分類→パネル表示」、および `specs/009-authentication-account-access/spec.md:49`
  * （`/sign-in`）「サインイン（Passkey優先＋Magic Linkフォールバック）」。
  * M8 journey 比較（`docs/v2/m8-journey-comparison.md`）で確定した分類2の
  * 不具合の修正（register 側は PR #407 で修正済み、sign-in 側は Issue
  * #406） - v2 はこれまで WebAuthn ceremony の失敗理由を分類せず、常に
  * 単一の汎用メッセージを表示していた。
  *
- * M8 oracle の `classifyCeremonyError` / `REGISTER_FEEDBACK` /
+ * historical M8 comparison の `classifyCeremonyError` / `REGISTER_FEEDBACK` /
  * `SIGN_IN_FEEDBACK` と同じ SQLSTATE 集合・同じ文言を再実装したもの
  * （`apps/web/src/app/(app)/mypage/_data/passkeyDisplay.ts` と同じ理由）。
  *
@@ -108,7 +108,7 @@ export function resolveRegisterPasskeyFeedback(
 }
 
 /**
- * Issue #406（`docs/v2/oracle-routes-ui.md:49`「サインイン（Passkey優先＋
+ * Issue #406（`specs/009-authentication-account-access/spec.md:49`「サインイン（Passkey優先＋
  * Magic Linkフォールバック）」）。sign-in 失敗時は、legacy の
  * `SIGN_IN_FEEDBACK` と同じく常に Magic Link フォームへの案内を添える
  * （register 失敗時とは異なり、その場に代替手段が無いため）。

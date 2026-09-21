@@ -36,7 +36,7 @@ import type {
 } from "./calendar-loader";
 
 /**
- * Pure My Calendar projection (`docs/v2/oracle-domain.md` §2.9/§2.11).
+ * Pure My Calendar projection (`specs/004-calendar-month-grid/spec.md`).
  *
  * The loader owns read classification and only indexes data that is actually
  * visible in the grid. This module owns the deterministic presentation

@@ -10,7 +10,7 @@ export type AppBarProps = {
   showActions?: boolean;
   /**
    * Display-only latch: whether to show the unread dot. AppBar never
-   * derives this itself (docs/v2/oracle-routes-ui.md §3 AppBar).
+   * derives this itself (see the shared shell rules in `docs/ux-ui.md`).
    */
   hasUnreadNotifications?: boolean;
   /** Href for the authenticated Notifications inbox affordance. */
@@ -25,7 +25,7 @@ export type AppBarProps = {
 /**
  * 48px fixed header: notification bell (left) / logotype (center) / My Page
  * avatar (right). Purely presentational - no Supabase/data dependency
- * (docs/v2/oracle-routes-ui.md §3 AppBar).
+ * (see the shared shell rules in `docs/ux-ui.md`).
  */
 export function AppBar({
   showActions = true,

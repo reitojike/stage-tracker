@@ -7,7 +7,7 @@ import {
 } from "@stage-tracker/domain";
 
 /**
- * `personal_schedule_entries` の生 row 形（oracle-database.md §1.4）。
+ * `personal_schedule_entries` の生 row 形（specs/007-personal-schedule-lifecycle/spec.md §1.4）。
  * DB は「終日型」か「時刻指定型」かを `is_all_day` + 4つの nullable
  * sibling 列（`starts_on`/`ends_on`/`starts_at`/`ends_at`）で表すが、
  * domain の `PersonalScheduleEntry.temporal` は discriminated union

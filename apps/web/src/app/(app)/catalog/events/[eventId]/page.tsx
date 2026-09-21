@@ -49,11 +49,11 @@ interface EventDetailPageProps {
 const CONTENT_CLASS = "flex w-full flex-col gap-md";
 
 /**
- * `/catalog/events/[eventId]`（`docs/v2/oracle-routes-ui.md` §1/§2
+ * `/catalog/events/[eventId]`（`specs/005-event-occurrence-lifecycle/spec.md`
  * イベント詳細）。occurrence 一覧・participation 状態の表示と、
  * participation の書き込み・invite の起点となる Server Component。
  *
- * 認証チェックはここでも行う（`docs/v2/oracle-routes-ui.md` §0 の
+ * 認証チェックはここでも行う（`specs/005-event-occurrence-lifecycle/spec.md` の
  * 「各page.tsx側の認証チェックはこの一次防御(`src/proxy.ts`)の上に乗る
  * 二次チェック」）。`src/proxy.ts` の default-deny により実際にはここへ
  * 未認証で到達しない想定だが、真の書き込み権限境界は常に RLS/RPC 側にある

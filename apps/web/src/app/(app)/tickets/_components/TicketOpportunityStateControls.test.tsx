@@ -59,7 +59,7 @@ describe("TicketOpportunityStateControls", () => {
     expect(
       screen.getByRole("button", { name: "登録を解除" }),
     ).toBeInTheDocument();
-    // oracle 要件（review finding）: 成功時は WriteNotice で通知する。
+    // current contract requirement（review finding）: 成功時は WriteNotice で通知する。
     expect(
       screen.getByText("「申し込む予定」に設定しました。"),
     ).toBeInTheDocument();

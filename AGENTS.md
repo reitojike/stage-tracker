@@ -37,10 +37,10 @@ policy bundle.
   build/database coverage; it is not synonymous with the default mandatory
   pre-PR floor. Inspect the applicable workflow in [`.github/workflows/`](.github/workflows/)
   for CI authority.
-- Domains without a Living Spec may use
-  [`.ai-dev-foundation/product-rules.md`](.ai-dev-foundation/product-rules.md)
-  as temporary static product authority only. This file is not a runtime
-  harness or a permanent substitute for a domain Living Spec.
+- Every current product domain is routed to its relevant Living Spec under
+  [`specs/**/spec.md`](specs/). The `.ai-dev-foundation/product-rules.md` file
+  is retained only as historical/supporting material and is not a current
+  fallback authority or runtime harness.
 
 ## Authority boundaries
 

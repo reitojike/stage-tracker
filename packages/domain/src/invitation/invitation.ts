@@ -5,7 +5,7 @@ import { instantSchema } from '../time/instant';
 /**
  * Invitation ("招待"): a pending-only coordination record
  * (specs/001-occurrence-participation/spec.md Invitation Requirements,
- * migration-era context in docs/v2/oracle-domain.md §1.7, Issue #225/#230).
+ * historical context in Issue #225/#230).
  * A row's existence *is* the entire state - there is no durable
  * accepted/declined history. Resolution (accept, decline, or "generic
  * attending convergence") deletes the row outright.

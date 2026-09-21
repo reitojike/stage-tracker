@@ -1,7 +1,7 @@
 /**
  * default-deny な認証境界が公開する唯一の許可リスト。
  *
- * `docs/v2/oracle-routes-ui.md` §0/§4.3 で確認した現行 (`src/proxy.ts`)
+ * `specs/009-authentication-account-access/spec.md` で確認した現行 (`src/proxy.ts`)
  * の `PUBLIC_PATHS` に対応する。これ以外の全パスは未認証アクセスを
  * 拒否する（新しい route を追加しても、この一覧へ明示的に足さない限り
  * 自動的には公開されない）。

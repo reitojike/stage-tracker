@@ -24,7 +24,7 @@ describe('StatePanel', () => {
       const description = screen.getByText('説明文');
       const action = screen.getByRole('button', { name: 'アクション' });
 
-      // Same structural order for all 3 variants - the oracle requires the
+      // Same structural order for all 3 variants - the current contract requires the
       // 3 states to share one structure and not be told apart visually.
       expect(
         title.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING,

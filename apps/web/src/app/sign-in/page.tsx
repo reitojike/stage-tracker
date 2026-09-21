@@ -30,7 +30,7 @@ const AUTH_ERRORS = new Map<string, { title: string; description: string }>([
 ]);
 
 /**
- * サインイン画面（`docs/v2/oracle-routes-ui.md` §1 `/sign-in`）。
+ * サインイン画面（`specs/009-authentication-account-access/spec.md` `/sign-in`）。
  *
  * enumeration 対策として、送信後（`requested=1`）はアカウントの有無を
  * 一切示唆しない中立文言のみを表示する（`requestSignInLink` 参照）。
@@ -62,7 +62,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       {requested ? (
         <p className="w-full max-w-sm text-sm text-muted-foreground">
           {/* アカウントの有無・メール送信成否のいずれも示唆しない
-              (docs/v2/oracle-routes-ui.md §1 / §2 サインイン)。 */}
+              (`specs/009-authentication-account-access/spec.md` / サインイン)。 */}
           リクエストを受け付けました。登録済みのメールアドレスで、メール送信が利用可能な場合はサインインリンクが届きます。届かない場合は時間をおいて再試行するか、管理者に連絡してください。
         </p>
       ) : (
@@ -70,7 +70,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           {/* Passkey登録済みuserの日常sign-in path（Issue #106/#406）。
               discoverable credentialなのでメールアドレス入力は不要 -
               下のMagic Link formは未登録user向けのfallbackとして常に
-              併記する（docs/v2/oracle-routes-ui.md:49「Passkey優先＋
+              併記する（`specs/009-authentication-account-access/spec.md`:49「Passkey優先＋
               Magic Linkフォールバック」）。 */}
           <PasskeySignInButton />
           <div

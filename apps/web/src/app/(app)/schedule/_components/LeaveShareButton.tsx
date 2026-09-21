@@ -10,7 +10,7 @@ interface LeaveShareButtonProps {
 }
 
 /**
- * 非owner の自己離脱（`docs/v2/oracle-routes-ui.md` §2「予定詳細」:
+ * 非owner の自己離脱（`specs/012-personal-schedule-sharing-privacy/spec.md`「予定詳細」:
  * 「非owner の『共有から外れる』は確認なしの即時実行、成功で `/calendar`
  * へ redirect」）。**entry の削除とは別の operation** - owner-only の
  * hard delete（`DeleteEntryButton.tsx`）とは異なり、この呼び出しは

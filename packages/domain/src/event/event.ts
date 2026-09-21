@@ -5,7 +5,7 @@ import { compareTokyoCalendarDates, tokyoCalendarDateSchema } from '../time/toky
 
 /**
  * The Event range ("公演期間"): a required, inclusive-both-ends Asia/Tokyo
- * calendar date range (docs/v2/oracle-domain.md §1.1, .ai-dev-foundation/product-rules.md "Event 開催
+ * calendar date range (`specs/005-event-occurrence-lifecycle/spec.md` "Event 開催
  * 期間 (Event range)"). This is first-class Event data, not derived from its
  * Occurrences - an Event may have zero Occurrences while its range is known.
  */
@@ -28,10 +28,10 @@ export type EventRange = z.infer<typeof eventRangeSchema>;
 
 /**
  * Event: the shared catalog entry for a production/engagement
- * (docs/v2/oracle-domain.md §1.1). `venue`/`sourceUrl`/`memo` are free-form
- * nullable text - the oracle does not constrain their content beyond
+ * (`specs/005-event-occurrence-lifecycle/spec.md`). `venue`/`sourceUrl`/`memo` are free-form
+ * nullable text - the current Event contract does not constrain their content beyond
  * nullability, so this schema does not invent length/format constraints for
- * them (see this task's report, "oracle を読んでも決められなかった点").
+ * them (see this task's report, "current contract で追加制約を設けない点").
  */
 export const eventSchema = z
   .object({

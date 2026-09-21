@@ -39,7 +39,7 @@ function resolveBackHref(month: string | undefined): string {
 
 /**
  * owner 向けの共有相手管理。recipient 一覧取得の失敗
- * （`docs/v2/oracle-routes-ui.md` §2「予定詳細」: 「owner側の recipient
+ * （`specs/007-personal-schedule-lifecycle/spec.md`「予定詳細」: 「owner側の recipient
  * 一覧取得失敗」）は、entry 本体の表示とは別枠の専用メッセージで表す
  * - entry 自体は表示を継続する。
  *
@@ -78,7 +78,7 @@ async function OwnerShareManagement({
 
 /**
  * 非owner向けの自分の共有状態。自分の share 行取得失敗
- * （oracle 同節: 「非owner側の自分のshare行取得失敗」）は entry 本体とは
+ * （`specs/012-personal-schedule-sharing-privacy/spec.md`: 「非owner側の自分のshare行取得失敗」）は entry 本体とは
  * 別枠で表示する。`description` は上記 `OwnerShareManagement` と同じ理由で
  * 固定文言にする。
  */

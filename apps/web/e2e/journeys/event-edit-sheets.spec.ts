@@ -18,7 +18,7 @@ function nextTokyoDate(): string {
 }
 
 /**
- * Event edit Sheet journey (Issue #422): exercise the Oracle-defined
+ * Event edit Sheet journey (Issue #422): exercise the current Event-editing
  * range/occurrence/delete interactions through the real route, Server
  * Actions, shared Sheet, and local Supabase. The fixture is seeded directly
  * because this journey is scoped to the edit interactions rather than Event

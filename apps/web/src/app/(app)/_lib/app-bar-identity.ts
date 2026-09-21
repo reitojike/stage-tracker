@@ -9,7 +9,7 @@ export interface AppBarIdentity {
 const FALLBACK_INITIAL = "?";
 
 /**
- * `resolveMyPageAppBarIdentity()` (`docs/v2/oracle-routes-ui.md` §0): each
+ * `resolveMyPageAppBarIdentity()` (`this route and its tests`): each
  * authenticated route's `layout.tsx` resolves the caller's email initial and
  * `/mypage` href, purely to feed `AppShell`/`AppBar`'s presentational props
  * (`packages/ui/src/app-bar.tsx`). `/mypage` itself is out of this Task's
@@ -21,7 +21,7 @@ const FALLBACK_INITIAL = "?";
  * `requireAuthenticatedUserId` (`@/app/_lib/require-authenticated-user-id`),
  * not this layout-level chrome helper. If the session can't be read here for
  * any reason, this falls back to a placeholder initial rather than
- * throwing - the oracle's own division of responsibility is "layout は
+ * throwing - the current contract's division of responsibility is "layout は
  * chrome を描画するだけ", so a chrome-level identity lookup failing must not
  * prevent the page's own content (including that page's own auth-failure
  * panel) from rendering.

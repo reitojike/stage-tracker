@@ -7,7 +7,7 @@ operator 手順のみを対象とします。汎用の import platform ではあ
 対象は **operator-assisted import** だけです。user-facing な import 導線
 （一般 authenticated user が URL を入力して catalog へ登録する UI）は
 提供しません。Event 作成は引き続き designated catalog creator に限定
-されており（`docs/prd.md` / product-rules.md の MVP Event catalog write
+されており（`specs/005-event-occurrence-lifecycle/spec.md` の EV-009
 boundary）、それを広げる場合は verification / moderation mechanism を
 同時に設計する Post-MVP governance gate の対象です。
 
@@ -241,7 +241,8 @@ Event は unclassified のまま valid です。必要な分類は、公式情�
     15:30開演」）は、残席があれば一般前売もあるため取り込みます。
 - **終演時刻が未公表の回**: `endsAt` は `null` のままにします。宝塚の
   「公演時間は休憩を含め約3時間」から終演時刻を計算して埋めることは
-  しません（product-rules.md: 未設定を既定値へ暗黙変換しない）。
+  しません（`specs/005-event-occurrence-lifecycle/spec.md` の現行契約により、
+  未設定値へ暗黙の時刻を補いません）。
 
 歌舞伎の上演時間は初日の数日前にならないと公表されません。初回 import
 は `endsAt: null` で入り、後日 seed file を更新して再実行すれば埋まります

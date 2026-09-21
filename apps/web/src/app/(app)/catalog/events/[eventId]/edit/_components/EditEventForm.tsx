@@ -35,10 +35,10 @@ import { OccurrenceList } from "./OccurrenceList";
 
 /**
  * `/catalog/events/[eventId]/edit` の owner 専用フォーム群
- * （`docs/v2/oracle-routes-ui.md` §2「Event 編集」）。
+ * （`specs/005-event-occurrence-lifecycle/spec.md`「Event 編集」）。
  *
  * - 詳細編集: 成功時は画面に留まり、shared `WriteNotice` で通知する。
- * - 期間編集: Oracle に従い shared Sheet 内のフォームで編集し、成功時に
+ * - 期間編集: current contract に従い shared Sheet 内のフォームで編集し、成功時に
  *   自動 close する。入力失敗時は Sheet を開いたままにする。
  * - 中止/解除: 確認ダイアログなし（可逆操作）。
  * - 削除: shared Sheet による明示的な確認が必須。成功時

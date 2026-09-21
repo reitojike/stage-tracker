@@ -18,7 +18,7 @@ import {
 } from "./postgrest-error";
 
 /**
- * invite の書き込み core（`docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細
+ * invite の書き込み core（`specs/006-invitation-coordination-opacity/spec.md` イベント詳細
  * の `inviteToOccurrenceAction`）。
  *
  * **opacity boundary（specs/001-occurrence-participation/spec.md の Invitation Requirements、`docs/v2/decisions.md`

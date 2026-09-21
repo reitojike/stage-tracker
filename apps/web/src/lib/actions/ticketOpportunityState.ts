@@ -15,7 +15,7 @@ import {
 } from "./postgrest-error";
 
 /**
- * `user_ticket_opportunity_states` の write core（`docs/v2/oracle-routes-ui.md`
+ * `user_ticket_opportunity_states` の write core（`specs/008-ticket-opportunity-planning/spec.md`
  * の `/tickets` 行の `updateTicketOpportunityStateAction`）。next-safe-action の
  * `"use server"` wrapper（`./ticketOpportunityState.actions.ts`）から
  * `ctx.supabase`/`ctx.userId` を渡して呼ばれる。`participation.ts` と同じ
@@ -29,7 +29,7 @@ function classifyWriteError(
 ): SetTicketOpportunityStateErrorKind {
   // `occurrence_participations` の `occurrence-canceled` (90002) に相当する
   // actor 事実由来の分岐はこのテーブルには無い（TicketOpportunity の
-  // cancellation 状態はこの write の対象外 - .ai-dev-foundation/product-rules.md「Ticket
+  // cancellation 状態はこの write の対象外 - specs/008-ticket-opportunity-planning/spec.md「Ticket
   // Opportunity」に cancellation gate の記述は無い）。単一の opaque
   // failure として扱う。生の code/message は client へ渡さず、server 側
   // ログにのみ残す（`postgrest-error.ts` の `classifyPostgrestLikeError`
@@ -76,7 +76,7 @@ export interface SetTicketOpportunityStateParams extends TicketOpportunityStateT
 }
 
 /**
- * `docs/v2/oracle-routes-ui.md`「`updateTicketOpportunityStateAction`→
+ * `specs/008-ticket-opportunity-planning/spec.md`「`updateTicketOpportunityStateAction`→
  * `user_ticket_opportunity_states` の upsert/delete」の upsert 半分。
  *
  * **真の `upsert()` は使わない**（`participation.ts`の`setParticipationChoice`

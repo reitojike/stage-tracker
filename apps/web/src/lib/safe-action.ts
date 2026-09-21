@@ -38,11 +38,11 @@ export const actionClient = createSafeActionClient({
  * client と userId は `ctx` 経由で action 本体へ渡し、action 内で
  * client を作り直さなくてよいようにする。
  *
- * `docs/v2/oracle-domain.md` §3 の「各 action は権限判定を一切行わない。
+ * `this module and its tests` の「各 action は権限判定を一切行わない。
  * 権限は常に DB（RLS/RPC 内の membership check）が enforce する」という
  * 設計は維持する。ここでの認証チェックは「DB まで到達してから権限エラーを
  * 受け取るのではなく、先回りにセッション切れを検出する」ための分類であり、
- * RLS の代替ではない（同 §4.2 の `requireAuthenticatedUserId` と同じ
+ * RLS の代替ではない（同 の `requireAuthenticatedUserId` と同じ
  * 位置づけ）。
  */
 export const authActionClient = actionClient.use(async ({ next }) => {

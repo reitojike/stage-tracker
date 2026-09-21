@@ -1,7 +1,7 @@
 /**
  * サインイン後の redirect 先（`/auth/confirm` の `next` クエリパラメータ）
  * はメールのクエリ文字列に由来し、attacker-influenceable
- * （`docs/v2/oracle-domain.md` §2.12）。同一オリジンかつ単一スラッシュの
+ * （`specs/009-authentication-account-access/spec.md`）。同一オリジンかつ単一スラッシュの
  * 絶対パスのみを許可し、それ以外は `/` にフォールバックする。
  */
 

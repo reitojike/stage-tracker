@@ -50,7 +50,7 @@ export interface HomeViewProps {
 }
 
 /**
- * `/` home's presentational layer (`docs/v2/oracle-routes-ui.md` §2
+ * `/` home's presentational layer (`this route and its tests`
  * 「ホーム」). Takes both blocks' already-classified state as props - this
  * component makes no `empty`/RLS judgment of its own, it only chooses which
  * `StatePanel` variant/copy to show for a variant it is handed
@@ -61,7 +61,7 @@ export interface HomeViewProps {
  * failure in one never prevents the other from rendering its own state. The
  * *only* place the 2 blocks' states are compared against each other is the
  * "both empty -> 1 merged empty panel" rule below - `unavailable`/`error` is
- * deliberately never folded into that merge (oracle §2: "unavailable はこの
+ * deliberately never folded into that merge (historical comparison: "unavailable はこの
  * 統合に絶対に含めない"). `ticketState.block`/`scheduleState` are compared
  * for that merge, never `ticketState.optional`/`scheduleState`'s `a`/`b`
  * parts - a failed non-backbone read must never turn a genuinely-populated

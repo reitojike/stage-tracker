@@ -16,7 +16,7 @@ interface CreateScheduleEntryFormProps {
 }
 
 /**
- * `/schedule/new`（`docs/v2/oracle-routes-ui.md` §1 `createScheduleEntryAction`)。
+ * `/schedule/new`（`specs/007-personal-schedule-lifecycle/spec.md` `createScheduleEntryAction`)。
  * 成功時は action 自身が `/calendar` へ `redirect()` するため、この
  * コンポーネントは成功後の遷移を自前で行わない
  * （`next-safe-action` は Server Action 内の `redirect()` を

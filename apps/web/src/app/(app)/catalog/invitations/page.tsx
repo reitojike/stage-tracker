@@ -10,7 +10,7 @@ import { catalogMonthHref } from "../_lib/catalog-links";
 import { InvitationList } from "./_components/InvitationList";
 
 /**
- * 自分宛 pending Invitation 一覧（`docs/v2/oracle-routes-ui.md` §1/§2
+ * 自分宛 pending Invitation 一覧（`specs/006-invitation-coordination-opacity/spec.md`
  * `/catalog/invitations`）。
  */
 export default async function InvitationsPage() {

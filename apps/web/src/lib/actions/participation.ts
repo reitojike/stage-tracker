@@ -15,7 +15,7 @@ import {
 } from "./postgrest-error";
 
 /**
- * 参加状況の書き込み core（`docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細
+ * 参加状況の書き込み core（`specs/001-occurrence-participation/spec.md` イベント詳細
  * の `setParticipationChoiceAction`）。next-safe-action の `"use server"`
  * wrapper（`./participation.actions.ts`）から `ctx.supabase`/`ctx.userId` を
  * 渡して呼ばれる。この core 自体は `"use server"` を持たないため、MSW で
@@ -94,10 +94,10 @@ async function updateStatusById(
 }
 
 /**
- * `docs/v2/oracle-domain.md` §1.6 の `setParticipation`/`withdrawParticipation`
+ * `specs/001-occurrence-participation/spec.md` の `setParticipation`/`withdrawParticipation`
  * を1関数にまとめた write boundary。
  *
- * **真の `upsert()` は使わない**（oracle-domain.md §1.6 の明示的な指示）。
+ * **真の `upsert()` は使わない**（specs/001-occurrence-participation/spec.md §1.6 の明示的な指示）。
  * `occurrence_participations` の UPDATE 列 grant は `(status, visibility)`
  * のみで `occurrence_id`/`user_id` を含まない
  * (`20260822010000_create_occurrence_participations.sql`)。PostgREST の

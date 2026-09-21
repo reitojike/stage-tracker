@@ -5,7 +5,7 @@ import { err, ok, type Result } from '../result';
 
 /**
  * Asia/Tokyo has no DST and this product's date boundary is fixed at
- * `Asia/Tokyo` (docs/v2/oracle-domain.md §2.1), so the conversion between an
+ * `Asia/Tokyo`, so the conversion between an
  * `Instant` (UTC) and Asia/Tokyo local fields is a pure, constant +9h
  * offset - it never depends on the JS runtime's or DB session's local
  * timezone. See this task's report for the one assumption this relies on
@@ -47,7 +47,8 @@ export function instantToTokyoCalendarDate(instant: Instant): TokyoCalendarDate 
 /**
  * The UTC instant range `[startInstant, endInstantExclusive)` covering a full
  * Asia/Tokyo calendar day (half-open, matching "ある日を指定して、その日に
- * 公演回がある event を引ける" style range queries in .ai-dev-foundation/product-rules.md).
+ * 公演回がある event を引ける" style range queries in their owning
+ * product/domain specifications.
  */
 export interface TokyoCalendarDayUtcRange {
   readonly startInstant: Instant;

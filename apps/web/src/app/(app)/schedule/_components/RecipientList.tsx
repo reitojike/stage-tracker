@@ -23,7 +23,7 @@ function RecipientRow({ entryId, recipient }: RecipientRowProps) {
           {recipient.recipientEmail}
         </span>
         {/* 「owner の recipient『解除』は確認なしの即時実行」
-          （oracle-routes-ui.md §2「予定詳細」）。 */}
+          （specs/012-personal-schedule-sharing-privacy/spec.md §2「予定詳細」）。 */}
         <Button
           type="button"
           variant="outline"
@@ -56,7 +56,7 @@ interface RecipientListProps {
 }
 
 /**
- * owner 向けの共有相手一覧（`docs/v2/oracle-routes-ui.md` §2「予定詳細」:
+ * owner 向けの共有相手一覧（`specs/012-personal-schedule-sharing-privacy/spec.md`「予定詳細」:
  * 「空状態（共有先0件）: owner視点で『まだ誰とも共有していません』」）。
  */
 export function RecipientList({ entryId, recipients }: RecipientListProps) {

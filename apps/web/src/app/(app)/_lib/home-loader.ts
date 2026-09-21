@@ -32,9 +32,9 @@ import {
 import type { ScreenNow } from "@/app/_lib/now";
 
 /**
- * `/` home's data layer (`docs/v2/oracle-routes-ui.md` §1 `/`, §2 「ホーム」).
+ * `/` home's data layer (`this route and its tests` `/`, 「ホーム」).
  *
- * The oracle's core invariant for this screen (`docs/v2/decisions.md` P4):
+ * the current contract's core invariant for this screen (`docs/v2/decisions.md` P4):
  * "申し込み期限" and "直近の予定" are 2 **completely independent** blocks,
  * each with its own `empty`/`error`/`unavailable`/`populated` classification.
  * A failure in one must never hide or degrade the other - this is why each
@@ -68,8 +68,8 @@ export interface HomeTicketDeadlineRow {
  * (`@stage-tracker/domain`'s `selectTicketOpportunityPrimaryRows`), excluding
  * post-final retained history (that belongs to `/tickets`'s full timeline,
  * not home's "upcoming deadlines" framing - AGENT decision, not specified by
- * the oracle at this granularity) and capped to
- * `HOME_TICKET_DEADLINE_LIMIT` rows (also an AGENT decision - the oracle
+ * the current contract at this granularity) and capped to
+ * `HOME_TICKET_DEADLINE_LIMIT` rows (also an AGENT decision - the current contract
  * does not specify a home-page row limit; see this Task's report).
  *
  * `listTicketOpportunities` is the **required** read here and

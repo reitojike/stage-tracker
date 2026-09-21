@@ -15,7 +15,7 @@ import { completeMagicLinkSignIn } from "../support/signIn";
  * success (`src/lib/actions/schedule/schedule-entry-actions.ts`).
  *
  * What this does *not* verify: time-bounded entries or `blocking=false` -
- * those are unit/DB-test territory (see product-rules.md
+ * those are unit/DB-test territory (see `specs/007-personal-schedule-lifecycle/spec.md`
  * "Event-independent personal schedule").
  */
 test("personal schedule: create, view, edit, then delete an entry", async ({

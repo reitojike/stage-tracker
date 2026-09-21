@@ -8,7 +8,7 @@ import {
  * Server で読んだ「今」（epoch ms）を Asia/Tokyo calendar date へ変換する
  * 薄い adapter。`@stage-tracker/domain` は clock-free（「今」を引数として
  * 受け取り、自らは `Date.now()` を読まない）ため、実際の clock 読み取りは
- * application 側であるここが担う（.ai-dev-foundation/product-rules.md 設計方針 / packages/domain の
+ * application 側であるここが担う（`specs/004-calendar-month-grid/spec.md` 設計方針 / packages/domain の
  * eslint guardrail 参照）。
  */
 export function resolveServerTokyoDate(nowEpochMs: number): TokyoCalendarDate {

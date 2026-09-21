@@ -37,20 +37,20 @@ import {
 } from "@/lib/revalidation";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 の Event/Occurrence 書き込み層
+ * `this route and its tests` の Event/Occurrence 書き込み層
  * （`/catalog/events/new`, `/catalog/events/[eventId]/edit` の Server
  * Action 群）。
  *
  * すべての action は `authActionClient` を通す（`@/lib/safe-action.ts`）
  * だけで、権限そのものは判定しない。真の権限境界は常に RPC/RLS 側にあり
- * （.ai-dev-foundation/product-rules.md 制約）、ここでの分類は DB が返したエラーを共通の
+ * （specs/005-event-occurrence-lifecycle/spec.md 制約）、ここでの分類は DB が返したエラーを共通の
  * `ActionErrorShape` 語彙へ変換するだけ。plain table UPDATE は RLS の
  * `using` 句が対象行を除外すると *エラーにならず* 0件成功を返す
  * （`event_occurrences_update_own`/`events_update_own` の性質）ため、
  * `.select().maybeSingle()` を必ず付け、`data === null` を
- * `permission-denied` として扱う。この判定基準は M8 oracle の
- * `deniedUpdate` と同じ（oracle を読み、ゼロから書き直した）。
- * エラーの文言粒度は同 oracle の Event write feedback を
+ * `permission-denied` として扱う。この判定基準は historical M8 comparison の
+ * `deniedUpdate` と同じ（historical sourceを読み、ゼロから書き直した）。
+ * エラーの文言粒度は同 current contract の Event write feedback を
  * 移植した `./event-write-feedback.ts` の operation 別 thrower へ委譲する
  * （M8 journey 比較で確定した分類2の不具合修正 -
  * `docs/v2/m8-journey-comparison.md` 参照）。
@@ -190,7 +190,7 @@ export const updateEventRangeAction = authActionClient
     // 20260825000400_create_reschedule_event_rpc.sql`）は Event range と
     // occurrence 群の atomic 更新を1つの RPC にまとめているが、この画面の
     // 「期間だけ編集」フローは occurrence 自体を動かさない
-    // （`docs/v2/oracle-routes-ui.md` §2「期間編集はSheet内フォームで…」）
+    // （`this route and its tests`「期間編集はSheet内フォームで…」）
     // ため、`p_occurrences` は空配列のまま渡す。既存 occurrence が新しい
     // range に収まらない場合の最終判定は、DB 側の deferred constraint
     // (`events_range_contains_occurrences`) が担う。上の read/check との間に

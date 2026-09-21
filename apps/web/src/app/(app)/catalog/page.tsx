@@ -24,13 +24,13 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 }
 
 /**
- * `/catalog` (`docs/v2/oracle-routes-ui.md` §1 `/catalog`,
- * `docs/v2/oracle-domain.md` §2.10 "Catalog navigation"). Read-only - no
+ * `/catalog` (`specs/005-event-occurrence-lifecycle/spec.md` `/catalog`,
+ * `specs/011-catalog-classification-filter/spec.md` "Catalog navigation"). Read-only - no
  * Server Action/mutation on this screen (this Task's scope).
  *
  * `month`/`date` resolution reuses `/calendar`'s own
  * `resolveCalendarMonthAndDate` (`@/app/_lib/calendar-grid.ts`) rather than
- * re-deriving it: the oracle's malformed-value fallback and
+ * re-deriving it: the current contract's malformed-value fallback and
  * "date が勝つ" precedence rule are identical for both screens (both port
  * the same legacy `resolveCatalogParams`/`resolveMyCalendarParams`
  * contract), and `/catalog` previously ignored `date` entirely (a confirmed
@@ -64,7 +64,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   // from adjacent months the month calendar renders - `MonthCalendar.tsx`),
   // not just the calendar month itself - matching legacy's own
   // `tokyoCalendarDateRangeUtc(grid.gridFirstDate, grid.gridLastDate)`
-  // from the M8 oracle and this app's own
+  // from the historical M8 comparison and this app's own
   // `/calendar` (`(app)/calendar/page.tsx`'s `gridStart`/`gridEnd`). Without
   // this, a lead/trail cell's band/dot would always render empty even when
   // an adjacent-month Event's range actually covers that date.

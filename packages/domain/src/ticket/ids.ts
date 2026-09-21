@@ -2,8 +2,7 @@ import { z } from 'zod';
 
 /**
  * Opaque, branded identifiers for the TicketOpportunity sub-domain
- * (.ai-dev-foundation/product-rules.md "Ticket Opportunity（Ticket planning MVP）", docs/v2/
- * oracle-domain.md §1.9). Defined here rather than in the shared `../ids.ts`
+ * (`specs/008-ticket-opportunity-planning/spec.md`). Defined here rather than in the shared `../ids.ts`
  * for the same directory-boundary reason as ../schedule/ids.ts.
  */
 

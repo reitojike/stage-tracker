@@ -17,7 +17,7 @@ export interface KeysetReadRow {
  * 報告する総数に達するまで読み続ける。「返ってきたページが要求した
  * `PAGE_SIZE` より短かった = 最後のページ」という仮定は使わない - それは
  * `max_rows` が `PAGE_SIZE` 未満に設定された場合に破綻し、この関数が防ごう
- * としている truncation を静かに再導入する（M8 oracle の
+ * としている truncation を静かに再導入する（historical M8 comparison の
  * `fetchAllRows` と同じ設計）。
  *
  * `queryPage` は毎回 `{ count: "exact" }` を指定した query を渡すこと

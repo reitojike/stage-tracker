@@ -61,7 +61,7 @@ export async function seedEventWithOccurrence(
 
 /**
  * Best-effort teardown, ordered to satisfy FKs that (by product design,
- * product-rules.md "Deletion") carry no cascade: participations/
+ * `specs/005-event-occurrence-lifecycle/spec.md` "Deletion") carry no cascade: participations/
  * invitations first, then the occurrence, then the event. Logs rather than
  * throws so one leftover fixture never masks the journey's own pass/fail
  * result.

@@ -1,7 +1,7 @@
 import { PageHeading } from "@stage-tracker/ui";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1: `/mypage` の `loading` は Server
+ * `specs/009-authentication-account-access/spec.md`: `/mypage` の `loading` は Server
  * Component で十分（URL 依存の見出し再構築は不要）。
  */
 export default function MyPageLoading() {

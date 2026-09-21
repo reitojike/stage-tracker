@@ -20,8 +20,8 @@ interface DeleteEntryButtonProps {
 }
 
 /**
- * owner-only hard delete（product-rules.md「Deletion」節、
- * `docs/v2/oracle-routes-ui.md` §2「予定詳細」: 「owner の『削除』は
+ * owner-only hard delete（specs/007-personal-schedule-lifecycle/spec.md「Deletion」節、
+ * `specs/007-personal-schedule-lifecycle/spec.md`「予定詳細」: 「owner の『削除』は
  * 確認 Sheet 必須」）。
  *
  * shared Sheet は presentation と modal lifecycle を担当し、hard delete の

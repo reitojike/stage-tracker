@@ -29,7 +29,7 @@ const updateTicketOpportunityStateInputSchema = z.object({
 });
 
 /**
- * `docs/v2/oracle-routes-ui.md`「`/tickets`」行の
+ * `specs/008-ticket-opportunity-planning/spec.md`「`/tickets`」行の
  * `updateTicketOpportunityStateAction`→`user_ticket_opportunity_states` の
  * upsert/delete（`intent`: `planned`|`applied`|`remove`、常に
  * `user_id=caller` で scope）。M8 の difference inventory（#401）で確定した

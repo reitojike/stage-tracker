@@ -46,8 +46,8 @@ function classifyMagicLinkError(error: unknown): ActionErrorShape {
  * status の分岐、error shape）を返すと、それを使って応答を分岐させた
  * 瞬間に account-existence oracle になる。呼び出し元に対して不変な
  * 応答を保証する唯一の方法は、そもそも分岐材料を渡さないこと
- * （`docs/v2/oracle-domain.md` §1.11 サインイン方式、
- * `docs/v2/oracle-routes-ui.md` §1 `/sign-in` 参照）。
+ * （`specs/009-authentication-account-access/spec.md` サインイン方式、
+ * `specs/009-authentication-account-access/spec.md` `/sign-in` 参照）。
  *
  * `shouldCreateUser: false` は「公開 signup を無効化する」という
  * 設定判断のバックストップ。誤設定された Supabase project が

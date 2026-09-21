@@ -16,7 +16,7 @@ import type { ScheduleEntryFieldErrorMap } from "./scheduleValidationErrors";
 
 /**
  * `/schedule/new` と `/schedule/[entryId]/edit` が共有するフィールド集合
- * （`docs/v2/oracle-routes-ui.md` §2「予定作成」「予定編集」:
+ * （`specs/007-personal-schedule-lifecycle/spec.md`「予定作成」「予定編集」:
  * 「バリデーションルールは作成フォームと共通」）。
  *
  * temporalMode の radio 切替に応じて all-day/time-bounded の入力群を

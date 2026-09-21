@@ -10,7 +10,7 @@ import {
 } from "@/app/_lib/format";
 
 /**
- * `Asia/Tokyo` 表示用の日時整形（.ai-dev-foundation/product-rules.md「時刻・タイムゾーン」）。
+ * `Asia/Tokyo` 表示用の日時整形（`specs/005-event-occurrence-lifecycle/spec.md`「時刻・タイムゾーン」）。
  * この route 専用の pure/clock-free ヘルパー
  * （`docs/v2/decisions.md` A6: 「今」を読まない限り各 route が個別に
  * 持ってよい）。
@@ -23,7 +23,7 @@ export function formatOccurrenceDateTime(occurrence: Occurrence): string {
   )} ${formatTokyoTime(occurrence.startsAt)}`;
 }
 
-/** doorsAt が null の場合は null（未公表を正当な状態として扱う - .ai-dev-foundation/product-rules.md「開場 / 開演 / 終演」）。 */
+/** doorsAt が null の場合は null（未公表を正当な状態として扱う - `specs/005-event-occurrence-lifecycle/spec.md`「開場 / 開演 / 終演」）。 */
 export function formatOccurrenceDoors(occurrence: Occurrence): string | null {
   if (occurrence.doorsAt === null) {
     return null;

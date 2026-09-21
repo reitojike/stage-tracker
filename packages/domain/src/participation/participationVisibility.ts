@@ -4,12 +4,12 @@ import type { Participation } from './participation';
 /**
  * SELECT visibility for a Participation row (see
  * specs/001-occurrence-participation/spec.md: FR-022–FR-024; migration-era DB
- * context is in docs/v2/oracle-database.md §2 `occurrence_participations`): visible to its
+ * context is in `specs/001-occurrence-participation/spec.md`): visible to its
  * own user, or to anyone when `visibility` is `public`.
  *
  * Deliberately takes only `userId`/`visibility` as input - not, say, an
  * `isEventOwner` flag - because being the Event owner grants no read access
- * to another user's private Participation (docs/v2/oracle-database.md §6
+ * to another user's private Participation (the current Participation privacy
  * "event owner でさえ他人の private participation を読めないこと"). A
  * caller cannot accidentally widen visibility just by having more context
  * available, because this function has no parameter to carry that context

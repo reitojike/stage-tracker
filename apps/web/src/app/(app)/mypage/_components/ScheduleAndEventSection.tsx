@@ -6,7 +6,7 @@ import {
 } from "@stage-tracker/ui";
 
 /**
- * .ai-dev-foundation/product-rules.md「マイページ」: 「招待一覧」行は常時表示（0件でも消えない）、
+ * specs/009-authentication-account-access/spec.md「マイページ」: 「招待一覧」行は常時表示（0件でも消えない）、
  * pending件数>0のときのみバッジ。「イベントを追加」行は `canCreateEvent`
  * （fail-closed）が true のときのみ表示（無効化ではなく非表示）。
  */

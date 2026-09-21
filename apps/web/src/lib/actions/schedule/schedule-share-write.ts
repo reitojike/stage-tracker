@@ -59,7 +59,7 @@ export async function addScheduleShareByEmail(
     // `resolveShareByEmailBusinessRuleMessage`（このファイル冒頭）だけが
     // 表示文言を個別に選ぶ狭い exception:
     // 「対象 email が未登録」は product rule
-    // （product-rules.md「Authenticated-user targeting」節）が owner への
+    // （specs/012-personal-schedule-sharing-privacy/spec.md「Authenticated-user targeting」節）が owner への
     // 開示を明示的に許可した classified な状態であり、それ以外の業務ルール
     // 違反（自己共有・owner 以外からの呼び出し等）は `classifyRpcError` の
     // generic な安全文言（`GENERIC_VALIDATION_MESSAGE_JA`）へ fail-closed

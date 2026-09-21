@@ -10,7 +10,7 @@ import { updateTicketOpportunityStateAction } from "@/lib/actions/ticketOpportun
 
 /** legacy の `resolveTicketOpportunityStateSetNotice`/
  * `ticketOpportunityRemoveNotice`（`domain/ticketOpportunityFeedback.ts`）
- * と同じ文言。`docs/v2/oracle-routes-ui.md`「チケット一覧」の「成功時
+ * と同じ文言。`specs/008-ticket-opportunity-planning/spec.md`「チケット一覧」の「成功時
  * `WriteNotice` で通知」要件（review finding: 未実装だった）。 */
 function noticeForIntent(intent: "planned" | "applied" | "remove"): string {
   if (intent === "remove") {
@@ -24,12 +24,12 @@ function noticeForIntent(intent: "planned" | "applied" | "remove"): string {
 export interface TicketOpportunityStateControlsProps {
   readonly opportunityId: TicketOpportunityId;
   /** 呼び出し元本人の現在の planning state。row が無い = 未登録
-   * (.ai-dev-foundation/product-rules.md「UserTicketOpportunityState」)。 */
+   * (specs/008-ticket-opportunity-planning/spec.md「UserTicketOpportunityState」)。 */
   readonly initialState: UserTicketOpportunityStatus | null;
 }
 
 /**
- * `docs/v2/oracle-routes-ui.md`「`/tickets`」行の
+ * `specs/008-ticket-opportunity-planning/spec.md`「`/tickets`」行の
  * `updateTicketOpportunityStateAction` を呼ぶ、呼び出し元本人だけの
  * planning state 操作（M8 で確定した v2 の不具合の修正 - この write UI 自体
  * が未実装だった）。`TicketsView`（`isFirstRowForOpportunity` かつ

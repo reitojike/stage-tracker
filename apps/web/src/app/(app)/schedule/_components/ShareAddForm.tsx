@@ -22,13 +22,13 @@ interface ShareAddFormProps {
 }
 
 /**
- * owner の共有追加（`docs/v2/oracle-routes-ui.md` §1
+ * owner の共有追加（`specs/012-personal-schedule-sharing-privacy/spec.md`
  * `addScheduleShareByEmailAction`、§2「予定詳細」: 「owner の『+ 追加』→
  * `ShareAddSheet`、成功で自動 close」）。共有追加の action semantics は
  * この consumer に残し、Sheet は presentation と lifecycle だけを担当する。
  *
  * email が未登録の場合、この operation は「知らせてよい」
- * （product-rules.md「Authenticated-user targeting」節・「Invitation
+ * （specs/012-personal-schedule-sharing-privacy/spec.md「Authenticated-user targeting」節・「Invitation
  * とは異なりこの operation には opacity 要件がない」）。この画面は
  * サーバから返る `validation` kind の `ActionError.message` をそのまま
  * 表示するだけで、未登録かどうかで分岐や隠蔽を一切行わない - それ自体が

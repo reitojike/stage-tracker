@@ -10,11 +10,11 @@ import {
  * このタスクで最も重要なテスト（タスク指示の「受け入れ条件」節）:
  * `docs/v2/decisions.md`「M6 が負う責任」の3状態分類が正しいこと。
  *
- * ```
+ * ``
  * fetch 成功 + 0 行   -> empty
  * fetch 失敗           -> error
  * 権限が無い / 見えない -> unavailable
- * ```
+ * ``
  *
  * 特に、fetch が失敗した場合は行数に関わらず絶対に `empty` にならない
  * ことを確認する（RLS の unavailable が empty へ化けることを防ぐのが

@@ -85,7 +85,7 @@ const POPULATED: OptionalPartBlockState<TicketsTimelineState> = {
 };
 
 describe("TicketsView", () => {
-  it("renders the empty state with the oracle's exact copy", () => {
+  it("renders the empty state with the current contract's exact copy", () => {
     render(
       <TicketsView
         today={TODAY}
@@ -504,7 +504,7 @@ describe("TicketsView", () => {
     ).not.toBeInTheDocument();
   });
 
-  // oracle 要件（review finding）: post-final（受付終了確定後）行は
+  // current contract requirement（review finding）: post-final（受付終了確定後）行は
   // personal-state read が成功していてもコントロール自体を非表示にする。
   it("does not render the planning-state controls on a post-final (受付終了) row", () => {
     render(

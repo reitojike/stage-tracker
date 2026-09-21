@@ -7,7 +7,7 @@ export interface ScrollToFocusedOccurrenceProps {
 }
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 の `searchParams: ... occurrence`
+ * `specs/005-event-occurrence-lifecycle/spec.md` の `searchParams: ... occurrence`
  * （フォーカス対象）を実際に画面上へ反映する。`page.tsx` は
  * `id={`occurrence-${occurrence.id}`}` を各行へ既に付与しているため、
  * ここでは対象行までスクロールするだけでよい。`?occurrence=` はクエリ

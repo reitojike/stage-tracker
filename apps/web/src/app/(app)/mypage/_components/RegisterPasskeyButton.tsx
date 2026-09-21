@@ -11,7 +11,7 @@ import {
 } from "@/lib/passkey-ceremony-error";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 `/mypage`: 登録は Server Action ではなく
+ * `specs/009-authentication-account-access/spec.md` `/mypage`: 登録は Server Action ではなく
  * ブラウザ直接 `supabase.auth.registerPasskey()`（WebAuthn ceremony
  * (`navigator.credentials.create()`) のため Client 限定）。
  *

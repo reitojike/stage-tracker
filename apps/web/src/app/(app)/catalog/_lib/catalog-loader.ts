@@ -18,9 +18,9 @@ import {
 } from "./catalog-filters";
 
 /**
- * `/catalog`'s data layer (`docs/v2/oracle-routes-ui.md` §1 `/catalog`).
+ * `/catalog`'s data layer (`specs/005-event-occurrence-lifecycle/spec.md` `/catalog`).
  *
- * 2 independent things are loaded, matching the oracle's own §2 distinction
+ * 2 independent things are loaded, matching the current Catalog loading contract's distinction
  * between "list read failure blocks everything" (the events list) and
  * "filter read failure only degrades the filter UI, the list still renders"
  * (the genre/group/venue option chain) - these are 2 separate exported
@@ -89,10 +89,10 @@ export type CatalogFilterOptionsResult =
   | CatalogFilterOptionsFailure;
 
 /**
- * "フィルタ機能自体が利用不能" (oracle §2 「イベントカタログ一覧」) -
+ * "フィルタ機能自体が利用不能" (the current contract 「イベントカタログ一覧」) -
  * unlike `BlockState`, this has no `empty` variant: 0 known genres/groups/
  * venues just means the filter UI has nothing to offer, which is not a
- * failure (.ai-dev-foundation/product-rules.md never treats an empty lookup table as an error state).
+ * failure (specs/011-catalog-classification-filter/spec.md never treats an empty lookup table as an error state).
  * `ok: false` covers exactly the 2 real failure kinds
  * (`unavailable`/`error`), using `@/lib/data`'s `toReadErrorVariant` (the
  * single canonical failure-kind mapping, PR #381 review finding 3) - kept

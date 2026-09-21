@@ -16,7 +16,7 @@ import {
 
 /**
  * `/catalog/invitations` の書き込み層
- * （`docs/v2/oracle-routes-ui.md` §1 `/catalog/invitations`）。
+ * （`specs/006-invitation-coordination-opacity/spec.md` `/catalog/invitations`）。
  */
 
 /**

@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // このルートが recovery / invite / email_change の token も消費してしまい
 // 得る（一見普通のサインインに見える操作の副作用として email change が
 // 完了してしまう等）。サインインは magic link のみを消費する
-// （`docs/v2/oracle-routes-ui.md` §1 `/auth/confirm`）。
+// （`specs/009-authentication-account-access/spec.md` `/auth/confirm`）。
 const SUPPORTED_OTP_TYPE = "email";
 
 // セッション cookie を含むレスポンスなので、CDN・reverse proxy にキャッシュ
@@ -29,7 +29,7 @@ function redirectWithoutCaching(target: string): NextResponse {
 }
 
 /**
- * Magic Link コールバック（`docs/v2/oracle-routes-ui.md` §1
+ * Magic Link コールバック（`specs/009-authentication-account-access/spec.md`
  * `/auth/confirm`）。`token_hash` を `verifyOtp` で検証し、セッションを
  * 確立する。`next` は `safeRedirectPath`（同一オリジンのみ許可）を通す。
  */

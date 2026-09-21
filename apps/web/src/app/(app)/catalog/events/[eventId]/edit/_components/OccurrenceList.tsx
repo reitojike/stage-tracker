@@ -9,7 +9,7 @@ import { AddOccurrenceForm } from "./AddOccurrenceForm";
 import { OccurrenceItem } from "./OccurrenceItem";
 
 /**
- * 公演回一覧（`docs/v2/oracle-routes-ui.md` §1「Event と公演回」:
+ * 公演回一覧（`specs/005-event-occurrence-lifecycle/spec.md`「Event と公演回」:
  * event は 0 件の公演回を持てる - Issue #87）。0件は正当な状態であり、
  * 空の一覧をエラー扱いにしない。
  */

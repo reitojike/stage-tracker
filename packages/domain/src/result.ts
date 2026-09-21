@@ -4,7 +4,7 @@
  * This package is pure (no I/O, no clock access) and prefers returning
  * failures as values over throwing, mirroring the `{ok:true,value}|{ok:false,error}`
  * convention already used by the current app's parse layer
- * (see docs/v2/oracle-domain.md §3.6).
+ * The result type is a local implementation primitive.
  */
 export type Result<T, E> =
   { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: E };

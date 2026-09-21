@@ -11,7 +11,7 @@ import { tokyoWallClockToInstant, type Instant } from "@stage-tracker/domain";
  * `tokyoWallClockToInstant` が既に安全に実装している
  * （`packages/domain/src/time/tokyoConversion.ts` の
  * `dateUtcRoundTripMs` が範囲外日時・2桁年の罠を回避する）。ここでは
- * M8 oracle の `tokyoDateTimeLocalToInstant` のように独自の
+ * historical M8 comparison の `tokyoDateTimeLocalToInstant` のように独自の
  * `TOKYO_OFFSET_MS`
  * 演算を再実装しない — 同じ計算を二重に持たないための技術判断（この
  * タスクの報告に記録する）。

@@ -8,7 +8,7 @@
  * `20260830000000_simplify_invitation_pending_only.sql` 等で実装済み
  * （`42501`/`90001`/`90002` を全て `using errcode = ...` で明示）。
  * したがってこの write boundary の分類は SQLSTATE のみを見る。**message
- * 文字列マッチは一切行わない**（.ai-dev-foundation/product-rules.md 制約
+ * 文字列マッチは一切行わない**（この SQLSTATE 分類 module の制約
  * 「エラー分類は message 文字列マッチで行わない（A8）」）。
  *
  * このファイル自体は分類関数を持たない。各 write core

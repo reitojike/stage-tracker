@@ -4,7 +4,7 @@ import { canInviteToOccurrence } from './inviteEligibility';
 
 /**
  * The invite-time opacity boundary (see specs/001-occurrence-participation/spec.md
- * Invitation Requirements; migration-era context: docs/v2/oracle-domain.md §1.7,
+ * Invitation Requirements; historical rationale is retained in
  * docs/v2/decisions.md "v2 実装で踏んでは
  * いけない地雷": "Invitation の opacity 境界は「動いているように見えても
  * 静かに破れる」領域"). Inviting dispatches on the invitee's *current*,
@@ -47,7 +47,7 @@ export interface InviteRequest {
 
 /**
  * Invite eligibility evaluation: self-invite guard, the cancellation gate
- * (docs/v2/oracle-database.md §5 invariant 12: new invitations are rejected
+ * (`specs/006-invitation-coordination-opacity/spec.md`: new invitations are rejected
  * on an effectively canceled Occurrence), and invite eligibility
  * (`canInviteToOccurrence`). Rejections are about the *inviter's own*
  * state/action (self-invite, their own eligibility) or the occurrence's

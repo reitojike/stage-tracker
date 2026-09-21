@@ -35,7 +35,7 @@ const PERMISSION_DENIED_POSTGRES_CODES: ReadonlySet<string> = new Set([
  * 0 行の理由は「そもそも存在しない」と「RLS が見せない（所有者不一致）」の
  * 両方があり得るが、区別できない/しないのは意図的: `/schedule/[entryId]`
  * の「存在しない entry と非公開 entry を同一の empty 扱いにする」設計
- * （product-rules.md 由来）を write 側でも一貫させ、`not-found` へ畳み込む。
+ * （specs/007-personal-schedule-lifecycle/spec.md 由来）を write 側でも一貫させ、`not-found` へ畳み込む。
  */
 const SINGLE_ROW_NOT_MATCHED_CODE = "PGRST116";
 
@@ -106,7 +106,7 @@ export function classifyWritePostgrestError(
  *
  * **`90010` を Invitation 側で再利用してはいけない。** share by email は
  * 「対象 email が未登録であることを owner へ知らせてよい」operation だが
- * （product-rules.md「Authenticated-user targeting」節）、Invitation は
+ * （specs/007-personal-schedule-lifecycle/spec.md「Authenticated-user targeting」節）、Invitation は
  * invitee の状態を inviter へ開示してはいけない。opacity boundary が違うため、
  * 同じ code を使うと handler を共有した瞬間に Invitation 側の opacity が壊れる。
  *

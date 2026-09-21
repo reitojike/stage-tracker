@@ -13,8 +13,9 @@ import type { EventId } from '../ids';
  *
  * This is a from-scratch design, not a port of the pre-v2 implementation
  * (`apps/legacy-web/src/domain/ticketOpportunityTimeline.ts`, kept only as
- * the oracle for behavior). The rules it reproduces
- * (docs/v2/oracle-domain.md §2.7, §2.9's month grouping) are:
+ * the historical migration reference for behavior). The rules it reproduces
+ * (`specs/008-ticket-opportunity-planning/spec.md`; month placement follows
+ * `specs/003-ticket-opportunity-timeline/spec.md`) are:
  *
  * 1. Flatten every Opportunity's every milestone into one chronological
  *    "1 milestone = 1 row" list (never grouped by type - an
@@ -45,13 +46,13 @@ import type { EventId } from '../ids';
  * a canceled Opportunity's own surfaced row (current/next, or retained
  * post-final history) still needs to render - callers layer the terminal
  * "中止" presentation on top, they don't ask this module to suppress rows
- * over it (docs/v2/oracle-domain.md §2.7's own note that cancellation and
+ * over it (the current TicketOpportunity contract's own note that cancellation and
  * post-final retention are independent).
  */
 
 /** Issue #192's bounded post-final retention window, in Asia/Tokyo calendar
  * days after an Opportunity's own final milestone's final day (inclusive of
- * that boundary day itself) - .ai-dev-foundation/product-rules.md/oracle-domain.md §2.7
+ * that boundary day itself) - `specs/008-ticket-opportunity-planning/spec.md`
  * "TICKET_POST_FINAL_RETENTION_DAYS = 7". */
 export const TICKET_POST_FINAL_RETENTION_DAYS = 7;
 
@@ -102,8 +103,8 @@ export function ticketOpportunityMilestoneTokyoCalendarDate(
 }
 
 /**
- * Precision-specific past/non-past determination (docs/v2/oracle-domain.md
- * §2.7): a `date` milestone stays non-past for the entirety of its own
+ * Precision-specific past/non-past determination (`specs/003-ticket-opportunity-timeline/spec.md`):
+ * a `date` milestone stays non-past for the entirety of its own
  * Tokyo calendar day (only the day after it is past); a `datetime`
  * milestone is past once its exact instant has elapsed; a `window`
  * milestone is past only once its `endsAt` has elapsed - an active window

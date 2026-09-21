@@ -2,7 +2,7 @@ import { Button, SectionHeading } from "@stage-tracker/ui";
 import { signOut } from "@/app/sign-out/actions";
 
 /**
- * .ai-dev-foundation/product-rules.md「マイページ」: email 取得失敗時は識別情報行を出さず
+ * specs/009-authentication-account-access/spec.md「マイページ」: email 取得失敗時は識別情報行を出さず
  * サインアウトボタンのみ（明示エラー表示はなし）。
  */
 export function AccountSection({ email }: { email: string | null }) {

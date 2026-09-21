@@ -363,12 +363,12 @@ function mapTicketOpportunityListRow(
 /**
  * TicketOpportunity + milestones + target occurrences を shared catalog
  * data として読む（`/tickets`・`/` home の両方が使う -
- * `docs/v2/oracle-routes-ui.md` §1 `listTicketOpportunitiesWithDetails`
+ * `specs/008-ticket-opportunity-planning/spec.md` `listTicketOpportunitiesWithDetails`
  * の shared 部分）。
  *
  * `ticket_opportunities`/`ticket_opportunity_target_occurrences`/
  * `ticket_opportunity_milestones` はいずれも `using (true)` の shared
- * read-only catalog（`docs/v2/oracle-database.md` §2）なので、
+ * read-only catalog（`specs/008-ticket-opportunity-planning/spec.md`）なので、
  * authenticated である限り0件は常に「本当に0件」。全3 resource は
  * exact-count keyset paging で読む。
  *
@@ -480,7 +480,7 @@ export async function listTicketOpportunities(
 /**
  * 自分の personal planning state（`planned`/`applied`）を読む。
  * `user_id = userId` フィルタは RLS の「本人の行のみ」
- * （`docs/v2/oracle-database.md` §2）と完全に一致するため、0件は常に
+ * （`specs/008-ticket-opportunity-planning/spec.md`）と完全に一致するため、0件は常に
  * 「本当に登録していない」であり、unavailable が empty へ化ける余地は
  * ない。
  */

@@ -10,7 +10,7 @@ function copyCookies(from: NextResponse, to: NextResponse): void {
 }
 
 /**
- * default-deny な認証境界（`docs/v2/oracle-routes-ui.md` §0/§4.3）。
+ * default-deny な認証境界（`specs/009-authentication-account-access/spec.md`）。
  *
  * `isPublicPath`（`src/lib/auth/public-paths.ts`）の完全一致以外の
  * 全パスは、未認証アクセスを `/sign-in` へ redirect する。認証済みで
@@ -87,7 +87,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 // も除外してしまい、default-deny 境界を素通りさせ得る。未知の application
 // path は末尾に関わらず default-deny のままにする。
 //
-// PWA の manifest / icon（`docs/v2/oracle-routes-ui.md` §0、legacy の
+// PWA の manifest / icon（`specs/009-authentication-account-access/spec.md`、legacy の
 // `PWA_PUBLIC_ASSET_PATHS`）は、サインイン前の installability 評価に必要な
 // 明示例外。exact-path のみを対象にし（`$` で終端し、descendant を含めない）、
 // 対応する asset 一覧との同期をテストで検証する。

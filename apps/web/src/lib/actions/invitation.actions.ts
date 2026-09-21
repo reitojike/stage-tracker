@@ -20,7 +20,7 @@ const inviteToOccurrenceInputSchema = z.object({
 });
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1/§2 イベント詳細の
+ * `specs/006-invitation-coordination-opacity/spec.md` イベント詳細の
  * `inviteToOccurrenceAction`。
  *
  * **opacity**: 成功時に返すのは `./invitation.ts` の
