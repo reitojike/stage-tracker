@@ -93,7 +93,7 @@ test("event edit: range, occurrence, deletion, and cancellation boundaries", asy
     await addSheet.getByRole("button", { name: "公演回を追加" }).click();
     await expect(addSheet).toBeVisible();
     await expect(addStartsAt).toHaveValue("");
-    await expect(addSheet.getByRole("status")).toContainText(
+    await expect(addSheet.locator('[aria-live="polite"]')).toContainText(
       "次の公演回を入力できます。",
     );
 

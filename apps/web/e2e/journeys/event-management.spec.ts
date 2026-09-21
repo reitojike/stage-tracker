@@ -72,7 +72,12 @@ test("event management: a designated catalog creator creates and edits an event"
     await page.goto(`/catalog/events/${String(eventId)}/edit`);
     await page.getByLabel("タイトル").fill(editedTitle);
     await page.getByRole("button", { name: "基本情報を保存" }).click();
-    await expect(page.getByRole("status")).toHaveText("保存しました。");
+    const basicInfoForm = page
+      .getByLabel("タイトル")
+      .locator("xpath=ancestor::form");
+    await expect(basicInfoForm.locator('[aria-live="polite"]')).toHaveText(
+      "保存しました。",
+    );
 
     const catalogContext = "month=2026-09&date=2026-09-11";
     await page.setViewportSize({ width: 375, height: 812 });

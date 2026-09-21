@@ -18,11 +18,6 @@ export interface InviteFormProps {
   readonly occurrenceId: OccurrenceId;
 }
 
-type InviteMessage = {
-  readonly kind: "error";
-  readonly text: string;
-};
-
 /**
  * `docs/v2/oracle-routes-ui.md` §2 イベント詳細の招待フォーム
  * （legacy の `InviteSheet` 相当）。Sheet は presentation と lifecycle
@@ -39,30 +34,30 @@ type InviteMessage = {
 export function InviteForm({ occurrenceId }: InviteFormProps) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState<InviteMessage | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(null);
+    setFieldError(null);
+    setOperationError(null);
     startTransition(async () => {
       const result = await inviteToOccurrenceAction({ occurrenceId, email });
 
       if (result?.serverError) {
-        setMessage({ kind: "error", text: result.serverError.message });
+        setOperationError(result.serverError.message);
         return;
       }
       if (result?.validationErrors) {
-        setMessage({
-          kind: "error",
-          text: "メールアドレスの形式を確認してください。",
-        });
+        setFieldError("メールアドレスの形式を確認してください。");
         return;
       }
 
       // 成功: invitee 側の実際の分岐に関わらず、常に同じタイミングで閉じる。
       setEmail("");
-      setMessage(null);
+      setFieldError(null);
+      setOperationError(null);
       setOpen(false);
     });
   }
@@ -76,7 +71,8 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
           if (!nextOpen) {
-            setMessage(null);
+            setFieldError(null);
+            setOperationError(null);
           }
         }}
       >
@@ -104,7 +100,7 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
               <Field
                 id={fieldId}
                 label="招待するメールアドレス"
-                error={message?.kind === "error" ? message.text : undefined}
+                error={fieldError}
               >
                 <Input
                   name="email"
@@ -116,6 +112,11 @@ export function InviteForm({ occurrenceId }: InviteFormProps) {
                   onChange={(event) => setEmail(event.target.value)}
                 />
               </Field>
+              {operationError ? (
+                <p role="alert" className="text-body-sm text-destructive">
+                  {operationError}
+                </p>
+              ) : null}
             </form>
           </div>
           <SheetFooter>
