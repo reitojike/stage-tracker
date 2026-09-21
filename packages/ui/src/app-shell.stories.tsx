@@ -39,7 +39,7 @@ export const WithEmptyStatePanel: Story = {
 
 /**
  * 未認証面: PrimaryNav / AppBar actions の両方を隠す。
- * (`/sign-in` 等、oracle §3 AppShell `showPrimaryNav`)
+ * (`/sign-in` 等、shared shell contract の AppShell `showPrimaryNav`)
  */
 export const UnauthenticatedSurface: Story = {
   args: {

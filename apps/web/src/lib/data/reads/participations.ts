@@ -85,11 +85,11 @@ function mapParticipationWithOccurrenceRow(
 /**
  * 自分の participation を、それが属する occurrence/event と併せて読む
  * (`/` home の「直近の予定」ブロック、`/calendar` の両方が使う -
- * `docs/v2/oracle-routes-ui.md` §1 の `listMyParticipations`)。
+ * Spec 001 の Participation semanticsを実装する `listMyParticipations`)。
  *
  * `user_id = userId` フィルタは `occurrence_participations` の RLS SELECT
  * policy（本人の行、または `visibility='public'` の行 -
- * `docs/v2/oracle-database.md` §2）のうち「本人の行」の部分と完全に
+ * current RLS policy）のうち「本人の行」の部分と完全に
  * 一致する。この read は意図的に「他人の public 行」を読まないため、
  * RLS が追加で許可する範囲との差分による silent filtering は起こらず、
  * 0件は常に「本当に0件」——権限起因の unavailable が empty へ化ける余地は

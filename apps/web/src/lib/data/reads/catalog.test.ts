@@ -61,7 +61,7 @@ describe("listEventCatalogInRange", () => {
               created_at: "2026-01-01T00:00:00Z",
               updated_at: "2026-01-01T00:00:00Z",
               // Event range known, no occurrences announced yet - a valid
-              // state (.ai-dev-foundation/product-rules.md "Event 開催期間 (Event range)").
+              // state under Spec 005's Event range semantics.
               event_occurrences: [],
               genres: {
                 id: "33333333-3333-4333-8333-333333333333",
@@ -384,7 +384,8 @@ describe("listGroupsByIds", () => {
 
   /**
    * codex review 指摘の regression test: `groupIds` の件数（1 event に
-   * associate される group 数の上限が無い - .ai-dev-foundation/product-rules.md「Group」）が
+   * associate される group 数の上限が無い - Spec 011's group-association
+   * semantics）が
    * `api.max_rows` を超えると、`.range()` によるページングが無ければ
    * 後続 group が黙って欠落する。500 行ちょうどの1ページ目 + 1行の2ページ
    * 目、という実際の HTTP request 2 回を経由させて末尾の group が失われ

@@ -2,15 +2,15 @@ import { isCanceled, type Cancelable } from '../event/cancellation';
 import type { TicketOpportunityTargetScope } from './ticketOpportunity';
 
 /**
- * Opportunity-scope effective-cancellation aggregation
- * (docs/v2/oracle-domain.md §2.7 "Opportunity-scope の実質的中止判定"):
+ * Effective-cancellation aggregation across TicketOpportunity target scopes,
+ * as defined by Spec 008:
  *
  * 1. The parent Event is canceled -> the whole Opportunity is terminal,
  *    regardless of targetScope.
  * 2. `event_wide` with the Event not canceled -> never terminal from
  *    Occurrence state alone. `event_wide` is a semantic fact about the
  *    whole Event, not a snapshot of whichever Occurrences currently exist
- *    (.ai-dev-foundation/product-rules.md "Target scope"), so one current Occurrence being canceled
+ *    (Spec 008's target-scope semantics), so one current Occurrence being canceled
  *    must not cancel the Opportunity.
  * 3. `selected_occurrences` with the Event not canceled -> terminal only
  *    when the target set is *completely* resolved
@@ -20,7 +20,8 @@ import type { TicketOpportunityTargetScope } from './ticketOpportunity';
  *    defensive missing-read drop for only some ids) may read as "all
  *    canceled" - both are inferring global cancellation from an
  *    incomplete/unresolved target set, which this rule explicitly forbids
- *    (docs/v2/oracle-domain.md §2.7: "取りこぼしを「全部中止」と誤読しない").
+ *    Spec 008 does not treat an incomplete or unresolved target set as
+ *    evidence that every target is canceled.
  *
  * `resolvedTargetOccurrences` deliberately takes only the minimal
  * `Cancelable` shape (../event/cancellation.ts) rather than a full

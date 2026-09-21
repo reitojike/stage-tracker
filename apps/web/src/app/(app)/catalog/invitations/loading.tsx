@@ -3,8 +3,8 @@ import { resolveScreenNow } from "@/app/_lib/now";
 import { tokyoYearMonthOf } from "@/app/_lib/calendar-grid";
 import { catalogMonthHref } from "../_lib/catalog-links";
 
-/** `docs/v2/oracle-routes-ui.md` §1: `/catalog/invitations` の loading は
- * Server Component で十分。 */
+/** `/catalog/invitations` has no URL-dependent loading heading or back-link
+ * state, so its loading boundary can remain a Server Component. */
 export default function InvitationsLoading() {
   const backHref = catalogMonthHref(
     tokyoYearMonthOf(resolveScreenNow().todayTokyoDate),

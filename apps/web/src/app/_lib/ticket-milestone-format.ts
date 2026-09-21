@@ -10,8 +10,8 @@ import { formatTokyoCalendarDateJa, formatTokyoTime } from "./format";
  * (`@stage-tracker/domain`'s `ticketOpportunityMilestoneTypeSchema`). Shared
  * by `/` (home's "申し込み期限" block) and `/tickets` (the full timeline) -
  * both render the same milestone rows, just filtered/grouped differently.
- * The oracle names the 5 milestone kinds
- * (`docs/v2/oracle-routes-ui.md`/.ai-dev-foundation/product-rules.md "Milestone") but does not specify
+ * The TicketOpportunity contract names the 5 milestone kinds
+ * (Spec 008's milestone/provenance semantics) but does not specify
  * their exact Japanese label text; these are this Task's own reasonable
  * choice (see this Task's report).
  */
@@ -31,7 +31,7 @@ export function formatMilestoneTypeJa(
 }
 
 /** Renders a milestone's "when" respecting its own `temporalPrecision` -
- * never fabricates a time for a `date`-precision milestone (.ai-dev-foundation/product-rules.md
+ * never fabricates a time for a `date`-precision milestone (`specs/008-ticket-opportunity-planning/spec.md`
  * "source が与えていない時刻を補完しません"). */
 export function formatMilestoneWhenJa(
   milestone: TicketOpportunityMilestone,

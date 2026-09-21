@@ -10,9 +10,9 @@ interface LeaveShareButtonProps {
 }
 
 /**
- * 非owner の自己離脱（`docs/v2/oracle-routes-ui.md` §2「予定詳細」:
- * 「非owner の『共有から外れる』は確認なしの即時実行、成功で `/calendar`
- * へ redirect」）。**entry の削除とは別の operation** - owner-only の
+ * 非owner の自己離脱（Spec 012 の recipient self-leave semantics）。Exact
+ * confirmation and redirect behavior is owned by this runtime consumer: 成功で `/calendar`
+ * へ redirect する。**entry の削除とは別の operation** - owner-only の
  * hard delete（`DeleteEntryButton.tsx`）とは異なり、この呼び出しは
  * 自分の共有 1 件を消すだけで、entry 自体や他の recipient の共有には
  * 一切影響しない。`removeScheduleShareAction` は shareId を受け取らず

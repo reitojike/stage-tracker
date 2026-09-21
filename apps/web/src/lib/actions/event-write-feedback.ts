@@ -12,14 +12,13 @@ import {
 } from "./postgrest-error";
 
 /**
- * `docs/v2/oracle-domain.md:576-580`「エラーケースと表示文言は
- * `eventWriteFeedback.ts` に `operation × EventCatalogWriteErrorKind` の
- * 直積として全パターン定義されている。v2 では...この直積をそのまま
- * 持ち込むのが最小変更」。M8 journey 比較（`docs/v2/
- * m8-journey-comparison.md`）で確定した分類2の不具合の修正 - v2 は
- * これまで全 operation を単一の汎用メッセージへ collapse していた。
+ * Event write/delete/cancellation feedback is kept in this module as the
+ * `operation × EventCatalogWriteErrorKind` matrix. The M8 journey comparison
+ * (`docs/v2/m8-journey-comparison.md`) records the historical reason for
+ * preserving that distinction; the regression contract is exercised by
+ * `event-write-feedback.test.ts`.
  *
- * M8 oracle の Event write feedback と同じ文言を、v2 の
+ * historical M8 comparison の Event write feedback と同じ文言を、v2 の
  * `ActionError`（`{kind, message}` の単一 message field。legacy の
  * `{variant, title, description}` の 2 field 構造とは異なる - v2 の
  * write form は `StatePanel` ではなく単一の `<p role="alert">` で

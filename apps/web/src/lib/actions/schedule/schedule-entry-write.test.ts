@@ -117,10 +117,11 @@ describe("updatePersonalScheduleEntry", () => {
 
   /**
    * 0 行更新を、存在しない entry と所有していない entry の両方に共通する
-   * `not-found` へ分類する（`postgrest-error.ts` の doc comment、
-   * product-rules.md の「存在しない/非公開の empty 一体化」を write 側でも
-   * 踏襲する設計）。RLS の owner-only UPDATE policy はどちらのケースでも
-   * 単に 0 行を対象にマッチさせ、PostgREST はそれでも 200 + 空配列を返す。
+   * `not-found` へ分類する（`postgrest-error.ts` の runtime/test contract）。
+   * existing but non-visible と nonexistent を non-owner に区別させない
+   * privacy boundary は Spec 012 PSH-017 が所有する。RLS の owner-only
+   * UPDATE policy はどちらのケースでも単に 0 行を対象にマッチさせ、
+   * PostgREST はそれでも 200 + 空配列を返す。
    */
   it("classifies a 0-row update response as not-found - covers both a nonexistent id and someone else's entry", async () => {
     server.use(

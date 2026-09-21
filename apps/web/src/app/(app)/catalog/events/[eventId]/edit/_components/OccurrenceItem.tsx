@@ -25,9 +25,9 @@ import { fieldErrorMessage } from "@/lib/actions/validationErrors";
 import { instantToDateTimeLocalValue } from "../_lib/instantFormat";
 
 /**
- * 1件の occurrence の表示 + owner 操作（`docs/v2/oracle-routes-ui.md`
- * §2「Event 編集」: 更新成功後は値を保持したまま編集 Sheet を閉じる、
- * 中止/解除はトグル・確認なし、削除は確認 Sheet 必須）。
+ * 1件の occurrence の表示 + owner 操作。Event lifecycle semantics follow
+ * Spec 005; exact Sheet/toggle/delete presentation is runtime-owned:
+ * 中止/解除はトグル・確認なし、削除は確認 Sheet 必須。
  */
 export function OccurrenceItem({
   eventId,

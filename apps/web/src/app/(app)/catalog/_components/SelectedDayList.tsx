@@ -30,16 +30,16 @@ export interface SelectedDayListProps {
   readonly occurrences: readonly SelectedDayOccurrence[];
   /** Events whose Event range covers `date` but have no actual occurrence
    * on it (`selectEventLevelFallback`) - e.g. a 0-occurrence Event whose
-   * range overlaps `date` (.ai-dev-foundation/product-rules.md "Catalog の日程参照要件": a 0-occurrence
-   * Event within its Event range must still be reachable). */
+   * range overlaps `date` (Spec 005's Event-range catalog visibility semantics:
+   * a 0-occurrence Event within its Event range must still be reachable). */
   readonly fallbackEntries: readonly EventCatalogEntry[];
   readonly classificationByEventId: ReadonlyMap<string, EventClassification>;
   readonly groupNameById: ReadonlyMap<GroupId, string>;
 }
 
 /**
- * The full-detail escape hatch for one selected day, ported from the M8
- * oracle (`docs/v2/oracle-domain.md` §2.9). Combined
+ * The full-detail escape hatch for one selected day is a runtime presentation
+ * owned by this component. Combined
  * into a single component (rather than 2, like legacy) since both sections are
  * always about the same selected `date` and this Task's scope only calls
  * for "a selected-day list showing that day's events" as one surface.

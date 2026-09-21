@@ -5,8 +5,8 @@ import type { Database } from "@/lib/data/database.types";
 /**
  * Client Component から直接呼ぶ操作のための Supabase client。
  *
- * `docs/v2/oracle-domain.md` §4.1 の現行 3 系統（browser / server /
- * cookieless-server）のうち、browser client に対応する。anon key のみを
+ * `docs/architecture/authentication.md` の browser/server separation における
+ * browser client。anon key のみを
  * 使い、cookie の読み書きは `@supabase/ssr` の browser 既定
  * （ブラウザの cookie storage）に任せる。
  *

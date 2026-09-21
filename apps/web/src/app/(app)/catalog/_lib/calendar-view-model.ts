@@ -24,9 +24,10 @@ import {
 } from "@/app/_lib/calendar-band-layout";
 
 /**
- * `/catalog`'s month-calendar presentation derivation, ported from the M8
- * oracle (`docs/v2/oracle-domain.md`
- * §2.9 "Personal schedule / My Calendar": the multi-day-band-only-for-
+ * `/catalog`'s month-calendar presentation derivation, retained from a
+ * historical comparison. Exact month/band layout is runtime-owned; Event range
+ * semantics follow `specs/005-event-occurrence-lifecycle/spec.md`:
+ * the multi-day-band-only-for-
  * multi-day-Events rule is stated there for "Event Catalog" specifically,
  * distinct from My Calendar's own PersonalSchedule bands). Everything here
  * is derived, read-only presentation computed from an already-fetched
@@ -43,7 +44,7 @@ import {
  *   `eventRangeBandSegment`/`buildCatalogMonthViewModel`). The band spans
  *   `startsOn`..`endsOn` inclusive, as-is, regardless of how many
  *   occurrences (if any) exist - the Event range is a first-class fact
- *   (.ai-dev-foundation/product-rules.md "Event 開催期間（Event range）"), never split around a day
+ *   (Spec 005's Event range semantics), never split around a day
  *   with no occurrence evidence.
  * - the day-number count is a *single-day Event count*, not an occurrence
  *   count: a 0-occurrence single-day Event still counts once, and a

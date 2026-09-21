@@ -29,8 +29,9 @@ const updateTicketOpportunityStateInputSchema = z.object({
 });
 
 /**
- * `docs/v2/oracle-routes-ui.md`「`/tickets`」行の
- * `updateTicketOpportunityStateAction`→`user_ticket_opportunity_states` の
+ * Spec 008 owns TicketOpportunity planning semantics; this module owns the
+ * exact `updateTicketOpportunityStateAction` → `user_ticket_opportunity_states`
+ * write mechanics and
  * upsert/delete（`intent`: `planned`|`applied`|`remove`、常に
  * `user_id=caller` で scope）。M8 の difference inventory（#401）で確定した
  * v2 の不具合（この write UI 自体が未実装だった）の修正。

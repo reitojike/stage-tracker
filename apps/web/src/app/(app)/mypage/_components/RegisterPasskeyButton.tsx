@@ -11,7 +11,8 @@ import {
 } from "@/lib/passkey-ceremony-error";
 
 /**
- * `docs/v2/oracle-routes-ui.md` §1 `/mypage`: 登録は Server Action ではなく
+ * Passkey credential ownership is covered by Spec 009. The browser-direct
+ * registration mechanism and exact My Page presentation are runtime-owned:
  * ブラウザ直接 `supabase.auth.registerPasskey()`（WebAuthn ceremony
  * (`navigator.credentials.create()`) のため Client 限定）。
  *

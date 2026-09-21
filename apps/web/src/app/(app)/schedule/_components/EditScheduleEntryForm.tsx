@@ -17,10 +17,10 @@ interface EditScheduleEntryFormProps {
 }
 
 /**
- * `/schedule/[entryId]/edit`（owner専用、`docs/v2/oracle-routes-ui.md` §1
- * `updateScheduleEntryAction`）。owner 判定そのものはこのコンポーネントの
+ * Personal Schedule owner edit form. Lifecycle semantics belong to Spec 007;
+ * exact route and `updateScheduleEntryAction` wiring are runtime-owned. owner 判定そのものはこのコンポーネントの
  * 責務ではなく、呼び出し元の page.tsx が owner でないと判断した場合は
- * このコンポーネント自体を描画しない（oracle §2「予定編集」: 「owner
+ * このコンポーネント自体を描画しない（runtime の route contract: 「owner
  * 以外が直接 URL へ到達した場合、明示的な permission-denied パネルを
  * 表示（フォーム自体は描画しない）」）。
  */

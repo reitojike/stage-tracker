@@ -18,8 +18,8 @@ export interface ClassificationBadgesProps {
  * classification facets they show (this Task's confirmed-gap fix: an
  * event's `classification.groupIds` - e.g. 宝塚's 星組, an idol group name -
  * was loaded but never rendered on the card, even though the equivalent
- * catalog-wide group *filter* already worked. .ai-dev-foundation/product-rules.md "Catalog
- * classification / venue boundary" does not explicitly require a per-card
+ * catalog-wide group *filter* already worked. Spec 011 does not explicitly
+ * require a per-card
  * group badge, but showing already-loaded, event-level classification data
  * on the card it belongs to is a low-risk parity fix consistent with how
  * legacy's own `classificationBadgeLabel`/`EventLevelFallbackList`/
@@ -30,7 +30,7 @@ export interface ClassificationBadgesProps {
  * *first* group into a single combined string, e.g. "宝塚 / 花組"), this
  * keeps v2's existing separate-Badge style (`EventCatalogRow` already
  * rendered genre as its own `Badge`) and shows every associated group
- * (0..N per .ai-dev-foundation/product-rules.md "Group": "Event と group の関連は 0..N"), joined into
+ * (0..N under Spec 011's group-association semantics), joined into
  * one Badge rather than one Badge per group, to bound the badge count for a
  * multi-group Event.
  */

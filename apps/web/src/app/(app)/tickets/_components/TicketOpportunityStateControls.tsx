@@ -8,10 +8,8 @@ import type {
 import { Button, WriteNotice } from "@stage-tracker/ui";
 import { updateTicketOpportunityStateAction } from "@/lib/actions/ticketOpportunityState.actions";
 
-/** legacy の `resolveTicketOpportunityStateSetNotice`/
- * `ticketOpportunityRemoveNotice`（`domain/ticketOpportunityFeedback.ts`）
- * と同じ文言。`docs/v2/oracle-routes-ui.md`「チケット一覧」の「成功時
- * `WriteNotice` で通知」要件（review finding: 未実装だった）。 */
+/** Mirrors the domain feedback strings and delivers them through this
+ * component's `WriteNotice`; the UI owner keeps the exact presentation. */
 function noticeForIntent(intent: "planned" | "applied" | "remove"): string {
   if (intent === "remove") {
     return "登録を解除しました。";
@@ -24,18 +22,18 @@ function noticeForIntent(intent: "planned" | "applied" | "remove"): string {
 export interface TicketOpportunityStateControlsProps {
   readonly opportunityId: TicketOpportunityId;
   /** 呼び出し元本人の現在の planning state。row が無い = 未登録
-   * (.ai-dev-foundation/product-rules.md「UserTicketOpportunityState」)。 */
+   * (Spec 008 の planning-state semantics)。 */
   readonly initialState: UserTicketOpportunityStatus | null;
 }
 
 /**
- * `docs/v2/oracle-routes-ui.md`「`/tickets`」行の
- * `updateTicketOpportunityStateAction` を呼ぶ、呼び出し元本人だけの
- * planning state 操作（M8 で確定した v2 の不具合の修正 - この write UI 自体
+ * Spec 008 の planning-state semantics に対応する、呼び出し元本人だけの
+ * exact `updateTicketOpportunityStateAction` を呼ぶ planning state 操作
+ * （この write UI 自体
  * が未実装だった）。`TicketsView`（`isFirstRowForOpportunity` かつ
  * `!isPostFinalRetainedHistory`）が Opportunity につき1回だけ描画する
- * （post-final 行はコントロール自体を非表示にするオラクル要件 - review
- * finding）。成功時は `WriteNotice` で通知する（同じくオラクル要件 -
+ * （post-final 行はコントロール自体を非表示にする runtime requirement - review
+ * finding）。成功時は `WriteNotice` で通知する（runtime requirement -
  * review finding）。
  *
  * `ParticipationControls.tsx` と同じ
