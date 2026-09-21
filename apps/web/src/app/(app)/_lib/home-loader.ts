@@ -34,7 +34,7 @@ import type { ScreenNow } from "@/app/_lib/now";
 /**
  * `/` home's data layer (`this route and its tests` `/`, 「ホーム」).
  *
- * the current contract's core invariant for this screen (`docs/v2/decisions.md` P4):
+ * The current contract's core invariant for this screen is that
  * "申し込み期限" and "直近の予定" are 2 **completely independent** blocks,
  * each with its own `empty`/`error`/`unavailable`/`populated` classification.
  * A failure in one must never hide or degrade the other - this is why each
