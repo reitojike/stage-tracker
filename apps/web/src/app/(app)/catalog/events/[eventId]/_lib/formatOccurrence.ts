@@ -7,7 +7,7 @@ import {
   formatTokyoCalendarDateJa,
   formatTokyoCalendarDateWithYearJa,
   formatTokyoTime,
-} from "@/app/_lib/format";
+} from "@/lib/tokyo-format";
 
 /**
  * `Asia/Tokyo` 表示用の日時整形。Event time semantics follow Spec 005;

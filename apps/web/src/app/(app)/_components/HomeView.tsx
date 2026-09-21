@@ -21,10 +21,10 @@ import {
   formatMilestoneWhenJa,
 } from "@/app/_lib/ticket-milestone-format";
 import {
-  formatTokyoCalendarDateJa,
   occurrenceTimeRangeLabel,
   participationStatusLabel,
 } from "@/app/_lib/format";
+import { formatTokyoCalendarDateJa } from "@/lib/tokyo-format";
 import {
   ticketDeadlineBadgeDisplay,
   ticketPersonalStateBadgeDisplay,

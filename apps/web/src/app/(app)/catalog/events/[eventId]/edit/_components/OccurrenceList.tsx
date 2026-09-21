@@ -4,7 +4,7 @@ import type {
   TokyoCalendarDate,
 } from "@stage-tracker/domain";
 import { SectionHeading } from "@stage-tracker/ui";
-import { formatTokyoCalendarDateRangeJa } from "@/app/_lib/format";
+import { formatTokyoCalendarDateRangeJa } from "@/lib/tokyo-format";
 import { AddOccurrenceForm } from "./AddOccurrenceForm";
 import { OccurrenceItem } from "./OccurrenceItem";
 

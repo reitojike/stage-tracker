@@ -1,50 +1,10 @@
 import {
   instantToTokyoCalendarDate,
-  instantToTokyoWallClock,
   type Instant,
   type ParticipationStatus,
-  type TokyoCalendarDate,
 } from "@stage-tracker/domain";
-import { addDays, weekdayLabelJa } from "./calendar-grid";
-
-/** `HH:MM` in Asia/Tokyo wall-clock time - never a raw `Instant`/`Date`
- * formatting shortcut, so every display site goes through the same fixed
- * +9h conversion as the rest of the app (`@stage-tracker/domain`'s
- * `instantToTokyoWallClock`). */
-export function formatTokyoTime(instant: Instant): string {
-  const wallClock = instantToTokyoWallClock(instant);
-  return `${String(wallClock.hour).padStart(2, "0")}:${String(wallClock.minute).padStart(2, "0")}`;
-}
-
-/** `M月D日(曜)` display for a `TokyoCalendarDate`. */
-export function formatTokyoCalendarDateJa(date: TokyoCalendarDate): string {
-  const [, monthStr, dayStr] = date.split("-");
-  return `${Number(monthStr)}月${Number(dayStr)}日(${weekdayLabelJa(date)})`;
-}
-
-/** `YYYY年M月D日(曜)` display when the year is part of the screen's detail context. */
-export function formatTokyoCalendarDateWithYearJa(
-  date: TokyoCalendarDate,
-): string {
-  const [yearStr] = date.split("-");
-  return `${Number(yearStr)}年${formatTokyoCalendarDateJa(date)}`;
-}
-
-/** Date-only range display for Tokyo calendar dates, preserving date precision. */
-export function formatTokyoCalendarDateRangeJa(
-  startsOn: TokyoCalendarDate,
-  endsOn: TokyoCalendarDate,
-): string {
-  const start = formatTokyoCalendarDateJa(startsOn);
-  return startsOn === endsOn
-    ? start
-    : `${start} 〜 ${formatTokyoCalendarDateJa(endsOn)}`;
-}
-
-/** Date and time display for an instant using the product's Tokyo calendar semantics. */
-export function formatTokyoDateTimeJa(instant: Instant): string {
-  return `${formatTokyoCalendarDateJa(instantToTokyoCalendarDate(instant))} ${formatTokyoTime(instant)}`;
-}
+import { addDays } from "./calendar-grid";
+import { formatTokyoCalendarDateJa, formatTokyoTime } from "@/lib/tokyo-format";
 
 /** Shared label for the same participation status across Home and Calendar. */
 export function participationStatusLabel(status: ParticipationStatus): string {

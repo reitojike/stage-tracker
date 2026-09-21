@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { instantSchema, tokyoCalendarDateSchema } from "@stage-tracker/domain";
-import {
-  formatTokyoCalendarDateRangeJa,
-  formatTokyoDateTimeJa,
-  occurrenceTimeRangeLabel,
-} from "./format";
+import { instantSchema } from "@stage-tracker/domain";
+import { occurrenceTimeRangeLabel } from "./format";
 
 describe("occurrenceTimeRangeLabel", () => {
   it("shows a plain time range for a same-day occurrence", () => {
@@ -43,28 +39,5 @@ describe("occurrenceTimeRangeLabel", () => {
     expect(label).toContain("9月12日");
     expect(label).toContain("11:00");
     expect(label).not.toContain("翌日");
-  });
-});
-
-describe("Tokyo date formatting", () => {
-  it("formats a single-day and multi-day date range without raw ISO dates", () => {
-    expect(
-      formatTokyoCalendarDateRangeJa(
-        tokyoCalendarDateSchema.parse("2026-03-05"),
-        tokyoCalendarDateSchema.parse("2026-03-05"),
-      ),
-    ).toBe("3月5日(木)");
-    expect(
-      formatTokyoCalendarDateRangeJa(
-        tokyoCalendarDateSchema.parse("2026-03-05"),
-        tokyoCalendarDateSchema.parse("2026-03-06"),
-      ),
-    ).toBe("3月5日(木) 〜 3月6日(金)");
-  });
-
-  it("formats an instant using Asia/Tokyo date and time", () => {
-    expect(
-      formatTokyoDateTimeJa(instantSchema.parse("2026-03-10T00:00:00.000Z")),
-    ).toBe("3月10日(火) 09:00");
   });
 });

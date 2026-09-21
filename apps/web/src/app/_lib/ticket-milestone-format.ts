@@ -3,7 +3,11 @@ import {
   type TicketOpportunityMilestone,
   type TicketOpportunityMilestoneType,
 } from "@stage-tracker/domain";
-import { formatTokyoCalendarDateJa, formatTokyoTime } from "./format";
+import {
+  formatTokyoCalendarDateJa,
+  formatTokyoDateTimeJa,
+  formatTokyoTime,
+} from "@/lib/tokyo-format";
 
 /**
  * Display labels for `TicketOpportunityMilestoneType`
@@ -40,7 +44,7 @@ export function formatMilestoneWhenJa(
     case "date":
       return formatTokyoCalendarDateJa(milestone.dateValue);
     case "datetime":
-      return `${formatTokyoCalendarDateJa(instantToTokyoCalendarDate(milestone.at))} ${formatTokyoTime(milestone.at)}`;
+      return formatTokyoDateTimeJa(milestone.at);
     case "window": {
       const startDate = instantToTokyoCalendarDate(milestone.startsAt);
       const endDate = instantToTokyoCalendarDate(milestone.endsAt);

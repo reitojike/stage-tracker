@@ -12,11 +12,11 @@ import {
   StatePanel,
 } from "@stage-tracker/ui";
 import type { EventCatalogEntry } from "@/lib/data";
+import { occurrenceTimeRangeLabel } from "@/app/_lib/format";
 import {
   formatTokyoCalendarDateJa,
   formatTokyoCalendarDateRangeJa,
-  occurrenceTimeRangeLabel,
-} from "@/app/_lib/format";
+} from "@/lib/tokyo-format";
 import type { TokyoYearMonth } from "@/app/_lib/calendar-grid";
 import type { SelectedDayOccurrence } from "../_lib/calendar-view-model";
 import { catalogEventHref } from "../_lib/catalog-links";

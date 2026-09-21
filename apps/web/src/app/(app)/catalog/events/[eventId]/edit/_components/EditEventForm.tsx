@@ -22,7 +22,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@stage-tracker/ui/components/sheet";
-import { formatTokyoCalendarDateRangeJa } from "@/app/_lib/format";
+import { formatTokyoCalendarDateRangeJa } from "@/lib/tokyo-format";
 import {
   cancelEventAction,
   deleteEventAction,
