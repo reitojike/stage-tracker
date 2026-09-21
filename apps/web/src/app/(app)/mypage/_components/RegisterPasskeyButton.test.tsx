@@ -18,8 +18,8 @@ vi.mock("@/lib/supabase/browser", () => ({
 describe("RegisterPasskeyButton", () => {
   it("shows the specific 'duplicate' feedback (not a generic message) when the ceremony reports an already-registered credential", async () => {
     // M8 journey 比較（docs/v2/m8-journey-comparison.md）で確定した分類2の
-    // regression test: specs/009-authentication-account-access/spec.md:245 の「失敗時はエラー種別分類
-    // →パネル表示」を満たすかどうかを、実際のコンポーネント配線で確認する。
+    // regression test: passkey ceremony outcomes must reach the specific
+    // feedback mapping through the real component wiring.
     registerPasskey.mockResolvedValueOnce({
       data: null,
       error: { message: "already exists", code: "webauthn_credential_exists" },
