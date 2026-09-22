@@ -35,6 +35,7 @@ const eslintConfig = defineConfig([
     files: [".storybook/**/*.{ts,tsx}"],
     languageOptions: {
       parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
         projectService: {
           allowDefaultProject: [".storybook/*.ts", ".storybook/*.tsx"],
         },
