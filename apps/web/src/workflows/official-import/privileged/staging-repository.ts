@@ -5,7 +5,8 @@ import type {
 } from "@stage-tracker/official-import/durable-candidate";
 import { parseCanonicalProposal } from "@stage-tracker/official-import/durable-candidate";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/data/database.types";
+import type { Database, Json } from "@/lib/data/database.types";
+import { deriveOfficialImportCandidateReviewStatus } from "../candidate-review";
 import type {
   OfficialImportStagingRepository,
   RunFailureClassification,
@@ -13,22 +14,17 @@ import type {
 } from "../shadow-execution";
 import { createPrivilegedIngestionClient } from "./supabase";
 
-type CandidateInsert =
-  Database["public"]["Tables"]["official_import_candidates"]["Insert"];
-
-function commonInsertFields(
+function candidateBatchPayload(
   candidate: EventDurableCandidate | TicketOpportunityDurableCandidate,
-): Omit<CandidateInsert, "candidate_kind" | "proposal_version"> {
+): Json {
   return {
-    run_id: candidate.runId,
-    source_id: candidate.sourceId,
+    candidate_kind: candidate.candidateKind,
     canonical_url: candidate.canonicalUrl,
     official_external_id: candidate.officialExternalId,
     observed_at: candidate.observedAt,
     content_hash: candidate.contentHash,
     etag: candidate.etag,
     last_modified: candidate.lastModified,
-    proposal: candidate.proposal,
     evidence_locator: candidate.evidenceLocator,
     deterministic_match_status: candidate.deterministicMatchStatus,
     semantic_match_status: candidate.semanticMatchStatus,
@@ -37,21 +33,13 @@ function commonInsertFields(
     jev_decision_evidence: candidate.jevDecisionEvidence,
     plan_summary: candidate.planSummary,
     plan_fingerprint: candidate.planFingerprint,
-  };
-}
-
-function candidateInsert(
-  candidate: EventDurableCandidate | TicketOpportunityDurableCandidate,
-): CandidateInsert {
-  return {
-    ...commonInsertFields(candidate),
-    candidate_kind: candidate.candidateKind,
     proposal_version: candidate.proposalVersion,
     proposal: parseCanonicalProposal(
       candidate.candidateKind,
       candidate.proposalVersion,
       candidate.proposal,
     ),
+    review_status: deriveOfficialImportCandidateReviewStatus(candidate),
   };
 }
 
@@ -116,62 +104,43 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
     if (data.status !== "running")
       throw new Error("Official import run has an invalid status");
 
-    // A retry uses the stable Workflow step-derived run ID. Clear any pending
-    // batch left by a process loss before staging the batch again.
-    const { error: cleanupError } = await this.client
-      .from("official_import_candidates")
-      .delete()
-      .eq("run_id", runId);
-    if (cleanupError !== null)
-      throw new Error("Failed to reset interrupted official import run");
     return { status: "ready" };
   }
 
-  async insertEventCandidates(
-    candidates: readonly EventDurableCandidate[],
-  ): Promise<void> {
-    const { error } = await this.client
-      .from("official_import_candidates")
-      .insert(candidates.map(candidateInsert));
-    if (error !== null)
-      throw new Error("Failed to stage official Event candidate batch");
-  }
-
-  async insertTicketOpportunityCandidates(
-    candidates: readonly TicketOpportunityDurableCandidate[],
-  ): Promise<void> {
-    const { error } = await this.client
-      .from("official_import_candidates")
-      .insert(candidates.map(candidateInsert));
-    if (error !== null)
+  async commitCandidates(
+    runId: string,
+    sourceId: string,
+    candidates: readonly (
+      EventDurableCandidate | TicketOpportunityDurableCandidate
+    )[],
+  ): Promise<number> {
+    if (
+      candidates.some(
+        (candidate) =>
+          candidate.runId !== runId || candidate.sourceId !== sourceId,
+      )
+    )
       throw new Error(
-        "Failed to stage official TicketOpportunity candidate batch",
+        "Official import candidate batch identity does not match",
       );
-  }
 
-  async completeRun(runId: string): Promise<void> {
-    const { data, error } = await this.client
-      .from("official_import_runs")
-      .update({ status: "completed", finished_at: new Date().toISOString() })
-      .eq("id", runId)
-      .eq("status", "running")
-      .select("id")
-      .single();
+    const { data, error } = await this.client.rpc(
+      "commit_official_import_candidate_batch",
+      {
+        p_run_id: runId,
+        p_source_id: sourceId,
+        p_candidates: candidates.map(candidateBatchPayload),
+      },
+    );
     if (error !== null || data === null)
-      throw new Error("Failed to complete official import run");
+      throw new Error("Failed to publish official import candidate batch");
+    return data;
   }
 
   async failRun(
     runId: string,
     classification: RunFailureClassification,
   ): Promise<void> {
-    const { error: cleanupError } = await this.client
-      .from("official_import_candidates")
-      .delete()
-      .eq("run_id", runId);
-    if (cleanupError !== null)
-      throw new Error("Failed to clear official import run candidates");
-
     const { data, error } = await this.client
       .from("official_import_runs")
       .update({
