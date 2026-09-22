@@ -43,6 +43,18 @@ for (const committedPath of committedPaths) {
   }
 
   if (generated !== committed) {
+    const candidateStart = generated.indexOf('      official_import_candidates:');
+    const occurrenceStart = generated.indexOf('      occurrence_invitations:');
+    const reviewStart = generated.indexOf('      review_official_import_candidate:');
+    const rescheduleStart = generated.indexOf('      reschedule_event:');
+    console.error('DIAGNOSTIC_OFFICIAL_IMPORT_TYPES_BEGIN');
+    console.error(
+      generated.slice(candidateStart, occurrenceStart > candidateStart ? occurrenceStart : undefined),
+    );
+    console.error(
+      generated.slice(reviewStart, rescheduleStart > reviewStart ? rescheduleStart : undefined),
+    );
+    console.error('DIAGNOSTIC_OFFICIAL_IMPORT_TYPES_END');
     console.error(
       `Generated Supabase types differ from ${committedPath}.\n` +
         'Run "npm run supabase:types" and commit the diff.',
