@@ -305,6 +305,154 @@ export type Database = {
           },
         ]
       }
+      official_import_candidates: {
+        Row: {
+          applied_at: string | null
+          apply_status: string
+          candidate_kind: string
+          canonical_url: string
+          content_hash: string
+          created_at: string
+          deterministic_match_status: string
+          etag: string | null
+          evidence_locator: Json
+          failure_classification: string | null
+          id: string
+          jev_decision_evidence: Json | null
+          last_modified: string | null
+          observed_at: string
+          official_external_id: string | null
+          plan_fingerprint: string
+          plan_summary: Json
+          proposal: Json
+          proposal_version: string
+          resolved_event_id: string | null
+          resolved_ticket_opportunity_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewer: string | null
+          run_id: string
+          semantic_match_status: string
+          source_id: string
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          apply_status?: string
+          candidate_kind: string
+          canonical_url: string
+          content_hash: string
+          created_at?: string
+          deterministic_match_status?: string
+          etag?: string | null
+          evidence_locator?: Json
+          failure_classification?: string | null
+          id?: string
+          jev_decision_evidence?: Json | null
+          last_modified?: string | null
+          observed_at?: string
+          official_external_id?: string | null
+          plan_fingerprint: string
+          plan_summary?: Json
+          proposal: Json
+          proposal_version: string
+          resolved_event_id?: string | null
+          resolved_ticket_opportunity_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewer?: string | null
+          run_id: string
+          semantic_match_status?: string
+          source_id: string
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          apply_status?: string
+          candidate_kind?: string
+          canonical_url?: string
+          content_hash?: string
+          created_at?: string
+          deterministic_match_status?: string
+          etag?: string | null
+          evidence_locator?: Json
+          failure_classification?: string | null
+          id?: string
+          jev_decision_evidence?: Json | null
+          last_modified?: string | null
+          observed_at?: string
+          official_external_id?: string | null
+          plan_fingerprint?: string
+          plan_summary?: Json
+          proposal?: Json
+          proposal_version?: string
+          resolved_event_id?: string | null
+          resolved_ticket_opportunity_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewer?: string | null
+          run_id?: string
+          semantic_match_status?: string
+          source_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_import_candidates_resolved_event_id_fkey"
+            columns: ["resolved_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_import_candidates_resolved_ticket_opportunity_id_fkey"
+            columns: ["resolved_ticket_opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_import_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "official_import_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      official_import_runs: {
+        Row: {
+          created_at: string
+          failure_classification: string | null
+          finished_at: string | null
+          id: string
+          source_id: string
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          failure_classification?: string | null
+          finished_at?: string | null
+          id?: string
+          source_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          failure_classification?: string | null
+          finished_at?: string | null
+          id?: string
+          source_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       personal_schedule_entries: {
         Row: {
           blocking: boolean
@@ -789,6 +937,45 @@ export type Database = {
           to: "event_occurrences"
           isOneToOne: false
           isSetofReturn: true
+        }
+      }
+      review_official_import_candidate: {
+        Args: { p_candidate_id: string; p_review_status: string }
+        Returns: {
+          applied_at: string | null
+          apply_status: string
+          candidate_kind: string
+          canonical_url: string
+          content_hash: string
+          created_at: string
+          deterministic_match_status: string
+          etag: string | null
+          evidence_locator: Json
+          failure_classification: string | null
+          id: string
+          jev_decision_evidence: Json | null
+          last_modified: string | null
+          observed_at: string
+          official_external_id: string | null
+          plan_fingerprint: string
+          plan_summary: Json
+          proposal: Json
+          proposal_version: string
+          resolved_event_id: string | null
+          resolved_ticket_opportunity_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewer: string | null
+          run_id: string
+          semantic_match_status: string
+          source_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "official_import_candidates"
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       share_schedule_entry_by_email: {
