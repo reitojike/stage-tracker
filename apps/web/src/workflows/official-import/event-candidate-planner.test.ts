@@ -153,4 +153,23 @@ describe("Event candidate planning", () => {
       }),
     ).toBe("blocked_for_identity_review");
   });
+
+  it("preserves an explicit ambiguous semantic decision", async () => {
+    const evidence = {
+      decisionKind: "event_alignment",
+      version: "v1",
+      provider: "jev",
+      model: "test",
+      choice: "ambiguous",
+      confidence: 0.9,
+      inputFingerprint: "d".repeat(64),
+    };
+    const { planner } = setup(null, [event(), event({ id: "event-2" })], {
+      status: "ambiguous",
+      evidence,
+    });
+    const result = await planner.planEvent(source, draft());
+    expect(result.semanticMatchStatus).toBe("ambiguous");
+    expect(result.jevDecisionEvidence).toEqual(evidence);
+  });
 });

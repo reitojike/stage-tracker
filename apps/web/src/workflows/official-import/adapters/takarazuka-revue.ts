@@ -77,10 +77,8 @@ export function parseTakarazukaIndex(
     const titleNode = descendants(item, (node) => hasClass(node, "title"))[0];
     if (year === undefined || workSlug === undefined || titleNode === undefined)
       return [];
-    const venues = descendants(
-      item,
-      (node) => elementName(node) === "dl",
-    ).flatMap((dl): TakarazukaVenueFact[] => {
+    const venueBlocks = descendants(item, (node) => elementName(node) === "dl");
+    const venues = venueBlocks.flatMap((dl): TakarazukaVenueFact[] => {
       const dt = descendants(dl, (node) => elementName(node) === "dt")[0];
       const dd = descendants(dl, (node) => elementName(node) === "dd")[0];
       if (dt === undefined || dd === undefined) return [];
@@ -97,7 +95,7 @@ export function parseTakarazukaIndex(
         return [];
       }
     });
-    if (venues.length === 0) return [];
+    if (venues.length === 0 || venues.length !== venueBlocks.length) return [];
     return [
       {
         year,

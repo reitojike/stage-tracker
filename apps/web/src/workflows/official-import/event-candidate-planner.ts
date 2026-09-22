@@ -268,7 +268,8 @@ export function createEventCandidatePlanner(
       }
       return result(draft, planFor(draft, null), {
         deterministicMatchStatus: "unresolved",
-        semanticMatchStatus: "low_confidence",
+        semanticMatchStatus:
+          alignment.status === "ambiguous" ? "ambiguous" : "low_confidence",
         resolvedEventId: null,
         jevDecisionEvidence:
           alignment.status === "unavailable" ? null : alignment.evidence,

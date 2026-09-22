@@ -56,7 +56,12 @@ export async function fetchOfficialHtml(
   if (Number.isFinite(contentLength) && contentLength > MAX_HTML_BYTES) {
     throw new SourceFetchFailure();
   }
-  const body = await response.text();
+  let body: string;
+  try {
+    body = await response.text();
+  } catch {
+    throw new SourceFetchFailure();
+  }
   if (new TextEncoder().encode(body).byteLength > MAX_HTML_BYTES) {
     throw new SourceFetchFailure();
   }

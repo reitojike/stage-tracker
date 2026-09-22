@@ -79,6 +79,17 @@ describe("Takarazuka revue adapter facts", () => {
       ),
     ).toThrow();
   });
+
+  it("rejects a production when any venue block is only partially parseable", () => {
+    expect(() =>
+      parseTakarazukaIndex(
+        source,
+        `<div class="item"><a href="/sp/revue/2026/ponoichizoku/index.html"><p class="title">『ポーの一族』</p></a>
+        <dl><dt>宝塚大劇場</dt><dd>2026年7月1日～8月1日</dd></dl>
+        <dl><dt>東京宝塚劇場</dt><dd>日程調整中</dd></dl></div>`,
+      ),
+    ).toThrow();
+  });
 });
 
 function document(url: string, body: string): OfficialHtmlDocument {

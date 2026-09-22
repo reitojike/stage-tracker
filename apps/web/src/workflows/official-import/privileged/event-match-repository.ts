@@ -5,6 +5,10 @@ import type {
   CatalogEventMatch,
   EventMatchRepository,
 } from "../event-candidate-planner";
+import {
+  EVENT_MATCH_LIMIT,
+  requireCompleteEventMatchWindow,
+} from "../event-match-window";
 import { createPrivilegedIngestionClient } from "./supabase";
 
 type EventRow = Pick<
@@ -75,10 +79,14 @@ export function createEventMatchRepository(
         .gte("ends_on", startsOn)
         .order("starts_on")
         .order("id")
-        .limit(20);
+        .limit(EVENT_MATCH_LIMIT + 1);
       if (error !== null)
         throw new Error("Failed to retrieve bounded Event matches");
-      return Promise.all(data.map((event) => hydrate(client, event)));
+      return Promise.all(
+        requireCompleteEventMatchWindow(data).map((event) =>
+          hydrate(client, event),
+        ),
+      );
     },
   };
 }

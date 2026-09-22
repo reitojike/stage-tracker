@@ -62,4 +62,22 @@ describe("official HTML fetch boundary", () => {
       fetchOfficialHtml(source, source.canonicalUrl, oversized),
     ).rejects.toThrow();
   });
+
+  it("classifies a response-body stream failure as a fetch failure", async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.error(new Error("connection closed"));
+      },
+    });
+    const transport = vi.fn(
+      async () =>
+        new Response(stream, {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        }),
+    );
+    await expect(
+      fetchOfficialHtml(source, source.canonicalUrl, transport),
+    ).rejects.toMatchObject({ name: "SourceFetchFailure" });
+  });
 });
