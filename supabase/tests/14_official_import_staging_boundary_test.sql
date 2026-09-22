@@ -9,7 +9,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(27);
+select plan(28);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
@@ -331,18 +331,28 @@ select is(
 -- This exact privilege set is the direct grant boundary for both staging
 -- tables. The policy alone is not enough: authenticated must not gain a
 -- future INSERT/UPDATE/DELETE path by accident.
-select results_eq(
-  $$
-    select table_name, privilege_type
+set local role postgres;
+select is(
+  (
+    select count(*)
     from information_schema.role_table_grants
     where grantee = 'authenticated'
       and table_schema = 'public'
       and table_name in ('official_import_runs', 'official_import_candidates')
-    order by table_name, privilege_type
-  $$,
-  $$values
-    ('official_import_candidates'::text, 'SELECT'::text),
-    ('official_import_runs'::text, 'SELECT'::text)$$,
+  ),
+  2::bigint,
+  'authenticated has exactly two direct staging-table grants'
+);
+select is(
+  (
+    select count(*)
+    from information_schema.role_table_grants
+    where grantee = 'authenticated'
+      and table_schema = 'public'
+      and table_name in ('official_import_runs', 'official_import_candidates')
+      and privilege_type = 'SELECT'
+  ),
+  2::bigint,
   'authenticated has SELECT only on the staging tables'
 );
 

@@ -232,17 +232,90 @@ export type Database = {
         }
         Relationships: []
       }
+      occurrence_invitations: {
+        Row: {
+          created_at: string
+          id: string
+          invitee_id: string
+          inviter_id: string
+          occurrence_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invitee_id: string
+          inviter_id: string
+          occurrence_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invitee_id?: string
+          inviter_id?: string
+          occurrence_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "occurrence_invitations_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      occurrence_participations: {
+        Row: {
+          created_at: string
+          id: string
+          occurrence_id: string
+          status: Database["public"]["Enums"]["participation_status"]
+          updated_at: string
+          user_id: string
+          visibility: Database["public"]["Enums"]["participation_visibility"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          occurrence_id: string
+          status: Database["public"]["Enums"]["participation_status"]
+          updated_at?: string
+          user_id: string
+          visibility?: Database["public"]["Enums"]["participation_visibility"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          occurrence_id?: string
+          status?: Database["public"]["Enums"]["participation_status"]
+          updated_at?: string
+          user_id?: string
+          visibility?: Database["public"]["Enums"]["participation_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "occurrence_participations_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "event_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       official_import_candidates: {
         Row: {
-          apply_status: string
           applied_at: string | null
-          canonical_url: string
+          apply_status: string
           candidate_kind: string
+          canonical_url: string
           content_hash: string
           created_at: string
           deterministic_match_status: string
-          evidence_locator: Json
           etag: string | null
+          evidence_locator: Json
           failure_classification: string | null
           id: string
           jev_decision_evidence: Json | null
@@ -264,15 +337,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          apply_status?: string
           applied_at?: string | null
-          canonical_url: string
+          apply_status?: string
           candidate_kind: string
+          canonical_url: string
           content_hash: string
           created_at?: string
           deterministic_match_status?: string
-          evidence_locator?: Json
           etag?: string | null
+          evidence_locator?: Json
           failure_classification?: string | null
           id?: string
           jev_decision_evidence?: Json | null
@@ -294,15 +367,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          apply_status?: string
           applied_at?: string | null
-          canonical_url?: string
+          apply_status?: string
           candidate_kind?: string
+          canonical_url?: string
           content_hash?: string
           created_at?: string
           deterministic_match_status?: string
-          evidence_locator?: Json
           etag?: string | null
+          evidence_locator?: Json
           failure_classification?: string | null
           id?: string
           jev_decision_evidence?: Json | null
@@ -382,79 +455,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      occurrence_invitations: {
-        Row: {
-          created_at: string
-          id: string
-          invitee_id: string
-          inviter_id: string
-          occurrence_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          invitee_id: string
-          inviter_id: string
-          occurrence_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          invitee_id?: string
-          inviter_id?: string
-          occurrence_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "occurrence_invitations_occurrence_id_fkey"
-            columns: ["occurrence_id"]
-            isOneToOne: false
-            referencedRelation: "event_occurrences"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      occurrence_participations: {
-        Row: {
-          created_at: string
-          id: string
-          occurrence_id: string
-          status: Database["public"]["Enums"]["participation_status"]
-          updated_at: string
-          user_id: string
-          visibility: Database["public"]["Enums"]["participation_visibility"]
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          occurrence_id: string
-          status: Database["public"]["Enums"]["participation_status"]
-          updated_at?: string
-          user_id: string
-          visibility?: Database["public"]["Enums"]["participation_visibility"]
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          occurrence_id?: string
-          status?: Database["public"]["Enums"]["participation_status"]
-          updated_at?: string
-          user_id?: string
-          visibility?: Database["public"]["Enums"]["participation_visibility"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "occurrence_participations_occurrence_id_fkey"
-            columns: ["occurrence_id"]
-            isOneToOne: false
-            referencedRelation: "event_occurrences"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       personal_schedule_entries: {
         Row: {
@@ -918,18 +918,42 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reschedule_event: {
+        Args: {
+          p_ends_on: string
+          p_event_id: string
+          p_occurrences?: Json
+          p_starts_on: string
+        }
+        Returns: {
+          canceled_at: string | null
+          created_at: string
+          doors_at: string | null
+          ends_at: string | null
+          event_id: string
+          id: string
+          starts_at: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "event_occurrences"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       review_official_import_candidate: {
         Args: { p_candidate_id: string; p_review_status: string }
         Returns: {
-          apply_status: string
           applied_at: string | null
-          canonical_url: string
+          apply_status: string
           candidate_kind: string
+          canonical_url: string
           content_hash: string
           created_at: string
           deterministic_match_status: string
-          evidence_locator: Json
           etag: string | null
+          evidence_locator: Json
           failure_classification: string | null
           id: string
           jev_decision_evidence: Json | null
@@ -955,30 +979,6 @@ export type Database = {
           to: "official_import_candidates"
           isOneToOne: true
           isSetofReturn: false
-        }
-      }
-      reschedule_event: {
-        Args: {
-          p_ends_on: string
-          p_event_id: string
-          p_occurrences?: Json
-          p_starts_on: string
-        }
-        Returns: {
-          canceled_at: string | null
-          created_at: string
-          doors_at: string | null
-          ends_at: string | null
-          event_id: string
-          id: string
-          starts_at: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "event_occurrences"
-          isOneToOne: false
-          isSetofReturn: true
         }
       }
       share_schedule_entry_by_email: {
