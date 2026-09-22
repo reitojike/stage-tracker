@@ -147,6 +147,65 @@ describe("OfficialImportReviewQueue", () => {
     expect(screen.getByText(/開演.*9:00.*終演.*11:30/)).toBeInTheDocument();
   });
 
+  it("shows proposed and current selected occurrence locators for a ticket update", () => {
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              kind: "ticket_opportunity",
+              proposal: {
+                kind: "ticket_opportunity",
+                eventSourceKey: "cynhn:event-123",
+                sourceKey: "cynhn:ticket-123",
+                displayName: "先行抽選",
+                sourceUrl: null,
+                memo: null,
+                targetScope: "selected_occurrences",
+                targetOccurrences: ["2026-10-01T10:00:00+09:00"],
+                milestones: [
+                  {
+                    type: "application_close",
+                    precision: "datetime",
+                    at: "2026-09-20T23:00:00+09:00",
+                  },
+                ],
+              },
+              currentEvent: null,
+              currentTicketOpportunity: {
+                id: "22222222-2222-4222-8222-222222222222",
+                eventId: "33333333-3333-4333-8333-333333333333",
+                sourceKey: "cynhn:ticket-123",
+                displayName: "現在の先行抽選",
+                sourceUrl: null,
+                memo: null,
+                targetScope: "selected_occurrences",
+                targetOccurrences: ["2026-10-02T11:00:00+09:00"],
+                milestones: [
+                  {
+                    type: "application_close",
+                    precision: "date",
+                    date: "2026-09-19",
+                  },
+                ],
+              },
+              plan: { action: "update", changes: ["対象公演回を更新（1件）"] },
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+      />,
+    );
+
+    expect(screen.getByText(/2026-10-01T10:00:00\+09:00/)).toBeInTheDocument();
+    expect(screen.getByText(/2026-10-02T11:00:00\+09:00/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/application_close: 2026-09-19/),
+    ).toBeInTheDocument();
+  });
+
   it("does not offer approval for an identity-blocked candidate", () => {
     render(
       <OfficialImportReviewQueue

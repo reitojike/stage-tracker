@@ -144,6 +144,49 @@ function milestoneWhen(
   return `${milestone.startsAt}〜${milestone.endsAt}`;
 }
 
+function OccurrenceLocators({
+  values,
+  emptyLabel,
+}: {
+  values: readonly string[];
+  emptyLabel: string;
+}) {
+  if (values.length === 0) {
+    return <p className="text-body-sm text-muted-foreground">{emptyLabel}</p>;
+  }
+  return (
+    <ul className="list-disc pl-lg text-body-sm">
+      {values.map((value) => (
+        <li key={value}>
+          {formatOccurrenceTime(value)}（
+          <span className="break-all">{value}</span>）
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function MilestoneValues({
+  milestones,
+  emptyLabel,
+}: {
+  milestones: TicketOpportunityReviewProposal["milestones"];
+  emptyLabel: string;
+}) {
+  if (milestones.length === 0) {
+    return <p className="text-body-sm text-muted-foreground">{emptyLabel}</p>;
+  }
+  return (
+    <ul className="list-disc pl-lg text-body-sm">
+      {milestones.map((milestone, index) => (
+        <li key={`${milestone.type}-${index}`}>
+          {milestone.type}: {milestoneWhen(milestone)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function TicketProposal({
   proposal,
 }: {
@@ -163,13 +206,16 @@ function TicketProposal({
             : `選択した公演回 ${proposal.targetOccurrences.length}件`}
         </dd>
       </dl>
-      <ul className="list-disc pl-lg">
-        {proposal.milestones.map((milestone, index) => (
-          <li key={`${milestone.type}-${index}`}>
-            {milestone.type}: {milestoneWhen(milestone)}
-          </li>
-        ))}
-      </ul>
+      {proposal.targetScope === "selected_occurrences" ? (
+        <OccurrenceLocators
+          values={proposal.targetOccurrences}
+          emptyLabel="選択された公演回がありません。"
+        />
+      ) : null}
+      <MilestoneValues
+        milestones={proposal.milestones}
+        emptyLabel="提案された販売日程はありません。"
+      />
     </div>
   );
 }
@@ -210,16 +256,29 @@ function CurrentTarget({
         </div>
       ) : null}
       {candidate.currentTicketOpportunity !== null ? (
-        <dl className="grid gap-2xs sm:grid-cols-[8rem_1fr]">
-          <dt className="text-muted-foreground">現在の販売情報</dt>
-          <dd>{candidate.currentTicketOpportunity.displayName}</dd>
-          <dt className="text-muted-foreground">source key</dt>
-          <dd className="break-all">
-            {candidate.currentTicketOpportunity.sourceKey}
-          </dd>
-          <dt className="text-muted-foreground">対象範囲</dt>
-          <dd>{candidate.currentTicketOpportunity.targetScope}</dd>
-        </dl>
+        <div className="flex flex-col gap-xs">
+          <dl className="grid gap-2xs sm:grid-cols-[8rem_1fr]">
+            <dt className="text-muted-foreground">現在の販売情報</dt>
+            <dd>{candidate.currentTicketOpportunity.displayName}</dd>
+            <dt className="text-muted-foreground">source key</dt>
+            <dd className="break-all">
+              {candidate.currentTicketOpportunity.sourceKey}
+            </dd>
+            <dt className="text-muted-foreground">対象範囲</dt>
+            <dd>{candidate.currentTicketOpportunity.targetScope}</dd>
+          </dl>
+          {candidate.currentTicketOpportunity.targetScope ===
+          "selected_occurrences" ? (
+            <OccurrenceLocators
+              values={candidate.currentTicketOpportunity.targetOccurrences}
+              emptyLabel="現在選択されている公演回はありません。"
+            />
+          ) : null}
+          <MilestoneValues
+            milestones={candidate.currentTicketOpportunity.milestones}
+            emptyLabel="現在の販売日程はありません。"
+          />
+        </div>
       ) : null}
     </div>
   );

@@ -78,6 +78,8 @@ export interface CurrentTicketOpportunityReviewTarget {
   readonly sourceUrl: string | null;
   readonly memo: string | null;
   readonly targetScope: string;
+  readonly targetOccurrences: readonly string[];
+  readonly milestones: TicketOpportunityReviewProposal["milestones"];
 }
 
 export interface OfficialImportReviewCandidate {

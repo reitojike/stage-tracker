@@ -1,7 +1,12 @@
 import "server-only";
 
 import { z } from "zod";
-import { err, ok, type Result } from "@stage-tracker/domain";
+import {
+  err,
+  ok,
+  type Result,
+  type TicketOpportunityMilestone,
+} from "@stage-tracker/domain";
 import { parseCanonicalProposal } from "@stage-tracker/official-import/durable-candidate";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
@@ -9,6 +14,7 @@ import { mapRows } from "@/lib/data/row-mapping";
 import { readError } from "@/lib/data/read-error";
 import type { ReadResult } from "@/lib/data/read-result";
 import { runKeysetSupabaseSelect } from "@/lib/data/paged-select";
+import { listTicketOpportunities } from "@/lib/data/reads/tickets";
 import type {
   CurrentEventReviewTarget,
   CurrentTicketOpportunityReviewTarget,
@@ -226,7 +232,34 @@ function currentTicketOpportunity(
         sourceUrl: value.source_url,
         memo: value.memo,
         targetScope: value.target_scope,
+        targetOccurrences: [],
+        milestones: [],
       };
+}
+
+function reviewMilestone(
+  milestone: TicketOpportunityMilestone,
+): TicketOpportunityReviewProposal["milestones"][number] {
+  if (milestone.temporalPrecision === "date") {
+    return {
+      type: milestone.milestoneType,
+      precision: "date",
+      date: milestone.dateValue,
+    };
+  }
+  if (milestone.temporalPrecision === "datetime") {
+    return {
+      type: milestone.milestoneType,
+      precision: "datetime",
+      at: milestone.at,
+    };
+  }
+  return {
+    type: milestone.milestoneType,
+    precision: "window",
+    startsAt: milestone.startsAt,
+    endsAt: milestone.endsAt,
+  };
 }
 
 function blockedReason(row: z.infer<typeof candidateRowSchema>): string | null {
@@ -424,20 +457,67 @@ export async function loadOfficialImportReviewQueue(
   const occurrences = await loadCurrentEventOccurrences(client, eventIds);
   if (!occurrences.ok) return occurrences;
 
+  const ticketIds = candidates.value.flatMap((candidate) =>
+    candidate.currentTicketOpportunity === null
+      ? []
+      : [candidate.currentTicketOpportunity.id],
+  );
+  const ticketIdSet = new Set(ticketIds);
+  const currentTicketDetails = new Map<
+    string,
+    {
+      readonly targetOccurrences: readonly string[];
+      readonly milestones: TicketOpportunityReviewProposal["milestones"];
+    }
+  >();
+  if (ticketIds.length > 0) {
+    const details = await listTicketOpportunities(client);
+    if (!details.ok) return details;
+    for (const detail of details.value) {
+      const opportunityId = detail.opportunityWithTargets.opportunity.id;
+      if (!ticketIdSet.has(opportunityId)) continue;
+      currentTicketDetails.set(opportunityId, {
+        targetOccurrences: detail.targetOccurrences
+          .map((occurrence) => occurrence.startsAt)
+          .toSorted(),
+        milestones: detail.milestones.map(reviewMilestone),
+      });
+    }
+    if (ticketIds.some((id) => !currentTicketDetails.has(id))) {
+      console.error(
+        "[official import review] resolved ticket details are not readable",
+      );
+      return err(readError("failure"));
+    }
+  }
+
   return ok(
     candidates.value
-      .map((candidate) =>
-        candidate.currentEvent === null
-          ? candidate
-          : {
-              ...candidate,
-              currentEvent: {
-                ...candidate.currentEvent,
-                occurrences:
-                  occurrences.value.get(candidate.currentEvent.id) ?? [],
-              },
-            },
-      )
+      .map((candidate) => {
+        const ticketDetails =
+          candidate.currentTicketOpportunity === null
+            ? undefined
+            : currentTicketDetails.get(candidate.currentTicketOpportunity.id);
+        return {
+          ...candidate,
+          currentEvent:
+            candidate.currentEvent === null
+              ? null
+              : {
+                  ...candidate.currentEvent,
+                  occurrences:
+                    occurrences.value.get(candidate.currentEvent.id) ?? [],
+                },
+          currentTicketOpportunity:
+            candidate.currentTicketOpportunity === null ||
+            ticketDetails === undefined
+              ? candidate.currentTicketOpportunity
+              : {
+                  ...candidate.currentTicketOpportunity,
+                  ...ticketDetails,
+                },
+        };
+      })
       .toSorted(
         (left, right) =>
           Date.parse(right.observedAt) - Date.parse(left.observedAt) ||
@@ -461,7 +541,8 @@ async function loadCurrentEventOccurrences(
         .select("id, event_id, doors_at, starts_at, ends_at", {
           count: "exact",
         })
-        .in("event_id", eventIdChunk);
+        .in("event_id", eventIdChunk)
+        .is("canceled_at", null);
       const afterCursor = cursor === null ? query : query.gt("id", cursor);
       return afterCursor
         .order("id", { ascending: true })

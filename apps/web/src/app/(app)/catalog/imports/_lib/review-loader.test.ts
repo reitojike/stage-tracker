@@ -126,6 +126,7 @@ describe("loadOfficialImportReviewQueue", () => {
       http.get(`${REST_URL}/event_occurrences`, ({ request }) => {
         const url = new URL(request.url);
         expect(url.searchParams.get("event_id")).toContain(eventId);
+        expect(url.searchParams.get("canceled_at")).toBe("is.null");
         return HttpResponse.json(
           [
             {
