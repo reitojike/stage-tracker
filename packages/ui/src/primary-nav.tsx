@@ -38,9 +38,8 @@ function isActive(pathname: string, href: string) {
  * - shell (`<nav>`): the mobile bottom-nav UX contract - `sticky`/`bottom-0`
  *   so it pins to the viewport bottom while the page scrolls (this only
  *   works because AppShell is a full-height flex column - see
- *   app-shell.tsx), a `z-[1]` stacking context (matches legacy's `.nav`/
- *   `.appBar` z-index so this and AppBar never fight for stacking order
- *   despite neither ever actually overlapping the other), and
+ *   app-shell.tsx), a `z-20` stacking context above the content-side
+ *   `z-10` ListRowActions/ListRowChevron interaction layer, and
  *   `env(safe-area-inset-bottom)` bottom padding so the row stays clear of
  *   the iOS home indicator. Tailwind v4 has no theme-level utility for
  *   `env()`, so this is an arbitrary value (same precedent as
@@ -60,7 +59,7 @@ export function PrimaryNav() {
     <nav
       data-slot="primary-nav"
       aria-label="主要ナビゲーション"
-      className="sticky bottom-0 z-[1] shrink-0 border-t border-border bg-card pb-[env(safe-area-inset-bottom,0px)]"
+      className="sticky bottom-0 z-20 shrink-0 border-t border-border bg-card pb-[env(safe-area-inset-bottom,0px)]"
     >
       <div className="mx-auto flex min-h-15 max-w-[640px] items-stretch justify-around">
         {PRIMARY_NAV_ITEMS.map(({ href, label, Icon }) => {
