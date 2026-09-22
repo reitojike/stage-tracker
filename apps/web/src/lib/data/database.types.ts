@@ -232,6 +232,157 @@ export type Database = {
         }
         Relationships: []
       }
+      official_import_candidates: {
+        Row: {
+          apply_status: string
+          applied_at: string | null
+          canonical_url: string
+          candidate_kind: string
+          content_hash: string
+          created_at: string
+          deterministic_match_status: string
+          evidence_locator: Json
+          etag: string | null
+          failure_classification: string | null
+          id: string
+          jev_decision_evidence: Json | null
+          last_modified: string | null
+          observed_at: string
+          official_external_id: string | null
+          plan_fingerprint: string
+          plan_summary: Json
+          proposal: Json
+          proposal_version: string
+          resolved_event_id: string | null
+          resolved_ticket_opportunity_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewer: string | null
+          run_id: string
+          semantic_match_status: string
+          source_id: string
+          updated_at: string
+        }
+        Insert: {
+          apply_status?: string
+          applied_at?: string | null
+          canonical_url: string
+          candidate_kind: string
+          content_hash: string
+          created_at?: string
+          deterministic_match_status?: string
+          evidence_locator?: Json
+          etag?: string | null
+          failure_classification?: string | null
+          id?: string
+          jev_decision_evidence?: Json | null
+          last_modified?: string | null
+          observed_at?: string
+          official_external_id?: string | null
+          plan_fingerprint: string
+          plan_summary?: Json
+          proposal: Json
+          proposal_version: string
+          resolved_event_id?: string | null
+          resolved_ticket_opportunity_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewer?: string | null
+          run_id: string
+          semantic_match_status?: string
+          source_id: string
+          updated_at?: string
+        }
+        Update: {
+          apply_status?: string
+          applied_at?: string | null
+          canonical_url?: string
+          candidate_kind?: string
+          content_hash?: string
+          created_at?: string
+          deterministic_match_status?: string
+          evidence_locator?: Json
+          etag?: string | null
+          failure_classification?: string | null
+          id?: string
+          jev_decision_evidence?: Json | null
+          last_modified?: string | null
+          observed_at?: string
+          official_external_id?: string | null
+          plan_fingerprint?: string
+          plan_summary?: Json
+          proposal?: Json
+          proposal_version?: string
+          resolved_event_id?: string | null
+          resolved_ticket_opportunity_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewer?: string | null
+          run_id?: string
+          semantic_match_status?: string
+          source_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_import_candidates_resolved_event_id_fkey"
+            columns: ["resolved_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_import_candidates_resolved_ticket_opportunity_id_fkey"
+            columns: ["resolved_ticket_opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_import_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "official_import_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      official_import_runs: {
+        Row: {
+          candidate_count: number
+          created_at: string
+          failure_classification: string | null
+          finished_at: string | null
+          id: string
+          source_id: string
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          candidate_count?: number
+          created_at?: string
+          failure_classification?: string | null
+          finished_at?: string | null
+          id?: string
+          source_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          candidate_count?: number
+          created_at?: string
+          failure_classification?: string | null
+          finished_at?: string | null
+          id?: string
+          source_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       occurrence_invitations: {
         Row: {
           created_at: string
@@ -767,6 +918,45 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      review_official_import_candidate: {
+        Args: { p_candidate_id: string; p_review_status: string }
+        Returns: {
+          apply_status: string
+          applied_at: string | null
+          canonical_url: string
+          candidate_kind: string
+          content_hash: string
+          created_at: string
+          deterministic_match_status: string
+          evidence_locator: Json
+          etag: string | null
+          failure_classification: string | null
+          id: string
+          jev_decision_evidence: Json | null
+          last_modified: string | null
+          observed_at: string
+          official_external_id: string | null
+          plan_fingerprint: string
+          plan_summary: Json
+          proposal: Json
+          proposal_version: string
+          resolved_event_id: string | null
+          resolved_ticket_opportunity_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewer: string | null
+          run_id: string
+          semantic_match_status: string
+          source_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "official_import_candidates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reschedule_event: {
         Args: {
           p_ends_on: string
@@ -944,4 +1134,3 @@ export const Constants = {
     },
   },
 } as const
-
