@@ -1,0 +1,13 @@
+{
+  "name": "@stage-tracker/official-import",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./event": "./src/eventImport.mjs",
+    "./ticket": "./src/ticketOpportunityImport.mjs",
+    "./ticket-seed": "./src/ticketOpportunitySeed.mjs",
+    "./event-classification": "./src/eventClassificationSeed.mjs"
+  }
+}

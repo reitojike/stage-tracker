@@ -166,6 +166,9 @@ importers:
 
   .:
     devDependencies:
+      '@stage-tracker/official-import':
+        specifier: workspace:*
+        version: link:packages/official-import
       '@supabase/supabase-js':
         specifier: ^2.115.0
         version: 2.116.0
@@ -389,6 +392,8 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.6.4
+
+  packages/official-import: {}
 
   packages/ui:
     dependencies:
