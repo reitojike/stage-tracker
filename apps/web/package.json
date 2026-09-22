@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@stage-tracker/domain": "workspace:*",
+    "@stage-tracker/official-import": "workspace:*",
     "@stage-tracker/ui": "workspace:*",
     "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.115.0",

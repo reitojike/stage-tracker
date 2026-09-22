@@ -241,6 +241,9 @@ importers:
       '@stage-tracker/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@stage-tracker/official-import':
+        specifier: workspace:*
+        version: link:../../packages/official-import
       '@stage-tracker/ui':
         specifier: workspace:*
         version: link:../../packages/ui

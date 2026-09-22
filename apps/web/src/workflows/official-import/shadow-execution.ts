@@ -28,11 +28,21 @@ export type RunFailureClassification =
   | "validation"
   | "unexpected";
 
+export type RunPreparation =
+  | { readonly status: "ready" }
+  | { readonly status: "completed"; readonly candidateCount: number }
+  | {
+      readonly status: "failed";
+      readonly failureClassification: RunFailureClassification;
+    };
+
 export interface OfficialImportStagingRepository {
-  createRun(sourceId: string): Promise<string>;
-  insertEventCandidate(candidate: EventDurableCandidate): Promise<void>;
-  insertTicketOpportunityCandidate(
-    candidate: TicketOpportunityDurableCandidate,
+  prepareRun(runId: string, sourceId: string): Promise<RunPreparation>;
+  insertEventCandidates(
+    candidates: readonly EventDurableCandidate[],
+  ): Promise<void>;
+  insertTicketOpportunityCandidates(
+    candidates: readonly TicketOpportunityDurableCandidate[],
   ): Promise<void>;
   completeRun(runId: string): Promise<void>;
   failRun(
@@ -70,15 +80,35 @@ function classifyFailure(error: unknown): RunFailureClassification {
 }
 
 export async function executeOfficialImportShadowRun(
+  runId: string,
   source: OfficialSourceDefinition,
   adapter: OfficialSourceAdapter,
   planner: OfficialImportCandidatePlanner,
   repository: OfficialImportStagingRepository,
 ): Promise<ShadowRunResult> {
-  const runId = await repository.createRun(source.id);
-  let insertedCount = 0;
+  const preparation = await repository.prepareRun(runId, source.id);
+  if (preparation.status === "completed") {
+    return {
+      status: "completed",
+      runId,
+      sourceId: source.id,
+      candidateCount: preparation.candidateCount,
+    };
+  }
+  if (preparation.status === "failed") {
+    return {
+      status: "failed",
+      runId,
+      sourceId: source.id,
+      candidateCount: 0,
+      failureClassification: preparation.failureClassification,
+    };
+  }
+
   try {
     const drafts = await adapter.acquire(source);
+    const eventCandidates: EventDurableCandidate[] = [];
+    const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
     for (const draft of drafts) {
       if (draft.candidateKind !== source.domainKind) {
         throw new DurableCandidateValidationError(
@@ -130,7 +160,7 @@ export async function executeOfficialImportShadowRun(
           resolvedTicketOpportunityId: planning.resolvedTicketOpportunityId,
           jevDecisionEvidence: planning.jevDecisionEvidence,
         });
-        await repository.insertEventCandidate(candidate);
+        eventCandidates.push(candidate);
       } else {
         const proposal = createTicketOpportunityProposal(
           draft.proposal.sourceUrl === null ||
@@ -178,16 +208,26 @@ export async function executeOfficialImportShadowRun(
           resolvedTicketOpportunityId: planning.resolvedTicketOpportunityId,
           jevDecisionEvidence: planning.jevDecisionEvidence,
         });
-        await repository.insertTicketOpportunityCandidate(candidate);
+        ticketOpportunityCandidates.push(candidate);
       }
-      insertedCount += 1;
     }
+
+    // No durable candidate is written until every draft has been validated and
+    // planned. Each type-specific repository call is one atomic SQL INSERT.
+    if (eventCandidates.length > 0)
+      await repository.insertEventCandidates(eventCandidates);
+    if (ticketOpportunityCandidates.length > 0)
+      await repository.insertTicketOpportunityCandidates(
+        ticketOpportunityCandidates,
+      );
+
     await repository.completeRun(runId);
     return {
       status: "completed",
       runId,
       sourceId: source.id,
-      candidateCount: insertedCount,
+      candidateCount:
+        eventCandidates.length + ticketOpportunityCandidates.length,
     };
   } catch (error) {
     const failureClassification = classifyFailure(error);

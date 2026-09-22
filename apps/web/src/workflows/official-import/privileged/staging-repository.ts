@@ -9,6 +9,7 @@ import type { Database } from "@/lib/data/database.types";
 import type {
   OfficialImportStagingRepository,
   RunFailureClassification,
+  RunPreparation,
 } from "../shadow-execution";
 import { createPrivilegedIngestionClient } from "./supabase";
 
@@ -39,65 +40,124 @@ function commonInsertFields(
   };
 }
 
+function candidateInsert(
+  candidate: EventDurableCandidate | TicketOpportunityDurableCandidate,
+): CandidateInsert {
+  return {
+    ...commonInsertFields(candidate),
+    candidate_kind: candidate.candidateKind,
+    proposal_version: candidate.proposalVersion,
+    proposal: parseCanonicalProposal(
+      candidate.candidateKind,
+      candidate.proposalVersion,
+      candidate.proposal,
+    ),
+  };
+}
+
+function isRunFailureClassification(
+  value: string | null,
+): value is RunFailureClassification {
+  return (
+    value === "source_fetch" ||
+    value === "source_parse" ||
+    value === "provider_unavailable" ||
+    value === "validation" ||
+    value === "unexpected"
+  );
+}
+
+function parseFailureClassification(
+  value: string | null,
+): RunFailureClassification {
+  if (!isRunFailureClassification(value))
+    throw new Error("Official import run has an invalid failure state");
+  return value;
+}
+
 class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRepository {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
-  async createRun(sourceId: string): Promise<string> {
-    const { data, error } = await this.client
+  async prepareRun(runId: string, sourceId: string): Promise<RunPreparation> {
+    const { error: createError } = await this.client
       .from("official_import_runs")
-      .insert({ source_id: sourceId })
-      .select("id")
+      .upsert(
+        { id: runId, source_id: sourceId },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+    if (createError !== null)
+      throw new Error("Failed to prepare official import run");
+
+    const { data, error: readError } = await this.client
+      .from("official_import_runs")
+      .select("source_id, status, failure_classification")
+      .eq("id", runId)
       .single();
-    if (error !== null || data === null)
-      throw new Error("Failed to create official import run");
-    return data.id;
-  }
+    if (readError !== null || data === null || data.source_id !== sourceId)
+      throw new Error("Failed to reuse official import run");
 
-  async insertEventCandidate(candidate: EventDurableCandidate): Promise<void> {
-    const proposal = parseCanonicalProposal(
-      candidate.candidateKind,
-      candidate.proposalVersion,
-      candidate.proposal,
-    );
-    const { error } = await this.client
+    if (data.status === "completed") {
+      const { count, error: countError } = await this.client
+        .from("official_import_candidates")
+        .select("id", { count: "exact", head: true })
+        .eq("run_id", runId);
+      if (countError !== null || count === null)
+        throw new Error("Failed to read completed official import run");
+      return { status: "completed", candidateCount: count };
+    }
+    if (data.status === "failed") {
+      return {
+        status: "failed",
+        failureClassification: parseFailureClassification(
+          data.failure_classification,
+        ),
+      };
+    }
+    if (data.status !== "running")
+      throw new Error("Official import run has an invalid status");
+
+    // A retry uses the stable Workflow step-derived run ID. Clear any pending
+    // batch left by a process loss before staging the batch again.
+    const { error: cleanupError } = await this.client
       .from("official_import_candidates")
-      .insert({
-        ...commonInsertFields(candidate),
-        candidate_kind: candidate.candidateKind,
-        proposal_version: candidate.proposalVersion,
-        proposal,
-      });
-    if (error !== null)
-      throw new Error("Failed to stage official Event candidate");
+      .delete()
+      .eq("run_id", runId);
+    if (cleanupError !== null)
+      throw new Error("Failed to reset interrupted official import run");
+    return { status: "ready" };
   }
 
-  async insertTicketOpportunityCandidate(
-    candidate: TicketOpportunityDurableCandidate,
+  async insertEventCandidates(
+    candidates: readonly EventDurableCandidate[],
   ): Promise<void> {
-    const proposal = parseCanonicalProposal(
-      candidate.candidateKind,
-      candidate.proposalVersion,
-      candidate.proposal,
-    );
     const { error } = await this.client
       .from("official_import_candidates")
-      .insert({
-        ...commonInsertFields(candidate),
-        candidate_kind: candidate.candidateKind,
-        proposal_version: candidate.proposalVersion,
-        proposal,
-      });
+      .insert(candidates.map(candidateInsert));
     if (error !== null)
-      throw new Error("Failed to stage official TicketOpportunity candidate");
+      throw new Error("Failed to stage official Event candidate batch");
+  }
+
+  async insertTicketOpportunityCandidates(
+    candidates: readonly TicketOpportunityDurableCandidate[],
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("official_import_candidates")
+      .insert(candidates.map(candidateInsert));
+    if (error !== null)
+      throw new Error(
+        "Failed to stage official TicketOpportunity candidate batch",
+      );
   }
 
   async completeRun(runId: string): Promise<void> {
-    const { error } = await this.client
+    const { data, error } = await this.client
       .from("official_import_runs")
       .update({ status: "completed", finished_at: new Date().toISOString() })
       .eq("id", runId)
-      .eq("status", "running");
-    if (error !== null)
+      .eq("status", "running")
+      .select("id")
+      .single();
+    if (error !== null || data === null)
       throw new Error("Failed to complete official import run");
   }
 
@@ -105,7 +165,14 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
     runId: string,
     classification: RunFailureClassification,
   ): Promise<void> {
-    const { error } = await this.client
+    const { error: cleanupError } = await this.client
+      .from("official_import_candidates")
+      .delete()
+      .eq("run_id", runId);
+    if (cleanupError !== null)
+      throw new Error("Failed to clear official import run candidates");
+
+    const { data, error } = await this.client
       .from("official_import_runs")
       .update({
         status: "failed",
@@ -113,8 +180,10 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
         failure_classification: classification,
       })
       .eq("id", runId)
-      .eq("status", "running");
-    if (error !== null)
+      .eq("status", "running")
+      .select("id")
+      .single();
+    if (error !== null || data === null)
       throw new Error("Failed to record official import run failure");
   }
 }
