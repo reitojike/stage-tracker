@@ -1,6 +1,12 @@
 export type OfficialImportDomainKind = "event" | "ticket_opportunity";
 export type SourceFamilyAdapter =
   "http_html" | "pdf" | "calendar_feed" | "future_fallback";
+export type SourceExtractorFamily =
+  | "kabuki_bito"
+  | "takarazuka_revue"
+  | "skiyaki_calendar"
+  | "ticket_foundation"
+  | "future_event";
 export type SourcePolicyState = "approved" | "planned" | "hold";
 export type FetchCadenceHint = "daily" | "weekly";
 
@@ -10,6 +16,7 @@ export interface OfficialSourceDefinition {
   readonly allowedOrigin: string;
   readonly allowedPathPrefixes: readonly string[];
   readonly adapter: SourceFamilyAdapter;
+  readonly extractor: SourceExtractorFamily;
   readonly domainKind: OfficialImportDomainKind;
   readonly enabled: boolean;
   readonly shadow: true;
@@ -22,8 +29,9 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "event.kabuki-bito.schedule",
     canonicalUrl: "https://www.kabuki-bito.jp/schedule/",
     allowedOrigin: "https://www.kabuki-bito.jp",
-    allowedPathPrefixes: ["/schedule/"],
+    allowedPathPrefixes: ["/schedule/", "/theaters/"],
     adapter: "http_html",
+    extractor: "kabuki_bito",
     domainKind: "event",
     enabled: true,
     shadow: true,
@@ -36,6 +44,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://kageki.hankyu.co.jp",
     allowedPathPrefixes: ["/sp/revue/"],
     adapter: "http_html",
+    extractor: "takarazuka_revue",
     domainKind: "event",
     enabled: true,
     shadow: true,
@@ -46,8 +55,9 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "event.cynhn.calendar",
     canonicalUrl: "https://cynhn.com/vertical_calendar",
     allowedOrigin: "https://cynhn.com",
-    allowedPathPrefixes: ["/vertical_calendar"],
+    allowedPathPrefixes: ["/vertical_calendar", "/contents/"],
     adapter: "http_html",
+    extractor: "skiyaki_calendar",
     domainKind: "event",
     enabled: true,
     shadow: true,
@@ -58,8 +68,9 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "event.meme-tokyo.calendar",
     canonicalUrl: "https://www.memetokyo.com/vertical_calendar",
     allowedOrigin: "https://www.memetokyo.com",
-    allowedPathPrefixes: ["/vertical_calendar"],
+    allowedPathPrefixes: ["/vertical_calendar", "/contents/"],
     adapter: "http_html",
+    extractor: "skiyaki_calendar",
     domainKind: "event",
     enabled: false,
     shadow: true,
@@ -72,6 +83,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://www.kyurushite.com",
     allowedPathPrefixes: ["/schedule/"],
     adapter: "http_html",
+    extractor: "future_event",
     domainKind: "event",
     enabled: false,
     shadow: true,
@@ -84,6 +96,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://chumtoto.jp",
     allowedPathPrefixes: ["/schedule/"],
     adapter: "http_html",
+    extractor: "future_event",
     domainKind: "event",
     enabled: false,
     shadow: true,
@@ -96,6 +109,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://sayostay.dspm.jp",
     allowedPathPrefixes: ["/schedules/menu/18610"],
     adapter: "http_html",
+    extractor: "future_event",
     domainKind: "event",
     enabled: false,
     shadow: true,
@@ -106,8 +120,9 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "event.arcana-project.calendar",
     canonicalUrl: "https://arcana-project.com/calendar",
     allowedOrigin: "https://arcana-project.com",
-    allowedPathPrefixes: ["/calendar"],
+    allowedPathPrefixes: ["/calendar", "/contents/"],
     adapter: "http_html",
+    extractor: "skiyaki_calendar",
     domainKind: "event",
     enabled: false,
     shadow: true,
@@ -120,6 +135,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://pupa11.com",
     allowedPathPrefixes: ["/schedule/"],
     adapter: "http_html",
+    extractor: "future_event",
     domainKind: "event",
     enabled: false,
     shadow: true,
@@ -132,6 +148,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://www1.ticket-web-shochiku.com",
     allowedPathPrefixes: ["/t/info/schedule.html"],
     adapter: "http_html",
+    extractor: "ticket_foundation",
     domainKind: "ticket_opportunity",
     enabled: true,
     shadow: true,
@@ -144,6 +161,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://kageki.hankyu.co.jp",
     allowedPathPrefixes: ["/friends/pdf/schedule.pdf"],
     adapter: "pdf",
+    extractor: "ticket_foundation",
     domainKind: "ticket_opportunity",
     enabled: true,
     shadow: true,
@@ -156,6 +174,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://www.vpassticket.jp",
     allowedPathPrefixes: ["/category/takarazuka-east/"],
     adapter: "http_html",
+    extractor: "ticket_foundation",
     domainKind: "ticket_opportunity",
     enabled: false,
     shadow: true,
@@ -168,6 +187,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://www.vpassticket.jp",
     allowedPathPrefixes: ["/category/takarazuka-west/"],
     adapter: "http_html",
+    extractor: "ticket_foundation",
     domainKind: "ticket_opportunity",
     enabled: false,
     shadow: true,

@@ -16,6 +16,7 @@ export const env = createEnv({
       .string()
       .startsWith("sb_secret_")
       .optional(),
+    JEV_API_KEY: z.string().min(1).optional(),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.url(),

@@ -3,7 +3,14 @@ import {
   type OfficialImportCandidatePlanner,
   type OfficialSourceAdapter,
 } from "./acquisition";
-import type { SourceFamilyAdapter } from "./source-registry";
+import { env } from "@/env";
+import { createKabukiBitoAdapter } from "./adapters/kabuki-bito";
+import { createSkiyakiCalendarAdapter } from "./adapters/skiyaki-calendar";
+import { createTakarazukaRevueAdapter } from "./adapters/takarazuka-revue";
+import { createEventCandidatePlanner } from "./event-candidate-planner";
+import { createEventMatchRepository } from "./privileged/event-match-repository";
+import { createJevEventAligner } from "./privileged/jev-event-aligner";
+import type { SourceExtractorFamily } from "./source-registry";
 
 function unavailableAdapter(): OfficialSourceAdapter {
   return {
@@ -13,24 +20,30 @@ function unavailableAdapter(): OfficialSourceAdapter {
   };
 }
 
-const ADAPTERS: Readonly<Record<SourceFamilyAdapter, OfficialSourceAdapter>> = {
-  http_html: unavailableAdapter(),
-  pdf: unavailableAdapter(),
-  calendar_feed: unavailableAdapter(),
-  future_fallback: unavailableAdapter(),
-};
+const ADAPTERS: Readonly<Record<SourceExtractorFamily, OfficialSourceAdapter>> =
+  {
+    kabuki_bito: createKabukiBitoAdapter(),
+    takarazuka_revue: createTakarazukaRevueAdapter(),
+    skiyaki_calendar: createSkiyakiCalendarAdapter(),
+    ticket_foundation: unavailableAdapter(),
+    future_event: unavailableAdapter(),
+  };
 
 export function getSourceFamilyAdapter(
-  family: SourceFamilyAdapter,
+  family: SourceExtractorFamily,
 ): OfficialSourceAdapter {
   return ADAPTERS[family];
 }
 
-export const foundationCandidatePlanner: OfficialImportCandidatePlanner = {
-  planEvent() {
-    throw new ProviderUnavailableFailure();
-  },
-  planTicketOpportunity() {
-    throw new ProviderUnavailableFailure();
-  },
-};
+export function createFoundationCandidatePlanner(): OfficialImportCandidatePlanner {
+  const eventPlanner = createEventCandidatePlanner(
+    createEventMatchRepository(),
+    createJevEventAligner(env.JEV_API_KEY),
+  );
+  return {
+    planEvent: eventPlanner.planEvent,
+    planTicketOpportunity() {
+      throw new ProviderUnavailableFailure();
+    },
+  };
+}

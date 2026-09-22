@@ -1,6 +1,6 @@
 import { getStepMetadata, RetryableError } from "workflow";
 import {
-  foundationCandidatePlanner,
+  createFoundationCandidatePlanner,
   getSourceFamilyAdapter,
 } from "../adapter-registry";
 import { createOfficialImportStagingRepository } from "../privileged/staging-repository";
@@ -27,8 +27,8 @@ export async function runOfficialImportShadowSource(sourceId: string) {
       runId,
       attemptToken,
       source,
-      getSourceFamilyAdapter(source.adapter),
-      foundationCandidatePlanner,
+      getSourceFamilyAdapter(source.extractor),
+      createFoundationCandidatePlanner(),
       createOfficialImportStagingRepository(),
     );
   } catch (error) {
