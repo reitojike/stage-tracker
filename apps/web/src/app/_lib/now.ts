@@ -15,11 +15,10 @@ import {
  * which is also what keeps the loaders unit-testable with a fixed "now"
  * instead of faking `Date.now()` - see e.g. `(app)/_lib/home-loader.test.ts`).
  *
- * Mirrors `@/lib/tokyo-date.ts`'s `resolveServerTokyoDate` (same pattern: the
- * caller supplies `nowEpochMs`, `@stage-tracker/domain` never calls
- * `Date.now()` itself) but also carries the `Instant` form, since the ticket
- * timeline functions (`buildTicketOpportunityTimelineRows` and friends) need
- * `nowInstant` in addition to `todayTokyoDate`.
+ * The caller supplies `nowEpochMs`; `@stage-tracker/domain` never calls
+ * `Date.now()` itself. This boundary carries both the derived `Instant` and
+ * Tokyo calendar date because ticket timeline functions need `nowInstant` in
+ * addition to `todayTokyoDate`.
  */
 export interface ScreenNow {
   readonly nowInstant: Instant;
