@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { TokyoCalendarDate } from "@stage-tracker/domain";
 import { MonthGrid, MonthGridDayLink } from "@/app/_components/MonthGrid";
-import { formatMonthParam, tokyoYearMonthOf } from "@/app/_lib/calendar-grid";
+import { tokyoYearMonthOf } from "@/app/_lib/calendar-grid";
 import { MAX_BAND_LANES } from "@/app/_lib/calendar-band-layout";
 import { bandDisplayTitle } from "@/app/_lib/calendar-presentation";
 import { formatMonthJa } from "@/app/_lib/format";
@@ -31,7 +31,7 @@ export function MonthCalendar({
 }: MonthCalendarProps) {
   return (
     <MonthGrid<DayCellViewModel, WeekViewModel>
-      ariaLabel={`${formatMonthJa(formatMonthParam(viewModel.month))}のイベントカレンダー`}
+      ariaLabel={`${formatMonthJa(viewModel.month)}のイベントカレンダー`}
       weeks={viewModel.weeks}
       hasUnconfirmedHolidayCoverage={viewModel.hasUnconfirmedHolidayCoverage}
       renderDay={(day, columnIndex, week) => {
@@ -43,7 +43,7 @@ export function MonthCalendar({
         const isToday = day.date === today;
         const isSelected = day.date === selectedDate;
         const labelParts = [
-          `${formatMonthJa(formatMonthParam(tokyoYearMonthOf(day.date)))}${String(dayNumber)}日`,
+          `${formatMonthJa(tokyoYearMonthOf(day.date))}${String(dayNumber)}日`,
         ];
         if (isToday) {
           labelParts.push("今日");

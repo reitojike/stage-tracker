@@ -3,7 +3,7 @@ import {
   type Instant,
   type ParticipationStatus,
 } from "@stage-tracker/domain";
-import { addDays } from "./calendar-grid";
+import { addDays, type TokyoYearMonth } from "./calendar-grid";
 import { formatTokyoCalendarDateJa, formatTokyoTime } from "@/lib/tokyo-format";
 
 /** Shared label for the same participation status across Home and Calendar. */
@@ -55,8 +55,11 @@ export function occurrenceTimeRangeLabel(
   return `${start}〜${formatTokyoCalendarDateJa(endDate)} ${end}`;
 }
 
-/** `YYYY年M月` display for a month key ("YYYY-MM"). */
-export function formatMonthJa(monthKey: string): string {
-  const [yearStr, monthStr] = monthKey.split("-");
+/** `YYYY年M月` display for a month key or a structured Tokyo year-month. */
+export function formatMonthJa(month: string | TokyoYearMonth): string {
+  if (typeof month !== "string") {
+    return `${String(month.year).padStart(4, "0")}年${String(month.month)}月`;
+  }
+  const [yearStr, monthStr] = month.split("-");
   return `${yearStr}年${Number(monthStr)}月`;
 }
