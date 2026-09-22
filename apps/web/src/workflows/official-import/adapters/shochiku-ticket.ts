@@ -232,7 +232,7 @@ export function parseShochikuSchedule(
       });
     }
   }
-  if (performanceTitles.length > 0 && facts.length === 0) {
+  if (performanceTitles.length === 0 || facts.length === 0) {
     throw new SourceParseFailure();
   }
   return facts;

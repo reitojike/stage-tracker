@@ -111,4 +111,10 @@ describe("Shochiku ticket schedule", () => {
         <h4 class="performance-title">containerを失った公演</h4>`),
     ).toThrow();
   });
+
+  it("fails closed when a required schedule page has no recognized performances", () => {
+    expect(() =>
+      parseShochikuSchedule("<main>メンテナンス中です</main>"),
+    ).toThrow();
+  });
 });
