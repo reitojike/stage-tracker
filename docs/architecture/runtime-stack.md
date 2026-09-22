@@ -15,13 +15,13 @@ truth は依然としてこのリポジトリ（migrations / route handler / con
 
 ## 利用サービス一覧と責務
 
-| サービス       | 責務                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| **Vercel**     | Next.js アプリケーションのホスティング、Production domain routing、Environment Variables の配布      |
-| **Cloudflare** | `stage-tracker.com` の Registrar（ドメイン取得）と DNS 管理、Resend 送信用の SPF/DKIM/DMARC レコード |
-| **Supabase**   | Authentication（Magic Link / Passkey）、Postgres Database、RLS by migration                          |
-| **Resend**     | Supabase Auth のメール配送用 SMTP provider                                                           |
-| **GitHub**     | Source control、Issue/PR ワークフロー、CI（`verify.yml`）                                            |
+| サービス       | 責務                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vercel**     | Next.js アプリケーションのホスティング、Production domain routing、Environment Variables の配布、official ingestion Workflow の durable execution |
+| **Cloudflare** | `stage-tracker.com` の Registrar（ドメイン取得）と DNS 管理、Resend 送信用の SPF/DKIM/DMARC レコード                                              |
+| **Supabase**   | Authentication（Magic Link / Passkey）、Postgres Database、RLS by migration                                                                       |
+| **Resend**     | Supabase Auth のメール配送用 SMTP provider                                                                                                        |
+| **GitHub**     | Source control、Issue/PR ワークフロー、CI（`verify.yml`）                                                                                         |
 
 ## Production 構成図
 
@@ -37,6 +37,7 @@ flowchart LR
 
     subgraph Vercel["Vercel (Hobby plan)"]
         App["Next.js 16 App Router\n(main ブランチを auto-deploy)"]
+        Workflow["Vercel Workflow\nofficial import shadow processing"]
     end
 
     subgraph Supabase["Supabase (hosted project)"]
@@ -50,6 +51,8 @@ flowchart LR
     DNS -->|CNAME/A| App
     App -->|"NEXT_PUBLIC_SUPABASE_URL\nNEXT_PUBLIC_SUPABASE_ANON_KEY"| Auth
     App --> DB
+    App -->|"authenticated catalog creator\nmanual shadow trigger"| Workflow
+    Workflow -->|"dedicated sb_secret_ key\nstaging only"| DB
     Auth -->|"custom SMTP"| Resend
     Resend -->|"magic link mail"| Browser
     Auth -. RLS 適用 .-> DB
@@ -226,24 +229,50 @@ marker ではなく、依然として reviewer の運用規律が担う。
 
 ## Environment Variables の所有境界
 
-| 変数                                                                          | 所有者 / 設定場所                                                                         | 用途                                                                                                                                                                          |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[apps/web/src/env.ts](../../apps/web/src/env.ts)）                                                                                     |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables                                         | 同上。anon key であり service role key ではない                                                                                                                               |
-| Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings                                       | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                                                                                    |
-| `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）                                         | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない                                                         |
-| `SUPABASE_DB_URL`                                                             | GitHub `production` environment の Environment secret（Deployment branches: `main` のみ） | `.github/workflows/apply-migrations.yml` 専用。Postgres 接続文字列で `--db-url` の到達範囲はその 1 データベースに限られる。Personal Access Token や service-role key ではない |
+| 変数                                                                          | 所有者 / 設定場所                                                                         | 用途                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[apps/web/src/env.ts](../../apps/web/src/env.ts)）                                                                                                     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables                                         | 同上。anon key であり service role key ではない                                                                                                                                               |
+| `STAGE_TRACKER_INGESTION_SUPABASE_SECRET_KEY`                                 | Vercel **Production only** Sensitive Environment Variable                                 | official ingestion Workflow 専用の dedicated `sb_secret_...`。staging run/candidate write のみに使い、通常の Route / Server Action / Server Component からは import boundary で到達不能にする |
+| Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings                                       | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                                                                                                    |
+| `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）                                         | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない                                                                         |
+| `SUPABASE_DB_URL`                                                             | GitHub `production` environment の Environment secret（Deployment branches: `main` のみ） | `.github/workflows/apply-migrations.yml` 専用。Postgres 接続文字列で `--db-url` の到達範囲はその 1 データベースに限られる。Personal Access Token や service-role key ではない                 |
 
-- `NEXT_PUBLIC_*` プレフィックスの 2 変数だけが、実際にデプロイされたアプリへ
-  Supabase client 値として渡る変数です
-  （[apps/web/src/env.ts](../../apps/web/src/env.ts)）。
+- `NEXT_PUBLIC_*` プレフィックスの 2 変数だけが browser bundle へ渡る
+  Supabase client 値です（[apps/web/src/env.ts](../../apps/web/src/env.ts)）。
   どちらも public であることを前提に設計されています。
-- Supabase の **service role key は Vercel には一切設定されません**。
-  リポジトリにもコミットされません。管理系スクリプトを手元 shell から
-  `--remote` フラグ付きで実行する、その一回限りの実行時にのみ環境変数として
-  与えられます。
+- `STAGE_TRACKER_INGESTION_SUPABASE_SECRET_KEY` は browser bundle に含めず、
+  Vercel Production scope の Sensitive Environment Variable としてだけ設定します。
+  `src/workflows/official-import/privileged/**` の `server-only` client が唯一の
+  consumer です。ESLint architecture rule は通常の app surface から当該 module
+  への static / dynamic import を拒否します。CI/build/Preview はこの secret が
+  無い状態で成立し、実行時だけ fail-closed します。
+- operator shell 用の `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` は従来どおり
+  Vercel に設定しません。Workflow 専用 key と operator script 用 key を共有しません。
 - Resend の API キー / SMTP 資格情報は Supabase Dashboard の Auth → SMTP
   設定にのみ存在し、このリポジトリにもVercelにも存在しません。
+
+## Official import Workflow boundary（Issue #629）
+
+- Vercel / Next.js の current stable path として `workflow@4.8.9` を固定し、
+  `withWorkflow` と `"use workflow"` / `"use step"` を使用します。Cron は P8、
+  catalog apply は P7 の責務であり、この foundation には含めません。
+- `POST /api/official-import/shadow` は認証済み designated catalog creator が
+  code-owned Source Registry の `sourceId` だけを指定できる manual trigger です。
+  URL input は受け付けず、policy hold / disabled source も起動できません。
+- source adapter は fetch と parse/extract を同一 durable step 内で完了します。
+  raw HTML、HTTP body、PDF bytes/text、DOM snapshot、provider response、Jev prompt
+  は step output にしません。durable output は run id、source id、status、件数、
+  failure classification の compact representation のみです。
+- `packages/official-import` の candidate factory が Event / TicketOpportunity proposal
+  を既知の normalized field から再構成し、`candidate_kind + proposal_version`、
+  `EvidenceLocator`、`JevDecisionEvidence`、`PlanSummary` の exact boundary を所有します。
+  staging repository は factory output の型別 insert method だけを公開します。
+- P3 時点では source-specific production adapter は未実装です。registry と manual
+  trigger は foundation として存在しますが、adapter 未提供の run は
+  `provider_unavailable` で staging run を fail にし、catalog mutation は行いません。
+  candidate operational path は synthetic in-process adapter の unit test で固定し、
+  P4/P5 が同じ interface に canary adapter を追加します。
 
 ## Vercel Preview Auth runtime contract（Issue #268）
 
