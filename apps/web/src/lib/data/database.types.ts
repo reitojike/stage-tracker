@@ -691,6 +691,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      commit_official_import_candidate_batch: {
+        Args: { p_candidates: Json; p_run_id: string; p_source_id: string }
+        Returns: number
+      }
       create_event: {
         Args: {
           p_doors_at?: string
