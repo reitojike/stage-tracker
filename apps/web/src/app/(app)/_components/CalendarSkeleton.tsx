@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   buildMonthGridDays,
-  formatMonthParam,
   isRenderableMonth,
   parseDateParam,
   parseMonthParam,
@@ -56,7 +55,7 @@ function CalendarSkeletonContent({
     );
   }
 
-  const formattedMonth = formatMonthJa(formatMonthParam(month));
+  const formattedMonth = formatMonthJa(month);
   const days = buildMonthGridDays(month);
   const weeks = Array.from(
     { length: Math.ceil(days.length / WEEKDAYS) },

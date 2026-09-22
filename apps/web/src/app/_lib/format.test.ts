@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { instantSchema } from "@stage-tracker/domain";
-import { occurrenceTimeRangeLabel } from "./format";
+import { formatMonthJa, occurrenceTimeRangeLabel } from "./format";
+
+describe("formatMonthJa", () => {
+  it("formats both month keys and TokyoYearMonth values identically", () => {
+    expect(formatMonthJa("2026-09")).toBe("2026年9月");
+    expect(formatMonthJa({ year: 2026, month: 9 })).toBe("2026年9月");
+  });
+
+  it("preserves four-digit year padding for TokyoYearMonth values", () => {
+    expect(formatMonthJa({ year: 1, month: 1 })).toBe("0001年1月");
+  });
+});
 
 describe("occurrenceTimeRangeLabel", () => {
   it("shows a plain time range for a same-day occurrence", () => {

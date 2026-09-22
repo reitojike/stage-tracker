@@ -165,7 +165,7 @@ export function CalendarView({
       <PageHeading>カレンダー</PageHeading>
 
       <MonthNavigation
-        label={formatMonthJa(formatMonthParam(month))}
+        label={formatMonthJa(month)}
         previousHref={monthHref(addMonths(month, -1))}
         nextHref={monthHref(addMonths(month, 1))}
       />
@@ -233,7 +233,7 @@ function MonthGrid({
 }) {
   return (
     <SharedMonthGrid<CalendarDayViewModel, CalendarWeekViewModel>
-      ariaLabel={`${formatMonthJa(formatMonthParam(viewModel.month))}のカレンダー`}
+      ariaLabel={`${formatMonthJa(viewModel.month)}のカレンダー`}
       weeks={viewModel.weeks}
       hasUnconfirmedHolidayCoverage={viewModel.hasUnconfirmedHolidayCoverage}
       renderDay={(day, columnIndex, week) => {
@@ -244,7 +244,7 @@ function MonthGrid({
             segment.startCol <= columnIndex && columnIndex <= segment.endCol,
         );
         const labelParts = [
-          `${formatMonthJa(formatMonthParam(tokyoYearMonthOf(day.date)))}${String(Number(day.date.slice(8, 10)))}日`,
+          `${formatMonthJa(tokyoYearMonthOf(day.date))}${String(Number(day.date.slice(8, 10)))}日`,
         ];
         if (isToday) labelParts.push("今日");
         if (day.role === "holiday") labelParts.push("祝日");

@@ -28,11 +28,7 @@ import {
   SheetTrigger,
 } from "@stage-tracker/ui/components/sheet";
 import type { EventCatalogEntry } from "@/lib/data";
-import {
-  addMonths,
-  formatMonthParam,
-  type TokyoYearMonth,
-} from "@/app/_lib/calendar-grid";
+import { addMonths, type TokyoYearMonth } from "@/app/_lib/calendar-grid";
 import { formatMonthJa } from "@/app/_lib/format";
 import {
   READ_FAILURE_RETRY_HINT_JA,
@@ -408,7 +404,7 @@ export function CatalogView({
       ) : null}
 
       <MonthNavigation
-        label={formatMonthJa(formatMonthParam(month))}
+        label={formatMonthJa(month)}
         previousHref={catalogMonthHref(addMonths(month, -1))}
         nextHref={catalogMonthHref(addMonths(month, 1))}
       />
