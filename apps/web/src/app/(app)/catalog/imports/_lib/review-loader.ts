@@ -118,6 +118,13 @@ const currentTicketOpportunitySchema = z
     source_url: nullableText,
     memo: nullableText,
     target_scope: z.string().min(1),
+    current_event: z
+      .object({
+        id: z.uuid(),
+        source_key: nullableText,
+        title: z.string().min(1),
+      })
+      .strict(),
   })
   .strict();
 
@@ -261,6 +268,11 @@ function currentTicketOpportunity(
     : {
         id: value.id,
         eventId: value.event_id,
+        currentEvent: {
+          id: value.current_event.id,
+          sourceKey: value.current_event.source_key,
+          title: value.current_event.title,
+        },
         sourceKey: value.source_key,
         displayName: value.display_name,
         sourceUrl: value.source_url,
@@ -469,7 +481,8 @@ export async function loadOfficialImportReviewQueue(
            id, source_key, title, venue, memo, source_url, starts_on, ends_on
          ),
          current_ticket_opportunity:ticket_opportunities!official_import_candidates_resolved_ticket_opportunity_id_fkey(
-           id, event_id, source_key, display_name, source_url, memo, target_scope
+           id, event_id, source_key, display_name, source_url, memo, target_scope,
+           current_event:events!ticket_opportunities_event_id_fkey(id, source_key, title)
          )`,
         { count: "exact" },
       )

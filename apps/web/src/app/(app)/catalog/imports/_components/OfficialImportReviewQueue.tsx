@@ -114,6 +114,12 @@ function EventProposal({ proposal }: { proposal: EventReviewProposal }) {
         <dd className="break-all">{proposal.sourceKey}</dd>
         <dt className="text-muted-foreground">会場</dt>
         <dd>{proposal.venue ?? "未設定"}</dd>
+        <dt className="text-muted-foreground">source URL</dt>
+        <dd className="break-all">{proposal.sourceUrl ?? "未設定"}</dd>
+        <dt className="text-muted-foreground">メモ</dt>
+        <dd className="whitespace-pre-wrap break-words">
+          {proposal.memo ?? "未設定"}
+        </dd>
         <dt className="text-muted-foreground">公演期間</dt>
         <dd>
           {proposal.startsOn}〜{proposal.endsOn}
@@ -199,6 +205,12 @@ function TicketProposal({
         <dd className="break-all">{proposal.sourceKey}</dd>
         <dt className="text-muted-foreground">対象Event</dt>
         <dd className="break-all">{proposal.eventSourceKey}</dd>
+        <dt className="text-muted-foreground">source URL</dt>
+        <dd className="break-all">{proposal.sourceUrl ?? "未設定"}</dd>
+        <dt className="text-muted-foreground">メモ</dt>
+        <dd className="whitespace-pre-wrap break-words">
+          {proposal.memo ?? "未設定"}
+        </dd>
         <dt className="text-muted-foreground">対象範囲</dt>
         <dd>
           {proposal.targetScope === "event_wide"
@@ -236,7 +248,11 @@ function CurrentTarget({
       {candidate.currentEvent !== null ? (
         <div className="flex flex-col gap-xs">
           <dl className="grid gap-2xs sm:grid-cols-[8rem_1fr]">
-            <dt className="text-muted-foreground">現在のEvent</dt>
+            <dt className="text-muted-foreground">
+              {candidate.kind === "ticket_opportunity"
+                ? "提案先Event"
+                : "現在のEvent"}
+            </dt>
             <dd>{candidate.currentEvent.title}</dd>
             <dt className="text-muted-foreground">source key</dt>
             <dd className="break-all">
@@ -244,6 +260,14 @@ function CurrentTarget({
             </dd>
             <dt className="text-muted-foreground">会場</dt>
             <dd>{candidate.currentEvent.venue ?? "未設定"}</dd>
+            <dt className="text-muted-foreground">source URL</dt>
+            <dd className="break-all">
+              {candidate.currentEvent.sourceUrl ?? "未設定"}
+            </dd>
+            <dt className="text-muted-foreground">メモ</dt>
+            <dd className="whitespace-pre-wrap break-words">
+              {candidate.currentEvent.memo ?? "未設定"}
+            </dd>
             <dt className="text-muted-foreground">公演期間</dt>
             <dd>
               {candidate.currentEvent.startsOn}〜{candidate.currentEvent.endsOn}
@@ -260,9 +284,26 @@ function CurrentTarget({
           <dl className="grid gap-2xs sm:grid-cols-[8rem_1fr]">
             <dt className="text-muted-foreground">現在の販売情報</dt>
             <dd>{candidate.currentTicketOpportunity.displayName}</dd>
+            <dt className="text-muted-foreground">現在の対象Event</dt>
+            <dd>
+              {candidate.currentTicketOpportunity.currentEvent.title}（
+              <span className="break-all">
+                {candidate.currentTicketOpportunity.currentEvent.sourceKey ??
+                  "手動登録"}
+              </span>
+              ）
+            </dd>
             <dt className="text-muted-foreground">source key</dt>
             <dd className="break-all">
               {candidate.currentTicketOpportunity.sourceKey}
+            </dd>
+            <dt className="text-muted-foreground">source URL</dt>
+            <dd className="break-all">
+              {candidate.currentTicketOpportunity.sourceUrl ?? "未設定"}
+            </dd>
+            <dt className="text-muted-foreground">メモ</dt>
+            <dd className="whitespace-pre-wrap break-words">
+              {candidate.currentTicketOpportunity.memo ?? "未設定"}
             </dd>
             <dt className="text-muted-foreground">対象範囲</dt>
             <dd>{candidate.currentTicketOpportunity.targetScope}</dd>

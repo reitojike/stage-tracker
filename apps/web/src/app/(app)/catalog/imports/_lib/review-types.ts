@@ -73,6 +73,11 @@ export interface EventReviewOccurrence {
 export interface CurrentTicketOpportunityReviewTarget {
   readonly id: string;
   readonly eventId: string;
+  readonly currentEvent: {
+    readonly id: string;
+    readonly sourceKey: string | null;
+    readonly title: string;
+  };
   readonly sourceKey: string;
   readonly displayName: string;
   readonly sourceUrl: string | null;

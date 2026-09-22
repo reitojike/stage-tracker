@@ -161,8 +161,8 @@ describe("OfficialImportReviewQueue", () => {
                 eventSourceKey: "cynhn:event-123",
                 sourceKey: "cynhn:ticket-123",
                 displayName: "先行抽選",
-                sourceUrl: null,
-                memo: null,
+                sourceUrl: "https://example.test/proposed-ticket",
+                memo: "提案メモ",
                 targetScope: "selected_occurrences",
                 targetOccurrences: ["2026-10-01T10:00:00+09:00"],
                 milestones: [
@@ -173,14 +173,29 @@ describe("OfficialImportReviewQueue", () => {
                   },
                 ],
               },
-              currentEvent: null,
+              currentEvent: {
+                id: "44444444-4444-4444-8444-444444444444",
+                sourceKey: "cynhn:event-123",
+                title: "提案先公演",
+                venue: "提案先会場",
+                memo: null,
+                sourceUrl: null,
+                startsOn: "2026-10-01",
+                endsOn: "2026-10-02",
+                occurrences: [],
+              },
               currentTicketOpportunity: {
                 id: "22222222-2222-4222-8222-222222222222",
                 eventId: "33333333-3333-4333-8333-333333333333",
+                currentEvent: {
+                  id: "33333333-3333-4333-8333-333333333333",
+                  sourceKey: "cynhn:old-event",
+                  title: "現在の対象公演",
+                },
                 sourceKey: "cynhn:ticket-123",
                 displayName: "現在の先行抽選",
-                sourceUrl: null,
-                memo: null,
+                sourceUrl: "https://example.test/current-ticket",
+                memo: "現在メモ",
                 targetScope: "selected_occurrences",
                 targetOccurrences: ["2026-10-02T11:00:00+09:00"],
                 milestones: [
@@ -204,6 +219,18 @@ describe("OfficialImportReviewQueue", () => {
     expect(
       screen.getByText(/application_close: 2026-09-19/),
     ).toBeInTheDocument();
+    expect(screen.getByText("提案先公演")).toBeInTheDocument();
+    expect(screen.getByText(/現在の対象公演/)).toHaveTextContent(
+      "cynhn:old-event",
+    );
+    expect(
+      screen.getByText("https://example.test/proposed-ticket"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("提案メモ")).toBeInTheDocument();
+    expect(
+      screen.getByText("https://example.test/current-ticket"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("現在メモ")).toBeInTheDocument();
   });
 
   it("does not offer approval for an identity-blocked candidate", () => {

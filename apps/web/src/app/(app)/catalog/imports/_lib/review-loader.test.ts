@@ -109,6 +109,11 @@ function ticketCandidateRow() {
       source_url: "https://example.test/tickets/1",
       memo: null,
       target_scope: "selected_occurrences",
+      current_event: {
+        id: "11111111-1111-4111-8111-111111111111",
+        source_key: "test:old-event",
+        title: "現在の対象公演",
+      },
     },
   };
 }
@@ -268,6 +273,11 @@ describe("loadOfficialImportReviewQueue", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value[0]?.currentTicketOpportunity).toMatchObject({
+        currentEvent: {
+          id: "11111111-1111-4111-8111-111111111111",
+          sourceKey: "test:old-event",
+          title: "現在の対象公演",
+        },
         targetOccurrences: ["2026-10-01T01:00:00Z"],
         milestones: [
           {
