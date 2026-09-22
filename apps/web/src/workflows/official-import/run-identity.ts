@@ -14,3 +14,16 @@ export function deriveOfficialImportRunId(stepId: string): string {
     digest.slice(20, 32),
   ].join("-");
 }
+
+/** Retry-specific token; unlike the run ID, this changes for every attempt. */
+export function deriveOfficialImportAttemptToken(
+  stepId: string,
+  attempt: number,
+): string {
+  if (stepId.length === 0) throw new Error("Workflow step ID is required");
+  if (!Number.isSafeInteger(attempt) || attempt < 1)
+    throw new Error("Workflow attempt must be a positive integer");
+  return createHash("sha256")
+    .update(`official-import-shadow-attempt:${stepId}:${attempt}`)
+    .digest("hex");
+}

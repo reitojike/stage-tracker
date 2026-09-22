@@ -30,25 +30,58 @@ export type RunFailureClassification =
 
 export type RunPreparation =
   | { readonly status: "ready" }
+  | { readonly status: "busy" }
   | { readonly status: "completed"; readonly candidateCount: number }
   | {
       readonly status: "failed";
       readonly failureClassification: RunFailureClassification;
     };
 
+export const OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS = 300;
+export const OFFICIAL_IMPORT_BUSY_RETRY_AFTER_MS =
+  (OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS + 5) * 1_000;
+
+export type OfficialImportRetryReason =
+  "busy" | "source_fetch" | "provider_unavailable" | "ownership_lost";
+
+export class OfficialImportAttemptRetryError extends Error {
+  constructor(
+    readonly reason: OfficialImportRetryReason,
+    readonly retryAfterMs?: number,
+  ) {
+    super("Official import attempt must be retried");
+    this.name = "OfficialImportAttemptRetryError";
+  }
+}
+
+export type RunAttemptTransition =
+  "released" | "not_owner" | "completed" | "failed";
+
 export interface OfficialImportStagingRepository {
-  prepareRun(runId: string, sourceId: string): Promise<RunPreparation>;
+  prepareRun(
+    runId: string,
+    sourceId: string,
+    attemptToken: string,
+  ): Promise<RunPreparation>;
   commitCandidates(
     runId: string,
     sourceId: string,
+    attemptToken: string,
     candidates: readonly (
       EventDurableCandidate | TicketOpportunityDurableCandidate
     )[],
   ): Promise<number>;
+  releaseRun(
+    runId: string,
+    sourceId: string,
+    attemptToken: string,
+  ): Promise<RunAttemptTransition>;
   failRun(
     runId: string,
+    sourceId: string,
+    attemptToken: string,
     classification: RunFailureClassification,
-  ): Promise<void>;
+  ): Promise<RunAttemptTransition>;
 }
 
 export type ShadowRunResult =
@@ -79,14 +112,34 @@ function classifyFailure(error: unknown): RunFailureClassification {
   return "unexpected";
 }
 
+function isTransientFailure(
+  classification: RunFailureClassification,
+): classification is "source_fetch" | "provider_unavailable" {
+  return (
+    classification === "source_fetch" ||
+    classification === "provider_unavailable"
+  );
+}
+
 export async function executeOfficialImportShadowRun(
   runId: string,
+  attemptToken: string,
   source: OfficialSourceDefinition,
   adapter: OfficialSourceAdapter,
   planner: OfficialImportCandidatePlanner,
   repository: OfficialImportStagingRepository,
 ): Promise<ShadowRunResult> {
-  const preparation = await repository.prepareRun(runId, source.id);
+  const preparation = await repository.prepareRun(
+    runId,
+    source.id,
+    attemptToken,
+  );
+  if (preparation.status === "busy") {
+    throw new OfficialImportAttemptRetryError(
+      "busy",
+      OFFICIAL_IMPORT_BUSY_RETRY_AFTER_MS,
+    );
+  }
   if (preparation.status === "completed") {
     return {
       status: "completed",
@@ -215,10 +268,12 @@ export async function executeOfficialImportShadowRun(
     // The repository publishes the complete validated typed batch and
     // completes the run in one database transaction. A competing retry gets
     // the already committed count from that same serialization boundary.
-    const candidateCount = await repository.commitCandidates(runId, source.id, [
-      ...eventCandidates,
-      ...ticketOpportunityCandidates,
-    ]);
+    const candidateCount = await repository.commitCandidates(
+      runId,
+      source.id,
+      attemptToken,
+      [...eventCandidates, ...ticketOpportunityCandidates],
+    );
     return {
       status: "completed",
       runId,
@@ -226,8 +281,21 @@ export async function executeOfficialImportShadowRun(
       candidateCount,
     };
   } catch (error) {
+    if (error instanceof OfficialImportAttemptRetryError) throw error;
     const failureClassification = classifyFailure(error);
-    await repository.failRun(runId, failureClassification);
+    if (isTransientFailure(failureClassification)) {
+      await repository.releaseRun(runId, source.id, attemptToken);
+      throw new OfficialImportAttemptRetryError(failureClassification);
+    }
+
+    const transition = await repository.failRun(
+      runId,
+      source.id,
+      attemptToken,
+      failureClassification,
+    );
+    if (transition !== "failed")
+      throw new OfficialImportAttemptRetryError("ownership_lost");
     return {
       status: "failed",
       runId,

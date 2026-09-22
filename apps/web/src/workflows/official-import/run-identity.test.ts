@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { deriveOfficialImportRunId } from "./run-identity";
+import {
+  deriveOfficialImportAttemptToken,
+  deriveOfficialImportRunId,
+} from "./run-identity";
 
 describe("deriveOfficialImportRunId", () => {
   it("returns the same UUID for retries of the same durable step", () => {
@@ -19,6 +22,23 @@ describe("deriveOfficialImportRunId", () => {
   it("rejects a missing durable step identity", () => {
     expect(() => deriveOfficialImportRunId("")).toThrow(
       "Workflow step ID is required",
+    );
+  });
+
+  it("derives a bounded token that is stable within and distinct across attempts", () => {
+    const first = deriveOfficialImportAttemptToken("step-123", 1);
+    expect(first).toBe(deriveOfficialImportAttemptToken("step-123", 1));
+    expect(first).toMatch(/^[0-9a-f]{64}$/);
+    expect(deriveOfficialImportAttemptToken("step-123", 2)).not.toBe(first);
+    expect(deriveOfficialImportAttemptToken("other-step", 1)).not.toBe(first);
+  });
+
+  it("rejects invalid attempt identity inputs", () => {
+    expect(() => deriveOfficialImportAttemptToken("", 1)).toThrow(
+      "Workflow step ID is required",
+    );
+    expect(() => deriveOfficialImportAttemptToken("step-123", 0)).toThrow(
+      "Workflow attempt must be a positive integer",
     );
   });
 });

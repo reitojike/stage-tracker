@@ -269,15 +269,23 @@ marker ではなく、依然として reviewer の運用規律が担う。
   `EvidenceLocator`、`JevDecisionEvidence`、`PlanSummary` の exact boundary を所有します。
   staging repository は factory output の typed batch commit method だけを公開し、
   arbitrary proposal / evidence / Jev / plan JSON は受け付けません。
-- Workflow step ID から安定した staging run UUID を導出し、retry は同じ run を
-  再利用します。全draftを検証・planしてから、locked run の候補全置換、typed batch
-  INSERT、identity-review block、run completion を専用 RPC の 1 transaction で
-  commit します。競合 retry は completed run の既存件数を再利用します。candidate の
-  review は親runが `completed` の場合だけ許可し、interrupted / failed runをreview
-  queueへ公開しません。
+- Workflow step ID から安定した staging run UUID、step ID と attempt 番号から
+  attempt token を導出し、retry は同じ run を再利用しつつ別の所有者として動作します。
+  専用 RPC が run row を lock して attempt に 5 分の lease を付与し、現在の所有者だけが
+  completion / failure を確定できます。競合 attempt は lease より後まで backoff し、
+  古い attempt は lease 切れや所有権移譲後に候補を commit できません。全draftを検証・
+  planしてから、locked run の候補全置換、typed batch INSERT、identity-review block、
+  run completion を専用 RPC の 1 transaction で commit します。completed run は既存件数を
+  再利用します。candidate の review は親runが `completed` の場合だけ許可し、
+  interrupted / failed runをreview queueへ公開しません。
+- source fetch と provider unavailable は attempt の所有権を解放し、raw response や
+  exception detail を durable output / log に含めず compact failure classification だけを
+  Workflow retry に渡します。parse、validation、unexpected failure は現在の所有者だけが
+  terminal failure として記録します。failure 記録時に所有権を失っていた場合は terminal
+  state を上書きせず、次の retry が確定済み state を読み直します。
 - P3 時点では source-specific production adapter は未実装です。registry と manual
   trigger は foundation として存在しますが、adapter 未提供の run は
-  `provider_unavailable` で staging run を fail にし、catalog mutation は行いません。
+  `provider_unavailable` として retry され、catalog mutation は行いません。
   candidate operational path は synthetic in-process adapter の unit test で固定し、
   P4/P5 が同じ interface に canary adapter を追加します。
 

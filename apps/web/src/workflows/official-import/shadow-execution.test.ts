@@ -1,6 +1,7 @@
 import type { EventDurableCandidate } from "@stage-tracker/official-import/durable-candidate";
 import { describe, expect, it, vi } from "vitest";
 import {
+  ProviderUnavailableFailure,
   SourceFetchFailure,
   type AcquisitionDraft,
   type OfficialImportCandidatePlanner,
@@ -8,35 +9,45 @@ import {
 } from "./acquisition";
 import {
   executeOfficialImportShadowRun,
+  OFFICIAL_IMPORT_BUSY_RETRY_AFTER_MS,
+  OfficialImportAttemptRetryError,
   type OfficialImportStagingRepository,
 } from "./shadow-execution";
 import { requireEnabledShadowSource } from "./source-registry";
 
 const SENTINEL = "RAW_SENTINEL_MUST_NOT_PERSIST";
 const RUN_ID = "00000000-0000-4000-8000-000000000001";
+const ATTEMPT_TOKEN = "a".repeat(64);
 
 function repositoryHarness() {
   const eventCandidates: EventDurableCandidate[] = [];
   const commitCandidates = vi.fn<
     OfficialImportStagingRepository["commitCandidates"]
-  >(async (_runId, _sourceId, candidates) => {
+  >(async (_runId, _sourceId, _attemptToken, candidates) => {
     for (const candidate of candidates) {
       if (candidate.candidateKind === "event") eventCandidates.push(candidate);
     }
     return candidates.length;
   });
-  const failRun = vi.fn<OfficialImportStagingRepository["failRun"]>();
+  const releaseRun = vi.fn<OfficialImportStagingRepository["releaseRun"]>(
+    async () => "released",
+  );
+  const failRun = vi.fn<OfficialImportStagingRepository["failRun"]>(
+    async () => "failed",
+  );
   const repository: OfficialImportStagingRepository = {
     prepareRun: vi.fn<OfficialImportStagingRepository["prepareRun"]>(
       async () => ({ status: "ready" }),
     ),
     commitCandidates,
+    releaseRun,
     failRun,
   };
   return {
     repository,
     eventCandidates,
     commitCandidates,
+    releaseRun,
     failRun,
   };
 }
@@ -91,6 +102,7 @@ describe("official import shadow execution", () => {
 
     const result = await executeOfficialImportShadowRun(
       RUN_ID,
+      ATTEMPT_TOKEN,
       source,
       adapter,
       planner,
@@ -110,31 +122,64 @@ describe("official import shadow execution", () => {
     expect(harness.failRun).not.toHaveBeenCalled();
   });
 
-  it("fails closed on fetch failure without staging a candidate", async () => {
+  it("releases ownership and retries a transient fetch failure", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const harness = repositoryHarness();
-    const result = await executeOfficialImportShadowRun(
-      RUN_ID,
-      source,
-      {
-        acquire() {
-          throw new SourceFetchFailure();
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          acquire() {
+            throw new SourceFetchFailure();
+          },
         },
-      },
-      {
-        planEvent: vi.fn(),
-        planTicketOpportunity: vi.fn(),
-      },
-      harness.repository,
-    );
+        {
+          planEvent: vi.fn(),
+          planTicketOpportunity: vi.fn(),
+        },
+        harness.repository,
+      ),
+    ).rejects.toMatchObject({ reason: "source_fetch" });
 
-    expect(result).toMatchObject({
-      status: "failed",
-      failureClassification: "source_fetch",
-    });
     expect(harness.eventCandidates).toHaveLength(0);
     expect(harness.commitCandidates).not.toHaveBeenCalled();
-    expect(harness.failRun).toHaveBeenCalledWith(RUN_ID, "source_fetch");
+    expect(harness.releaseRun).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+    );
+    expect(harness.failRun).not.toHaveBeenCalled();
+  });
+
+  it("releases ownership and retries an unavailable source provider", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          acquire() {
+            throw new ProviderUnavailableFailure();
+          },
+        },
+        {
+          planEvent: vi.fn(),
+          planTicketOpportunity: vi.fn(),
+        },
+        harness.repository,
+      ),
+    ).rejects.toMatchObject({ reason: "provider_unavailable" });
+    expect(harness.releaseRun).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+    );
+    expect(harness.failRun).not.toHaveBeenCalled();
   });
 
   it("rejects an arbitrary proposal source URL before staging", async () => {
@@ -142,6 +187,7 @@ describe("official import shadow execution", () => {
     const harness = repositoryHarness();
     const result = await executeOfficialImportShadowRun(
       RUN_ID,
+      ATTEMPT_TOKEN,
       source,
       {
         async acquire() {
@@ -185,6 +231,12 @@ describe("official import shadow execution", () => {
       status: "failed",
       failureClassification: "validation",
     });
+    expect(harness.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+      "validation",
+    );
     expect(harness.eventCandidates).toHaveLength(0);
   });
 
@@ -193,6 +245,7 @@ describe("official import shadow execution", () => {
     const harness = repositoryHarness();
     const result = await executeOfficialImportShadowRun(
       RUN_ID,
+      ATTEMPT_TOKEN,
       source,
       {
         async acquire() {
@@ -250,6 +303,12 @@ describe("official import shadow execution", () => {
     });
     expect(harness.commitCandidates).not.toHaveBeenCalled();
     expect(harness.eventCandidates).toHaveLength(0);
+    expect(harness.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+      "validation",
+    );
   });
 
   it("reuses a completed step-derived run without acquiring or restaging", async () => {
@@ -262,6 +321,7 @@ describe("official import shadow execution", () => {
 
     const result = await executeOfficialImportShadowRun(
       RUN_ID,
+      ATTEMPT_TOKEN,
       source,
       { acquire },
       {
@@ -279,5 +339,72 @@ describe("official import shadow execution", () => {
     });
     expect(acquire).not.toHaveBeenCalled();
     expect(harness.commitCandidates).not.toHaveBeenCalled();
+  });
+
+  it("backs off beyond the active lease when another attempt owns the run", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    harness.repository.prepareRun = vi.fn<
+      OfficialImportStagingRepository["prepareRun"]
+    >(async () => ({ status: "busy" }));
+    const acquire = vi.fn<OfficialSourceAdapter["acquire"]>();
+
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        { acquire },
+        {
+          planEvent: vi.fn(),
+          planTicketOpportunity: vi.fn(),
+        },
+        harness.repository,
+      ),
+    ).rejects.toMatchObject({
+      reason: "busy",
+      retryAfterMs: OFFICIAL_IMPORT_BUSY_RETRY_AFTER_MS,
+    });
+    expect(acquire).not.toHaveBeenCalled();
+    expect(harness.releaseRun).not.toHaveBeenCalled();
+    expect(harness.failRun).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite a terminal result after losing attempt ownership", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    harness.failRun.mockResolvedValueOnce("completed");
+
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          async acquire() {
+            return [
+              {
+                candidateKind: "event",
+                canonicalUrl: source.canonicalUrl,
+                observedAt: "2026-09-22T00:00:00.000Z",
+                contentHash: "a".repeat(64),
+                proposal: {
+                  sourceKey: "kabuki:impossible-date",
+                  title: "Impossible date",
+                  startsOn: "2026-02-30",
+                  endsOn: "2026-02-30",
+                  occurrences: [],
+                },
+              },
+            ];
+          },
+        },
+        {
+          planEvent: vi.fn(),
+          planTicketOpportunity: vi.fn(),
+        },
+        harness.repository,
+      ),
+    ).rejects.toEqual(new OfficialImportAttemptRetryError("ownership_lost"));
   });
 });

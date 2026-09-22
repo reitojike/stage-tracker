@@ -7,10 +7,13 @@ import { parseCanonicalProposal } from "@stage-tracker/official-import/durable-c
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/data/database.types";
 import { deriveOfficialImportCandidateReviewStatus } from "../candidate-review";
-import type {
-  OfficialImportStagingRepository,
-  RunFailureClassification,
-  RunPreparation,
+import {
+  OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS,
+  OfficialImportAttemptRetryError,
+  type OfficialImportStagingRepository,
+  type RunAttemptTransition,
+  type RunFailureClassification,
+  type RunPreparation,
 } from "../shadow-execution";
 import { createPrivilegedIngestionClient } from "./supabase";
 
@@ -63,28 +66,40 @@ function parseFailureClassification(
   return value;
 }
 
+function parseAttemptTransition(value: string): RunAttemptTransition {
+  if (
+    value === "released" ||
+    value === "not_owner" ||
+    value === "completed" ||
+    value === "failed"
+  )
+    return value;
+  throw new Error("Official import attempt has an invalid transition");
+}
+
 class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRepository {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
-  async prepareRun(runId: string, sourceId: string): Promise<RunPreparation> {
-    const { error: createError } = await this.client
-      .from("official_import_runs")
-      .upsert(
-        { id: runId, source_id: sourceId },
-        { onConflict: "id", ignoreDuplicates: true },
-      );
-    if (createError !== null)
-      throw new Error("Failed to prepare official import run");
+  async prepareRun(
+    runId: string,
+    sourceId: string,
+    attemptToken: string,
+  ): Promise<RunPreparation> {
+    const { data: claimStatus, error } = await this.client.rpc(
+      "claim_official_import_run_attempt",
+      {
+        p_run_id: runId,
+        p_source_id: sourceId,
+        p_attempt_token: attemptToken,
+        p_lease_seconds: OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS,
+      },
+    );
+    if (error !== null || claimStatus === null)
+      throw new Error("Failed to claim official import run attempt");
 
-    const { data, error: readError } = await this.client
-      .from("official_import_runs")
-      .select("source_id, status, failure_classification")
-      .eq("id", runId)
-      .single();
-    if (readError !== null || data === null || data.source_id !== sourceId)
-      throw new Error("Failed to reuse official import run");
-
-    if (data.status === "completed") {
+    if (claimStatus === "claimed") return { status: "ready" };
+    if (claimStatus === "busy") return { status: "busy" };
+    if (claimStatus === "completed") {
       const { count, error: countError } = await this.client
         .from("official_import_candidates")
         .select("id", { count: "exact", head: true })
@@ -93,7 +108,15 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
         throw new Error("Failed to read completed official import run");
       return { status: "completed", candidateCount: count };
     }
-    if (data.status === "failed") {
+    if (claimStatus === "failed") {
+      const { data, error: readError } = await this.client
+        .from("official_import_runs")
+        .select("failure_classification")
+        .eq("id", runId)
+        .eq("source_id", sourceId)
+        .single();
+      if (readError !== null || data === null)
+        throw new Error("Failed to read failed official import run");
       return {
         status: "failed",
         failureClassification: parseFailureClassification(
@@ -101,15 +124,13 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
         ),
       };
     }
-    if (data.status !== "running")
-      throw new Error("Official import run has an invalid status");
-
-    return { status: "ready" };
+    throw new Error("Official import attempt claim has an invalid status");
   }
 
   async commitCandidates(
     runId: string,
     sourceId: string,
+    attemptToken: string,
     candidates: readonly (
       EventDurableCandidate | TicketOpportunityDurableCandidate
     )[],
@@ -125,35 +146,57 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
       );
 
     const { data, error } = await this.client.rpc(
-      "commit_official_import_candidate_batch",
+      "commit_owned_official_import_candidate_batch",
       {
         p_run_id: runId,
         p_source_id: sourceId,
+        p_attempt_token: attemptToken,
         p_candidates: candidates.map(candidateBatchPayload),
       },
     );
+    if (error?.code === "55000")
+      throw new OfficialImportAttemptRetryError("ownership_lost");
     if (error !== null || data === null)
       throw new Error("Failed to publish official import candidate batch");
     return data;
   }
 
+  async releaseRun(
+    runId: string,
+    sourceId: string,
+    attemptToken: string,
+  ): Promise<RunAttemptTransition> {
+    const { data, error } = await this.client.rpc(
+      "release_official_import_run_attempt",
+      {
+        p_run_id: runId,
+        p_source_id: sourceId,
+        p_attempt_token: attemptToken,
+      },
+    );
+    if (error !== null || data === null)
+      throw new Error("Failed to release official import run attempt");
+    return parseAttemptTransition(data);
+  }
+
   async failRun(
     runId: string,
+    sourceId: string,
+    attemptToken: string,
     classification: RunFailureClassification,
-  ): Promise<void> {
-    const { data, error } = await this.client
-      .from("official_import_runs")
-      .update({
-        status: "failed",
-        finished_at: new Date().toISOString(),
-        failure_classification: classification,
-      })
-      .eq("id", runId)
-      .eq("status", "running")
-      .select("id")
-      .single();
+  ): Promise<RunAttemptTransition> {
+    const { data, error } = await this.client.rpc(
+      "fail_official_import_run_attempt",
+      {
+        p_run_id: runId,
+        p_source_id: sourceId,
+        p_attempt_token: attemptToken,
+        p_failure_classification: classification,
+      },
+    );
     if (error !== null || data === null)
       throw new Error("Failed to record official import run failure");
+    return parseAttemptTransition(data);
   }
 }
 

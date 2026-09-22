@@ -78,6 +78,28 @@ describe('durable official import candidates', () => {
     });
   });
 
+  test('rejects an impossible Event date even when there are no occurrences', () => {
+    assert.throws(
+      () =>
+        createEventDurableCandidate({
+          ...common,
+          proposal: {
+            sourceKey: 'kabuki:impossible-date',
+            title: 'Impossible date',
+            startsOn: '2026-02-30',
+            endsOn: '2026-02-30',
+            occurrences: [],
+          },
+          plan: {
+            action: 'create',
+            detailsChanged: false,
+            rangeChanged: false,
+          },
+        }),
+      DurableCandidateValidationError,
+    );
+  });
+
   test('rebuilds a TicketOpportunity proposal and bounded plan summary', () => {
     const candidate = createTicketOpportunityDurableCandidate({
       ...common,
