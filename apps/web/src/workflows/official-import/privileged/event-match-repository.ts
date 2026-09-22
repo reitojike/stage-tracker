@@ -29,11 +29,13 @@ async function hydrate(
   event: EventRow,
 ): Promise<CatalogEventMatch> {
   const [occurrenceResult, groupResult] = await Promise.all([
+    // The shared import core preserves cancellation state and treats a row at
+    // the same instant as existing. Include canceled rows here so the review
+    // fingerprint and the apply-time catalog plan use the same semantics.
     client
       .from("event_occurrences")
       .select("starts_at, doors_at, ends_at")
       .eq("event_id", event.id)
-      .is("canceled_at", null)
       .order("starts_at"),
     client
       .from("event_groups")
