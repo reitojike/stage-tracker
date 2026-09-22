@@ -5,7 +5,7 @@
 application です。product intentの詳細は [`docs/prd.md`](./docs/prd.md) を
 参照してください。
 
-GitHub Spec Kit v1.0.6 の standard harness を使う、shared event catalog と
+GitHub Spec Kit v1.0.9 の standard harness を使う、shared event catalog と
 personal planning の authenticated multi-user application です。既存の
 Foundation harness への runtime dependency は持ちません。
 
@@ -42,9 +42,9 @@ Spec Kit が管理する guidance surface と Next.js の自動生成 root guida
 として維持します。
 
 Spec Kit の標準 helper scripts は、PowerShellへの依存を避け、Codex / Claudeで
-共通利用するため、v1.0.6 first-party `--script py` variantを使用します。生成された
-Skillは`python3` commandでhelperを呼ぶため、Spec Kit workflowを実行するenvironment
-ではPython 3を`python3` commandとして利用可能にしてください。repository側の
+共通利用するため、v1.0.9 first-party `--script py` variantを使用します。生成された
+Skillは`python` commandでhelperを呼ぶため、Spec Kit workflowを実行するenvironment
+ではPython 3を`python` commandとして利用可能にしてください。repository側の
 launcher wrapper、post-processing、managed fileの手編集は追加しません。
 
 Claude secondary integration利用時、Spec Kit shared prerequisite scriptがdefault
