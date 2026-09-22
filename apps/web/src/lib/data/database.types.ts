@@ -422,6 +422,8 @@ export type Database = {
       }
       official_import_runs: {
         Row: {
+          active_attempt_lease_expires_at: string | null
+          active_attempt_token: string | null
           created_at: string
           failure_classification: string | null
           finished_at: string | null
@@ -432,6 +434,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_attempt_lease_expires_at?: string | null
+          active_attempt_token?: string | null
           created_at?: string
           failure_classification?: string | null
           finished_at?: string | null
@@ -442,6 +446,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_attempt_lease_expires_at?: string | null
+          active_attempt_token?: string | null
           created_at?: string
           failure_classification?: string | null
           finished_at?: string | null
@@ -691,8 +697,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_official_import_run_attempt: {
+        Args: {
+          p_attempt_token: string
+          p_lease_seconds: number
+          p_run_id: string
+          p_source_id: string
+        }
+        Returns: string
+      }
       commit_official_import_candidate_batch: {
         Args: { p_candidates: Json; p_run_id: string; p_source_id: string }
+        Returns: number
+      }
+      commit_owned_official_import_candidate_batch: {
+        Args: {
+          p_attempt_token: string
+          p_candidates: Json
+          p_run_id: string
+          p_source_id: string
+        }
         Returns: number
       }
       create_event: {
@@ -754,6 +778,15 @@ export type Database = {
       event_occurrence_is_effectively_canceled: {
         Args: { p_occurrence_id: string }
         Returns: boolean
+      }
+      fail_official_import_run_attempt: {
+        Args: {
+          p_attempt_token: string
+          p_failure_classification: string
+          p_run_id: string
+          p_source_id: string
+        }
+        Returns: string
       }
       import_event_classification: {
         Args: {
@@ -918,6 +951,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      release_official_import_run_attempt: {
+        Args: { p_attempt_token: string; p_run_id: string; p_source_id: string }
+        Returns: string
       }
       reschedule_event: {
         Args: {
