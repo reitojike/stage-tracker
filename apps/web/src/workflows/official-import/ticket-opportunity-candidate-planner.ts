@@ -204,11 +204,15 @@ function deterministicEvent(
 function result(
   proposal: TicketOpportunityProposalInput,
   planning: Omit<TicketOpportunityPlanningResult, "planFingerprint">,
+  current: {
+    readonly event: CatalogEventMatch | null;
+    readonly opportunity: CatalogTicketOpportunityMatch | null;
+  },
 ): TicketOpportunityPlanningResult {
   return {
     ...planning,
     proposal,
-    planFingerprint: fingerprint({ proposal, ...planning }),
+    planFingerprint: fingerprint({ proposal, ...planning, current }),
   };
 }
 
@@ -287,20 +291,24 @@ export function createTicketOpportunityCandidatePlanner(
 
       if (matchedEvent === null || matchedEvent.sourceKey === null) {
         const plan = planFor(draft.proposal, null, null);
-        return result(draft.proposal, {
-          plan,
-          deterministicMatchStatus,
-          // A Ticket Opportunity cannot be apply-capable without a resolved
-          // Event. Even a confident semantic `no_match` therefore remains a
-          // review block instead of becoming an ordinary pending candidate.
-          semanticMatchStatus:
-            semanticMatchStatus === "ambiguous"
-              ? "ambiguous"
-              : "low_confidence",
-          resolvedEventId: null,
-          resolvedTicketOpportunityId: null,
-          jevDecisionEvidence,
-        });
+        return result(
+          draft.proposal,
+          {
+            plan,
+            deterministicMatchStatus,
+            // A Ticket Opportunity cannot be apply-capable without a resolved
+            // Event. Even a confident semantic `no_match` therefore remains a
+            // review block instead of becoming an ordinary pending candidate.
+            semanticMatchStatus:
+              semanticMatchStatus === "ambiguous"
+                ? "ambiguous"
+                : "low_confidence",
+            resolvedEventId: null,
+            resolvedTicketOpportunityId: null,
+            jevDecisionEvidence,
+          },
+          { event: null, opportunity: null },
+        );
       }
 
       const proposal = {
@@ -311,14 +319,18 @@ export function createTicketOpportunityCandidatePlanner(
         proposal.sourceKey,
       );
       const plan = planFor(proposal, matchedEvent, current);
-      return result(proposal, {
-        plan,
-        deterministicMatchStatus,
-        semanticMatchStatus,
-        resolvedEventId: matchedEvent.id,
-        resolvedTicketOpportunityId: current?.id ?? null,
-        jevDecisionEvidence,
-      });
+      return result(
+        proposal,
+        {
+          plan,
+          deterministicMatchStatus,
+          semanticMatchStatus,
+          resolvedEventId: matchedEvent.id,
+          resolvedTicketOpportunityId: current?.id ?? null,
+          jevDecisionEvidence,
+        },
+        { event: matchedEvent, opportunity: current },
+      );
     },
   };
 }

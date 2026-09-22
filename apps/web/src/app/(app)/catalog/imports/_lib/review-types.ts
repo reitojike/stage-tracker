@@ -1,6 +1,18 @@
 export type OfficialImportReviewStatus =
   "pending" | "blocked_for_identity_review";
 
+export type OfficialImportApplyStatus = "not_started" | "queued" | "failed";
+
+export type OfficialImportApplyFailureClassification =
+  | "validation"
+  | "identity_ambiguous"
+  | "source_changed"
+  | "target_missing"
+  | "write_conflict"
+  | "provider_unavailable"
+  | "policy_blocked"
+  | "unexpected";
+
 export interface EventReviewProposal {
   readonly kind: "event";
   readonly sourceKey: string;
@@ -94,7 +106,10 @@ export interface OfficialImportReviewCandidate {
   readonly canonicalUrl: string;
   readonly observedAt: string;
   readonly officialExternalId: string | null;
-  readonly reviewStatus: OfficialImportReviewStatus;
+  readonly reviewStatus: OfficialImportReviewStatus | "approved";
+  readonly applyStatus: OfficialImportApplyStatus;
+  readonly applyFailureClassification: OfficialImportApplyFailureClassification | null;
+  readonly applyLeaseExpiresAt: string | null;
   readonly proposal: EventReviewProposal | TicketOpportunityReviewProposal;
   readonly currentEvent: CurrentEventReviewTarget | null;
   readonly currentTicketOpportunity: CurrentTicketOpportunityReviewTarget | null;

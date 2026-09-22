@@ -1,0 +1,118 @@
+import "server-only";
+import {
+  applyEventPlans,
+  resolveEventPlans,
+  validateEventEntries,
+} from "@stage-tracker/official-import/event";
+import {
+  applyPlans as applyTicketOpportunityPlans,
+  resolvePlans as resolveTicketOpportunityPlans,
+  validateSeedEntries,
+} from "@stage-tracker/official-import/ticket";
+import type {
+  EventProposalInput,
+  TicketOpportunityProposalInput,
+} from "@stage-tracker/official-import/durable-candidate";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
+import {
+  OfficialImportCatalogFailure,
+  type OfficialImportCatalogApplyPlan,
+  type OfficialImportCatalogGateway,
+} from "../apply-execution";
+import { createPrivilegedIngestionClient } from "./supabase";
+
+function onlyPlan<T>(plans: readonly T[]): T {
+  const plan = plans[0];
+  if (plan === undefined || plans.length !== 1) {
+    throw new OfficialImportCatalogFailure("validation");
+  }
+  return plan;
+}
+
+class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGateway {
+  constructor(private readonly client: SupabaseClient<Database>) {}
+
+  async prepareEvent(
+    proposal: EventProposalInput,
+    reviewerId: string,
+    targetEventId: string | null,
+  ): Promise<OfficialImportCatalogApplyPlan> {
+    const validated = validateEventEntries([
+      { raw: proposal, where: "approved official import candidate" },
+    ]);
+    if (!validated.ok) {
+      throw new OfficialImportCatalogFailure("validation");
+    }
+    const resolved = await resolveEventPlans(this.client, validated.entries, {
+      owner: { id: reviewerId },
+      ...(targetEventId === null
+        ? {}
+        : {
+            targetEventIdsBySourceKey: new Map([
+              [proposal.sourceKey, targetEventId],
+            ]),
+          }),
+    });
+    if (!resolved.ok) {
+      throw new OfficialImportCatalogFailure("policy_blocked");
+    }
+    const plan = onlyPlan(resolved.plans);
+    const hasChanges =
+      plan.action !== "unchanged" ||
+      plan.genrePlan.changed ||
+      plan.groupsPlan.changed;
+    return {
+      action: plan.action,
+      hasChanges,
+      resolvedEventId: plan.event?.id ?? null,
+      resolvedTicketOpportunityId: null,
+      apply: async () => {
+        const result = await applyEventPlans(this.client, [plan], {
+          ownerId: reviewerId,
+        });
+        if (!result.ok) {
+          throw new OfficialImportCatalogFailure("write_conflict");
+        }
+      },
+    };
+  }
+
+  async prepareTicketOpportunity(
+    proposal: TicketOpportunityProposalInput,
+  ): Promise<OfficialImportCatalogApplyPlan> {
+    const validated = validateSeedEntries([
+      { raw: proposal, where: "approved official import candidate" },
+    ]);
+    if (!validated.ok) {
+      throw new OfficialImportCatalogFailure("validation");
+    }
+    const resolved = await resolveTicketOpportunityPlans(
+      this.client,
+      validated.entries,
+    );
+    if (!resolved.ok) {
+      throw new OfficialImportCatalogFailure("target_missing");
+    }
+    const plan = onlyPlan(resolved.plans);
+    return {
+      action: plan.action,
+      hasChanges: plan.action !== "unchanged",
+      resolvedEventId: plan.event.id,
+      resolvedTicketOpportunityId: plan.existing?.id ?? null,
+      apply: async () => {
+        try {
+          await applyTicketOpportunityPlans(this.client, [plan]);
+        } catch {
+          throw new OfficialImportCatalogFailure("write_conflict");
+        }
+      },
+    };
+  }
+}
+
+export function createOfficialImportCatalogGateway(
+  client: SupabaseClient<Database> = createPrivilegedIngestionClient(),
+): OfficialImportCatalogGateway {
+  return new SupabaseOfficialImportCatalogGateway(client);
+}

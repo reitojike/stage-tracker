@@ -234,7 +234,28 @@ const candidateRowSchema = z
     resolved_event_id: z.uuid().nullable(),
     resolved_ticket_opportunity_id: z.uuid().nullable(),
     jev_decision_evidence: z.unknown().nullable(),
-    review_status: z.enum(["pending", "blocked_for_identity_review"]),
+    review_status: z.enum([
+      "pending",
+      "approved",
+      "blocked_for_identity_review",
+    ]),
+    apply_status: z.enum(["not_started", "queued", "failed"]),
+    active_apply_lease_expires_at: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)), "invalid timestamp")
+      .nullable(),
+    failure_classification: z
+      .enum([
+        "validation",
+        "identity_ambiguous",
+        "source_changed",
+        "target_missing",
+        "write_conflict",
+        "provider_unavailable",
+        "policy_blocked",
+        "unexpected",
+      ])
+      .nullable(),
     official_import_runs: z.object({ status: z.literal("completed") }),
     current_event: currentEventSchema.nullable(),
     current_ticket_opportunity: currentTicketOpportunitySchema.nullable(),
@@ -426,6 +447,9 @@ function mapCandidateRow(
     observedAt: row.observed_at,
     officialExternalId: row.official_external_id,
     reviewStatus: row.review_status,
+    applyStatus: row.apply_status,
+    applyFailureClassification: row.failure_classification,
+    applyLeaseExpiresAt: row.active_apply_lease_expires_at,
     proposal,
     currentEvent: currentEvent(row.current_event),
     currentTicketOpportunity: currentTicketOpportunity(
@@ -486,7 +510,12 @@ export async function loadOfficialImportReviewQueue(
          )`,
         { count: "exact" },
       )
-      .in("review_status", ["pending", "blocked_for_identity_review"])
+      .in("review_status", [
+        "pending",
+        "approved",
+        "blocked_for_identity_review",
+      ])
+      .neq("apply_status", "applied")
       .eq("official_import_runs.status", "completed");
     const afterCursor = cursor === null ? query : query.gt("id", cursor);
     return afterCursor

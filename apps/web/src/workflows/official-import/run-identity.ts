@@ -27,3 +27,16 @@ export function deriveOfficialImportAttemptToken(
     .update(`official-import-shadow-attempt:${stepId}:${attempt}`)
     .digest("hex");
 }
+
+/** Retry-specific ownership token for an approved candidate apply step. */
+export function deriveOfficialImportApplyAttemptToken(
+  stepId: string,
+  attempt: number,
+): string {
+  if (stepId.length === 0) throw new Error("Workflow step ID is required");
+  if (!Number.isSafeInteger(attempt) || attempt < 1)
+    throw new Error("Workflow attempt must be a positive integer");
+  return createHash("sha256")
+    .update(`official-import-apply-attempt:${stepId}:${attempt}`)
+    .digest("hex");
+}

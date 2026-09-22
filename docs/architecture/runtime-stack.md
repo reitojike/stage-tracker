@@ -37,7 +37,7 @@ flowchart LR
 
     subgraph Vercel["Vercel (Hobby plan)"]
         App["Next.js 16 App Router\n(main ブランチを auto-deploy)"]
-        Workflow["Vercel Workflow\nofficial import shadow processing"]
+        Workflow["Vercel Workflow\nofficial import review/apply"]
     end
 
     subgraph Supabase["Supabase (hosted project)"]
@@ -52,7 +52,7 @@ flowchart LR
     App -->|"NEXT_PUBLIC_SUPABASE_URL\nNEXT_PUBLIC_SUPABASE_ANON_KEY"| Auth
     App --> DB
     App -->|"authenticated catalog creator\nmanual shadow trigger"| Workflow
-    Workflow -->|"dedicated sb_secret_ key\nstaging only"| DB
+    Workflow -->|"dedicated sb_secret_ key\nstaging + approved apply"| DB
     Auth -->|"custom SMTP"| Resend
     Resend -->|"magic link mail"| Browser
     Auth -. RLS 適用 .-> DB
@@ -229,15 +229,15 @@ marker ではなく、依然として reviewer の運用規律が担う。
 
 ## Environment Variables の所有境界
 
-| 変数                                                                          | 所有者 / 設定場所                                                                         | 用途                                                                                                                                                                                          |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[apps/web/src/env.ts](../../apps/web/src/env.ts)）                                                                                                     |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables                                         | 同上。anon key であり service role key ではない                                                                                                                                               |
-| `STAGE_TRACKER_INGESTION_SUPABASE_SECRET_KEY`                                 | Vercel **Production only** Sensitive Environment Variable                                 | official ingestion Workflow 専用の dedicated `sb_secret_...`。staging run/candidate write のみに使い、通常の Route / Server Action / Server Component からは import boundary で到達不能にする |
-| `JEV_API_KEY`                                                                 | Vercel **Production only** Sensitive Environment Variable                                 | official ingestion の ambiguous Event alignment 専用。optionalであり、未設定・provider failure・low confidenceは identity review blockへfail-closedする                                       |
-| Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings                                       | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                                                                                                    |
-| `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）                                         | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない                                                                         |
-| `SUPABASE_DB_URL`                                                             | GitHub `production` environment の Environment secret（Deployment branches: `main` のみ） | `.github/workflows/apply-migrations.yml` 専用。Postgres 接続文字列で `--db-url` の到達範囲はその 1 データベースに限られる。Personal Access Token や service-role key ではない                 |
+| 変数                                                                          | 所有者 / 設定場所                                                                         | 用途                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[apps/web/src/env.ts](../../apps/web/src/env.ts)）                                                                                                                                       |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables                                         | 同上。anon key であり service role key ではない                                                                                                                                                                                 |
+| `STAGE_TRACKER_INGESTION_SUPABASE_SECRET_KEY`                                 | Vercel **Production only** Sensitive Environment Variable                                 | official ingestion Workflow 専用の dedicated `sb_secret_...`。staging run/candidate と、承認済み candidate の catalog apply にだけ使い、通常の Route / Server Action / Server Component からは import boundary で到達不能にする |
+| `JEV_API_KEY`                                                                 | Vercel **Production only** Sensitive Environment Variable                                 | official ingestion の ambiguous Event alignment 専用。optionalであり、未設定・provider failure・low confidenceは identity review blockへfail-closedする                                                                         |
+| Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings                                       | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                                                                                                                                      |
+| `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）                                         | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない                                                                                                           |
+| `SUPABASE_DB_URL`                                                             | GitHub `production` environment の Environment secret（Deployment branches: `main` のみ） | `.github/workflows/apply-migrations.yml` 専用。Postgres 接続文字列で `--db-url` の到達範囲はその 1 データベースに限られる。Personal Access Token や service-role key ではない                                                   |
 
 - `NEXT_PUBLIC_*` プレフィックスの 2 変数だけが browser bundle へ渡る
   Supabase client 値です（[apps/web/src/env.ts](../../apps/web/src/env.ts)）。
@@ -260,11 +260,12 @@ marker ではなく、依然として reviewer の運用規律が担う。
 - Resend の API キー / SMTP 資格情報は Supabase Dashboard の Auth → SMTP
   設定にのみ存在し、このリポジトリにもVercelにも存在しません。
 
-## Official import Workflow and review boundary（Issues #629, #630, #632）
+## Official import Workflow, review, and apply boundary（Issues #629, #630, #632, #633）
 
 - Vercel / Next.js の current stable path として `workflow@4.8.9` を固定し、
-  `withWorkflow` と `"use workflow"` / `"use step"` を使用します。Cron は P8、
-  catalog apply は P7 の責務であり、この foundation には含めません。
+  `withWorkflow` と `"use workflow"` / `"use step"` を使用します。手動起動の
+  shadow ingestion と承認済み candidate apply を durable に実行します。Cron は
+  P8 の責務であり、ここには含めません。
 - `POST /api/official-import/shadow` は認証済み designated catalog creator が
   code-owned Source Registry の `sourceId` だけを指定できる manual trigger です。
   URL input は受け付けず、policy hold / disabled source も起動できません。
@@ -316,15 +317,28 @@ marker ではなく、依然として reviewer の運用規律が担う。
   導出した 50 source keys も全件一意でした。fixtureは synthetic shapeだけをrepositoryへ
   置き、live bodyは保持していません。
 - `/catalog/imports` は authenticated designated catalog creator だけが利用できる
-  review queue です。通常の user-scoped Supabase client と staging RLS を使い、completed
-  run の `pending` / `blocked_for_identity_review` candidate だけを読みます。proposal、現在の
+  review / apply queue です。通常の user-scoped Supabase client と staging RLS を使い、completed
+  run の未判断 candidate と未反映の approved candidate を読みます。proposal、現在の
   対象、plan diff、evidence locator、deterministic / Jev 補助結果を表示しますが、raw source
   body と provider secret は扱いません。Jev は参考情報と明記し、identity blocked candidate
   には承認操作を出しません。
 - review action の client input は candidate UUID と `approved` / `rejected` decision だけです。
   reviewer と reviewed time は P2 RPC が `auth.uid()` / database time から記録します。この
-  画面は Event / Occurrence / TicketOpportunity を直接変更せず、承認済み候補のcatalog apply
-  は P7 の別境界です。
+  action 自身は Event / Occurrence / TicketOpportunity を直接変更しません。
+- apply action の client input は candidate UUID だけです。designated catalog creator の
+  server action が durable Workflow を開始し、Workflow の privileged step だけが dedicated
+  secret と apply ownership RPC に到達します。candidate row は5分leaseのattempt tokenでclaimし、
+  同時実行はbackoff、完了済みretryはno-op、lease切れは新しいattemptが引き継ぎます。
+- apply step はreview時のplanをそのまま書きません。candidateをfresh readして保存済みの公式
+  structured proposalを再validateし、Production DBを再読込してresolve / re-planした上で、
+  review済みのidentityとplan fingerprintを比較します。identity変更、unsafe drift、Jevだけに
+  依存する未解決identityはcatalogを書かず、
+  bounded failure classificationを記録して再reviewを要求します。exact match、または前回write後の
+  crash retryでcatalogが既に完全収束している場合だけ、既存P1 Event/Ticket import coreを使って
+  apply / completionします。
+- candidate は公式sourceとProduction DBの間の一時的なreview artifactであり、正本ではありません。
+  公演・販売情報の正本は公式source、現在のcatalogの正本はProduction DBです。Ticket applyはshared
+  catalogだけを更新し、`user_ticket_opportunity_states`には到達しません。
 - 宝塚友の会 PDF は PDF bytes を 15 MB、50 pages、manual redirect allowlist に制限し、
   Firecrawl v2 `/parse` の JSON Schema output を受ける provider abstraction を実装済みです。
   provider output は strict validation 後に第1〜第3抽選 / 一般前売を別 Opportunity にし、

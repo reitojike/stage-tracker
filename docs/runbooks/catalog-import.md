@@ -26,6 +26,15 @@ surface として機能するか」です。手動登録では成立しません
 | seed file の review  | operator                            | ローカル      |
 | catalog への適用     | `scripts/import-catalog-events.mjs` | repository    |
 
+Issue #623 の automated official-import Workflow は、このCLI経路を置き換える
+ものではなく追加の reviewed apply 経路です。code-owned source adapterが生成した
+candidateをdesignated catalog creatorが `/catalog/imports` で承認し、apply時に
+candidateをfresh readして公式structured proposalを再validateし、Production DBを再読込して
+planを作り直します。review時からidentityやmaterial planが変化していれば書き込まず再reviewに戻し、安全な場合だけこのrunbookと
+同じP1 Event import core / RPCへ収束させます。candidateは一時的なreview artifactで、
+公演日程の正本は公式ページ、現在のcatalogの正本はProduction DBです。現時点では
+manual triggerだけで、定期実行（Cron）はありません。
+
 **repository には page fetch も HTML parser も入れません。** source ごと
 に日程の持ち方が異なるためです。実測した 3 例:
 

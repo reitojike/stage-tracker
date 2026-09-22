@@ -4,6 +4,7 @@ import { classifyListReadResult } from "@/lib/data/read-result";
 import { isDesignatedCatalogCreator } from "@/lib/data/creator-capability";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { reviewOfficialImportCandidateAction } from "@/lib/actions/officialImportReview.actions";
+import { startOfficialImportApplyAction } from "@/lib/actions/officialImportApply.actions";
 import { OfficialImportReviewQueue } from "./_components/OfficialImportReviewQueue";
 import { loadOfficialImportReviewQueue } from "./_lib/review-loader";
 
@@ -40,12 +41,13 @@ export default async function OfficialImportReviewPage() {
         <BackLink href="/mypage">マイページへ戻る</BackLink>
         <PageHeading>公式情報の確認</PageHeading>
         <p className="text-body-sm text-muted-foreground">
-          公式情報から生成された候補を確認します。承認しても、この画面からEventやTicketOpportunityへ直接書き込みません。
+          公式情報から生成された候補を確認します。承認後に反映を開始すると、最新のカタログ状態で再計画してからEventまたはTicketOpportunityへ反映します。
         </p>
       </div>
       <OfficialImportReviewQueue
         state={classifyListReadResult(queue)}
         reviewAction={reviewOfficialImportCandidateAction}
+        applyAction={startOfficialImportApplyAction}
       />
     </div>
   );
