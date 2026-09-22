@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(66);
+select plan(67);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
@@ -211,6 +211,17 @@ select throws_ok(format($$update public.official_import_candidates
   :'creator_id', :'bypass_candidate_id'),
   '42501', null, 'reject direct service-role reject bypass');
 
+delete from public.official_import_candidates where id = :'deletable_candidate_id';
+select is((select count(*) from public.official_import_candidates where id = :'deletable_candidate_id'),
+  0::bigint, 'allow DELETE pending/not_started candidate in running run');
+select throws_ok(format($$delete from public.official_import_candidates where id = %L$$, :'blocked_candidate_id'),
+  '23514', null, 'reject DELETE blocked candidate');
+
+call pg_temp.auth_as_user(:'creator_id');
+select throws_ok(format($$select public.review_official_import_candidate(%L, 'approved')$$, :'candidate_id'),
+  '22023', null, 'reject review while parent import run is incomplete');
+call pg_temp.auth_as_admin();
+update public.official_import_runs set status = 'completed', finished_at = now() where id = :'run_id';
 call pg_temp.auth_as_user(:'creator_id');
 select is((select review_status from public.review_official_import_candidate(:'candidate_id', 'approved')),
   'approved', 'review RPC approves pending candidate');
@@ -269,15 +280,9 @@ select is((select apply_status from public.official_import_candidates where id =
 select is((select failure_classification from public.official_import_candidates where id = :'failed_candidate_id'),
   null::text, 'retry clears failed classification');
 
-delete from public.official_import_candidates where id = :'deletable_candidate_id';
-select is((select count(*) from public.official_import_candidates where id = :'deletable_candidate_id'),
-  0::bigint, 'allow DELETE pending/not_started candidate in running run');
-select throws_ok(format($$delete from public.official_import_candidates where id = %L$$, :'blocked_candidate_id'),
-  '23514', null, 'reject DELETE blocked candidate');
 select throws_ok(format($$delete from public.official_import_candidates where id = %L$$, :'candidate_id'),
   '23514', null, 'reject DELETE applied/reviewed candidate');
 
-update public.official_import_runs set status = 'completed', finished_at = now() where id = :'run_id';
 select throws_ok(format($$update public.official_import_candidates
   set proposal = '{"title":"late rewrite"}'::jsonb where id = %L$$, :'pending_update_candidate_id'),
   '23514', null, 'reject pending content rewrite after parent terminal');
