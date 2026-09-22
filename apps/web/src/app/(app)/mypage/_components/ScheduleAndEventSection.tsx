@@ -40,9 +40,16 @@ export function ScheduleAndEventSection({
           </ListRowLink>
         </li>
         {canCreateEvent ? (
-          <li>
-            <ListRowLink href="/catalog/events/new">イベントを追加</ListRowLink>
-          </li>
+          <>
+            <li>
+              <ListRowLink href="/catalog/events/new">
+                イベントを追加
+              </ListRowLink>
+            </li>
+            <li>
+              <ListRowLink href="/catalog/imports">公式情報の確認</ListRowLink>
+            </li>
+          </>
         ) : null}
       </CompactList>
     </section>
