@@ -9,7 +9,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(30);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
@@ -35,6 +35,27 @@ set local role service_role;
 insert into public.official_import_runs (source_id)
 values ('fixture-source')
 returning id as run_id \gset
+
+select throws_ok(
+  format(
+    $$insert into public.official_import_candidates (
+      run_id, source_id, candidate_kind, canonical_url, content_hash,
+      proposal_version, proposal, plan_fingerprint, review_status, reviewer,
+      reviewed_at, apply_status, applied_at
+    ) values (%L, %L, 'event', %L, %L, 'event-v1', %L::jsonb, %L,
+      'approved', %L, now(), 'applied', now())$$,
+    :'run_id',
+    'fixture-source',
+    'https://official.example/events/0',
+    repeat('0', 64),
+    '{"title":"spoofed approved proposal"}',
+    repeat('0', 64),
+    :'creator_id'
+  ),
+  '23514',
+  null,
+  'trusted writer cannot insert an already approved or applied candidate'
+);
 
 insert into public.official_import_candidates (
   run_id,
@@ -223,6 +244,22 @@ select is(
   :'creator_id'::uuid,
   'reviewer is derived from auth.uid(), not client input'
 );
+
+call pg_temp.auth_as_admin();
+set local role service_role;
+select throws_ok(
+  format(
+    $$update public.official_import_candidates
+      set proposal = '{"title":"post-review rewrite"}'::jsonb
+      where id = %L$$,
+    :'candidate_id'
+  ),
+  '23514',
+  null,
+  'reviewed candidate contents cannot be rewritten by the trusted writer'
+);
+
+call pg_temp.auth_as_user(:'creator_id');
 
 -- The ordinary client cannot update reviewer fields directly, even while it
 -- is a designated creator; there is no UPDATE grant on staging tables.

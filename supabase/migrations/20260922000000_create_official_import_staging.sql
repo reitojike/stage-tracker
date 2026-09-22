@@ -230,10 +230,47 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  if tg_op = 'INSERT' then
+    if new.review_status <> 'pending'
+      or new.reviewer is not null
+      or new.reviewed_at is not null
+      or new.apply_status <> 'not_started'
+      or new.applied_at is not null
+      or new.failure_classification is not null then
+      raise exception 'candidates must enter pending and not_started'
+        using errcode = '23514';
+    end if;
+  end if;
+
   if tg_op = 'UPDATE' then
     if old.run_id is distinct from new.run_id
       or old.source_id is distinct from new.source_id then
       raise exception 'candidate run and source identity are immutable'
+        using errcode = '23514';
+    end if;
+
+    if old.review_status <> 'pending'
+      and (
+        old.candidate_kind is distinct from new.candidate_kind
+        or old.canonical_url is distinct from new.canonical_url
+        or old.official_external_id is distinct from new.official_external_id
+        or old.observed_at is distinct from new.observed_at
+        or old.content_hash is distinct from new.content_hash
+        or old.etag is distinct from new.etag
+        or old.last_modified is distinct from new.last_modified
+        or old.proposal_version is distinct from new.proposal_version
+        or old.proposal is distinct from new.proposal
+        or old.evidence_locator is distinct from new.evidence_locator
+        or old.deterministic_match_status is distinct from new.deterministic_match_status
+        or old.semantic_match_status is distinct from new.semantic_match_status
+        or old.resolved_event_id is distinct from new.resolved_event_id
+        or old.resolved_ticket_opportunity_id is distinct from new.resolved_ticket_opportunity_id
+        or old.jev_decision_evidence is distinct from new.jev_decision_evidence
+        or old.plan_summary is distinct from new.plan_summary
+        or old.plan_fingerprint is distinct from new.plan_fingerprint
+        or old.created_at is distinct from new.created_at
+      ) then
+      raise exception 'reviewed candidate contents are immutable'
         using errcode = '23514';
     end if;
 
