@@ -54,11 +54,6 @@ export interface SetParticipationChoiceParams {
   readonly choice: ParticipationChoice;
 }
 
-interface ExistingParticipationRow {
-  readonly id: string;
-  readonly status: string;
-}
-
 /** レース中に自分の書き込みが 0 行しか更新できなかった場合の opaque failure。
  * DB エラーではない（PostgREST 上は成功応答）ため、`classifyWriteError` の
  * 対象にはならない。呼び出し元は通常の失敗として扱い、再度操作すればよい。 */
@@ -128,8 +123,7 @@ export async function setParticipationChoice(
     .from("occurrence_participations")
     .select("id, status")
     .eq("occurrence_id", params.occurrenceId)
-    .eq("user_id", params.userId)
-    .overrideTypes<ExistingParticipationRow[]>();
+    .eq("user_id", params.userId);
 
   if (selectError) {
     return err(classifyWriteError(selectError));
@@ -176,8 +170,7 @@ export async function setParticipationChoice(
         .from("occurrence_participations")
         .select("id")
         .eq("occurrence_id", params.occurrenceId)
-        .eq("user_id", params.userId)
-        .overrideTypes<{ id: string }[]>();
+        .eq("user_id", params.userId);
       if (refetchError || !raceRow?.[0]) {
         return err(classifyWriteError(insertError));
       }
