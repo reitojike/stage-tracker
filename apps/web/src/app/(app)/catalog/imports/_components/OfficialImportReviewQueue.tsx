@@ -21,11 +21,23 @@ import type {
 export interface OfficialImportReviewQueueProps {
   readonly state: ReadState<readonly OfficialImportReviewCandidate[]>;
   readonly reviewAction: OfficialImportReviewAction;
+  readonly applyAction: OfficialImportApplyAction;
 }
 
 export type OfficialImportReviewAction = (input: {
   readonly candidateId: string;
   readonly decision: "approved" | "rejected";
+}) => Promise<
+  | {
+      readonly data?: unknown | undefined;
+      readonly serverError?: { readonly message: string } | undefined;
+      readonly validationErrors?: unknown | undefined;
+    }
+  | undefined
+>;
+
+export type OfficialImportApplyAction = (input: {
+  readonly candidateId: string;
 }) => Promise<
   | {
       readonly data?: unknown | undefined;
@@ -392,12 +404,132 @@ function ReviewControls({
   );
 }
 
+const RETRYABLE_APPLY_FAILURES = new Set([
+  "write_conflict",
+  "provider_unavailable",
+  "unexpected",
+]);
+
+function isQueuedApplyLeaseExpired(
+  candidate: OfficialImportReviewCandidate,
+): boolean {
+  return (
+    candidate.applyStatus === "queued" &&
+    candidate.applyLeaseExpiresAt !== null &&
+    Date.parse(candidate.applyLeaseExpiresAt) <= Date.now()
+  );
+}
+
+function applyFailureMessage(
+  candidate: OfficialImportReviewCandidate,
+): string | null {
+  const failure = candidate.applyFailureClassification;
+  if (failure === null) return null;
+  if (failure === "source_changed") {
+    return "承認後に現在のカタログ状態または反映ルールが変わりました。新しい候補を取り込み、再確認してください。";
+  }
+  if (failure === "identity_ambiguous") {
+    return "対象の同一性を安全に確定できませんでした。新しい候補で公式IDを再確認してください。";
+  }
+  if (failure === "target_missing") {
+    return "反映先のEventを最新状態から解決できませんでした。新しい候補を取り込み、再確認してください。";
+  }
+  if (failure === "validation" || failure === "policy_blocked") {
+    return "候補が現在の反映ルールを満たしていません。新しい候補を取り込み、再確認してください。";
+  }
+  return "反映処理に失敗しました。カタログへの不完全な変更は候補の完了として扱われていません。";
+}
+
+function ApplyControls({
+  candidate,
+  applyAction,
+}: {
+  candidate: OfficialImportReviewCandidate;
+  applyAction: OfficialImportApplyAction;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [completed, setCompleted] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const queuedLeaseExpired = isQueuedApplyLeaseExpired(candidate);
+  const retryable =
+    candidate.applyStatus === "not_started" ||
+    queuedLeaseExpired ||
+    (candidate.applyFailureClassification !== null &&
+      RETRYABLE_APPLY_FAILURES.has(candidate.applyFailureClassification));
+
+  function apply() {
+    setNotice(null);
+    setErrorMessage(null);
+    startTransition(async () => {
+      const result = await applyAction({ candidateId: candidate.id });
+      setAttempt((value) => value + 1);
+      if (result?.serverError) {
+        setErrorMessage(result.serverError.message);
+        return;
+      }
+      if (result?.validationErrors || !result?.data) {
+        setErrorMessage("入力内容を確認してください。");
+        return;
+      }
+      setCompleted(true);
+      setNotice("反映処理を開始しました。");
+      router.refresh();
+    });
+  }
+
+  const failureMessage = applyFailureMessage(candidate);
+  return (
+    <div className="flex flex-col gap-2xs">
+      {failureMessage === null ? null : (
+        <p role="alert" className="text-body-sm text-destructive">
+          {failureMessage}
+        </p>
+      )}
+      {candidate.applyStatus === "queued" && !queuedLeaseExpired ? (
+        <p className="text-body-sm text-muted-foreground">
+          反映処理を実行中です。しばらくしてから画面を更新してください。
+        </p>
+      ) : retryable ? (
+        <Button type="button" disabled={isPending || completed} onClick={apply}>
+          {candidate.applyStatus === "not_started"
+            ? "カタログへ反映"
+            : "反映を再試行"}
+        </Button>
+      ) : null}
+      {errorMessage !== null ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          {errorMessage}
+        </p>
+      ) : (
+        <WriteNotice notice={notice} attempt={attempt} />
+      )}
+    </div>
+  );
+}
+
+function candidateStatusLabel(
+  candidate: OfficialImportReviewCandidate,
+): string {
+  if (candidate.reviewStatus === "pending") return "確認待ち";
+  if (candidate.reviewStatus === "blocked_for_identity_review")
+    return "同一性確認が必要";
+  if (isQueuedApplyLeaseExpired(candidate)) return "反映再試行待ち";
+  if (candidate.applyStatus === "queued") return "反映処理中";
+  if (candidate.applyStatus === "failed") return "反映失敗";
+  return "承認済み・反映待ち";
+}
+
 function CandidateCard({
   candidate,
   reviewAction,
+  applyAction,
 }: {
   candidate: OfficialImportReviewCandidate;
   reviewAction: OfficialImportReviewAction;
+  applyAction: OfficialImportApplyAction;
 }) {
   return (
     <article
@@ -411,12 +543,14 @@ function CandidateCard({
           </Badge>
           <Badge
             variant={
-              candidate.reviewStatus === "pending" ? "subtle" : "terminal"
+              candidate.reviewStatus === "pending"
+                ? "subtle"
+                : candidate.reviewStatus === "approved"
+                  ? "outline"
+                  : "terminal"
             }
           >
-            {candidate.reviewStatus === "pending"
-              ? "確認待ち"
-              : "同一性確認が必要"}
+            {candidateStatusLabel(candidate)}
           </Badge>
         </div>
         <h2
@@ -504,8 +638,10 @@ function CandidateCard({
         >
           {candidate.blockedReason}
         </p>
-      ) : (
+      ) : candidate.reviewStatus === "pending" ? (
         <ReviewControls candidate={candidate} reviewAction={reviewAction} />
+      ) : (
+        <ApplyControls candidate={candidate} applyAction={applyAction} />
       )}
     </article>
   );
@@ -514,6 +650,7 @@ function CandidateCard({
 export function OfficialImportReviewQueue({
   state,
   reviewAction,
+  applyAction,
 }: OfficialImportReviewQueueProps) {
   if (state.variant !== "populated") {
     return (
@@ -539,6 +676,7 @@ export function OfficialImportReviewQueue({
           key={candidate.id}
           candidate={candidate}
           reviewAction={reviewAction}
+          applyAction={applyAction}
         />
       ))}
     </div>

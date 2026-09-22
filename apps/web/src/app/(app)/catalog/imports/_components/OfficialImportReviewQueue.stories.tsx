@@ -5,6 +5,7 @@ import type { OfficialImportReviewCandidate } from "../_lib/review-types";
 const storyReviewAction = async () => ({
   data: { reviewStatus: "approved" },
 });
+const storyApplyAction = async () => ({ data: { workflowRunId: "demo" } });
 
 const pendingCandidate: OfficialImportReviewCandidate = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -14,6 +15,9 @@ const pendingCandidate: OfficialImportReviewCandidate = {
   observedAt: "2026-09-23T01:00:00.000Z",
   officialExternalId: "sample-2026",
   reviewStatus: "pending",
+  applyStatus: "not_started",
+  applyFailureClassification: null,
+  applyLeaseExpiresAt: null,
   proposal: {
     kind: "event",
     sourceKey: "takarazuka:sample-2026",
@@ -63,6 +67,7 @@ export const Pending: Story = {
   args: {
     state: { variant: "populated", data: [pendingCandidate] },
     reviewAction: storyReviewAction,
+    applyAction: storyApplyAction,
   },
 };
 
@@ -81,9 +86,14 @@ export const IdentityBlocked: Story = {
       ],
     },
     reviewAction: storyReviewAction,
+    applyAction: storyApplyAction,
   },
 };
 
 export const Empty: Story = {
-  args: { state: { variant: "empty" }, reviewAction: storyReviewAction },
+  args: {
+    state: { variant: "empty" },
+    reviewAction: storyReviewAction,
+    applyAction: storyApplyAction,
+  },
 };

@@ -15,6 +15,10 @@ export interface CatalogEventMatch {
   readonly sourceKey: string | null;
   readonly title: string;
   readonly venue: string | null;
+  readonly sourceUrl: string | null;
+  readonly memo: string | null;
+  readonly genreId: string | null;
+  readonly genreKey: string | null;
   readonly startsOn: string;
   readonly endsOn: string;
   readonly occurrences: readonly {
@@ -145,27 +149,94 @@ function planFor(
   const newOccurrences = draft.proposal.occurrences.filter(
     (occurrence) => !currentInstants.has(Date.parse(occurrence.startsAt)),
   );
+  const currentByInstant = new Map(
+    current.occurrences.map((occurrence) => [
+      Date.parse(occurrence.startsAt),
+      occurrence,
+    ]),
+  );
+  const endsAtFixes = draft.proposal.occurrences.flatMap((occurrence) => {
+    const existing = currentByInstant.get(Date.parse(occurrence.startsAt));
+    if (
+      existing === undefined ||
+      occurrence.endsAt === null ||
+      occurrence.endsAt === undefined ||
+      (existing.endsAt !== null &&
+        Date.parse(existing.endsAt) === Date.parse(occurrence.endsAt))
+    ) {
+      return [];
+    }
+    return [
+      {
+        startsAt: occurrence.startsAt,
+        from: existing.endsAt,
+        endsAt: occurrence.endsAt,
+      },
+    ];
+  });
+  const doorsAtFixes = draft.proposal.occurrences.flatMap((occurrence) => {
+    const existing = currentByInstant.get(Date.parse(occurrence.startsAt));
+    if (
+      existing === undefined ||
+      occurrence.doorsAt === null ||
+      occurrence.doorsAt === undefined ||
+      (existing.doorsAt !== null &&
+        Date.parse(existing.doorsAt) === Date.parse(occurrence.doorsAt))
+    ) {
+      return [];
+    }
+    return [
+      {
+        startsAt: occurrence.startsAt,
+        from: existing.doorsAt,
+        doorsAt: occurrence.doorsAt,
+      },
+    ];
+  });
   const proposedInstants = instants(draft);
   const keptOccurrences = current.occurrences.filter(
     (occurrence) => !proposedInstants.has(Date.parse(occurrence.startsAt)),
   ).length;
   const detailsChanged =
     current.title !== draft.proposal.title ||
-    current.venue !== (draft.proposal.venue ?? null);
+    current.venue !== (draft.proposal.venue ?? null) ||
+    current.sourceUrl !== (draft.proposal.sourceUrl ?? null) ||
+    current.memo !== (draft.proposal.memo ?? null);
   const rangeChanged =
     current.startsOn !== draft.proposal.startsOn ||
     current.endsOn !== draft.proposal.endsOn;
+  const genreChanged =
+    draft.proposal.genre === undefined
+      ? false
+      : draft.proposal.genre !== current.genreKey;
+  const groupsChanged =
+    draft.proposal.groups === undefined
+      ? false
+      : draft.proposal.groups.length !== current.groups.length ||
+        draft.proposal.groups.some((group) =>
+          current.groups.every(
+            (existing) =>
+              existing.key !== group.key ||
+              existing.displayName !== group.displayName,
+          ),
+        );
   return {
     action:
-      detailsChanged || rangeChanged || newOccurrences.length > 0
+      detailsChanged ||
+      rangeChanged ||
+      newOccurrences.length > 0 ||
+      endsAtFixes.length > 0 ||
+      doorsAtFixes.length > 0
         ? "update"
         : "unchanged",
     detailsChanged,
     rangeChanged,
     newOccurrences,
+    endsAtFixes,
+    doorsAtFixes,
     keptOccurrences,
-    genrePlan: { changed: false },
-    groupsPlan: { changed: false },
+    genrePlan: { changed: genreChanged },
+    groupsPlan: { changed: groupsChanged },
   };
 }
 
@@ -177,11 +248,17 @@ function result(
   draft: EventAcquisitionDraft,
   plan: EventPlanInput,
   match: Omit<EventPlanningResult, "plan" | "planFingerprint">,
+  current: CatalogEventMatch | null,
 ): EventPlanningResult {
   return {
     ...match,
     plan,
-    planFingerprint: fingerprint({ proposal: draft.proposal, plan, match }),
+    planFingerprint: fingerprint({
+      proposal: draft.proposal,
+      plan,
+      match,
+      current,
+    }),
   };
 }
 
@@ -198,11 +275,16 @@ export function createEventCandidatePlanner(
         draft.proposal.sourceKey,
       );
       if (exact !== null) {
-        return result(draft, planFor(draft, exact), {
-          deterministicMatchStatus: "matched",
-          semanticMatchStatus: "not_used",
-          resolvedEventId: exact.id,
-        });
+        return result(
+          draft,
+          planFor(draft, exact),
+          {
+            deterministicMatchStatus: "matched",
+            semanticMatchStatus: "not_used",
+            resolvedEventId: exact.id,
+          },
+          exact,
+        );
       }
 
       const candidates = await repository.findPotentialMatches(
@@ -213,11 +295,16 @@ export function createEventCandidatePlanner(
         isPlausible(draft, candidate),
       );
       if (plausible.length === 0) {
-        return result(draft, planFor(draft, null), {
-          deterministicMatchStatus: "unmatched",
-          semanticMatchStatus: "not_used",
-          resolvedEventId: null,
-        });
+        return result(
+          draft,
+          planFor(draft, null),
+          {
+            deterministicMatchStatus: "unmatched",
+            semanticMatchStatus: "not_used",
+            resolvedEventId: null,
+          },
+          null,
+        );
       }
 
       const manualPossibleDuplicate = plausible.some(
@@ -225,55 +312,80 @@ export function createEventCandidatePlanner(
       );
       const deterministic = deterministicCrossSourceMatch(draft, plausible);
       if (!manualPossibleDuplicate && deterministic !== null) {
-        return result(draft, planFor(draft, deterministic), {
-          deterministicMatchStatus: "matched",
-          semanticMatchStatus: "not_used",
-          resolvedEventId: deterministic.id,
-        });
+        return result(
+          draft,
+          planFor(draft, deterministic),
+          {
+            deterministicMatchStatus: "matched",
+            semanticMatchStatus: "not_used",
+            resolvedEventId: deterministic.id,
+          },
+          deterministic,
+        );
       }
 
       const alignment = await aligner.align(draft, plausible);
       if (manualPossibleDuplicate) {
-        return result(draft, planFor(draft, null), {
-          deterministicMatchStatus: "ambiguous",
-          semanticMatchStatus:
-            alignment.status === "unavailable"
-              ? "low_confidence"
-              : alignment.status,
-          resolvedEventId: null,
-          jevDecisionEvidence:
-            alignment.status === "unavailable" ? null : alignment.evidence,
-        });
+        return result(
+          draft,
+          planFor(draft, null),
+          {
+            deterministicMatchStatus: "ambiguous",
+            semanticMatchStatus:
+              alignment.status === "unavailable"
+                ? "low_confidence"
+                : alignment.status,
+            resolvedEventId: null,
+            jevDecisionEvidence:
+              alignment.status === "unavailable" ? null : alignment.evidence,
+          },
+          null,
+        );
       }
       if (alignment.status === "matched") {
         const matched = plausible.find(
           (candidate) => candidate.id === alignment.eventId,
         );
         if (matched !== undefined && alignment.confidence >= 0.85) {
-          return result(draft, planFor(draft, matched), {
-            deterministicMatchStatus: "unresolved",
-            semanticMatchStatus: "matched",
-            resolvedEventId: matched.id,
-            jevDecisionEvidence: alignment.evidence,
-          });
+          return result(
+            draft,
+            planFor(draft, matched),
+            {
+              deterministicMatchStatus: "unresolved",
+              semanticMatchStatus: "matched",
+              resolvedEventId: matched.id,
+              jevDecisionEvidence: alignment.evidence,
+            },
+            matched,
+          );
         }
       }
       if (alignment.status === "unmatched") {
-        return result(draft, planFor(draft, null), {
-          deterministicMatchStatus: "unresolved",
-          semanticMatchStatus: "unmatched",
-          resolvedEventId: null,
-          jevDecisionEvidence: alignment.evidence,
-        });
+        return result(
+          draft,
+          planFor(draft, null),
+          {
+            deterministicMatchStatus: "unresolved",
+            semanticMatchStatus: "unmatched",
+            resolvedEventId: null,
+            jevDecisionEvidence: alignment.evidence,
+          },
+          null,
+        );
       }
-      return result(draft, planFor(draft, null), {
-        deterministicMatchStatus: "unresolved",
-        semanticMatchStatus:
-          alignment.status === "ambiguous" ? "ambiguous" : "low_confidence",
-        resolvedEventId: null,
-        jevDecisionEvidence:
-          alignment.status === "unavailable" ? null : alignment.evidence,
-      });
+      return result(
+        draft,
+        planFor(draft, null),
+        {
+          deterministicMatchStatus: "unresolved",
+          semanticMatchStatus:
+            alignment.status === "ambiguous" ? "ambiguous" : "low_confidence",
+          resolvedEventId: null,
+          jevDecisionEvidence:
+            alignment.status === "unavailable" ? null : alignment.evidence,
+        },
+        null,
+      );
     },
   };
 }

@@ -38,8 +38,14 @@ schedule データです。
 この operator-assisted seed 経路自身は site-specific parser や crawler を持ちません。
 Issue #623 で追加された automated official-import Workflow の bounded source adapters は
 別責務であり、code-owned allowlist、candidate-only staging、identity review block の内側に
-隔離されています。Workflow が生成した candidate を apply する後続段階も、この runbook
-の current importer validation と replace-all semantics を再利用しなければなりません。
+隔離されています。Workflow が生成したcandidateはdesignated catalog creatorが
+`/catalog/imports`で承認し、apply時に公式sourceとProduction DBを再読込してresolve / re-plan
+するのではなく、candidateをfresh readして公式structured proposalを再validateし、Production
+DBを再読込してresolve / re-planします。review済みidentityまたはmaterial planが変化していれば書き込まず再reviewに戻し、
+安全な場合だけ、このrunbookのcurrent importer validation、P1 RPC、replace-all semanticsを
+再利用して反映します。candidateは一時的なreview artifactで、販売情報の正本は公式source、
+現在のcatalogの正本はProduction DBです。`user_ticket_opportunity_states`はこの経路でも変更
+しません。現時点ではmanual triggerだけで、定期実行（Cron）はありません。
 
 ## Ticket Opportunity と Event catalog import の違い
 
