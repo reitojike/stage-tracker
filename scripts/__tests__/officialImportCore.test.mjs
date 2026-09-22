@@ -42,7 +42,11 @@ function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
           return { data: rows.creator ? { user_id: rows.ownerId } : null, error: null };
         if (table === 'events')
           return {
-            data: rows.event && rows.event.source_key === state.source_key ? rows.event : null,
+            data:
+              rows.event &&
+              (rows.event.source_key === state.source_key || rows.event.id === state.id)
+                ? rows.event
+                : null,
             error: null,
           };
         return { data: null, error: null };
@@ -71,7 +75,7 @@ function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
     },
     async rpc(name, args) {
       rpcCalls.push({ name, args });
-      return name === 'import_event_with_occurrences'
+      return name === 'apply_import_event_plan'
         ? { data: { id: 'created-event-1' }, error: null }
         : { data: null, error: null };
     },
@@ -170,8 +174,38 @@ void test('Event core creates and applies through existing atomic RPCs with stru
   assert.deepEqual(applied, { ok: true, applied: ['official:example:event'] });
   assert.deepEqual(
     admin.rpcCalls.map((call) => call.name),
-    ['import_event_with_occurrences', 'import_event_classification'],
+    ['apply_import_event_plan'],
   );
+});
+
+void test('Event core can plan a deterministic cross-source match by explicit Event id', async () => {
+  const admin = fakeAdmin({
+    event: {
+      id: 'matched-event-1',
+      source_key: 'other-official:event',
+      owner_id: owner.id,
+      title: 'Older title',
+      venue: 'Example Hall',
+      source_url: 'https://other.example.test/event',
+      memo: null,
+      starts_on: '2026-07-11',
+      ends_on: '2026-07-11',
+      genre_id: null,
+      occurrences: [],
+    },
+  });
+  const validated = validateEventEntries([{ raw: validEvent(), where: 'seed.json[0]' }]);
+  assert.equal(validated.ok, true);
+
+  const resolved = await resolveEventPlans(admin, validated.entries, {
+    owner,
+    ownerEmail: owner.email,
+    targetEventIdsBySourceKey: new Map([['official:example:event', 'matched-event-1']]),
+  });
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.plans[0].action, 'update');
+  assert.equal(resolved.plans[0].event.id, 'matched-event-1');
 });
 
 void test('Event core refuses an existing Event owned by another user during resolution', async () => {

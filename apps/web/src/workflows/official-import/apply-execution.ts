@@ -91,6 +91,7 @@ export interface OfficialImportCatalogGateway {
   prepareEvent(
     proposal: EventProposalInput,
     reviewerId: string,
+    targetEventId: string | null,
   ): Promise<OfficialImportCatalogApplyPlan>;
   prepareTicketOpportunity(
     proposal: TicketOpportunityProposalInput,
@@ -331,7 +332,11 @@ export async function executeOfficialImportCandidateApply(
       freshFingerprint = planning.planFingerprint;
       freshEventId = planning.resolvedEventId ?? null;
       freshTicketOpportunityId = null;
-      catalogPlan = await catalog.prepareEvent(proposal, candidate.reviewerId);
+      catalogPlan = await catalog.prepareEvent(
+        proposal,
+        candidate.reviewerId,
+        freshEventId,
+      );
     } else {
       const proposal = createTicketOpportunityProposal(canonical);
       const planning = await planner.planTicketOpportunity(

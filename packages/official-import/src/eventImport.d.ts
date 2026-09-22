@@ -56,6 +56,7 @@ export function resolveEventPlans(
     readonly owner: { readonly id: string };
     readonly ownerEmail?: string;
     readonly remote?: boolean;
+    readonly targetEventIdsBySourceKey?: ReadonlyMap<string, string>;
   },
 ): Promise<
   | { readonly ok: true; readonly plans: readonly ResolvedEventPlan[] }

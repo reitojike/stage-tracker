@@ -186,6 +186,7 @@ describe("approved official import apply execution", () => {
     expect(harness.catalog.prepareEvent).toHaveBeenCalledWith(
       expect.objectContaining({ sourceKey: "kabuki-bito:example" }),
       REVIEWER_ID,
+      "event-1",
     );
     expect(harness.eventPlan.apply).toHaveBeenCalledOnce();
     expect(harness.completeCandidate).toHaveBeenCalledWith(

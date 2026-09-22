@@ -276,7 +276,7 @@ async function fetchCurrentGroups(admin, eventId) {
 export async function resolveEventPlans(
   admin,
   entries,
-  { owner, ownerEmail, remote = false } = {},
+  { owner, ownerEmail, remote = false, targetEventIdsBySourceKey = new Map() } = {},
 ) {
   if (owner === undefined || typeof owner?.id !== 'string')
     return { ok: false, problems: ['An owner with a valid id is required to plan Event imports.'] };
@@ -307,10 +307,12 @@ export async function resolveEventPlans(
   const plans = [];
 
   for (const entry of entries) {
-    const { data: existing, error } = await admin
+    const targetEventId = targetEventIdsBySourceKey.get(entry.sourceKey);
+    const existingQuery = admin
       .from('events')
-      .select('id, title, venue, source_url, memo, owner_id, starts_on, ends_on, genre_id')
-      .eq('source_key', entry.sourceKey)
+      .select('id, title, venue, source_url, memo, owner_id, starts_on, ends_on, genre_id');
+    const { data: existing, error } = await existingQuery
+      .eq(targetEventId === undefined ? 'source_key' : 'id', targetEventId ?? entry.sourceKey)
       .maybeSingle();
     if (error)
       return { ok: false, problems: [`Failed to look up ${entry.sourceKey}: ${error.message}`] };
@@ -547,10 +549,17 @@ export async function applyEventPlans(admin, plans, { ownerId, onApplied = () =>
   const applied = [];
   for (const plan of plans) {
     const { entry } = plan;
-    let createdEvent = null;
-    if (plan.action === 'create') {
-      const { data, error } = await admin.rpc('import_event_with_occurrences', {
+    const classificationChanged = plan.genrePlan.changed || plan.groupsPlan.changed;
+    if (plan.action !== 'unchanged' || classificationChanged) {
+      const fixesById = new Map();
+      for (const fix of plan.endsAtFixes)
+        fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, endsAt: fix.endsAt });
+      for (const fix of plan.doorsAtFixes)
+        fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, doorsAt: fix.doorsAt });
+      const { error } = await admin.rpc('apply_import_event_plan', {
+        p_action: plan.action,
         p_owner_id: ownerId,
+        p_event_id: plan.action === 'create' ? null : plan.event.id,
         p_source_key: entry.sourceKey,
         p_title: entry.title,
         p_starts_on: entry.startsOn,
@@ -560,50 +569,10 @@ export async function applyEventPlans(admin, plans, { ownerId, onApplied = () =>
           startsAt: occurrence.startsAt,
           endsAt: occurrence.endsAt,
         })),
-        p_venue: entry.venue,
-        p_source_url: entry.sourceUrl,
-        p_memo: entry.memo,
-      });
-      if (error)
-        return {
-          ok: false,
-          error: `Failed to create ${entry.sourceKey}: ${error.message}`,
-          applied,
-        };
-      createdEvent = data;
-    } else if (plan.action === 'update') {
-      const fixesById = new Map();
-      for (const fix of plan.endsAtFixes)
-        fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, endsAt: fix.endsAt });
-      for (const fix of plan.doorsAtFixes)
-        fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, doorsAt: fix.doorsAt });
-      const { error } = await admin.rpc('import_update_event', {
-        p_event_id: plan.event.id,
-        p_title: entry.title,
-        p_venue: entry.venue,
-        p_source_url: entry.sourceUrl,
-        p_memo: entry.memo,
-        p_starts_on: entry.startsOn,
-        p_ends_on: entry.endsOn,
-        p_new_occurrences: plan.newOccurrences.map((occurrence) => ({
-          doorsAt: occurrence.doorsAt,
-          startsAt: occurrence.startsAt,
-          endsAt: occurrence.endsAt,
-        })),
         p_occurrence_fixes: [...fixesById.values()],
-      });
-      if (error)
-        return {
-          ok: false,
-          error: `Failed to update ${entry.sourceKey}: ${error.message}`,
-          applied,
-        };
-    }
-    const eventId = plan.action === 'create' ? createdEvent.id : plan.event.id;
-    const classificationChanged = plan.genrePlan.changed || plan.groupsPlan.changed;
-    if (classificationChanged) {
-      const { error } = await admin.rpc('import_event_classification', {
-        p_event_id: eventId,
+        p_venue: entry.venue,
+        p_source_url: entry.sourceUrl,
+        p_memo: entry.memo,
         p_set_genre: plan.genrePlan.setGenre && plan.genrePlan.changed,
         p_genre_key: plan.genrePlan.genreKey,
         p_set_groups: plan.groupsPlan.setGroups && plan.groupsPlan.changed,
@@ -615,11 +584,9 @@ export async function applyEventPlans(admin, plans, { ownerId, onApplied = () =>
       if (error)
         return {
           ok: false,
-          error: `Failed to update classification for ${entry.sourceKey}: ${error.message}`,
+          error: `Failed to apply ${entry.sourceKey}: ${error.message}`,
           applied,
         };
-    }
-    if (plan.action !== 'unchanged' || classificationChanged) {
       applied.push(entry.sourceKey);
       onApplied(entry.sourceKey);
     }

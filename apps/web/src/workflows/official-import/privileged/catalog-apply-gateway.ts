@@ -36,6 +36,7 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
   async prepareEvent(
     proposal: EventProposalInput,
     reviewerId: string,
+    targetEventId: string | null,
   ): Promise<OfficialImportCatalogApplyPlan> {
     const validated = validateEventEntries([
       { raw: proposal, where: "approved official import candidate" },
@@ -45,6 +46,13 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
     }
     const resolved = await resolveEventPlans(this.client, validated.entries, {
       owner: { id: reviewerId },
+      ...(targetEventId === null
+        ? {}
+        : {
+            targetEventIdsBySourceKey: new Map([
+              [proposal.sourceKey, targetEventId],
+            ]),
+          }),
     });
     if (!resolved.ok) {
       throw new OfficialImportCatalogFailure("policy_blocked");
