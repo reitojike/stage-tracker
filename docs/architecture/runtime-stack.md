@@ -267,11 +267,14 @@ marker ではなく、依然として reviewer の運用規律が担う。
 - `packages/official-import` の candidate factory が Event / TicketOpportunity proposal
   を既知の normalized field から再構成し、`candidate_kind + proposal_version`、
   `EvidenceLocator`、`JevDecisionEvidence`、`PlanSummary` の exact boundary を所有します。
-  staging repository は factory output の型別 insert method だけを公開します。
+  staging repository は factory output の typed batch commit method だけを公開し、
+  arbitrary proposal / evidence / Jev / plan JSON は受け付けません。
 - Workflow step ID から安定した staging run UUID を導出し、retry は同じ run を
-  再利用します。全draftを検証・planしてから型別の単一batch INSERTを行い、失敗時は
-  pending batchを除去します。candidateのreviewは親runが `completed` の場合だけ許可し、
-  interrupted / failed runをreview queueへ公開しません。
+  再利用します。全draftを検証・planしてから、locked run の候補全置換、typed batch
+  INSERT、identity-review block、run completion を専用 RPC の 1 transaction で
+  commit します。競合 retry は completed run の既存件数を再利用します。candidate の
+  review は親runが `completed` の場合だけ許可し、interrupted / failed runをreview
+  queueへ公開しません。
 - P3 時点では source-specific production adapter は未実装です。registry と manual
   trigger は foundation として存在しますが、adapter 未提供の run は
   `provider_unavailable` で staging run を fail にし、catalog mutation は行いません。

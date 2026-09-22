@@ -17,33 +17,32 @@ const RUN_ID = "00000000-0000-4000-8000-000000000001";
 
 function repositoryHarness() {
   const eventCandidates: EventDurableCandidate[] = [];
-  const insertEventCandidates = vi.fn<
-    OfficialImportStagingRepository["insertEventCandidates"]
-  >(async (candidates) => {
-    eventCandidates.push(...candidates);
+  const commitCandidates = vi.fn<
+    OfficialImportStagingRepository["commitCandidates"]
+  >(async (_runId, _sourceId, candidates) => {
+    for (const candidate of candidates) {
+      if (candidate.candidateKind === "event") eventCandidates.push(candidate);
+    }
+    return candidates.length;
   });
-  const completeRun = vi.fn<OfficialImportStagingRepository["completeRun"]>();
   const failRun = vi.fn<OfficialImportStagingRepository["failRun"]>();
   const repository: OfficialImportStagingRepository = {
     prepareRun: vi.fn<OfficialImportStagingRepository["prepareRun"]>(
       async () => ({ status: "ready" }),
     ),
-    insertEventCandidates,
-    async insertTicketOpportunityCandidates() {},
-    completeRun,
+    commitCandidates,
     failRun,
   };
   return {
     repository,
     eventCandidates,
-    insertEventCandidates,
-    completeRun,
+    commitCandidates,
     failRun,
   };
 }
 
 describe("official import shadow execution", () => {
-  it("keeps synthetic raw acquisition data out of durable output and INSERT payload", async () => {
+  it("keeps synthetic raw acquisition data out of durable output and commit payload", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const adapter: OfficialSourceAdapter = {
       async acquire() {
@@ -107,7 +106,7 @@ describe("official import shadow execution", () => {
     expect(JSON.stringify(result)).not.toContain(SENTINEL);
     expect(harness.eventCandidates).toHaveLength(1);
     expect(JSON.stringify(harness.eventCandidates[0])).not.toContain(SENTINEL);
-    expect(harness.completeRun).toHaveBeenCalledOnce();
+    expect(harness.commitCandidates).toHaveBeenCalledOnce();
     expect(harness.failRun).not.toHaveBeenCalled();
   });
 
@@ -134,7 +133,7 @@ describe("official import shadow execution", () => {
       failureClassification: "source_fetch",
     });
     expect(harness.eventCandidates).toHaveLength(0);
-    expect(harness.completeRun).not.toHaveBeenCalled();
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
     expect(harness.failRun).toHaveBeenCalledWith(RUN_ID, "source_fetch");
   });
 
@@ -249,7 +248,7 @@ describe("official import shadow execution", () => {
       status: "failed",
       failureClassification: "validation",
     });
-    expect(harness.insertEventCandidates).not.toHaveBeenCalled();
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
     expect(harness.eventCandidates).toHaveLength(0);
   });
 
@@ -279,6 +278,6 @@ describe("official import shadow execution", () => {
       candidateCount: 2,
     });
     expect(acquire).not.toHaveBeenCalled();
-    expect(harness.insertEventCandidates).not.toHaveBeenCalled();
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
   });
 });

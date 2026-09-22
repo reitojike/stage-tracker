@@ -38,13 +38,13 @@ export type RunPreparation =
 
 export interface OfficialImportStagingRepository {
   prepareRun(runId: string, sourceId: string): Promise<RunPreparation>;
-  insertEventCandidates(
-    candidates: readonly EventDurableCandidate[],
-  ): Promise<void>;
-  insertTicketOpportunityCandidates(
-    candidates: readonly TicketOpportunityDurableCandidate[],
-  ): Promise<void>;
-  completeRun(runId: string): Promise<void>;
+  commitCandidates(
+    runId: string,
+    sourceId: string,
+    candidates: readonly (
+      EventDurableCandidate | TicketOpportunityDurableCandidate
+    )[],
+  ): Promise<number>;
   failRun(
     runId: string,
     classification: RunFailureClassification,
@@ -212,22 +212,18 @@ export async function executeOfficialImportShadowRun(
       }
     }
 
-    // No durable candidate is written until every draft has been validated and
-    // planned. Each type-specific repository call is one atomic SQL INSERT.
-    if (eventCandidates.length > 0)
-      await repository.insertEventCandidates(eventCandidates);
-    if (ticketOpportunityCandidates.length > 0)
-      await repository.insertTicketOpportunityCandidates(
-        ticketOpportunityCandidates,
-      );
-
-    await repository.completeRun(runId);
+    // The repository publishes the complete validated typed batch and
+    // completes the run in one database transaction. A competing retry gets
+    // the already committed count from that same serialization boundary.
+    const candidateCount = await repository.commitCandidates(runId, source.id, [
+      ...eventCandidates,
+      ...ticketOpportunityCandidates,
+    ]);
     return {
       status: "completed",
       runId,
       sourceId: source.id,
-      candidateCount:
-        eventCandidates.length + ticketOpportunityCandidates.length,
+      candidateCount,
     };
   } catch (error) {
     const failureClassification = classifyFailure(error);
