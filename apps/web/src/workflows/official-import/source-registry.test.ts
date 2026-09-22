@@ -24,6 +24,35 @@ describe("official source registry", () => {
     ).toThrow(/not enabled for shadow runs/);
   });
 
+  it("keeps the PDF and Vpass sources disabled until their gates clear", () => {
+    const pdf = getOfficialSource("ticket.takarazuka-friends.schedule-pdf");
+    const vpass = getOfficialSource("ticket.vpass.takarazuka-east");
+    expect(pdf).toMatchObject({
+      enabled: false,
+      policyState: "planned",
+      adapter: "pdf",
+      extractor: "takarazuka_friends_pdf",
+    });
+    expect(vpass).toMatchObject({ enabled: false, policyState: "hold" });
+  });
+
+  it("allowlists only the known Shochiku schedule pages", () => {
+    const source = getOfficialSource("ticket.shochiku.schedule");
+    if (source === null) throw new Error("test source is missing");
+    expect(
+      assertAllowedSourceUrl(
+        source,
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+      ),
+    ).toContain("sale_schedule_east.html");
+    expect(() =>
+      assertAllowedSourceUrl(
+        source,
+        "https://www1.ticket-web-shochiku.com/t/other.html",
+      ),
+    ).toThrow(OfficialSourceRegistryError);
+  });
+
   it.each([
     "http://www.kabuki-bito.jp/schedule/",
     "https://www.kabuki-bito.jp.attacker.example/schedule/",

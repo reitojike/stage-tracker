@@ -252,6 +252,9 @@ marker ではなく、依然として reviewer の運用規律が担う。
   title、date/time、venue、known group、bounded candidate ID のcompact factsだけで、
   raw source bodyやcredentialは渡しません。Jevはsource key、日時、permission、applyを
   決めるauthorityではありません。
+- `FIRECRAWL_API_KEY` は宝塚友の会 PDF canary の v2 `/parse` 呼び出しだけに使い、
+  browser bundle と HTML adapters から隔離します。未設定時は当該 provider が
+  fail-closed し、PDF source policy を自動的に approved へ変更しません。
 - operator shell 用の `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` は従来どおり
   Vercel に設定しません。Workflow 専用 key と operator script 用 key を共有しません。
 - Resend の API キー / SMTP 資格情報は Supabase Dashboard の Auth → SMTP
@@ -296,8 +299,36 @@ marker ではなく、依然として reviewer の運用規律が担う。
   manual `source_key = null` のpossible duplicate、Jev unavailable / low confidenceは
   `blocked_for_identity_review`となり、secondary source identityのattachやauto-mergeは
   行いません。P4もstaging candidate生成だけで、catalog apply / Cron / review UIは
-  それぞれP7 / P8 / P6の責務です。P5のTicket adapter未提供runは従来どおり
+  それぞれP7 / P8 / P6の責務です。未実装 extractor の run は従来どおり
   `provider_unavailable`としてretryされます。
+- P5 の Ticket canary は松竹の east / west 販売日程 HTML を bounded native fetch
+  と source-specific table parser で読み、販売行の公式 label をそのまま
+  `displayName` として保持します。時刻の無い日付に時刻を補わず、明記された
+  1 時点は `datetime`、同日中の開始・終了時刻は `window`、それ以外は
+  `date` として扱います。各 draft は title / venue / 公演期間で bounded Event
+  candidates を検索し、exact source identity、title + venue + exact range の一意一致、
+  ambiguous 時だけ Jev の順で解決します。解決済みの場合だけ durable proposal の
+  `eventSourceKey` を catalog の current source key に置き換え、未解決・manual identity・
+  low confidence は identity review block にします。
+- 2026-09-22 の bounded live shadow check では、raw pageを保存せず同じ parserを公式
+  east / west URLへ適用し、HTTP 200 / `text/html` からそれぞれ 34 / 16 の販売行を
+  抽出しました。全 50 行に source date があり、この時点の precision はすべて `date`、
+  導出した 50 source keys も全件一意でした。fixtureは synthetic shapeだけをrepositoryへ
+  置き、live bodyは保持していません。
+- 宝塚友の会 PDF は PDF bytes を 15 MB、50 pages、manual redirect allowlist に制限し、
+  Firecrawl v2 `/parse` の JSON Schema output を受ける provider abstraction を実装済みです。
+  provider output は strict validation 後に第1〜第3抽選 / 一般前売を別 Opportunity にし、
+  date-only application range は open / close の date milestone へ分解します。単一日でない
+  result range や conditional / `なし` は milestone を作らず、raw PDF、page markdown、
+  layout blocks、provider responseを stagingへ保存しません。
+- 2026-09-22 の P5 実装環境には Firecrawl credential が無く、target PDF の live `/parse`
+  golden comparison（table / production / phase / precision と hallucination 0）を実行できて
+  いません。このため Firecrawl は production 採用済みとは扱わず、
+  `ticket.takarazuka-friends.schedule-pdf` は `planned` / disabled のままです。credential
+  未設定の provider は `provider_unavailable` で fail-closed します。source enable は
+  bounded live canary evidence が揃う別 checkpoint で行い、Firecrawl を HTML fetch layer
+  へ拡張しません。Vpass も source-policy gate が clear になるまで `hold` / disabled を
+  維持します。
 
 ## Vercel Preview Auth runtime contract（Issue #268）
 

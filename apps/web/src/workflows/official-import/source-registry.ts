@@ -5,6 +5,8 @@ export type SourceExtractorFamily =
   | "kabuki_bito"
   | "takarazuka_revue"
   | "skiyaki_calendar"
+  | "shochiku_ticket"
+  | "takarazuka_friends_pdf"
   | "ticket_foundation"
   | "future_event";
 export type SourcePolicyState = "approved" | "planned" | "hold";
@@ -146,9 +148,13 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "ticket.shochiku.schedule",
     canonicalUrl: "https://www1.ticket-web-shochiku.com/t/info/schedule.html",
     allowedOrigin: "https://www1.ticket-web-shochiku.com",
-    allowedPathPrefixes: ["/t/info/schedule.html"],
+    allowedPathPrefixes: [
+      "/t/info/schedule.html",
+      "/t/info/sale_schedule_east.html",
+      "/t/info/sale_schedule_west.html",
+    ],
     adapter: "http_html",
-    extractor: "ticket_foundation",
+    extractor: "shochiku_ticket",
     domainKind: "ticket_opportunity",
     enabled: true,
     shadow: true,
@@ -161,11 +167,11 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     allowedOrigin: "https://kageki.hankyu.co.jp",
     allowedPathPrefixes: ["/friends/pdf/schedule.pdf"],
     adapter: "pdf",
-    extractor: "ticket_foundation",
+    extractor: "takarazuka_friends_pdf",
     domainKind: "ticket_opportunity",
-    enabled: true,
+    enabled: false,
     shadow: true,
-    policyState: "approved",
+    policyState: "planned",
     fetchCadenceHint: "daily",
   },
   {

@@ -26,6 +26,17 @@ export interface EventAcquisitionDraft extends AcquisitionMetadata {
 export interface TicketOpportunityAcquisitionDraft extends AcquisitionMetadata {
   readonly candidateKind: "ticket_opportunity";
   readonly proposal: TicketOpportunityProposalInput;
+  /**
+   * Source-provided Event facts used only while planning. They are deliberately
+   * excluded from the durable proposal; a resolved catalog Event source key is
+   * written back by the planner, and an unresolved draft remains review-blocked.
+   */
+  readonly eventReference?: {
+    readonly title: string;
+    readonly venue?: string | null;
+    readonly startsOn: string;
+    readonly endsOn: string;
+  };
 }
 
 export type AcquisitionDraft =
@@ -59,6 +70,7 @@ export interface EventPlanningResult extends PlannedCandidateMetadata {
 
 export interface TicketOpportunityPlanningResult extends PlannedCandidateMetadata {
   readonly plan: TicketOpportunityPlanInput;
+  readonly proposal?: TicketOpportunityProposalInput;
 }
 
 export interface OfficialImportCandidatePlanner {
