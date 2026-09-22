@@ -27,7 +27,7 @@ as $$
 declare
   v_event public.events;
 begin
-  if p_action not in ('create', 'update', 'unchanged') then
+  if p_action is null or p_action not in ('create', 'update', 'unchanged') then
     raise exception 'unsupported Event import action: %', p_action
       using errcode = '22023';
   end if;

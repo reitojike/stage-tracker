@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(20);
+select plan(21);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as planning_user_id \gset
@@ -117,6 +117,31 @@ select is(
   (select title from public.events where id = :'event_id'),
   '承認反映テスト公演',
   'the failed classification rolls back the preceding Event detail update'
+);
+select throws_ok(
+  format($sql$
+    select public.apply_import_event_plan(
+      p_action := null,
+      p_owner_id := %L,
+      p_event_id := %L,
+      p_source_key := 'approved-apply:event',
+      p_title := 'ignored malformed apply',
+      p_starts_on := '2026-10-10'::date,
+      p_ends_on := '2026-10-10'::date,
+      p_occurrences := '[]'::jsonb,
+      p_occurrence_fixes := '[]'::jsonb,
+      p_venue := 'テスト劇場',
+      p_source_url := 'https://official.example/events/approved-apply',
+      p_memo := 'official import integration fixture',
+      p_set_genre := false,
+      p_genre_key := null,
+      p_set_groups := false,
+      p_groups := '[]'::jsonb
+    )
+  $sql$, :'creator_id', :'event_id'),
+  '22023',
+  null,
+  'the atomic Event plan rejects a null action instead of treating it as unchanged'
 );
 select is(
   public.complete_official_import_candidate_apply(
