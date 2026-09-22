@@ -9,9 +9,13 @@ import {
   findConflictingGroupDefinitions,
   validateClassificationShape,
 } from './eventClassificationSeed.mjs';
+import {
+  HAS_CALENDAR_DATE_SHAPE,
+  HAS_UTC_OFFSET,
+  isValidCalendarDateString,
+  isValidCalendarDateTimeString,
+} from './calendarDate.mjs';
 
-const HAS_UTC_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/;
-const HAS_CALENDAR_DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
 const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 function tokyoDateOf(instantIso) {
@@ -45,18 +49,20 @@ export function validateEventEntry(raw, where = 'seed') {
     problems.push('sourceUrl must start with http:// or https://');
 
   const startsOn = text(raw?.startsOn, 'startsOn', true, problems);
-  if (startsOn !== null && !HAS_CALENDAR_DATE_SHAPE.test(startsOn))
+  const startsOnHasShape = startsOn !== null && HAS_CALENDAR_DATE_SHAPE.test(startsOn);
+  const startsOnIsReal = startsOnHasShape && isValidCalendarDateString(startsOn);
+  if (startsOn !== null && !startsOnHasShape)
     problems.push('startsOn must be an Asia/Tokyo calendar date as "YYYY-MM-DD"');
+  else if (startsOnHasShape && !startsOnIsReal)
+    problems.push('startsOn must be a real Asia/Tokyo calendar date');
   const endsOn = text(raw?.endsOn, 'endsOn', true, problems);
-  if (endsOn !== null && !HAS_CALENDAR_DATE_SHAPE.test(endsOn))
+  const endsOnHasShape = endsOn !== null && HAS_CALENDAR_DATE_SHAPE.test(endsOn);
+  const endsOnIsReal = endsOnHasShape && isValidCalendarDateString(endsOn);
+  if (endsOn !== null && !endsOnHasShape)
     problems.push('endsOn must be an Asia/Tokyo calendar date as "YYYY-MM-DD"');
-  if (
-    startsOn !== null &&
-    endsOn !== null &&
-    HAS_CALENDAR_DATE_SHAPE.test(startsOn) &&
-    HAS_CALENDAR_DATE_SHAPE.test(endsOn) &&
-    startsOn > endsOn
-  )
+  else if (endsOnHasShape && !endsOnIsReal)
+    problems.push('endsOn must be a real Asia/Tokyo calendar date');
+  if (startsOn !== null && endsOn !== null && startsOnIsReal && endsOnIsReal && startsOn > endsOn)
     problems.push('endsOn must not be earlier than startsOn');
 
   const rawOccurrences = Array.isArray(raw?.occurrences) ? raw.occurrences : null;
@@ -73,6 +79,10 @@ export function validateEventEntry(raw, where = 'seed') {
     }
     if (!HAS_UTC_OFFSET.test(rawOccurrence.startsAt)) {
       problems.push(`${at}.startsAt must carry an explicit UTC offset (e.g. +09:00)`);
+      continue;
+    }
+    if (!isValidCalendarDateTimeString(rawOccurrence.startsAt)) {
+      problems.push(`${at}.startsAt must be a real calendar date/time`);
       continue;
     }
     if (seenInstants.has(startsAt)) {
@@ -97,6 +107,10 @@ export function validateEventEntry(raw, where = 'seed') {
         problems.push(`${at}.endsAt must be a parseable timestamp with an explicit UTC offset`);
         continue;
       }
+      if (!isValidCalendarDateTimeString(rawOccurrence.endsAt)) {
+        problems.push(`${at}.endsAt must be a real calendar date/time`);
+        continue;
+      }
       if (parsed < startsAt) {
         problems.push(`${at}.endsAt is earlier than startsAt`);
         continue;
@@ -109,6 +123,10 @@ export function validateEventEntry(raw, where = 'seed') {
         typeof rawOccurrence.doorsAt === 'string' ? Date.parse(rawOccurrence.doorsAt) : Number.NaN;
       if (Number.isNaN(parsed) || !HAS_UTC_OFFSET.test(rawOccurrence.doorsAt)) {
         problems.push(`${at}.doorsAt must be a parseable timestamp with an explicit UTC offset`);
+        continue;
+      }
+      if (!isValidCalendarDateTimeString(rawOccurrence.doorsAt)) {
+        problems.push(`${at}.doorsAt must be a real calendar date/time`);
         continue;
       }
       if (parsed > startsAt) {
