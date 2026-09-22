@@ -241,15 +241,17 @@ export function createTicketOpportunityCandidatePlanner(
               normalize(reference.proposal.title) &&
             normalize(candidate.venue) === normalize(reference.proposal.venue),
         );
-        matchedEvent = deterministicEvent(reference, plausible);
+        const includesManualIdentity = plausible.some(
+          (candidate) => candidate.sourceKey === null,
+        );
+        matchedEvent = includesManualIdentity
+          ? null
+          : deterministicEvent(reference, plausible);
         if (matchedEvent !== null) {
           deterministicMatchStatus = "matched";
         } else if (plausible.length === 0) {
           semanticMatchStatus = "low_confidence";
         } else {
-          const includesManualIdentity = plausible.some(
-            (candidate) => candidate.sourceKey === null,
-          );
           const alignment = await aligner.align(reference, plausible);
           if (alignment.status !== "unavailable") {
             jevDecisionEvidence = alignment.evidence;

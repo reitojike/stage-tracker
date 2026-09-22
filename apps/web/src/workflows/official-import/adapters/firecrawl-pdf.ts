@@ -21,7 +21,7 @@ const opportunitySchema = z
     applicationEndDate: isoDate.nullable(),
     resultAnnouncementDate: isoDate.nullable(),
     saleStartDate: isoDate.nullable(),
-    evidencePageNumber: z.number().int().positive().max(100),
+    evidencePageNumber: z.number().int().positive().max(50),
   })
   .strict();
 
@@ -103,7 +103,11 @@ const outputJsonSchema = {
                 saleStartDate: {
                   anyOf: [{ type: "string", format: "date" }, { type: "null" }],
                 },
-                evidencePageNumber: { type: "integer", minimum: 1 },
+                evidencePageNumber: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 50,
+                },
               },
             },
           },

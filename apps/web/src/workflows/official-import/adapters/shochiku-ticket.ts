@@ -120,7 +120,9 @@ export function parseShochikuSaleMilestone(
   const clockMatches = [
     ...text
       .normalize("NFKC")
-      .matchAll(/(?:午前|午後)?\s*\d{1,2}時(?:\s*\d{1,2}分)?/gu),
+      .matchAll(
+        /(?:(?:午前|午後)?\s*\d{1,2}時(?:\s*\d{1,2}分)?|\d{1,2}\s*[:：]\s*\d{2})/gu,
+      ),
   ];
   const clocks = clockMatches.flatMap((match) => {
     const parsed = parseJapaneseClock(match[0]);
@@ -180,7 +182,7 @@ export function parseShochikuSchedule(
       .match(
         /(\d{4})年(\d{1,2})月(\d{1,2})日[^0-9]*(?:(\d{4})年)?(?:(\d{1,2})月)?(\d{1,2})日/u,
       );
-    if (periodMatch === null) continue;
+    if (periodMatch === null) throw new SourceParseFailure();
     const startsOn = calendarDate(
       Number(periodMatch[1]),
       Number(periodMatch[2]),

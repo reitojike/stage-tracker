@@ -54,6 +54,17 @@ describe("Shochiku ticket schedule", () => {
     expect(
       parseShochikuSaleMilestone("ほうおう10月号到着後～", "2026-10-01"),
     ).toBeNull();
+    expect(
+      parseShochikuSaleMilestone(
+        "9月29日 10:00～17：30まで",
+        "2026-10-01",
+      ),
+    ).toEqual({
+      type: "sale_start",
+      precision: "window",
+      startsAt: "2026-09-29T10:00:00+09:00",
+      endsAt: "2026-09-29T17:30:00+09:00",
+    });
   });
 
   it("uses the previous year for a sale date preceding a January production", () => {
@@ -72,5 +83,17 @@ describe("Shochiku ticket schedule", () => {
       precision: "date",
       date: "2026-09-10",
     });
+  });
+
+  it("fails closed when a recognized performance period is unparseable", () => {
+    expect(() =>
+      parseShochikuSchedule(`
+        <h4 class="page-block__title title3">歌舞伎座</h4>
+        <div class="performance__body">
+          <h4 class="performance-title">公演</h4>
+          <p class="agenda_size">日程調整中</p>
+          <table><tr><th>一般販売</th><td>8月14日～</td></tr></table>
+        </div>`),
+    ).toThrow();
   });
 });

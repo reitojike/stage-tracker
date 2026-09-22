@@ -106,6 +106,26 @@ describe("Takarazuka Friends PDF adapter", () => {
         },
       }),
     ).toThrow(SourceParseFailure);
+    expect(() =>
+      parseFirecrawlTakarazukaResponse({
+        success: true,
+        data: {
+          json: {
+            productions: [
+              {
+                ...extraction.productions[0],
+                opportunities: [
+                  {
+                    ...extraction.productions[0]?.opportunities[0],
+                    evidencePageNumber: 51,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow(SourceParseFailure);
   });
 
   it("bounds Firecrawl v2 parse and fails closed without a credential", async () => {

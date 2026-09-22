@@ -176,4 +176,18 @@ describe("Ticket Opportunity candidate planning", () => {
     expect(result.semanticMatchStatus).toBe("low_confidence");
     expect(result.jevDecisionEvidence).toEqual(evidence);
   });
+
+  it("blocks deterministic matching when a manual possible duplicate exists", async () => {
+    const official = event();
+    const manual = event({ id: "event-manual", sourceKey: null });
+    const { planner, align, findOpportunity } = setup(null, [official, manual]);
+
+    const result = await planner.planTicketOpportunity(source, draft());
+
+    expect(result.deterministicMatchStatus).toBe("ambiguous");
+    expect(result.semanticMatchStatus).toBe("low_confidence");
+    expect(result.resolvedEventId).toBeNull();
+    expect(align).toHaveBeenCalledOnce();
+    expect(findOpportunity).not.toHaveBeenCalled();
+  });
 });
