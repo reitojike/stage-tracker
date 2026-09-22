@@ -94,7 +94,7 @@ skip constitution checks gracefully rather than failing.
 
 ### 1. Initialize Convergence Context
 
-Run `python3 .specify/scripts/python/check_prerequisites.py --json --require-spec --require-tasks --include-tasks` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
+Run `python .specify/scripts/python/check_prerequisites.py --json --require-spec --require-tasks --include-tasks` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
 
 - SPEC = FEATURE_DIR/spec.md
 - PLAN = FEATURE_DIR/plan.md
@@ -146,6 +146,12 @@ Create an internal model (do not echo raw artifacts):
   scope beyond what the artifacts define.
 
 ### 4. Assess the Codebase and Classify Findings
+
+Include every existing task in the intent inventory, regardless of checkbox state or
+Convergence phase: completion claims are not evidence. Verify current behavior against
+the spec, plan, tasks, and constitution; for corrective task chains, assess the resulting
+behavior, not superseded implementation details. Check both unmet obligations and
+implementation that contradicts, exceeds, or falls outside the stated intent.
 
 For each item in the intent inventory, inspect the current code in scope and produce a
 `Finding` only where there is a gap. Classify every finding by **gap type**:
