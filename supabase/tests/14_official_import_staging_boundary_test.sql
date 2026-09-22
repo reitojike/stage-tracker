@@ -9,7 +9,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(34);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
@@ -24,6 +24,10 @@ returning id as event_id \gset
 insert into public.event_occurrences (event_id, starts_at)
 values (:'event_id', '2026-11-01T18:00:00+09:00')
 returning id as occurrence_id \gset
+
+insert into public.events (owner_id, title, starts_on, ends_on)
+values (:'creator_id', 'P2 staging cleanup fixture event', '2026-11-02', '2026-11-02')
+returning id as cleanup_event_id \gset
 
 insert into public.ticket_opportunities (event_id, target_scope, display_name, source_key)
 values (:'event_id', 'event_wide', 'P2 staging fixture opportunity', 'p2-staging-fixture')
@@ -145,9 +149,37 @@ values (
 )
 returning id as third_candidate_id \gset
 
+insert into public.official_import_candidates (
+  run_id,
+  source_id,
+  candidate_kind,
+  canonical_url,
+  official_external_id,
+  content_hash,
+  proposal_version,
+  proposal,
+  evidence_locator,
+  resolved_event_id,
+  plan_fingerprint
+)
+values (
+  :'run_id',
+  'fixture-source',
+  'event',
+  'https://official.example/events/4',
+  'official-event-4',
+  repeat('1', 64),
+  'event-v1',
+  '{"title":"P2 cleanup proposal"}'::jsonb,
+  '{"page":4}'::jsonb,
+  :'cleanup_event_id',
+  repeat('2', 64)
+)
+returning id as cleanup_candidate_id \gset
+
 select is(
   (select count(*) from public.official_import_candidates),
-  3::bigint,
+  4::bigint,
   'service_role can create official import candidates'
 );
 
@@ -162,13 +194,23 @@ select is(
 );
 
 update public.official_import_runs
-set status = 'completed', finished_at = now(), candidate_count = 3
+set status = 'completed', finished_at = now(), candidate_count = 4
 where id = :'run_id';
 
 select is(
   (select status from public.official_import_runs where id = :'run_id'),
   'completed',
   'service_role can complete an import run'
+);
+select throws_ok(
+  format(
+    $$update public.official_import_runs
+      set candidate_count = candidate_count + 1 where id = %L$$,
+    :'run_id'
+  ),
+  '23514',
+  null,
+  'completed import runs are immutable'
 );
 
 -- No raw source archive columns are part of this boundary.
@@ -224,7 +266,7 @@ select throws_ok(
 call pg_temp.auth_as_user(:'creator_id');
 select is(
   (select count(*) from public.official_import_candidates),
-  3::bigint,
+  4::bigint,
   'designated catalog creator can read the review queue'
 );
 select is(
@@ -244,6 +286,8 @@ select is(
   :'creator_id'::uuid,
   'reviewer is derived from auth.uid(), not client input'
 );
+
+select public.review_official_import_candidate(:'cleanup_candidate_id', 'approved');
 
 call pg_temp.auth_as_admin();
 set local role service_role;
@@ -334,6 +378,16 @@ select is(
   'applied',
   'privileged path can advance an approved candidate to applied'
 );
+select throws_ok(
+  format(
+    $$update public.official_import_candidates
+      set applied_at = now() + interval '1 minute' where id = %L$$,
+    :'candidate_id'
+  ),
+  '23514',
+  null,
+  'applied candidates cannot rewrite applied_at'
+);
 
 select throws_ok(
   format(
@@ -345,6 +399,18 @@ select throws_ok(
   '23514',
   null,
   'applied candidates cannot be reopened by a direct state update'
+);
+
+call pg_temp.auth_as_user(:'creator_id');
+select lives_ok(
+  format($$select public.delete_event(%L)$$, :'cleanup_event_id'),
+  'Event deletion is not blocked by a reviewed staging reference'
+);
+select is(
+  (select resolved_event_id
+   from public.official_import_candidates where id = :'cleanup_candidate_id'),
+  null::uuid,
+  'reviewed staging reference is cleared when the Event is deleted'
 );
 
 -- Review only changes the staging row. Product catalog rows remain byte-for-

@@ -198,6 +198,18 @@ begin
     end if;
   end if;
 
+  if old.status <> 'running'
+    and (
+      old.started_at is distinct from new.started_at
+      or old.finished_at is distinct from new.finished_at
+      or old.candidate_count is distinct from new.candidate_count
+      or old.failure_classification is distinct from new.failure_classification
+      or old.created_at is distinct from new.created_at
+    ) then
+    raise exception 'completed or failed import runs are immutable'
+      using errcode = '23514';
+  end if;
+
   return new;
 end;
 $$;
@@ -263,8 +275,28 @@ begin
         or old.evidence_locator is distinct from new.evidence_locator
         or old.deterministic_match_status is distinct from new.deterministic_match_status
         or old.semantic_match_status is distinct from new.semantic_match_status
-        or old.resolved_event_id is distinct from new.resolved_event_id
-        or old.resolved_ticket_opportunity_id is distinct from new.resolved_ticket_opportunity_id
+        or (
+          old.resolved_event_id is distinct from new.resolved_event_id
+          and not (
+            new.resolved_event_id is null
+            and old.resolved_event_id is not null
+            and not exists (
+              select 1 from public.events where id = old.resolved_event_id
+            )
+          )
+        )
+        or (
+          old.resolved_ticket_opportunity_id is distinct from new.resolved_ticket_opportunity_id
+          and not (
+            new.resolved_ticket_opportunity_id is null
+            and old.resolved_ticket_opportunity_id is not null
+            and not exists (
+              select 1
+              from public.ticket_opportunities
+              where id = old.resolved_ticket_opportunity_id
+            )
+          )
+        )
         or old.jev_decision_evidence is distinct from new.jev_decision_evidence
         or old.plan_summary is distinct from new.plan_summary
         or old.plan_fingerprint is distinct from new.plan_fingerprint
@@ -322,6 +354,12 @@ begin
         raise exception 'applied candidates are terminal'
           using errcode = '23514';
       end if;
+    end if;
+
+    if old.apply_status = 'applied'
+      and old.applied_at is distinct from new.applied_at then
+      raise exception 'applied candidates are terminal'
+        using errcode = '23514';
     end if;
   end if;
 
