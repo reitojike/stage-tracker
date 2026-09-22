@@ -18,8 +18,6 @@ create table public.official_import_runs (
     check (status in ('running', 'completed', 'failed')),
   started_at timestamptz not null default now(),
   finished_at timestamptz,
-  candidate_count integer not null default 0
-    check (candidate_count >= 0),
   failure_classification text
     check (
       failure_classification is null
@@ -182,32 +180,42 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if old.source_id is distinct from new.source_id then
-    raise exception 'import run source_id is immutable'
+  if tg_op = 'INSERT' then
+    if new.status <> 'running'
+      or new.finished_at is not null
+      or new.failure_classification is not null then
+      raise exception 'import runs must enter in running state'
+        using errcode = '23514';
+    end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    if old.status <> 'running' then
+      raise exception 'completed or failed import runs cannot be deleted'
+        using errcode = '23514';
+    end if;
+    return old;
+  end if;
+
+  if old.status <> 'running' then
+    raise exception 'completed or failed import runs are immutable'
+      using errcode = '23514';
+  end if;
+
+  if old.id is distinct from new.id
+    or old.source_id is distinct from new.source_id
+    or old.started_at is distinct from new.started_at
+    or old.created_at is distinct from new.created_at then
+    raise exception 'import run identity and start metadata are immutable'
       using errcode = '23514';
   end if;
 
   if old.status is distinct from new.status then
-    if old.status <> 'running' then
-      raise exception 'completed or failed import runs are terminal'
-        using errcode = '23514';
-    end if;
     if new.status not in ('completed', 'failed') then
       raise exception 'running import runs may only complete or fail'
         using errcode = '23514';
     end if;
-  end if;
-
-  if old.status <> 'running'
-    and (
-      old.started_at is distinct from new.started_at
-      or old.finished_at is distinct from new.finished_at
-      or old.candidate_count is distinct from new.candidate_count
-      or old.failure_classification is distinct from new.failure_classification
-      or old.created_at is distinct from new.created_at
-    ) then
-    raise exception 'completed or failed import runs are immutable'
-      using errcode = '23514';
   end if;
 
   return new;
@@ -215,7 +223,7 @@ end;
 $$;
 
 create trigger official_import_runs_state_guard
-  before update on public.official_import_runs
+  before insert or update or delete on public.official_import_runs
   for each row
   execute function public.enforce_official_import_run_state();
 
@@ -241,9 +249,46 @@ create function public.enforce_official_import_candidate_state() returns trigger
 language plpgsql
 set search_path = ''
 as $$
+declare
+  v_run_id uuid;
+  v_run_status text;
+  v_run_source_id text;
 begin
   if tg_op = 'INSERT' then
-    if new.review_status <> 'pending'
+    v_run_id := new.run_id;
+  else
+    v_run_id := old.run_id;
+  end if;
+
+  select r.status, r.source_id
+    into v_run_status, v_run_source_id
+  from public.official_import_runs r
+  where r.id = v_run_id
+  for update;
+
+  if not found then
+    raise exception 'candidate parent import run is missing'
+      using errcode = '23514';
+  end if;
+
+  if tg_op = 'DELETE' then
+    if v_run_status <> 'running'
+      or old.review_status <> 'pending'
+      or old.apply_status <> 'not_started' then
+      raise exception 'only pending candidates in running runs may be deleted'
+        using errcode = '23514';
+    end if;
+    return old;
+  end if;
+
+  if new.source_id is distinct from v_run_source_id then
+    raise exception 'candidate source_id must match its import run'
+      using errcode = '23514';
+  end if;
+
+  if tg_op = 'INSERT' then
+    if v_run_status <> 'running'
+      or new.review_status <> 'pending'
       or new.reviewer is not null
       or new.reviewed_at is not null
       or new.apply_status <> 'not_started'
@@ -255,55 +300,57 @@ begin
   end if;
 
   if tg_op = 'UPDATE' then
-    if old.run_id is distinct from new.run_id
-      or old.source_id is distinct from new.source_id then
+    if old.id is distinct from new.id
+      or old.run_id is distinct from new.run_id
+      or old.source_id is distinct from new.source_id
+      or old.created_at is distinct from new.created_at then
       raise exception 'candidate run and source identity are immutable'
         using errcode = '23514';
     end if;
 
-    if old.review_status <> 'pending'
-      and (
-        old.candidate_kind is distinct from new.candidate_kind
-        or old.canonical_url is distinct from new.canonical_url
-        or old.official_external_id is distinct from new.official_external_id
-        or old.observed_at is distinct from new.observed_at
-        or old.content_hash is distinct from new.content_hash
-        or old.etag is distinct from new.etag
-        or old.last_modified is distinct from new.last_modified
-        or old.proposal_version is distinct from new.proposal_version
-        or old.proposal is distinct from new.proposal
-        or old.evidence_locator is distinct from new.evidence_locator
-        or old.deterministic_match_status is distinct from new.deterministic_match_status
-        or old.semantic_match_status is distinct from new.semantic_match_status
-        or (
-          old.resolved_event_id is distinct from new.resolved_event_id
-          and not (
-            new.resolved_event_id is null
-            and old.resolved_event_id is not null
-            and not exists (
-              select 1 from public.events where id = old.resolved_event_id
-            )
+    if (
+      old.candidate_kind is distinct from new.candidate_kind
+      or old.canonical_url is distinct from new.canonical_url
+      or old.official_external_id is distinct from new.official_external_id
+      or old.observed_at is distinct from new.observed_at
+      or old.content_hash is distinct from new.content_hash
+      or old.etag is distinct from new.etag
+      or old.last_modified is distinct from new.last_modified
+      or old.proposal_version is distinct from new.proposal_version
+      or old.proposal is distinct from new.proposal
+      or old.evidence_locator is distinct from new.evidence_locator
+      or old.deterministic_match_status is distinct from new.deterministic_match_status
+      or old.semantic_match_status is distinct from new.semantic_match_status
+      or (
+        old.resolved_event_id is distinct from new.resolved_event_id
+        and not (
+          new.resolved_event_id is null
+          and old.resolved_event_id is not null
+          and not exists (
+            select 1 from public.events where id = old.resolved_event_id
           )
         )
-        or (
-          old.resolved_ticket_opportunity_id is distinct from new.resolved_ticket_opportunity_id
-          and not (
-            new.resolved_ticket_opportunity_id is null
-            and old.resolved_ticket_opportunity_id is not null
-            and not exists (
-              select 1
-              from public.ticket_opportunities
-              where id = old.resolved_ticket_opportunity_id
-            )
+      )
+      or (
+        old.resolved_ticket_opportunity_id is distinct from new.resolved_ticket_opportunity_id
+        and not (
+          new.resolved_ticket_opportunity_id is null
+          and old.resolved_ticket_opportunity_id is not null
+          and not exists (
+            select 1
+            from public.ticket_opportunities
+            where id = old.resolved_ticket_opportunity_id
           )
         )
-        or old.jev_decision_evidence is distinct from new.jev_decision_evidence
-        or old.plan_summary is distinct from new.plan_summary
-        or old.plan_fingerprint is distinct from new.plan_fingerprint
-        or old.created_at is distinct from new.created_at
-      ) then
-      raise exception 'reviewed candidate contents are immutable'
-        using errcode = '23514';
+      )
+      or old.jev_decision_evidence is distinct from new.jev_decision_evidence
+      or old.plan_summary is distinct from new.plan_summary
+      or old.plan_fingerprint is distinct from new.plan_fingerprint
+    ) then
+      if old.review_status <> 'pending' or v_run_status <> 'running' then
+        raise exception 'candidate ingestion contents are immutable'
+          using errcode = '23514';
+      end if;
     end if;
 
     if old.review_status is distinct from new.review_status then
@@ -356,6 +403,13 @@ begin
       end if;
     end if;
 
+    if old.apply_status = 'failed'
+      and new.apply_status = 'failed'
+      and old.failure_classification is distinct from new.failure_classification then
+      raise exception 'failed candidate evidence is immutable'
+        using errcode = '23514';
+    end if;
+
     if old.apply_status = 'applied'
       and old.applied_at is distinct from new.applied_at then
       raise exception 'applied candidates are terminal'
@@ -363,21 +417,12 @@ begin
     end if;
   end if;
 
-  if new.source_id is distinct from (
-    select r.source_id
-    from public.official_import_runs r
-    where r.id = new.run_id
-  ) then
-    raise exception 'candidate source_id must match its import run'
-      using errcode = '23514';
-  end if;
-
   return new;
 end;
 $$;
 
 create trigger official_import_candidates_state_guard
-  before insert or update on public.official_import_candidates
+  before insert or update or delete on public.official_import_candidates
   for each row
   execute function public.enforce_official_import_candidate_state();
 

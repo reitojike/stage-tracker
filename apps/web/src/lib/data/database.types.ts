@@ -422,7 +422,6 @@ export type Database = {
       }
       official_import_runs: {
         Row: {
-          candidate_count: number
           created_at: string
           failure_classification: string | null
           finished_at: string | null
@@ -433,7 +432,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          candidate_count?: number
           created_at?: string
           failure_classification?: string | null
           finished_at?: string | null
@@ -444,7 +442,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          candidate_count?: number
           created_at?: string
           failure_classification?: string | null
           finished_at?: string | null
