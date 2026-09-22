@@ -100,6 +100,51 @@ void test('Event core preserves shape, run-wide duplicate, and classification va
   assert.match(conflict.problems[0], /Conflicting group definitions/);
 });
 
+void test('Event core rejects impossible calendar dates before planning', () => {
+  for (const [field, value] of [
+    ['startsOn', '2026-02-30'],
+    ['endsOn', '2026-13-01'],
+    ['startsOn', '0000-01-01'],
+  ]) {
+    const result = validateEventEntry(validEvent({ occurrences: [], [field]: value }));
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some((problem) => problem.includes(`${field} must be a real`)));
+  }
+
+  assert.equal(
+    validateEventEntry(
+      validEvent({ startsOn: '2028-02-29', endsOn: '2028-02-29', occurrences: [] }),
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateEventEntry(
+      validEvent({ startsOn: '2026-02-29', endsOn: '2026-02-29', occurrences: [] }),
+    ).ok,
+    false,
+  );
+});
+
+void test('Event core rejects impossible occurrence calendar components', () => {
+  for (const occurrence of [
+    { startsAt: '2026-02-30T13:00:00+09:00', doorsAt: null, endsAt: null },
+    {
+      startsAt: '2026-07-11T13:00:00+09:00',
+      doorsAt: '2026-02-30T12:00:00+09:00',
+      endsAt: null,
+    },
+    {
+      startsAt: '2026-07-11T13:00:00+09:00',
+      doorsAt: null,
+      endsAt: '2026-02-30T14:00:00+09:00',
+    },
+  ]) {
+    const result = validateEventEntry(validEvent({ occurrences: [occurrence] }));
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some((problem) => problem.includes('must be a real')));
+  }
+});
+
 void test('Event core creates and applies through existing atomic RPCs with structured report', async () => {
   const admin = fakeAdmin();
   const validated = validateEventEntries([
