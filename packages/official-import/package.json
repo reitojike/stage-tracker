@@ -5,6 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.mjs",
+    "./durable-candidate": {
+      "types": "./src/durableCandidate.d.ts",
+      "import": "./src/durableCandidate.mjs"
+    },
     "./event": "./src/eventImport.mjs",
     "./ticket": "./src/ticketOpportunityImport.mjs",
     "./ticket-seed": "./src/ticketOpportunitySeed.mjs",
