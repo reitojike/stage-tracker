@@ -8,51 +8,70 @@ import {
   type TakarazukaFriendsExtraction,
 } from "./firecrawl-pdf";
 import { type OfficialPdfFetcher, fetchOfficialPdf } from "./pdf";
-import { slug } from "./japanese-date";
+import { slug, tokyoDateTime } from "./japanese-date";
 
-type DateMilestone = {
-  readonly type:
-    | "application_open"
-    | "application_close"
-    | "result_announcement"
-    | "sale_start";
-  readonly precision: "date";
-  readonly date: string;
-};
+type TicketMilestone =
+  | {
+      readonly type:
+        | "application_open"
+        | "application_close"
+        | "result_announcement"
+        | "sale_start";
+      readonly precision: "date";
+      readonly date: string;
+    }
+  | {
+      readonly type:
+        | "application_open"
+        | "application_close"
+        | "result_announcement"
+        | "sale_start";
+      readonly precision: "datetime";
+      readonly at: string;
+    };
+
+function milestone(
+  type: TicketMilestone["type"],
+  date: string | null,
+  time: string | null,
+): TicketMilestone | null {
+  if (date === null) return null;
+  if (time === null) return { type, precision: "date", date };
+  const [hour, minute] = time.split(":").map(Number);
+  if (hour === undefined || minute === undefined)
+    throw new SourceParseFailure();
+  return {
+    type,
+    precision: "datetime",
+    at: tokyoDateTime(date, hour, minute),
+  };
+}
 
 function milestonesFor(
   opportunity: TakarazukaFriendsExtraction["productions"][number]["opportunities"][number],
-): readonly DateMilestone[] {
-  const milestones: DateMilestone[] = [];
-  if (opportunity.applicationStartDate !== null) {
-    milestones.push({
-      type: "application_open",
-      precision: "date",
-      date: opportunity.applicationStartDate,
-    });
-  }
-  if (opportunity.applicationEndDate !== null) {
-    milestones.push({
-      type: "application_close",
-      precision: "date",
-      date: opportunity.applicationEndDate,
-    });
-  }
-  if (opportunity.resultAnnouncementDate !== null) {
-    milestones.push({
-      type: "result_announcement",
-      precision: "date",
-      date: opportunity.resultAnnouncementDate,
-    });
-  }
-  if (opportunity.saleStartDate !== null) {
-    milestones.push({
-      type: "sale_start",
-      precision: "date",
-      date: opportunity.saleStartDate,
-    });
-  }
-  return milestones;
+): readonly TicketMilestone[] {
+  return [
+    milestone(
+      "application_open",
+      opportunity.applicationStartDate,
+      opportunity.applicationStartTime,
+    ),
+    milestone(
+      "application_close",
+      opportunity.applicationEndDate,
+      opportunity.applicationEndTime,
+    ),
+    milestone(
+      "result_announcement",
+      opportunity.resultAnnouncementDate,
+      opportunity.resultAnnouncementTime,
+    ),
+    milestone(
+      "sale_start",
+      opportunity.saleStartDate,
+      opportunity.saleStartTime,
+    ),
+  ].filter((value): value is TicketMilestone => value !== null);
 }
 
 export function takarazukaFriendsDrafts(

@@ -55,10 +55,7 @@ describe("Shochiku ticket schedule", () => {
       parseShochikuSaleMilestone("ほうおう10月号到着後～", "2026-10-01"),
     ).toBeNull();
     expect(
-      parseShochikuSaleMilestone(
-        "9月29日 10:00～17：30まで",
-        "2026-10-01",
-      ),
+      parseShochikuSaleMilestone("9月29日 10:00～17：30まで", "2026-10-01"),
     ).toEqual({
       type: "sale_start",
       precision: "window",

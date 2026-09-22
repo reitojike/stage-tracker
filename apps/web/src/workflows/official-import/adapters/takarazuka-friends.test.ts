@@ -22,18 +22,26 @@ const extraction = {
           phase: "lottery1" as const,
           displayName: "第1抽選方式",
           applicationStartDate: "2026-08-12",
+          applicationStartTime: "10:00",
           applicationEndDate: "2026-08-14",
+          applicationEndTime: "23:00",
           resultAnnouncementDate: null,
+          resultAnnouncementTime: null,
           saleStartDate: null,
+          saleStartTime: null,
           evidencePageNumber: 1,
         },
         {
           phase: "general_sale" as const,
           displayName: "一般前売",
           applicationStartDate: null,
+          applicationStartTime: null,
           applicationEndDate: null,
+          applicationEndTime: null,
           resultAnnouncementDate: null,
+          resultAnnouncementTime: null,
           saleStartDate: "2026-09-26",
+          saleStartTime: null,
           evidencePageNumber: 1,
         },
       ],
@@ -56,21 +64,19 @@ describe("Takarazuka Friends PDF adapter", () => {
       milestones: [
         {
           type: "application_open",
-          precision: "date",
-          date: "2026-08-12",
+          precision: "datetime",
+          at: "2026-08-12T10:00:00+09:00",
         },
         {
           type: "application_close",
-          precision: "date",
-          date: "2026-08-14",
+          precision: "datetime",
+          at: "2026-08-14T23:00:00+09:00",
         },
       ],
     });
-    expect(
-      JSON.stringify(
-        drafts.flatMap((draft) => draft.proposal.milestones ?? []),
-      ),
-    ).not.toContain("T00:00");
+    expect(JSON.stringify(drafts[1]?.proposal.milestones)).not.toContain(
+      "T00:00",
+    );
     expect(drafts[1]?.proposal).toMatchObject({
       displayName: "一般前売",
       milestones: [
@@ -120,6 +126,22 @@ describe("Takarazuka Friends PDF adapter", () => {
                     evidencePageNumber: 51,
                   },
                 ],
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow(SourceParseFailure);
+    expect(() =>
+      parseFirecrawlTakarazukaResponse({
+        success: true,
+        data: {
+          json: {
+            productions: [
+              {
+                ...extraction.productions[0],
+                startsOn: "2027-12-19",
+                endsOn: "2027-02-07",
               },
             ],
           },

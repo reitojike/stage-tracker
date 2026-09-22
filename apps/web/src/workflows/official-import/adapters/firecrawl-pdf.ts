@@ -6,6 +6,7 @@ const FIRECRAWL_TIMEOUT_MS = 90_000;
 const MAX_RESPONSE_BYTES = 2_000_000;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
+const clockTime = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u);
 
 const opportunitySchema = z
   .object({
@@ -18,12 +19,32 @@ const opportunitySchema = z
     ]),
     displayName: z.string().trim().min(1).max(128),
     applicationStartDate: isoDate.nullable(),
+    applicationStartTime: clockTime.nullable(),
     applicationEndDate: isoDate.nullable(),
+    applicationEndTime: clockTime.nullable(),
     resultAnnouncementDate: isoDate.nullable(),
+    resultAnnouncementTime: clockTime.nullable(),
     saleStartDate: isoDate.nullable(),
+    saleStartTime: clockTime.nullable(),
     evidencePageNumber: z.number().int().positive().max(50),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    for (const [dateField, timeField] of [
+      ["applicationStartDate", "applicationStartTime"],
+      ["applicationEndDate", "applicationEndTime"],
+      ["resultAnnouncementDate", "resultAnnouncementTime"],
+      ["saleStartDate", "saleStartTime"],
+    ] as const) {
+      if (value[dateField] === null && value[timeField] !== null) {
+        context.addIssue({
+          code: "custom",
+          path: [timeField],
+          message: "A printed time requires its printed date",
+        });
+      }
+    }
+  });
 
 const productionSchema = z
   .object({
@@ -33,7 +54,11 @@ const productionSchema = z
     endsOn: isoDate,
     opportunities: z.array(opportunitySchema).min(1).max(8),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.startsOn <= value.endsOn, {
+    path: ["endsOn"],
+    message: "Production end date must not precede start date",
+  });
 
 const extractionSchema = z
   .object({ productions: z.array(productionSchema).max(200) })
@@ -74,9 +99,13 @@ const outputJsonSchema = {
                 "phase",
                 "displayName",
                 "applicationStartDate",
+                "applicationStartTime",
                 "applicationEndDate",
+                "applicationEndTime",
                 "resultAnnouncementDate",
+                "resultAnnouncementTime",
                 "saleStartDate",
+                "saleStartTime",
                 "evidencePageNumber",
               ],
               properties: {
@@ -94,14 +123,50 @@ const outputJsonSchema = {
                 applicationStartDate: {
                   anyOf: [{ type: "string", format: "date" }, { type: "null" }],
                 },
+                applicationStartTime: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+                    },
+                    { type: "null" },
+                  ],
+                },
                 applicationEndDate: {
                   anyOf: [{ type: "string", format: "date" }, { type: "null" }],
+                },
+                applicationEndTime: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+                    },
+                    { type: "null" },
+                  ],
                 },
                 resultAnnouncementDate: {
                   anyOf: [{ type: "string", format: "date" }, { type: "null" }],
                 },
+                resultAnnouncementTime: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+                    },
+                    { type: "null" },
+                  ],
+                },
                 saleStartDate: {
                   anyOf: [{ type: "string", format: "date" }, { type: "null" }],
+                },
+                saleStartTime: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+                    },
+                    { type: "null" },
+                  ],
                 },
                 evidencePageNumber: {
                   type: "integer",
@@ -123,6 +188,7 @@ const extractionPrompt = [
   "Use the exact Japanese phase label as displayName.",
   "Convert printed calendar dates to YYYY-MM-DD using only the year explicitly associated with the schedule.",
   "For an application date range, set applicationStartDate and applicationEndDate.",
+  "When a source date includes an explicit clock time, copy it as HH:mm in the corresponding Time field; otherwise use null. Never invent a time.",
   "Set resultAnnouncementDate only when the source prints one single result date; leave it null for a date range.",
   "Set saleStartDate only for an explicitly printed general sale start.",
   "Use null for absent, conditional, なし, or unreadable values. Never infer a date, time, venue, phase, or production.",

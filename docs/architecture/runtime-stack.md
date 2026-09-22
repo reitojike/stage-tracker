@@ -318,17 +318,24 @@ marker ではなく、依然として reviewer の運用規律が担う。
 - 宝塚友の会 PDF は PDF bytes を 15 MB、50 pages、manual redirect allowlist に制限し、
   Firecrawl v2 `/parse` の JSON Schema output を受ける provider abstraction を実装済みです。
   provider output は strict validation 後に第1〜第3抽選 / 一般前売を別 Opportunity にし、
-  date-only application range は open / close の date milestone へ分解します。単一日でない
-  result range や conditional / `なし` は milestone を作らず、raw PDF、page markdown、
-  layout blocks、provider responseを stagingへ保存しません。
-- 2026-09-22 の P5 実装環境には Firecrawl credential が無く、target PDF の live `/parse`
-  golden comparison（table / production / phase / precision と hallucination 0）を実行できて
-  いません。このため Firecrawl は production 採用済みとは扱わず、
-  `ticket.takarazuka-friends.schedule-pdf` は `planned` / disabled のままです。credential
-  未設定の provider は `provider_unavailable` で fail-closed します。source enable は
-  bounded live canary evidence が揃う別 checkpoint で行い、Firecrawl を HTML fetch layer
-  へ拡張しません。Vpass も source-policy gate が clear になるまで `hold` / disabled を
-  維持します。
+  application range は open / close milestone へ分解します。明記時刻があればTokyo offsetの
+  `datetime`、無ければ `date` のまま保持します。単一日でない result range や conditional /
+  `なし` は milestone を作らず、逆転した公演期間やdateを伴わないtimeはrejectします。raw PDF、
+  page markdown、layout blocks、provider responseを stagingへ保存しません。
+- 2026-09-23 にcredentialed bounded canaryとして、公式15-page target PDFをFirecrawl v2
+  `/parse`へ渡し、rendered page / extracted textとのgolden comparisonを実施しました。
+  providerは7 productions / 19 opportunitiesを返しましたが、前夜祭と隣接本公演のidentity・
+  一般前売日を結合し、2026-12-19〜2027-02-07を2027-12-19〜2027-02-07へ逆転し、
+  複数の2026年公演を2027年へ誤変換し、複数公演・会場を欠落させました。明記時刻もdate-only
+  outputへ落ちており、hallucinated / incorrect values = 0 とtable / production / precisionの
+  reviewabilityを満たしません。このため現行Firecrawl構成は不採用とし、
+  `ticket.takarazuka-friends.schedule-pdf` は `planned` / disabled のままです。provider
+  abstractionとstrict adapter mappingは維持します。次のcanonical extraction候補は、先行・
+  一般発売を掲載する個別公演HTMLです。PDFは全公演を横断するcoverage sourceとして必要性を
+  再評価し、採用価値が残る場合だけ固定layout向けdeterministic parserまたは別standard
+  structured extractionを別checkpointで比較します。credential未設定時は
+  `provider_unavailable`でfail-closedし、FirecrawlをHTML fetch layerへ拡張しません。
+  Vpassもsource-policy gateがclearになるまで`hold` / disabledを維持します。
 
 ## Vercel Preview Auth runtime contract（Issue #268）
 
