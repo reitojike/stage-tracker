@@ -35,10 +35,11 @@ schedule データです。
 | seed file の review       | operator                                  | ローカル      |
 | catalog への適用          | `scripts/import-ticket-opportunities.mjs` | repository    |
 
-**repository には site-specific な HTML/PDF parser もクローラーも
-入れません。** 宝塚友の会 PDF、Vpass、松竹、artist/FC ページはレイアウトが
-まったく異なり、per-site parser は Issue #163 が明示的に scope 外とする
-汎用 crawler そのものです。
+この operator-assisted seed 経路自身は site-specific parser や crawler を持ちません。
+Issue #623 で追加された automated official-import Workflow の bounded source adapters は
+別責務であり、code-owned allowlist、candidate-only staging、identity review block の内側に
+隔離されています。Workflow が生成した candidate を apply する後続段階も、この runbook
+の current importer validation と replace-all semantics を再利用しなければなりません。
 
 ## Ticket Opportunity と Event catalog import の違い
 

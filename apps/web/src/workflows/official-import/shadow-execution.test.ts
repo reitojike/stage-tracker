@@ -323,6 +323,73 @@ describe("official import shadow execution", () => {
     );
   });
 
+  it("publishes the planner-resolved Event source key for Ticket candidates", async () => {
+    const source = requireEnabledShadowSource("ticket.shochiku.schedule");
+    const harness = repositoryHarness();
+    const result = await executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      {
+        async acquire() {
+          return [
+            {
+              candidateKind: "ticket_opportunity",
+              canonicalUrl:
+                "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+              observedAt: "2026-09-22T00:00:00.000Z",
+              contentHash: "a".repeat(64),
+              eventReference: {
+                title: "Example Event",
+                venue: "Example Theater",
+                startsOn: "2026-10-01",
+                endsOn: "2026-10-02",
+              },
+              proposal: {
+                eventSourceKey: "unresolved:example",
+                sourceKey: "shochiku:example:general",
+                displayName: "一般販売",
+                targetScope: "event_wide",
+                milestones: [],
+              },
+            },
+          ];
+        },
+      },
+      {
+        async planEvent() {
+          throw new Error("not used");
+        },
+        async planTicketOpportunity(_source, draft) {
+          return {
+            proposal: {
+              ...draft.proposal,
+              eventSourceKey: "kabuki-bito:example",
+            },
+            planFingerprint: "b".repeat(64),
+            deterministicMatchStatus: "matched",
+            semanticMatchStatus: "not_used",
+            resolvedEventId: "event-1",
+            plan: {
+              action: "create",
+              eventChanged: false,
+              detailsChanged: false,
+              occurrencesChanged: false,
+              milestonesChanged: false,
+            },
+          };
+        },
+      },
+      harness.repository,
+    );
+
+    expect(result.status).toBe("completed");
+    const candidates = harness.commitCandidates.mock.calls[0]?.[3];
+    expect(candidates?.[0]?.proposal).toMatchObject({
+      eventSourceKey: "kabuki-bito:example",
+    });
+  });
+
   it("reuses a completed step-derived run without acquiring or restaging", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const harness = repositoryHarness();

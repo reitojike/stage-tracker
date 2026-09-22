@@ -237,10 +237,16 @@ export async function executeOfficialImportShadowRun(
           lastModified: draft.lastModified,
           evidenceLocator: createEvidenceLocator(draft.evidenceLocator),
           proposal,
+          ...(draft.eventReference === undefined
+            ? {}
+            : { eventReference: draft.eventReference }),
         };
         const planning = await planner.planTicketOpportunity(
           source,
           canonicalDraft,
+        );
+        const plannedProposal = createTicketOpportunityProposal(
+          planning.proposal ?? proposal,
         );
         const candidate = createTicketOpportunityDurableCandidate({
           runId,
@@ -251,7 +257,7 @@ export async function executeOfficialImportShadowRun(
           contentHash: draft.contentHash,
           etag: draft.etag,
           lastModified: draft.lastModified,
-          proposal,
+          proposal: plannedProposal,
           evidenceLocator: draft.evidenceLocator,
           plan: planning.plan,
           planFingerprint: planning.planFingerprint,
