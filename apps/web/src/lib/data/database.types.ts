@@ -307,6 +307,8 @@ export type Database = {
       }
       official_import_candidates: {
         Row: {
+          active_apply_attempt_token: string | null
+          active_apply_lease_expires_at: string | null
           applied_at: string | null
           apply_status: string
           candidate_kind: string
@@ -337,6 +339,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_apply_attempt_token?: string | null
+          active_apply_lease_expires_at?: string | null
           applied_at?: string | null
           apply_status?: string
           candidate_kind: string
@@ -367,6 +371,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_apply_attempt_token?: string | null
+          active_apply_lease_expires_at?: string | null
           applied_at?: string | null
           apply_status?: string
           candidate_kind?: string
@@ -697,6 +703,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_official_import_candidate_apply: {
+        Args: {
+          p_attempt_token: string
+          p_candidate_id: string
+          p_lease_seconds: number
+        }
+        Returns: string
+      }
       claim_official_import_run_attempt: {
         Args: {
           p_attempt_token: string
@@ -718,6 +732,10 @@ export type Database = {
           p_source_id: string
         }
         Returns: number
+      }
+      complete_official_import_candidate_apply: {
+        Args: { p_attempt_token: string; p_candidate_id: string }
+        Returns: string
       }
       create_event: {
         Args: {
@@ -778,6 +796,14 @@ export type Database = {
       event_occurrence_is_effectively_canceled: {
         Args: { p_occurrence_id: string }
         Returns: boolean
+      }
+      fail_official_import_candidate_apply: {
+        Args: {
+          p_attempt_token: string
+          p_candidate_id: string
+          p_failure_classification: string
+        }
+        Returns: string
       }
       fail_official_import_run_attempt: {
         Args: {
@@ -983,6 +1009,8 @@ export type Database = {
       review_official_import_candidate: {
         Args: { p_candidate_id: string; p_review_status: string }
         Returns: {
+          active_apply_attempt_token: string | null
+          active_apply_lease_expires_at: string | null
           applied_at: string | null
           apply_status: string
           candidate_kind: string

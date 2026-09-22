@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(67);
+select plan(68);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
@@ -241,12 +241,10 @@ call pg_temp.auth_as_admin();
 select throws_ok(format($$update public.official_import_candidates
   set apply_status = 'applied', applied_at = now() where id = %L$$, :'rejected_candidate_id'),
   '23514', null, 'reject not_started -> applied and rejected apply');
-update public.official_import_candidates set apply_status = 'queued' where id = :'candidate_id';
-select is((select apply_status from public.official_import_candidates where id = :'candidate_id'),
-  'queued', 'approved not_started -> queued is allowed');
-update public.official_import_candidates set apply_status = 'applied', applied_at = now() where id = :'candidate_id';
-select is((select apply_status from public.official_import_candidates where id = :'candidate_id'),
-  'applied', 'queued -> applied is allowed');
+select is(public.claim_official_import_candidate_apply(:'candidate_id', 'p2-apply-owner', 300),
+  'claimed', 'approved not_started -> queued is owned by the apply RPC');
+select is(public.complete_official_import_candidate_apply(:'candidate_id', 'p2-apply-owner'),
+  'applied', 'queued -> applied is owned by the apply RPC');
 select throws_ok(format($$update public.official_import_candidates set apply_status = 'queued' where id = %L$$, :'candidate_id'),
   '23514', null, 'reject applied -> queued');
 select throws_ok(format($$update public.official_import_candidates set apply_status = 'failed' where id = %L$$, :'candidate_id'),
@@ -258,12 +256,11 @@ call pg_temp.auth_as_user(:'creator_id');
 select is((select review_status from public.review_official_import_candidate(:'failed_candidate_id', 'approved')),
   'approved', 'failed lifecycle candidate is approved through RPC');
 call pg_temp.auth_as_admin();
-update public.official_import_candidates set apply_status = 'queued' where id = :'failed_candidate_id';
-update public.official_import_candidates
-set apply_status = 'failed', failure_classification = 'validation'
-where id = :'failed_candidate_id';
-select is((select apply_status from public.official_import_candidates where id = :'failed_candidate_id'),
-  'failed', 'queued -> failed is allowed');
+select is(public.claim_official_import_candidate_apply(:'failed_candidate_id', 'p2-failure-owner', 300),
+  'claimed', 'approved candidate enters an owned queued state');
+select is(public.fail_official_import_candidate_apply(
+    :'failed_candidate_id', 'p2-failure-owner', 'validation'),
+  'failed', 'the apply owner records queued -> failed');
 select is((select failure_classification from public.official_import_candidates where id = :'failed_candidate_id'),
   'validation', 'failed state retains failure classification');
 select throws_ok(format($$update public.official_import_candidates
@@ -272,11 +269,8 @@ select throws_ok(format($$update public.official_import_candidates
 select throws_ok(format($$update public.official_import_candidates
   set apply_status = 'queued' where id = %L$$, :'failed_candidate_id'),
   '23514', null, 'reject failed -> queued without clearing failure classification');
-update public.official_import_candidates
-set apply_status = 'queued', failure_classification = null
-where id = :'failed_candidate_id';
-select is((select apply_status from public.official_import_candidates where id = :'failed_candidate_id'),
-  'queued', 'allow failed -> queued retry with cleared classification');
+select is(public.claim_official_import_candidate_apply(:'failed_candidate_id', 'p2-retry-owner', 300),
+  'claimed', 'allow failed -> queued retry with cleared classification');
 select is((select failure_classification from public.official_import_candidates where id = :'failed_candidate_id'),
   null::text, 'retry clears failed classification');
 
