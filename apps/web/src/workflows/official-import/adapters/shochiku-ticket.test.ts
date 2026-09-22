@@ -82,6 +82,16 @@ describe("Shochiku ticket schedule", () => {
     });
   });
 
+  it("uses the ending year for an omitted-year sale during a New Year run", () => {
+    expect(
+      parseShochikuSaleMilestone("1月10日～", "2026-12-20", "2027-01-20"),
+    ).toEqual({
+      type: "sale_start",
+      precision: "date",
+      date: "2027-01-10",
+    });
+  });
+
   it("fails closed when a recognized performance period is unparseable", () => {
     expect(() =>
       parseShochikuSchedule(`
@@ -91,6 +101,14 @@ describe("Shochiku ticket schedule", () => {
           <p class="agenda_size">日程調整中</p>
           <table><tr><th>一般販売</th><td>8月14日～</td></tr></table>
         </div>`),
+    ).toThrow();
+  });
+
+  it("fails closed when any recognized performance has no usable container", () => {
+    expect(() =>
+      parseShochikuSchedule(`
+        ${html}
+        <h4 class="performance-title">containerを失った公演</h4>`),
     ).toThrow();
   });
 });

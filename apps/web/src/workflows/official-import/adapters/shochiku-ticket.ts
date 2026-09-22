@@ -103,11 +103,24 @@ function dateForSale(
   if (explicitYear !== undefined) {
     return calendarDate(Number(explicitYear), month, day);
   }
-  const performanceYear = Number(performanceStartsOn.slice(0, 4));
-  const sameYear = calendarDate(performanceYear, month, day);
-  return sameYear <= performanceEndsOn
-    ? sameYear
-    : calendarDate(performanceYear - 1, month, day);
+  const startYear = Number(performanceStartsOn.slice(0, 4));
+  const endYear = Number(performanceEndsOn.slice(0, 4));
+  const candidates = [...new Set([startYear - 1, startYear, endYear])]
+    .flatMap((year) => {
+      try {
+        return [calendarDate(year, month, day)];
+      } catch (error) {
+        if (error instanceof SourceParseFailure) return [];
+        throw error;
+      }
+    })
+    .filter((date) => date <= performanceEndsOn)
+    .sort();
+  if (candidates.length === 0) throw new SourceParseFailure();
+  const duringPerformance = candidates.find(
+    (date) => date >= performanceStartsOn,
+  );
+  return duringPerformance ?? candidates.at(-1) ?? null;
 }
 
 export function parseShochikuSaleMilestone(
@@ -170,7 +183,9 @@ export function parseShochikuSchedule(
     const block = closest(titleNode, (node) =>
       hasClass(node, "performance__body"),
     );
-    if (venueNode === undefined || block === null) continue;
+    if (venueNode === undefined || block === null) {
+      throw new SourceParseFailure();
+    }
     const periodNode = descendants(
       block,
       (node) => elementName(node) === "p" && hasClass(node, "agenda_size"),
