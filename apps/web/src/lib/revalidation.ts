@@ -19,6 +19,7 @@ export type ReadSurface =
   | "eventEdit"
   | "scheduleDetail"
   | "notifications"
+  | "officialImportReview"
   | "appShell";
 
 export type ReadSurfaceDescriptor =
@@ -45,6 +46,7 @@ const STATIC_SURFACE_PATHS: Readonly<Record<StaticSurface, string>> = {
   myPage: "/mypage",
   tickets: "/tickets",
   notifications: "/notifications",
+  officialImportReview: "/catalog/imports",
 };
 
 function pathForSurface(descriptor: ReadSurfaceDescriptor): string {
@@ -198,4 +200,6 @@ export const affectedReadSurfaces = {
 
   notificationRead: () =>
     [staticSurface("notifications"), { surface: "appShell" }] as const,
+
+  officialImportReview: () => [staticSurface("officialImportReview")] as const,
 };
