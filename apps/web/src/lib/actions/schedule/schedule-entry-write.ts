@@ -80,14 +80,9 @@ function mapRowOrThrow(row: PersonalScheduleEntryRow): PersonalScheduleEntry {
 }
 
 /**
- * `.single()` を使わない理由: Database 型が未配線のこの client
- * （`src/lib/supabase/server.ts` の doc comment参照）では、
- * `.select().single().overrideTypes<Row, {merge:false}>()` の型推論が
- * 素直に解決せず（`overrideTypes` が array-vs-object の不一致を検出して
- * placeholder のエラー型を返す）、実行時には問題なくても型チェックが
- * 通らない。read boundary（`lib/data/reads/personalSchedule.ts`）が
- * 実証済みの「配列のまま `.overrideTypes<Row[]>()` する」パターンに
- * 揃え、1行目を自前で取り出す。
+ * Generated `Database` typing infers the selected row shape directly. Keep the
+ * response as an array rather than using `.single()` so a successful zero-row
+ * update remains distinguishable without a PGRST116 error.
  */
 export async function insertPersonalScheduleEntry(
   client: SupabaseClient<Database>,
@@ -103,8 +98,7 @@ export async function insertPersonalScheduleEntry(
       blocking: fields.blocking,
       ...temporalToColumns(fields.temporal),
     })
-    .select()
-    .overrideTypes<PersonalScheduleEntryRow[]>();
+    .select();
 
   if (error !== null) {
     throw classifyWritePostgrestError(error, status);
@@ -130,8 +124,7 @@ export async function updatePersonalScheduleEntry(
       ...temporalToColumns(fields.temporal),
     })
     .eq("id", entryId)
-    .select()
-    .overrideTypes<PersonalScheduleEntryRow[]>();
+    .select();
 
   if (error !== null) {
     throw classifyWritePostgrestError(error, status);
@@ -160,8 +153,7 @@ export async function deletePersonalScheduleEntry(
     .from("personal_schedule_entries")
     .delete()
     .eq("id", entryId)
-    .select("id")
-    .overrideTypes<{ id: string }[]>();
+    .select("id");
 
   if (error !== null) {
     throw classifyWritePostgrestError(error, status);
