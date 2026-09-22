@@ -4,6 +4,18 @@ import { describe, expect, it } from "vitest";
 import { ScheduleEntryFields } from "./ScheduleEntryFields";
 
 describe("ScheduleEntryFields selection controls", () => {
+  it("renders the temporal mode selector as a compact two-column control", () => {
+    render(<ScheduleEntryFields />);
+
+    const group = screen.getByRole("radiogroup", { name: "予定の種類" });
+    expect(group).toHaveClass("grid", "grid-cols-2");
+    expect(group).not.toHaveClass("flex-col");
+    expect(screen.getByRole("radio", { name: "終日" })).toHaveClass("min-h-11");
+    expect(screen.getByRole("radio", { name: "時刻指定" })).toHaveClass(
+      "min-h-11",
+    );
+  });
+
   it("submits blocking by presence and omits it when unchecked", async () => {
     const user = userEvent.setup();
     const { container } = render(
