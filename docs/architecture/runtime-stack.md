@@ -260,7 +260,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
 - Resend の API キー / SMTP 資格情報は Supabase Dashboard の Auth → SMTP
   設定にのみ存在し、このリポジトリにもVercelにも存在しません。
 
-## Official import Workflow boundary（Issues #629, #630）
+## Official import Workflow and review boundary（Issues #629, #630, #632）
 
 - Vercel / Next.js の current stable path として `workflow@4.8.9` を固定し、
   `withWorkflow` と `"use workflow"` / `"use step"` を使用します。Cron は P8、
@@ -315,6 +315,16 @@ marker ではなく、依然として reviewer の運用規律が担う。
   抽出しました。全 50 行に source date があり、この時点の precision はすべて `date`、
   導出した 50 source keys も全件一意でした。fixtureは synthetic shapeだけをrepositoryへ
   置き、live bodyは保持していません。
+- `/catalog/imports` は authenticated designated catalog creator だけが利用できる
+  review queue です。通常の user-scoped Supabase client と staging RLS を使い、completed
+  run の `pending` / `blocked_for_identity_review` candidate だけを読みます。proposal、現在の
+  対象、plan diff、evidence locator、deterministic / Jev 補助結果を表示しますが、raw source
+  body と provider secret は扱いません。Jev は参考情報と明記し、identity blocked candidate
+  には承認操作を出しません。
+- review action の client input は candidate UUID と `approved` / `rejected` decision だけです。
+  reviewer と reviewed time は P2 RPC が `auth.uid()` / database time から記録します。この
+  画面は Event / Occurrence / TicketOpportunity を直接変更せず、承認済み候補のcatalog apply
+  は P7 の別境界です。
 - 宝塚友の会 PDF は PDF bytes を 15 MB、50 pages、manual redirect allowlist に制限し、
   Firecrawl v2 `/parse` の JSON Schema output を受ける provider abstraction を実装済みです。
   provider output は strict validation 後に第1〜第3抽選 / 一般前売を別 Opportunity にし、
