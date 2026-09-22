@@ -294,14 +294,22 @@ export async function executeOfficialImportShadowRun(
       attemptToken,
       failureClassification,
     );
-    if (transition !== "failed")
-      throw new OfficialImportAttemptRetryError("ownership_lost");
-    return {
-      status: "failed",
-      runId,
-      sourceId: source.id,
-      candidateCount: 0,
-      failureClassification,
-    };
+    if (transition === "failed") {
+      const terminal = await repository.prepareRun(
+        runId,
+        source.id,
+        attemptToken,
+      );
+      if (terminal.status === "failed") {
+        return {
+          status: "failed",
+          runId,
+          sourceId: source.id,
+          candidateCount: 0,
+          failureClassification: terminal.failureClassification,
+        };
+      }
+    }
+    throw new OfficialImportAttemptRetryError("ownership_lost");
   }
 }

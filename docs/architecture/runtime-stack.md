@@ -282,7 +282,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
   exception detail を durable output / log に含めず compact failure classification だけを
   Workflow retry に渡します。parse、validation、unexpected failure は現在の所有者だけが
   terminal failure として記録します。failure 記録時に所有権を失っていた場合は terminal
-  state を上書きせず、次の retry が確定済み state を読み直します。
+  state を上書きせず、現在の attempt または次の retry が確定済み state を読み直します。
 - P3 時点では source-specific production adapter は未実装です。registry と manual
   trigger は foundation として存在しますが、adapter 未提供の run は
   `provider_unavailable` として retry され、catalog mutation は行いません。

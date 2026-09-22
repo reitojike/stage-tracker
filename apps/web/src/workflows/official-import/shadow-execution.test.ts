@@ -12,6 +12,7 @@ import {
   OFFICIAL_IMPORT_BUSY_RETRY_AFTER_MS,
   OfficialImportAttemptRetryError,
   type OfficialImportStagingRepository,
+  type RunFailureClassification,
 } from "./shadow-execution";
 import { requireEnabledShadowSource } from "./source-registry";
 
@@ -21,6 +22,7 @@ const ATTEMPT_TOKEN = "a".repeat(64);
 
 function repositoryHarness() {
   const eventCandidates: EventDurableCandidate[] = [];
+  let recordedFailure: RunFailureClassification | null = null;
   const commitCandidates = vi.fn<
     OfficialImportStagingRepository["commitCandidates"]
   >(async (_runId, _sourceId, _attemptToken, candidates) => {
@@ -33,12 +35,22 @@ function repositoryHarness() {
     async () => "released",
   );
   const failRun = vi.fn<OfficialImportStagingRepository["failRun"]>(
-    async () => "failed",
+    async (_runId, _sourceId, _attemptToken, classification) => {
+      recordedFailure = classification;
+      return "failed";
+    },
+  );
+  const prepareRun = vi.fn<OfficialImportStagingRepository["prepareRun"]>(
+    async () =>
+      recordedFailure === null
+        ? { status: "ready" }
+        : {
+            status: "failed",
+            failureClassification: recordedFailure,
+          },
   );
   const repository: OfficialImportStagingRepository = {
-    prepareRun: vi.fn<OfficialImportStagingRepository["prepareRun"]>(
-      async () => ({ status: "ready" }),
-    ),
+    prepareRun,
     commitCandidates,
     releaseRun,
     failRun,
@@ -406,5 +418,53 @@ describe("official import shadow execution", () => {
         harness.repository,
       ),
     ).rejects.toEqual(new OfficialImportAttemptRetryError("ownership_lost"));
+  });
+
+  it("returns the canonical failure recorded by the terminal owner", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    harness.failRun.mockResolvedValueOnce("failed");
+    harness.repository.prepareRun = vi
+      .fn<OfficialImportStagingRepository["prepareRun"]>()
+      .mockResolvedValueOnce({ status: "ready" })
+      .mockResolvedValueOnce({
+        status: "failed",
+        failureClassification: "source_parse",
+      });
+
+    const result = await executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      {
+        async acquire() {
+          return [
+            {
+              candidateKind: "event",
+              canonicalUrl: source.canonicalUrl,
+              observedAt: "2026-09-22T00:00:00.000Z",
+              contentHash: "a".repeat(64),
+              proposal: {
+                sourceKey: "kabuki:impossible-date",
+                title: "Impossible date",
+                startsOn: "2026-02-30",
+                endsOn: "2026-02-30",
+                occurrences: [],
+              },
+            },
+          ];
+        },
+      },
+      {
+        planEvent: vi.fn(),
+        planTicketOpportunity: vi.fn(),
+      },
+      harness.repository,
+    );
+
+    expect(result).toMatchObject({
+      status: "failed",
+      failureClassification: "source_parse",
+    });
   });
 });
