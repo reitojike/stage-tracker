@@ -703,6 +703,47 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_import_event_plan: {
+        Args: {
+          p_action: string
+          p_ends_on: string
+          p_event_id: string
+          p_genre_key: string
+          p_groups: Json
+          p_memo: string
+          p_occurrence_fixes: Json
+          p_occurrences: Json
+          p_owner_id: string
+          p_set_genre: boolean
+          p_set_groups: boolean
+          p_source_key: string
+          p_source_url: string
+          p_starts_on: string
+          p_title: string
+          p_venue: string
+        }
+        Returns: {
+          canceled_at: string | null
+          created_at: string
+          ends_on: string
+          genre_id: string | null
+          id: string
+          memo: string | null
+          owner_id: string
+          source_key: string | null
+          source_url: string | null
+          starts_on: string
+          title: string
+          updated_at: string
+          venue: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       claim_official_import_candidate_apply: {
         Args: {
           p_attempt_token: string
