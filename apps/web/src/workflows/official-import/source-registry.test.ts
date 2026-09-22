@@ -11,6 +11,7 @@ describe("official source registry", () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     expect(source.domainKind).toBe("event");
     expect(source.adapter).toBe("http_html");
+    expect(source.extractor).toBe("kabuki_bito");
     expect(source.canonicalUrl).toBe("https://www.kabuki-bito.jp/schedule/");
   });
 

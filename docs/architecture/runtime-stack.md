@@ -234,6 +234,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
 | `NEXT_PUBLIC_SUPABASE_URL`                                                    | Vercel Production / Preview Environment Variables                                         | ブラウザ/サーバー双方で読まれる公開値（[apps/web/src/env.ts](../../apps/web/src/env.ts)）                                                                                                     |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                               | Vercel Production / Preview Environment Variables                                         | 同上。anon key であり service role key ではない                                                                                                                                               |
 | `STAGE_TRACKER_INGESTION_SUPABASE_SECRET_KEY`                                 | Vercel **Production only** Sensitive Environment Variable                                 | official ingestion Workflow 専用の dedicated `sb_secret_...`。staging run/candidate write のみに使い、通常の Route / Server Action / Server Component からは import boundary で到達不能にする |
+| `JEV_API_KEY`                                                                 | Vercel **Production only** Sensitive Environment Variable                                 | official ingestion の ambiguous Event alignment 専用。optionalであり、未設定・provider failure・low confidenceは identity review blockへfail-closedする                                       |
 | Supabase Auth SMTP 資格情報（Resend）                                         | Supabase Dashboard → Authentication → SMTP Settings                                       | アプリコードにもVercelにも存在しない。Dashboard にのみ入力                                                                                                                                    |
 | `STAGE_TRACKER_REMOTE_SUPABASE_URL` / `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` | オペレーターの shell（コマンド実行時のみ export）                                         | `scripts/provision-user.mjs` / `scripts/grant-catalog-creator.mjs` からの remote 操作専用。恒久的な保存場所を持たない                                                                         |
 | `SUPABASE_DB_URL`                                                             | GitHub `production` environment の Environment secret（Deployment branches: `main` のみ） | `.github/workflows/apply-migrations.yml` 専用。Postgres 接続文字列で `--db-url` の到達範囲はその 1 データベースに限られる。Personal Access Token や service-role key ではない                 |
@@ -247,12 +248,16 @@ marker ではなく、依然として reviewer の運用規律が担う。
   consumer です。ESLint architecture rule は通常の app surface から当該 module
   への static / dynamic import を拒否します。CI/build/Preview はこの secret が
   無い状態で成立し、実行時だけ fail-closed します。
+- `JEV_API_KEY` も browser bundle と通常 app surface から隔離します。Jevへ渡すのは
+  title、date/time、venue、known group、bounded candidate ID のcompact factsだけで、
+  raw source bodyやcredentialは渡しません。Jevはsource key、日時、permission、applyを
+  決めるauthorityではありません。
 - operator shell 用の `STAGE_TRACKER_REMOTE_SERVICE_ROLE_KEY` は従来どおり
   Vercel に設定しません。Workflow 専用 key と operator script 用 key を共有しません。
 - Resend の API キー / SMTP 資格情報は Supabase Dashboard の Auth → SMTP
   設定にのみ存在し、このリポジトリにもVercelにも存在しません。
 
-## Official import Workflow boundary（Issue #629）
+## Official import Workflow boundary（Issues #629, #630）
 
 - Vercel / Next.js の current stable path として `workflow@4.8.9` を固定し、
   `withWorkflow` と `"use workflow"` / `"use step"` を使用します。Cron は P8、
@@ -283,11 +288,16 @@ marker ではなく、依然として reviewer の運用規律が担う。
   Workflow retry に渡します。parse、validation、unexpected failure は現在の所有者だけが
   terminal failure として記録します。failure 記録時に所有権を失っていた場合は terminal
   state を上書きせず、現在の attempt または次の retry が確定済み state を読み直します。
-- P3 時点では source-specific production adapter は未実装です。registry と manual
-  trigger は foundation として存在しますが、adapter 未提供の run は
-  `provider_unavailable` として retry され、catalog mutation は行いません。
-  candidate operational path は synthetic in-process adapter の unit test で固定し、
-  P4/P5 が同じ interface に canary adapter を追加します。
+- P4 の Event canary は宝塚公式、歌舞伎美人、SKIYAKI calendar（CYNHN）を
+  source-family extractorとして実装します。取得方式とextractor familyはregistryで
+  分離し、MEME TOKYO / ARCANA PROJECTは同じSKIYAKI extractorを再利用できます。
+  exact official `source_key`、documented deterministic cross-source evidence、bounded
+  candidate retrievalの順で解決し、なお曖昧な場合だけoptional Jevを呼びます。
+  manual `source_key = null` のpossible duplicate、Jev unavailable / low confidenceは
+  `blocked_for_identity_review`となり、secondary source identityのattachやauto-mergeは
+  行いません。P4もstaging candidate生成だけで、catalog apply / Cron / review UIは
+  それぞれP7 / P8 / P6の責務です。P5のTicket adapter未提供runは従来どおり
+  `provider_unavailable`としてretryされます。
 
 ## Vercel Preview Auth runtime contract（Issue #268）
 
