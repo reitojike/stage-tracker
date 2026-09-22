@@ -12,6 +12,7 @@ import {
   projectTypeScriptSafetyProfile,
   projectTypeScriptTypeAssertionRestrictions,
 } from "../../eslint.quality.config.mjs";
+import { officialIngestionBoundaryPlugin } from "./eslint/official-ingestion-boundary.mjs";
 
 const eslintConfig = defineConfig([
   {
@@ -30,6 +31,14 @@ const eslintConfig = defineConfig([
   next.configs["core-web-vitals"],
   ...tseslint.configs.recommended,
   ...projectTypeScriptSafetyProfile(),
+  {
+    name: "stage-tracker:official-ingestion-boundary",
+    files: ["src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+    plugins: { "official-ingestion-boundary": officialIngestionBoundaryPlugin },
+    rules: {
+      "official-ingestion-boundary/no-privileged-import": "error",
+    },
+  },
   {
     name: "stage-tracker:storybook-type-aware-config",
     files: [".storybook/**/*.{ts,tsx}"],
@@ -135,6 +144,7 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "storybook-static/**",
+    "src/app/.well-known/workflow/**",
   ]),
 ]);
 

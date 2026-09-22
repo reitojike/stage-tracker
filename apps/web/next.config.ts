@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withWorkflow } from "workflow/next";
 
 const nextConfig: NextConfig = {
   // Spec Kit owns the repository's agent surface under .agents/ and .claude/.
@@ -9,4 +10,4 @@ const nextConfig: NextConfig = {
   agentRules: false,
 };
 
-export default nextConfig;
+export default withWorkflow(nextConfig);

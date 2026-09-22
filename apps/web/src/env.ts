@@ -4,17 +4,19 @@ import { z } from "zod";
 /**
  * 型付き環境変数スキーマ。
  *
- * 現時点で必要なのは Supabase 接続情報のみ。environment/client separation は
- * `docs/architecture/authentication.md` が所有し、app runtime（このアプリ）が
- * 使う Supabase client は anon key のみで、service role key を必要と
- * する操作（operator import 等）は app runtime の外（CI/operator
- * script/Trigger.dev job）に閉じる設計を v2 でも維持する。したがって
- * service role key はこのスキーマへ含めない。将来 app runtime 側で
- * 本当に必要になった時点で、`server` 側にのみ追加すること
- * （NEXT_PUBLIC_ prefix を絶対に付けないこと）。
+ * 通常の browser / Route Handler / Server Action / Server Component は anon
+ * key + Auth/RLS の境界を維持する。official ingestion Workflow だけが
+ * Production-only の dedicated Supabase secret key を使い、その client は
+ * `src/workflows/official-import/privileged` に隔離する。secret は build/CI では
+ * 不要なので optional とし、Workflow 実行時に専用 factory が fail-closed する。
  */
 export const env = createEnv({
-  server: {},
+  server: {
+    STAGE_TRACKER_INGESTION_SUPABASE_SECRET_KEY: z
+      .string()
+      .startsWith("sb_secret_")
+      .optional(),
+  },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
     NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),

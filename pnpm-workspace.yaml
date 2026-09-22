@@ -3,6 +3,7 @@ packages:
   - 'packages/*'
 allowBuilds:
   '@swc/core': true
+  cbor-extract: false
   esbuild: false
   msw: false
   unrs-resolver: false
