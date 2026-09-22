@@ -13,6 +13,7 @@ import {
 import type { ReadState } from "@/lib/data/read-result";
 import type {
   EventReviewProposal,
+  EventReviewOccurrence,
   OfficialImportReviewCandidate,
   TicketOpportunityReviewProposal,
 } from "../_lib/review-types";
@@ -57,6 +58,38 @@ function formatObservedAt(value: string): string {
   }).format(new Date(value));
 }
 
+function formatOccurrenceTime(value: string | null): string {
+  if (value === null) return "未設定";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function OccurrenceValues({
+  occurrences,
+  emptyLabel,
+}: {
+  occurrences: readonly EventReviewOccurrence[];
+  emptyLabel: string;
+}) {
+  if (occurrences.length === 0) {
+    return <p className="text-body-sm text-muted-foreground">{emptyLabel}</p>;
+  }
+  return (
+    <ol className="flex list-decimal flex-col gap-2xs pl-lg text-body-sm">
+      {occurrences.map((occurrence, index) => (
+        <li key={occurrence.id ?? `${occurrence.startsAt}-${index}`}>
+          開演 {formatOccurrenceTime(occurrence.startsAt)} / 開場{" "}
+          {formatOccurrenceTime(occurrence.doorsAt)} / 終演{" "}
+          {formatOccurrenceTime(occurrence.endsAt)}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function EvidenceSummary({
   candidate,
 }: {
@@ -75,25 +108,31 @@ function EvidenceSummary({
 
 function EventProposal({ proposal }: { proposal: EventReviewProposal }) {
   return (
-    <dl className="grid gap-2xs text-body-sm sm:grid-cols-[8rem_1fr]">
-      <dt className="text-muted-foreground">source key</dt>
-      <dd className="break-all">{proposal.sourceKey}</dd>
-      <dt className="text-muted-foreground">会場</dt>
-      <dd>{proposal.venue ?? "未設定"}</dd>
-      <dt className="text-muted-foreground">公演期間</dt>
-      <dd>
-        {proposal.startsOn}〜{proposal.endsOn}
-      </dd>
-      <dt className="text-muted-foreground">公演回</dt>
-      <dd>{proposal.occurrences.length}件</dd>
-      <dt className="text-muted-foreground">ジャンル</dt>
-      <dd>{proposal.genre ?? "未設定"}</dd>
-      <dt className="text-muted-foreground">グループ</dt>
-      <dd>
-        {proposal.groups.map((group) => group.displayName).join("、") ||
-          "未設定"}
-      </dd>
-    </dl>
+    <div className="flex flex-col gap-xs">
+      <dl className="grid gap-2xs text-body-sm sm:grid-cols-[8rem_1fr]">
+        <dt className="text-muted-foreground">source key</dt>
+        <dd className="break-all">{proposal.sourceKey}</dd>
+        <dt className="text-muted-foreground">会場</dt>
+        <dd>{proposal.venue ?? "未設定"}</dd>
+        <dt className="text-muted-foreground">公演期間</dt>
+        <dd>
+          {proposal.startsOn}〜{proposal.endsOn}
+        </dd>
+        <dt className="text-muted-foreground">公演回</dt>
+        <dd>{proposal.occurrences.length}件</dd>
+        <dt className="text-muted-foreground">ジャンル</dt>
+        <dd>{proposal.genre ?? "未設定"}</dd>
+        <dt className="text-muted-foreground">グループ</dt>
+        <dd>
+          {proposal.groups.map((group) => group.displayName).join("、") ||
+            "未設定"}
+        </dd>
+      </dl>
+      <OccurrenceValues
+        occurrences={proposal.occurrences}
+        emptyLabel="提案された公演回はありません。"
+      />
+    </div>
   );
 }
 
@@ -149,20 +188,26 @@ function CurrentTarget({
   return (
     <div className="flex flex-col gap-2xs text-body-sm">
       {candidate.currentEvent !== null ? (
-        <dl className="grid gap-2xs sm:grid-cols-[8rem_1fr]">
-          <dt className="text-muted-foreground">現在のEvent</dt>
-          <dd>{candidate.currentEvent.title}</dd>
-          <dt className="text-muted-foreground">source key</dt>
-          <dd className="break-all">
-            {candidate.currentEvent.sourceKey ?? "手動登録"}
-          </dd>
-          <dt className="text-muted-foreground">会場</dt>
-          <dd>{candidate.currentEvent.venue ?? "未設定"}</dd>
-          <dt className="text-muted-foreground">公演期間</dt>
-          <dd>
-            {candidate.currentEvent.startsOn}〜{candidate.currentEvent.endsOn}
-          </dd>
-        </dl>
+        <div className="flex flex-col gap-xs">
+          <dl className="grid gap-2xs sm:grid-cols-[8rem_1fr]">
+            <dt className="text-muted-foreground">現在のEvent</dt>
+            <dd>{candidate.currentEvent.title}</dd>
+            <dt className="text-muted-foreground">source key</dt>
+            <dd className="break-all">
+              {candidate.currentEvent.sourceKey ?? "手動登録"}
+            </dd>
+            <dt className="text-muted-foreground">会場</dt>
+            <dd>{candidate.currentEvent.venue ?? "未設定"}</dd>
+            <dt className="text-muted-foreground">公演期間</dt>
+            <dd>
+              {candidate.currentEvent.startsOn}〜{candidate.currentEvent.endsOn}
+            </dd>
+          </dl>
+          <OccurrenceValues
+            occurrences={candidate.currentEvent.occurrences}
+            emptyLabel="現在の公演回はありません。"
+          />
+        </div>
       ) : null}
       {candidate.currentTicketOpportunity !== null ? (
         <dl className="grid gap-2xs sm:grid-cols-[8rem_1fr]">

@@ -6,11 +6,13 @@ import { parseCanonicalProposal } from "@stage-tracker/official-import/durable-c
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import { mapRows } from "@/lib/data/row-mapping";
+import { readError } from "@/lib/data/read-error";
 import type { ReadResult } from "@/lib/data/read-result";
-import { runPagedSupabaseSelect } from "@/lib/data/paged-select";
+import { runKeysetSupabaseSelect } from "@/lib/data/paged-select";
 import type {
   CurrentEventReviewTarget,
   CurrentTicketOpportunityReviewTarget,
+  EventReviewOccurrence,
   EventReviewProposal,
   OfficialImportReviewCandidate,
   TicketOpportunityReviewProposal,
@@ -87,6 +89,16 @@ const currentEventSchema = z
   })
   .strict();
 
+const currentOccurrenceSchema = z
+  .object({
+    id: z.uuid(),
+    event_id: z.uuid(),
+    doors_at: nullableText,
+    starts_at: z.string().min(1),
+    ends_at: nullableText,
+  })
+  .strict();
+
 const currentTicketOpportunitySchema = z
   .object({
     id: z.uuid(),
@@ -151,7 +163,9 @@ const candidateRowSchema = z
     candidate_kind: z.enum(["event", "ticket_opportunity"]),
     source_id: z.string().min(1),
     canonical_url: z.url(),
-    observed_at: z.string().min(1),
+    observed_at: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)), "invalid timestamp"),
     official_external_id: nullableText,
     proposal_version: z.string().min(1),
     proposal: z.unknown(),
@@ -182,6 +196,7 @@ const candidateRowSchema = z
 
 function currentEvent(
   value: z.infer<typeof currentEventSchema> | null,
+  occurrences: readonly EventReviewOccurrence[] = [],
 ): CurrentEventReviewTarget | null {
   return value === null
     ? null
@@ -194,6 +209,7 @@ function currentEvent(
         sourceUrl: value.source_url,
         startsOn: value.starts_on,
         endsOn: value.ends_on,
+        occurrences,
       };
 }
 
@@ -376,8 +392,8 @@ function mapCandidateRow(
 export async function loadOfficialImportReviewQueue(
   client: SupabaseClient<Database>,
 ): Promise<ReadResult<readonly OfficialImportReviewCandidate[]>> {
-  const rows = await runPagedSupabaseSelect<unknown>((from, to) =>
-    client
+  const rows = await runKeysetSupabaseSelect((cursor, limit) => {
+    const query = client
       .from("official_import_candidates")
       .select(
         `*,
@@ -391,12 +407,95 @@ export async function loadOfficialImportReviewQueue(
         { count: "exact" },
       )
       .in("review_status", ["pending", "blocked_for_identity_review"])
-      .eq("official_import_runs.status", "completed")
-      .order("observed_at", { ascending: false })
+      .eq("official_import_runs.status", "completed");
+    const afterCursor = cursor === null ? query : query.gt("id", cursor);
+    return afterCursor
       .order("id", { ascending: true })
-      .range(from, to)
-      .overrideTypes<unknown[]>(),
-  );
+      .limit(limit)
+      .overrideTypes<z.infer<typeof candidateRowSchema>[]>();
+  });
   if (!rows.ok) return rows;
-  return mapRows(rows.value, mapCandidateRow);
+  const candidates = mapRows(rows.value, mapCandidateRow);
+  if (!candidates.ok) return candidates;
+
+  const eventIds = candidates.value.flatMap((candidate) =>
+    candidate.currentEvent === null ? [] : [candidate.currentEvent.id],
+  );
+  const occurrences = await loadCurrentEventOccurrences(client, eventIds);
+  if (!occurrences.ok) return occurrences;
+
+  return ok(
+    candidates.value
+      .map((candidate) =>
+        candidate.currentEvent === null
+          ? candidate
+          : {
+              ...candidate,
+              currentEvent: {
+                ...candidate.currentEvent,
+                occurrences:
+                  occurrences.value.get(candidate.currentEvent.id) ?? [],
+              },
+            },
+      )
+      .toSorted(
+        (left, right) =>
+          Date.parse(right.observedAt) - Date.parse(left.observedAt) ||
+          left.id.localeCompare(right.id),
+      ),
+  );
+}
+
+async function loadCurrentEventOccurrences(
+  client: SupabaseClient<Database>,
+  eventIds: readonly string[],
+): Promise<ReadResult<ReadonlyMap<string, readonly EventReviewOccurrence[]>>> {
+  const uniqueEventIds = [...new Set(eventIds)];
+  const grouped = new Map<string, EventReviewOccurrence[]>();
+
+  for (let index = 0; index < uniqueEventIds.length; index += 100) {
+    const eventIdChunk = uniqueEventIds.slice(index, index + 100);
+    const rows = await runKeysetSupabaseSelect((cursor, limit) => {
+      const query = client
+        .from("event_occurrences")
+        .select("id, event_id, doors_at, starts_at, ends_at", {
+          count: "exact",
+        })
+        .in("event_id", eventIdChunk);
+      const afterCursor = cursor === null ? query : query.gt("id", cursor);
+      return afterCursor
+        .order("id", { ascending: true })
+        .limit(limit)
+        .overrideTypes<z.infer<typeof currentOccurrenceSchema>[]>();
+    });
+    if (!rows.ok) return rows;
+
+    for (const raw of rows.value) {
+      const parsed = currentOccurrenceSchema.safeParse(raw);
+      if (!parsed.success) {
+        console.error(
+          "[official import review] invalid current occurrence row",
+          parsed.error.message,
+        );
+        return err(readError("failure"));
+      }
+      const existing = grouped.get(parsed.data.event_id) ?? [];
+      existing.push({
+        id: parsed.data.id,
+        doorsAt: parsed.data.doors_at,
+        startsAt: parsed.data.starts_at,
+        endsAt: parsed.data.ends_at,
+      });
+      grouped.set(parsed.data.event_id, existing);
+    }
+  }
+
+  for (const occurrenceList of grouped.values()) {
+    occurrenceList.sort(
+      (left, right) =>
+        Date.parse(left.startsAt) - Date.parse(right.startsAt) ||
+        (left.id ?? "").localeCompare(right.id ?? ""),
+    );
+  }
+  return ok(grouped);
 }

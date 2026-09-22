@@ -84,6 +84,7 @@ describe("OfficialImportReviewQueue", () => {
     expect(
       screen.getByText("現在の対象: なし（新規候補）"),
     ).toBeInTheDocument();
+    expect(screen.getByText(/開演.*10:00.*開場.*9:30/)).toBeInTheDocument();
   });
 
   it("uses the narrow review action and reports approval", async () => {
@@ -122,6 +123,14 @@ describe("OfficialImportReviewQueue", () => {
                 sourceUrl: null,
                 startsOn: "2026-09-30",
                 endsOn: "2026-10-01",
+                occurrences: [
+                  {
+                    id: "33333333-3333-4333-8333-333333333333",
+                    doorsAt: "2026-09-30T08:30:00+09:00",
+                    startsAt: "2026-09-30T09:00:00+09:00",
+                    endsAt: "2026-09-30T11:30:00+09:00",
+                  },
+                ],
               },
               plan: { action: "update", changes: ["基本情報を更新"] },
             },
@@ -135,6 +144,7 @@ describe("OfficialImportReviewQueue", () => {
     expect(screen.getByText("catalog:event-123")).toBeInTheDocument();
     expect(screen.getByText("現在の会場")).toBeInTheDocument();
     expect(screen.getByText("2026-09-30〜2026-10-01")).toBeInTheDocument();
+    expect(screen.getByText(/開演.*9:00.*終演.*11:30/)).toBeInTheDocument();
   });
 
   it("does not offer approval for an identity-blocked candidate", () => {

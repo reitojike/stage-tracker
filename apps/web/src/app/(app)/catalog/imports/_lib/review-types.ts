@@ -60,6 +60,14 @@ export interface CurrentEventReviewTarget {
   readonly sourceUrl: string | null;
   readonly startsOn: string;
   readonly endsOn: string;
+  readonly occurrences: readonly EventReviewOccurrence[];
+}
+
+export interface EventReviewOccurrence {
+  readonly id?: string;
+  readonly doorsAt: string | null;
+  readonly startsAt: string;
+  readonly endsAt: string | null;
 }
 
 export interface CurrentTicketOpportunityReviewTarget {

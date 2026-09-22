@@ -50,7 +50,13 @@ test("official import review: only a designated catalog creator can inspect revi
           sourceUrl: `https://example.test/events/${suffix}`,
           startsOn: "2026-10-01",
           endsOn: "2026-10-02",
-          occurrences: [],
+          occurrences: [
+            {
+              doorsAt: "2026-10-01T09:30:00+09:00",
+              startsAt: "2026-10-01T10:00:00+09:00",
+              endsAt: "2026-10-01T12:30:00+09:00",
+            },
+          ],
         },
         evidence_locator: {
           sectionLabel: "E2E公演情報",
@@ -63,7 +69,7 @@ test("official import review: only a designated catalog creator can inspect revi
           action: "create",
           detailsChanged: true,
           rangeChanged: true,
-          newOccurrenceCount: 0,
+          newOccurrenceCount: 1,
           endsAtFixCount: 0,
           doorsAtFixCount: 0,
           keptOccurrenceCount: 0,
@@ -104,6 +110,9 @@ test("official import review: only a designated catalog creator can inspect revi
     ).toBeVisible();
     await expect(
       candidateCard.getByRole("button", { name: "却下" }),
+    ).toBeVisible();
+    await expect(
+      candidateCard.getByText(/開演.*10:00.*終演.*12:30/),
     ).toBeVisible();
     await candidateCard.getByRole("button", { name: "承認" }).click();
     await expect(candidateCard.getByText("承認しました。")).toBeVisible();
