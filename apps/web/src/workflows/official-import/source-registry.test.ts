@@ -36,6 +36,22 @@ describe("official source registry", () => {
     expect(vpass).toMatchObject({ enabled: false, policyState: "hold" });
   });
 
+  it("keeps new SKIYAKI sources disabled pending source-specific rollout gates", () => {
+    for (const id of [
+      "event.meme-tokyo.calendar",
+      "event.arcana-project.calendar",
+    ]) {
+      expect(getOfficialSource(id)).toMatchObject({
+        enabled: false,
+        policyState: "planned",
+        extractor: "skiyaki_calendar",
+      });
+      expect(() => requireEnabledShadowSource(id)).toThrow(
+        OfficialSourceRegistryError,
+      );
+    }
+  });
+
   it("allowlists only the known Shochiku schedule pages", () => {
     const source = getOfficialSource("ticket.shochiku.schedule");
     if (source === null) throw new Error("test source is missing");
