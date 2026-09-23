@@ -115,6 +115,14 @@ export function parseKabukiHeadlinePeriod(
     morningOnly === null
       ? timetable.trim()
       : timetable.slice(0, morningOnly.index ?? timetable.length).trim();
+  const schoolNote = "※下記日程は学校団体様がいらっしゃいます";
+  const schoolNoteIndex = schedule.indexOf(schoolNote);
+  const schoolDates =
+    schoolNoteIndex < 0
+      ? null
+      : schedule.slice(schoolNoteIndex + schoolNote.length).trim();
+  if (schoolNoteIndex >= 0)
+    schedule = schedule.slice(0, schoolNoteIndex).trim();
   const doorNote = "※開場は開演の1時間前を予定";
   if (schedule.endsWith(doorNote))
     schedule = schedule.slice(0, -doorNote.length).trim();
@@ -122,6 +130,31 @@ export function parseKabukiHeadlinePeriod(
   const parts = parseBaseTimes(
     schedule.slice(0, markers[0]?.index ?? schedule.length),
   );
+  if (schoolDates !== null) {
+    const labels = [
+      ...schoolDates.matchAll(
+        /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)[:：]/gu,
+      ),
+    ];
+    if (
+      labels.length === 0 ||
+      schoolDates.slice(0, labels[0]?.index ?? 0).trim() !== "" ||
+      new Set(labels.map((label) => label[1])).size !== labels.length
+    )
+      throw new SourceParseFailure();
+    for (const [index, label] of labels.entries()) {
+      if (!parts.some((part) => part.name === label[1]))
+        throw new SourceParseFailure();
+      parseDays(
+        schoolDates.slice(
+          (label.index ?? 0) + label[0].length,
+          labels[index + 1]?.index ?? schoolDates.length,
+        ),
+        startsOn,
+        endsOn,
+      );
+    }
+  }
 
   let closed = new Set<string>();
   let hasClosure = false;

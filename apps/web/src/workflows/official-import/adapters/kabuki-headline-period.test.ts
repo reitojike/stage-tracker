@@ -70,6 +70,36 @@ describe("verified Kabuki headline period", () => {
     );
   });
 
+  it("keeps public performances on explicitly listed school-group days", () => {
+    const occurrences = parseKabukiHeadlinePeriod(
+      "2026-09-02",
+      "2026-09-26",
+      "昼の部 午前11時～ 夜の部 午後4時～〖休演〗9日（水）、18日（金）〖貸切〗※幕見席は営業 昼の部：25日（金） 夜の部：5日（土）、21日（祝・月） ※下記日程は学校団体様がいらっしゃいます 昼の部：2日（水）、4日（金）、16日（水）",
+    );
+    expect(occurrences).toHaveLength(43);
+    expect(occurrences.map((item) => item.startsAt)).toContain(
+      "2026-09-02T11:00:00+09:00",
+    );
+    expect(occurrences.map((item) => item.startsAt)).not.toContain(
+      "2026-09-25T11:00:00+09:00",
+    );
+  });
+
+  it.each([
+    "昼の部：2日（木）",
+    "昼の部：27日（日）",
+    "午前の部：2日（水）",
+    "昼の部：2日（水） 昼の部：4日（金）",
+  ])("rejects inconsistent school-group dates or parts: %s", (dates) => {
+    expect(() =>
+      parseKabukiHeadlinePeriod(
+        "2026-09-02",
+        "2026-09-04",
+        `昼の部 午前11時～ 夜の部 午後4時～ ※下記日程は学校団体様がいらっしゃいます ${dates}`,
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
   it.each([
     ["2026-12-21", "2026-12-21", "21日（祝・月）"],
     ["2028-01-03", "2028-01-03", "3日（祝・月）"],

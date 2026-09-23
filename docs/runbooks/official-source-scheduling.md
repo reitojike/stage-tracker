@@ -35,7 +35,9 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   inventing shows. On pages without a daily calendar, an explicit performance
   period and standard part time (or a single unlabeled time) are expanded only
   when every full rest day and part-specific private exception is completely
-  parsed. Unknown notes and date-specific changes fail closed. Pages with a
+  parsed. The exact school-group attendance note is validated as informational
+  and does not remove public occurrences. Unknown notes and date-specific
+  changes fail closed. Pages with a
   daily calendar remain held until a separate verified-table adapter lands; a
   headline is never used to guess times through such a table. This
   source has **not** passed its clean shadow canary or promotion gate. The
