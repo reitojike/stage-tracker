@@ -40,6 +40,11 @@ catalog creatorが行います。別のcreatorによる承認はreview RPCが拒
 candidateはpendingのまま残るためownerが確認できます。creator designationだけで
 他ownerのEventを更新する権限は得られません。
 
+Jevの意味照合（matched/unmatchedを含む）はreview用の参考情報であり、
+それだけでは候補を承認・反映できません。公式IDによる決定的な同一性確認が
+できるまで候補はblockedとして表示され、過去にpendingとして保存された候補も
+review RPCが承認を拒否します。
+
 reviewed applyはP1 coreで読んだEvent・Occurrence・分類のcurrent factsを
 service-role-only条件付きRPCへ渡します。RPCは対象行をlockして同じtransaction内で
 比較してからEvent/Occurrence/classificationを反映し、途中でcatalogが変わった場合は

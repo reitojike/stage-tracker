@@ -49,14 +49,9 @@ const candidate: OfficialImportReviewCandidate = {
   },
   evidence: { sectionLabel: "2026年10月", rowLabel: "テスト公演" },
   match: {
-    deterministicStatus: "ambiguous",
-    semanticStatus: "matched",
-    jev: {
-      provider: "jev",
-      model: "semantic-match-v1",
-      choice: "event-123",
-      confidence: 0.82,
-    },
+    deterministicStatus: "unmatched",
+    semanticStatus: "not_used",
+    jev: null,
   },
   blockedReason: null,
 };
@@ -71,7 +66,26 @@ describe("OfficialImportReviewQueue", () => {
   it("presents source, proposal, diff, evidence, match and Jev as supporting evidence", () => {
     render(
       <OfficialImportReviewQueue
-        state={{ variant: "populated", data: [candidate] }}
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              reviewStatus: "blocked_for_identity_review",
+              blockedReason: "Jevの照合結果だけでは承認できません。",
+              match: {
+                deterministicStatus: "unresolved",
+                semanticStatus: "matched",
+                jev: {
+                  provider: "jev",
+                  model: "semantic-match-v1",
+                  choice: "event-123",
+                  confidence: 0.82,
+                },
+              },
+            },
+          ],
+        }}
         reviewAction={mockReviewAction}
         applyAction={mockApplyAction}
       />,

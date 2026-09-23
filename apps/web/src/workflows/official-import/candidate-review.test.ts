@@ -6,6 +6,8 @@ describe("deriveOfficialImportCandidateReviewStatus", () => {
     ["ambiguous", "not_used"],
     ["matched", "ambiguous"],
     ["matched", "low_confidence"],
+    ["matched", "matched"],
+    ["unmatched", "unmatched"],
   ] as const)(
     "blocks deterministic=%s semantic=%s before publication",
     (deterministicMatchStatus, semanticMatchStatus) => {
