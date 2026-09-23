@@ -750,6 +750,7 @@ export type Database = {
           p_ends_on: string
           p_event_id: string
           p_expected_current: Json
+          p_expected_proposed_groups?: Json
           p_genre_key: string
           p_groups: Json
           p_memo: string
@@ -1314,4 +1315,3 @@ export const Constants = {
     },
   },
 } as const
-

@@ -5,7 +5,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(18);
 
 select is(has_function_privilege('authenticated',
           'public.apply_reviewed_import_event_plan'::regproc, 'EXECUTE'),
@@ -112,6 +112,54 @@ select lives_ok(
 );
 select is((select title from public.events where id = :'event_id'),
           'Reviewed title', 'reviewed Event import updates the planned row');
+
+insert into public.groups (key, display_name)
+values ('reviewed-race:existing-group', 'Original group');
+update public.groups set display_name = 'Concurrent group correction'
+where key = 'reviewed-race:existing-group';
+select throws_ok(
+  format($sql$
+    select public.apply_reviewed_import_event_plan(
+      p_action := 'create', p_owner_id := %L, p_event_id := null,
+      p_source_key := 'reviewed-race:stale-group-event', p_title := 'Group Event',
+      p_starts_on := '2026-10-10', p_ends_on := '2026-10-10',
+      p_occurrences := '[]', p_occurrence_fixes := '[]',
+      p_venue := null, p_source_url := null, p_memo := null,
+      p_set_genre := false, p_genre_key := null,
+      p_set_groups := true,
+      p_groups := '[{"key":"reviewed-race:existing-group","displayName":"Original group"}]',
+      p_expected_current := null,
+      p_expected_proposed_groups := '[{"key":"reviewed-race:existing-group","displayName":"Original group"}]'
+    )
+  $sql$, :'creator_id'),
+  '40001', null,
+  'a corrected canonical Group label rejects a stale Event create'
+);
+select is((select display_name from public.groups where key = 'reviewed-race:existing-group'),
+          'Concurrent group correction', 'stale reviewed create preserves canonical Group label');
+
+insert into public.groups (key, display_name)
+values ('reviewed-race:appeared-group', 'New canonical group');
+select throws_ok(
+  format($sql$
+    select public.apply_reviewed_import_event_plan(
+      p_action := 'create', p_owner_id := %L, p_event_id := null,
+      p_source_key := 'reviewed-race:appeared-group-event', p_title := 'Group Event',
+      p_starts_on := '2026-10-10', p_ends_on := '2026-10-10',
+      p_occurrences := '[]', p_occurrence_fixes := '[]',
+      p_venue := null, p_source_url := null, p_memo := null,
+      p_set_genre := false, p_genre_key := null,
+      p_set_groups := true,
+      p_groups := '[{"key":"reviewed-race:appeared-group","displayName":"Reviewed group"}]',
+      p_expected_current := null,
+      p_expected_proposed_groups := '[{"key":"reviewed-race:appeared-group","displayName":null}]'
+    )
+  $sql$, :'creator_id'),
+  '40001', null,
+  'a Group key created after review rejects a stale Event create'
+);
+select is((select display_name from public.groups where key = 'reviewed-race:appeared-group'),
+          'New canonical group', 'stale reviewed create preserves newly canonical Group');
 
 select id as occurrence_id from public.event_occurrences
 where event_id = :'event_id' limit 1 \gset

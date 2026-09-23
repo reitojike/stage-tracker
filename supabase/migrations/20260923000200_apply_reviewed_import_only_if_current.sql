@@ -21,13 +21,17 @@ create function public.apply_reviewed_import_event_plan(
   p_genre_key text,
   p_set_groups boolean,
   p_groups jsonb,
-  p_expected_current jsonb
+  p_expected_current jsonb,
+  p_expected_proposed_groups jsonb default null
 ) returns public.events
 language plpgsql
 set search_path = ''
 as $$
 declare
   v_event public.events;
+  v_group record;
+  v_expected_group record;
+  v_actual_group public.groups;
 begin
   if p_action is null or p_action not in ('create', 'update', 'unchanged') then
     raise exception 'unsupported reviewed Event action' using errcode = '22023';
@@ -115,6 +119,65 @@ begin
     end if;
   end if;
 
+  if p_set_groups then
+    if p_groups is null or jsonb_typeof(p_groups) <> 'array'
+      or p_expected_proposed_groups is null
+      or jsonb_typeof(p_expected_proposed_groups) <> 'array'
+      or exists (
+        select key from jsonb_to_recordset(p_groups) as proposed(key text, "displayName" text)
+        except
+        select key from jsonb_to_recordset(p_expected_proposed_groups)
+          as expected(key text, "displayName" text)
+      ) or exists (
+        select key from jsonb_to_recordset(p_expected_proposed_groups)
+          as expected(key text, "displayName" text)
+        except
+        select key from jsonb_to_recordset(p_groups) as proposed(key text, "displayName" text)
+      ) or (select count(*) from jsonb_to_recordset(p_expected_proposed_groups)
+             as expected(key text, "displayName" text))
+           <> (select count(distinct key) from jsonb_to_recordset(p_groups)
+                 as proposed(key text, "displayName" text)) then
+      raise exception 'reviewed proposed Group snapshot is required'
+        using errcode = '22023';
+    end if;
+
+    -- An Event may add a group that is already canonical for another Event.
+    -- Lock every proposed key, not only groups already linked to this Event.
+    -- For absent keys, reserve the unique key before applying classification:
+    -- ON CONFLICT DO NOTHING waits for a concurrent insert and then fails
+    -- closed instead of restoring a label that changed after review.
+    for v_group in
+      select key, "displayName" from jsonb_to_recordset(p_groups)
+        as proposed(key text, "displayName" text)
+      order by key
+    loop
+      select * into v_expected_group
+      from jsonb_to_recordset(p_expected_proposed_groups)
+        as expected(key text, "displayName" text)
+      where key = v_group.key;
+      select * into v_actual_group from public.groups
+        where key = v_group.key for update;
+      if v_expected_group."displayName" is null then
+        if v_actual_group.id is not null then
+          raise exception 'reviewed proposed Group changed before apply'
+            using errcode = '40001';
+        end if;
+        insert into public.groups (key, display_name)
+        values (v_group.key, v_group."displayName")
+        on conflict (key) do nothing
+        returning * into v_actual_group;
+        if v_actual_group.id is null then
+          raise exception 'reviewed proposed Group created concurrently'
+            using errcode = '40001';
+        end if;
+      elsif v_actual_group.id is null
+        or v_actual_group.display_name is distinct from v_expected_group."displayName" then
+        raise exception 'reviewed proposed Group changed before apply'
+          using errcode = '40001';
+      end if;
+    end loop;
+  end if;
+
   select * into v_event from public.apply_import_event_plan(
     p_action := p_action,
     p_owner_id := p_owner_id,
@@ -139,11 +202,11 @@ $$;
 
 revoke execute on function public.apply_reviewed_import_event_plan(
   text, uuid, uuid, text, text, date, date, jsonb, jsonb, text, text, text,
-  boolean, text, boolean, jsonb, jsonb
+  boolean, text, boolean, jsonb, jsonb, jsonb
 ) from public, anon, authenticated;
 grant execute on function public.apply_reviewed_import_event_plan(
   text, uuid, uuid, text, text, date, date, jsonb, jsonb, text, text, text,
-  boolean, text, boolean, jsonb, jsonb
+  boolean, text, boolean, jsonb, jsonb, jsonb
 ) to service_role;
 
 create function public.apply_reviewed_ticket_opportunity(
