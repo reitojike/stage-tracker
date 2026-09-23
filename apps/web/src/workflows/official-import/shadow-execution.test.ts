@@ -13,6 +13,7 @@ import {
   OfficialImportAttemptRetryError,
   type OfficialImportStagingRepository,
   type RunFailureClassification,
+  type RunPreparation,
 } from "./shadow-execution";
 import { requireEnabledShadowSource } from "./source-registry";
 
@@ -58,13 +59,125 @@ function repositoryHarness() {
   return {
     repository,
     eventCandidates,
+    prepareRun,
     commitCandidates,
     releaseRun,
     failRun,
   };
 }
 
+function deferredAcquisition() {
+  let finish: () => void = () => {
+    throw new Error("acquisition was not started");
+  };
+  let fail: (error: Error) => void = () => {
+    throw new Error("acquisition was not started");
+  };
+  const promise = new Promise<readonly AcquisitionDraft[]>(
+    (resolve, reject) => {
+      finish = () => resolve([]);
+      fail = reject;
+    },
+  );
+  return {
+    adapter: { acquire: () => promise },
+    finish: () => finish(),
+    fail: (error: Error) => fail(error),
+  };
+}
+
+const unusedPlanner: OfficialImportCandidatePlanner = {
+  async planEvent() {
+    throw new Error("not used");
+  },
+  async planTicketOpportunity() {
+    throw new Error("not used");
+  },
+};
+
 describe("official import shadow execution", () => {
+  it("refreshes the same attempt lease during slow acquisition", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    const deferred = deferredAcquisition();
+    const execution = executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      deferred.adapter,
+      unusedPlanner,
+      harness.repository,
+      10,
+    );
+    await vi.waitFor(() =>
+      expect(harness.prepareRun.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    deferred.finish();
+    await expect(execution).resolves.toMatchObject({ status: "completed" });
+  });
+
+  it("does not publish candidates after losing a lease renewal", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    harness.prepareRun
+      .mockResolvedValueOnce({ status: "ready" })
+      .mockResolvedValueOnce({ status: "busy" });
+    const deferred = deferredAcquisition();
+    const execution = executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      deferred.adapter,
+      unusedPlanner,
+      harness.repository,
+      10,
+    );
+    await vi.waitFor(() =>
+      expect(harness.prepareRun.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    deferred.finish();
+    await expect(execution).rejects.toMatchObject({
+      reason: "ownership_lost",
+    });
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
+  });
+
+  it("drains an in-flight renewal before releasing a transient failure", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    let finishRenewal: (result: RunPreparation) => void = () => {
+      throw new Error("renewal was not started");
+    };
+    const renewal = new Promise<RunPreparation>((resolve) => {
+      finishRenewal = resolve;
+    });
+    harness.prepareRun
+      .mockResolvedValueOnce({ status: "ready" })
+      .mockReturnValueOnce(renewal);
+    const deferred = deferredAcquisition();
+    const execution = executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      deferred.adapter,
+      unusedPlanner,
+      harness.repository,
+      10,
+    );
+    await vi.waitFor(() =>
+      expect(harness.prepareRun.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    deferred.fail(new SourceFetchFailure());
+    await Promise.resolve();
+    expect(harness.releaseRun).not.toHaveBeenCalled();
+    finishRenewal({ status: "ready" });
+    await expect(execution).rejects.toMatchObject({ reason: "source_fetch" });
+    expect(harness.releaseRun).toHaveBeenCalledOnce();
+    const callsAfterRelease = harness.prepareRun.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(harness.prepareRun).toHaveBeenCalledTimes(callsAfterRelease);
+  });
+
   it("keeps synthetic raw acquisition data out of durable output and commit payload", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const adapter: OfficialSourceAdapter = {
