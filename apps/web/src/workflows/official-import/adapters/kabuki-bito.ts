@@ -215,7 +215,9 @@ export function parseKabukiDetailedOccurrences(
       seen.add(startsAt);
       return { startsAt, endsAt: null };
     });
-    if (enumerateDates(startsOn, endsOn).some((date) => !coveredDates.has(date)))
+    if (
+      enumerateDates(startsOn, endsOn).some((date) => !coveredDates.has(date))
+    )
       throw new SourceParseFailure();
     return occurrences;
   }
