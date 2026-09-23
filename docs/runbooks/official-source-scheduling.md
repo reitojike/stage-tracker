@@ -32,9 +32,15 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   The 2026-09-24 read-only canary found teaser duplicates, month-only future
   listings, and varying detail schedules. Explicit per-date headline times
   can be parsed only when every date in the listed range is covered, without
-  inventing shows. Daily tables are not yet mapped to
-  verified showtime columns; multi-day pages with only a generic headline
-  time also fail closed. This
+  inventing shows. A uniquely identified mobile performance calendar can also
+  be parsed when its part headers, every date row, weekday, and showtime cells
+  validate. When a page has no daily table, its explicitly stated standard
+  part time (or one unlabeled time) may be applied across the stated range,
+  excluding explicit full rest days and part-specific private shows. This
+  applies to Kabukiza and other theaters; unknown exception wording still
+  fails closed. When Kabukiza also has a daily A/B program calendar, the two
+  independently derived schedules must agree exactly. Missing showtimes and
+  unverified table formats or free-form schedule notes fail closed. This
   source has **not** passed its clean shadow canary or promotion gate. The
   operator chose to keep scheduling disabled until day-level times are
   accurate across the intended scan, rather than stage Event-only drafts for
