@@ -85,10 +85,7 @@ function draftFor(
 ): EventAcquisitionDraft | null {
   if (event.hide_from_listings) return null;
   const canonicalUrl = assertAllowedSourceUrl(source, event.url);
-  const pathId = new URL(canonicalUrl).pathname.match(
-    /^\/event\/(\d+)\/$/u,
-  )?.[1];
-  if (pathId === undefined || Number(pathId) !== event.id)
+  if (!/^\/event\/[^/]+\/?$/u.test(new URL(canonicalUrl).pathname))
     throw new SourceParseFailure();
   const start = localDateTime(event.start_date);
   const end = localDateTime(event.end_date);

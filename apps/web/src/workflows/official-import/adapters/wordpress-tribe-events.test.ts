@@ -125,6 +125,27 @@ describe("WordPress Tribe Events family adapter", () => {
     expect(first[1]?.contentHash).not.toBe(second[1]?.contentHash);
   });
 
+  it("uses the API ID even when the public event permalink is a slug", async () => {
+    const adapter = createWordpressTribeEventsAdapter(async (_source, url) =>
+      document(url, {
+        events: [
+          {
+            ...event(kyurushite.allowedOrigin, 101),
+            url: `${kyurushite.allowedOrigin}/event/physical-live/`,
+          },
+        ],
+        total: 1,
+        total_pages: 1,
+      }),
+    );
+    const [draft] = await adapter.acquire(kyurushite);
+    expect(draft?.officialExternalId).toBe("101");
+    expect(draft?.proposal.sourceKey).toBe("tribe:www.kyurushite.com:101");
+    expect(draft?.canonicalUrl).toBe(
+      `${kyurushite.allowedOrigin}/event/physical-live/`,
+    );
+  });
+
   it("fails closed on a duplicate event ID across pages", async () => {
     let page = 0;
     const adapter = createWordpressTribeEventsAdapter(async (_source, url) => {
@@ -149,8 +170,8 @@ describe("WordPress Tribe Events family adapter", () => {
     },
     { name: "unknown timezone", changed: { timezone: "UTC" } },
     {
-      name: "mismatched permalink ID",
-      changed: { url: `${kyurushite.allowedOrigin}/event/202/` },
+      name: "unrelated permalink path",
+      changed: { url: `${kyurushite.allowedOrigin}/schedule/202/` },
     },
     { name: "invalid date", changed: { start_date: "2026-02-30 00:00:00" } },
     { name: "unpublished event", changed: { status: "draft" } },
