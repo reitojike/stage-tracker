@@ -231,6 +231,8 @@ begin
   if p_action is null or p_action not in ('create', 'update', 'unchanged')
     or p_expected_current is null
     or jsonb_typeof(p_expected_current -> 'event') <> 'object'
+    or not (p_expected_current -> 'event' ?&
+      array['id', 'source_key', 'title', 'venue', 'starts_on', 'ends_on', 'canceled_at'])
     or jsonb_typeof(p_expected_current -> 'targets') <> 'array'
     or jsonb_typeof(p_expected_current -> 'milestones') <> 'array'
     or jsonb_typeof(p_expected_current -> 'targetOccurrences') <> 'array' then
@@ -242,7 +244,11 @@ begin
   if v_event.id is null
     or v_event.id is distinct from (p_expected_current #>> '{event,id}')::uuid
     or v_event.source_key is distinct from p_expected_current #>> '{event,source_key}'
-    or v_event.title is distinct from p_expected_current #>> '{event,title}' then
+    or v_event.title is distinct from p_expected_current #>> '{event,title}'
+    or v_event.venue is distinct from p_expected_current #>> '{event,venue}'
+    or v_event.starts_on is distinct from (p_expected_current #>> '{event,starts_on}')::date
+    or v_event.ends_on is distinct from (p_expected_current #>> '{event,ends_on}')::date
+    or v_event.canceled_at is distinct from (p_expected_current #>> '{event,canceled_at}')::timestamptz then
     raise exception 'reviewed target Event changed before apply'
       using errcode = '40001';
   end if;
