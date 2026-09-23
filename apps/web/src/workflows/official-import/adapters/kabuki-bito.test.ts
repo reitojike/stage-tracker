@@ -4,6 +4,7 @@ import { getOfficialSource } from "../source-registry";
 import {
   createKabukiBitoAdapter,
   expandKabukiSchedule,
+  parseKabukiDetailedOccurrences,
   parseKabukiIndex,
 } from "./kabuki-bito";
 import type { OfficialHtmlDocument } from "./http";
@@ -20,7 +21,7 @@ describe("Kabuki-bito adapter facts", () => {
       ],
       [
         "https://www.kabuki-bito.jp/theaters/kabukiza/play/978",
-        `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
+        `<p class="text type-timetable">1日（木） 午前11時～ 2日（金） 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
       ],
     ]);
     const adapter = createKabukiBitoAdapter(async (_source, url) => {
@@ -54,7 +55,7 @@ describe("Kabuki-bito adapter facts", () => {
       active -= 1;
       return document(
         url,
-        `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
+        `<p class="text type-timetable">1日（木） 午前11時～ 2日（金） 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
       );
     }, pause);
 
@@ -191,10 +192,94 @@ describe("Kabuki-bito adapter facts", () => {
     ).toBe(false);
   });
 
+  it("deduplicates teaser links and stages only exact-dated full rows", () => {
+    const facts = parseKabukiIndex(
+      source,
+      `
+      <div class="item"><a href="/theaters/kabukiza/play/978">teaser</a></div>
+      <li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演A</h3></a><p class="term">2026年9月25日（金）</p></li>
+      <li class="item"><a href="/theaters/kabukiza/play/979"><h3 class="ttl">公演B</h3></a><p class="term">2027年4月</p></li>`,
+    );
+    expect(facts).toMatchObject([
+      {
+        officialId: "978",
+        startsOn: "2026-09-25",
+        endsOn: "2026-09-25",
+      },
+    ]);
+  });
+
+  it("fails closed for a teaser without a full row or a malformed full date", () => {
+    expect(() =>
+      parseKabukiIndex(
+        source,
+        `<div class="item"><a href="/theaters/kabukiza/play/978">teaser</a></div>`,
+      ),
+    ).toThrow(SourceParseFailure);
+    expect(() =>
+      parseKabukiIndex(
+        source,
+        `<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演A</h3></a><p class="term">2026年9月頃</p></li>`,
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("counts month-only full rows against the index scan cap", () => {
+    const index = Array.from(
+      { length: 31 },
+      (_, id) =>
+        `<li class="item"><a href="/theaters/kabukiza/play/${id + 1}"><h3 class="ttl">公演${id + 1}</h3></a><p class="term">2027年4月</p></li>`,
+    ).join("");
+    expect(() => parseKabukiIndex(source, index)).toThrow(SourceParseFailure);
+  });
+
   it("rejects a timetable without deterministic part times", () => {
     expect(() =>
       expandKabukiSchedule("2026-10-01", "2026-10-02", "時間未定"),
     ).toThrow();
+  });
+
+  it("maps explicit per-date headline times without expanding them across the range", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      "2026-09-25",
+      "2026-09-27",
+      "25日（金） 午後6時～ 26日（土） 午後2時～ 27日（日） 午後2時～",
+    );
+    expect(occurrences.map((item) => item.startsAt)).toEqual([
+      "2026-09-25T18:00:00+09:00",
+      "2026-09-26T14:00:00+09:00",
+      "2026-09-27T14:00:00+09:00",
+    ]);
+  });
+
+  it("rejects a multi-day headline without day-level evidence", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "2026-10-01",
+        "2026-10-25",
+        "第一部 午前11時 第二部 午後4時",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("rejects explicit times that omit a day in the listed range", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "2026-09-25",
+        "2026-09-27",
+        "25日（金） 午後6時～ 27日（日） 午後2時～",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("does not stage an Event-only draft when a single day has no public showtime", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "2026-10-01",
+        "2026-10-01",
+        "昼の部 午前11時～ 【貸切】1日",
+      ),
+    ).toThrow(SourceParseFailure);
   });
 });
 
