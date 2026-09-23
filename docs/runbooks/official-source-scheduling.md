@@ -19,16 +19,19 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   unchanged candidates from completed runs. An active Workflow step refreshes
   its own lease while acquiring and planning. It stops and drains the renewal
   before candidate commit, failure, or release, so a delayed renewal cannot
-  reclaim a released attempt.
+  reclaim a released attempt. A failed renewal stops further heartbeats and
+  conditionally releases a still-owned lease before retrying.
 - Initial rollout preference (2026-09-23): Kabuki Event first, weekly. Its
   adapter bounds a scan to 30 play pages, fetching at most two at a time with a
   pause between batches. An index over the cap fails closed rather than being
   silently truncated.
-  Takarazuka Event also has a weekly cadence preference but remains unscheduled:
-  its [official site policy](https://kageki.hankyu.co.jp/rules.html) restricts
-  unauthorized reuse on other websites.
-  Independently sourced factual data may be assessed separately; restricted
-  registration alone is not treated as a private-use permission.
+  Takarazuka Event also has a weekly cadence preference but remains unscheduled.
+  [Issue #677](https://github.com/reitojike/stage-tracker/issues/677#issuecomment-5796382733)
+  judged a later bounded private-household, facts-only rollout reasonable, not
+  automatically permitted. Before promotion, re-check its
+  [official site policy](https://kageki.hankyu.co.jp/rules.html), record the
+  operator's acceptance of remaining site-policy uncertainty, enforce a hard
+  source-specific request ceiling, and complete its own clean shadow canary.
 
 ## Per-source promotion gate
 
@@ -59,9 +62,12 @@ relevance by itself.
 
 ## Enable and observe
 
-1. Register `CRON_SECRET` as a Production environment variable in the Vercel
-   project. It is separate from the ingestion Supabase secret key. Verify only
-   the variable name/presence, not its value.
+1. Complete the exact-path Cron machine-auth/proxy correction tracked by
+   [#682](https://github.com/reitojike/stage-tracker/issues/682) and verify
+   that sessionless Cron requests reach the route while other protected routes
+   remain default-deny. Register `CRON_SECRET` as a Production environment
+   variable in the Vercel project. It is separate from the ingestion Supabase
+   secret key. Verify only the variable name/presence, not its value.
 2. In a source-specific PR, set only the cleared source's `scheduledEnabled` to
    `true`. For the first source, add a daily UTC Cron registration for
    `/api/official-import/cron` to `apps/web/vercel.json`; later sources use the
