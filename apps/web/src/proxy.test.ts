@@ -60,7 +60,9 @@ describe("proxy and official-import Cron request boundary", () => {
   });
 
   it("delivers the correct bearer to the inert Cron execution path", async () => {
-    const response = await cronThroughProxy(`Bearer ${mocks.secret.CRON_SECRET}`);
+    const response = await cronThroughProxy(
+      `Bearer ${mocks.secret.CRON_SECRET}`,
+    );
 
     expect(response.status).toBe(204);
     expect(response.headers.get("cache-control")).toBe("no-store");
