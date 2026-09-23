@@ -18,7 +18,9 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   identity; the database permits one live attempt lease per source and suppresses
   unchanged candidates from completed runs.
 - Initial rollout preference (2026-09-23): Kabuki Event first, weekly. Its
-  adapter bounds detail fetches to two at a time with a pause between batches.
+  adapter bounds a scan to 30 play pages, fetching at most two at a time with a
+  pause between batches. An index over the cap fails closed rather than being
+  silently truncated.
   Takarazuka Event also has a weekly cadence preference but remains unscheduled:
   its [official site policy](https://kageki.hankyu.co.jp/rules.html) restricts
   unauthorized reuse on other websites.

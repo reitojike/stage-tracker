@@ -62,6 +62,23 @@ describe("Kabuki-bito adapter facts", () => {
     expect(pause).toHaveBeenCalledTimes(2);
   });
 
+  it("fails closed before detail fetches if the index exceeds the scan cap", async () => {
+    const index = Array.from(
+      { length: 31 },
+      (_, id) =>
+        `<li class="item"><a href="/theaters/kabukiza/play/${id + 1}"><h3 class="ttl">公演${id + 1}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+    ).join("");
+    const fetcher = vi.fn(async (_source, url: string) => {
+      if (url !== source.canonicalUrl)
+        throw new Error("unexpected detail fetch");
+      return document(url, index);
+    });
+    const adapter = createKabukiBitoAdapter(fetcher);
+
+    await expect(adapter.acquire(source)).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it("uses the official play id and expands fixed part times while excluding closed/private days", () => {
     const [fact] = parseKabukiIndex(
       source,

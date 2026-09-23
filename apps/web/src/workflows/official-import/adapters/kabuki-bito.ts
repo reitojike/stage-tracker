@@ -27,6 +27,8 @@ import {
   tokyoDateTime,
 } from "./japanese-date";
 
+const MAX_PLAYS_PER_SCAN = 30;
+
 export interface KabukiIndexFact {
   readonly officialId: string;
   readonly theater: string;
@@ -149,6 +151,7 @@ export function createKabukiBitoAdapter(
     async acquire(source): Promise<readonly EventAcquisitionDraft[]> {
       const index = await fetcher(source, source.canonicalUrl);
       const facts = parseKabukiIndex(source, index.body);
+      if (facts.length > MAX_PLAYS_PER_SCAN) throw new SourceParseFailure();
       const drafts: EventAcquisitionDraft[] = [];
       // A current index can contain dozens of plays. Avoid a simultaneous
       // burst against the official site even when the Cron itself is weekly.
