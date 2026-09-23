@@ -6,7 +6,9 @@
 -- still create a new review candidate. Existing historical rows are left
 -- intact, so this migration is safe even if prior scans already duplicated.
 --
--- Migration ordering: additive (replaces one service-role-only RPC body).
+-- Migration ordering: additive. The service-role-only RPC keeps its signature
+-- and return type; an inserted count of zero was already valid for an empty
+-- source batch and is handled by the deployed Workflow reader.
 
 create or replace function public.commit_official_import_candidate_batch(
   p_run_id uuid,
