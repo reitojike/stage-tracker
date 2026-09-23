@@ -22,6 +22,8 @@ export interface OfficialSourceDefinition {
   readonly extractor: SourceExtractorFamily;
   readonly domainKind: OfficialImportDomainKind;
   readonly enabled: boolean;
+  /** Separate operator policy/cadence gate for Production Cron. */
+  readonly scheduledEnabled: boolean;
   readonly shadow: true;
   readonly policyState: SourcePolicyState;
   readonly fetchCadenceHint: FetchCadenceHint;
@@ -37,6 +39,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "kabuki_bito",
     domainKind: "event",
     enabled: true,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "daily",
@@ -50,6 +53,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "takarazuka_revue",
     domainKind: "event",
     enabled: true,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "daily",
@@ -63,6 +67,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "skiyaki_calendar",
     domainKind: "event",
     enabled: true,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "daily",
@@ -76,6 +81,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "skiyaki_calendar",
     domainKind: "event",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "planned",
     fetchCadenceHint: "daily",
@@ -94,6 +100,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "wordpress_tribe_events",
     domainKind: "event",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "planned",
     fetchCadenceHint: "daily",
@@ -112,6 +119,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "wordpress_tribe_events",
     domainKind: "event",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "planned",
     fetchCadenceHint: "daily",
@@ -125,6 +133,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "future_event",
     domainKind: "event",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "planned",
     fetchCadenceHint: "daily",
@@ -138,6 +147,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "skiyaki_calendar",
     domainKind: "event",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "planned",
     fetchCadenceHint: "daily",
@@ -151,6 +161,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "future_event",
     domainKind: "event",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "planned",
     fetchCadenceHint: "daily",
@@ -168,6 +179,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "shochiku_ticket",
     domainKind: "ticket_opportunity",
     enabled: true,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "daily",
@@ -181,6 +193,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "takarazuka_friends_pdf",
     domainKind: "ticket_opportunity",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "planned",
     fetchCadenceHint: "daily",
@@ -194,6 +207,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "ticket_foundation",
     domainKind: "ticket_opportunity",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "hold",
     fetchCadenceHint: "weekly",
@@ -207,6 +221,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "ticket_foundation",
     domainKind: "ticket_opportunity",
     enabled: false,
+    scheduledEnabled: false,
     shadow: true,
     policyState: "hold",
     fetchCadenceHint: "weekly",
@@ -224,6 +239,21 @@ export class OfficialSourceRegistryError extends Error {
 
 export function listOfficialSources(): readonly OfficialSourceDefinition[] {
   return SOURCES;
+}
+
+export function isScheduledShadowSource(
+  source: OfficialSourceDefinition,
+): boolean {
+  return (
+    source.scheduledEnabled &&
+    source.enabled &&
+    source.shadow &&
+    source.policyState === "approved"
+  );
+}
+
+export function listScheduledShadowSources(): readonly OfficialSourceDefinition[] {
+  return SOURCES.filter(isScheduledShadowSource);
 }
 
 export function getOfficialSource(

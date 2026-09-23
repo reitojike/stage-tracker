@@ -1,7 +1,10 @@
 import { runOfficialImportShadowSource } from "./steps/run-shadow-source";
 
-export async function officialImportShadowWorkflow(sourceId: string) {
+export async function officialImportShadowWorkflow(
+  sourceId: string,
+  tokyoScheduleDate?: string,
+) {
   "use workflow";
 
-  return runOfficialImportShadowSource(sourceId);
+  return runOfficialImportShadowSource(sourceId, tokyoScheduleDate);
 }

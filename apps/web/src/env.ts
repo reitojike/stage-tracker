@@ -18,6 +18,7 @@ export const env = createEnv({
       .optional(),
     JEV_API_KEY: z.string().min(1).optional(),
     FIRECRAWL_API_KEY: z.string().min(1).optional(),
+    CRON_SECRET: z.string().min(32).optional(),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.url(),

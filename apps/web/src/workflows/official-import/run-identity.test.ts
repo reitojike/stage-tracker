@@ -3,6 +3,7 @@ import {
   deriveOfficialImportApplyAttemptToken,
   deriveOfficialImportAttemptToken,
   deriveOfficialImportRunId,
+  deriveOfficialImportScheduledRunId,
 } from "./run-identity";
 
 describe("deriveOfficialImportRunId", () => {
@@ -18,6 +19,40 @@ describe("deriveOfficialImportRunId", () => {
     expect(deriveOfficialImportRunId("step-a")).not.toBe(
       deriveOfficialImportRunId("step-b"),
     );
+  });
+
+  it("reuses a scheduled run ID for duplicate deliveries of one Tokyo date", () => {
+    const first = deriveOfficialImportScheduledRunId(
+      "event.kabuki-bito.schedule",
+      "2026-09-23",
+    );
+    expect(first).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    );
+    expect(
+      deriveOfficialImportScheduledRunId(
+        "event.kabuki-bito.schedule",
+        "2026-09-23",
+      ),
+    ).toBe(first);
+    expect(
+      deriveOfficialImportScheduledRunId(
+        "event.kabuki-bito.schedule",
+        "2026-09-24",
+      ),
+    ).not.toBe(first);
+    expect(
+      deriveOfficialImportScheduledRunId("event.cynhn.calendar", "2026-09-23"),
+    ).not.toBe(first);
+  });
+
+  it("rejects malformed scheduled source and date identities", () => {
+    expect(() =>
+      deriveOfficialImportScheduledRunId("", "2026-09-23"),
+    ).toThrow();
+    expect(() =>
+      deriveOfficialImportScheduledRunId("event.cynhn.calendar", "2026-02-30"),
+    ).toThrow();
   });
 
   it("rejects a missing durable step identity", () => {

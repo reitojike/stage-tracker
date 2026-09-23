@@ -3,6 +3,9 @@ import {
   OfficialSourceRegistryError,
   assertAllowedSourceUrl,
   getOfficialSource,
+  isScheduledShadowSource,
+  listOfficialSources,
+  listScheduledShadowSources,
   requireEnabledShadowSource,
 } from "./source-registry";
 
@@ -13,6 +16,30 @@ describe("official source registry", () => {
     expect(source.adapter).toBe("http_html");
     expect(source.extractor).toBe("kabuki_bito");
     expect(source.canonicalUrl).toBe("https://www.kabuki-bito.jp/schedule/");
+  });
+
+  it("keeps every source out of Cron until its separate operator gate clears", () => {
+    expect(listScheduledShadowSources()).toEqual([]);
+    expect(
+      listOfficialSources().every((source) => !source.scheduledEnabled),
+    ).toBe(true);
+    const approved = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    expect(isScheduledShadowSource(approved)).toBe(false);
+    expect(
+      isScheduledShadowSource({ ...approved, scheduledEnabled: true }),
+    ).toBe(true);
+    expect(
+      isScheduledShadowSource({
+        ...approved,
+        scheduledEnabled: true,
+        policyState: "planned",
+      }),
+    ).toBe(false);
+    const held = getOfficialSource("event.meme-tokyo.calendar");
+    if (held === null) throw new Error("test source missing");
+    expect(isScheduledShadowSource({ ...held, scheduledEnabled: true })).toBe(
+      false,
+    );
   });
 
   it("rejects arbitrary ids and policy-held sources", () => {

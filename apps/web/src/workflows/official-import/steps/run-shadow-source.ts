@@ -7,6 +7,7 @@ import { createOfficialImportStagingRepository } from "../privileged/staging-rep
 import {
   deriveOfficialImportAttemptToken,
   deriveOfficialImportRunId,
+  deriveOfficialImportScheduledRunId,
 } from "../run-identity";
 import {
   executeOfficialImportShadowRun,
@@ -14,12 +15,18 @@ import {
 } from "../shadow-execution";
 import { requireEnabledShadowSource } from "../source-registry";
 
-export async function runOfficialImportShadowSource(sourceId: string) {
+export async function runOfficialImportShadowSource(
+  sourceId: string,
+  tokyoScheduleDate?: string,
+) {
   "use step";
 
   const source = requireEnabledShadowSource(sourceId);
   const { attempt, stepId } = getStepMetadata();
-  const runId = deriveOfficialImportRunId(stepId);
+  const runId =
+    tokyoScheduleDate === undefined
+      ? deriveOfficialImportRunId(stepId)
+      : deriveOfficialImportScheduledRunId(source.id, tokyoScheduleDate);
   const attemptToken = deriveOfficialImportAttemptToken(stepId, attempt);
 
   try {
