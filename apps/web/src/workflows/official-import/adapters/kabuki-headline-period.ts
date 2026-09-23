@@ -13,6 +13,18 @@ import {
 type Clock = { hour: number; minute: number };
 type Part = { name: string; clock: Clock };
 
+function parseStrictJapaneseClock(value: string): Clock {
+  const match = value
+    .trim()
+    .match(/^(?:午前|午後)\s*(\d{1,2})時(?:\s*(\d{1,2})分)?$/u);
+  const hour = Number(match?.[1]);
+  const minute = Number(match?.[2] ?? 0);
+  const clock = parseJapaneseClock(value);
+  if (match === null || hour < 1 || hour > 12 || minute > 59 || clock === null)
+    throw new SourceParseFailure();
+  return clock;
+}
+
 function dateForDayInRange(
   day: number,
   startsOn: string,
@@ -79,17 +91,15 @@ export function parseKabukiBaseTimes(base: string): readonly Part[] {
       )
     )
       throw new SourceParseFailure();
-    const clock = parseJapaneseClock(base);
-    if (clock === null) throw new SourceParseFailure();
+    const clock = parseStrictJapaneseClock(base.trim().replace(/[～〜]$/u, ""));
     parts.push({ name: "単独", clock });
   } else {
     // Only separators and whitespace may remain between fully parsed parts.
     if (base.replace(pattern, "").replace(/[／/\s]/gu, "") !== "")
       throw new SourceParseFailure();
     for (const match of matches) {
-      const clock = parseJapaneseClock(match[2] ?? "");
-      if (clock === null || match[1] === undefined)
-        throw new SourceParseFailure();
+      const clock = parseStrictJapaneseClock(match[2] ?? "");
+      if (match[1] === undefined) throw new SourceParseFailure();
       parts.push({ name: match[1], clock });
     }
   }
@@ -102,19 +112,49 @@ export function parseKabukiBaseTimes(base: string): readonly Part[] {
   return parts;
 }
 
+function validateApproximateClosingTimes(
+  note: string,
+  parts: readonly Part[],
+): void {
+  const pattern =
+    /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時\s*\d{1,2}分)頃/gu;
+  const matches = [...note.matchAll(pattern)];
+  if (
+    matches.length !== parts.length ||
+    note.replace(pattern, "").replace(/[／/\s]/gu, "") !== ""
+  )
+    throw new SourceParseFailure();
+  for (const [index, match] of matches.entries()) {
+    const part = parts[index];
+    const clock = parseStrictJapaneseClock(match[2] ?? "");
+    if (
+      part === undefined ||
+      match[1] !== part.name ||
+      clock.hour * 60 + clock.minute <= part.clock.hour * 60 + part.clock.minute
+    )
+      throw new SourceParseFailure();
+  }
+}
+
 export function parseKabukiHeadlinePeriod(
   startsOn: string,
   endsOn: string,
   timetable: string,
 ): readonly { startsAt: string; endsAt: null }[] {
   if (/現地時間/u.test(timetable)) throw new SourceParseFailure();
-  const morningOnly = timetable.match(
+  const text = timetable.trim();
+  const morningOnly = text.match(
     /※(\d{1,2}日(?:[（(][^）)]+[）)])?)は、午前の部のみ1回公演$/u,
   );
   let schedule =
     morningOnly === null
-      ? timetable.trim()
-      : timetable.slice(0, morningOnly.index ?? timetable.length).trim();
+      ? text
+      : text.slice(0, morningOnly.index ?? text.length).trim();
+  const closingNote = schedule.match(
+    /終演予定時間：(.+?)※終演予定時間は変更になる可能性があります$/u,
+  );
+  if (closingNote !== null)
+    schedule = schedule.slice(0, closingNote.index ?? schedule.length).trim();
   const schoolNote = "※下記日程は学校団体様がいらっしゃいます";
   const schoolNoteIndex = schedule.indexOf(schoolNote);
   const schoolDates =
@@ -130,6 +170,8 @@ export function parseKabukiHeadlinePeriod(
   const parts = parseKabukiBaseTimes(
     schedule.slice(0, markers[0]?.index ?? schedule.length),
   );
+  if (closingNote !== null)
+    validateApproximateClosingTimes(closingNote[1] ?? "", parts);
   if (schoolDates !== null) {
     const labels = [
       ...schoolDates.matchAll(
