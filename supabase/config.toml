@@ -174,11 +174,11 @@ enable_refresh_token_rotation = true
 # Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
-# Allow/disallow new user signups to your project. stage-tracker's event
-# catalog is shared across every authenticated user with no invite gate on
-# read access (see .ai-dev-foundation/product-rules.md), so accounts are
-# admin-provisioned only (see scripts/provision-user.mjs); self-service
-# signup stays disabled.
+# Allow/disallow new user signups to your project. Account eligibility for this
+# private household application is limited to operator-provisioned accounts
+# (operator and family; see scripts/provision-user.mjs). The shared catalog is
+# available only to this bounded admitted account set, so self-service signup
+# stays disabled.
 enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false

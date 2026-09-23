@@ -112,8 +112,9 @@ TicketOpportunityを前提に新しいbounded product Taskで再設計します�
 - production hosting provider（Gate A dogfood限定でVercel Hobbyを
   bounded operational choiceとして採用済み。broader/general production
   hosting platformの恒久決定は引き続きuncommitted）
-- 家族・友人への本格展開時期（現時点の実runtimeはGate Aの本人 + 妻の
-  bounded 2-user dogfoodであり、broader rolloutは確約していません）
+
+友人・任意の第三者・一般ユーザーへの展開は current scope 外です。将来検討する
+場合は、別途明示的な product decision を必要とします。
 
 sign-in providerはEmail magic link + Supabase Auth cookie-based session
 （Issue #11、account bootstrap / recovery用）に加え、日常sign-inの

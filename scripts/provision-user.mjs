@@ -1,9 +1,9 @@
 import { resolveAdminTarget } from './lib/adminTarget.mjs';
 
 // Public signup is disabled (supabase/config.toml [auth] enable_signup =
-// false) because the event catalog is shared with every authenticated
-// user and has no invite gate of its own. This is the admin-provisioning
-// path that replaces self-service signup: it only creates the account.
+// false). This operator-only provisioning path is the current account-
+// eligibility admission point for the operator and explicitly approved family
+// accounts in this private household application. It only creates the account.
 // Signing in afterwards always goes through the normal magic-link flow at
 // /sign-in - accounts here have no password.
 //
