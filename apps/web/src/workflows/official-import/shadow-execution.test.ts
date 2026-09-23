@@ -140,6 +140,45 @@ describe("official import shadow execution", () => {
       reason: "ownership_lost",
     });
     expect(harness.commitCandidates).not.toHaveBeenCalled();
+    expect(harness.releaseRun).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+    );
+  });
+
+  it("releases a still-owned lease and stops renewal after a transient heartbeat error", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    harness.prepareRun
+      .mockResolvedValueOnce({ status: "ready" })
+      .mockRejectedValueOnce(new Error("temporary renewal failure"));
+    const deferred = deferredAcquisition();
+    const execution = executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      deferred.adapter,
+      unusedPlanner,
+      harness.repository,
+      10,
+    );
+    await vi.waitFor(() =>
+      expect(harness.prepareRun.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    deferred.finish();
+    await expect(execution).rejects.toMatchObject({
+      reason: "ownership_lost",
+    });
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
+    expect(harness.releaseRun).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+    );
+    const callsAfterRelease = harness.prepareRun.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(harness.prepareRun).toHaveBeenCalledTimes(callsAfterRelease);
   });
 
   it("drains an in-flight renewal before releasing a transient failure", async () => {

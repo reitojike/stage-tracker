@@ -95,6 +95,11 @@ function startAttemptLeaseHeartbeat(
   let stopped = false;
   let renewal: Promise<void> | null = null;
   let ownershipUncertain = false;
+  const markOwnershipUncertain = () => {
+    ownershipUncertain = true;
+    stopped = true;
+    clearInterval(timer);
+  };
   const timer = setInterval(() => {
     if (stopped || renewal !== null) return;
     // Reclaiming with the same owner token refreshes the current lease under
@@ -102,10 +107,10 @@ function startAttemptLeaseHeartbeat(
     renewal = repository
       .prepareRun(runId, sourceId, attemptToken)
       .then((result) => {
-        if (result.status !== "ready") ownershipUncertain = true;
+        if (result.status !== "ready") markOwnershipUncertain();
       })
       .catch(() => {
-        ownershipUncertain = true;
+        markOwnershipUncertain();
       })
       .finally(() => {
         renewal = null;
@@ -344,6 +349,14 @@ export async function executeOfficialImportShadowRun(
     // A pending renewal may otherwise reclaim the lease after releaseRun or
     // failRun clears it, delaying the next Workflow attempt by a full lease.
     await lease.stopAndDrain();
+    try {
+      lease.assertOwned();
+    } catch (ownershipError) {
+      // The token-guarded release is safe even if another attempt has taken
+      // over. Do not leave a still-owned lease alive after a failed renewal.
+      await repository.releaseRun(runId, source.id, attemptToken);
+      throw ownershipError;
+    }
     if (error instanceof OfficialImportAttemptRetryError) throw error;
     const failureClassification = classifyFailure(error);
     if (isTransientFailure(failureClassification)) {
