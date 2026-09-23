@@ -575,6 +575,7 @@ export async function applyEventPlans(
   { ownerId, onApplied = () => {}, reviewed = false } = {},
 ) {
   const applied = [];
+  const canonicalLabelsAppliedInBatch = new Map();
   for (const plan of plans) {
     const { entry } = plan;
     const classificationChanged = plan.genrePlan.changed || plan.groupsPlan.changed;
@@ -584,6 +585,20 @@ export async function applyEventPlans(
         fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, endsAt: fix.endsAt });
       for (const fix of plan.doorsAtFixes)
         fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, doorsAt: fix.doorsAt });
+      const expectedCurrent =
+        plan.expectedCurrent === null
+          ? null
+          : {
+              ...plan.expectedCurrent,
+              groups: plan.expectedCurrent.groups.map((group) => ({
+                ...group,
+                displayName: canonicalLabelsAppliedInBatch.get(group.key) ?? group.displayName,
+              })),
+            };
+      const expectedProposedGroups = plan.expectedProposedGroups.map((group) => ({
+        ...group,
+        displayName: canonicalLabelsAppliedInBatch.get(group.key) ?? group.displayName,
+      }));
       const { error } = await admin.rpc(
         reviewed ? 'apply_reviewed_import_event_plan' : 'apply_import_event_plan',
         {
@@ -612,8 +627,8 @@ export async function applyEventPlans(
           })),
           ...(reviewed
             ? {
-                p_expected_current: plan.expectedCurrent,
-                p_expected_proposed_groups: plan.expectedProposedGroups,
+                p_expected_current: expectedCurrent,
+                p_expected_proposed_groups: expectedProposedGroups,
               }
             : {}),
         },
@@ -626,6 +641,9 @@ export async function applyEventPlans(
           applied,
         };
       applied.push(entry.sourceKey);
+      if (reviewed && plan.groupsPlan.setGroups && plan.groupsPlan.changed)
+        for (const group of plan.groupsPlan.groups)
+          canonicalLabelsAppliedInBatch.set(group.key, group.displayName);
       onApplied(entry.sourceKey);
     }
   }

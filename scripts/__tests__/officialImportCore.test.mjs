@@ -296,6 +296,34 @@ void test('reviewed Event plans retain proposed canonical Group labels, includin
   );
 });
 
+void test('reviewed Event batch carries forward only its own successful Group creation', async () => {
+  const admin = fakeAdmin();
+  const validated = validateEventEntries([
+    {
+      raw: validEvent({ sourceKey: 'first', groups: [{ key: 'shared', displayName: 'Shared' }] }),
+      where: 'first.json',
+    },
+    {
+      raw: validEvent({ sourceKey: 'second', groups: [{ key: 'shared', displayName: 'Shared' }] }),
+      where: 'second.json',
+    },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  const result = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    reviewed: true,
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(admin.rpcCalls[0].args.p_expected_proposed_groups, [
+    { key: 'shared', displayName: null },
+  ]);
+  assert.deepEqual(admin.rpcCalls[1].args.p_expected_proposed_groups, [
+    { key: 'shared', displayName: 'Shared' },
+  ]);
+});
+
 void test('Event apply returns committed progress when a later RPC fails', async () => {
   const admin = fakeAdmin();
   let calls = 0;
