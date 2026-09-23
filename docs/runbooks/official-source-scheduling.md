@@ -7,7 +7,11 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
 ## Current safe state
 
 - Every source in the code-owned Source Registry has `scheduledEnabled: false`.
-- The authenticated Production-only route is `/api/official-import/cron`, but
+- The Production-only machine-auth route is exactly
+  `/api/official-import/cron`. The proxy lets this path reach its route handler
+  without a Supabase user session; the handler still requires the
+  `CRON_SECRET` bearer. This exception does not apply to
+  `/api/official-import/shadow` or other application/API paths.
   `apps/web/vercel.json` has no Cron registration. No scheduled acquisition is
   active.
 - The route requires a Production `CRON_SECRET` of at least 32 characters and
