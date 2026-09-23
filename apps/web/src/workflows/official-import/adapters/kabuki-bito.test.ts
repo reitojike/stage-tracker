@@ -286,6 +286,18 @@ describe("Kabuki-bito adapter facts", () => {
     ).toThrow(SourceParseFailure);
   });
 
+  it("keeps the public part of a single-day part-specific private performance", () => {
+    expect(
+      parseKabukiDetailedOccurrences(
+        "",
+        "2026-11-01",
+        "2026-11-01",
+        "昼の部 午前11時～ 夜の部 午後4時～【貸切】昼の部：1日（日）",
+        "other",
+      ).map((item) => item.startsAt),
+    ).toEqual(["2026-11-01T16:00:00+09:00"]);
+  });
+
   it("uses only verified performance columns in a complete mobile calendar", () => {
     const html = `<table><tr><th>1（木）</th><td>10：00</td></tr></table>
       ${mobileCalendar("<th></th><th>第一部</th><th>第二部</th>", [
@@ -607,6 +619,18 @@ describe("Kabuki-bito adapter facts", () => {
         "2026-09-02",
         "2026-09-03",
         "昼の部 午前11時～ ※下記日程は学校団体様がいらっしゃいます 昼の部：2日（水）【休演】3日（木）",
+        "kabukiza",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("rejects an unrecognized cancellation after an otherwise valid information note", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "",
+        "2026-09-02",
+        "2026-09-03",
+        "昼の部 午前11時～ ※下記日程は学校団体様がいらっしゃいます 昼の部：2日（水） ※台風のため3日の公演は中止",
         "kabukiza",
       ),
     ).toThrow(SourceParseFailure);

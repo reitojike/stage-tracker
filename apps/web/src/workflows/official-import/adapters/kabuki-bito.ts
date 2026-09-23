@@ -342,8 +342,6 @@ function parseVerifiedHeadlineSchedule(
   const schedule =
     noteStart < 0 ? scheduleText : scheduleText.slice(0, noteStart);
   const notes = noteStart < 0 ? "" : scheduleText.slice(noteStart);
-  if (/[【〖][^】〗]+[】〗]|休演|貸切/u.test(notes))
-    throw new SourceParseFailure();
   const markers = [...schedule.matchAll(/[【〖](休演|貸切)[】〗]/gu)];
   const base = schedule.slice(0, markers[0]?.index ?? schedule.length);
   const partPattern =
@@ -404,6 +402,74 @@ function parseVerifiedHeadlineSchedule(
     if (new Set(dates).size !== dates.length) throw new SourceParseFailure();
     return new Set(dates);
   };
+
+  // Informational notes are accepted only as fully parsed, known forms. A
+  // later cancellation or schedule change must never hide in a note suffix.
+  let remainingNotes = notes.trim();
+  if (remainingNotes.startsWith("※下記日程は学校団体様がいらっしゃいます")) {
+    remainingNotes = remainingNotes.slice(
+      "※下記日程は学校団体様がいらっしゃいます".length,
+    );
+    const curtainStart = remainingNotes.indexOf("終演予定時間：");
+    const schoolDates = remainingNotes
+      .slice(0, curtainStart < 0 ? undefined : curtainStart)
+      .trim();
+    const labels = [
+      ...schoolDates.matchAll(
+        /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)[:：]/gu,
+      ),
+    ];
+    if (
+      labels.length === 0 ||
+      schoolDates.slice(0, labels[0]?.index ?? 0).trim() !== ""
+    )
+      throw new SourceParseFailure();
+    const seenLabels = new Set<string>();
+    for (const [index, label] of labels.entries()) {
+      const name = label[1];
+      if (
+        name === undefined ||
+        !parts.some((part) => part.name === name) ||
+        seenLabels.has(name)
+      )
+        throw new SourceParseFailure();
+      seenLabels.add(name);
+      parseDays(
+        schoolDates.slice(
+          (label.index ?? 0) + label[0].length,
+          labels[index + 1]?.index ?? schoolDates.length,
+        ),
+      );
+    }
+    remainingNotes =
+      curtainStart < 0 ? "" : remainingNotes.slice(curtainStart).trim();
+  }
+  if (remainingNotes.startsWith("終演予定時間：")) {
+    const curtainParts = remainingNotes
+      .slice("終演予定時間：".length)
+      .split(/[／/]/u);
+    const seenLabels = new Set<string>();
+    for (const item of curtainParts) {
+      const match = item
+        .trim()
+        .match(
+          /^([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?)頃$/u,
+        );
+      const name = match?.[1];
+      if (
+        name === undefined ||
+        !parts.some((part) => part.name === name) ||
+        seenLabels.has(name) ||
+        parseJapaneseClock(match?.[2] ?? "") === null
+      )
+        throw new SourceParseFailure();
+      seenLabels.add(name);
+    }
+    if (seenLabels.size !== parts.length) throw new SourceParseFailure();
+    remainingNotes = "";
+  }
+  if (remainingNotes !== "" && remainingNotes !== "※開場は開演の1時間前を予定")
+    throw new SourceParseFailure();
 
   let closed = new Set<string>();
   const privateByPart = new Map<string, Set<string>>();
@@ -556,20 +622,7 @@ export function parseKabukiDetailedOccurrences(
     return occurrences;
   }
 
-  if (startsOn !== endsOn)
-    return parseVerifiedHeadlineSchedule(startsOn, endsOn, timetable);
-  if (startsOn === endsOn) {
-    if (
-      /^(?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?\s*[～〜]$/u.test(
-        timetable.trim(),
-      )
-    )
-      return parseVerifiedHeadlineSchedule(startsOn, endsOn, timetable);
-    const occurrences = expandKabukiSchedule(startsOn, endsOn, timetable);
-    if (occurrences.length === 0) throw new SourceParseFailure();
-    return occurrences;
-  }
-  throw new SourceParseFailure();
+  return parseVerifiedHeadlineSchedule(startsOn, endsOn, timetable);
 }
 
 function detailText(html: string, className: string): string | null {

@@ -40,7 +40,7 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   applies to Kabukiza and other theaters; unknown exception wording still
   fails closed. When Kabukiza also has a daily A/B program calendar, the two
   independently derived schedules must agree exactly. Missing showtimes and
-  unverified table formats fail closed. This
+  unverified table formats or free-form schedule notes fail closed. This
   source has **not** passed its clean shadow canary or promotion gate. The
   operator chose to keep scheduling disabled until day-level times are
   accurate across the intended scan, rather than stage Event-only drafts for
