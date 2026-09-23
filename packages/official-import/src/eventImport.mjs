@@ -255,19 +255,45 @@ function planGroups(entry, currentGroups) {
   };
 }
 
+const REVIEWED_EVENT_PAGE_SIZE = 500;
+const MAX_REVIEWED_EVENT_ROWS = 5_000;
+
+async function readCurrentEventRows(admin, table, columns, eventId, orderColumn) {
+  const rows = [];
+  for (let start = 0; start <= MAX_REVIEWED_EVENT_ROWS; start += REVIEWED_EVENT_PAGE_SIZE) {
+    const { data, error } = await admin
+      .from(table)
+      .select(columns)
+      .eq('event_id', eventId)
+      .order(orderColumn)
+      .range(start, start + REVIEWED_EVENT_PAGE_SIZE - 1);
+    if (error)
+      return {
+        ok: false,
+        problem: `Failed to read ${table} for event ${eventId}: ${error.message}`,
+      };
+    if (!Array.isArray(data))
+      return { ok: false, problem: `Failed to read ${table} completely for event ${eventId}.` };
+    if (rows.length + data.length > MAX_REVIEWED_EVENT_ROWS)
+      return { ok: false, problem: `${table} exceeds the reviewed Event match-fact limit.` };
+    rows.push(...data);
+    if (data.length < REVIEWED_EVENT_PAGE_SIZE) return { ok: true, rows };
+  }
+  return { ok: false, problem: `${table} exceeds the reviewed Event match-fact limit.` };
+}
+
 async function fetchCurrentGroups(admin, eventId) {
-  const { data, error } = await admin
-    .from('event_groups')
-    .select('groups(key, display_name)')
-    .eq('event_id', eventId);
-  if (error)
-    return {
-      ok: false,
-      problem: `Failed to read group associations for event ${eventId}: ${error.message}`,
-    };
+  const result = await readCurrentEventRows(
+    admin,
+    'event_groups',
+    'group_id, groups(key, display_name)',
+    eventId,
+    'group_id',
+  );
+  if (!result.ok) return result;
   return {
     ok: true,
-    groups: data
+    groups: result.rows
       .filter((row) => row.groups !== null)
       .map((row) => ({ key: row.groups.key, displayName: row.groups.display_name })),
   };
@@ -361,15 +387,19 @@ export async function resolveEventPlans(
           `${entry.sourceKey} already exists and is owned by ${existing.owner_id}, not ${ownerEmail ?? owner.id} (${owner.id}). Refusing to touch it.`,
         ],
       };
-    const { data: existingOccurrences, error: occurrenceError } = await admin
-      .from('event_occurrences')
-      .select('id, doors_at, starts_at, ends_at, canceled_at')
-      .eq('event_id', existing.id);
-    if (occurrenceError)
+    const occurrenceResult = await readCurrentEventRows(
+      admin,
+      'event_occurrences',
+      'id, doors_at, starts_at, ends_at, canceled_at',
+      existing.id,
+      'id',
+    );
+    if (!occurrenceResult.ok)
       return {
         ok: false,
-        problems: [`Failed to read occurrences for ${entry.sourceKey}: ${occurrenceError.message}`],
+        problems: [occurrenceResult.problem],
       };
+    const existingOccurrences = occurrenceResult.rows;
     const byInstant = new Map();
     for (const row of existingOccurrences) {
       const instant = Date.parse(row.starts_at);

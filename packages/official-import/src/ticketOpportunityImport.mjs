@@ -81,10 +81,10 @@ function milestonesEqual(existing, proposed) {
 const MATCH_FACT_PAGE_SIZE = 500;
 const MAX_MATCH_FACT_ROWS = 5_000;
 
-async function readTargetEventMatchRows(admin, table, columns, eventIds, orderColumns) {
+async function readBoundedMatchRows(admin, table, columns, filterColumn, ids, orderColumns) {
   const rows = [];
   for (let start = 0; start <= MAX_MATCH_FACT_ROWS; start += MATCH_FACT_PAGE_SIZE) {
-    let query = admin.from(table).select(columns).in('event_id', eventIds);
+    let query = admin.from(table).select(columns).in(filterColumn, ids);
     for (const column of orderColumns) query = query.order(column);
     const { data, error } = await query.range(start, start + MATCH_FACT_PAGE_SIZE - 1);
     if (error) return { ok: false, problem: `Failed to read ${table}: ${error.message}` };
@@ -132,17 +132,19 @@ export async function resolvePlans(admin, entries) {
   const genreKeyById = new Map();
   if (eventIds.length > 0) {
     const [occurrenceResult, groupResult] = await Promise.all([
-      readTargetEventMatchRows(
+      readBoundedMatchRows(
         admin,
         'event_occurrences',
         'id, event_id, starts_at, doors_at, ends_at, canceled_at',
+        'event_id',
         eventIds,
         ['id'],
       ),
-      readTargetEventMatchRows(
+      readBoundedMatchRows(
         admin,
         'event_groups',
         'event_id, group_id, groups(key, display_name)',
+        'event_id',
         eventIds,
         ['event_id', 'group_id'],
       ),
@@ -192,17 +194,21 @@ export async function resolvePlans(admin, entries) {
   const existingTargetsById = new Map();
   const existingMilestonesById = new Map();
   if (existingIds.length > 0) {
-    const { data: targetRows, error: targetError } = await admin
-      .from('ticket_opportunity_target_occurrences')
-      .select('opportunity_id, occurrence_id')
-      .in('opportunity_id', existingIds);
-    if (targetError) {
+    const targetResult = await readBoundedMatchRows(
+      admin,
+      'ticket_opportunity_target_occurrences',
+      'opportunity_id, occurrence_id',
+      'opportunity_id',
+      existingIds,
+      ['opportunity_id', 'occurrence_id'],
+    );
+    if (!targetResult.ok) {
       return {
         ok: false,
-        problems: [`Failed to look up existing target occurrences: ${targetError.message}`],
+        problems: [targetResult.problem],
       };
     }
-    for (const row of targetRows) {
+    for (const row of targetResult.rows) {
       const list = existingTargetsById.get(row.opportunity_id) ?? [];
       list.push(row.occurrence_id);
       existingTargetsById.set(row.opportunity_id, list);

@@ -24,7 +24,13 @@ function validEvent(overrides = {}) {
   };
 }
 
-function fakeAdmin({ event = null, ownerId = owner.id, creator = true, groups = [] } = {}) {
+function fakeAdmin({
+  event = null,
+  ownerId = owner.id,
+  creator = true,
+  groups = [],
+  eventGroups = [],
+} = {}) {
   const rpcCalls = [];
   const rows = { event, ownerId, creator };
   function builder(table) {
@@ -72,12 +78,30 @@ function fakeAdmin({ event = null, ownerId = owner.id, creator = true, groups = 
       if (table === 'event_occurrences') {
         return {
           select: () => ({
-            eq: async () => ({ data: rows.event?.occurrences ?? [], error: null }),
+            eq: () => ({
+              order: () => ({
+                range: async (start, end) => ({
+                  data: (rows.event?.occurrences ?? []).slice(start, end + 1),
+                  error: null,
+                }),
+              }),
+            }),
           }),
         };
       }
       if (table === 'event_groups') {
-        return { select: () => ({ eq: async () => ({ data: [], error: null }) }) };
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                range: async (start, end) => ({
+                  data: eventGroups.slice(start, end + 1),
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        };
       }
       return builder(table);
     },
@@ -251,6 +275,53 @@ void test('reviewed Event apply sends its read snapshot and surfaces a stale cat
   assert.equal(admin.rpcCalls[0].args.p_expected_current.event.id, 'matched-event-1');
   assert.equal(result.ok, false);
   assert.equal(result.stale, true);
+});
+
+void test('reviewed Event snapshots paginate all existing occurrences and groups', async () => {
+  const occurrences = Array.from({ length: 1_001 }, (_, index) => ({
+    id: `occurrence-${index}`,
+    starts_at: new Date(Date.parse('2026-07-11T04:00:00Z') + index * 60_000).toISOString(),
+    doors_at: null,
+    ends_at: null,
+    canceled_at: null,
+  }));
+  const eventGroups = Array.from({ length: 1_001 }, (_, index) => ({
+    group_id: `group-${index}`,
+    groups: { key: `group-${index}`, display_name: `Group ${index}` },
+  }));
+  const event = {
+    id: 'event-1',
+    source_key: 'official:example:event',
+    owner_id: owner.id,
+    title: 'Example Event',
+    venue: 'Example Hall',
+    source_url: 'https://example.test/event',
+    memo: null,
+    starts_on: '2026-07-11',
+    ends_on: '2026-07-11',
+    genre_id: null,
+    canceled_at: null,
+    occurrences,
+  };
+  const validated = validateEventEntries([{ raw: validEvent(), where: 'seed.json[0]' }]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(fakeAdmin({ event, eventGroups }), validated.entries, {
+    owner,
+  });
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.plans[0].expectedCurrent.occurrences.length, 1_001);
+  assert.equal(resolved.plans[0].expectedCurrent.groups.length, 1_001);
+
+  event.occurrences = Array.from({ length: 5_001 }, (_, index) => ({
+    ...occurrences[0],
+    id: `large-${index}`,
+    starts_at: new Date(Date.parse('2026-07-11T04:00:00Z') + index * 60_000).toISOString(),
+  }));
+  const oversized = await resolveEventPlans(fakeAdmin({ event, eventGroups }), validated.entries, {
+    owner,
+  });
+  assert.equal(oversized.ok, false);
+  assert.match(oversized.problems[0], /exceeds the reviewed Event match-fact limit/);
 });
 
 void test('Event core refuses an existing Event owned by another user during resolution', async () => {

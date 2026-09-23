@@ -76,7 +76,11 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
             );
           return {
             in() {
-              if (table === 'event_occurrences' || table === 'event_groups')
+              if (
+                table === 'event_occurrences' ||
+                table === 'event_groups' ||
+                table === 'ticket_opportunity_target_occurrences'
+              )
                 return {
                   order() {
                     return this;
@@ -143,6 +147,34 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
   const latePlan = await resolvePlans(admin, [lateTarget.entry]);
   assert.equal(latePlan.ok, true);
   assert.equal(latePlan.plans[0].expectedCurrent.targetOccurrences[0].id, 'occurrence-1000');
+
+  rowsByTable.ticket_opportunities = [
+    {
+      id: 'opportunity-1',
+      event_id: event.id,
+      source_key: validated.entry.sourceKey,
+      display_name: validated.entry.displayName,
+      target_scope: 'selected_occurrences',
+      source_url: validated.entry.sourceUrl,
+      memo: null,
+    },
+  ];
+  rowsByTable.ticket_opportunity_target_occurrences = Array.from({ length: 1_001 }, (_, index) => ({
+    opportunity_id: 'opportunity-1',
+    occurrence_id: `occurrence-${index}`,
+  }));
+  const existingTargets = await resolvePlans(admin, [validated.entry]);
+  assert.equal(existingTargets.ok, true);
+  assert.equal(existingTargets.plans[0].expectedCurrent.targets.length, 1_001);
+
+  rowsByTable.ticket_opportunity_target_occurrences = Array.from({ length: 5_001 }, (_, index) => ({
+    opportunity_id: 'opportunity-1',
+    occurrence_id: `occurrence-${index}`,
+  }));
+  const oversizedTargets = await resolvePlans(admin, [validated.entry]);
+  assert.equal(oversizedTargets.ok, false);
+  assert.match(oversizedTargets.problems[0], /exceeds the reviewed match-fact limit/);
+  rowsByTable.ticket_opportunity_target_occurrences = [];
 
   rowsByTable.event_occurrences = Array.from({ length: 5_001 }, (_, index) => ({
     ...occurrence,
