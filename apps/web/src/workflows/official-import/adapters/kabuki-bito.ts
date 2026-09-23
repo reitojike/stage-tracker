@@ -28,6 +28,7 @@ import {
   tokyoDateTime,
 } from "./japanese-date";
 import { parseKabukiHeadlinePeriod } from "./kabuki-headline-period";
+import { parseKabukiVerifiedCalendar } from "./kabuki-verified-calendar";
 
 const MAX_PLAYS_PER_SCAN = 30;
 
@@ -187,8 +188,8 @@ export function parseKabukiDetailedOccurrences(
   timetable: string,
   html = "",
 ): readonly { startsAt: string; endsAt: null }[] {
-  // A separate calendar may override the default schedule. Until its columns
-  // are verified, do not expand any headline across those dates.
+  // A calendar is authoritative only when both rendered views and the entire
+  // headline can be verified together. Never expand its base times by default.
   if (
     descendants(
       parseHtml(html),
@@ -196,7 +197,7 @@ export function parseKabukiDetailedOccurrences(
         elementName(node) === "table" && hasClass(node, "type-calendar"),
     ).length > 0
   )
-    throw new SourceParseFailure();
+    return parseKabukiVerifiedCalendar(startsOn, endsOn, timetable, html);
   // Some short engagements publish each date/time directly in the headline.
   // Require every date and clock token to be paired. Varying daily tables are
   // not yet mapped to verified showtime columns and cannot be inferred here.
