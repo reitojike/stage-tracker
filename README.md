@@ -1,12 +1,13 @@
 # stage-tracker
 
-複数ジャンルのイベント参加に伴う情報（イベント情報・チケット入手情報・自分の
-参加予定・予算/支出）を一箇所で管理するための authenticated multi-user
-application です。product intentの詳細は [`docs/prd.md`](./docs/prd.md) を
-参照してください。
+オペレーター本人と、明示的に事前プロビジョニングされた家族が、複数ジャンルの
+イベント参加情報（イベント情報・チケット入手情報・自分の参加予定・予算/支出）を
+一箇所で管理する private household application です。友人・任意の第三者・一般
+ユーザーへの展開は current scope 外です。product intentの詳細は
+[`docs/prd.md`](./docs/prd.md) を参照してください。
 
-GitHub Spec Kit v1.0.9 の standard harness を使う、shared event catalog と
-personal planning の authenticated multi-user application です。既存の
+GitHub Spec Kit v1.0.9 の standard harness を使い、事前プロビジョニングされた
+家族内で shared event catalog と personal planning を扱います。既存の
 Foundation harness への runtime dependency は持ちません。
 
 ## Canonical docs

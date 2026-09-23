@@ -2,8 +2,9 @@
 
 ## Product overview
 
-stage-tracker は、複数ジャンルのイベント参加に伴う情報を一箇所で管理するための
-authenticated multi-user application です。
+stage-tracker は、オペレーター本人と、オペレーターが明示的に事前プロビジョニングした
+家族が複数ジャンルのイベント参加情報を一箇所で管理する private household
+application です。
 
 ## User problem
 
@@ -19,10 +20,10 @@ stage-tracker はこれらを一つのproductの中で扱えるようにし、�
 
 ## Target user / usage context
 
-当面は本人（開発者自身）が主な利用者です。ただし本人限定の設計にはせず、
-authenticated multi-user application として家族・友人等の複数ユーザーへ拡張
-できる形を維持します。家族・友人への本格展開時期は、現時点でcommitしません
-（deferred）。
+現在の利用対象は、オペレーター本人と、オペレーターが明示的に事前プロビジョニングした
+家族のアカウントです。友人・任意の第三者・一般ユーザーへの展開や public
+event-information service は current scope に含みません。将来その範囲へ拡張するには、
+別途明示的な product decision が必要です。
 
 ## Main domain concepts
 
@@ -77,6 +78,9 @@ ownership transfer は Issue #234 で current schema / runtime から撤去し�
 - **event** は authenticated users 間で共有される catalog concept です。
   ある event の情報は、それを作成した owner が管理しますが、catalog自体は
   複数ユーザーが参照する共有情報です。
+- **TicketOpportunity** の販売機会も共有情報です。現在の authenticated users は、
+  この deployment のオペレーター本人と事前プロビジョニングされた家族のアカウントに
+  限られます。
 - **participation / personal schedule**、TicketOpportunity の personal
   planning state、および **expense / budget** は、event catalog とは分離
   された personal concept です。同じ event に対して、ユーザーごとに独立
@@ -196,8 +200,9 @@ uncommitted）です。current committed scopeには含みません。
   Issue #304で確定済みで、canonicalな記述は
   [`Installable standalone Web App Living Spec`](../specs/010-installable-standalone-web-app/spec.md)
   です
-- 家族・友人への本格展開時期（現時点の実runtimeはGate Aの本人 + 妻の
-  bounded 2-user dogfoodであり、broader rolloutは確約していません）
+
+友人・任意の第三者・一般ユーザーへの将来の展開は current scope 外であり、
+検討する場合は別途明示的な product decision を必要とします。
 
 sign-in provider（具体的な認証方式）は、account bootstrap / recovery用の
 Email magic link + Supabase Auth cookie-based session（Issue #11）に加え、
