@@ -336,6 +336,11 @@ marker ではなく、依然として reviewer の運用規律が担う。
   bounded failure classificationを記録して再reviewを要求します。exact match、または前回write後の
   crash retryでcatalogが既に完全収束している場合だけ、既存P1 Event/Ticket import coreを使って
   apply / completionします。
+- reviewed applyではP1 coreが読んだEvent/Occurrence/classificationまたは
+  TicketOpportunity/target/milestoneのsnapshotをservice-role-only RPCへ渡します。
+  RPCは対象行をlockし、同一DB transaction内でsnapshotを照合してから既存import RPCを
+  実行します。直前の並行更新で照合が外れた場合はwriteせず`source_changed`として再reviewを
+  要求します。手動CLIのimport RPCは従来の契約を維持します。
 - candidate は公式sourceとProduction DBの間の一時的なreview artifactであり、正本ではありません。
   公演・販売情報の正本は公式source、現在のcatalogの正本はProduction DBです。Ticket applyはshared
   catalogだけを更新し、`user_ticket_opportunity_states`には到達しません。

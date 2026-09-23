@@ -375,7 +375,7 @@ export async function executeOfficialImportCandidateApply(
       return { status: "applied", candidateId, outcome: "converged" };
     }
 
-    if (catalogPlan.hasChanges) await catalogPlan.apply();
+    await catalogPlan.apply();
     await complete(repository, candidateId, attemptToken);
     return {
       status: "applied",

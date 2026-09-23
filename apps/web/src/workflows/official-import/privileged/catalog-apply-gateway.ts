@@ -7,6 +7,7 @@ import {
 import {
   applyPlans as applyTicketOpportunityPlans,
   resolvePlans as resolveTicketOpportunityPlans,
+  StaleTicketOpportunityCatalogError,
   validateSeedEntries,
 } from "@stage-tracker/official-import/ticket";
 import type {
@@ -70,9 +71,12 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
       apply: async () => {
         const result = await applyEventPlans(this.client, [plan], {
           ownerId: reviewerId,
+          reviewed: true,
         });
         if (!result.ok) {
-          throw new OfficialImportCatalogFailure("write_conflict");
+          throw new OfficialImportCatalogFailure(
+            result.stale ? "source_changed" : "write_conflict",
+          );
         }
       },
     };
@@ -102,8 +106,13 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
       resolvedTicketOpportunityId: plan.existing?.id ?? null,
       apply: async () => {
         try {
-          await applyTicketOpportunityPlans(this.client, [plan]);
-        } catch {
+          await applyTicketOpportunityPlans(this.client, [plan], {
+            reviewed: true,
+          });
+        } catch (error) {
+          if (error instanceof StaleTicketOpportunityCatalogError) {
+            throw new OfficialImportCatalogFailure("source_changed");
+          }
           throw new OfficialImportCatalogFailure("write_conflict");
         }
       },

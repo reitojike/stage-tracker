@@ -182,7 +182,7 @@ export async function resolvePlans(admin, entries) {
         message: `Failed to look up occurrences for event ${eventId}: ${error.message}`,
       };
     }
-    const map = new Map(data.map((row) => [instantOf(row.starts_at), row.id]));
+    const map = new Map(data.map((row) => [instantOf(row.starts_at), row]));
     occurrencesByEventId.set(eventId, map);
     return { ok: true, instants: map };
   }
@@ -195,6 +195,7 @@ export async function resolvePlans(admin, entries) {
     }
 
     let occurrenceIds = [];
+    let targetOccurrenceFacts = [];
     if (entry.targetScope === 'selected_occurrences') {
       const resolvedInstants = await occurrenceInstantsFor(event.id);
       if (!resolvedInstants.ok) {
@@ -204,12 +205,13 @@ export async function resolvePlans(admin, entries) {
       const instants = resolvedInstants.instants;
       const missing = [];
       for (const locator of entry.targetOccurrences) {
-        const occurrenceId = instants.get(instantOf(locator));
-        if (occurrenceId === undefined) {
+        const occurrence = instants.get(instantOf(locator));
+        if (occurrence === undefined) {
           missing.push(locator);
           continue;
         }
-        occurrenceIds.push(occurrenceId);
+        occurrenceIds.push(occurrence.id);
+        targetOccurrenceFacts.push(occurrence);
       }
       if (missing.length > 0) {
         problems.push(
@@ -281,6 +283,13 @@ export async function resolvePlans(admin, entries) {
     plans.push({
       entry,
       event,
+      expectedCurrent: {
+        event,
+        opportunity: existing,
+        targets: existingTargetIds,
+        milestones: existingMilestones,
+        targetOccurrences: targetOccurrenceFacts,
+      },
       action,
       existing,
       existingTargetIds,
@@ -399,22 +408,39 @@ export function formatPlanReport(plans, { apply, remote }) {
  * entries is safe and recoverable because every identity here
  * (opportunity source_key) is idempotent to re-apply.
  */
-export async function applyPlans(admin, plans) {
+export class StaleTicketOpportunityCatalogError extends Error {
+  constructor() {
+    super('Ticket Opportunity catalog changed before apply');
+    this.name = 'StaleTicketOpportunityCatalogError';
+  }
+}
+
+export async function applyPlans(admin, plans, { reviewed = false } = {}) {
   for (const plan of plans) {
-    if (plan.action === 'unchanged') continue;
+    if (plan.action === 'unchanged' && !reviewed) continue;
     const { entry } = plan;
-    const { error } = await admin.rpc('import_ticket_opportunity', {
-      p_event_id: plan.event.id,
-      p_source_key: entry.sourceKey,
-      p_display_name: entry.displayName,
-      p_target_scope: entry.targetScope,
-      p_occurrence_ids:
-        entry.targetScope === 'selected_occurrences' ? plan.occurrenceIds : undefined,
-      p_source_url: entry.sourceUrl,
-      p_memo: entry.memo,
-      p_milestones: plan.milestones,
-    });
+    const { error } = await admin.rpc(
+      reviewed ? 'apply_reviewed_ticket_opportunity' : 'import_ticket_opportunity',
+      {
+        p_event_id: plan.event.id,
+        p_source_key: entry.sourceKey,
+        p_display_name: entry.displayName,
+        p_target_scope: entry.targetScope,
+        p_occurrence_ids:
+          entry.targetScope === 'selected_occurrences' ? plan.occurrenceIds : undefined,
+        p_source_url: entry.sourceUrl,
+        p_memo: entry.memo,
+        p_milestones: plan.milestones,
+        ...(reviewed
+          ? {
+              p_action: plan.action,
+              p_expected_current: plan.expectedCurrent,
+            }
+          : {}),
+      },
+    );
     if (error) {
+      if (reviewed && error.code === '40001') throw new StaleTicketOpportunityCatalogError();
       throw new Error(`Failed to import ${entry.sourceKey}: ${error.message}`);
     }
   }

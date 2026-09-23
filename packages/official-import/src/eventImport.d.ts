@@ -24,6 +24,7 @@ export interface ResolvedEventPlan {
   readonly entry: ValidatedEventEntry;
   readonly action: 'create' | 'update' | 'unchanged';
   readonly event: { readonly id: string } | null;
+  readonly expectedCurrent: unknown;
   readonly detailsChanged: boolean;
   readonly rangeChanged: boolean;
   readonly newOccurrences: readonly ValidatedEventEntry['occurrences'][number][];
@@ -69,12 +70,14 @@ export function applyEventPlans(
   options: {
     readonly ownerId: string;
     readonly onApplied?: (sourceKey: string) => void;
+    readonly reviewed?: boolean;
   },
 ): Promise<
   | { readonly ok: true; readonly applied: readonly string[] }
   | {
       readonly ok: false;
       readonly error: string;
+      readonly stale: boolean;
       readonly applied: readonly string[];
     }
 >;

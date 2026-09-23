@@ -310,7 +310,9 @@ export async function resolveEventPlans(
     const targetEventId = targetEventIdsBySourceKey.get(entry.sourceKey);
     const existingQuery = admin
       .from('events')
-      .select('id, title, venue, source_url, memo, owner_id, starts_on, ends_on, genre_id');
+      .select(
+        'id, source_key, title, venue, source_url, memo, owner_id, starts_on, ends_on, genre_id, canceled_at',
+      );
     const { data: existing, error } = await existingQuery
       .eq(targetEventId === undefined ? 'source_key' : 'id', targetEventId ?? entry.sourceKey)
       .maybeSingle();
@@ -323,6 +325,7 @@ export async function resolveEventPlans(
         entry,
         action: 'create',
         event: null,
+        expectedCurrent: null,
         detailsChanged: false,
         rangeChanged: false,
         newOccurrences: entry.occurrences,
@@ -343,7 +346,7 @@ export async function resolveEventPlans(
       };
     const { data: existingOccurrences, error: occurrenceError } = await admin
       .from('event_occurrences')
-      .select('id, doors_at, starts_at, ends_at')
+      .select('id, doors_at, starts_at, ends_at, canceled_at')
       .eq('event_id', existing.id);
     if (occurrenceError)
       return {
@@ -407,14 +410,17 @@ export async function resolveEventPlans(
     const rangeChanged = existing.starts_on !== entry.startsOn || existing.ends_on !== entry.endsOn;
     const genrePlan = planGenre(entry, existing.genre_id, genresByKey, genresById);
     if (genrePlan.ok === false) return { ok: false, problems: [genrePlan.problem] };
-    let currentGroups = [];
-    if (entry.classification.groups !== undefined) {
-      const groupResult = await fetchCurrentGroups(admin, existing.id);
-      if (!groupResult.ok) return { ok: false, problems: [groupResult.problem] };
-      currentGroups = groupResult.groups;
-    }
+    const groupResult = await fetchCurrentGroups(admin, existing.id);
+    if (!groupResult.ok) return { ok: false, problems: [groupResult.problem] };
+    const currentGroups = groupResult.groups;
     plans.push({
       entry,
+      expectedCurrent: {
+        event: existing,
+        occurrences: existingOccurrences,
+        groups: currentGroups,
+        genreKey: existing.genre_id === null ? null : genresById.get(existing.genre_id)?.key,
+      },
       action:
         detailsChanged ||
         rangeChanged ||
@@ -545,46 +551,55 @@ export function formatEventPlanReport(plans, { apply, remote, ownerEmail, ownerI
   return lines.join('\n');
 }
 
-export async function applyEventPlans(admin, plans, { ownerId, onApplied = () => {} } = {}) {
+export async function applyEventPlans(
+  admin,
+  plans,
+  { ownerId, onApplied = () => {}, reviewed = false } = {},
+) {
   const applied = [];
   for (const plan of plans) {
     const { entry } = plan;
     const classificationChanged = plan.genrePlan.changed || plan.groupsPlan.changed;
-    if (plan.action !== 'unchanged' || classificationChanged) {
+    if (reviewed || plan.action !== 'unchanged' || classificationChanged) {
       const fixesById = new Map();
       for (const fix of plan.endsAtFixes)
         fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, endsAt: fix.endsAt });
       for (const fix of plan.doorsAtFixes)
         fixesById.set(fix.id, { ...fixesById.get(fix.id), id: fix.id, doorsAt: fix.doorsAt });
-      const { error } = await admin.rpc('apply_import_event_plan', {
-        p_action: plan.action,
-        p_owner_id: ownerId,
-        p_event_id: plan.action === 'create' ? null : plan.event.id,
-        p_source_key: entry.sourceKey,
-        p_title: entry.title,
-        p_starts_on: entry.startsOn,
-        p_ends_on: entry.endsOn,
-        p_occurrences: plan.newOccurrences.map((occurrence) => ({
-          doorsAt: occurrence.doorsAt,
-          startsAt: occurrence.startsAt,
-          endsAt: occurrence.endsAt,
-        })),
-        p_occurrence_fixes: [...fixesById.values()],
-        p_venue: entry.venue,
-        p_source_url: entry.sourceUrl,
-        p_memo: entry.memo,
-        p_set_genre: plan.genrePlan.setGenre && plan.genrePlan.changed,
-        p_genre_key: plan.genrePlan.genreKey,
-        p_set_groups: plan.groupsPlan.setGroups && plan.groupsPlan.changed,
-        p_groups: plan.groupsPlan.groups.map((group) => ({
-          key: group.key,
-          displayName: group.displayName,
-        })),
-      });
+      const { error } = await admin.rpc(
+        reviewed ? 'apply_reviewed_import_event_plan' : 'apply_import_event_plan',
+        {
+          p_action: plan.action,
+          p_owner_id: ownerId,
+          p_event_id: plan.action === 'create' ? null : plan.event.id,
+          p_source_key: entry.sourceKey,
+          p_title: entry.title,
+          p_starts_on: entry.startsOn,
+          p_ends_on: entry.endsOn,
+          p_occurrences: plan.newOccurrences.map((occurrence) => ({
+            doorsAt: occurrence.doorsAt,
+            startsAt: occurrence.startsAt,
+            endsAt: occurrence.endsAt,
+          })),
+          p_occurrence_fixes: [...fixesById.values()],
+          p_venue: entry.venue,
+          p_source_url: entry.sourceUrl,
+          p_memo: entry.memo,
+          p_set_genre: plan.genrePlan.setGenre && plan.genrePlan.changed,
+          p_genre_key: plan.genrePlan.genreKey,
+          p_set_groups: plan.groupsPlan.setGroups && plan.groupsPlan.changed,
+          p_groups: plan.groupsPlan.groups.map((group) => ({
+            key: group.key,
+            displayName: group.displayName,
+          })),
+          ...(reviewed ? { p_expected_current: plan.expectedCurrent } : {}),
+        },
+      );
       if (error)
         return {
           ok: false,
           error: `Failed to apply ${entry.sourceKey}: ${error.message}`,
+          stale: error.code === '40001',
           applied,
         };
       applied.push(entry.sourceKey);

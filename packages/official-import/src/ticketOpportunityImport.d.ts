@@ -23,6 +23,7 @@ export interface ResolvedTicketOpportunityPlan {
   readonly event: { readonly id: string; readonly title: string };
   readonly action: 'create' | 'update' | 'unchanged';
   readonly existing: { readonly id: string } | null;
+  readonly expectedCurrent: unknown;
   readonly occurrenceIds: readonly string[];
   readonly milestones: readonly unknown[];
   readonly eventChanged: boolean;
@@ -57,4 +58,7 @@ export function resolvePlans(
 export function applyPlans(
   admin: unknown,
   plans: readonly ResolvedTicketOpportunityPlan[],
+  options?: { readonly reviewed?: boolean },
 ): Promise<void>;
+
+export class StaleTicketOpportunityCatalogError extends Error {}

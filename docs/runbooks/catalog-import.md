@@ -35,6 +35,11 @@ planを作り直します。review時からidentityやmaterial planが変化し�
 公演日程の正本は公式ページ、現在のcatalogの正本はProduction DBです。現時点では
 manual triggerだけで、定期実行（Cron）はありません。
 
+reviewed applyはP1 coreで読んだEvent・Occurrence・分類のcurrent factsを
+service-role-only条件付きRPCへ渡します。RPCは対象行をlockして同じtransaction内で
+比較してからEvent/Occurrence/classificationを反映し、途中でcatalogが変わった場合は
+`source_changed`として書き込まず再reviewを求めます。手動CLIのimport契約は従来どおりです。
+
 **repository には page fetch も HTML parser も入れません。** source ごと
 に日程の持ち方が異なるためです。実測した 3 例:
 

@@ -47,6 +47,11 @@ DBを再読込してresolve / re-planします。review済みidentityまたはma
 現在のcatalogの正本はProduction DBです。`user_ticket_opportunity_states`はこの経路でも変更
 しません。現時点ではmanual triggerだけで、定期実行（Cron）はありません。
 
+reviewed applyはP1 coreで読んだEvent・対象Occurrence・Opportunity・milestoneの
+current factsをservice-role-only条件付きRPCへ渡します。RPCは対象行をlockして
+同じtransaction内で比較し、変化があれば`source_changed`としてreplace-allを実行せず
+再reviewを求めます。手動CLIのimport契約は従来どおりです。
+
 ## Ticket Opportunity と Event catalog import の違い
 
 - Ticket Opportunity に owner 概念はありません。`--owner` は不要です。

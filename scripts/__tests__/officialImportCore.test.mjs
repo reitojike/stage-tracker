@@ -208,6 +208,43 @@ void test('Event core can plan a deterministic cross-source match by explicit Ev
   assert.equal(resolved.plans[0].event.id, 'matched-event-1');
 });
 
+void test('reviewed Event apply sends its read snapshot and surfaces a stale catalog', async () => {
+  const admin = fakeAdmin({
+    event: {
+      id: 'matched-event-1',
+      source_key: 'official:example:event',
+      owner_id: owner.id,
+      title: 'Older title',
+      venue: 'Example Hall',
+      source_url: 'https://example.test/event',
+      memo: null,
+      starts_on: '2026-07-11',
+      ends_on: '2026-07-11',
+      genre_id: null,
+      canceled_at: null,
+      occurrences: [],
+    },
+  });
+  const validated = validateEventEntries([{ raw: validEvent(), where: 'seed.json[0]' }]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  admin.rpc = async (name, args) => {
+    admin.rpcCalls.push({ name, args });
+    return { data: null, error: { code: '40001', message: 'stale catalog' } };
+  };
+
+  const result = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    reviewed: true,
+  });
+
+  assert.equal(admin.rpcCalls[0].name, 'apply_reviewed_import_event_plan');
+  assert.equal(admin.rpcCalls[0].args.p_expected_current.event.id, 'matched-event-1');
+  assert.equal(result.ok, false);
+  assert.equal(result.stale, true);
+});
+
 void test('Event core refuses an existing Event owned by another user during resolution', async () => {
   const admin = fakeAdmin({
     event: { source_key: 'official:example:event', owner_id: 'other-owner' },
