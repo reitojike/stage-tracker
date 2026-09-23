@@ -85,6 +85,41 @@ describe("verified Kabuki headline period", () => {
     );
   });
 
+  const octoberClosingNote =
+    "終演予定時間：第一部 午後1時35分頃／第二部 午後5時05分頃／第三部 午後9時10分頃 ※終演予定時間は変更になる可能性があります";
+
+  it("validates approximate closing-time information without making it an occurrence end", () => {
+    const occurrences = parseKabukiHeadlinePeriod(
+      "2026-10-02",
+      "2026-10-20",
+      `第一部 午前11時～ 第二部 午後2時30分～ 第三部 午後6時～〖休演〗9日（金） ※下記日程は学校団体様がいらっしゃいます 第一部：2日（金）、14日（水）、16日（金）、19日（月）、20日（火） 第二部：13日（火） ${octoberClosingNote}`,
+    );
+    expect(occurrences).toHaveLength(54);
+    expect(occurrences[0]).toEqual({
+      startsAt: "2026-10-02T11:00:00+09:00",
+      endsAt: null,
+    });
+    expect(occurrences.map((item) => item.startsAt)).not.toContain(
+      "2026-10-09T11:00:00+09:00",
+    );
+  });
+
+  it.each([
+    octoberClosingNote.replace("第三部 午後9時10分頃", "第三部 午後5時10分頃"),
+    octoberClosingNote.replace("第二部 午後5時05分頃", "第二部 午後5時99分頃"),
+    octoberClosingNote.replace("第二部", "昼の部"),
+    octoberClosingNote.replace("第三部 午後9時10分頃", ""),
+    `${octoberClosingNote} ※3日は中止`,
+  ])("rejects inconsistent or extended closing-time notes: %s", (note) => {
+    expect(() =>
+      parseKabukiHeadlinePeriod(
+        "2026-10-02",
+        "2026-10-20",
+        `第一部 午前11時～ 第二部 午後2時30分～ 第三部 午後6時～〖休演〗9日（金） ${note}`,
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
   it.each([
     "昼の部：2日（木）",
     "昼の部：27日（日）",

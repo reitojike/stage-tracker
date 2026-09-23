@@ -102,19 +102,52 @@ export function parseKabukiBaseTimes(base: string): readonly Part[] {
   return parts;
 }
 
+function validateApproximateClosingTimes(
+  note: string,
+  parts: readonly Part[],
+): void {
+  const pattern =
+    /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時\s*\d{1,2}分)頃/gu;
+  const matches = [...note.matchAll(pattern)];
+  if (
+    matches.length !== parts.length ||
+    note.replace(pattern, "").replace(/[／/\s]/gu, "") !== ""
+  )
+    throw new SourceParseFailure();
+  for (const [index, match] of matches.entries()) {
+    const part = parts[index];
+    const clock = parseJapaneseClock(match[2] ?? "");
+    if (
+      part === undefined ||
+      match[1] !== part.name ||
+      clock === null ||
+      clock.hour > 23 ||
+      clock.minute > 59 ||
+      clock.hour * 60 + clock.minute <= part.clock.hour * 60 + part.clock.minute
+    )
+      throw new SourceParseFailure();
+  }
+}
+
 export function parseKabukiHeadlinePeriod(
   startsOn: string,
   endsOn: string,
   timetable: string,
 ): readonly { startsAt: string; endsAt: null }[] {
   if (/現地時間/u.test(timetable)) throw new SourceParseFailure();
-  const morningOnly = timetable.match(
+  const text = timetable.trim();
+  const morningOnly = text.match(
     /※(\d{1,2}日(?:[（(][^）)]+[）)])?)は、午前の部のみ1回公演$/u,
   );
   let schedule =
     morningOnly === null
-      ? timetable.trim()
-      : timetable.slice(0, morningOnly.index ?? timetable.length).trim();
+      ? text
+      : text.slice(0, morningOnly.index ?? text.length).trim();
+  const closingNote = schedule.match(
+    /終演予定時間：(.+?)※終演予定時間は変更になる可能性があります$/u,
+  );
+  if (closingNote !== null)
+    schedule = schedule.slice(0, closingNote.index ?? schedule.length).trim();
   const schoolNote = "※下記日程は学校団体様がいらっしゃいます";
   const schoolNoteIndex = schedule.indexOf(schoolNote);
   const schoolDates =
@@ -130,6 +163,8 @@ export function parseKabukiHeadlinePeriod(
   const parts = parseKabukiBaseTimes(
     schedule.slice(0, markers[0]?.index ?? schedule.length),
   );
+  if (closingNote !== null)
+    validateApproximateClosingTimes(closingNote[1] ?? "", parts);
   if (schoolDates !== null) {
     const labels = [
       ...schoolDates.matchAll(

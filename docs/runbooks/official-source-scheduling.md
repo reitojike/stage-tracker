@@ -37,8 +37,10 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   when every full rest day and part-specific private exception is completely
   parsed. The exact school-group attendance note is validated as informational
   and does not remove public occurrences. Unknown notes and date-specific
-  changes fail closed. A single-month daily calendar is read only when the
-  complete headline and the PC/mobile table views agree on every day and part;
+  changes fail closed. A fully validated approximate closing-time note is
+  informational and never becomes an exact occurrence end. A single-month
+  daily calendar is read only when the complete headline and the PC/mobile
+  table views agree on every day and part;
   unknown table symbols or notes remain held. A headline is never used to
   guess times through a table. The current bounded read-only scan still has
   unsupported detail pages, so this
@@ -47,6 +49,10 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   accurate across the intended scan, rather than stage Event-only drafts for
   manual time completion.
   Takarazuka Event also has a weekly cadence preference but remains unscheduled.
+  The private-household product boundary is settled in
+  [#681](https://github.com/reitojike/stage-tracker/issues/681); the exact
+  Cron machine-auth path is implemented by
+  [#682](https://github.com/reitojike/stage-tracker/issues/682).
   [Issue #677](https://github.com/reitojike/stage-tracker/issues/677#issuecomment-5796382733)
   judged a later bounded private-household, facts-only rollout reasonable, not
   automatically permitted. Before promotion, re-check its
@@ -83,10 +89,10 @@ relevance by itself.
 
 ## Enable and observe
 
-1. Complete the exact-path Cron machine-auth/proxy correction tracked by
-   [#682](https://github.com/reitojike/stage-tracker/issues/682) and verify
-   that sessionless Cron requests reach the route while other protected routes
-   remain default-deny. Register `CRON_SECRET` as a Production environment
+1. Verify the exact-path Cron machine-auth/proxy implementation from
+   [#682](https://github.com/reitojike/stage-tracker/issues/682): sessionless
+   Cron requests must reach the route while other protected routes remain
+   default-deny. Register `CRON_SECRET` as a Production environment
    variable in the Vercel project. It is separate from the ingestion Supabase
    secret key. Verify only the variable name/presence, not its value.
 2. In a source-specific PR, set only the cleared source's `scheduledEnabled` to
