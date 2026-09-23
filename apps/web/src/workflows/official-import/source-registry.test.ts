@@ -23,6 +23,12 @@ describe("official source registry", () => {
     expect(
       listOfficialSources().every((source) => !source.scheduledEnabled),
     ).toBe(true);
+    expect(
+      getOfficialSource("event.kabuki-bito.schedule")?.fetchCadenceHint,
+    ).toBe("weekly");
+    expect(getOfficialSource("event.takarazuka.revue")?.fetchCadenceHint).toBe(
+      "weekly",
+    );
     const approved = requireEnabledShadowSource("event.kabuki-bito.schedule");
     expect(isScheduledShadowSource(approved)).toBe(false);
     expect(
