@@ -20,6 +20,10 @@ function event(overrides: Partial<CatalogEventMatch> = {}): CatalogEventMatch {
     sourceKey: "kabuki-bito:kabukiza:play:123",
     title: "秀山祭九月大歌舞伎",
     venue: "歌舞伎座",
+    sourceUrl: "https://www.kabuki-bito.jp/theaters/kabukiza/play/123",
+    memo: null,
+    genreId: null,
+    genreKey: null,
     startsOn: "2026-09-02",
     endsOn: "2026-09-26",
     occurrences: [],
@@ -139,6 +143,34 @@ describe("Ticket Opportunity candidate planning", () => {
       occurrencesChanged: false,
       milestonesChanged: false,
     });
+  });
+
+  it("changes the fingerprint when material current Opportunity facts drift", async () => {
+    const matched = event();
+    if (matched.sourceKey === null) throw new Error("test source key missing");
+    const current: CatalogTicketOpportunityMatch = {
+      id: "opportunity-1",
+      eventId: matched.id,
+      displayName: "一般販売",
+      targetScope: "event_wide",
+      sourceUrl: draft().proposal.sourceUrl ?? null,
+      memo: null,
+      targetOccurrences: [],
+      milestones: [],
+    };
+    const before = await setup(
+      matched,
+      [],
+      undefined,
+      current,
+    ).planner.planTicketOpportunity(source, draft(matched.sourceKey));
+    const after = await setup(matched, [], undefined, {
+      ...current,
+      memo: "operator changed this after review",
+    }).planner.planTicketOpportunity(source, draft(matched.sourceKey));
+
+    expect(after.plan.action).toBe(before.plan.action);
+    expect(after.planFingerprint).not.toBe(before.planFingerprint);
   });
 
   it("blocks an unresolved Event before any apply-capable candidate", async () => {

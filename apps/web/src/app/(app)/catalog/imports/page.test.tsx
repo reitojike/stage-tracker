@@ -20,6 +20,13 @@ vi.mock("@/lib/data/creator-capability", () => ({
   },
 }));
 
+vi.mock("@/lib/actions/officialImportApply.actions", () => ({
+  startOfficialImportApplyAction: vi.fn(),
+}));
+vi.mock("@/workflows/official-import/apply-workflow", () => ({
+  officialImportApplyWorkflow: vi.fn(),
+}));
+
 vi.mock("./_lib/review-loader", () => ({
   loadOfficialImportReviewQueue: (...args: unknown[]) => {
     const result: unknown = mockLoadQueue(...args);

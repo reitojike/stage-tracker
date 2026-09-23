@@ -78,6 +78,27 @@ function milestonesEqual(existing, proposed) {
   );
 }
 
+const MATCH_FACT_PAGE_SIZE = 500;
+const MAX_MATCH_FACT_ROWS = 5_000;
+
+async function readBoundedMatchRows(admin, table, columns, filterColumn, ids, orderColumns) {
+  const rows = [];
+  for (let start = 0; start <= MAX_MATCH_FACT_ROWS; start += MATCH_FACT_PAGE_SIZE) {
+    let query = admin.from(table).select(columns).in(filterColumn, ids);
+    for (const column of orderColumns) query = query.order(column);
+    const { data, error } = await query.range(start, start + MATCH_FACT_PAGE_SIZE - 1);
+    if (error)
+      return { ok: false, problem: `Failed to read ${table}: ${error.message}`, retryable: true };
+    if (!Array.isArray(data))
+      return { ok: false, problem: `Failed to read ${table} completely.`, retryable: true };
+    if (rows.length + data.length > MAX_MATCH_FACT_ROWS)
+      return { ok: false, problem: `${table} exceeds the reviewed match-fact limit.` };
+    rows.push(...data);
+    if (data.length < MATCH_FACT_PAGE_SIZE) return { ok: true, rows };
+  }
+  return { ok: false, problem: `${table} exceeds the reviewed match-fact limit.` };
+}
+
 /**
  * Resolves every shape-validated entry against the current catalog: the
  * target Event (by events.source_key - a separate identity space from the
@@ -99,12 +120,73 @@ export async function resolvePlans(admin, entries) {
   const eventSourceKeys = [...new Set(entries.map((entry) => entry.eventSourceKey))];
   const { data: eventRows, error: eventError } = await admin
     .from('events')
-    .select('id, source_key, title')
+    .select(
+      'id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, canceled_at',
+    )
     .in('source_key', eventSourceKeys);
   if (eventError) {
-    return { ok: false, problems: [`Failed to look up events: ${eventError.message}`] };
+    return {
+      ok: false,
+      problems: [`Failed to look up events: ${eventError.message}`],
+      retryable: true,
+    };
   }
   const eventBySourceKey = new Map(eventRows.map((row) => [row.source_key, row]));
+  const eventIds = eventRows.map((row) => row.id);
+  const eventOccurrencesById = new Map();
+  const eventGroupsById = new Map();
+  const genreKeyById = new Map();
+  if (eventIds.length > 0) {
+    const [occurrenceResult, groupResult] = await Promise.all([
+      readBoundedMatchRows(
+        admin,
+        'event_occurrences',
+        'id, event_id, starts_at, doors_at, ends_at, canceled_at',
+        'event_id',
+        eventIds,
+        ['id'],
+      ),
+      readBoundedMatchRows(
+        admin,
+        'event_groups',
+        'event_id, group_id, groups(key, display_name)',
+        'event_id',
+        eventIds,
+        ['event_id', 'group_id'],
+      ),
+    ]);
+    if (!occurrenceResult.ok || !groupResult.ok)
+      return {
+        ok: false,
+        problems: [occurrenceResult.problem ?? groupResult.problem],
+        retryable: occurrenceResult.retryable ?? groupResult.retryable ?? false,
+      };
+    for (const row of occurrenceResult.rows) {
+      const rows = eventOccurrencesById.get(row.event_id) ?? [];
+      rows.push(row);
+      eventOccurrencesById.set(row.event_id, rows);
+    }
+    for (const row of groupResult.rows) {
+      if (row.groups === null) continue;
+      const rows = eventGroupsById.get(row.event_id) ?? [];
+      rows.push({ key: row.groups.key, displayName: row.groups.display_name });
+      eventGroupsById.set(row.event_id, rows);
+    }
+    const genreIds = [...new Set(eventRows.map((row) => row.genre_id).filter((id) => id !== null))];
+    if (genreIds.length > 0) {
+      const { data: genreRows, error: genreError } = await admin
+        .from('genres')
+        .select('id, key')
+        .in('id', genreIds);
+      if (genreError || genreRows.length !== genreIds.length)
+        return {
+          ok: false,
+          problems: ['Failed to read target Event genre facts.'],
+          retryable: !!genreError,
+        };
+      for (const row of genreRows) genreKeyById.set(row.id, row.key);
+    }
+  }
 
   const opportunitySourceKeys = entries.map((entry) => entry.sourceKey);
   const { data: existingOpportunities, error: opportunityError } = await admin
@@ -115,6 +197,7 @@ export async function resolvePlans(admin, entries) {
     return {
       ok: false,
       problems: [`Failed to look up existing opportunities: ${opportunityError.message}`],
+      retryable: true,
     };
   }
   const existingBySourceKey = new Map(existingOpportunities.map((row) => [row.source_key, row]));
@@ -123,17 +206,22 @@ export async function resolvePlans(admin, entries) {
   const existingTargetsById = new Map();
   const existingMilestonesById = new Map();
   if (existingIds.length > 0) {
-    const { data: targetRows, error: targetError } = await admin
-      .from('ticket_opportunity_target_occurrences')
-      .select('opportunity_id, occurrence_id')
-      .in('opportunity_id', existingIds);
-    if (targetError) {
+    const targetResult = await readBoundedMatchRows(
+      admin,
+      'ticket_opportunity_target_occurrences',
+      'opportunity_id, occurrence_id',
+      'opportunity_id',
+      existingIds,
+      ['opportunity_id', 'occurrence_id'],
+    );
+    if (!targetResult.ok) {
       return {
         ok: false,
-        problems: [`Failed to look up existing target occurrences: ${targetError.message}`],
+        problems: [targetResult.problem],
+        retryable: targetResult.retryable ?? false,
       };
     }
-    for (const row of targetRows) {
+    for (const row of targetResult.rows) {
       const list = existingTargetsById.get(row.opportunity_id) ?? [];
       list.push(row.occurrence_id);
       existingTargetsById.set(row.opportunity_id, list);
@@ -149,6 +237,7 @@ export async function resolvePlans(admin, entries) {
       return {
         ok: false,
         problems: [`Failed to look up existing milestones: ${milestoneError.message}`],
+        retryable: true,
       };
     }
     for (const row of milestoneRows) {
@@ -158,33 +247,15 @@ export async function resolvePlans(admin, entries) {
     }
   }
 
-  // Occurrences are only fetched per Event actually referenced by a
-  // selected_occurrences entry, and only once per Event even if several
-  // entries target the same one.
+  // Reuse the complete, bounded Event snapshot for locator resolution.
+  // A second unpaged SELECT could silently omit targets after row 1,000.
   const occurrencesByEventId = new Map();
-  // Returns `{ok:true, instants}` or `{ok:false, message}` rather than
-  // throwing - every other lookup in this function reports a failure into
-  // `problems` and keeps going (so earlier entries' already-collected
-  // problems in the same run are not discarded), and this helper must not
-  // be the one exception that turns a transient DB error into an unhandled
-  // rejection out of resolvePlans.
-  async function occurrenceInstantsFor(eventId) {
-    if (occurrencesByEventId.has(eventId)) {
-      return { ok: true, instants: occurrencesByEventId.get(eventId) };
-    }
-    const { data, error } = await admin
-      .from('event_occurrences')
-      .select('id, starts_at')
-      .eq('event_id', eventId);
-    if (error) {
-      return {
-        ok: false,
-        message: `Failed to look up occurrences for event ${eventId}: ${error.message}`,
-      };
-    }
-    const map = new Map(data.map((row) => [instantOf(row.starts_at), row.id]));
+  function occurrenceInstantsFor(eventId) {
+    if (occurrencesByEventId.has(eventId)) return occurrencesByEventId.get(eventId);
+    const rows = eventOccurrencesById.get(eventId) ?? [];
+    const map = new Map(rows.map((row) => [instantOf(row.starts_at), row]));
     occurrencesByEventId.set(eventId, map);
-    return { ok: true, instants: map };
+    return map;
   }
 
   for (const entry of entries) {
@@ -195,21 +266,18 @@ export async function resolvePlans(admin, entries) {
     }
 
     let occurrenceIds = [];
+    let targetOccurrenceFacts = [];
     if (entry.targetScope === 'selected_occurrences') {
-      const resolvedInstants = await occurrenceInstantsFor(event.id);
-      if (!resolvedInstants.ok) {
-        problems.push(`${entry.sourceKey}: ${resolvedInstants.message}`);
-        continue;
-      }
-      const instants = resolvedInstants.instants;
+      const instants = occurrenceInstantsFor(event.id);
       const missing = [];
       for (const locator of entry.targetOccurrences) {
-        const occurrenceId = instants.get(instantOf(locator));
-        if (occurrenceId === undefined) {
+        const occurrence = instants.get(instantOf(locator));
+        if (occurrence === undefined) {
           missing.push(locator);
           continue;
         }
-        occurrenceIds.push(occurrenceId);
+        occurrenceIds.push(occurrence.id);
+        targetOccurrenceFacts.push(occurrence);
       }
       if (missing.length > 0) {
         problems.push(
@@ -281,6 +349,19 @@ export async function resolvePlans(admin, entries) {
     plans.push({
       entry,
       event,
+      hasCanceledTarget:
+        event.canceled_at !== null ||
+        targetOccurrenceFacts.some((occurrence) => occurrence.canceled_at !== null),
+      expectedCurrent: {
+        event,
+        genreKey: event.genre_id === null ? null : genreKeyById.get(event.genre_id),
+        eventOccurrences: eventOccurrencesById.get(event.id) ?? [],
+        eventGroups: eventGroupsById.get(event.id) ?? [],
+        opportunity: existing,
+        targets: existingTargetIds,
+        milestones: existingMilestones,
+        targetOccurrences: targetOccurrenceFacts,
+      },
       action,
       existing,
       existingTargetIds,
@@ -399,22 +480,43 @@ export function formatPlanReport(plans, { apply, remote }) {
  * entries is safe and recoverable because every identity here
  * (opportunity source_key) is idempotent to re-apply.
  */
-export async function applyPlans(admin, plans) {
+export class StaleTicketOpportunityCatalogError extends Error {
+  constructor() {
+    super('Ticket Opportunity catalog changed before apply');
+    this.name = 'StaleTicketOpportunityCatalogError';
+  }
+}
+
+export async function applyPlans(admin, plans, { reviewed = false } = {}) {
   for (const plan of plans) {
-    if (plan.action === 'unchanged') continue;
+    if (plan.action === 'unchanged' && !reviewed) continue;
     const { entry } = plan;
-    const { error } = await admin.rpc('import_ticket_opportunity', {
-      p_event_id: plan.event.id,
-      p_source_key: entry.sourceKey,
-      p_display_name: entry.displayName,
-      p_target_scope: entry.targetScope,
-      p_occurrence_ids:
-        entry.targetScope === 'selected_occurrences' ? plan.occurrenceIds : undefined,
-      p_source_url: entry.sourceUrl,
-      p_memo: entry.memo,
-      p_milestones: plan.milestones,
-    });
+    const { error } = await admin.rpc(
+      reviewed ? 'apply_reviewed_ticket_opportunity' : 'import_ticket_opportunity',
+      {
+        p_event_id: plan.event.id,
+        p_source_key: entry.sourceKey,
+        p_display_name: entry.displayName,
+        p_target_scope: entry.targetScope,
+        p_occurrence_ids:
+          entry.targetScope === 'selected_occurrences'
+            ? plan.occurrenceIds
+            : reviewed
+              ? null
+              : undefined,
+        p_source_url: entry.sourceUrl,
+        p_memo: entry.memo,
+        p_milestones: plan.milestones,
+        ...(reviewed
+          ? {
+              p_action: plan.action,
+              p_expected_current: plan.expectedCurrent,
+            }
+          : {}),
+      },
+    );
     if (error) {
+      if (reviewed && error.code === '40001') throw new StaleTicketOpportunityCatalogError();
       throw new Error(`Failed to import ${entry.sourceKey}: ${error.message}`);
     }
   }

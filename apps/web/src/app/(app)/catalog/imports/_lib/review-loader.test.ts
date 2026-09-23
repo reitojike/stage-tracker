@@ -56,6 +56,9 @@ function candidateRow(index: number, currentEvent: object | null = null) {
     resolved_ticket_opportunity_id: null,
     jev_decision_evidence: null,
     review_status: "pending",
+    apply_status: "not_started",
+    failure_classification: null,
+    active_apply_lease_expires_at: null,
     official_import_runs: { status: "completed" },
     current_event: currentEvent,
     current_ticket_opportunity: null,
@@ -99,6 +102,9 @@ function ticketCandidateRow() {
     resolved_ticket_opportunity_id: ticketId,
     jev_decision_evidence: null,
     review_status: "pending",
+    apply_status: "not_started",
+    failure_classification: null,
+    active_apply_lease_expires_at: null,
     official_import_runs: { status: "completed" },
     current_event: null,
     current_ticket_opportunity: {
@@ -121,6 +127,44 @@ function ticketCandidateRow() {
 afterEach(() => server.resetHandlers());
 
 describe("loadOfficialImportReviewQueue", () => {
+  it("blocks legacy pending Jev-dependent Event and Ticket candidates in the review UI", async () => {
+    const matchedEvent = {
+      ...candidateRow(1),
+      deterministic_match_status: "unresolved",
+      semantic_match_status: "matched",
+    };
+    const unmatchedEvent = {
+      ...candidateRow(2),
+      deterministic_match_status: "unresolved",
+      semantic_match_status: "unmatched",
+    };
+    const matchedTicket = {
+      ...ticketCandidateRow(),
+      id: "00000000-0000-4000-8000-000000000003",
+      semantic_match_status: "matched",
+      resolved_ticket_opportunity_id: null,
+      current_ticket_opportunity: null,
+    };
+    server.use(
+      http.get(`${REST_URL}/official_import_candidates`, () =>
+        HttpResponse.json([matchedEvent, unmatchedEvent, matchedTicket], {
+          headers: { "content-range": "0-2/3" },
+        }),
+      ),
+    );
+
+    const result = await loadOfficialImportReviewQueue(createTestClient());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toHaveLength(3);
+      for (const candidate of result.value) {
+        expect(candidate.reviewStatus).toBe("blocked_for_identity_review");
+        expect(candidate.blockedReason).toContain("Jevの照合結果だけでは");
+      }
+    }
+  });
+
   it("keyset-pages a queue larger than one API page without skipping candidates", async () => {
     const rows = Array.from({ length: 501 }, (_, index) =>
       candidateRow(index + 1),

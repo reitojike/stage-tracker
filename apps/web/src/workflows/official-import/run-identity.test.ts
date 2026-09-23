@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  deriveOfficialImportApplyAttemptToken,
   deriveOfficialImportAttemptToken,
   deriveOfficialImportRunId,
 } from "./run-identity";
@@ -39,6 +40,15 @@ describe("deriveOfficialImportRunId", () => {
     );
     expect(() => deriveOfficialImportAttemptToken("step-123", 0)).toThrow(
       "Workflow attempt must be a positive integer",
+    );
+  });
+
+  it("keeps apply attempt tokens separate from shadow ingestion tokens", () => {
+    const apply = deriveOfficialImportApplyAttemptToken("step-123", 1);
+    expect(apply).toMatch(/^[0-9a-f]{64}$/);
+    expect(apply).not.toBe(deriveOfficialImportAttemptToken("step-123", 1));
+    expect(deriveOfficialImportApplyAttemptToken("step-123", 2)).not.toBe(
+      apply,
     );
   });
 });

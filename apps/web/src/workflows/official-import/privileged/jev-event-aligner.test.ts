@@ -26,6 +26,10 @@ const candidate: CatalogEventMatch = {
   sourceKey: "other:1",
   title: "Other official title",
   venue: "Venue",
+  sourceUrl: null,
+  memo: null,
+  genreId: null,
+  genreKey: null,
   startsOn: "2026-10-10",
   endsOn: "2026-10-10",
   occurrences: [

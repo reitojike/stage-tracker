@@ -9,8 +9,14 @@
       "types": "./src/durableCandidate.d.ts",
       "import": "./src/durableCandidate.mjs"
     },
-    "./event": "./src/eventImport.mjs",
-    "./ticket": "./src/ticketOpportunityImport.mjs",
+    "./event": {
+      "types": "./src/eventImport.d.ts",
+      "import": "./src/eventImport.mjs"
+    },
+    "./ticket": {
+      "types": "./src/ticketOpportunityImport.d.ts",
+      "import": "./src/ticketOpportunityImport.mjs"
+    },
     "./ticket-seed": "./src/ticketOpportunitySeed.mjs",
     "./event-classification": "./src/eventClassificationSeed.mjs"
   }

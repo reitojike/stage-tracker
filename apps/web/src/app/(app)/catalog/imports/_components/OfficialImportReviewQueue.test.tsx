@@ -4,6 +4,7 @@ import type { OfficialImportReviewCandidate } from "../_lib/review-types";
 import { OfficialImportReviewQueue } from "./OfficialImportReviewQueue";
 
 const mockReviewAction = vi.fn();
+const mockApplyAction = vi.fn();
 const mockRefresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -18,6 +19,9 @@ const candidate: OfficialImportReviewCandidate = {
   observedAt: "2026-09-23T01:02:03.000Z",
   officialExternalId: "123",
   reviewStatus: "pending",
+  applyStatus: "not_started",
+  applyFailureClassification: null,
+  applyLeaseExpiresAt: null,
   proposal: {
     kind: "event",
     sourceKey: "cynhn:123",
@@ -45,14 +49,9 @@ const candidate: OfficialImportReviewCandidate = {
   },
   evidence: { sectionLabel: "2026年10月", rowLabel: "テスト公演" },
   match: {
-    deterministicStatus: "ambiguous",
-    semanticStatus: "matched",
-    jev: {
-      provider: "jev",
-      model: "semantic-match-v1",
-      choice: "event-123",
-      confidence: 0.82,
-    },
+    deterministicStatus: "unmatched",
+    semanticStatus: "not_used",
+    jev: null,
   },
   blockedReason: null,
 };
@@ -60,14 +59,35 @@ const candidate: OfficialImportReviewCandidate = {
 describe("OfficialImportReviewQueue", () => {
   beforeEach(() => {
     mockReviewAction.mockReset();
+    mockApplyAction.mockReset();
     mockRefresh.mockReset();
   });
 
   it("presents source, proposal, diff, evidence, match and Jev as supporting evidence", () => {
     render(
       <OfficialImportReviewQueue
-        state={{ variant: "populated", data: [candidate] }}
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              reviewStatus: "blocked_for_identity_review",
+              blockedReason: "Jevの照合結果だけでは承認できません。",
+              match: {
+                deterministicStatus: "unresolved",
+                semanticStatus: "matched",
+                jev: {
+                  provider: "jev",
+                  model: "semantic-match-v1",
+                  choice: "event-123",
+                  confidence: 0.82,
+                },
+              },
+            },
+          ],
+        }}
         reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
       />,
     );
 
@@ -93,6 +113,7 @@ describe("OfficialImportReviewQueue", () => {
       <OfficialImportReviewQueue
         state={{ variant: "populated", data: [candidate] }}
         reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
       />,
     );
 
@@ -137,6 +158,7 @@ describe("OfficialImportReviewQueue", () => {
           ],
         }}
         reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
       />,
     );
 
@@ -211,6 +233,7 @@ describe("OfficialImportReviewQueue", () => {
           ],
         }}
         reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
       />,
     );
 
@@ -233,6 +256,96 @@ describe("OfficialImportReviewQueue", () => {
     expect(screen.getByText("現在メモ")).toBeInTheDocument();
   });
 
+  it("starts the approved candidate apply workflow with candidate ID only", async () => {
+    mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-1" } });
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              reviewStatus: "approved",
+              match: {
+                ...candidate.match,
+                deterministicStatus: "matched",
+                semanticStatus: "not_used",
+              },
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "カタログへ反映" }));
+    await waitFor(() =>
+      expect(mockApplyAction).toHaveBeenCalledWith({
+        candidateId: candidate.id,
+      }),
+    );
+    expect(
+      await screen.findByText("反映処理を開始しました。"),
+    ).toBeInTheDocument();
+    expect(mockReviewAction).not.toHaveBeenCalled();
+  });
+
+  it("requires a fresh candidate after material review-to-apply drift", () => {
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              reviewStatus: "approved",
+              applyStatus: "failed",
+              applyFailureClassification: "source_changed",
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "新しい候補を取り込み、再確認してください",
+    );
+    expect(
+      screen.queryByRole("button", { name: "反映を再試行" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("allows recovery when a queued apply lease has expired", async () => {
+    mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-2" } });
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              reviewStatus: "approved",
+              applyStatus: "queued",
+              applyLeaseExpiresAt: "2000-01-01T00:00:00.000Z",
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "反映を再試行" }));
+    await waitFor(() =>
+      expect(mockApplyAction).toHaveBeenCalledWith({
+        candidateId: candidate.id,
+      }),
+    );
+  });
+
   it("does not offer approval for an identity-blocked candidate", () => {
     render(
       <OfficialImportReviewQueue
@@ -248,6 +361,7 @@ describe("OfficialImportReviewQueue", () => {
           ],
         }}
         reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
       />,
     );
 
@@ -268,6 +382,7 @@ describe("OfficialImportReviewQueue", () => {
         <OfficialImportReviewQueue
           state={{ variant }}
           reviewAction={mockReviewAction}
+          applyAction={mockApplyAction}
         />,
       );
       expect(

@@ -39,6 +39,10 @@ function event(overrides: Partial<CatalogEventMatch> = {}): CatalogEventMatch {
     sourceKey: "skiyaki:group-b.example:987",
     title: "Group B 10th Anniversary",
     venue: "Spotify O-WEST",
+    sourceUrl: "https://group-b.example/events/987",
+    memo: null,
+    genreId: null,
+    genreKey: null,
     startsOn: "2026-10-10",
     endsOn: "2026-10-10",
     occurrences: [
@@ -76,6 +80,49 @@ describe("Event candidate planning", () => {
     expect(result.resolvedEventId).toBe("event-1");
     expect(result.semanticMatchStatus).toBe("not_used");
     expect(align).not.toHaveBeenCalled();
+  });
+
+  it("changes the fingerprint when material current Event facts drift", async () => {
+    const current = event({ sourceKey: "skiyaki:cynhn.com:123" });
+    const before = await setup(current, []).planner.planEvent(source, draft());
+    const after = await setup(
+      event({ ...current, memo: "operator changed this after review" }),
+      [],
+    ).planner.planEvent(source, draft());
+
+    expect(after.plan.action).toBe(before.plan.action);
+    expect(after.planFingerprint).not.toBe(before.planFingerprint);
+  });
+
+  it("surfaces every P1 Event write category in the review plan", async () => {
+    const result = await setup(
+      event({ sourceKey: "skiyaki:cynhn.com:123" }),
+      [],
+    ).planner.planEvent(
+      source,
+      draft({
+        sourceUrl: "https://cynhn.com/contents/changed",
+        memo: "new memo",
+        genre: "idol",
+        groups: [{ key: "cynhn", displayName: "CYNHN" }],
+        occurrences: [
+          {
+            startsAt: "2026-10-10T18:00:00+09:00",
+            doorsAt: "2026-10-10T17:30:00+09:00",
+            endsAt: "2026-10-10T20:00:00+09:00",
+          },
+        ],
+      }),
+    );
+
+    expect(result.plan).toMatchObject({
+      action: "update",
+      detailsChanged: true,
+      endsAtFixes: [expect.any(Object)],
+      doorsAtFixes: [expect.any(Object)],
+      genrePlan: { changed: true },
+      groupsPlan: { changed: true },
+    });
   });
 
   it("resolves differently titled multi-group official notices by unique time and venue", async () => {

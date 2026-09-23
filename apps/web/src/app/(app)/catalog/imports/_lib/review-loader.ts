@@ -19,6 +19,7 @@ import { readError } from "@/lib/data/read-error";
 import type { ReadResult } from "@/lib/data/read-result";
 import { runKeysetSupabaseSelect } from "@/lib/data/paged-select";
 import { classifyPostgrestError } from "@/lib/data/supabase-select";
+import { deriveOfficialImportCandidateReviewStatus } from "@/workflows/official-import/candidate-review";
 import type {
   CurrentEventReviewTarget,
   CurrentTicketOpportunityReviewTarget,
@@ -234,7 +235,28 @@ const candidateRowSchema = z
     resolved_event_id: z.uuid().nullable(),
     resolved_ticket_opportunity_id: z.uuid().nullable(),
     jev_decision_evidence: z.unknown().nullable(),
-    review_status: z.enum(["pending", "blocked_for_identity_review"]),
+    review_status: z.enum([
+      "pending",
+      "approved",
+      "blocked_for_identity_review",
+    ]),
+    apply_status: z.enum(["not_started", "queued", "failed"]),
+    active_apply_lease_expires_at: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)), "invalid timestamp")
+      .nullable(),
+    failure_classification: z
+      .enum([
+        "validation",
+        "identity_ambiguous",
+        "source_changed",
+        "target_missing",
+        "write_conflict",
+        "provider_unavailable",
+        "policy_blocked",
+        "unexpected",
+      ])
+      .nullable(),
     official_import_runs: z.object({ status: z.literal("completed") }),
     current_event: currentEventSchema.nullable(),
     current_ticket_opportunity: currentTicketOpportunitySchema.nullable(),
@@ -308,8 +330,17 @@ function reviewMilestone(
   };
 }
 
+function effectiveReviewStatus(row: z.infer<typeof candidateRowSchema>) {
+  return deriveOfficialImportCandidateReviewStatus({
+    deterministicMatchStatus: row.deterministic_match_status,
+    semanticMatchStatus: row.semantic_match_status,
+  }) === "blocked_for_identity_review"
+    ? "blocked_for_identity_review"
+    : row.review_status;
+}
+
 function blockedReason(row: z.infer<typeof candidateRowSchema>): string | null {
-  if (row.review_status !== "blocked_for_identity_review") return null;
+  if (effectiveReviewStatus(row) !== "blocked_for_identity_review") return null;
   if (row.deterministic_match_status === "ambiguous") {
     return "同一の可能性がある既存イベントが複数、または手動登録イベントを含むため承認できません。公式IDの解決が必要です。";
   }
@@ -318,6 +349,9 @@ function blockedReason(row: z.infer<typeof candidateRowSchema>): string | null {
   }
   if (row.semantic_match_status === "low_confidence") {
     return "既存イベントとの照合結果の信頼度が不足しているため承認できません。公式IDの解決が必要です。";
+  }
+  if (row.semantic_match_status !== "not_used") {
+    return "Jevの照合結果だけでは承認・反映できません。公式IDで同一性を決定的に確認してください。";
   }
   return "イベント同一性を確定できないため承認できません。公式IDの解決が必要です。";
 }
@@ -425,7 +459,10 @@ function mapCandidateRow(
     canonicalUrl: row.canonical_url,
     observedAt: row.observed_at,
     officialExternalId: row.official_external_id,
-    reviewStatus: row.review_status,
+    reviewStatus: effectiveReviewStatus(row),
+    applyStatus: row.apply_status,
+    applyFailureClassification: row.failure_classification,
+    applyLeaseExpiresAt: row.active_apply_lease_expires_at,
     proposal,
     currentEvent: currentEvent(row.current_event),
     currentTicketOpportunity: currentTicketOpportunity(
@@ -486,7 +523,12 @@ export async function loadOfficialImportReviewQueue(
          )`,
         { count: "exact" },
       )
-      .in("review_status", ["pending", "blocked_for_identity_review"])
+      .in("review_status", [
+        "pending",
+        "approved",
+        "blocked_for_identity_review",
+      ])
+      .neq("apply_status", "applied")
       .eq("official_import_runs.status", "completed");
     const afterCursor = cursor === null ? query : query.gt("id", cursor);
     return afterCursor

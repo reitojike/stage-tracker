@@ -15,8 +15,7 @@ export function deriveOfficialImportCandidateReviewStatus(
   candidate: MatchEvidence,
 ): OfficialImportCandidateReviewStatus {
   return candidate.deterministicMatchStatus === "ambiguous" ||
-    candidate.semanticMatchStatus === "ambiguous" ||
-    candidate.semanticMatchStatus === "low_confidence"
+    candidate.semanticMatchStatus !== "not_used"
     ? "blocked_for_identity_review"
     : "pending";
 }
