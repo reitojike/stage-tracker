@@ -5,7 +5,7 @@ import {
   type OfficialSourceDefinition,
 } from "../source-registry";
 
-const MAX_HTML_BYTES = 2_000_000;
+const MAX_TEXT_BYTES = 2_000_000;
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_REDIRECTS = 5;
 
@@ -23,10 +23,14 @@ export type OfficialHtmlFetcher = (
   url: string,
 ) => Promise<OfficialHtmlDocument>;
 
-export async function fetchOfficialHtml(
+export type OfficialJsonFetcher = OfficialHtmlFetcher;
+
+async function fetchOfficialText(
   source: OfficialSourceDefinition,
   candidateUrl: string,
-  transport: typeof fetch = fetch,
+  accept: string,
+  expectedContentType: string,
+  transport: typeof fetch,
 ): Promise<OfficialHtmlDocument> {
   let url = assertAllowedSourceUrl(source, candidateUrl);
   let response: Response | null = null;
@@ -35,7 +39,7 @@ export async function fetchOfficialHtml(
       response = await transport(url, {
         redirect: "manual",
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        headers: { Accept: "text/html,application/xhtml+xml" },
+        headers: { Accept: accept },
       });
     } catch {
       throw new SourceFetchFailure();
@@ -49,11 +53,11 @@ export async function fetchOfficialHtml(
   if (response === null) throw new SourceFetchFailure();
   if (!response.ok) throw new SourceFetchFailure();
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("text/html")) {
+  if (!contentType.toLowerCase().includes(expectedContentType)) {
     throw new SourceFetchFailure();
   }
   const contentLength = Number(response.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_HTML_BYTES) {
+  if (Number.isFinite(contentLength) && contentLength > MAX_TEXT_BYTES) {
     throw new SourceFetchFailure();
   }
   let body: string;
@@ -62,7 +66,7 @@ export async function fetchOfficialHtml(
   } catch {
     throw new SourceFetchFailure();
   }
-  if (new TextEncoder().encode(body).byteLength > MAX_HTML_BYTES) {
+  if (new TextEncoder().encode(body).byteLength > MAX_TEXT_BYTES) {
     throw new SourceFetchFailure();
   }
   return {
@@ -73,6 +77,34 @@ export async function fetchOfficialHtml(
     etag: response.headers.get("etag"),
     lastModified: response.headers.get("last-modified"),
   };
+}
+
+export async function fetchOfficialHtml(
+  source: OfficialSourceDefinition,
+  candidateUrl: string,
+  transport: typeof fetch = fetch,
+): Promise<OfficialHtmlDocument> {
+  return fetchOfficialText(
+    source,
+    candidateUrl,
+    "text/html,application/xhtml+xml",
+    "text/html",
+    transport,
+  );
+}
+
+export async function fetchOfficialJson(
+  source: OfficialSourceDefinition,
+  candidateUrl: string,
+  transport: typeof fetch = fetch,
+): Promise<OfficialHtmlDocument> {
+  return fetchOfficialText(
+    source,
+    candidateUrl,
+    "application/json",
+    "application/json",
+    transport,
+  );
 }
 
 export function hashOfficialDocuments(

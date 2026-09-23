@@ -36,6 +36,20 @@ describe("official source registry", () => {
     expect(vpass).toMatchObject({ enabled: false, policyState: "hold" });
   });
 
+  it("keeps WordPress API sources disabled until source-specific rollout gates clear", () => {
+    for (const id of ["event.kyurushite.schedule", "event.chumtoto.schedule"]) {
+      expect(getOfficialSource(id)).toMatchObject({
+        enabled: false,
+        policyState: "planned",
+        adapter: "http_json",
+        extractor: "wordpress_tribe_events",
+      });
+      expect(() => requireEnabledShadowSource(id)).toThrow(
+        OfficialSourceRegistryError,
+      );
+    }
+  });
+
   it("allowlists only the known Shochiku schedule pages", () => {
     const source = getOfficialSource("ticket.shochiku.schedule");
     if (source === null) throw new Error("test source is missing");
