@@ -232,7 +232,11 @@ begin
     or p_expected_current is null
     or jsonb_typeof(p_expected_current -> 'event') <> 'object'
     or not (p_expected_current -> 'event' ?&
-      array['id', 'source_key', 'title', 'venue', 'starts_on', 'ends_on', 'canceled_at'])
+      array['id', 'source_key', 'title', 'venue', 'source_url', 'memo',
+            'genre_id', 'starts_on', 'ends_on', 'canceled_at'])
+    or not (p_expected_current ? 'genreKey')
+    or jsonb_typeof(p_expected_current -> 'eventOccurrences') <> 'array'
+    or jsonb_typeof(p_expected_current -> 'eventGroups') <> 'array'
     or jsonb_typeof(p_expected_current -> 'targets') <> 'array'
     or jsonb_typeof(p_expected_current -> 'milestones') <> 'array'
     or jsonb_typeof(p_expected_current -> 'targetOccurrences') <> 'array' then
@@ -246,6 +250,9 @@ begin
     or v_event.source_key is distinct from p_expected_current #>> '{event,source_key}'
     or v_event.title is distinct from p_expected_current #>> '{event,title}'
     or v_event.venue is distinct from p_expected_current #>> '{event,venue}'
+    or v_event.source_url is distinct from p_expected_current #>> '{event,source_url}'
+    or v_event.memo is distinct from p_expected_current #>> '{event,memo}'
+    or v_event.genre_id is distinct from (p_expected_current #>> '{event,genre_id}')::uuid
     or v_event.starts_on is distinct from (p_expected_current #>> '{event,starts_on}')::date
     or v_event.ends_on is distinct from (p_expected_current #>> '{event,ends_on}')::date
     or v_event.canceled_at is distinct from (p_expected_current #>> '{event,canceled_at}')::timestamptz then
@@ -254,20 +261,70 @@ begin
   end if;
 
   perform 1 from public.event_occurrences
+    where event_id = p_event_id for update;
+  perform 1 from public.event_groups
+    where event_id = p_event_id for update;
+  perform 1 from public.groups g
+    join public.event_groups eg on eg.group_id = g.id
+    where eg.event_id = p_event_id for update of g;
+  perform 1 from public.genres
+    where id = v_event.genre_id for update;
+  if (select key from public.genres where id = v_event.genre_id)
+       is distinct from p_expected_current ->> 'genreKey'
+    or exists (
+      select id, starts_at, doors_at, ends_at, canceled_at
+      from public.event_occurrences where event_id = p_event_id
+      except
+      select id, starts_at, doors_at, ends_at, canceled_at
+      from jsonb_to_recordset(p_expected_current -> 'eventOccurrences')
+        as expected(id uuid, starts_at timestamptz, doors_at timestamptz,
+                    ends_at timestamptz, canceled_at timestamptz)
+    ) or exists (
+      select id, starts_at, doors_at, ends_at, canceled_at
+      from jsonb_to_recordset(p_expected_current -> 'eventOccurrences')
+        as expected(id uuid, starts_at timestamptz, doors_at timestamptz,
+                    ends_at timestamptz, canceled_at timestamptz)
+      except
+      select id, starts_at, doors_at, ends_at, canceled_at
+      from public.event_occurrences where event_id = p_event_id
+    ) or exists (
+      select g.key, g.display_name
+      from public.event_groups eg join public.groups g on g.id = eg.group_id
+      where eg.event_id = p_event_id
+      except
+      select key, "displayName"
+      from jsonb_to_recordset(p_expected_current -> 'eventGroups')
+        as expected(key text, "displayName" text)
+    ) or exists (
+      select key, "displayName"
+      from jsonb_to_recordset(p_expected_current -> 'eventGroups')
+        as expected(key text, "displayName" text)
+      except
+      select g.key, g.display_name
+      from public.event_groups eg join public.groups g on g.id = eg.group_id
+      where eg.event_id = p_event_id
+    ) then
+    raise exception 'reviewed target Event match facts changed before apply'
+      using errcode = '40001';
+  end if;
+
+  perform 1 from public.event_occurrences
     where id = any(p_occurrence_ids) for update;
   if exists (
-    select id, starts_at from public.event_occurrences
+    select id, starts_at, doors_at, ends_at, canceled_at from public.event_occurrences
     where id = any(p_occurrence_ids) and event_id = p_event_id
     except
-    select id, starts_at
+    select id, starts_at, doors_at, ends_at, canceled_at
     from jsonb_to_recordset(p_expected_current -> 'targetOccurrences')
-      as expected(id uuid, starts_at timestamptz)
+      as expected(id uuid, starts_at timestamptz, doors_at timestamptz,
+                  ends_at timestamptz, canceled_at timestamptz)
   ) or exists (
-    select id, starts_at
+    select id, starts_at, doors_at, ends_at, canceled_at
     from jsonb_to_recordset(p_expected_current -> 'targetOccurrences')
-      as expected(id uuid, starts_at timestamptz)
+      as expected(id uuid, starts_at timestamptz, doors_at timestamptz,
+                  ends_at timestamptz, canceled_at timestamptz)
     except
-    select id, starts_at from public.event_occurrences
+    select id, starts_at, doors_at, ends_at, canceled_at from public.event_occurrences
     where id = any(p_occurrence_ids) and event_id = p_event_id
   ) then
     raise exception 'reviewed target Occurrence changed before apply'

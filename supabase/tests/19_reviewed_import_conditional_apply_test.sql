@@ -5,7 +5,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(25);
 
 select is(has_function_privilege('authenticated',
           'public.apply_reviewed_import_event_plan'::regproc, 'EXECUTE'),
@@ -113,6 +113,10 @@ select lives_ok(
 select is((select title from public.events where id = :'event_id'),
           'Reviewed title', 'reviewed Event import updates the planned row');
 
+-- The earlier Event cancellation-race probe left this occurrence canceled;
+-- Ticket targeting below begins from an active occurrence.
+update public.event_occurrences set canceled_at = null where event_id = :'event_id';
+
 insert into public.groups (key, display_name)
 values ('reviewed-race:existing-group', 'Original group');
 update public.groups set display_name = 'Concurrent group correction'
@@ -166,11 +170,14 @@ where event_id = :'event_id' limit 1 \gset
 
 select jsonb_build_object(
   'event', to_jsonb(e),
+  'genreKey', null,
+  'eventOccurrences', coalesce((select jsonb_agg(to_jsonb(eo))
+                                 from public.event_occurrences eo where eo.event_id = e.id), '[]'::jsonb),
+  'eventGroups', '[]'::jsonb,
   'opportunity', null,
   'targets', '[]'::jsonb,
   'milestones', '[]'::jsonb,
-  'targetOccurrences', jsonb_build_array(jsonb_build_object(
-    'id', eo.id, 'starts_at', eo.starts_at))
+  'targetOccurrences', jsonb_build_array(to_jsonb(eo))
 )::text as ticket_initial_snapshot
 from public.events e join public.event_occurrences eo on eo.event_id = e.id
 where e.id = :'event_id' \gset
@@ -189,6 +196,10 @@ select is((select source_key from public.ticket_opportunities where id = :'oppor
 
 select jsonb_build_object(
   'event', to_jsonb(e),
+  'genreKey', null,
+  'eventOccurrences', coalesce((select jsonb_agg(to_jsonb(eo))
+                                 from public.event_occurrences eo where eo.event_id = e.id), '[]'::jsonb),
+  'eventGroups', '[]'::jsonb,
   'opportunity', to_jsonb(o),
   'targets', coalesce((select jsonb_agg(t.occurrence_id)
                        from public.ticket_opportunity_target_occurrences t
@@ -196,7 +207,7 @@ select jsonb_build_object(
   'milestones', coalesce((select jsonb_agg(to_jsonb(m))
                           from public.ticket_opportunity_milestones m
                           where m.opportunity_id = o.id), '[]'::jsonb),
-  'targetOccurrences', coalesce((select jsonb_agg(jsonb_build_object('id', eo.id, 'starts_at', eo.starts_at))
+  'targetOccurrences', coalesce((select jsonb_agg(to_jsonb(eo))
                                  from public.event_occurrences eo where eo.id = :'occurrence_id'), '[]'::jsonb)
 )::text as ticket_snapshot
 from public.ticket_opportunities o join public.events e on e.id = o.event_id
@@ -247,6 +258,73 @@ select throws_ok(
 );
 update public.events set canceled_at = null where id = :'event_id';
 
+update public.event_occurrences set canceled_at = now() where id = :'occurrence_id';
+select throws_ok(
+  format($sql$
+    select public.apply_reviewed_ticket_opportunity(
+      p_action := 'unchanged', p_event_id := %L,
+      p_source_key := 'reviewed-race:ticket', p_display_name := 'Original sale',
+      p_target_scope := 'selected_occurrences', p_occurrence_ids := array[%L::uuid],
+      p_source_url := null, p_memo := null, p_milestones := '[]',
+      p_expected_current := %L::jsonb
+    )
+  $sql$, :'event_id', :'occurrence_id', :'ticket_snapshot'),
+  '40001', null, 'a target Occurrence cancellation rejects reviewed Ticket apply'
+);
+update public.event_occurrences set canceled_at = null where id = :'occurrence_id';
+
+update public.event_occurrences set doors_at = '2026-10-10T03:00:00Z'
+where id = :'occurrence_id';
+select throws_ok(
+  format($sql$
+    select public.apply_reviewed_ticket_opportunity(
+      p_action := 'unchanged', p_event_id := %L,
+      p_source_key := 'reviewed-race:ticket', p_display_name := 'Original sale',
+      p_target_scope := 'selected_occurrences', p_occurrence_ids := array[%L::uuid],
+      p_source_url := null, p_memo := null, p_milestones := '[]',
+      p_expected_current := %L::jsonb
+    )
+  $sql$, :'event_id', :'occurrence_id', :'ticket_snapshot'),
+  '40001', null, 'a target Occurrence time edit rejects reviewed Ticket apply'
+);
+update public.event_occurrences set doors_at = null where id = :'occurrence_id';
+
+insert into public.groups (key, display_name)
+values ('reviewed-race:ticket-group', 'Newly linked group')
+returning id as ticket_group_id \gset
+insert into public.event_groups (event_id, group_id)
+values (:'event_id', :'ticket_group_id');
+select throws_ok(
+  format($sql$
+    select public.apply_reviewed_ticket_opportunity(
+      p_action := 'unchanged', p_event_id := %L,
+      p_source_key := 'reviewed-race:ticket', p_display_name := 'Original sale',
+      p_target_scope := 'selected_occurrences', p_occurrence_ids := array[%L::uuid],
+      p_source_url := null, p_memo := null, p_milestones := '[]',
+      p_expected_current := %L::jsonb
+    )
+  $sql$, :'event_id', :'occurrence_id', :'ticket_snapshot'),
+  '40001', null, 'a target Event group change rejects reviewed Ticket apply'
+);
+delete from public.event_groups
+where event_id = :'event_id' and group_id = :'ticket_group_id';
+
+update public.events set source_url = 'https://official.example.test/event'
+where id = :'event_id';
+select throws_ok(
+  format($sql$
+    select public.apply_reviewed_ticket_opportunity(
+      p_action := 'unchanged', p_event_id := %L,
+      p_source_key := 'reviewed-race:ticket', p_display_name := 'Original sale',
+      p_target_scope := 'selected_occurrences', p_occurrence_ids := array[%L::uuid],
+      p_source_url := null, p_memo := null, p_milestones := '[]',
+      p_expected_current := %L::jsonb
+    )
+  $sql$, :'event_id', :'occurrence_id', :'ticket_snapshot'),
+  '40001', null, 'a target Event source edit rejects reviewed Ticket apply'
+);
+update public.events set source_url = null where id = :'event_id';
+
 update public.ticket_opportunity_milestones set date_value = '2026-09-21'
 where opportunity_id = :'opportunity_id';
 select throws_ok(
@@ -270,6 +348,10 @@ select is((select date_value from public.ticket_opportunity_milestones
 
 select jsonb_build_object(
   'event', to_jsonb(e),
+  'genreKey', null,
+  'eventOccurrences', coalesce((select jsonb_agg(to_jsonb(eo))
+                                 from public.event_occurrences eo where eo.event_id = e.id), '[]'::jsonb),
+  'eventGroups', '[]'::jsonb,
   'opportunity', to_jsonb(o),
   'targets', coalesce((select jsonb_agg(t.occurrence_id)
                        from public.ticket_opportunity_target_occurrences t
@@ -277,7 +359,7 @@ select jsonb_build_object(
   'milestones', coalesce((select jsonb_agg(to_jsonb(m))
                           from public.ticket_opportunity_milestones m
                           where m.opportunity_id = o.id), '[]'::jsonb),
-  'targetOccurrences', coalesce((select jsonb_agg(jsonb_build_object('id', eo.id, 'starts_at', eo.starts_at))
+  'targetOccurrences', coalesce((select jsonb_agg(to_jsonb(eo))
                                  from public.event_occurrences eo where eo.id = :'occurrence_id'), '[]'::jsonb)
 )::text as ticket_snapshot
 from public.ticket_opportunities o join public.events e on e.id = o.event_id
