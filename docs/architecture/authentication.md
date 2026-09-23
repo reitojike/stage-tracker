@@ -193,8 +193,9 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
 1. `verifyOtp()` 成功時、`@supabase/ssr` の `createServerClient` が
    `setAll()` コールバック経由でセッション Cookie を Response へ書き込みます
    （`createSupabaseServerClient()` 内、通常の Cookie 書き込みパス）。
-2. 以降の全リクエストは、[apps/web/src/proxy.ts](../../apps/web/src/proxy.ts) の `proxy()` を
-   経由します。Next.js 16.3 以降で `middleware.ts` に代わって使われる規約
+2. 以降のアプリケーションリクエストは、`matcher` の静的 resource 除外を除き、
+   [apps/web/src/proxy.ts](../../apps/web/src/proxy.ts) の `proxy()` を経由します。
+   Next.js 16.3 以降で `middleware.ts` に代わって使われる規約
    （`proxy()` エクスポート + `config.matcher`）で書かれた、この
    プロダクトにおける Middleware 相当の実体です。
    - `matcher` は `_next/static` / `_next/image` / `favicon.ico` と、
@@ -216,21 +217,28 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
      書かれています。両者の一致は
      `apps/web/src/lib/pwa/app-identity.test.ts` が、実 HTTP 上の挙動は
      `apps/web/e2e/journeys/sign-in.spec.ts` が検証します。
-   - 毎リクエストで `supabase.auth.getUser()` を呼び、`@supabase/ssr` の
+   - exact path `/api/official-import/cron` は機械認証用の例外として、
+     Supabase user session の確認前に route handler へ通します。この path は
+     `PUBLIC_PATHS` には含めません。route handler が Production 限定と
+     `CRON_SECRET` bearer を検証し、どちらかを満たさなければ実行しません。
+     `/api/official-import/shadow` や他の API、Cron path の子 path には
+     この例外を適用しません。
+   - この機械認証 path を除く proxy 対象リクエストで
+     `supabase.auth.getUser()` を呼び、`@supabase/ssr` の
      `setAll()` コールバック経由でリフレッシュ後のセッション Cookie を
      Response（および redirect 発生時はその redirect レスポンス）へ
      書き戻します。**セッションの確実なリフレッシュはここで行われています。**
-   - 同時に認証境界そのものも強制します。`PUBLIC_PATHS`
-     （`/sign-in` / `/auth/confirm` のみ、exact match）以外は認証済みで
+   - 同時にユーザー認証境界そのものも強制します。上記の exact machine-auth
+     path と `PUBLIC_PATHS`（`/sign-in` / `/auth/confirm` のみ、exact match）以外は認証済みで
      ない限り `/sign-in` へ redirect し、認証済みユーザーが `/sign-in` へ
      来た場合は `/` へ redirect します。新しく追加された route は、明示的に
-     `PUBLIC_PATHS` へ追加しない限りデフォルトで認証必須になる設計です。
+     `PUBLIC_PATHS` へ追加しない限りデフォルトでユーザー認証必須になる設計です。
      Issue #304 の PWA resource は `PUBLIC_PATHS` ではなく上記の `matcher`
      除外として公開しています。session を読む必要が無い静的 asset のため、
      icon 1 件ごとに `supabase.auth.getUser()` を走らせないためです。
      PWA resource の追加は、この `matcher` 除外の範囲に閉じており、
      application route 側の default-deny を緩めていません。
-3. Server Component / Route Handler / Server Action は、都度
+3. ユーザー向けの Server Component / Route Handler / Server Action は、都度
    `createSupabaseServerClient()` を呼び、`proxy.ts` によって既にリフレッシュ
    済みの Cookie からセッションを読み取ります。
    [apps/web/src/app/_lib/require-authenticated-user-id.ts](../../apps/web/src/app/_lib/require-authenticated-user-id.ts)
