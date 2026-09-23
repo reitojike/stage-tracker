@@ -7,13 +7,14 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(68);
+select plan(70);
 
 select pg_temp.create_test_user() as creator_id \gset
+select pg_temp.create_test_user() as second_creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
 
 insert into public.catalog_creators (user_id)
-values (:'creator_id');
+values (:'creator_id'), (:'second_creator_id');
 
 insert into public.events (owner_id, title, starts_on, ends_on)
 values (:'creator_id', 'P2 staging product fixture event', '2026-11-01', '2026-11-01')
@@ -146,6 +147,16 @@ returning id as failed_candidate_id \gset
 
 insert into public.official_import_candidates (
   run_id, source_id, candidate_kind, canonical_url, official_external_id, content_hash,
+  proposal_version, proposal, evidence_locator, resolved_event_id, plan_fingerprint
+)
+values (:'run_id', 'fixture-source', 'event', 'https://official.example/events/owner-guard',
+  'official-event-owner-guard', repeat('a', 64), 'event-v1',
+  '{"title":"Owner guard proposal"}'::jsonb, '{"page":8}'::jsonb,
+  :'event_id', repeat('b', 64))
+returning id as owner_guard_candidate_id \gset
+
+insert into public.official_import_candidates (
+  run_id, source_id, candidate_kind, canonical_url, official_external_id, content_hash,
   proposal_version, proposal, evidence_locator, plan_fingerprint
 )
 values (:'run_id', 'fixture-source', 'event', 'https://official.example/events/6',
@@ -222,7 +233,12 @@ select throws_ok(format($$select public.review_official_import_candidate(%L, 'ap
   '22023', null, 'reject review while parent import run is incomplete');
 call pg_temp.auth_as_admin();
 update public.official_import_runs set status = 'completed', finished_at = now() where id = :'run_id';
+call pg_temp.auth_as_user(:'second_creator_id');
+select throws_ok(format($$select public.review_official_import_candidate(%L, 'approved')$$, :'owner_guard_candidate_id'),
+  '42501', null, 'another designated creator cannot approve an existing Event owner import');
 call pg_temp.auth_as_user(:'creator_id');
+select is((select review_status from public.review_official_import_candidate(:'owner_guard_candidate_id', 'approved')),
+  'approved', 'matched Event owner can approve the same still-pending candidate');
 select is((select review_status from public.review_official_import_candidate(:'candidate_id', 'approved')),
   'approved', 'review RPC approves pending candidate');
 select is((select reviewer from public.official_import_candidates where id = :'candidate_id'),
