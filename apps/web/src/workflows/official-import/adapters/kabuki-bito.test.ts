@@ -495,6 +495,20 @@ describe("Kabuki-bito adapter facts", () => {
     ]);
   });
 
+  it("maps numeric calendar headers one-to-one to fully parsed labeled headline times", () => {
+    expect(
+      parseKabukiDetailedOccurrences(
+        mobileCalendar("<th></th><th>11：00</th><th>16：00</th>", [
+          "<th>1（木）</th><td>11：00</td><td>16：00</td>",
+        ]),
+        "2026-10-01",
+        "2026-10-01",
+        "第一部 午前11時～ 第二部 午後4時～",
+        "other",
+      ).map((item) => item.startsAt),
+    ).toEqual(["2026-10-01T11:00:00+09:00", "2026-10-01T16:00:00+09:00"]);
+  });
+
   it("accepts numbered part headers only with matching headline times", () => {
     const occurrences = parseKabukiDetailedOccurrences(
       mobileCalendar("<th></th><th>第1部</th><th>第2部</th>", [

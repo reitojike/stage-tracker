@@ -272,24 +272,28 @@ function parseVerifiedMobileCalendar(
   )
     throw new SourceParseFailure();
   if (headlineParts.length !== parts.length) throw new SourceParseFailure();
+  const usedHeadlineParts = new Set<number>();
   const expectedClocks = parts.map((part) => {
-    if (/^\d{1,2}[:：]\d{2}$/u.test(part)) {
-      const clock = parseJapaneseClock(part);
-      const headlineClock = headlineParts[0]?.clock;
-      if (
-        clock === null ||
-        headlineParts[0]?.name !== "単独" ||
-        headlineClock === undefined ||
-        clock.hour !== headlineClock.hour ||
-        clock.minute !== headlineClock.minute
-      )
-        throw new SourceParseFailure();
-      return clock;
-    }
-    const matching = headlineParts.filter((item) => item.name === part);
-    if (matching.length !== 1 || matching[0] === undefined)
+    const numeric = /^\d{1,2}[:：]\d{2}$/u.test(part);
+    const headerClock = numeric ? parseJapaneseClock(part) : null;
+    const matching = headlineParts
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) =>
+        numeric
+          ? headerClock !== null &&
+            item.clock.hour === headerClock.hour &&
+            item.clock.minute === headerClock.minute
+          : item.name === part,
+      );
+    const selected = matching[0];
+    if (
+      matching.length !== 1 ||
+      selected === undefined ||
+      usedHeadlineParts.has(selected.index)
+    )
       throw new SourceParseFailure();
-    return matching[0].clock;
+    usedHeadlineParts.add(selected.index);
+    return selected.item.clock;
   });
 
   const dates = enumerateDates(startsOn, endsOn);
