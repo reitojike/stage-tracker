@@ -20,7 +20,11 @@ import {
   fetchOfficialHtml,
   hashOfficialDocuments,
 } from "./http";
-import { parseJapaneseClock, tokyoDateTime } from "./japanese-date";
+import {
+  calendarDate,
+  parseJapaneseClock,
+  tokyoDateTime,
+} from "./japanese-date";
 
 export type SkiyakiCalendarRelevance =
   "physical_event" | "online_only" | "media" | "release" | "other";
@@ -42,6 +46,15 @@ function classify(classes: readonly string[]): SkiyakiCalendarRelevance {
     return "physical_event";
   }
   return "other";
+}
+
+function calendarRowDate(value: string): string | null {
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/u);
+  const japanese = value.match(/^(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日$/u);
+  const match = iso ?? japanese;
+  return match === null
+    ? null
+    : calendarDate(Number(match[1]), Number(match[2]), Number(match[3]));
 }
 
 export function parseSkiyakiCalendar(
@@ -66,15 +79,14 @@ export function parseSkiyakiCalendar(
     })[0];
     if (time === undefined || anchor === undefined) return [];
     const rawDate = attribute(time, "datetime") ?? "";
-    const date = rawDate.match(/^\d{4}-\d{2}-\d{2}/u)?.[0];
+    const date = calendarRowDate(rawDate);
     const href = attribute(anchor, "href") ?? "";
     const officialId = href.match(/^\/contents\/(\d+)/u)?.[1];
     const titleNode = descendants(row, (node) =>
       hasClass(node, "fc-event-inner"),
     )[0];
     const title = normalizedText(titleNode ?? anchor);
-    if (date === undefined || officialId === undefined || title === "")
-      return [];
+    if (date === null || officialId === undefined || title === "") return [];
     const classes = descendants(row, () => true).flatMap((node) =>
       (attribute(node, "class") ?? "").split(/\s+/u),
     );
@@ -149,7 +161,7 @@ function groupFor(source: OfficialSourceDefinition) {
     return [{ key: "cynhn", displayName: "CYNHN" }];
   }
   if (source.id === "event.meme-tokyo.calendar") {
-    return [{ key: "meme-tokyo", displayName: "MEME TOKYO" }];
+    return [{ key: "meme-tokyo", displayName: "MEME TOKYO." }];
   }
   if (source.id === "event.arcana-project.calendar") {
     return [{ key: "arcana-project", displayName: "ARCANA PROJECT" }];
