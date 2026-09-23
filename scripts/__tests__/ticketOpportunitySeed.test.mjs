@@ -53,6 +53,18 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
     ends_at: null,
     canceled_at: null,
   };
+  const rowsByTable = {
+    events: [event],
+    event_occurrences: [occurrence],
+    event_groups: [
+      {
+        event_id: event.id,
+        group_id: 'group-1',
+        groups: { key: 'star', display_name: 'Star' },
+      },
+    ],
+    genres: [{ id: 'genre-1', key: 'theatre' }],
+  };
   const admin = {
     from(table) {
       return {
@@ -63,16 +75,17 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
               'id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, canceled_at',
             );
           return {
-            async in() {
-              const data = {
-                events: [event],
-                event_occurrences: [occurrence],
-                event_groups: [
-                  { event_id: event.id, groups: { key: 'star', display_name: 'Star' } },
-                ],
-                genres: [{ id: 'genre-1', key: 'theatre' }],
-              };
-              return { data: data[table] ?? [], error: null };
+            in() {
+              if (table === 'event_occurrences' || table === 'event_groups')
+                return {
+                  order() {
+                    return this;
+                  },
+                  async range(start, end) {
+                    return { data: rowsByTable[table].slice(start, end + 1), error: null };
+                  },
+                };
+              return Promise.resolve({ data: rowsByTable[table] ?? [], error: null });
             },
             async eq() {
               return { data: table === 'event_occurrences' ? [occurrence] : [], error: null };
@@ -103,6 +116,41 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
   const canceledEvent = await resolvePlans(admin, [validated.entry]);
   assert.equal(canceledEvent.ok, true);
   assert.equal(canceledEvent.plans[0].hasCanceledTarget, true);
+  event.canceled_at = null;
+
+  rowsByTable.event_occurrences = Array.from({ length: 1_001 }, (_, index) => ({
+    ...occurrence,
+    id: `occurrence-${index}`,
+    starts_at: new Date(Date.parse(occurrence.starts_at) + index * 60_000).toISOString(),
+  }));
+  rowsByTable.event_groups = Array.from({ length: 1_001 }, (_, index) => ({
+    event_id: event.id,
+    group_id: `group-${index}`,
+    groups: { key: `group-${index}`, display_name: `Group ${index}` },
+  }));
+  const paged = await resolvePlans(admin, [validated.entry]);
+  assert.equal(paged.ok, true);
+  assert.equal(paged.plans[0].expectedCurrent.eventOccurrences.length, 1_001);
+  assert.equal(paged.plans[0].expectedCurrent.eventGroups.length, 1_001);
+  const lateTarget = validateSeedEntryShape(
+    validEntry({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: [rowsByTable.event_occurrences[1_000].starts_at],
+    }),
+    'late-target.json',
+  );
+  assert.equal(lateTarget.ok, true);
+  const latePlan = await resolvePlans(admin, [lateTarget.entry]);
+  assert.equal(latePlan.ok, true);
+  assert.equal(latePlan.plans[0].expectedCurrent.targetOccurrences[0].id, 'occurrence-1000');
+
+  rowsByTable.event_occurrences = Array.from({ length: 5_001 }, (_, index) => ({
+    ...occurrence,
+    id: `occurrence-${index}`,
+  }));
+  const oversized = await resolvePlans(admin, [validated.entry]);
+  assert.equal(oversized.ok, false);
+  assert.match(oversized.problems[0], /exceeds the reviewed match-fact limit/);
 });
 
 void test('reviewed event-wide apply sends a null target list and surfaces stale catalog state', async () => {

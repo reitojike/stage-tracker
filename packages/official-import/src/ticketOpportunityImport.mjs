@@ -78,6 +78,25 @@ function milestonesEqual(existing, proposed) {
   );
 }
 
+const MATCH_FACT_PAGE_SIZE = 500;
+const MAX_MATCH_FACT_ROWS = 5_000;
+
+async function readTargetEventMatchRows(admin, table, columns, eventIds, orderColumns) {
+  const rows = [];
+  for (let start = 0; start <= MAX_MATCH_FACT_ROWS; start += MATCH_FACT_PAGE_SIZE) {
+    let query = admin.from(table).select(columns).in('event_id', eventIds);
+    for (const column of orderColumns) query = query.order(column);
+    const { data, error } = await query.range(start, start + MATCH_FACT_PAGE_SIZE - 1);
+    if (error) return { ok: false, problem: `Failed to read ${table}: ${error.message}` };
+    if (!Array.isArray(data)) return { ok: false, problem: `Failed to read ${table} completely.` };
+    if (rows.length + data.length > MAX_MATCH_FACT_ROWS)
+      return { ok: false, problem: `${table} exceeds the reviewed match-fact limit.` };
+    rows.push(...data);
+    if (data.length < MATCH_FACT_PAGE_SIZE) return { ok: true, rows };
+  }
+  return { ok: false, problem: `${table} exceeds the reviewed match-fact limit.` };
+}
+
 /**
  * Resolves every shape-validated entry against the current catalog: the
  * target Event (by events.source_key - a separate identity space from the
@@ -113,23 +132,32 @@ export async function resolvePlans(admin, entries) {
   const genreKeyById = new Map();
   if (eventIds.length > 0) {
     const [occurrenceResult, groupResult] = await Promise.all([
-      admin
-        .from('event_occurrences')
-        .select('id, event_id, starts_at, doors_at, ends_at, canceled_at')
-        .in('event_id', eventIds),
-      admin
-        .from('event_groups')
-        .select('event_id, groups(key, display_name)')
-        .in('event_id', eventIds),
+      readTargetEventMatchRows(
+        admin,
+        'event_occurrences',
+        'id, event_id, starts_at, doors_at, ends_at, canceled_at',
+        eventIds,
+        ['id'],
+      ),
+      readTargetEventMatchRows(
+        admin,
+        'event_groups',
+        'event_id, group_id, groups(key, display_name)',
+        eventIds,
+        ['event_id', 'group_id'],
+      ),
     ]);
-    if (occurrenceResult.error || groupResult.error)
-      return { ok: false, problems: ['Failed to read target Event match facts.'] };
-    for (const row of occurrenceResult.data) {
+    if (!occurrenceResult.ok || !groupResult.ok)
+      return {
+        ok: false,
+        problems: [occurrenceResult.problem ?? groupResult.problem],
+      };
+    for (const row of occurrenceResult.rows) {
       const rows = eventOccurrencesById.get(row.event_id) ?? [];
       rows.push(row);
       eventOccurrencesById.set(row.event_id, rows);
     }
-    for (const row of groupResult.data) {
+    for (const row of groupResult.rows) {
       if (row.groups === null) continue;
       const rows = eventGroupsById.get(row.event_id) ?? [];
       rows.push({ key: row.groups.key, displayName: row.groups.display_name });
@@ -199,33 +227,15 @@ export async function resolvePlans(admin, entries) {
     }
   }
 
-  // Occurrences are only fetched per Event actually referenced by a
-  // selected_occurrences entry, and only once per Event even if several
-  // entries target the same one.
+  // Reuse the complete, bounded Event snapshot for locator resolution.
+  // A second unpaged SELECT could silently omit targets after row 1,000.
   const occurrencesByEventId = new Map();
-  // Returns `{ok:true, instants}` or `{ok:false, message}` rather than
-  // throwing - every other lookup in this function reports a failure into
-  // `problems` and keeps going (so earlier entries' already-collected
-  // problems in the same run are not discarded), and this helper must not
-  // be the one exception that turns a transient DB error into an unhandled
-  // rejection out of resolvePlans.
-  async function occurrenceInstantsFor(eventId) {
-    if (occurrencesByEventId.has(eventId)) {
-      return { ok: true, instants: occurrencesByEventId.get(eventId) };
-    }
-    const { data, error } = await admin
-      .from('event_occurrences')
-      .select('id, starts_at, doors_at, ends_at, canceled_at')
-      .eq('event_id', eventId);
-    if (error) {
-      return {
-        ok: false,
-        message: `Failed to look up occurrences for event ${eventId}: ${error.message}`,
-      };
-    }
-    const map = new Map(data.map((row) => [instantOf(row.starts_at), row]));
+  function occurrenceInstantsFor(eventId) {
+    if (occurrencesByEventId.has(eventId)) return occurrencesByEventId.get(eventId);
+    const rows = eventOccurrencesById.get(eventId) ?? [];
+    const map = new Map(rows.map((row) => [instantOf(row.starts_at), row]));
     occurrencesByEventId.set(eventId, map);
-    return { ok: true, instants: map };
+    return map;
   }
 
   for (const entry of entries) {
@@ -238,12 +248,7 @@ export async function resolvePlans(admin, entries) {
     let occurrenceIds = [];
     let targetOccurrenceFacts = [];
     if (entry.targetScope === 'selected_occurrences') {
-      const resolvedInstants = await occurrenceInstantsFor(event.id);
-      if (!resolvedInstants.ok) {
-        problems.push(`${entry.sourceKey}: ${resolvedInstants.message}`);
-        continue;
-      }
-      const instants = resolvedInstants.instants;
+      const instants = occurrenceInstantsFor(event.id);
       const missing = [];
       for (const locator of entry.targetOccurrences) {
         const occurrence = instants.get(instantOf(locator));
