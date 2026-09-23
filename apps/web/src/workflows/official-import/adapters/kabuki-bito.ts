@@ -142,46 +142,60 @@ function detailText(html: string, className: string): string | null {
 
 export function createKabukiBitoAdapter(
   fetcher: OfficialHtmlFetcher = fetchOfficialHtml,
+  pauseBetweenBatches: () => Promise<void> = () =>
+    new Promise((resolve) => setTimeout(resolve, 1_000)),
 ): OfficialSourceAdapter {
   return {
     async acquire(source): Promise<readonly EventAcquisitionDraft[]> {
       const index = await fetcher(source, source.canonicalUrl);
       const facts = parseKabukiIndex(source, index.body);
-      return Promise.all(
-        facts.map(async (fact) => {
-          const detail = await fetcher(source, fact.canonicalUrl);
-          const timetable = detailText(detail.body, "type-timetable");
-          if (timetable === null) throw new SourceParseFailure();
-          const venue = detailText(detail.body, "type-theater");
-          return {
-            candidateKind: "event" as const,
-            canonicalUrl: detail.url,
-            officialExternalId: fact.officialId,
-            observedAt: detail.observedAt,
-            contentHash: hashOfficialDocuments([index, detail]),
-            etag: detail.etag,
-            lastModified: detail.lastModified,
-            evidenceLocator: {
-              sectionLabel: "公演情報",
-              fragmentId: fact.officialId,
-            },
-            proposal: {
-              sourceKey: `kabuki-bito:${fact.theater}:play:${fact.officialId}`,
-              title: fact.title,
-              venue,
-              memo: /【(?:休演|貸切)】/u.test(timetable)
-                ? "公式日程の休演・貸切日をOccurrence候補から除外"
-                : null,
-              sourceUrl: detail.url,
-              startsOn: fact.startsOn,
-              endsOn: fact.endsOn,
-              occurrences: [
-                ...expandKabukiSchedule(fact.startsOn, fact.endsOn, timetable),
-              ],
-            },
-          };
-        }),
-      );
+      const drafts: EventAcquisitionDraft[] = [];
+      // A current index can contain dozens of plays. Avoid a simultaneous
+      // burst against the official site even when the Cron itself is weekly.
+      for (let offset = 0; offset < facts.length; offset += 2) {
+        const batch = await Promise.all(
+          facts.slice(offset, offset + 2).map(async (fact) => {
+            const detail = await fetcher(source, fact.canonicalUrl);
+            const timetable = detailText(detail.body, "type-timetable");
+            if (timetable === null) throw new SourceParseFailure();
+            const venue = detailText(detail.body, "type-theater");
+            return {
+              candidateKind: "event" as const,
+              canonicalUrl: detail.url,
+              officialExternalId: fact.officialId,
+              observedAt: detail.observedAt,
+              contentHash: hashOfficialDocuments([index, detail]),
+              etag: detail.etag,
+              lastModified: detail.lastModified,
+              evidenceLocator: {
+                sectionLabel: "公演情報",
+                fragmentId: fact.officialId,
+              },
+              proposal: {
+                sourceKey: `kabuki-bito:${fact.theater}:play:${fact.officialId}`,
+                title: fact.title,
+                venue,
+                memo: /【(?:休演|貸切)】/u.test(timetable)
+                  ? "公式日程の休演・貸切日をOccurrence候補から除外"
+                  : null,
+                sourceUrl: detail.url,
+                startsOn: fact.startsOn,
+                endsOn: fact.endsOn,
+                occurrences: [
+                  ...expandKabukiSchedule(
+                    fact.startsOn,
+                    fact.endsOn,
+                    timetable,
+                  ),
+                ],
+              },
+            };
+          }),
+        );
+        drafts.push(...batch);
+        if (offset + 2 < facts.length) await pauseBetweenBatches();
+      }
+      return drafts;
     },
   };
 }

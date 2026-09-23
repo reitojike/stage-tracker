@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { dueScheduledSourceSlots } from "./schedule";
 import { getOfficialSource } from "./source-registry";
 
-const daily = getOfficialSource("event.kabuki-bito.schedule");
-const weekly = getOfficialSource("ticket.vpass.takarazuka-east");
+const daily = getOfficialSource("event.cynhn.calendar");
+const weekly = getOfficialSource("event.kabuki-bito.schedule");
 if (daily === null || weekly === null) throw new Error("test source missing");
 
 describe("official source schedule slots", () => {

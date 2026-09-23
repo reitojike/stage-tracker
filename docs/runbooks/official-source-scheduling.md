@@ -17,6 +17,13 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   Monday in Asia/Tokyo. Duplicate delivery of a slot uses the same durable run
   identity; the database permits one live attempt lease per source and suppresses
   unchanged candidates from completed runs.
+- Initial rollout preference (2026-09-23): Kabuki Event first, weekly. Its
+  adapter bounds detail fetches to two at a time with a pause between batches.
+  Takarazuka Event also has a weekly cadence preference but remains unscheduled:
+  its [official site policy](https://kageki.hankyu.co.jp/rules.html) restricts
+  unauthorized reuse on other websites.
+  Independently sourced factual data may be assessed separately; restricted
+  registration alone is not treated as a private-use permission.
 
 ## Per-source promotion gate
 

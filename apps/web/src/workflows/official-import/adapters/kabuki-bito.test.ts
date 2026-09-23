@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getOfficialSource } from "../source-registry";
 import {
   createKabukiBitoAdapter,
@@ -33,6 +33,33 @@ describe("Kabuki-bito adapter facts", () => {
       throw new Error("event draft missing");
     expect(draft.proposal.sourceKey).toBe("kabuki-bito:kabukiza:play:978");
     expect(draft.proposal.occurrences).toHaveLength(2);
+  });
+
+  it("bounds detail-page concurrency and pauses between batches", async () => {
+    const index = [1, 2, 3, 4, 5]
+      .map(
+        (id) =>
+          `<li class="item"><a href="/theaters/kabukiza/play/${id}"><h3 class="ttl">公演${id}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      )
+      .join("");
+    let active = 0;
+    let peak = 0;
+    const pause = vi.fn(async () => {});
+    const adapter = createKabukiBitoAdapter(async (_source, url) => {
+      if (url === source.canonicalUrl) return document(url, index);
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      return document(
+        url,
+        `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
+      );
+    }, pause);
+
+    expect(await adapter.acquire(source)).toHaveLength(5);
+    expect(peak).toBe(2);
+    expect(pause).toHaveBeenCalledTimes(2);
   });
 
   it("uses the official play id and expands fixed part times while excluding closed/private days", () => {
