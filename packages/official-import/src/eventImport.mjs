@@ -304,9 +304,25 @@ export async function resolveEventPlans(
     return { ok: false, problems: [`Failed to read genres: ${genresError.message}`] };
   const genresByKey = new Map(genreRows.map((row) => [row.key, row]));
   const genresById = new Map(genreRows.map((row) => [row.id, row]));
+  const proposedGroupKeys = [
+    ...new Set(
+      entries.flatMap((entry) => (entry.classification.groups ?? []).map((group) => group.key)),
+    ),
+  ];
+  const { data: canonicalGroups, error: groupsError } =
+    proposedGroupKeys.length === 0
+      ? { data: [], error: null }
+      : await admin.from('groups').select('key, display_name').in('key', proposedGroupKeys);
+  if (groupsError)
+    return { ok: false, problems: [`Failed to read canonical groups: ${groupsError.message}`] };
+  const canonicalGroupByKey = new Map(canonicalGroups.map((group) => [group.key, group]));
   const plans = [];
 
   for (const entry of entries) {
+    const expectedProposedGroups = (entry.classification.groups ?? []).map((group) => ({
+      key: group.key,
+      displayName: canonicalGroupByKey.get(group.key)?.display_name ?? null,
+    }));
     const targetEventId = targetEventIdsBySourceKey.get(entry.sourceKey);
     const existingQuery = admin
       .from('events')
@@ -326,6 +342,7 @@ export async function resolveEventPlans(
         action: 'create',
         event: null,
         expectedCurrent: null,
+        expectedProposedGroups,
         detailsChanged: false,
         rangeChanged: false,
         newOccurrences: entry.occurrences,
@@ -421,6 +438,7 @@ export async function resolveEventPlans(
         groups: currentGroups,
         genreKey: existing.genre_id === null ? null : genresById.get(existing.genre_id)?.key,
       },
+      expectedProposedGroups,
       action:
         detailsChanged ||
         rangeChanged ||
@@ -592,7 +610,12 @@ export async function applyEventPlans(
             key: group.key,
             displayName: group.displayName,
           })),
-          ...(reviewed ? { p_expected_current: plan.expectedCurrent } : {}),
+          ...(reviewed
+            ? {
+                p_expected_current: plan.expectedCurrent,
+                p_expected_proposed_groups: plan.expectedProposedGroups,
+              }
+            : {}),
         },
       );
       if (error)

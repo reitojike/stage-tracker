@@ -24,7 +24,7 @@ function validEvent(overrides = {}) {
   };
 }
 
-function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
+function fakeAdmin({ event = null, ownerId = owner.id, creator = true, groups = [] } = {}) {
   const rpcCalls = [];
   const rows = { event, ownerId, creator };
   function builder(table) {
@@ -35,6 +35,10 @@ function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
       },
       eq(column, value) {
         state[column] = value;
+        return this;
+      },
+      in(column, values) {
+        state[column] = values;
         return this;
       },
       maybeSingle: async () => {
@@ -53,7 +57,11 @@ function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
       },
       then(resolve, reject) {
         const data =
-          table === 'genres' ? [{ id: 'genre-1', key: 'theatre', display_name: 'Theatre' }] : [];
+          table === 'genres'
+            ? [{ id: 'genre-1', key: 'theatre', display_name: 'Theatre' }]
+            : table === 'groups'
+              ? groups.filter((group) => state.key.includes(group.key))
+              : [];
         return Promise.resolve({ data, error: null }).then(resolve, reject);
       },
     };
@@ -257,6 +265,35 @@ void test('Event core refuses an existing Event owned by another user during res
   });
   assert.equal(resolved.ok, false);
   assert.match(resolved.problems[0], /Refusing to touch it/);
+});
+
+void test('reviewed Event plans retain proposed canonical Group labels, including absent keys', async () => {
+  const admin = fakeAdmin({
+    groups: [{ key: 'existing-group', display_name: 'Current canonical label' }],
+  });
+  const validated = validateEventEntries([
+    {
+      raw: validEvent({
+        groups: [
+          { key: 'existing-group', displayName: 'Reviewed correction' },
+          { key: 'new-group', displayName: 'New group' },
+        ],
+      }),
+      where: 'seed.json[0]',
+    },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  assert.deepEqual(resolved.plans[0].expectedProposedGroups, [
+    { key: 'existing-group', displayName: 'Current canonical label' },
+    { key: 'new-group', displayName: null },
+  ]);
+  await applyEventPlans(admin, resolved.plans, { ownerId: owner.id, reviewed: true });
+  assert.deepEqual(
+    admin.rpcCalls[0].args.p_expected_proposed_groups,
+    resolved.plans[0].expectedProposedGroups,
+  );
 });
 
 void test('Event apply returns committed progress when a later RPC fails', async () => {
