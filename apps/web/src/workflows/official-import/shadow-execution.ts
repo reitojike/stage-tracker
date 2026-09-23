@@ -40,6 +40,7 @@ export type RunPreparation =
 export const OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS = 300;
 export const OFFICIAL_IMPORT_BUSY_RETRY_AFTER_MS =
   (OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS + 5) * 1_000;
+const OFFICIAL_IMPORT_LEASE_HEARTBEAT_MS = 60_000;
 
 export type OfficialImportRetryReason =
   "busy" | "source_fetch" | "provider_unavailable" | "ownership_lost";
@@ -82,6 +83,52 @@ export interface OfficialImportStagingRepository {
     attemptToken: string,
     classification: RunFailureClassification,
   ): Promise<RunAttemptTransition>;
+}
+
+function startAttemptLeaseHeartbeat(
+  repository: OfficialImportStagingRepository,
+  runId: string,
+  sourceId: string,
+  attemptToken: string,
+  intervalMs: number,
+) {
+  let stopped = false;
+  let renewal: Promise<void> | null = null;
+  let ownershipUncertain = false;
+  const markOwnershipUncertain = () => {
+    ownershipUncertain = true;
+    stopped = true;
+    clearInterval(timer);
+  };
+  const timer = setInterval(() => {
+    if (stopped || renewal !== null) return;
+    // Reclaiming with the same owner token refreshes the current lease under
+    // the database run/source locks. Stop and drain before any terminal RPC.
+    renewal = repository
+      .prepareRun(runId, sourceId, attemptToken)
+      .then((result) => {
+        if (result.status !== "ready") markOwnershipUncertain();
+      })
+      .catch(() => {
+        markOwnershipUncertain();
+      })
+      .finally(() => {
+        renewal = null;
+      });
+  }, intervalMs);
+  timer.unref?.();
+  return {
+    assertOwned() {
+      if (ownershipUncertain)
+        throw new OfficialImportAttemptRetryError("ownership_lost");
+    },
+    async stopAndDrain() {
+      stopped = true;
+      clearInterval(timer);
+      const inFlight = renewal;
+      if (inFlight !== null) await inFlight;
+    },
+  };
 }
 
 export type ShadowRunResult =
@@ -128,6 +175,7 @@ export async function executeOfficialImportShadowRun(
   adapter: OfficialSourceAdapter,
   planner: OfficialImportCandidatePlanner,
   repository: OfficialImportStagingRepository,
+  leaseHeartbeatIntervalMs = OFFICIAL_IMPORT_LEASE_HEARTBEAT_MS,
 ): Promise<ShadowRunResult> {
   const preparation = await repository.prepareRun(
     runId,
@@ -158,11 +206,20 @@ export async function executeOfficialImportShadowRun(
     };
   }
 
+  const lease = startAttemptLeaseHeartbeat(
+    repository,
+    runId,
+    source.id,
+    attemptToken,
+    leaseHeartbeatIntervalMs,
+  );
   try {
     const drafts = await adapter.acquire(source);
+    lease.assertOwned();
     const eventCandidates: EventDurableCandidate[] = [];
     const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
     for (const draft of drafts) {
+      lease.assertOwned();
       if (draft.candidateKind !== source.domainKind) {
         throw new DurableCandidateValidationError(
           `candidate kind ${draft.candidateKind} does not match source ${source.id}`,
@@ -274,6 +331,8 @@ export async function executeOfficialImportShadowRun(
     // The repository publishes the complete validated typed batch and
     // completes the run in one database transaction. A competing retry gets
     // the already committed count from that same serialization boundary.
+    await lease.stopAndDrain();
+    lease.assertOwned();
     const candidateCount = await repository.commitCandidates(
       runId,
       source.id,
@@ -287,6 +346,17 @@ export async function executeOfficialImportShadowRun(
       candidateCount,
     };
   } catch (error) {
+    // A pending renewal may otherwise reclaim the lease after releaseRun or
+    // failRun clears it, delaying the next Workflow attempt by a full lease.
+    await lease.stopAndDrain();
+    try {
+      lease.assertOwned();
+    } catch (ownershipError) {
+      // The token-guarded release is safe even if another attempt has taken
+      // over. Do not leave a still-owned lease alive after a failed renewal.
+      await repository.releaseRun(runId, source.id, attemptToken);
+      throw ownershipError;
+    }
     if (error instanceof OfficialImportAttemptRetryError) throw error;
     const failureClassification = classifyFailure(error);
     if (isTransientFailure(failureClassification)) {
@@ -317,5 +387,7 @@ export async function executeOfficialImportShadowRun(
       }
     }
     throw new OfficialImportAttemptRetryError("ownership_lost");
+  } finally {
+    await lease.stopAndDrain();
   }
 }

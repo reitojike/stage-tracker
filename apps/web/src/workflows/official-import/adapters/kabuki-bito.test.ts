@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { SourceFetchFailure, SourceParseFailure } from "../acquisition";
 import { getOfficialSource } from "../source-registry";
 import {
   createKabukiBitoAdapter,
@@ -33,6 +34,133 @@ describe("Kabuki-bito adapter facts", () => {
       throw new Error("event draft missing");
     expect(draft.proposal.sourceKey).toBe("kabuki-bito:kabukiza:play:978");
     expect(draft.proposal.occurrences).toHaveLength(2);
+  });
+
+  it("bounds detail-page concurrency and pauses between batches", async () => {
+    const index = [1, 2, 3, 4, 5]
+      .map(
+        (id) =>
+          `<li class="item"><a href="/theaters/kabukiza/play/${id}"><h3 class="ttl">公演${id}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      )
+      .join("");
+    let active = 0;
+    let peak = 0;
+    const pause = vi.fn(async () => {});
+    const adapter = createKabukiBitoAdapter(async (_source, url) => {
+      if (url === source.canonicalUrl) return document(url, index);
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      return document(
+        url,
+        `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
+      );
+    }, pause);
+
+    expect(await adapter.acquire(source)).toHaveLength(5);
+    expect(peak).toBe(2);
+    expect(pause).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for a sibling detail request after one fetch fails", async () => {
+    const index = [1, 2]
+      .map(
+        (id) =>
+          `<li class="item"><a href="/theaters/kabukiza/play/${id}"><h3 class="ttl">公演${id}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      )
+      .join("");
+    let failFirst: (error: Error) => void = () => {
+      throw new Error("first detail was not requested");
+    };
+    let finishSecond: () => void = () => {
+      throw new Error("second detail was not requested");
+    };
+    let detailRequests = 0;
+    const adapter = createKabukiBitoAdapter(async (_source, url) => {
+      if (url === source.canonicalUrl) return document(url, index);
+      detailRequests += 1;
+      if (url.endsWith("/1")) {
+        return new Promise<OfficialHtmlDocument>((_resolve, reject) => {
+          failFirst = reject;
+        });
+      }
+      return new Promise<OfficialHtmlDocument>((resolve) => {
+        finishSecond = () =>
+          resolve(
+            document(
+              url,
+              `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
+            ),
+          );
+      });
+    });
+    const acquisition = adapter.acquire(source);
+    let completed = false;
+    void acquisition.then(
+      () => {
+        completed = true;
+      },
+      () => {
+        completed = true;
+      },
+    );
+    const outcome =
+      expect(acquisition).rejects.toBeInstanceOf(SourceFetchFailure);
+    await vi.waitFor(() => expect(detailRequests).toBe(2));
+    failFirst(new SourceFetchFailure());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(completed).toBe(false);
+    finishSecond();
+    await outcome;
+    expect(completed).toBe(true);
+  });
+
+  it("preserves an early parse failure when a lower-index sibling fails later", async () => {
+    const index = [1, 2]
+      .map(
+        (id) =>
+          `<li class="item"><a href="/theaters/kabukiza/play/${id}"><h3 class="ttl">公演${id}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      )
+      .join("");
+    let failFirst: (error: Error) => void = () => {
+      throw new Error("first detail was not requested");
+    };
+    let secondRequested = false;
+    const adapter = createKabukiBitoAdapter(async (_source, url) => {
+      if (url === source.canonicalUrl) return document(url, index);
+      if (url.endsWith("/1")) {
+        return new Promise<OfficialHtmlDocument>((_resolve, reject) => {
+          failFirst = reject;
+        });
+      }
+      secondRequested = true;
+      return document(url, `<p class="text type-theater">歌舞伎座</p>`);
+    });
+    const acquisition = adapter.acquire(source);
+    const outcome =
+      expect(acquisition).rejects.toBeInstanceOf(SourceParseFailure);
+    await vi.waitFor(() => expect(secondRequested).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    failFirst(new SourceFetchFailure());
+    await outcome;
+  });
+
+  it("fails closed before detail fetches if the index exceeds the scan cap", async () => {
+    const index = Array.from(
+      { length: 31 },
+      (_, id) =>
+        `<li class="item"><a href="/theaters/kabukiza/play/${id + 1}"><h3 class="ttl">公演${id + 1}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+    ).join("");
+    const fetcher = vi.fn(async (_source, url: string) => {
+      if (url !== source.canonicalUrl)
+        throw new Error("unexpected detail fetch");
+      return document(url, index);
+    });
+    const adapter = createKabukiBitoAdapter(fetcher);
+
+    await expect(adapter.acquire(source)).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 
   it("uses the official play id and expands fixed part times while excluding closed/private days", () => {
