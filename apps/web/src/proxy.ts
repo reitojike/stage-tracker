@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/env";
 import { isPublicPath } from "@/lib/auth/public-paths";
 
+const MACHINE_AUTH_CRON_PATH = "/api/official-import/cron";
+
 function copyCookies(from: NextResponse, to: NextResponse): void {
   for (const cookie of from.cookies.getAll()) {
     to.cookies.set(cookie);
@@ -12,7 +14,8 @@ function copyCookies(from: NextResponse, to: NextResponse): void {
 /**
  * default-deny な認証境界（`specs/009-authentication-account-access/spec.md`）。
  *
- * `isPublicPath`（`src/lib/auth/public-paths.ts`）の完全一致以外の
+ * `isPublicPath`（`src/lib/auth/public-paths.ts`）と、route 側の
+ * Production / `CRON_SECRET` 検証に委ねる exact machine-auth Cron path 以外の
  * 全パスは、未認証アクセスを `/sign-in` へ redirect する。認証済みで
  * `/sign-in` に来た場合は `/` へ redirect する。
  *
@@ -28,6 +31,11 @@ function copyCookies(from: NextResponse, to: NextResponse): void {
  * を担保しているため。
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+  if (pathname === MACHINE_AUTH_CRON_PATH) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -58,8 +66,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     data: { user },
   } = await supabase.auth.getUser();
   const authenticated = user !== null;
-  const { pathname } = request.nextUrl;
-
   if (!authenticated && !isPublicPath(pathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/sign-in";
