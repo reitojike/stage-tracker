@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getOfficialSource } from "../source-registry";
-import { fetchOfficialHtml } from "./http";
+import { fetchOfficialHtml, fetchOfficialJson } from "./http";
 
 const source = getOfficialSource("event.kabuki-bito.schedule");
 if (source === null) throw new Error("test source missing");
@@ -79,5 +79,51 @@ describe("official HTML fetch boundary", () => {
     await expect(
       fetchOfficialHtml(source, source.canonicalUrl, transport),
     ).rejects.toMatchObject({ name: "SourceFetchFailure" });
+  });
+});
+
+describe("official JSON fetch boundary", () => {
+  const wordpress = getOfficialSource("event.kyurushite.schedule");
+  if (wordpress === null) throw new Error("test source missing");
+  const apiUrl = `${wordpress.allowedOrigin}/wp-json/tribe/events/v1/events/`;
+
+  it("accepts bounded JSON from the registered API path", async () => {
+    const transport = vi.fn(
+      async () =>
+        new Response('{"events":[]}', {
+          status: 200,
+          headers: { "Content-Type": "application/json; charset=UTF-8" },
+        }),
+    );
+    const result = await fetchOfficialJson(wordpress, apiUrl, transport);
+    expect(result.body).toBe('{"events":[]}');
+    expect(result.contentHash).toMatch(/^[0-9a-f]{64}$/u);
+    expect(transport).toHaveBeenCalledOnce();
+  });
+
+  it("rejects HTML and cross-origin redirects", async () => {
+    await expect(
+      fetchOfficialJson(
+        wordpress,
+        apiUrl,
+        vi.fn(
+          async () =>
+            new Response("<html></html>", {
+              headers: { "Content-Type": "text/html" },
+            }),
+        ),
+      ),
+    ).rejects.toThrow();
+    const redirect = vi.fn(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://attacker.example/collect" },
+        }),
+    );
+    await expect(
+      fetchOfficialJson(wordpress, apiUrl, redirect),
+    ).rejects.toThrow();
+    expect(redirect).toHaveBeenCalledOnce();
   });
 });

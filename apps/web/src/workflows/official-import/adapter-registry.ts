@@ -9,6 +9,7 @@ import { createSkiyakiCalendarAdapter } from "./adapters/skiyaki-calendar";
 import { createTakarazukaRevueAdapter } from "./adapters/takarazuka-revue";
 import { createShochikuTicketAdapter } from "./adapters/shochiku-ticket";
 import { createTakarazukaFriendsAdapter } from "./adapters/takarazuka-friends";
+import { createWordpressTribeEventsAdapter } from "./adapters/wordpress-tribe-events";
 import { createFirecrawlPdfProvider } from "./adapters/firecrawl-pdf";
 import { createEventCandidatePlanner } from "./event-candidate-planner";
 import { createEventMatchRepository } from "./privileged/event-match-repository";
@@ -34,6 +35,7 @@ const ADAPTERS: Readonly<Record<SourceExtractorFamily, OfficialSourceAdapter>> =
     takarazuka_friends_pdf: createTakarazukaFriendsAdapter(
       createFirecrawlPdfProvider(env.FIRECRAWL_API_KEY),
     ),
+    wordpress_tribe_events: createWordpressTribeEventsAdapter(),
     ticket_foundation: unavailableAdapter(),
     future_event: unavailableAdapter(),
   };

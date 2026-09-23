@@ -1,12 +1,13 @@
 export type OfficialImportDomainKind = "event" | "ticket_opportunity";
 export type SourceFamilyAdapter =
-  "http_html" | "pdf" | "calendar_feed" | "future_fallback";
+  "http_html" | "http_json" | "pdf" | "calendar_feed" | "future_fallback";
 export type SourceExtractorFamily =
   | "kabuki_bito"
   | "takarazuka_revue"
   | "skiyaki_calendar"
   | "shochiku_ticket"
   | "takarazuka_friends_pdf"
+  | "wordpress_tribe_events"
   | "ticket_foundation"
   | "future_event";
 export type SourcePolicyState = "approved" | "planned" | "hold";
@@ -83,9 +84,14 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "event.kyurushite.schedule",
     canonicalUrl: "https://www.kyurushite.com/schedule/",
     allowedOrigin: "https://www.kyurushite.com",
-    allowedPathPrefixes: ["/schedule/"],
-    adapter: "http_html",
-    extractor: "future_event",
+    allowedPathPrefixes: [
+      "/schedule/",
+      "/event/",
+      "/wp-json/tribe/events/v1/events",
+      "/wp-json/tribe/events/v1/events/",
+    ],
+    adapter: "http_json",
+    extractor: "wordpress_tribe_events",
     domainKind: "event",
     enabled: false,
     shadow: true,
@@ -96,9 +102,14 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "event.chumtoto.schedule",
     canonicalUrl: "https://chumtoto.jp/schedule/",
     allowedOrigin: "https://chumtoto.jp",
-    allowedPathPrefixes: ["/schedule/"],
-    adapter: "http_html",
-    extractor: "future_event",
+    allowedPathPrefixes: [
+      "/schedule/",
+      "/event/",
+      "/wp-json/tribe/events/v1/events",
+      "/wp-json/tribe/events/v1/events/",
+    ],
+    adapter: "http_json",
+    extractor: "wordpress_tribe_events",
     domainKind: "event",
     enabled: false,
     shadow: true,

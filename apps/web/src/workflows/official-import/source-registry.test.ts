@@ -36,6 +36,20 @@ describe("official source registry", () => {
     expect(vpass).toMatchObject({ enabled: false, policyState: "hold" });
   });
 
+  it("keeps WordPress API sources disabled until source-specific rollout gates clear", () => {
+    for (const id of ["event.kyurushite.schedule", "event.chumtoto.schedule"]) {
+      expect(getOfficialSource(id)).toMatchObject({
+        enabled: false,
+        policyState: "planned",
+        adapter: "http_json",
+        extractor: "wordpress_tribe_events",
+      });
+      expect(() => requireEnabledShadowSource(id)).toThrow(
+        OfficialSourceRegistryError,
+      );
+    }
+  });
+
   it("keeps new SKIYAKI sources disabled pending source-specific rollout gates", () => {
     for (const id of [
       "event.meme-tokyo.calendar",
