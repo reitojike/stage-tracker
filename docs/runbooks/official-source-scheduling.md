@@ -29,6 +29,14 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   adapter bounds a scan to 30 play pages, fetching at most two at a time with a
   pause between batches. An index over the cap fails closed rather than being
   silently truncated.
+  The 2026-09-24 read-only canary found teaser duplicates, month-only future
+  listings, and varying detail schedules. A daily table or explicit per-date
+  time can be parsed without inventing shows; multi-day pages with only a
+  headline time and no complete day-level schedule still fail closed. This
+  source has **not** passed its clean shadow canary or promotion gate. The
+  operator chose to keep scheduling disabled until day-level times are
+  accurate across the intended scan, rather than stage Event-only drafts for
+  manual time completion.
   Takarazuka Event also has a weekly cadence preference but remains unscheduled.
   [Issue #677](https://github.com/reitojike/stage-tracker/issues/677#issuecomment-5796382733)
   judged a later bounded private-household, facts-only rollout reasonable, not

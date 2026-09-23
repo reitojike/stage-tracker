@@ -21,6 +21,7 @@ import {
   hashOfficialDocuments,
 } from "./http";
 import {
+  calendarDate,
   enumerateDates,
   parseJapaneseClock,
   parseJapaneseDateRange,
@@ -28,6 +29,28 @@ import {
 } from "./japanese-date";
 
 const MAX_PLAYS_PER_SCAN = 30;
+
+function parseKabukiPeriod(text: string): {
+  startsOn: string;
+  endsOn: string;
+} | null {
+  const normalized = text.replace(/\s+/gu, "");
+  // A month-only teaser has no exact performance date to stage. It is still
+  // counted against the index cap and may be revisited on a later weekly scan.
+  if (/^\d{4}年\d{1,2}月$/u.test(normalized)) return null;
+  const single = normalized.match(
+    /^(\d{4})年(\d{1,2})月(\d{1,2})日(?:[（(][^）)]*[）)])?$/u,
+  );
+  if (single !== null) {
+    const date = calendarDate(
+      Number(single[1]),
+      Number(single[2]),
+      Number(single[3]),
+    );
+    return { startsOn: date, endsOn: date };
+  }
+  return parseJapaneseDateRange(normalized);
+}
 
 export interface KabukiIndexFact {
   readonly officialId: string;
@@ -50,47 +73,56 @@ export function parseKabukiIndex(
         /\/theaters\/[^/]+\/play\//u.test(attribute(node, "href") ?? ""),
       ).length > 0,
   );
-  const facts = candidateItems.flatMap((item): KabukiIndexFact[] => {
+  if (candidateItems.length === 0) throw new SourceParseFailure();
+  const allPlayUrls = new Set<string>();
+  const datedRowUrls = new Set<string>();
+  const fullRowUrls = new Set<string>();
+  const facts: KabukiIndexFact[] = [];
+  for (const item of candidateItems) {
     const anchor = descendants(item, (node) => {
       const href = attribute(node, "href") ?? "";
       return (
         elementName(node) === "a" && /\/theaters\/[^/]+\/play\/\d+/u.test(href)
       );
     })[0];
-    if (anchor === undefined) return [];
+    if (anchor === undefined) throw new SourceParseFailure();
     const href = attribute(anchor, "href") ?? "";
     const identity = href.match(/\/theaters\/([^/]+)\/play\/(\d+)/u);
+    const canonicalUrl = assertAllowedSourceUrl(
+      source,
+      new URL(href, source.canonicalUrl).toString(),
+    );
+    allPlayUrls.add(canonicalUrl);
     const titleNode = descendants(item, (node) => hasClass(node, "ttl"))[0];
     const termNode = descendants(item, (node) => hasClass(node, "term"))[0];
     const theater = identity?.[1];
     const officialId = identity?.[2];
-    if (
-      theater === undefined ||
-      officialId === undefined ||
-      titleNode === undefined ||
-      termNode === undefined
-    )
-      return [];
-    let range: { startsOn: string; endsOn: string };
-    try {
-      range = parseJapaneseDateRange(normalizedText(termNode));
-    } catch {
-      return [];
-    }
-    return [
-      {
-        officialId,
-        theater,
-        canonicalUrl: assertAllowedSourceUrl(
-          source,
-          new URL(href, source.canonicalUrl).toString(),
-        ),
-        title: normalizedText(titleNode),
-        ...range,
-      },
-    ];
-  });
-  if (candidateItems.length !== facts.length) throw new SourceParseFailure();
+    if (theater === undefined || officialId === undefined)
+      throw new SourceParseFailure();
+    // The index repeats some productions in a teaser carousel without the
+    // detailed title/term fields. Every teaser must have a full row below.
+    if (titleNode === undefined && termNode === undefined) continue;
+    if (titleNode === undefined || termNode === undefined)
+      throw new SourceParseFailure();
+    if (fullRowUrls.has(canonicalUrl)) throw new SourceParseFailure();
+    fullRowUrls.add(canonicalUrl);
+    const range = parseKabukiPeriod(normalizedText(termNode));
+    if (range === null) continue;
+    datedRowUrls.add(canonicalUrl);
+    facts.push({
+      officialId,
+      theater,
+      canonicalUrl,
+      title: normalizedText(titleNode),
+      ...range,
+    });
+  }
+  if (
+    allPlayUrls.size > MAX_PLAYS_PER_SCAN ||
+    [...allPlayUrls].some((url) => !fullRowUrls.has(url)) ||
+    datedRowUrls.size !== facts.length
+  )
+    throw new SourceParseFailure();
   return facts;
 }
 
@@ -132,6 +164,91 @@ export function expandKabukiSchedule(
       };
     });
   });
+}
+
+function dateForDayInRange(
+  day: number,
+  startsOn: string,
+  endsOn: string,
+): string {
+  const matches = enumerateDates(startsOn, endsOn).filter(
+    (date) => Number(date.slice(-2)) === day,
+  );
+  const date = matches[0];
+  if (matches.length !== 1 || date === undefined)
+    throw new SourceParseFailure();
+  return date;
+}
+
+export function parseKabukiDetailedOccurrences(
+  html: string,
+  startsOn: string,
+  endsOn: string,
+  timetable: string,
+): readonly { startsAt: string; endsAt: null }[] {
+  const document = parseHtml(html);
+  const rows = descendants(document, (node) => elementName(node) === "tr");
+  const datedRows = rows.flatMap((row) => {
+    const cells = descendants(
+      row,
+      (node) => elementName(node) === "td" || elementName(node) === "th",
+    ).map(normalizedText);
+    const day = cells[0]?.match(/^(\d{1,2})\s*[（(][^）)]+[）)]$/u);
+    return day === null || day === undefined || cells.length < 2
+      ? []
+      : [{ day: Number(day[1]), times: cells.slice(1) }];
+  });
+  if (datedRows.length > 0) {
+    const occurrences: { startsAt: string; endsAt: null }[] = [];
+    const seen = new Set<string>();
+    for (const row of datedRows) {
+      const date = dateForDayInRange(row.day, startsOn, endsOn);
+      for (const time of row.times) {
+        if (time === "-" || time === "--" || time === "貸切") continue;
+        if (!/^\d{1,2}[:：]\d{2}$/u.test(time)) throw new SourceParseFailure();
+        const clock = parseJapaneseClock(time);
+        if (clock === null) throw new SourceParseFailure();
+        const startsAt = tokyoDateTime(date, clock.hour, clock.minute);
+        if (seen.has(startsAt)) throw new SourceParseFailure();
+        seen.add(startsAt);
+        occurrences.push({ startsAt, endsAt: null });
+      }
+    }
+    return occurrences;
+  }
+
+  // Some short engagements publish each date/time directly in the headline
+  // instead of a daily table. Require every date and clock token to be paired.
+  const datedClock =
+    /(\d{1,2})日(?:[（(][^）)]*[）)])?\s*(午前|午後)?\s*(\d{1,2})時(?:\s*(\d{1,2})分)?\s*[～〜]?/gu;
+  const matches = [...timetable.matchAll(datedClock)];
+  const allDates = timetable.match(/\d{1,2}日/gu) ?? [];
+  const allClocks =
+    timetable.match(/(?:午前|午後)?\s*\d{1,2}時(?:\s*\d{1,2}分)?/gu) ?? [];
+  if (
+    matches.length > 0 &&
+    matches.length === allDates.length &&
+    matches.length === allClocks.length &&
+    timetable.replace(datedClock, "").replace(/[、，・／/\s～〜—－-]/gu, "") ===
+      ""
+  ) {
+    const seen = new Set<string>();
+    return matches.map((match) => {
+      const date = dateForDayInRange(Number(match[1]), startsOn, endsOn);
+      const clock = parseJapaneseClock(
+        `${match[2] ?? ""}${match[3]}時${match[4] ?? ""}分`,
+      );
+      if (clock === null) throw new SourceParseFailure();
+      const startsAt = tokyoDateTime(date, clock.hour, clock.minute);
+      if (seen.has(startsAt)) throw new SourceParseFailure();
+      seen.add(startsAt);
+      return { startsAt, endsAt: null };
+    });
+  }
+
+  if (startsOn === endsOn)
+    return expandKabukiSchedule(startsOn, endsOn, timetable);
+  throw new SourceParseFailure();
 }
 
 function detailText(html: string, className: string): string | null {
@@ -188,7 +305,8 @@ export function createKabukiBitoAdapter(
                   startsOn: fact.startsOn,
                   endsOn: fact.endsOn,
                   occurrences: [
-                    ...expandKabukiSchedule(
+                    ...parseKabukiDetailedOccurrences(
+                      detail.body,
                       fact.startsOn,
                       fact.endsOn,
                       timetable,
