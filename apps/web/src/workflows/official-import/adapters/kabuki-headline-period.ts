@@ -1,3 +1,8 @@
+import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
+import {
+  isJapaneseHoliday,
+  isWithinJapaneseHolidayDataCoverage,
+} from "../../../app/_lib/japanese-holidays";
 import { SourceParseFailure } from "../acquisition";
 import {
   enumerateDates,
@@ -46,6 +51,15 @@ function parseDays(
         dayName !== weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()]
       )
         throw new SourceParseFailure();
+      if (annotation?.[2] !== undefined) {
+        const tokyoDate = tokyoCalendarDateSchema.safeParse(date);
+        if (
+          !tokyoDate.success ||
+          !isWithinJapaneseHolidayDataCoverage(tokyoDate.data) ||
+          !isJapaneseHoliday(tokyoDate.data)
+        )
+          throw new SourceParseFailure();
+      }
     }
     return date;
   });

@@ -71,6 +71,15 @@ describe("verified Kabuki headline period", () => {
   });
 
   it.each([
+    ["2026-12-21", "2026-12-21", "21日（祝・月）"],
+    ["2028-01-03", "2028-01-03", "3日（祝・月）"],
+  ])("rejects an unverified holiday marker on %s", (startsOn, endsOn, day) => {
+    expect(() =>
+      parseKabukiHeadlinePeriod(startsOn, endsOn, `午前11時～【休演】${day}`),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it.each([
     "昼の部 午前11時～ 夜の部 午後4時～【休演】9日（木）",
     "昼の部 午前11時～ 夜の部 午後4時～【休演】日程詳細をご確認ください",
     "昼の部 午前11時～ 夜の部 午後4時～ ※台風のため3日の公演は中止",
