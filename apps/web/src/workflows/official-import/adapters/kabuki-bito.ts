@@ -27,6 +27,7 @@ import {
   parseJapaneseDateRange,
   tokyoDateTime,
 } from "./japanese-date";
+import { parseKabukiHeadlinePeriod } from "./kabuki-headline-period";
 
 const MAX_PLAYS_PER_SCAN = 30;
 
@@ -184,7 +185,18 @@ export function parseKabukiDetailedOccurrences(
   startsOn: string,
   endsOn: string,
   timetable: string,
+  html = "",
 ): readonly { startsAt: string; endsAt: null }[] {
+  // A separate calendar may override the default schedule. Until its columns
+  // are verified, do not expand any headline across those dates.
+  if (
+    descendants(
+      parseHtml(html),
+      (node) =>
+        elementName(node) === "table" && hasClass(node, "type-calendar"),
+    ).length > 0
+  )
+    throw new SourceParseFailure();
   // Some short engagements publish each date/time directly in the headline.
   // Require every date and clock token to be paired. Varying daily tables are
   // not yet mapped to verified showtime columns and cannot be inferred here.
@@ -222,12 +234,7 @@ export function parseKabukiDetailedOccurrences(
     return occurrences;
   }
 
-  if (startsOn === endsOn) {
-    const occurrences = expandKabukiSchedule(startsOn, endsOn, timetable);
-    if (occurrences.length === 0) throw new SourceParseFailure();
-    return occurrences;
-  }
-  throw new SourceParseFailure();
+  return parseKabukiHeadlinePeriod(startsOn, endsOn, timetable);
 }
 
 function detailText(html: string, className: string): string | null {
@@ -277,7 +284,7 @@ export function createKabukiBitoAdapter(
                   sourceKey: `kabuki-bito:${fact.theater}:play:${fact.officialId}`,
                   title: fact.title,
                   venue,
-                  memo: /【(?:休演|貸切)】/u.test(timetable)
+                  memo: /[【〖](?:休演|貸切)[】〗]/u.test(timetable)
                     ? "公式日程の休演・貸切日をOccurrence候補から除外"
                     : null,
                   sourceUrl: detail.url,
@@ -288,6 +295,7 @@ export function createKabukiBitoAdapter(
                       fact.startsOn,
                       fact.endsOn,
                       timetable,
+                      detail.body,
                     ),
                   ],
                 },
