@@ -4,6 +4,7 @@ import {
   executeOfficialImportCandidateApply,
   OFFICIAL_IMPORT_APPLY_BUSY_RETRY_AFTER_MS,
   OfficialImportApplyAttemptRetryError,
+  OfficialImportCatalogFailure,
   type CandidateApplyFailureClassification,
   type OfficialImportApplyCandidate,
   type OfficialImportApplyRepository,
@@ -329,8 +330,45 @@ describe("approved official import apply execution", () => {
         harness.catalog,
       ),
     ).resolves.toMatchObject({ status: "applied", outcome: "converged" });
-    expect(harness.eventPlan.apply).not.toHaveBeenCalled();
+    expect(harness.eventPlan.apply).toHaveBeenCalledOnce();
     expect(harness.completeCandidate).toHaveBeenCalledOnce();
+  });
+
+  it("does not complete a converged retry when the locked catalog recheck finds drift", async () => {
+    const candidate = eventCandidate({ resolvedEventId: null });
+    const harness = setup(candidate);
+    vi.mocked(harness.planner.planEvent).mockResolvedValueOnce({
+      planFingerprint: "fresh-converged-fingerprint",
+      deterministicMatchStatus: "matched",
+      semanticMatchStatus: "not_used",
+      resolvedEventId: "event-1",
+      plan: {
+        action: "unchanged",
+        detailsChanged: false,
+        rangeChanged: false,
+      },
+    });
+    Object.assign(harness.eventPlan, {
+      action: "unchanged" as const,
+      hasChanges: false,
+      apply: vi.fn(async () => {
+        throw new OfficialImportCatalogFailure("source_changed");
+      }),
+    });
+
+    await expect(
+      executeOfficialImportCandidateApply(
+        CANDIDATE_ID,
+        ATTEMPT_TOKEN,
+        harness.planner,
+        harness.repository,
+        harness.catalog,
+      ),
+    ).resolves.toMatchObject({
+      status: "failed",
+      failureClassification: "source_changed",
+    });
+    expect(harness.completeCandidate).not.toHaveBeenCalled();
   });
 
   it("never applies a Jev-only identity even after human approval", async () => {

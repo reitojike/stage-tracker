@@ -371,6 +371,7 @@ export async function executeOfficialImportCandidateApply(
 
     if (freshFingerprint !== candidate.planFingerprint) {
       if (!converged) failure("source_changed");
+      await catalogPlan.apply();
       await complete(repository, candidateId, attemptToken);
       return { status: "applied", candidateId, outcome: "converged" };
     }
