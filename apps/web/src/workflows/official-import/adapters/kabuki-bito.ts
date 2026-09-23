@@ -181,44 +181,13 @@ function dateForDayInRange(
 }
 
 export function parseKabukiDetailedOccurrences(
-  html: string,
   startsOn: string,
   endsOn: string,
   timetable: string,
 ): readonly { startsAt: string; endsAt: null }[] {
-  const document = parseHtml(html);
-  const rows = descendants(document, (node) => elementName(node) === "tr");
-  const datedRows = rows.flatMap((row) => {
-    const cells = descendants(
-      row,
-      (node) => elementName(node) === "td" || elementName(node) === "th",
-    ).map(normalizedText);
-    const day = cells[0]?.match(/^(\d{1,2})\s*[（(][^）)]+[）)]$/u);
-    return day === null || day === undefined || cells.length < 2
-      ? []
-      : [{ day: Number(day[1]), times: cells.slice(1) }];
-  });
-  if (datedRows.length > 0) {
-    const occurrences: { startsAt: string; endsAt: null }[] = [];
-    const seen = new Set<string>();
-    for (const row of datedRows) {
-      const date = dateForDayInRange(row.day, startsOn, endsOn);
-      for (const time of row.times) {
-        if (time === "-" || time === "--" || time === "貸切") continue;
-        if (!/^\d{1,2}[:：]\d{2}$/u.test(time)) throw new SourceParseFailure();
-        const clock = parseJapaneseClock(time);
-        if (clock === null) throw new SourceParseFailure();
-        const startsAt = tokyoDateTime(date, clock.hour, clock.minute);
-        if (seen.has(startsAt)) throw new SourceParseFailure();
-        seen.add(startsAt);
-        occurrences.push({ startsAt, endsAt: null });
-      }
-    }
-    return occurrences;
-  }
-
-  // Some short engagements publish each date/time directly in the headline
-  // instead of a daily table. Require every date and clock token to be paired.
+  // Some short engagements publish each date/time directly in the headline.
+  // Require every date and clock token to be paired. Varying daily tables are
+  // not yet mapped to verified showtime columns and cannot be inferred here.
   const datedClock =
     /(\d{1,2})日(?:[（(][^）)]*[）)])?\s*(午前|午後)?\s*(\d{1,2})時(?:\s*(\d{1,2})分)?\s*[～〜]?/gu;
   const matches = [...timetable.matchAll(datedClock)];
@@ -233,8 +202,10 @@ export function parseKabukiDetailedOccurrences(
       ""
   ) {
     const seen = new Set<string>();
-    return matches.map((match) => {
+    const coveredDates = new Set<string>();
+    const occurrences = matches.map((match) => {
       const date = dateForDayInRange(Number(match[1]), startsOn, endsOn);
+      coveredDates.add(date);
       const clock = parseJapaneseClock(
         `${match[2] ?? ""}${match[3]}時${match[4] ?? ""}分`,
       );
@@ -244,10 +215,16 @@ export function parseKabukiDetailedOccurrences(
       seen.add(startsAt);
       return { startsAt, endsAt: null };
     });
+    if (enumerateDates(startsOn, endsOn).some((date) => !coveredDates.has(date)))
+      throw new SourceParseFailure();
+    return occurrences;
   }
 
-  if (startsOn === endsOn)
-    return expandKabukiSchedule(startsOn, endsOn, timetable);
+  if (startsOn === endsOn) {
+    const occurrences = expandKabukiSchedule(startsOn, endsOn, timetable);
+    if (occurrences.length === 0) throw new SourceParseFailure();
+    return occurrences;
+  }
   throw new SourceParseFailure();
 }
 
@@ -306,7 +283,6 @@ export function createKabukiBitoAdapter(
                   endsOn: fact.endsOn,
                   occurrences: [
                     ...parseKabukiDetailedOccurrences(
-                      detail.body,
                       fact.startsOn,
                       fact.endsOn,
                       timetable,

@@ -30,9 +30,11 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   pause between batches. An index over the cap fails closed rather than being
   silently truncated.
   The 2026-09-24 read-only canary found teaser duplicates, month-only future
-  listings, and varying detail schedules. A daily table or explicit per-date
-  time can be parsed without inventing shows; multi-day pages with only a
-  headline time and no complete day-level schedule still fail closed. This
+  listings, and varying detail schedules. Explicit per-date headline times
+  can be parsed only when every date in the listed range is covered, without
+  inventing shows. Daily tables are not yet mapped to
+  verified showtime columns; multi-day pages with only a generic headline
+  time also fail closed. This
   source has **not** passed its clean shadow canary or promotion gate. The
   operator chose to keep scheduling disabled until day-level times are
   accurate across the intended scan, rather than stage Event-only drafts for

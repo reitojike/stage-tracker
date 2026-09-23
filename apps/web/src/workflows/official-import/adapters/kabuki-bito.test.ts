@@ -21,8 +21,7 @@ describe("Kabuki-bito adapter facts", () => {
       ],
       [
         "https://www.kabuki-bito.jp/theaters/kabukiza/play/978",
-        `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>
-         <table><tr><th>1（木）</th><td>11：00</td></tr><tr><th>2（金）</th><td>11：00</td></tr></table>`,
+        `<p class="text type-timetable">1日（木） 午前11時～ 2日（金） 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
       ],
     ]);
     const adapter = createKabukiBitoAdapter(async (_source, url) => {
@@ -56,8 +55,7 @@ describe("Kabuki-bito adapter facts", () => {
       active -= 1;
       return document(
         url,
-        `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>
-         <table><tr><th>1（木）</th><td>11：00</td></tr><tr><th>2（金）</th><td>11：00</td></tr></table>`,
+        `<p class="text type-timetable">1日（木） 午前11時～ 2日（金） 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
       );
     }, pause);
 
@@ -241,26 +239,8 @@ describe("Kabuki-bito adapter facts", () => {
     ).toThrow();
   });
 
-  it("uses daily table cells instead of inventing shows on closed or partial days", () => {
-    const occurrences = parseKabukiDetailedOccurrences(
-      `<table><tr><th>日</th><th>第一部</th><th>第二部</th></tr>
-       <tr><th>1（木）</th><td>11：00</td><td>16：00</td></tr>
-       <tr><th>3（土）</th><td>11：00</td><td>-</td></tr>
-       <tr><th>4（日）</th><td>貸切</td><td>貸切</td></tr></table>`,
-      "2026-10-01",
-      "2026-10-04",
-      "第一部 午前11時 第二部 午後4時",
-    );
-    expect(occurrences.map((item) => item.startsAt)).toEqual([
-      "2026-10-01T11:00:00+09:00",
-      "2026-10-01T16:00:00+09:00",
-      "2026-10-03T11:00:00+09:00",
-    ]);
-  });
-
   it("maps explicit per-date headline times without expanding them across the range", () => {
     const occurrences = parseKabukiDetailedOccurrences(
-      "<div></div>",
       "2026-09-25",
       "2026-09-27",
       "25日（金） 午後6時～ 26日（土） 午後2時～ 27日（日） 午後2時～",
@@ -275,10 +255,29 @@ describe("Kabuki-bito adapter facts", () => {
   it("rejects a multi-day headline without day-level evidence", () => {
     expect(() =>
       parseKabukiDetailedOccurrences(
-        "<div></div>",
         "2026-10-01",
         "2026-10-25",
         "第一部 午前11時 第二部 午後4時",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("rejects explicit times that omit a day in the listed range", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "2026-09-25",
+        "2026-09-27",
+        "25日（金） 午後6時～ 27日（日） 午後2時～",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("does not stage an Event-only draft when a single day has no public showtime", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "2026-10-01",
+        "2026-10-01",
+        "昼の部 午前11時～ 【貸切】1日",
       ),
     ).toThrow(SourceParseFailure);
   });
