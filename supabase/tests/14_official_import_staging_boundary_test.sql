@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(71);
+select plan(77);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as second_creator_id \gset
@@ -156,6 +156,33 @@ values (:'run_id', 'fixture-source', 'event', 'https://official.example/events/o
 returning id as owner_guard_candidate_id \gset
 
 insert into public.official_import_candidates (
+  run_id, source_id, candidate_kind, canonical_url, content_hash,
+  proposal_version, proposal, semantic_match_status, resolved_event_id, plan_fingerprint
+)
+values (:'run_id', 'fixture-source', 'event', 'https://official.example/events/jev-match',
+  repeat('a', 64), 'event-v1', '{"title":"Jev matched"}'::jsonb,
+  'matched', :'event_id', repeat('b', 64))
+returning id as jev_event_match_candidate_id \gset
+
+insert into public.official_import_candidates (
+  run_id, source_id, candidate_kind, canonical_url, content_hash,
+  proposal_version, proposal, semantic_match_status, plan_fingerprint
+)
+values (:'run_id', 'fixture-source', 'event', 'https://official.example/events/jev-unmatched',
+  repeat('c', 64), 'event-v1', '{"title":"Jev unmatched"}'::jsonb,
+  'unmatched', repeat('d', 64))
+returning id as jev_event_unmatched_candidate_id \gset
+
+insert into public.official_import_candidates (
+  run_id, source_id, candidate_kind, canonical_url, content_hash,
+  proposal_version, proposal, semantic_match_status, resolved_event_id, plan_fingerprint
+)
+values (:'run_id', 'fixture-source', 'ticket_opportunity', 'https://official.example/tickets/jev-match',
+  repeat('e', 64), 'ticket_opportunity-v1', '{"displayName":"Jev matched"}'::jsonb,
+  'matched', :'event_id', repeat('f', 64))
+returning id as jev_ticket_match_candidate_id \gset
+
+insert into public.official_import_candidates (
   run_id, source_id, candidate_kind, canonical_url, official_external_id, content_hash,
   proposal_version, proposal, evidence_locator, plan_fingerprint
 )
@@ -241,6 +268,18 @@ select is((select review_status from public.official_import_candidates where id 
 call pg_temp.auth_as_user(:'creator_id');
 select is((select review_status from public.review_official_import_candidate(:'owner_guard_candidate_id', 'approved')),
   'approved', 'matched Event owner can approve the same still-pending candidate');
+select throws_ok(format($$select public.review_official_import_candidate(%L, 'approved')$$, :'jev_event_match_candidate_id'),
+  '22023', null, 'Jev-matched Event cannot be approved before deterministic identity');
+select is((select review_status from public.official_import_candidates where id = :'jev_event_match_candidate_id'),
+  'pending', 'denied Jev-matched Event remains pending');
+select throws_ok(format($$select public.review_official_import_candidate(%L, 'approved')$$, :'jev_event_unmatched_candidate_id'),
+  '22023', null, 'Jev-unmatched Event cannot be approved as a new Event');
+select is((select review_status from public.official_import_candidates where id = :'jev_event_unmatched_candidate_id'),
+  'pending', 'denied Jev-unmatched Event remains pending');
+select throws_ok(format($$select public.review_official_import_candidate(%L, 'approved')$$, :'jev_ticket_match_candidate_id'),
+  '22023', null, 'Jev-matched Ticket candidate cannot be approved before deterministic Event identity');
+select is((select review_status from public.official_import_candidates where id = :'jev_ticket_match_candidate_id'),
+  'pending', 'denied Jev-matched Ticket candidate remains pending');
 select is((select review_status from public.review_official_import_candidate(:'candidate_id', 'approved')),
   'approved', 'review RPC approves pending candidate');
 select is((select reviewer from public.official_import_candidates where id = :'candidate_id'),
