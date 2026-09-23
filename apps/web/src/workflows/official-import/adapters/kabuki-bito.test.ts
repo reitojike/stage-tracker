@@ -413,6 +413,21 @@ describe("Kabuki-bito adapter facts", () => {
     }
   });
 
+  it("consumes the entire base headline before trusting A/B or circle cells", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar("<th></th><th>第一部</th>", [
+          "<th>1（木）</th><td>A</td>",
+          "<th>2（金）</th><td>〇</td>",
+        ]),
+        "2026-10-01",
+        "2026-10-02",
+        "第一部 午前11時～ 2日は午後1時～",
+        "other",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
   it("does not mistake curtain times for a calendar header's opening time", () => {
     expect(
       parseKabukiDetailedOccurrences(

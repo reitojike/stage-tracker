@@ -180,6 +180,43 @@ function dateForDayInRange(
   return date;
 }
 
+function parseVerifiedBaseTimes(
+  base: string,
+): readonly { name: string; clock: { hour: number; minute: number } }[] {
+  const partPattern =
+    /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?)\s*[～〜]/gu;
+  const partMatches = [...base.matchAll(partPattern)];
+  const parts =
+    partMatches.length === 0
+      ? (() => {
+          if (
+            !/^(?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?\s*[～〜]$/u.test(
+              base.trim(),
+            )
+          )
+            throw new SourceParseFailure();
+          const clock = parseJapaneseClock(base);
+          if (clock === null) throw new SourceParseFailure();
+          return [{ name: "単独", clock }];
+        })()
+      : partMatches.map((match) => {
+          const clock = parseJapaneseClock(match[2] ?? "");
+          if (clock === null || match[1] === undefined)
+            throw new SourceParseFailure();
+          return { name: match[1], clock };
+        });
+  if (partMatches.length > 0 && base.replace(partPattern, "").trim() !== "")
+    throw new SourceParseFailure();
+  if (new Set(parts.map((part) => part.name)).size !== parts.length)
+    throw new SourceParseFailure();
+  if (
+    new Set(parts.map((part) => `${part.clock.hour}:${part.clock.minute}`))
+      .size !== parts.length
+  )
+    throw new SourceParseFailure();
+  return parts;
+}
+
 function parseVerifiedMobileCalendar(
   html: string,
   startsOn: string,
@@ -219,6 +256,7 @@ function parseVerifiedMobileCalendar(
     timetable.search(/[【〖]|※|終演予定時間：|昼の部では/u);
   const headline =
     timetableStart < 0 ? timetable : timetable.slice(0, timetableStart);
+  const headlineParts = parseVerifiedBaseTimes(headline);
   if (
     headerCells.length < 2 ||
     headerCells.length > 5 ||
@@ -233,28 +271,25 @@ function parseVerifiedMobileCalendar(
     new Set(parts).size !== parts.length
   )
     throw new SourceParseFailure();
+  if (headlineParts.length !== parts.length) throw new SourceParseFailure();
   const expectedClocks = parts.map((part) => {
     if (/^\d{1,2}[:：]\d{2}$/u.test(part)) {
       const clock = parseJapaneseClock(part);
-      const headlineClock = parseJapaneseClock(headline);
+      const headlineClock = headlineParts[0]?.clock;
       if (
         clock === null ||
-        headlineClock === null ||
+        headlineParts[0]?.name !== "単独" ||
+        headlineClock === undefined ||
         clock.hour !== headlineClock.hour ||
         clock.minute !== headlineClock.minute
       )
         throw new SourceParseFailure();
       return clock;
     }
-    const pattern = new RegExp(
-      `${part}\\s*(?:午前|午後)?\\s*\\d{1,2}時(?:\\s*\\d{1,2}分)?`,
-      "gu",
-    );
-    const matches = [...headline.matchAll(pattern)];
-    if (matches.length !== 1) throw new SourceParseFailure();
-    const clock = parseJapaneseClock(matches[0]?.[0] ?? "");
-    if (clock === null) throw new SourceParseFailure();
-    return clock;
+    const matching = headlineParts.filter((item) => item.name === part);
+    if (matching.length !== 1 || matching[0] === undefined)
+      throw new SourceParseFailure();
+    return matching[0].clock;
   });
 
   const dates = enumerateDates(startsOn, endsOn);
@@ -387,37 +422,7 @@ function parseVerifiedHeadlineSchedule(
   const notes = noteStart < 0 ? "" : scheduleText.slice(noteStart);
   const markers = [...schedule.matchAll(/[【〖](休演|貸切)[】〗]/gu)];
   const base = schedule.slice(0, markers[0]?.index ?? schedule.length);
-  const partPattern =
-    /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?)\s*[～〜]/gu;
-  const partMatches = [...base.matchAll(partPattern)];
-  const parts =
-    partMatches.length === 0
-      ? (() => {
-          if (
-            !/^(?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?\s*[～〜]$/u.test(
-              base.trim(),
-            )
-          )
-            throw new SourceParseFailure();
-          const clock = parseJapaneseClock(base);
-          if (clock === null) throw new SourceParseFailure();
-          return [{ name: "単独", clock }];
-        })()
-      : partMatches.map((match) => {
-          const clock = parseJapaneseClock(match[2] ?? "");
-          if (clock === null || match[1] === undefined)
-            throw new SourceParseFailure();
-          return { name: match[1], clock };
-        });
-  if (partMatches.length > 0 && base.replace(partPattern, "").trim() !== "")
-    throw new SourceParseFailure();
-  if (new Set(parts.map((part) => part.name)).size !== parts.length)
-    throw new SourceParseFailure();
-  if (
-    new Set(parts.map((part) => `${part.clock.hour}:${part.clock.minute}`))
-      .size !== parts.length
-  )
-    throw new SourceParseFailure();
+  const parts = parseVerifiedBaseTimes(base);
 
   const weekdays = "日月火水木金土";
   const parseDays = (value: string): Set<string> => {
