@@ -91,6 +91,18 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
     { key: 'star', displayName: 'Star' },
   ]);
   assert.deepEqual(resolved.plans[0].expectedCurrent.targetOccurrences, [occurrence]);
+  assert.equal(resolved.plans[0].hasCanceledTarget, false);
+
+  occurrence.canceled_at = '2026-10-01T00:00:00Z';
+  const canceledOccurrence = await resolvePlans(admin, [validated.entry]);
+  assert.equal(canceledOccurrence.ok, true);
+  assert.equal(canceledOccurrence.plans[0].hasCanceledTarget, true);
+  occurrence.canceled_at = null;
+
+  event.canceled_at = '2026-10-01T00:00:00Z';
+  const canceledEvent = await resolvePlans(admin, [validated.entry]);
+  assert.equal(canceledEvent.ok, true);
+  assert.equal(canceledEvent.plans[0].hasCanceledTarget, true);
 });
 
 void test('reviewed event-wide apply sends a null target list and surfaces stale catalog state', async () => {

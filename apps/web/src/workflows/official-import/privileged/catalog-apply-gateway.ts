@@ -59,6 +59,9 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
       throw new OfficialImportCatalogFailure("policy_blocked");
     }
     const plan = onlyPlan(resolved.plans);
+    if (plan.event !== null && plan.event.canceled_at !== null) {
+      throw new OfficialImportCatalogFailure("source_changed");
+    }
     const hasChanges =
       plan.action !== "unchanged" ||
       plan.genrePlan.changed ||
@@ -99,6 +102,9 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
       throw new OfficialImportCatalogFailure("target_missing");
     }
     const plan = onlyPlan(resolved.plans);
+    if (plan.hasCanceledTarget) {
+      throw new OfficialImportCatalogFailure("source_changed");
+    }
     return {
       action: plan.action,
       hasChanges: plan.action !== "unchanged",

@@ -23,7 +23,7 @@ export type EventValidationResult =
 export interface ResolvedEventPlan {
   readonly entry: ValidatedEventEntry;
   readonly action: 'create' | 'update' | 'unchanged';
-  readonly event: { readonly id: string } | null;
+  readonly event: { readonly id: string; readonly canceled_at: string | null } | null;
   readonly expectedCurrent: unknown;
   readonly detailsChanged: boolean;
   readonly rangeChanged: boolean;

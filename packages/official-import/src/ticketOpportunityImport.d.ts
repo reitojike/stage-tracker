@@ -21,6 +21,7 @@ export interface ValidatedTicketOpportunityEntry {
 export interface ResolvedTicketOpportunityPlan {
   readonly entry: ValidatedTicketOpportunityEntry;
   readonly event: { readonly id: string; readonly title: string };
+  readonly hasCanceledTarget: boolean;
   readonly action: 'create' | 'update' | 'unchanged';
   readonly existing: { readonly id: string } | null;
   readonly expectedCurrent: unknown;

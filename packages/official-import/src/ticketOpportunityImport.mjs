@@ -324,6 +324,9 @@ export async function resolvePlans(admin, entries) {
     plans.push({
       entry,
       event,
+      hasCanceledTarget:
+        event.canceled_at !== null ||
+        targetOccurrenceFacts.some((occurrence) => occurrence.canceled_at !== null),
       expectedCurrent: {
         event,
         genreKey: event.genre_id === null ? null : genreKeyById.get(event.genre_id),
