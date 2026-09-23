@@ -37,6 +37,30 @@ describe("Kabuki-bito adapter facts", () => {
     expect(draft.proposal.occurrences).toHaveLength(2);
   });
 
+  it("records exclusions found only in a verified calendar", async () => {
+    const playUrl = "https://www.kabuki-bito.jp/theaters/other/play/991";
+    const pages = new Map<string, string>([
+      [
+        source.canonicalUrl,
+        `<li class="item"><a href="/theaters/other/play/991"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      ],
+      [
+        playUrl,
+        `<p class="text type-timetable">第一部 午前11時～</p>${mobileCalendar("<th></th><th>第一部</th>", ["<th>1（木）</th><td>11：00</td>", "<th>2（金）</th><td>-</td>"])}`,
+      ],
+    ]);
+    const adapter = createKabukiBitoAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    const [draft] = await adapter.acquire(source);
+    if (draft?.candidateKind !== "event")
+      throw new Error("event draft missing");
+    expect(draft.proposal.occurrences).toHaveLength(1);
+    expect(draft.proposal.memo).toContain("除外");
+  });
+
   it("bounds detail-page concurrency and pauses between batches", async () => {
     const index = [1, 2, 3, 4, 5]
       .map(
@@ -353,6 +377,34 @@ describe("Kabuki-bito adapter facts", () => {
         "第一部 午前11時～",
       ),
     ).toThrow(SourceParseFailure);
+  });
+
+  it("rejects a mobile calendar whose clock is marked as foreign local time", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar("<th></th><th>第一部</th>", [
+          "<th>1（木）</th><td>19：00</td>",
+        ]),
+        "2026-10-01",
+        "2026-10-01",
+        "第一部 午後7時～ ※現地時間",
+        "other",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("does not mistake curtain times for a calendar header's opening time", () => {
+    expect(
+      parseKabukiDetailedOccurrences(
+        mobileCalendar("<th></th><th>第一部</th><th>第二部</th>", [
+          "<th>1（木）</th><td>11：00</td><td>16：00</td>",
+        ]),
+        "2026-10-01",
+        "2026-10-01",
+        "第一部 午前11時～ 第二部 午後4時～ 終演予定時間：第一部 午後1時頃／第二部 午後6時頃 ※終演予定時間は変更になる可能性があります",
+        "kabukiza",
+      ).map((item) => item.startsAt),
+    ).toEqual(["2026-10-01T11:00:00+09:00", "2026-10-01T16:00:00+09:00"]);
   });
 
   it("maps A/B program variants to verified part times while respecting private cells", () => {

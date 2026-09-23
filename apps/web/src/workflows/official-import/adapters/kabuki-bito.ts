@@ -185,7 +185,10 @@ function parseVerifiedMobileCalendar(
   startsOn: string,
   endsOn: string,
   timetable: string,
-): readonly { startsAt: string; endsAt: null }[] | null {
+): {
+  occurrences: readonly { startsAt: string; endsAt: null }[];
+  hasExclusions: boolean;
+} | null {
   const document = parseHtml(html);
   const calendars = descendants(
     document,
@@ -210,6 +213,10 @@ function parseVerifiedMobileCalendar(
   const firstHeaderCell = headerCells[0];
   if (firstHeaderCell === undefined) throw new SourceParseFailure();
   const parts = headerCells.slice(1).map(normalizedText);
+  const timetableStart =
+    timetable.search(/[【〖]|※|終演予定時間：|昼の部では/u);
+  const headline =
+    timetableStart < 0 ? timetable : timetable.slice(0, timetableStart);
   if (
     headerCells.length < 2 ||
     headerCells.length > 5 ||
@@ -227,12 +234,12 @@ function parseVerifiedMobileCalendar(
   const expectedClocks = parts.map((part) => {
     if (/^\d{1,2}[:：]\d{2}$/u.test(part)) {
       const clock = parseJapaneseClock(part);
-      const headline = parseJapaneseClock(timetable);
+      const headlineClock = parseJapaneseClock(headline);
       if (
         clock === null ||
-        headline === null ||
-        clock.hour !== headline.hour ||
-        clock.minute !== headline.minute
+        headlineClock === null ||
+        clock.hour !== headlineClock.hour ||
+        clock.minute !== headlineClock.minute
       )
         throw new SourceParseFailure();
       return clock;
@@ -241,7 +248,7 @@ function parseVerifiedMobileCalendar(
       `${part}\\s*(?:午前|午後)?\\s*\\d{1,2}時(?:\\s*\\d{1,2}分)?`,
       "gu",
     );
-    const matches = [...timetable.matchAll(pattern)];
+    const matches = [...headline.matchAll(pattern)];
     if (matches.length !== 1) throw new SourceParseFailure();
     const clock = parseJapaneseClock(matches[0]?.[0] ?? "");
     if (clock === null) throw new SourceParseFailure();
@@ -253,6 +260,7 @@ function parseVerifiedMobileCalendar(
   const seenDates = new Set<string>();
   const seenStarts = new Set<string>();
   const occurrences: { startsAt: string; endsAt: null }[] = [];
+  let hasExclusions = false;
   const weekdays = "日月火水木金土";
   for (const row of rows.slice(1)) {
     const rowCells = cells(row);
@@ -294,8 +302,10 @@ function parseVerifiedMobileCalendar(
         value === "--" ||
         value === "貸切" ||
         value === "休演"
-      )
+      ) {
+        hasExclusions = true;
         continue;
+      }
       const expected = expectedClocks[index];
       if (expected === undefined) throw new SourceParseFailure();
       // A/B and Aプロ/Bプロ denote cast/program variants; 〇 marks a show.
@@ -319,7 +329,7 @@ function parseVerifiedMobileCalendar(
   }
   if (seenDates.size !== dates.length || occurrences.length === 0)
     throw new SourceParseFailure();
-  return occurrences;
+  return { occurrences, hasExclusions };
 }
 
 function parseVerifiedHeadlineSchedule(
@@ -445,6 +455,9 @@ function parseVerifiedHeadlineSchedule(
       curtainStart < 0 ? "" : remainingNotes.slice(curtainStart).trim();
   }
   if (remainingNotes.startsWith("終演予定時間：")) {
+    const estimateCaveat = "※終演予定時間は変更になる可能性があります";
+    if (remainingNotes.endsWith(estimateCaveat))
+      remainingNotes = remainingNotes.slice(0, -estimateCaveat.length).trim();
     const curtainParts = remainingNotes
       .slice("終演予定時間：".length)
       .split(/[／/]/u);
@@ -555,13 +568,17 @@ function parseVerifiedHeadlineSchedule(
   return occurrences;
 }
 
-export function parseKabukiDetailedOccurrences(
+function parseKabukiDetailedSchedule(
   html: string,
   startsOn: string,
   endsOn: string,
   timetable: string,
   theater?: string,
-): readonly { startsAt: string; endsAt: null }[] {
+): {
+  occurrences: readonly { startsAt: string; endsAt: null }[];
+  hasCalendarExclusions: boolean;
+} {
+  if (/現地時間/u.test(timetable)) throw new SourceParseFailure();
   const calendar = parseVerifiedMobileCalendar(
     html,
     startsOn,
@@ -576,14 +593,17 @@ export function parseKabukiDetailedOccurrences(
         timetable,
       );
       if (
-        calendar.length !== headline.length ||
-        calendar.some(
+        calendar.occurrences.length !== headline.length ||
+        calendar.occurrences.some(
           (item, index) => item.startsAt !== headline[index]?.startsAt,
         )
       )
         throw new SourceParseFailure();
     }
-    return calendar;
+    return {
+      occurrences: calendar.occurrences,
+      hasCalendarExclusions: calendar.hasExclusions,
+    };
   }
   // Some short engagements publish each date/time directly in the headline.
   // Require every date and clock token to be paired. Varying daily tables are
@@ -619,10 +639,24 @@ export function parseKabukiDetailedOccurrences(
       enumerateDates(startsOn, endsOn).some((date) => !coveredDates.has(date))
     )
       throw new SourceParseFailure();
-    return occurrences;
+    return { occurrences, hasCalendarExclusions: false };
   }
 
-  return parseVerifiedHeadlineSchedule(startsOn, endsOn, timetable);
+  return {
+    occurrences: parseVerifiedHeadlineSchedule(startsOn, endsOn, timetable),
+    hasCalendarExclusions: false,
+  };
+}
+
+export function parseKabukiDetailedOccurrences(
+  html: string,
+  startsOn: string,
+  endsOn: string,
+  timetable: string,
+  theater?: string,
+): readonly { startsAt: string; endsAt: null }[] {
+  return parseKabukiDetailedSchedule(html, startsOn, endsOn, timetable, theater)
+    .occurrences;
 }
 
 function detailText(html: string, className: string): string | null {
@@ -656,6 +690,13 @@ export function createKabukiBitoAdapter(
               const timetable = detailText(detail.body, "type-timetable");
               if (timetable === null) throw new SourceParseFailure();
               const venue = detailText(detail.body, "type-theater");
+              const schedule = parseKabukiDetailedSchedule(
+                detail.body,
+                fact.startsOn,
+                fact.endsOn,
+                timetable,
+                fact.theater,
+              );
               return {
                 candidateKind: "event" as const,
                 canonicalUrl: detail.url,
@@ -672,21 +713,15 @@ export function createKabukiBitoAdapter(
                   sourceKey: `kabuki-bito:${fact.theater}:play:${fact.officialId}`,
                   title: fact.title,
                   venue,
-                  memo: /【(?:休演|貸切)】/u.test(timetable)
-                    ? "公式日程の休演・貸切日をOccurrence候補から除外"
-                    : null,
+                  memo:
+                    /[【〖](?:休演|貸切)[】〗]/u.test(timetable) ||
+                    schedule.hasCalendarExclusions
+                      ? "公式日程の休演・貸切等をOccurrence候補から除外"
+                      : null,
                   sourceUrl: detail.url,
                   startsOn: fact.startsOn,
                   endsOn: fact.endsOn,
-                  occurrences: [
-                    ...parseKabukiDetailedOccurrences(
-                      detail.body,
-                      fact.startsOn,
-                      fact.endsOn,
-                      timetable,
-                      fact.theater,
-                    ),
-                  ],
+                  occurrences: [...schedule.occurrences],
                 },
               };
             })
