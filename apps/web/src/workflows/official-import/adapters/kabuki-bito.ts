@@ -180,11 +180,345 @@ function dateForDayInRange(
   return date;
 }
 
-export function parseKabukiDetailedOccurrences(
+function parseVerifiedMobileCalendar(
+  html: string,
+  startsOn: string,
+  endsOn: string,
+  timetable: string,
+): readonly { startsAt: string; endsAt: null }[] | null {
+  const document = parseHtml(html);
+  const calendars = descendants(
+    document,
+    (node) =>
+      elementName(node) === "table" &&
+      hasClass(node, "type-calendar") &&
+      hasClass(node, "view-sp"),
+  );
+  if (calendars.length === 0) return null;
+  const calendar = calendars[0];
+  if (calendars.length !== 1 || calendar === undefined)
+    throw new SourceParseFailure();
+  const rows = descendants(calendar, (node) => elementName(node) === "tr");
+  const cells = (row: (typeof rows)[number]) =>
+    descendants(
+      row,
+      (node) => elementName(node) === "th" || elementName(node) === "td",
+    );
+  const header = rows[0];
+  if (header === undefined) throw new SourceParseFailure();
+  const headerCells = cells(header);
+  const firstHeaderCell = headerCells[0];
+  if (firstHeaderCell === undefined) throw new SourceParseFailure();
+  const parts = headerCells.slice(1).map(normalizedText);
+  if (
+    headerCells.length < 2 ||
+    headerCells.length > 5 ||
+    headerCells.some((cell) => elementName(cell) !== "th") ||
+    normalizedText(firstHeaderCell) !== "" ||
+    parts.some(
+      (part) =>
+        !/^(?:[昼夜朝]の部|第(?:[一二三四五六]|[1-6])部|\d{1,2}[:：]\d{2})$/u.test(
+          part,
+        ),
+    ) ||
+    new Set(parts).size !== parts.length
+  )
+    throw new SourceParseFailure();
+  const expectedClocks = parts.map((part) => {
+    if (/^\d{1,2}[:：]\d{2}$/u.test(part)) {
+      const clock = parseJapaneseClock(part);
+      const headline = parseJapaneseClock(timetable);
+      if (
+        clock === null ||
+        headline === null ||
+        clock.hour !== headline.hour ||
+        clock.minute !== headline.minute
+      )
+        throw new SourceParseFailure();
+      return clock;
+    }
+    const pattern = new RegExp(
+      `${part}\\s*(?:午前|午後)?\\s*\\d{1,2}時(?:\\s*\\d{1,2}分)?`,
+      "gu",
+    );
+    const matches = [...timetable.matchAll(pattern)];
+    if (matches.length !== 1) throw new SourceParseFailure();
+    const clock = parseJapaneseClock(matches[0]?.[0] ?? "");
+    if (clock === null) throw new SourceParseFailure();
+    return clock;
+  });
+
+  const dates = enumerateDates(startsOn, endsOn);
+  if (rows.length !== dates.length + 1) throw new SourceParseFailure();
+  const seenDates = new Set<string>();
+  const seenStarts = new Set<string>();
+  const occurrences: { startsAt: string; endsAt: null }[] = [];
+  const weekdays = "日月火水木金土";
+  for (const row of rows.slice(1)) {
+    const rowCells = cells(row);
+    const dayCell = rowCells[0];
+    if (dayCell === undefined) throw new SourceParseFailure();
+    const day = normalizedText(dayCell).match(
+      /^(\d{1,2})[（(]([日月火水木金土])[）)]$/u,
+    );
+    if (
+      rowCells.length !== headerCells.length ||
+      elementName(dayCell) !== "th" ||
+      rowCells.slice(1).some((cell) => elementName(cell) !== "td") ||
+      day === null
+    )
+      throw new SourceParseFailure();
+    const date = dateForDayInRange(Number(day[1]), startsOn, endsOn);
+    if (
+      seenDates.has(date) ||
+      weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()] !== day[2]
+    )
+      throw new SourceParseFailure();
+    seenDates.add(date);
+    for (const [index, cell] of rowCells.slice(1).entries()) {
+      const rawValue = normalizedText(cell);
+      const starred = rawValue.endsWith("★");
+      const value = starred ? rawValue.slice(0, -1) : rawValue;
+      if (starred) {
+        const part = parts[index];
+        if (
+          part === undefined ||
+          !normalizedText(document).includes(
+            `★${day[1]}日（${day[2]}）${part}は「着物で歌舞伎」`,
+          )
+        )
+          throw new SourceParseFailure();
+      }
+      if (
+        value === "-" ||
+        value === "--" ||
+        value === "貸切" ||
+        value === "休演"
+      )
+        continue;
+      const expected = expectedClocks[index];
+      if (expected === undefined) throw new SourceParseFailure();
+      // A/B and Aプロ/Bプロ denote cast/program variants; 〇 marks a show.
+      // The labeled part's headline time is authoritative for those cells.
+      const clock = /^(?:[AB](?:プロ)?|〇)$/u.test(value)
+        ? expected
+        : /^\d{1,2}[:：]\d{2}$/u.test(value)
+          ? parseJapaneseClock(value)
+          : null;
+      if (
+        clock === null ||
+        clock.hour !== expected.hour ||
+        clock.minute !== expected.minute
+      )
+        throw new SourceParseFailure();
+      const startsAt = tokyoDateTime(date, clock.hour, clock.minute);
+      if (seenStarts.has(startsAt)) throw new SourceParseFailure();
+      seenStarts.add(startsAt);
+      occurrences.push({ startsAt, endsAt: null });
+    }
+  }
+  if (seenDates.size !== dates.length || occurrences.length === 0)
+    throw new SourceParseFailure();
+  return occurrences;
+}
+
+function parseVerifiedHeadlineSchedule(
   startsOn: string,
   endsOn: string,
   timetable: string,
 ): readonly { startsAt: string; endsAt: null }[] {
+  const morningOnly = timetable.match(
+    /※(\d{1,2}日(?:[（(][^）)]+[）)])?)は、午前の部のみ1回公演$/u,
+  );
+  const scheduleText =
+    morningOnly === null
+      ? timetable
+      : timetable.slice(0, morningOnly.index ?? timetable.length).trim();
+  // Non-schedule notes may mention school groups, curtain times, or staging.
+  // Never let another rest-day/private marker hide in an ignored note.
+  const noteStart = scheduleText.search(
+    /※下記日程は学校団体様がいらっしゃいます|終演予定時間：|昼の部では、古式に則り、|※開場は開演の1時間前を予定/u,
+  );
+  const schedule =
+    noteStart < 0 ? scheduleText : scheduleText.slice(0, noteStart);
+  const notes = noteStart < 0 ? "" : scheduleText.slice(noteStart);
+  if (/[【〖][^】〗]+[】〗]|休演|貸切/u.test(notes))
+    throw new SourceParseFailure();
+  const markers = [...schedule.matchAll(/[【〖](休演|貸切)[】〗]/gu)];
+  const base = schedule.slice(0, markers[0]?.index ?? schedule.length);
+  const partPattern =
+    /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?)\s*[～〜]/gu;
+  const partMatches = [...base.matchAll(partPattern)];
+  const parts =
+    partMatches.length === 0
+      ? (() => {
+          if (
+            !/^(?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?\s*[～〜]$/u.test(
+              base.trim(),
+            )
+          )
+            throw new SourceParseFailure();
+          const clock = parseJapaneseClock(base);
+          if (clock === null) throw new SourceParseFailure();
+          return [{ name: "単独", clock }];
+        })()
+      : partMatches.map((match) => {
+          const clock = parseJapaneseClock(match[2] ?? "");
+          if (clock === null || match[1] === undefined)
+            throw new SourceParseFailure();
+          return { name: match[1], clock };
+        });
+  if (partMatches.length > 0 && base.replace(partPattern, "").trim() !== "")
+    throw new SourceParseFailure();
+  if (new Set(parts.map((part) => part.name)).size !== parts.length)
+    throw new SourceParseFailure();
+  if (
+    new Set(parts.map((part) => `${part.clock.hour}:${part.clock.minute}`))
+      .size !== parts.length
+  )
+    throw new SourceParseFailure();
+
+  const weekdays = "日月火水木金土";
+  const parseDays = (value: string): Set<string> => {
+    const datePattern = /(\d{1,2})日(?:[（(]([^）)]+)[）)])?/gu;
+    const matches = [...value.matchAll(datePattern)];
+    if (
+      matches.length === 0 ||
+      value.replace(datePattern, "").replace(/[、，\s]/gu, "") !== ""
+    )
+      throw new SourceParseFailure();
+    const dates = matches.map((match) => {
+      const date = dateForDayInRange(Number(match[1]), startsOn, endsOn);
+      if (match[2] !== undefined) {
+        const dayNames = [...match[2]].filter((name) =>
+          weekdays.includes(name),
+        );
+        if (
+          dayNames.length !== 1 ||
+          dayNames[0] !== weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()]
+        )
+          throw new SourceParseFailure();
+      }
+      return date;
+    });
+    if (new Set(dates).size !== dates.length) throw new SourceParseFailure();
+    return new Set(dates);
+  };
+
+  let closed = new Set<string>();
+  const privateByPart = new Map<string, Set<string>>();
+  for (const [index, marker] of markers.entries()) {
+    const next = markers[index + 1];
+    const content = schedule
+      .slice(
+        (marker.index ?? 0) + marker[0].length,
+        next?.index ?? schedule.length,
+      )
+      .trim();
+    if (marker[1] === "休演") {
+      if (closed.size > 0) throw new SourceParseFailure();
+      closed = parseDays(content);
+      continue;
+    }
+    if (marker[1] !== "貸切" || privateByPart.size > 0)
+      throw new SourceParseFailure();
+    const withoutNote = content.replace(/^※幕見席は営業\s*/u, "");
+    const partLabels = [
+      ...withoutNote.matchAll(
+        /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)[:：]/gu,
+      ),
+    ];
+    if (partLabels.length === 0 && parts.length === 1) {
+      privateByPart.set(parts[0]?.name ?? "", parseDays(withoutNote));
+      continue;
+    }
+    if (
+      partLabels.length === 0 ||
+      withoutNote.slice(0, partLabels[0]?.index ?? 0).trim() !== ""
+    )
+      throw new SourceParseFailure();
+    for (const [partIndex, label] of partLabels.entries()) {
+      const name = label[1];
+      if (
+        name === undefined ||
+        !parts.some((part) => part.name === name) ||
+        privateByPart.has(name)
+      )
+        throw new SourceParseFailure();
+      const afterLabel = (label.index ?? 0) + label[0].length;
+      const dateText = withoutNote.slice(
+        afterLabel,
+        partLabels[partIndex + 1]?.index ?? withoutNote.length,
+      );
+      privateByPart.set(name, parseDays(dateText));
+    }
+  }
+  if (morningOnly !== null) {
+    const morningParts = parts.filter((part) => part.clock.hour < 12);
+    if (parts.length !== 2 || morningParts.length !== 1)
+      throw new SourceParseFailure();
+    const exceptionDates = parseDays(morningOnly[1] ?? "");
+    if (exceptionDates.size !== 1) throw new SourceParseFailure();
+    const afternoon = parts.find((part) => part !== morningParts[0]);
+    if (afternoon === undefined || privateByPart.has(afternoon.name))
+      throw new SourceParseFailure();
+    privateByPart.set(afternoon.name, exceptionDates);
+  }
+  if (markers.some((marker) => marker[1] === "休演") && closed.size === 0)
+    throw new SourceParseFailure();
+
+  const occurrences = enumerateDates(startsOn, endsOn).flatMap((date) =>
+    closed.has(date)
+      ? []
+      : parts.flatMap((part) =>
+          privateByPart.get(part.name)?.has(date)
+            ? []
+            : [
+                {
+                  startsAt: tokyoDateTime(
+                    date,
+                    part.clock.hour,
+                    part.clock.minute,
+                  ),
+                  endsAt: null,
+                },
+              ],
+        ),
+  );
+  if (occurrences.length === 0) throw new SourceParseFailure();
+  return occurrences;
+}
+
+export function parseKabukiDetailedOccurrences(
+  html: string,
+  startsOn: string,
+  endsOn: string,
+  timetable: string,
+  theater?: string,
+): readonly { startsAt: string; endsAt: null }[] {
+  const calendar = parseVerifiedMobileCalendar(
+    html,
+    startsOn,
+    endsOn,
+    timetable,
+  );
+  if (calendar !== null) {
+    if (theater === "kabukiza") {
+      const headline = parseVerifiedHeadlineSchedule(
+        startsOn,
+        endsOn,
+        timetable,
+      );
+      if (
+        calendar.length !== headline.length ||
+        calendar.some(
+          (item, index) => item.startsAt !== headline[index]?.startsAt,
+        )
+      )
+        throw new SourceParseFailure();
+    }
+    return calendar;
+  }
   // Some short engagements publish each date/time directly in the headline.
   // Require every date and clock token to be paired. Varying daily tables are
   // not yet mapped to verified showtime columns and cannot be inferred here.
@@ -222,7 +556,15 @@ export function parseKabukiDetailedOccurrences(
     return occurrences;
   }
 
+  if (startsOn !== endsOn)
+    return parseVerifiedHeadlineSchedule(startsOn, endsOn, timetable);
   if (startsOn === endsOn) {
+    if (
+      /^(?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?\s*[～〜]$/u.test(
+        timetable.trim(),
+      )
+    )
+      return parseVerifiedHeadlineSchedule(startsOn, endsOn, timetable);
     const occurrences = expandKabukiSchedule(startsOn, endsOn, timetable);
     if (occurrences.length === 0) throw new SourceParseFailure();
     return occurrences;
@@ -285,9 +627,11 @@ export function createKabukiBitoAdapter(
                   endsOn: fact.endsOn,
                   occurrences: [
                     ...parseKabukiDetailedOccurrences(
+                      detail.body,
                       fact.startsOn,
                       fact.endsOn,
                       timetable,
+                      fact.theater,
                     ),
                   ],
                 },

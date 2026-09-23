@@ -241,6 +241,7 @@ describe("Kabuki-bito adapter facts", () => {
 
   it("maps explicit per-date headline times without expanding them across the range", () => {
     const occurrences = parseKabukiDetailedOccurrences(
+      "",
       "2026-09-25",
       "2026-09-27",
       "25日（金） 午後6時～ 26日（土） 午後2時～ 27日（日） 午後2時～",
@@ -255,6 +256,7 @@ describe("Kabuki-bito adapter facts", () => {
   it("rejects a multi-day headline without day-level evidence", () => {
     expect(() =>
       parseKabukiDetailedOccurrences(
+        "",
         "2026-10-01",
         "2026-10-25",
         "第一部 午前11時 第二部 午後4時",
@@ -265,6 +267,7 @@ describe("Kabuki-bito adapter facts", () => {
   it("rejects explicit times that omit a day in the listed range", () => {
     expect(() =>
       parseKabukiDetailedOccurrences(
+        "",
         "2026-09-25",
         "2026-09-27",
         "25日（金） 午後6時～ 27日（日） 午後2時～",
@@ -275,13 +278,346 @@ describe("Kabuki-bito adapter facts", () => {
   it("does not stage an Event-only draft when a single day has no public showtime", () => {
     expect(() =>
       parseKabukiDetailedOccurrences(
+        "",
         "2026-10-01",
         "2026-10-01",
         "昼の部 午前11時～ 【貸切】1日",
       ),
     ).toThrow(SourceParseFailure);
   });
+
+  it("uses only verified performance columns in a complete mobile calendar", () => {
+    const html = `<table><tr><th>1（木）</th><td>10：00</td></tr></table>
+      ${mobileCalendar("<th></th><th>第一部</th><th>第二部</th>", [
+        "<th>1（木）</th><td>11：00</td><td>16：00</td>",
+        "<th>2（金）</th><td>11：00</td><td>-</td>",
+        "<th>3（土）</th><td>貸切</td><td>貸切</td>",
+      ])}`;
+    const occurrences = parseKabukiDetailedOccurrences(
+      html,
+      "2026-10-01",
+      "2026-10-03",
+      "第一部 午前11時～ 第二部 午後4時～",
+    );
+    expect(occurrences.map((item) => item.startsAt)).toEqual([
+      "2026-10-01T11:00:00+09:00",
+      "2026-10-01T16:00:00+09:00",
+      "2026-10-02T11:00:00+09:00",
+    ]);
+  });
+
+  it("rejects a calendar with an unverified header or malformed date row", () => {
+    const rows = [
+      "<th>1（木）</th><td>11：00</td><td>16：00</td>",
+      "<th>2日（金）</th><td>11：00</td><td>16：00</td>",
+    ];
+    const header = "<th></th><th>第一部</th><th>第二部</th>";
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar("<th></th><th>開場</th><th>第二部</th>", rows),
+        "2026-10-01",
+        "2026-10-02",
+        "第一部 午前11時～ 第二部 午後4時～",
+      ),
+    ).toThrow(SourceParseFailure);
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar(header, rows),
+        "2026-10-01",
+        "2026-10-02",
+        "第一部 午前11時～ 第二部 午後4時～",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("rejects a calendar clock that conflicts with its labeled headline time", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar("<th></th><th>第一部</th>", [
+          "<th>1（木）</th><td>10：00</td>",
+        ]),
+        "2026-10-01",
+        "2026-10-01",
+        "第一部 午前11時～",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("maps A/B program variants to verified part times while respecting private cells", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      mobileCalendar("<th></th><th>昼の部</th><th>夜の部</th>", [
+        "<th>1（日）</th><td>A</td><td>B</td>",
+        "<th>2（月）</th><td>貸切</td><td>A</td>",
+      ]),
+      "2026-11-01",
+      "2026-11-02",
+      "昼の部 午前11時～ 夜の部 午後4時30分～【貸切】昼の部：2日（月）",
+      "kabukiza",
+    );
+    expect(occurrences.map((item) => item.startsAt)).toEqual([
+      "2026-11-01T11:00:00+09:00",
+      "2026-11-01T16:30:00+09:00",
+      "2026-11-02T16:30:00+09:00",
+    ]);
+  });
+
+  it("maps verified Aプロ/Bプロ and 〇 calendar cells to labeled part times", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      mobileCalendar("<th></th><th>昼の部</th><th>夜の部</th>", [
+        "<th>3（土）</th><td>Aプロ</td><td>〇</td>",
+        "<th>4（日）</th><td>Bプロ</td><td>〇</td>",
+      ]),
+      "2026-10-03",
+      "2026-10-04",
+      "昼の部 午前11時30分～ 夜の部 午後4時～",
+      "kyoto",
+    );
+    expect(occurrences.map((item) => item.startsAt)).toEqual([
+      "2026-10-03T11:30:00+09:00",
+      "2026-10-03T16:00:00+09:00",
+      "2026-10-04T11:30:00+09:00",
+      "2026-10-04T16:00:00+09:00",
+    ]);
+  });
+
+  it("uses a verified clock header for a single-part calendar", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      mobileCalendar("<th></th><th>14：00</th>", [
+        "<th>3（土）</th><td>〇</td>",
+        "<th>4（日）</th><td>貸切</td>",
+      ]),
+      "2026-10-03",
+      "2026-10-04",
+      "午後2時～ ※当初の発表から公演日程を変更しております",
+      "other",
+    );
+    expect(occurrences.map((item) => item.startsAt)).toEqual([
+      "2026-10-03T14:00:00+09:00",
+    ]);
+  });
+
+  it("accepts numbered part headers only with matching headline times", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      mobileCalendar("<th></th><th>第1部</th><th>第2部</th>", [
+        "<th>2（土）</th><td>11：00</td><td>15：00</td>",
+        "<th>3（日）</th><td>-</td><td>15：00</td>",
+      ]),
+      "2027-01-02",
+      "2027-01-03",
+      "第1部 午前11時～ 第2部 午後3時～【休演・貸切】日程詳細をご確認ください",
+      "other",
+    );
+    expect(occurrences.map((item) => item.startsAt)).toEqual([
+      "2027-01-02T11:00:00+09:00",
+      "2027-01-02T15:00:00+09:00",
+      "2027-01-03T15:00:00+09:00",
+    ]);
+  });
+
+  it("allows a showtime footnote only when its non-time annotation is verified", () => {
+    const table = mobileCalendar("<th></th><th>第1部</th><th>第2部</th>", [
+      "<th>17（日）</th><td>11：00</td><td>15：00★</td>",
+    ]);
+    const args = [
+      "2027-01-17",
+      "2027-01-17",
+      "第1部 午前11時～ 第2部 午後3時～",
+      "other",
+    ] as const;
+    expect(() => parseKabukiDetailedOccurrences(table, ...args)).toThrow(
+      SourceParseFailure,
+    );
+    expect(
+      parseKabukiDetailedOccurrences(
+        `${table}<p>★17日（日）第2部は「着物で歌舞伎」です。</p>`,
+        ...args,
+      ).map((item) => item.startsAt),
+    ).toEqual(["2027-01-17T11:00:00+09:00", "2027-01-17T15:00:00+09:00"]);
+  });
+
+  it("rejects a Kabukiza calendar that disagrees with its closure note", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar("<th></th><th>昼の部</th>", [
+          "<th>1（日）</th><td>A</td>",
+          "<th>2（月）</th><td>B</td>",
+        ]),
+        "2026-11-01",
+        "2026-11-02",
+        "昼の部 午前11時～【休演】2日（月）",
+        "kabukiza",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("rejects missing dates and all-private rows instead of staging Event-only", () => {
+    const header = "<th></th><th>第一部</th><th>第二部</th>";
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar(header, [
+          "<th>1（木）</th><td>11：00</td><td>16：00</td>",
+        ]),
+        "2026-10-01",
+        "2026-10-02",
+        "第一部 午前11時～ 第二部 午後4時～",
+      ),
+    ).toThrow(SourceParseFailure);
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        mobileCalendar(header, ["<th>1（木）</th><td>貸切</td><td>貸切</td>"]),
+        "2026-10-01",
+        "2026-10-01",
+        "第一部 午前11時～ 第二部 午後4時～",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("expands Kabukiza's labeled parts while excluding full closures and part-specific private shows", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      "",
+      "2026-09-02",
+      "2026-09-26",
+      "昼の部 午前11時～ 夜の部 午後4時～【休演】9日（水）、18日（金） 【貸切】※幕見席は営業 昼の部：25日（金） 夜の部：5日（土）、21日（祝・月） ※下記日程は学校団体様がいらっしゃいます 昼の部：2日（水）、4日（金）、16日（水）",
+      "kabukiza",
+    );
+    expect(occurrences).toHaveLength(43);
+    expect(occurrences.map((item) => item.startsAt)).toContain(
+      "2026-09-02T11:00:00+09:00",
+    );
+    expect(occurrences.map((item) => item.startsAt)).not.toContain(
+      "2026-09-05T16:00:00+09:00",
+    );
+    expect(occurrences.map((item) => item.startsAt)).not.toContain(
+      "2026-09-25T11:00:00+09:00",
+    );
+    expect(
+      occurrences.some((item) => item.startsAt.startsWith("2026-09-09")),
+    ).toBe(false);
+  });
+
+  it("keeps Kabukiza's three labeled parts but ignores school-group and curtain notes", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      "",
+      "2026-10-02",
+      "2026-10-20",
+      "第一部 午前11時～第二部 午後2時30分～第三部 午後6時～【休演】9日（金） ※下記日程は学校団体様がいらっしゃいます 第一部：2日（金）、14日（水） 終演予定時間：第一部 午後1時35分頃／第二部 午後5時05分頃／第三部 午後9時10分頃",
+      "kabukiza",
+    );
+    expect(occurrences).toHaveLength(54);
+    expect(occurrences.map((item) => item.startsAt)).toContain(
+      "2026-10-02T14:30:00+09:00",
+    );
+  });
+
+  it("expands a non-Kabukiza period only when its base times and exceptions are explicit", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      "",
+      "2026-12-01",
+      "2026-12-24",
+      "昼の部 午前10時30分～ 夜の部 午後4時～【休演】9日（水）、17日（木）【貸切】昼の部：12日（土）、19日（土）、20日（日）、夜の部：18日（金）",
+      "kyoto",
+    );
+    expect(occurrences).toHaveLength(40);
+    expect(occurrences.map((item) => item.startsAt)).not.toContain(
+      "2026-12-18T16:00:00+09:00",
+    );
+  });
+
+  it("supports a single unlabeled daily showtime outside Kabukiza", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      "",
+      "2026-11-03",
+      "2026-11-08",
+      "午後1時～ ※開場は開演の1時間前を予定",
+      "other",
+    );
+    expect(occurrences).toHaveLength(6);
+    expect(occurrences[0]?.startsAt).toBe("2026-11-03T13:00:00+09:00");
+  });
+
+  it("accepts a single-date performance with one explicit unlabeled time", () => {
+    expect(
+      parseKabukiDetailedOccurrences(
+        "",
+        "2026-12-18",
+        "2026-12-18",
+        "午後2時～",
+        "other",
+      ).map((item) => item.startsAt),
+    ).toEqual(["2026-12-18T14:00:00+09:00"]);
+  });
+
+  it("does not interpret a foreign local time as a Tokyo showtime", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "",
+        "2026-10-30",
+        "2026-10-31",
+        "30日（金）午後7時～ 31日（土）午後7時～ ※現地時間",
+        "other",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("honors an explicitly morning-only final day", () => {
+    const occurrences = parseKabukiDetailedOccurrences(
+      "",
+      "2026-11-04",
+      "2026-11-11",
+      "昼の部 午前11時30分～ 夜の部 午後4時～ ※11日（水）は、午前の部のみ1回公演",
+      "other",
+    );
+    expect(occurrences).toHaveLength(15);
+    expect(occurrences.map((item) => item.startsAt)).toContain(
+      "2026-11-11T11:30:00+09:00",
+    );
+    expect(occurrences.map((item) => item.startsAt)).not.toContain(
+      "2026-11-11T16:00:00+09:00",
+    );
+  });
+
+  it("rejects multi-day headlines that only defer exceptions to another section", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "",
+        "2026-10-01",
+        "2026-10-25",
+        "第一部 午前11時～ 第二部 午後4時～【休演】日程詳細をご確認ください",
+        "other",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("fails closed for an unrecognized Kabukiza date exception", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "",
+        "2026-09-02",
+        "2026-09-26",
+        "昼の部 午前11時～ 夜の部 午後4時～【休演】9日（木）",
+        "kabukiza",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("does not hide a later closure inside a Kabukiza note", () => {
+    expect(() =>
+      parseKabukiDetailedOccurrences(
+        "",
+        "2026-09-02",
+        "2026-09-03",
+        "昼の部 午前11時～ ※下記日程は学校団体様がいらっしゃいます 昼の部：2日（水）【休演】3日（木）",
+        "kabukiza",
+      ),
+    ).toThrow(SourceParseFailure);
+  });
 });
+
+function mobileCalendar(header: string, rows: readonly string[]): string {
+  return `<table class="table type-calendar view-sp"><tr>${header}</tr>${rows
+    .map((row) => `<tr>${row}</tr>`)
+    .join("")}</table>`;
+}
 
 function document(url: string, body: string): OfficialHtmlDocument {
   return {
