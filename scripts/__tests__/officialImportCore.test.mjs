@@ -24,7 +24,13 @@ function validEvent(overrides = {}) {
   };
 }
 
-function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
+function fakeAdmin({
+  event = null,
+  ownerId = owner.id,
+  creator = true,
+  groups = [],
+  eventGroups = [],
+} = {}) {
   const rpcCalls = [];
   const rows = { event, ownerId, creator };
   function builder(table) {
@@ -37,19 +43,31 @@ function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
         state[column] = value;
         return this;
       },
+      in(column, values) {
+        state[column] = values;
+        return this;
+      },
       maybeSingle: async () => {
         if (table === 'catalog_creators')
           return { data: rows.creator ? { user_id: rows.ownerId } : null, error: null };
         if (table === 'events')
           return {
-            data: rows.event && rows.event.source_key === state.source_key ? rows.event : null,
+            data:
+              rows.event &&
+              (rows.event.source_key === state.source_key || rows.event.id === state.id)
+                ? rows.event
+                : null,
             error: null,
           };
         return { data: null, error: null };
       },
       then(resolve, reject) {
         const data =
-          table === 'genres' ? [{ id: 'genre-1', key: 'theatre', display_name: 'Theatre' }] : [];
+          table === 'genres'
+            ? [{ id: 'genre-1', key: 'theatre', display_name: 'Theatre' }]
+            : table === 'groups'
+              ? groups.filter((group) => state.key.includes(group.key))
+              : [];
         return Promise.resolve({ data, error: null }).then(resolve, reject);
       },
     };
@@ -60,18 +78,36 @@ function fakeAdmin({ event = null, ownerId = owner.id, creator = true } = {}) {
       if (table === 'event_occurrences') {
         return {
           select: () => ({
-            eq: async () => ({ data: rows.event?.occurrences ?? [], error: null }),
+            eq: () => ({
+              order: () => ({
+                range: async (start, end) => ({
+                  data: (rows.event?.occurrences ?? []).slice(start, end + 1),
+                  error: null,
+                }),
+              }),
+            }),
           }),
         };
       }
       if (table === 'event_groups') {
-        return { select: () => ({ eq: async () => ({ data: [], error: null }) }) };
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                range: async (start, end) => ({
+                  data: eventGroups.slice(start, end + 1),
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        };
       }
       return builder(table);
     },
     async rpc(name, args) {
       rpcCalls.push({ name, args });
-      return name === 'import_event_with_occurrences'
+      return name === 'apply_import_event_plan'
         ? { data: { id: 'created-event-1' }, error: null }
         : { data: null, error: null };
     },
@@ -170,8 +206,122 @@ void test('Event core creates and applies through existing atomic RPCs with stru
   assert.deepEqual(applied, { ok: true, applied: ['official:example:event'] });
   assert.deepEqual(
     admin.rpcCalls.map((call) => call.name),
-    ['import_event_with_occurrences', 'import_event_classification'],
+    ['apply_import_event_plan'],
   );
+});
+
+void test('Event core can plan a deterministic cross-source match by explicit Event id', async () => {
+  const admin = fakeAdmin({
+    event: {
+      id: 'matched-event-1',
+      source_key: 'other-official:event',
+      owner_id: owner.id,
+      title: 'Older title',
+      venue: 'Example Hall',
+      source_url: 'https://other.example.test/event',
+      memo: null,
+      starts_on: '2026-07-11',
+      ends_on: '2026-07-11',
+      genre_id: null,
+      occurrences: [],
+    },
+  });
+  const validated = validateEventEntries([{ raw: validEvent(), where: 'seed.json[0]' }]);
+  assert.equal(validated.ok, true);
+
+  const resolved = await resolveEventPlans(admin, validated.entries, {
+    owner,
+    ownerEmail: owner.email,
+    targetEventIdsBySourceKey: new Map([['official:example:event', 'matched-event-1']]),
+  });
+
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.plans[0].action, 'update');
+  assert.equal(resolved.plans[0].event.id, 'matched-event-1');
+});
+
+void test('reviewed Event apply sends its read snapshot and surfaces a stale catalog', async () => {
+  const admin = fakeAdmin({
+    event: {
+      id: 'matched-event-1',
+      source_key: 'official:example:event',
+      owner_id: owner.id,
+      title: 'Older title',
+      venue: 'Example Hall',
+      source_url: 'https://example.test/event',
+      memo: null,
+      starts_on: '2026-07-11',
+      ends_on: '2026-07-11',
+      genre_id: null,
+      canceled_at: null,
+      occurrences: [],
+    },
+  });
+  const validated = validateEventEntries([{ raw: validEvent(), where: 'seed.json[0]' }]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  admin.rpc = async (name, args) => {
+    admin.rpcCalls.push({ name, args });
+    return { data: null, error: { code: '40001', message: 'stale catalog' } };
+  };
+
+  const result = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    reviewed: true,
+  });
+
+  assert.equal(admin.rpcCalls[0].name, 'apply_reviewed_import_event_plan');
+  assert.equal(admin.rpcCalls[0].args.p_expected_current.event.id, 'matched-event-1');
+  assert.equal(result.ok, false);
+  assert.equal(result.stale, true);
+});
+
+void test('reviewed Event snapshots paginate all existing occurrences and groups', async () => {
+  const occurrences = Array.from({ length: 1_001 }, (_, index) => ({
+    id: `occurrence-${index}`,
+    starts_at: new Date(Date.parse('2026-07-11T04:00:00Z') + index * 60_000).toISOString(),
+    doors_at: null,
+    ends_at: null,
+    canceled_at: null,
+  }));
+  const eventGroups = Array.from({ length: 1_001 }, (_, index) => ({
+    group_id: `group-${index}`,
+    groups: { key: `group-${index}`, display_name: `Group ${index}` },
+  }));
+  const event = {
+    id: 'event-1',
+    source_key: 'official:example:event',
+    owner_id: owner.id,
+    title: 'Example Event',
+    venue: 'Example Hall',
+    source_url: 'https://example.test/event',
+    memo: null,
+    starts_on: '2026-07-11',
+    ends_on: '2026-07-11',
+    genre_id: null,
+    canceled_at: null,
+    occurrences,
+  };
+  const validated = validateEventEntries([{ raw: validEvent(), where: 'seed.json[0]' }]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(fakeAdmin({ event, eventGroups }), validated.entries, {
+    owner,
+  });
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.plans[0].expectedCurrent.occurrences.length, 1_001);
+  assert.equal(resolved.plans[0].expectedCurrent.groups.length, 1_001);
+
+  event.occurrences = Array.from({ length: 5_001 }, (_, index) => ({
+    ...occurrences[0],
+    id: `large-${index}`,
+    starts_at: new Date(Date.parse('2026-07-11T04:00:00Z') + index * 60_000).toISOString(),
+  }));
+  const oversized = await resolveEventPlans(fakeAdmin({ event, eventGroups }), validated.entries, {
+    owner,
+  });
+  assert.equal(oversized.ok, false);
+  assert.match(oversized.problems[0], /exceeds the reviewed Event match-fact limit/);
 });
 
 void test('Event core refuses an existing Event owned by another user during resolution', async () => {
@@ -186,6 +336,63 @@ void test('Event core refuses an existing Event owned by another user during res
   });
   assert.equal(resolved.ok, false);
   assert.match(resolved.problems[0], /Refusing to touch it/);
+});
+
+void test('reviewed Event plans retain proposed canonical Group labels, including absent keys', async () => {
+  const admin = fakeAdmin({
+    groups: [{ key: 'existing-group', display_name: 'Current canonical label' }],
+  });
+  const validated = validateEventEntries([
+    {
+      raw: validEvent({
+        groups: [
+          { key: 'existing-group', displayName: 'Reviewed correction' },
+          { key: 'new-group', displayName: 'New group' },
+        ],
+      }),
+      where: 'seed.json[0]',
+    },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  assert.deepEqual(resolved.plans[0].expectedProposedGroups, [
+    { key: 'existing-group', displayName: 'Current canonical label' },
+    { key: 'new-group', displayName: null },
+  ]);
+  await applyEventPlans(admin, resolved.plans, { ownerId: owner.id, reviewed: true });
+  assert.deepEqual(
+    admin.rpcCalls[0].args.p_expected_proposed_groups,
+    resolved.plans[0].expectedProposedGroups,
+  );
+});
+
+void test('reviewed Event batch carries forward only its own successful Group creation', async () => {
+  const admin = fakeAdmin();
+  const validated = validateEventEntries([
+    {
+      raw: validEvent({ sourceKey: 'first', groups: [{ key: 'shared', displayName: 'Shared' }] }),
+      where: 'first.json',
+    },
+    {
+      raw: validEvent({ sourceKey: 'second', groups: [{ key: 'shared', displayName: 'Shared' }] }),
+      where: 'second.json',
+    },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  const result = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    reviewed: true,
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(admin.rpcCalls[0].args.p_expected_proposed_groups, [
+    { key: 'shared', displayName: null },
+  ]);
+  assert.deepEqual(admin.rpcCalls[1].args.p_expected_proposed_groups, [
+    { key: 'shared', displayName: 'Shared' },
+  ]);
 });
 
 void test('Event apply returns committed progress when a later RPC fails', async () => {

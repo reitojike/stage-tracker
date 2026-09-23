@@ -140,9 +140,9 @@ export function parseCanonicalProposal(
   proposalVersion: string,
   raw: unknown,
 ): JsonObject;
-export function createEventProposal(raw: EventProposalInput): EventProposalInput & JsonObject;
+export function createEventProposal(raw: unknown): EventProposalInput & JsonObject;
 export function createTicketOpportunityProposal(
-  raw: TicketOpportunityProposalInput,
+  raw: unknown,
 ): TicketOpportunityProposalInput & JsonObject;
 export function createEvidenceLocator(raw?: EvidenceLocatorInput): JsonObject;
 export function createJevDecisionEvidence(raw?: JevDecisionEvidenceInput | null): JsonObject | null;

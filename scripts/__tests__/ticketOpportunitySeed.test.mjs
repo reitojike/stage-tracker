@@ -3,6 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import {
+  applyPlans,
+  resolvePlans,
+  StaleTicketOpportunityCatalogError,
+} from '@stage-tracker/official-import/ticket';
 import { validateSeedEntryShape } from '../lib/ticketOpportunitySeed.mjs';
 import { loadAndValidateSeed } from '../lib/ticketOpportunityImport.mjs';
 
@@ -18,6 +23,194 @@ function validEntry(overrides = {}) {
     ...overrides,
   };
 }
+
+void test('reviewed Ticket plan snapshots all target Event match facts', async () => {
+  const validated = validateSeedEntryShape(
+    validEntry({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: ['2026-10-10T04:00:00Z'],
+    }),
+    'seed.json[0]',
+  );
+  assert.equal(validated.ok, true);
+  const event = {
+    id: 'event-1',
+    source_key: validated.entry.eventSourceKey,
+    title: 'Reviewed Event',
+    venue: 'Reviewed Hall',
+    source_url: 'https://example.invalid/event',
+    memo: null,
+    genre_id: 'genre-1',
+    starts_on: '2026-10-10',
+    ends_on: '2026-10-20',
+    canceled_at: null,
+  };
+  const occurrence = {
+    id: 'occurrence-1',
+    event_id: event.id,
+    starts_at: '2026-10-10T04:00:00Z',
+    doors_at: null,
+    ends_at: null,
+    canceled_at: null,
+  };
+  const rowsByTable = {
+    events: [event],
+    event_occurrences: [occurrence],
+    event_groups: [
+      {
+        event_id: event.id,
+        group_id: 'group-1',
+        groups: { key: 'star', display_name: 'Star' },
+      },
+    ],
+    genres: [{ id: 'genre-1', key: 'theatre' }],
+  };
+  const admin = {
+    from(table) {
+      return {
+        select(columns) {
+          if (table === 'events')
+            assert.equal(
+              columns,
+              'id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, canceled_at',
+            );
+          return {
+            in() {
+              if (
+                table === 'event_occurrences' ||
+                table === 'event_groups' ||
+                table === 'ticket_opportunity_target_occurrences'
+              )
+                return {
+                  order() {
+                    return this;
+                  },
+                  async range(start, end) {
+                    return { data: rowsByTable[table].slice(start, end + 1), error: null };
+                  },
+                };
+              return Promise.resolve({ data: rowsByTable[table] ?? [], error: null });
+            },
+            async eq() {
+              return { data: table === 'event_occurrences' ? [occurrence] : [], error: null };
+            },
+          };
+        },
+      };
+    },
+  };
+  const resolved = await resolvePlans(admin, [validated.entry]);
+  assert.equal(resolved.ok, true);
+  assert.deepEqual(resolved.plans[0].expectedCurrent.event, event);
+  assert.equal(resolved.plans[0].expectedCurrent.genreKey, 'theatre');
+  assert.deepEqual(resolved.plans[0].expectedCurrent.eventOccurrences, [occurrence]);
+  assert.deepEqual(resolved.plans[0].expectedCurrent.eventGroups, [
+    { key: 'star', displayName: 'Star' },
+  ]);
+  assert.deepEqual(resolved.plans[0].expectedCurrent.targetOccurrences, [occurrence]);
+  assert.equal(resolved.plans[0].hasCanceledTarget, false);
+
+  occurrence.canceled_at = '2026-10-01T00:00:00Z';
+  const canceledOccurrence = await resolvePlans(admin, [validated.entry]);
+  assert.equal(canceledOccurrence.ok, true);
+  assert.equal(canceledOccurrence.plans[0].hasCanceledTarget, true);
+  occurrence.canceled_at = null;
+
+  event.canceled_at = '2026-10-01T00:00:00Z';
+  const canceledEvent = await resolvePlans(admin, [validated.entry]);
+  assert.equal(canceledEvent.ok, true);
+  assert.equal(canceledEvent.plans[0].hasCanceledTarget, true);
+  event.canceled_at = null;
+
+  rowsByTable.event_occurrences = Array.from({ length: 1_001 }, (_, index) => ({
+    ...occurrence,
+    id: `occurrence-${index}`,
+    starts_at: new Date(Date.parse(occurrence.starts_at) + index * 60_000).toISOString(),
+  }));
+  rowsByTable.event_groups = Array.from({ length: 1_001 }, (_, index) => ({
+    event_id: event.id,
+    group_id: `group-${index}`,
+    groups: { key: `group-${index}`, display_name: `Group ${index}` },
+  }));
+  const paged = await resolvePlans(admin, [validated.entry]);
+  assert.equal(paged.ok, true);
+  assert.equal(paged.plans[0].expectedCurrent.eventOccurrences.length, 1_001);
+  assert.equal(paged.plans[0].expectedCurrent.eventGroups.length, 1_001);
+  const lateTarget = validateSeedEntryShape(
+    validEntry({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: [rowsByTable.event_occurrences[1_000].starts_at],
+    }),
+    'late-target.json',
+  );
+  assert.equal(lateTarget.ok, true);
+  const latePlan = await resolvePlans(admin, [lateTarget.entry]);
+  assert.equal(latePlan.ok, true);
+  assert.equal(latePlan.plans[0].expectedCurrent.targetOccurrences[0].id, 'occurrence-1000');
+
+  rowsByTable.ticket_opportunities = [
+    {
+      id: 'opportunity-1',
+      event_id: event.id,
+      source_key: validated.entry.sourceKey,
+      display_name: validated.entry.displayName,
+      target_scope: 'selected_occurrences',
+      source_url: validated.entry.sourceUrl,
+      memo: null,
+    },
+  ];
+  rowsByTable.ticket_opportunity_target_occurrences = Array.from({ length: 1_001 }, (_, index) => ({
+    opportunity_id: 'opportunity-1',
+    occurrence_id: `occurrence-${index}`,
+  }));
+  const existingTargets = await resolvePlans(admin, [validated.entry]);
+  assert.equal(existingTargets.ok, true);
+  assert.equal(existingTargets.plans[0].expectedCurrent.targets.length, 1_001);
+
+  rowsByTable.ticket_opportunity_target_occurrences = Array.from({ length: 5_001 }, (_, index) => ({
+    opportunity_id: 'opportunity-1',
+    occurrence_id: `occurrence-${index}`,
+  }));
+  const oversizedTargets = await resolvePlans(admin, [validated.entry]);
+  assert.equal(oversizedTargets.ok, false);
+  assert.match(oversizedTargets.problems[0], /exceeds the reviewed match-fact limit/);
+  rowsByTable.ticket_opportunity_target_occurrences = [];
+
+  rowsByTable.event_occurrences = Array.from({ length: 5_001 }, (_, index) => ({
+    ...occurrence,
+    id: `occurrence-${index}`,
+  }));
+  const oversized = await resolvePlans(admin, [validated.entry]);
+  assert.equal(oversized.ok, false);
+  assert.match(oversized.problems[0], /exceeds the reviewed match-fact limit/);
+});
+
+void test('reviewed event-wide apply sends a null target list and surfaces stale catalog state', async () => {
+  const validated = validateSeedEntryShape(validEntry(), 'seed.json[0]');
+  assert.equal(validated.ok, true);
+  const calls = [];
+  const admin = {
+    async rpc(name, args) {
+      calls.push({ name, args });
+      return { error: { code: '40001', message: 'stale catalog' } };
+    },
+  };
+  const plan = {
+    entry: validated.entry,
+    event: { id: 'event-1' },
+    action: 'create',
+    occurrenceIds: [],
+    milestones: [],
+    expectedCurrent: { event: { id: 'event-1' }, opportunity: null },
+  };
+
+  await assert.rejects(
+    applyPlans(admin, [plan], { reviewed: true }),
+    StaleTicketOpportunityCatalogError,
+  );
+  assert.equal(calls[0].name, 'apply_reviewed_ticket_opportunity');
+  assert.equal(calls[0].args.p_occurrence_ids, null);
+});
 
 void test('accepts a minimal valid event_wide entry with no milestones', () => {
   const result = validateSeedEntryShape(validEntry(), 'seed.json[0]');

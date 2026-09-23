@@ -46,6 +46,7 @@ export function createTicketOpportunityMatchRepository(
             "milestone_type, temporal_precision, date_value, at, starts_at, ends_at",
           )
           .eq("opportunity_id", opportunity.id)
+          .order("milestone_type")
           .limit(RELATED_ROW_LIMIT + 1),
       ]);
       if (targetResult.error !== null || milestoneResult.error !== null) {
@@ -62,6 +63,7 @@ export function createTicketOpportunityMatchRepository(
             "id",
             targets.map((target) => target.occurrence_id),
           )
+          .order("starts_at")
           .limit(RELATED_ROW_LIMIT + 1);
         if (occurrenceResult.error !== null) {
           throw new Error("Failed to hydrate Ticket Opportunity targets");
