@@ -99,12 +99,53 @@ export async function resolvePlans(admin, entries) {
   const eventSourceKeys = [...new Set(entries.map((entry) => entry.eventSourceKey))];
   const { data: eventRows, error: eventError } = await admin
     .from('events')
-    .select('id, source_key, title, venue, starts_on, ends_on, canceled_at')
+    .select(
+      'id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, canceled_at',
+    )
     .in('source_key', eventSourceKeys);
   if (eventError) {
     return { ok: false, problems: [`Failed to look up events: ${eventError.message}`] };
   }
   const eventBySourceKey = new Map(eventRows.map((row) => [row.source_key, row]));
+  const eventIds = eventRows.map((row) => row.id);
+  const eventOccurrencesById = new Map();
+  const eventGroupsById = new Map();
+  const genreKeyById = new Map();
+  if (eventIds.length > 0) {
+    const [occurrenceResult, groupResult] = await Promise.all([
+      admin
+        .from('event_occurrences')
+        .select('id, event_id, starts_at, doors_at, ends_at, canceled_at')
+        .in('event_id', eventIds),
+      admin
+        .from('event_groups')
+        .select('event_id, groups(key, display_name)')
+        .in('event_id', eventIds),
+    ]);
+    if (occurrenceResult.error || groupResult.error)
+      return { ok: false, problems: ['Failed to read target Event match facts.'] };
+    for (const row of occurrenceResult.data) {
+      const rows = eventOccurrencesById.get(row.event_id) ?? [];
+      rows.push(row);
+      eventOccurrencesById.set(row.event_id, rows);
+    }
+    for (const row of groupResult.data) {
+      if (row.groups === null) continue;
+      const rows = eventGroupsById.get(row.event_id) ?? [];
+      rows.push({ key: row.groups.key, displayName: row.groups.display_name });
+      eventGroupsById.set(row.event_id, rows);
+    }
+    const genreIds = [...new Set(eventRows.map((row) => row.genre_id).filter((id) => id !== null))];
+    if (genreIds.length > 0) {
+      const { data: genreRows, error: genreError } = await admin
+        .from('genres')
+        .select('id, key')
+        .in('id', genreIds);
+      if (genreError || genreRows.length !== genreIds.length)
+        return { ok: false, problems: ['Failed to read target Event genre facts.'] };
+      for (const row of genreRows) genreKeyById.set(row.id, row.key);
+    }
+  }
 
   const opportunitySourceKeys = entries.map((entry) => entry.sourceKey);
   const { data: existingOpportunities, error: opportunityError } = await admin
@@ -174,7 +215,7 @@ export async function resolvePlans(admin, entries) {
     }
     const { data, error } = await admin
       .from('event_occurrences')
-      .select('id, starts_at')
+      .select('id, starts_at, doors_at, ends_at, canceled_at')
       .eq('event_id', eventId);
     if (error) {
       return {
@@ -285,6 +326,9 @@ export async function resolvePlans(admin, entries) {
       event,
       expectedCurrent: {
         event,
+        genreKey: event.genre_id === null ? null : genreKeyById.get(event.genre_id),
+        eventOccurrences: eventOccurrencesById.get(event.id) ?? [],
+        eventGroups: eventGroupsById.get(event.id) ?? [],
         opportunity: existing,
         targets: existingTargetIds,
         milestones: existingMilestones,

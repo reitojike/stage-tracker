@@ -25,15 +25,32 @@ function validEntry(overrides = {}) {
 }
 
 void test('reviewed Ticket plan snapshots all target Event match facts', async () => {
-  const validated = validateSeedEntryShape(validEntry(), 'seed.json[0]');
+  const validated = validateSeedEntryShape(
+    validEntry({
+      targetScope: 'selected_occurrences',
+      targetOccurrences: ['2026-10-10T04:00:00Z'],
+    }),
+    'seed.json[0]',
+  );
   assert.equal(validated.ok, true);
   const event = {
     id: 'event-1',
     source_key: validated.entry.eventSourceKey,
     title: 'Reviewed Event',
     venue: 'Reviewed Hall',
+    source_url: 'https://example.invalid/event',
+    memo: null,
+    genre_id: 'genre-1',
     starts_on: '2026-10-10',
     ends_on: '2026-10-20',
+    canceled_at: null,
+  };
+  const occurrence = {
+    id: 'occurrence-1',
+    event_id: event.id,
+    starts_at: '2026-10-10T04:00:00Z',
+    doors_at: null,
+    ends_at: null,
     canceled_at: null,
   };
   const admin = {
@@ -41,10 +58,24 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
       return {
         select(columns) {
           if (table === 'events')
-            assert.equal(columns, 'id, source_key, title, venue, starts_on, ends_on, canceled_at');
+            assert.equal(
+              columns,
+              'id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, canceled_at',
+            );
           return {
             async in() {
-              return { data: table === 'events' ? [event] : [], error: null };
+              const data = {
+                events: [event],
+                event_occurrences: [occurrence],
+                event_groups: [
+                  { event_id: event.id, groups: { key: 'star', display_name: 'Star' } },
+                ],
+                genres: [{ id: 'genre-1', key: 'theatre' }],
+              };
+              return { data: data[table] ?? [], error: null };
+            },
+            async eq() {
+              return { data: table === 'event_occurrences' ? [occurrence] : [], error: null };
             },
           };
         },
@@ -54,6 +85,12 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
   const resolved = await resolvePlans(admin, [validated.entry]);
   assert.equal(resolved.ok, true);
   assert.deepEqual(resolved.plans[0].expectedCurrent.event, event);
+  assert.equal(resolved.plans[0].expectedCurrent.genreKey, 'theatre');
+  assert.deepEqual(resolved.plans[0].expectedCurrent.eventOccurrences, [occurrence]);
+  assert.deepEqual(resolved.plans[0].expectedCurrent.eventGroups, [
+    { key: 'star', displayName: 'Star' },
+  ]);
+  assert.deepEqual(resolved.plans[0].expectedCurrent.targetOccurrences, [occurrence]);
 });
 
 void test('reviewed event-wide apply sends a null target list and surfaces stale catalog state', async () => {
