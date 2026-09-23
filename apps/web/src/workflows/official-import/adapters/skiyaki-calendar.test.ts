@@ -10,6 +10,61 @@ const source = getOfficialSource("event.cynhn.calendar");
 if (source === null) throw new Error("test source missing");
 
 describe("SKIYAKI calendar parser", () => {
+  it.each([
+    {
+      sourceId: "event.meme-tokyo.calendar",
+      rawDate: "2026年 09月 05日",
+      group: { key: "meme-tokyo", displayName: "MEME TOKYO." },
+    },
+    {
+      sourceId: "event.arcana-project.calendar",
+      rawDate: "2026-09-05",
+      group: { key: "arcana-project", displayName: "ARCANA PROJECT" },
+    },
+  ])(
+    "reuses the family adapter for $sourceId",
+    async ({ sourceId, rawDate, group }) => {
+      const additionalSource = getOfficialSource(sourceId);
+      if (additionalSource === null) throw new Error("test source missing");
+      const adapter = createSkiyakiCalendarAdapter(async (_source, url) =>
+        document(
+          url,
+          url === additionalSource.canonicalUrl
+            ? `<li class="list-group-item"><time datetime="${rawDate}"></time><a href="/contents/101" class="tag-event"><span class="fc-event-inner">Physical live</span></a></li>`
+            : `<meta property="og:description" content="会場：Test Hall OPEN 18:00 START 19:00">`,
+        ),
+      );
+
+      const [draft] = await adapter.acquire(additionalSource);
+      expect(draft?.candidateKind).toBe("event");
+      if (draft?.candidateKind !== "event")
+        throw new Error("event draft missing");
+      expect(draft.proposal.sourceKey).toBe(
+        `skiyaki:${new URL(additionalSource.canonicalUrl).hostname}:101`,
+      );
+      expect(draft.proposal.startsOn).toBe("2026-09-05");
+      expect(draft.proposal.groups).toEqual([group]);
+      expect(draft.proposal.occurrences).toEqual([
+        {
+          doorsAt: "2026-09-05T18:00:00+09:00",
+          startsAt: "2026-09-05T19:00:00+09:00",
+          endsAt: null,
+        },
+      ]);
+    },
+  );
+
+  it("fails closed on an invalid Japanese calendar date", () => {
+    const memeSource = getOfficialSource("event.meme-tokyo.calendar");
+    if (memeSource === null) throw new Error("test source missing");
+    expect(() =>
+      parseSkiyakiCalendar(
+        memeSource,
+        `<li class="list-group-item tag-event"><time datetime="2026年 02月 30日"></time><a href="/contents/101">Invalid day</a></li>`,
+      ),
+    ).toThrow();
+  });
+
   it("uses the host and stable content id without inventing a missing time", async () => {
     const adapter = createSkiyakiCalendarAdapter(async (_source, url) => {
       const body =
