@@ -14,6 +14,19 @@ import { calendarDate, enumerateDates, tokyoDateTime } from "./japanese-date";
 
 type CalendarRows = Map<string, readonly string[]>;
 const WEEKDAYS = "日月火水木金土";
+const CELL_CLASSES = new Set([
+  "",
+  "th",
+  "th type-sun",
+  "th type-sat",
+  "td",
+  "td type-sun",
+  "td type-sat",
+  "td type-weekday",
+  "' . th type-day type-sun . '",
+  "' . th type-day type-sat . '",
+  "' . th type-day type-weekday . '",
+]);
 
 function unique(nodes: readonly HtmlNode[]): HtmlNode {
   if (nodes.length !== 1 || nodes[0] === undefined)
@@ -59,6 +72,71 @@ function tableRows(table: HtmlNode): HtmlNode[] {
   return [...head, ...body];
 }
 
+function assertCalendarMarkup(
+  table: HtmlNode,
+  view: "view-pc" | "view-sp",
+): void {
+  for (const node of descendants(table, () => true)) {
+    if (node.nodeName === "#text") continue;
+    const tag = elementName(node);
+    const attrs = "attrs" in node ? node.attrs : [];
+    const classes = attribute(node, "class") ?? "";
+    const expectedTableClasses = new Set([
+      `table type-calendar ${view}`,
+      `type-calendar ${view}`,
+    ]);
+    if (
+      (tag === "table" &&
+        (!expectedTableClasses.has(classes) || attrs.length !== 1)) ||
+      ((tag === "thead" || tag === "tbody" || tag === "br") &&
+        attrs.length !== 0) ||
+      (tag === "tr" &&
+        (!["", "tr", "type-day", "tr type-day"].includes(classes) ||
+          attrs.length !== (classes === "" ? 0 : 1))) ||
+      ((tag === "th" || tag === "td") &&
+        (!CELL_CLASSES.has(classes) ||
+          attrs.some(
+            (attr) =>
+              (attr.name !== "class" &&
+                !(
+                  tag === "th" &&
+                  attr.name === "rowspan" &&
+                  attr.value === "2"
+                )) ||
+              (attr.name === "class" && !CELL_CLASSES.has(attr.value)),
+          ) ||
+          attrs.filter((attr) => attr.name === "class").length !==
+            (classes === "" ? 0 : 1))) ||
+      (tag === "span" &&
+        (view !== "view-pc" ||
+          classes !== "span" ||
+          attrs.length !== 1 ||
+          ("childNodes" in node &&
+            node.childNodes.some((child) => child.nodeName !== "#text")))) ||
+      !["table", "thead", "tbody", "tr", "th", "td", "span", "br"].includes(
+        tag ?? "",
+      )
+    )
+      throw new SourceParseFailure();
+  }
+}
+
+function plainCellText(cell: HtmlNode, allowBreak = false): string {
+  if (
+    !("childNodes" in cell) ||
+    cell.childNodes.some(
+      (child) =>
+        child.nodeName !== "#text" &&
+        !(allowBreak && elementName(child) === "br"),
+    ) ||
+    (allowBreak &&
+      cell.childNodes.filter((child) => elementName(child) === "br").length !==
+        1)
+  )
+    throw new SourceParseFailure();
+  return normalizedText(cell);
+}
+
 function cells(row: HtmlNode): HtmlNode[] {
   return descendants(row, (node) =>
     ["th", "td"].includes(elementName(node) ?? ""),
@@ -101,9 +179,9 @@ function parseMobile(
   if (
     header.length !== labels.length + 1 ||
     header.some((cell) => elementName(cell) !== "th") ||
-    normalizedText(header[0] ?? table) !== "" ||
+    plainCellText(header[0] ?? table) !== "" ||
     labels.some(
-      (label, index) => normalizedText(header[index + 1] ?? table) !== label,
+      (label, index) => plainCellText(header[index + 1] ?? table) !== label,
     )
   )
     throw new SourceParseFailure();
@@ -118,7 +196,7 @@ function parseMobile(
     )
       throw new SourceParseFailure();
     fields.forEach(noSpan);
-    const day = normalizedText(fields[0] ?? row).match(
+    const day = plainCellText(fields[0] ?? row, true).match(
       /^(\d{1,2})[（(]([日月火水木金土])[）)]$/u,
     );
     if (day === null) throw new SourceParseFailure();
@@ -130,7 +208,7 @@ function parseMobile(
       throw new SourceParseFailure();
     result.set(
       date,
-      fields.slice(1).map((cell) => token(normalizedText(cell))),
+      fields.slice(1).map((cell) => token(plainCellText(cell))),
     );
   }
   return result;
@@ -160,11 +238,10 @@ function parseDesktop(
   if (
     header.length !== 8 ||
     header.some((cell) => elementName(cell) !== "th") ||
-    normalizedText(header[0] ?? table) !== "" ||
+    plainCellText(header[0] ?? table) !== "" ||
     attribute(header[0] ?? table, "rowspan") !== "2" ||
     [...WEEKDAYS].some(
-      (weekday, index) =>
-        normalizedText(header[index + 1] ?? table) !== weekday,
+      (weekday, index) => plainCellText(header[index + 1] ?? table) !== weekday,
     )
   )
     throw new SourceParseFailure();
@@ -181,7 +258,7 @@ function parseDesktop(
       dayCells.length !== (pair === 0 ? 7 : 8) ||
       timeCells.length !== 8 ||
       timeCells.some((cell) => elementName(cell) !== "td") ||
-      (pair > 0 && normalizedText(dayCells[0] ?? dateRow) !== "") ||
+      (pair > 0 && plainCellText(dayCells[0] ?? dateRow) !== "") ||
       spanTexts(timeCells[0] ?? timeRow, labels.length).some(
         (label, index) => label !== labels[index],
       )
@@ -190,7 +267,7 @@ function parseDesktop(
     dayCells.forEach(noSpan);
     timeCells.forEach(noSpan);
     for (let weekday = 0; weekday < 7; weekday += 1) {
-      const dayText = normalizedText(
+      const dayText = plainCellText(
         dayCells[weekday + (pair === 0 ? 0 : 1)] ?? dateRow,
       );
       const timeCell = timeCells[weekday + 1] ?? timeRow;
@@ -255,6 +332,8 @@ export function parseKabukiVerifiedCalendar(
   const expectedHeading = `${year}年${month}月`;
   const mobile = unique(tables.filter((table) => hasClass(table, "view-sp")));
   const desktop = unique(tables.filter((table) => hasClass(table, "view-pc")));
+  assertCalendarMarkup(mobile, "view-sp");
+  assertCalendarMarkup(desktop, "view-pc");
   const sectionChildren = childElements(section);
   if (
     ("childNodes" in section &&

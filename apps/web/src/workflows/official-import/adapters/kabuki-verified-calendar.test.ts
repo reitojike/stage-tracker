@@ -133,6 +133,27 @@ describe("verified Kabuki daily calendar", () => {
       ),
       HEADLINE,
     ],
+    [
+      "struck-through time in both views",
+      calendarHtml().replaceAll("11：00", "<del>11：00</del>"),
+      HEADLINE,
+    ],
+    [
+      "struck-through time inside a desktop span",
+      calendarHtml().replace(
+        '<span class="span">11：00</span>',
+        '<span class="span"><del>11：00</del></span>',
+      ),
+      HEADLINE,
+    ],
+    [
+      "cancellation class on a numeric time cell",
+      calendarHtml().replace(
+        "<td>11：00</td>",
+        '<td class="cancelled">11：00</td>',
+      ),
+      HEADLINE,
+    ],
   ])("fails closed for %s", (_name, html, headline) => {
     expect(() => parse(html, headline)).toThrow(SourceParseFailure);
   });
