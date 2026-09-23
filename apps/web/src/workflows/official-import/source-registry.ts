@@ -42,7 +42,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     scheduledEnabled: false,
     shadow: true,
     policyState: "approved",
-    fetchCadenceHint: "daily",
+    fetchCadenceHint: "weekly",
   },
   {
     id: "event.takarazuka.revue",
@@ -56,7 +56,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     scheduledEnabled: false,
     shadow: true,
     policyState: "approved",
-    fetchCadenceHint: "daily",
+    fetchCadenceHint: "weekly",
   },
   {
     id: "event.cynhn.calendar",
