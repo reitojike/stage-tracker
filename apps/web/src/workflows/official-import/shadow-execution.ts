@@ -40,6 +40,7 @@ export type RunPreparation =
 export const OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS = 300;
 export const OFFICIAL_IMPORT_BUSY_RETRY_AFTER_MS =
   (OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS + 5) * 1_000;
+const OFFICIAL_IMPORT_LEASE_HEARTBEAT_MS = 60_000;
 
 export type OfficialImportRetryReason =
   "busy" | "source_fetch" | "provider_unavailable" | "ownership_lost";
@@ -82,6 +83,44 @@ export interface OfficialImportStagingRepository {
     attemptToken: string,
     classification: RunFailureClassification,
   ): Promise<RunAttemptTransition>;
+}
+
+function startAttemptLeaseHeartbeat(
+  repository: OfficialImportStagingRepository,
+  runId: string,
+  sourceId: string,
+  attemptToken: string,
+  intervalMs: number,
+) {
+  let renewal: Promise<void> | null = null;
+  let ownershipUncertain = false;
+  const timer = setInterval(() => {
+    if (renewal !== null) return;
+    // Claiming with the same token refreshes the existing lease under the
+    // run/source locks. Never publish candidates if renewal becomes uncertain.
+    renewal = repository
+      .prepareRun(runId, sourceId, attemptToken)
+      .then((result) => {
+        if (result.status !== "ready") ownershipUncertain = true;
+      })
+      .catch(() => {
+        ownershipUncertain = true;
+      })
+      .finally(() => {
+        renewal = null;
+      });
+  }, intervalMs);
+  timer.unref?.();
+  return {
+    assertOwned() {
+      if (ownershipUncertain)
+        throw new OfficialImportAttemptRetryError("ownership_lost");
+    },
+    async stop() {
+      clearInterval(timer);
+      if (renewal !== null) await renewal;
+    },
+  };
 }
 
 export type ShadowRunResult =
@@ -128,6 +167,7 @@ export async function executeOfficialImportShadowRun(
   adapter: OfficialSourceAdapter,
   planner: OfficialImportCandidatePlanner,
   repository: OfficialImportStagingRepository,
+  leaseHeartbeatIntervalMs = OFFICIAL_IMPORT_LEASE_HEARTBEAT_MS,
 ): Promise<ShadowRunResult> {
   const preparation = await repository.prepareRun(
     runId,
@@ -158,11 +198,20 @@ export async function executeOfficialImportShadowRun(
     };
   }
 
+  const lease = startAttemptLeaseHeartbeat(
+    repository,
+    runId,
+    source.id,
+    attemptToken,
+    leaseHeartbeatIntervalMs,
+  );
   try {
     const drafts = await adapter.acquire(source);
+    lease.assertOwned();
     const eventCandidates: EventDurableCandidate[] = [];
     const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
     for (const draft of drafts) {
+      lease.assertOwned();
       if (draft.candidateKind !== source.domainKind) {
         throw new DurableCandidateValidationError(
           `candidate kind ${draft.candidateKind} does not match source ${source.id}`,
@@ -274,6 +323,7 @@ export async function executeOfficialImportShadowRun(
     // The repository publishes the complete validated typed batch and
     // completes the run in one database transaction. A competing retry gets
     // the already committed count from that same serialization boundary.
+    lease.assertOwned();
     const candidateCount = await repository.commitCandidates(
       runId,
       source.id,
@@ -317,5 +367,7 @@ export async function executeOfficialImportShadowRun(
       }
     }
     throw new OfficialImportAttemptRetryError("ownership_lost");
+  } finally {
+    await lease.stop();
   }
 }

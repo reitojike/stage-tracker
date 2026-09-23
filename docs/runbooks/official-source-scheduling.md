@@ -16,7 +16,9 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
 - A daily Cron slot uses the Asia/Tokyo date. Weekly sources are due only on
   Monday in Asia/Tokyo. Duplicate delivery of a slot uses the same durable run
   identity; the database permits one live attempt lease per source and suppresses
-  unchanged candidates from completed runs.
+  unchanged candidates from completed runs. An active Workflow step renews its
+  own lease while acquiring and planning; uncertainty about renewal prevents
+  candidate publication.
 - Initial rollout preference (2026-09-23): Kabuki Event first, weekly. Its
   adapter bounds a scan to 30 play pages, fetching at most two at a time with a
   pause between batches. An index over the cap fails closed rather than being
