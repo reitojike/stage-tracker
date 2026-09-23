@@ -13,6 +13,18 @@ import {
 type Clock = { hour: number; minute: number };
 type Part = { name: string; clock: Clock };
 
+function parseStrictJapaneseClock(value: string): Clock {
+  const match = value
+    .trim()
+    .match(/^(?:午前|午後)\s*(\d{1,2})時(?:\s*(\d{1,2})分)?$/u);
+  const hour = Number(match?.[1]);
+  const minute = Number(match?.[2] ?? 0);
+  const clock = parseJapaneseClock(value);
+  if (match === null || hour < 1 || hour > 12 || minute > 59 || clock === null)
+    throw new SourceParseFailure();
+  return clock;
+}
+
 function dateForDayInRange(
   day: number,
   startsOn: string,
@@ -79,17 +91,15 @@ export function parseKabukiBaseTimes(base: string): readonly Part[] {
       )
     )
       throw new SourceParseFailure();
-    const clock = parseJapaneseClock(base);
-    if (clock === null) throw new SourceParseFailure();
+    const clock = parseStrictJapaneseClock(base.trim().replace(/[～〜]$/u, ""));
     parts.push({ name: "単独", clock });
   } else {
     // Only separators and whitespace may remain between fully parsed parts.
     if (base.replace(pattern, "").replace(/[／/\s]/gu, "") !== "")
       throw new SourceParseFailure();
     for (const match of matches) {
-      const clock = parseJapaneseClock(match[2] ?? "");
-      if (clock === null || match[1] === undefined)
-        throw new SourceParseFailure();
+      const clock = parseStrictJapaneseClock(match[2] ?? "");
+      if (match[1] === undefined) throw new SourceParseFailure();
       parts.push({ name: match[1], clock });
     }
   }
@@ -116,13 +126,10 @@ function validateApproximateClosingTimes(
     throw new SourceParseFailure();
   for (const [index, match] of matches.entries()) {
     const part = parts[index];
-    const clock = parseJapaneseClock(match[2] ?? "");
+    const clock = parseStrictJapaneseClock(match[2] ?? "");
     if (
       part === undefined ||
       match[1] !== part.name ||
-      clock === null ||
-      clock.hour > 23 ||
-      clock.minute > 59 ||
       clock.hour * 60 + clock.minute <= part.clock.hour * 60 + part.clock.minute
     )
       throw new SourceParseFailure();

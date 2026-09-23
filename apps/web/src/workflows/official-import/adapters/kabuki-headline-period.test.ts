@@ -105,6 +105,8 @@ describe("verified Kabuki headline period", () => {
   });
 
   it.each([
+    octoberClosingNote.replace("第一部 午後1時35分頃", "第一部 午後13時35分頃"),
+    octoberClosingNote.replace("第一部 午後1時35分頃", "第一部 午後0時35分頃"),
     octoberClosingNote.replace("第三部 午後9時10分頃", "第三部 午後5時10分頃"),
     octoberClosingNote.replace("第二部 午後5時05分頃", "第二部 午後5時99分頃"),
     octoberClosingNote.replace("第二部", "昼の部"),
@@ -151,6 +153,7 @@ describe("verified Kabuki headline period", () => {
     "昼の部 午前11時～ 夜の部 午後4時～ ※現地時間",
     "昼の部 午前11時～ ／ 夜の部 午後4時～ 2日は午後5時～",
     "昼の部 午前11時～ 夜の部 午後4時～【休演】2日（金・昼の部のみ休演）",
+    "昼の部 午前13時～ 夜の部 午後4時～",
   ])("fails closed for unknown or inconsistent schedule text: %s", (text) => {
     expect(() =>
       parseKabukiHeadlinePeriod("2026-10-01", "2026-10-03", text),
