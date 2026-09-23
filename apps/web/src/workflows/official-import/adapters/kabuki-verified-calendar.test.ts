@@ -125,6 +125,14 @@ describe("verified Kabuki daily calendar", () => {
       `${calendarHtml()}<table class="type-calendar"><tr><td>changed</td></tr></table>`,
       HEADLINE,
     ],
+    [
+      "cancellation caption inside an otherwise valid table",
+      calendarHtml().replace(
+        '<table class="type-calendar view-sp">',
+        '<table class="type-calendar view-sp"><caption>※3日は中止</caption>',
+      ),
+      HEADLINE,
+    ],
   ])("fails closed for %s", (_name, html, headline) => {
     expect(() => parse(html, headline)).toThrow(SourceParseFailure);
   });

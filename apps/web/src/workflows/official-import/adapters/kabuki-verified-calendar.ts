@@ -27,6 +27,38 @@ function childElements(node: HtmlNode): HtmlNode[] {
     : [];
 }
 
+function onlyChildren(node: HtmlNode, tagName: string): HtmlNode[] {
+  if (!("childNodes" in node)) throw new SourceParseFailure();
+  const elements: HtmlNode[] = [];
+  for (const child of node.childNodes) {
+    if (child.nodeName === "#text" && normalizedText(child) === "") continue;
+    if (elementName(child) !== tagName) throw new SourceParseFailure();
+    elements.push(child);
+  }
+  return elements;
+}
+
+function tableRows(table: HtmlNode): HtmlNode[] {
+  if (!("childNodes" in table)) throw new SourceParseFailure();
+  const sections = table.childNodes.filter((child) => {
+    if (child.nodeName === "#text" && normalizedText(child) === "")
+      return false;
+    return true;
+  });
+  if (
+    (sections.length !== 1 && sections.length !== 2) ||
+    elementName(sections[sections.length - 1] ?? table) !== "tbody" ||
+    (sections.length === 2 && elementName(sections[0] ?? table) !== "thead")
+  )
+    throw new SourceParseFailure();
+  const head =
+    sections.length === 2 ? onlyChildren(sections[0] ?? table, "tr") : [];
+  if (sections.length === 2 && head.length !== 1)
+    throw new SourceParseFailure();
+  const body = onlyChildren(sections[sections.length - 1] ?? table, "tr");
+  return [...head, ...body];
+}
+
 function cells(row: HtmlNode): HtmlNode[] {
   return descendants(row, (node) =>
     ["th", "td"].includes(elementName(node) ?? ""),
@@ -63,7 +95,7 @@ function parseMobile(
   year: number,
   month: number,
 ): CalendarRows {
-  const rows = descendants(table, (node) => elementName(node) === "tr");
+  const rows = tableRows(table);
   if (rows.length !== dates.length + 1) throw new SourceParseFailure();
   const header = cells(rows[0] ?? table);
   if (
@@ -122,7 +154,7 @@ function parseDesktop(
   year: number,
   month: number,
 ): CalendarRows {
-  const rows = descendants(table, (node) => elementName(node) === "tr");
+  const rows = tableRows(table);
   if (rows.length < 3 || rows.length % 2 !== 1) throw new SourceParseFailure();
   const header = cells(rows[0] ?? table);
   if (
