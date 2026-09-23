@@ -427,7 +427,11 @@ export async function applyPlans(admin, plans, { reviewed = false } = {}) {
         p_display_name: entry.displayName,
         p_target_scope: entry.targetScope,
         p_occurrence_ids:
-          entry.targetScope === 'selected_occurrences' ? plan.occurrenceIds : undefined,
+          entry.targetScope === 'selected_occurrences'
+            ? plan.occurrenceIds
+            : reviewed
+              ? null
+              : undefined,
         p_source_url: entry.sourceUrl,
         p_memo: entry.memo,
         p_milestones: plan.milestones,

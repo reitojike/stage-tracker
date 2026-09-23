@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import {
+  applyPlans,
+  StaleTicketOpportunityCatalogError,
+} from '@stage-tracker/official-import/ticket';
 import { validateSeedEntryShape } from '../lib/ticketOpportunitySeed.mjs';
 import { loadAndValidateSeed } from '../lib/ticketOpportunityImport.mjs';
 
@@ -18,6 +22,33 @@ function validEntry(overrides = {}) {
     ...overrides,
   };
 }
+
+void test('reviewed event-wide apply sends a null target list and surfaces stale catalog state', async () => {
+  const validated = validateSeedEntryShape(validEntry(), 'seed.json[0]');
+  assert.equal(validated.ok, true);
+  const calls = [];
+  const admin = {
+    async rpc(name, args) {
+      calls.push({ name, args });
+      return { error: { code: '40001', message: 'stale catalog' } };
+    },
+  };
+  const plan = {
+    entry: validated.entry,
+    event: { id: 'event-1' },
+    action: 'create',
+    occurrenceIds: [],
+    milestones: [],
+    expectedCurrent: { event: { id: 'event-1' }, opportunity: null },
+  };
+
+  await assert.rejects(
+    applyPlans(admin, [plan], { reviewed: true }),
+    StaleTicketOpportunityCatalogError,
+  );
+  assert.equal(calls[0].name, 'apply_reviewed_ticket_opportunity');
+  assert.equal(calls[0].args.p_occurrence_ids, null);
+});
 
 void test('accepts a minimal valid event_wide entry with no milestones', () => {
   const result = validateSeedEntryShape(validEntry(), 'seed.json[0]');
