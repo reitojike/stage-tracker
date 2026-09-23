@@ -37,10 +37,13 @@ function parseDays(
   const dates = matches.map((match) => {
     const date = dateForDayInRange(Number(match[1]), startsOn, endsOn);
     if (match[2] !== undefined) {
-      const dayNames = [...match[2]].filter((name) => weekdays.includes(name));
+      const annotation = match[2].match(
+        /^([日月火水木金土])$|^祝・([日月火水木金土])$/u,
+      );
+      const dayName = annotation?.[1] ?? annotation?.[2];
       if (
-        dayNames.length !== 1 ||
-        dayNames[0] !== weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()]
+        dayName === undefined ||
+        dayName !== weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()]
       )
         throw new SourceParseFailure();
     }

@@ -58,12 +58,25 @@ describe("verified Kabuki headline period", () => {
     );
   });
 
+  it("accepts a holiday weekday annotation only when it is fully recognized", () => {
+    const occurrences = parseKabukiHeadlinePeriod(
+      "2026-09-20",
+      "2026-09-22",
+      "昼の部 午前11時～ 夜の部 午後4時～【貸切】夜の部：21日（祝・月）",
+    );
+    expect(occurrences).toHaveLength(5);
+    expect(occurrences.map((item) => item.startsAt)).not.toContain(
+      "2026-09-21T16:00:00+09:00",
+    );
+  });
+
   it.each([
     "昼の部 午前11時～ 夜の部 午後4時～【休演】9日（木）",
     "昼の部 午前11時～ 夜の部 午後4時～【休演】日程詳細をご確認ください",
     "昼の部 午前11時～ 夜の部 午後4時～ ※台風のため3日の公演は中止",
     "昼の部 午前11時～ 夜の部 午後4時～ ※現地時間",
     "昼の部 午前11時～ ／ 夜の部 午後4時～ 2日は午後5時～",
+    "昼の部 午前11時～ 夜の部 午後4時～【休演】2日（金・昼の部のみ休演）",
   ])("fails closed for unknown or inconsistent schedule text: %s", (text) => {
     expect(() =>
       parseKabukiHeadlinePeriod("2026-10-01", "2026-10-03", text),
