@@ -99,7 +99,7 @@ export async function resolvePlans(admin, entries) {
   const eventSourceKeys = [...new Set(entries.map((entry) => entry.eventSourceKey))];
   const { data: eventRows, error: eventError } = await admin
     .from('events')
-    .select('id, source_key, title')
+    .select('id, source_key, title, venue, starts_on, ends_on, canceled_at')
     .in('source_key', eventSourceKeys);
   if (eventError) {
     return { ok: false, problems: [`Failed to look up events: ${eventError.message}`] };

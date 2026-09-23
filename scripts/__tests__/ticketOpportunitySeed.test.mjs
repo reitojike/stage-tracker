@@ -5,6 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
   applyPlans,
+  resolvePlans,
   StaleTicketOpportunityCatalogError,
 } from '@stage-tracker/official-import/ticket';
 import { validateSeedEntryShape } from '../lib/ticketOpportunitySeed.mjs';
@@ -22,6 +23,38 @@ function validEntry(overrides = {}) {
     ...overrides,
   };
 }
+
+void test('reviewed Ticket plan snapshots all target Event match facts', async () => {
+  const validated = validateSeedEntryShape(validEntry(), 'seed.json[0]');
+  assert.equal(validated.ok, true);
+  const event = {
+    id: 'event-1',
+    source_key: validated.entry.eventSourceKey,
+    title: 'Reviewed Event',
+    venue: 'Reviewed Hall',
+    starts_on: '2026-10-10',
+    ends_on: '2026-10-20',
+    canceled_at: null,
+  };
+  const admin = {
+    from(table) {
+      return {
+        select(columns) {
+          if (table === 'events')
+            assert.equal(columns, 'id, source_key, title, venue, starts_on, ends_on, canceled_at');
+          return {
+            async in() {
+              return { data: table === 'events' ? [event] : [], error: null };
+            },
+          };
+        },
+      };
+    },
+  };
+  const resolved = await resolvePlans(admin, [validated.entry]);
+  assert.equal(resolved.ok, true);
+  assert.deepEqual(resolved.plans[0].expectedCurrent.event, event);
+});
 
 void test('reviewed event-wide apply sends a null target list and surfaces stale catalog state', async () => {
   const validated = validateSeedEntryShape(validEntry(), 'seed.json[0]');
