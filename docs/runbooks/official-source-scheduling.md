@@ -32,9 +32,12 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   The 2026-09-24 read-only canary found teaser duplicates, month-only future
   listings, and varying detail schedules. Explicit per-date headline times
   can be parsed only when every date in the listed range is covered, without
-  inventing shows. Daily tables are not yet mapped to
-  verified showtime columns; multi-day pages with only a generic headline
-  time also fail closed. This
+  inventing shows. On pages without a daily calendar, an explicit performance
+  period and standard part time (or a single unlabeled time) are expanded only
+  when every full rest day and part-specific private exception is completely
+  parsed. Unknown notes and date-specific changes fail closed. Pages with a
+  daily calendar remain held until a separate verified-table adapter lands; a
+  headline is never used to guess times through such a table. This
   source has **not** passed its clean shadow canary or promotion gate. The
   operator chose to keep scheduling disabled until day-level times are
   accurate across the intended scan, rather than stage Event-only drafts for
