@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(70);
+select plan(71);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as second_creator_id \gset
@@ -236,6 +236,8 @@ update public.official_import_runs set status = 'completed', finished_at = now()
 call pg_temp.auth_as_user(:'second_creator_id');
 select throws_ok(format($$select public.review_official_import_candidate(%L, 'approved')$$, :'owner_guard_candidate_id'),
   '42501', null, 'another designated creator cannot approve an existing Event owner import');
+select is((select review_status from public.official_import_candidates where id = :'owner_guard_candidate_id'),
+  'pending', 'denied non-owner review leaves the candidate pending for its owner');
 call pg_temp.auth_as_user(:'creator_id');
 select is((select review_status from public.review_official_import_candidate(:'owner_guard_candidate_id', 'approved')),
   'approved', 'matched Event owner can approve the same still-pending candidate');
