@@ -156,7 +156,7 @@ export function createKabukiBitoAdapter(
       // A current index can contain dozens of plays. Avoid a simultaneous
       // burst against the official site even when the Cron itself is weekly.
       for (let offset = 0; offset < facts.length; offset += 2) {
-        const batch = await Promise.all(
+        const settled = await Promise.allSettled(
           facts.slice(offset, offset + 2).map(async (fact) => {
             const detail = await fetcher(source, fact.canonicalUrl);
             const timetable = detailText(detail.body, "type-timetable");
@@ -195,7 +195,15 @@ export function createKabukiBitoAdapter(
             };
           }),
         );
-        drafts.push(...batch);
+        // A failed sibling must finish before the Workflow releases its lease
+        // and retries; otherwise old and new attempts can overlap requests.
+        const failure = settled.find((result) => result.status === "rejected");
+        if (failure !== undefined) throw failure.reason;
+        drafts.push(
+          ...settled.flatMap((result) =>
+            result.status === "fulfilled" ? [result.value] : [],
+          ),
+        );
         if (offset + 2 < facts.length) await pauseBetweenBatches();
       }
       return drafts;

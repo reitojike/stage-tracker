@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { SourceFetchFailure } from "../acquisition";
 import { getOfficialSource } from "../source-registry";
 import {
   createKabukiBitoAdapter,
@@ -60,6 +61,59 @@ describe("Kabuki-bito adapter facts", () => {
     expect(await adapter.acquire(source)).toHaveLength(5);
     expect(peak).toBe(2);
     expect(pause).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for a sibling detail request after one fetch fails", async () => {
+    const index = [1, 2]
+      .map(
+        (id) =>
+          `<li class="item"><a href="/theaters/kabukiza/play/${id}"><h3 class="ttl">公演${id}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      )
+      .join("");
+    let failFirst: (error: Error) => void = () => {
+      throw new Error("first detail was not requested");
+    };
+    let finishSecond: () => void = () => {
+      throw new Error("second detail was not requested");
+    };
+    let detailRequests = 0;
+    const adapter = createKabukiBitoAdapter(async (_source, url) => {
+      if (url === source.canonicalUrl) return document(url, index);
+      detailRequests += 1;
+      if (url.endsWith("/1")) {
+        return new Promise<OfficialHtmlDocument>((_resolve, reject) => {
+          failFirst = reject;
+        });
+      }
+      return new Promise<OfficialHtmlDocument>((resolve) => {
+        finishSecond = () =>
+          resolve(
+            document(
+              url,
+              `<p class="text type-timetable">昼の部 午前11時～</p><p class="text type-theater">歌舞伎座</p>`,
+            ),
+          );
+      });
+    });
+    const acquisition = adapter.acquire(source);
+    let completed = false;
+    void acquisition.then(
+      () => {
+        completed = true;
+      },
+      () => {
+        completed = true;
+      },
+    );
+    const outcome =
+      expect(acquisition).rejects.toBeInstanceOf(SourceFetchFailure);
+    await vi.waitFor(() => expect(detailRequests).toBe(2));
+    failFirst(new SourceFetchFailure());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(completed).toBe(false);
+    finishSecond();
+    await outcome;
+    expect(completed).toBe(true);
   });
 
   it("fails closed before detail fetches if the index exceeds the scan cap", async () => {
