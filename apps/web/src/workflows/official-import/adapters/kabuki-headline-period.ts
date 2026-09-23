@@ -67,7 +67,7 @@ function parseDays(
   return new Set(dates);
 }
 
-function parseBaseTimes(base: string): readonly Part[] {
+export function parseKabukiBaseTimes(base: string): readonly Part[] {
   const pattern =
     /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?)\s*[～〜]/gu;
   const matches = [...base.matchAll(pattern)];
@@ -127,7 +127,7 @@ export function parseKabukiHeadlinePeriod(
   if (schedule.endsWith(doorNote))
     schedule = schedule.slice(0, -doorNote.length).trim();
   const markers = [...schedule.matchAll(/[【〖](休演|貸切)[】〗]/gu)];
-  const parts = parseBaseTimes(
+  const parts = parseKabukiBaseTimes(
     schedule.slice(0, markers[0]?.index ?? schedule.length),
   );
   if (schoolDates !== null) {

@@ -37,9 +37,11 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   when every full rest day and part-specific private exception is completely
   parsed. The exact school-group attendance note is validated as informational
   and does not remove public occurrences. Unknown notes and date-specific
-  changes fail closed. Pages with a
-  daily calendar remain held until a separate verified-table adapter lands; a
-  headline is never used to guess times through such a table. This
+  changes fail closed. A single-month daily calendar is read only when the
+  complete headline and the PC/mobile table views agree on every day and part;
+  unknown table symbols or notes remain held. A headline is never used to
+  guess times through a table. The current bounded read-only scan still has
+  unsupported detail pages, so this
   source has **not** passed its clean shadow canary or promotion gate. The
   operator chose to keep scheduling disabled until day-level times are
   accurate across the intended scan, rather than stage Event-only drafts for
