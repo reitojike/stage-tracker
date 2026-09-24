@@ -254,6 +254,38 @@ describe("loadOfficialImportReviewQueue", () => {
           endsAt: "2026-10-01T03:30:00Z",
         },
       ]);
+      expect(result.value[0]?.plan.hasChanges).toBe(true);
+    }
+  });
+
+  it("does not mistake an unchanged Event action with a group update for a no-op", async () => {
+    const row = candidateRow(1);
+    server.use(
+      http.get(`${REST_URL}/official_import_candidates`, () =>
+        HttpResponse.json(
+          [
+            {
+              ...row,
+              plan_summary: {
+                ...row.plan_summary,
+                action: "unchanged",
+                groupsChanged: true,
+              },
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
+      ),
+    );
+
+    const result = await loadOfficialImportReviewQueue(createTestClient());
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value[0]?.plan).toEqual({
+        action: "unchanged",
+        hasChanges: true,
+        changes: ["グループを更新"],
+      });
     }
   });
 

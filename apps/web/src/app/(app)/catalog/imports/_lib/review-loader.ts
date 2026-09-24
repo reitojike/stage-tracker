@@ -356,10 +356,34 @@ function blockedReason(row: z.infer<typeof candidateRowSchema>): string | null {
   return "イベント同一性を確定できないため承認できません。公式IDの解決が必要です。";
 }
 
+function eventPlanHasChanges(plan: z.infer<typeof eventPlanSchema>): boolean {
+  return (
+    plan.action !== "unchanged" ||
+    plan.detailsChanged ||
+    plan.rangeChanged ||
+    plan.newOccurrenceCount > 0 ||
+    plan.endsAtFixCount > 0 ||
+    plan.doorsAtFixCount > 0 ||
+    plan.genreChanged ||
+    plan.groupsChanged
+  );
+}
+
+function ticketPlanHasChanges(plan: z.infer<typeof ticketPlanSchema>): boolean {
+  return (
+    plan.action !== "unchanged" ||
+    plan.eventChanged ||
+    plan.detailsChanged ||
+    plan.occurrencesChanged ||
+    plan.milestonesChanged
+  );
+}
+
 function eventPlanChanges(plan: z.infer<typeof eventPlanSchema>): string[] {
   const changes: string[] = [];
   if (plan.action === "create") changes.push("新しいイベントを作成");
-  if (plan.action === "unchanged") changes.push("現在のイベントから変更なし");
+  if (!eventPlanHasChanges(plan))
+    changes.push("現在のイベントから変更なし");
   if (plan.detailsChanged) changes.push("基本情報を更新");
   if (plan.rangeChanged) changes.push("公演期間を更新");
   if (plan.newOccurrenceCount > 0)
@@ -376,7 +400,7 @@ function eventPlanChanges(plan: z.infer<typeof eventPlanSchema>): string[] {
 function ticketPlanChanges(plan: z.infer<typeof ticketPlanSchema>): string[] {
   const changes: string[] = [];
   if (plan.action === "create") changes.push("新しいチケット販売情報を作成");
-  if (plan.action === "unchanged")
+  if (!ticketPlanHasChanges(plan))
     changes.push("現在のチケット販売情報から変更なし");
   if (plan.eventChanged) changes.push("対象イベントを更新");
   if (plan.detailsChanged) changes.push("基本情報を更新");
@@ -439,16 +463,19 @@ function mapCandidateRow(
   if (jev !== null && !jev.success) return err(jev.error.message);
 
   let planAction: "create" | "update" | "unchanged";
+  let planHasChanges: boolean;
   let planChanges: string[];
   if (row.candidate_kind === "event") {
     const plan = eventPlanSchema.safeParse(row.plan_summary);
     if (!plan.success) return err(plan.error.message);
     planAction = plan.data.action;
+    planHasChanges = eventPlanHasChanges(plan.data);
     planChanges = eventPlanChanges(plan.data);
   } else {
     const plan = ticketPlanSchema.safeParse(row.plan_summary);
     if (!plan.success) return err(plan.error.message);
     planAction = plan.data.action;
+    planHasChanges = ticketPlanHasChanges(plan.data);
     planChanges = ticketPlanChanges(plan.data);
   }
 
@@ -470,6 +497,7 @@ function mapCandidateRow(
     ),
     plan: {
       action: planAction,
+      hasChanges: planHasChanges,
       changes: planChanges,
     },
     evidence: {
