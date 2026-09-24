@@ -146,7 +146,10 @@ describe("Kabuki act-by-act performance ends", () => {
   });
 
   it("holds a calendar timetable whose explicit opening header disagrees", () => {
-    const mismatched = timetable.replace("<span>昼の部</span>", "<span>12：00開演</span>");
+    const mismatched = timetable.replace(
+      "<span>昼の部</span>",
+      "<span>12：00開演</span>",
+    );
     expect(() =>
       withKabukiPerformanceEnds(
         mismatched + '<table class="type-calendar"></table>',
