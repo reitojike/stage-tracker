@@ -426,6 +426,50 @@ export type Database = {
           },
         ]
       }
+      official_import_held_pages: {
+        Row: {
+          canonical_url: string
+          ends_on: string
+          official_external_id: string
+          reason_code: string
+          reported_at: string
+          run_id: string
+          source_id: string
+          starts_on: string
+          title: string
+        }
+        Insert: {
+          canonical_url: string
+          ends_on: string
+          official_external_id: string
+          reason_code: string
+          reported_at?: string
+          run_id: string
+          source_id: string
+          starts_on: string
+          title: string
+        }
+        Update: {
+          canonical_url?: string
+          ends_on?: string
+          official_external_id?: string
+          reason_code?: string
+          reported_at?: string
+          run_id?: string
+          source_id?: string
+          starts_on?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_import_held_pages_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "official_import_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       official_import_runs: {
         Row: {
           active_attempt_lease_expires_at: string | null
@@ -843,6 +887,16 @@ export type Database = {
         Args: {
           p_attempt_token: string
           p_candidates: Json
+          p_run_id: string
+          p_source_id: string
+        }
+        Returns: number
+      }
+      commit_owned_official_import_partial_batch: {
+        Args: {
+          p_attempt_token: string
+          p_candidates: Json
+          p_held_pages: Json
           p_run_id: string
           p_source_id: string
         }
