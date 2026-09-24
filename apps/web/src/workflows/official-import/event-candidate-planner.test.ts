@@ -199,6 +199,14 @@ describe("Event candidate planning", () => {
       proposal,
     );
     expect(otherSource.holdReason).toBeUndefined();
+    const otherOfficialEvent = event({
+      ...current,
+      sourceKey: "another-official:985",
+    });
+    const crossSource = await setup(null, [
+      otherOfficialEvent,
+    ]).planner.planEvent(kabukiSource, proposal);
+    expect(crossSource.holdReason).toBeUndefined();
   });
 
   it("resolves differently titled multi-group official notices by unique time and venue", async () => {

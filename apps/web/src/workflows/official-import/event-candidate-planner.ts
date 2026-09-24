@@ -259,6 +259,7 @@ function result(
   );
   const publishedEndMissing =
     source.id === "event.kabuki-bito.schedule" &&
+    current?.sourceKey === draft.proposal.sourceKey &&
     draft.proposal.occurrences.some((occurrence) => {
       const existing = currentByInstant.get(Date.parse(occurrence.startsAt));
       return (
