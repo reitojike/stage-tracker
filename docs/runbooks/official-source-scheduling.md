@@ -113,6 +113,13 @@ disabled until their separate policy and extraction gates pass. An all-day
 calendar record does not establish an exact showtime or physical-event
 relevance by itself.
 
+For the Kabuki manual Production shadow check, a designated catalog creator can
+open `/catalog/imports` and select **歌舞伎を手動取得** once. This starts only
+`event.kabuki-bito.schedule` and does not approve or apply candidates. Wait for
+the Workflow to finish, refresh the page, and inspect both the candidate queue
+and latest held-page report before another run. The button is not a substitute
+for the separate per-source scheduling gate.
+
 ## Enable and observe
 
 1. Verify the exact-path Cron machine-auth/proxy implementation from

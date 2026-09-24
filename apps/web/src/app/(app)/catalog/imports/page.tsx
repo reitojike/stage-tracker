@@ -10,6 +10,7 @@ import { reviewOfficialImportCandidateAction } from "@/lib/actions/officialImpor
 import { startOfficialImportApplyAction } from "@/lib/actions/officialImportApply.actions";
 import { OfficialImportReviewQueue } from "./_components/OfficialImportReviewQueue";
 import { KabukiHeldPageReport } from "./_components/KabukiHeldPageReport";
+import { KabukiManualShadowRun } from "./_components/KabukiManualShadowRun";
 import { loadLatestKabukiHeldPageReport } from "./_lib/held-page-loader";
 import { loadOfficialImportReviewQueue } from "./_lib/review-loader";
 
@@ -52,6 +53,7 @@ export default async function OfficialImportReviewPage() {
           公式情報から生成された候補を確認します。承認後に反映を開始すると、最新のカタログ状態で再計画してからEventまたはTicketOpportunityへ反映します。
         </p>
       </div>
+      <KabukiManualShadowRun />
       <KabukiHeldPageReport
         state={classifyReadResult(
           heldPages,

@@ -60,6 +60,9 @@ describe("OfficialImportReviewPage", () => {
     ).toBeInTheDocument();
     expect(mockLoadQueue).not.toHaveBeenCalled();
     expect(mockLoadHeldPages).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "歌舞伎を手動取得" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the creator queue through the ordinary authenticated client", async () => {
@@ -74,6 +77,9 @@ describe("OfficialImportReviewPage", () => {
       screen.getByRole("heading", { name: "公式情報の確認" }),
     ).toBeInTheDocument();
     expect(screen.getByText("確認待ちの候補はありません")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "歌舞伎を手動取得" }),
+    ).toBeInTheDocument();
     expect(mockLoadQueue).toHaveBeenCalledTimes(1);
     expect(mockLoadHeldPages).toHaveBeenCalledTimes(1);
   });
