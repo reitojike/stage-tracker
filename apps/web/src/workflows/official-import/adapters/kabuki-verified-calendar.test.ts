@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { SourceParseFailure } from "../acquisition";
 import { parseKabukiDetailedOccurrences } from "./kabuki-bito";
+import { parseKabukiVerifiedCalendar } from "./kabuki-verified-calendar";
 
 const HEADLINE =
   "第一部 午前11時～ 第二部 午後4時～ 〖休演〗日程詳細をご確認ください";
@@ -59,6 +60,41 @@ function parse(html = calendarHtml(), headline = HEADLINE) {
 }
 
 describe("verified Kabuki daily calendar", () => {
+  it("identifies only explicit cells at the published part clocks for end-time matching", () => {
+    expect(
+      parseKabukiVerifiedCalendar(
+        "2026-10-01",
+        "2026-10-03",
+        HEADLINE,
+        calendarHtml(),
+      ).hasOnlyHeadlineClocks,
+    ).toBe(true);
+    expect(
+      parseKabukiVerifiedCalendar(
+        "2026-10-01",
+        "2026-10-03",
+        HEADLINE,
+        calendarHtml([
+          ["11：00", "16：00"],
+          ["12：30", "-"],
+          ["貸切", "16：00"],
+        ]),
+      ).hasOnlyHeadlineClocks,
+    ).toBe(false);
+    expect(
+      parseKabukiVerifiedCalendar(
+        "2026-10-01",
+        "2026-10-03",
+        HEADLINE,
+        calendarHtml([
+          ["Aプロ", "16：00"],
+          ["Bプロ", "-"],
+          ["貸切", "16：00"],
+        ]),
+      ).hasOnlyHeadlineClocks,
+    ).toBe(false);
+  });
+
   it("takes exact showtimes from agreeing PC/mobile tables and omits only closed/private parts", () => {
     expect(parse().map((item) => item.startsAt)).toEqual([
       "2026-10-01T11:00:00+09:00",

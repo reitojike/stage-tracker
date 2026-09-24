@@ -77,6 +77,77 @@ describe("Kabuki-bito adapter facts", () => {
     expect(draft.proposal.memo).not.toContain("概算予定");
   });
 
+  it("matches act-by-act closing times to an explicit daily calendar", async () => {
+    // Observed shape of Minamiza play/955: fixed headline clocks, dated
+    // private performances, and a separate act-by-act timetable.
+    const calendar = `<section id="schedule">
+      <h3>日程詳細</h3>
+      <h4 class="view-pc">2026年9月</h4>
+      <table class="type-calendar view-pc">
+        <tr class="type-day"><th rowspan="2"></th>${["日", "月", "火", "水", "木", "金", "土"].map((day) => `<th>${day}</th>`).join("")}</tr>
+        <tr class="type-day">${["", "", "", "2", "3", "", ""].map((day) => `<td>${day}</td>`).join("")}</tr>
+        <tr><td><span class="span">昼の部</span><span class="span">夜の部</span></td>
+          <td></td><td></td><td></td>
+          <td><span class="span">11：00</span><span class="span">16：00</span></td>
+          <td><span class="span">11：00</span><span class="span">貸切</span></td>
+          <td></td><td></td></tr>
+      </table>
+      <h4 class="view-sp">2026年9月</h4>
+      <table class="type-calendar view-sp">
+        <tr><th></th><th>昼の部</th><th>夜の部</th></tr>
+        <tr><th>2<br />（水）</th><td>11：00</td><td>16：00</td></tr>
+        <tr><th>3<br />（木）</th><td>11：00</td><td>貸切</td></tr>
+      </table>
+      <p class="schedule-footer">※貸切公演が入る場合があります</p>
+    </section>`;
+    const performance = `<section id="timetable"><h3>上演時間</h3>
+      <dl class="list type-part"><dt><span>11：00開演</span></dt><dd><ul class="list type-program">
+        <li class="item"><time class="time">11：00－11：35</time></li>
+        <li class="item type-interlude"><span class="span">幕間 30分</span></li>
+        <li class="item"><time class="time">12：05－1：35</time></li>
+        <li class="item type-interlude"><span class="span">幕間 20分</span></li>
+        <li class="item"><time class="time">1：55－2：30</time></li>
+      </ul></dd></dl>
+      <dl class="list type-part"><dt><span>16：00開演</span></dt><dd><ul class="list type-program">
+        <li class="item"><time class="time">4：00－4：35</time></li>
+        <li class="item type-interlude"><span class="span">幕間 30分</span></li>
+        <li class="item"><time class="time">5：05－6：35</time></li>
+        <li class="item type-interlude"><span class="span">幕間 20分</span></li>
+        <li class="item"><time class="time">6：55－7：30</time></li>
+      </ul></dd></dl>
+      <div>※上演時間は変更になる可能性があります</div>
+    </section>`;
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kyoto/play/955"><h3 class="ttl">流白浪燦星</h3></a><p class="term">2026年9月2日（水）～3日（木）</p></li>'
+          : `<p class="text type-timetable">昼の部 午前11時～ 夜の部 午後4時～ 〖休演・貸切〗日程詳細をご確認ください</p>
+             <p class="text type-term">2026年9月2日（水）～3日（木）</p>
+             <p class="text type-theater">南座</p>${performance}${calendar}`,
+      ),
+    );
+    const held = vi.fn();
+    const [draft] = await adapter.acquire(source, held);
+    expect(held).not.toHaveBeenCalled();
+    if (draft?.candidateKind !== "event")
+      throw new Error("event draft missing");
+    expect(draft.proposal.occurrences).toEqual([
+      {
+        startsAt: "2026-09-02T11:00:00+09:00",
+        endsAt: "2026-09-02T14:30:00+09:00",
+      },
+      {
+        startsAt: "2026-09-02T16:00:00+09:00",
+        endsAt: "2026-09-02T19:30:00+09:00",
+      },
+      {
+        startsAt: "2026-09-03T11:00:00+09:00",
+        endsAt: "2026-09-03T14:30:00+09:00",
+      },
+    ]);
+  });
+
   it("stages approximate closing times until an act-by-act timetable is published", async () => {
     const adapter = createKabukiBitoAdapter(async (_source, url) =>
       document(

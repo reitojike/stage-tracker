@@ -130,6 +130,7 @@ export function withKabukiPerformanceEnds<T extends Occurrence>(
   html: string,
   occurrences: readonly T[],
   headlineParts: readonly KabukiHeadlinePart[] | null,
+  calendarHasOnlyHeadlineClocks = false,
 ): { occurrences: T[]; verified: boolean } {
   const unchanged = { occurrences: [...occurrences], verified: false };
   const document = parseHtml(html);
@@ -152,7 +153,10 @@ export function withKabukiPerformanceEnds<T extends Occurrence>(
   if (sections.length !== 1 || headlineParts === null)
     throw new SourceParseFailure();
   // A dated calendar may assign different programs to the same opening clock.
+  // Only the verified calendar parser can opt in when every performed cell
+  // explicitly repeats its part's headline clock.
   if (
+    !calendarHasOnlyHeadlineClocks &&
     descendants(
       document,
       (node) =>
@@ -193,10 +197,16 @@ export function withKabukiPerformanceEnds<T extends Occurrence>(
   for (const [index, part] of parts.entries()) {
     const headline = headlineParts[index];
     const header = elements(part)?.[0];
+    const headerText = header === undefined ? "" : normalizedText(header);
+    const clockHeader =
+      headline === undefined
+        ? ""
+        : `${String(headline.clock.hour).padStart(2, "0")}:${String(headline.clock.minute).padStart(2, "0")}開演`;
     if (
       headline === undefined ||
       header === undefined ||
-      normalizedText(header) !== headline.name
+      (headerText !== headline.name &&
+        headerText.normalize("NFKC") !== clockHeader)
     )
       throw new SourceParseFailure();
     const opening = headline.clock.hour * 60 + headline.clock.minute;

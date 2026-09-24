@@ -41,13 +41,16 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   a provisional occurrence end and a source-check memo; an absent or malformed
   note never creates an end. An act-by-act `上演時間` section takes precedence
   and may supply a final-act end only for the observed official timetable
-  structure: each named part matches its verified headline opening, each act
-  has a readable time range, and the footer is recognized on a page without a
-  daily calendar. A present but unreadable `上演時間` section holds the page for
-  human review; an absent section leaves a verified approximate end in place.
-  If an existing occurrence has an end but the same opening on the latest
-  official page has no end, stage no update for that play. Report the page as
-  `published_end_missing`; keep the catalog end until a person checks it.
+  structure: each named part or explicit opening-clock header matches its
+  verified headline opening, each act has a readable time range, and the footer
+  is recognized. A verified daily calendar may use those ends only when every
+  performed cell explicitly repeats its part's headline clock; program markers
+  or changed daily clocks do not receive a uniform end. A present but unreadable
+  `上演時間` section holds the page for human review; an absent section leaves a
+  verified approximate end in place.
+  If an existing occurrence has an end but the same opening in the latest
+  parsed proposal has no verified end, stage no update for that play. Report the
+  page as `published_end_missing`; keep the catalog end until a person checks it.
   This report does not automatically revoke older candidates. Approval and
   catalog apply are separate human actions; check the latest official page and
   held report before acting on an older candidate.

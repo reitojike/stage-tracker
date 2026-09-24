@@ -128,4 +128,32 @@ describe("Kabuki act-by-act performance ends", () => {
       ),
     ).toEqual({ occurrences, verified: false });
   });
+
+  it("matches published ends when a verified calendar has only headline clocks", () => {
+    const result = withKabukiPerformanceEnds(
+      timetable + '<table class="type-calendar"></table>',
+      occurrences,
+      headlineParts,
+      true,
+    );
+    expect(result.verified).toBe(true);
+    expect(result.occurrences.map((occurrence) => occurrence.endsAt)).toEqual([
+      "2026-09-02T15:12:00+09:00",
+      "2026-09-02T20:49:00+09:00",
+      "2026-09-03T15:12:00+09:00",
+      "2026-09-03T20:49:00+09:00",
+    ]);
+  });
+
+  it("holds a calendar timetable whose explicit opening header disagrees", () => {
+    const mismatched = timetable.replace("<span>昼の部</span>", "<span>12：00開演</span>");
+    expect(() =>
+      withKabukiPerformanceEnds(
+        mismatched + '<table class="type-calendar"></table>',
+        occurrences,
+        headlineParts,
+        true,
+      ),
+    ).toThrow();
+  });
 });

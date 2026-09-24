@@ -82,7 +82,9 @@ describe("Kabuki held page report", () => {
       />,
     );
     expect(
-      screen.getByText(/登録済み時刻は維持し、要確認/u),
+      screen.getByText(
+        /今回の取得では終演時刻を確認できませんでした。登録済み時刻は維持し、要確認/u,
+      ),
     ).toBeInTheDocument();
   });
 });
