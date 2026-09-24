@@ -682,7 +682,6 @@ export function OfficialImportReviewQueue({
   const actionable = state.data.filter(
     (candidate) => !isUnchangedPending(candidate),
   );
-  const unchanged = state.data.filter(isUnchangedPending);
   return (
     <div className="flex flex-col gap-lg">
       {actionable.length === 0 && (
@@ -696,23 +695,6 @@ export function OfficialImportReviewQueue({
           applyAction={applyAction}
         />
       ))}
-      {unchanged.length > 0 && (
-        <details className="rounded-lg border border-border p-sm">
-          <summary className="cursor-pointer text-body-sm">
-            取得時点で変更なし {unchanged.length}件（必要なら表示）
-          </summary>
-          <div className="mt-sm flex flex-col gap-lg">
-            {unchanged.map((candidate) => (
-              <CandidateCard
-                key={candidate.id}
-                candidate={candidate}
-                reviewAction={reviewAction}
-                applyAction={applyAction}
-              />
-            ))}
-          </div>
-        </details>
-      )}
     </div>
   );
 }

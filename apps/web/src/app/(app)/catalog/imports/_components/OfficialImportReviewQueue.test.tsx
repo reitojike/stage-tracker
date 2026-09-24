@@ -64,7 +64,7 @@ describe("OfficialImportReviewQueue", () => {
     mockRefresh.mockReset();
   });
 
-  it("collapses only exact-identity pending candidates with no planned changes", () => {
+  it("omits only exact-identity pending candidates with no planned changes", () => {
     const unchanged = {
       ...candidate,
       currentEvent: {
@@ -117,14 +117,51 @@ describe("OfficialImportReviewQueue", () => {
       />,
     );
 
-    const summary = screen.getByText("取得時点で変更なし 1件（必要なら表示）");
-    const details = summary.closest("details");
-    expect(details).not.toBeNull();
-    expect(details).not.toHaveAttribute("open");
-    expect(details?.querySelectorAll("article")).toHaveLength(1);
-    expect(screen.getAllByRole("article")).toHaveLength(3);
-    fireEvent.click(summary);
-    expect(details).toHaveAttribute("open");
+    expect(screen.getAllByRole("article")).toHaveLength(2);
+    expect(screen.queryByText(/取得時点で変更なし/)).not.toBeInTheDocument();
+  });
+
+  it("shows an empty review queue when every candidate needs no change", () => {
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              currentEvent: {
+                id: "22222222-2222-4222-8222-222222222222",
+                sourceKey: candidate.proposal.sourceKey,
+                title: "テスト公演",
+                venue: "テスト劇場",
+                memo: null,
+                sourceUrl: candidate.canonicalUrl,
+                startsOn: "2026-10-01",
+                endsOn: "2026-10-02",
+                occurrences: [],
+              },
+              plan: {
+                action: "unchanged",
+                hasChanges: false,
+                changes: ["現在のイベントから変更なし"],
+              },
+              match: {
+                deterministicStatus: "matched",
+                semanticStatus: "not_used",
+                jev: null,
+              },
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+      />,
+    );
+
+    expect(
+      screen.getByText("確認が必要な候補はありません"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();
   });
 
   it("does not collapse a matching plan when the catalog source identity differs", () => {
