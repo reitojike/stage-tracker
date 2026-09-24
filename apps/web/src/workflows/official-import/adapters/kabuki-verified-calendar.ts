@@ -13,6 +13,7 @@ import {
 import {
   parseKabukiBaseTimes,
   parseKabukiDaySet,
+  type KabukiHeadlinePart,
 } from "./kabuki-headline-period";
 import { calendarDate, enumerateDates, tokyoDateTime } from "./japanese-date";
 
@@ -457,6 +458,8 @@ export function parseKabukiVerifiedCalendar(
 ): {
   readonly occurrences: readonly { startsAt: string; endsAt: null }[];
   readonly hasAnnotation: boolean;
+  readonly headlineParts: readonly KabukiHeadlinePart[];
+  readonly hasOnlyHeadlineClocks: boolean;
 } {
   const dates = enumerateDates(startsOn, endsOn);
   if (startsOn.slice(0, 7) !== endsOn.slice(0, 7))
@@ -582,5 +585,23 @@ export function parseKabukiVerifiedCalendar(
     }),
   );
   if (occurrences.length === 0) throw new SourceParseFailure();
-  return { occurrences, hasAnnotation: annotationFooter !== null };
+  const hasOnlyHeadlineClocks = [...mobileRows.values()].every((cells) =>
+    cells.every((cell, index) => {
+      const clock = parts[index]?.clock;
+      if (clock === undefined) return false;
+      const headlineClock = `${String(clock.hour).padStart(2, "0")}:${String(clock.minute).padStart(2, "0")}`;
+      return (
+        cell === "-" ||
+        cell === "貸切" ||
+        cell === headlineClock ||
+        cell === `${headlineClock}★`
+      );
+    }),
+  );
+  return {
+    occurrences,
+    hasAnnotation: annotationFooter !== null,
+    headlineParts: parts,
+    hasOnlyHeadlineClocks,
+  };
 }

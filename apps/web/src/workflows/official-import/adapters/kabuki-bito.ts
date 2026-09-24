@@ -179,6 +179,7 @@ export function parseKabukiDetailedOccurrences(
   html = "",
   onAnnotation?: () => void,
   onHeadlineParts?: (parts: readonly KabukiHeadlinePart[]) => void,
+  onCalendarWithHeadlineClocks?: () => void,
 ): readonly { startsAt: string; endsAt: string | null }[] {
   // A calendar is authoritative only when both rendered views and the entire
   // headline can be verified together. Never expand its base times by default.
@@ -196,6 +197,8 @@ export function parseKabukiDetailedOccurrences(
       html,
     );
     if (calendar.hasAnnotation) onAnnotation?.();
+    onHeadlineParts?.(calendar.headlineParts);
+    if (calendar.hasOnlyHeadlineClocks) onCalendarWithHeadlineClocks?.();
     return calendar.occurrences;
   }
   // Some short engagements publish each date/time directly in the headline.
@@ -401,6 +404,7 @@ export function createKabukiBitoAdapter(
               let hasAnnotation = false;
               let performanceEndsVerified = false;
               let headlineParts: readonly KabukiHeadlinePart[] | null = null;
+              let calendarHasOnlyHeadlineClocks = false;
               let occurrences: {
                 startsAt: string;
                 endsAt: string | null;
@@ -425,12 +429,16 @@ export function createKabukiBitoAdapter(
                         (parts) => {
                           headlineParts = parts;
                         },
+                        () => {
+                          calendarHasOnlyHeadlineClocks = true;
+                        },
                       ),
                     ];
                 const performanceEnds = withKabukiPerformanceEnds(
                   detail.body,
                   occurrences,
                   headlineParts,
+                  calendarHasOnlyHeadlineClocks,
                 );
                 occurrences = performanceEnds.occurrences;
                 performanceEndsVerified = performanceEnds.verified;
