@@ -86,6 +86,7 @@ as $$
 declare
   v_run_status text;
   v_run_source_id text;
+  v_active_attempt_token text;
   v_candidate_count integer;
 begin
   if p_candidates is null or jsonb_typeof(p_candidates) <> 'array' then
@@ -93,7 +94,8 @@ begin
       using errcode = '22023';
   end if;
 
-  select run.status, run.source_id into v_run_status, v_run_source_id
+  select run.status, run.source_id, run.active_attempt_token
+    into v_run_status, v_run_source_id, v_active_attempt_token
   from public.official_import_runs as run
   where run.id = p_run_id
   for update;
@@ -115,6 +117,10 @@ begin
   if v_run_status <> 'running' then
     raise exception 'official import run is not writable'
       using errcode = '22023';
+  end if;
+  if v_active_attempt_token is not null then
+    raise exception 'claimed import runs must use the owned batch RPC'
+      using errcode = '55000';
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(
@@ -189,9 +195,12 @@ begin
       is distinct from
       (candidate.content_hash, candidate.proposal_version, candidate.plan_fingerprint);
 
+  -- Live scans enter through commit_owned_official_import_candidate_batch.
+  -- Their source lease prevents simultaneous acquisition, and that wrapper
+  -- rechecks ownership after taking this same source lock. Thus a displaced
+  -- older scan cannot reach this deletion after a newer scan commits.
   -- The incoming row is temporarily present even when its final outcome is
-  -- suppression. This lets the existing delete guard verify the exact source
-  -- identity while retiring an obsolete B on an A -> B -> A observation.
+  -- suppression, so the delete guard can verify the exact source identity.
   perform set_config(
     'stage_tracker.official_import_superseding_run_id', p_run_id::text, true
   );
