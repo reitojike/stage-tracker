@@ -125,6 +125,36 @@ describe("Event candidate planning", () => {
     });
   });
 
+  it("proposes a reviewed end-time correction when the published timetable replaces an earlier estimate", async () => {
+    const current = event({
+      sourceKey: "skiyaki:cynhn.com:123",
+      occurrences: [
+        {
+          startsAt: "2026-10-10T18:00:00+09:00",
+          doorsAt: null,
+          endsAt: "2026-10-10T20:35:00+09:00",
+        },
+      ],
+    });
+    const result = await setup(current, []).planner.planEvent(
+      source,
+      draft({
+        occurrences: [
+          {
+            startsAt: "2026-10-10T18:00:00+09:00",
+            endsAt: "2026-10-10T20:49:00+09:00",
+          },
+        ],
+      }),
+    );
+    expect(result.plan.endsAtFixes).toEqual([
+      expect.objectContaining({
+        from: "2026-10-10T20:35:00+09:00",
+        endsAt: "2026-10-10T20:49:00+09:00",
+      }),
+    ]);
+  });
+
   it("resolves differently titled multi-group official notices by unique time and venue", async () => {
     const { planner, align } = setup(null, [event()]);
     const result = await planner.planEvent(source, draft());

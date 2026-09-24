@@ -37,6 +37,70 @@ describe("Kabuki-bito adapter facts", () => {
     expect(draft.proposal.occurrences).toHaveLength(2);
   });
 
+  it("stages published act-by-act closing times for a verified headline period", async () => {
+    const detailUrl = "https://www.kabuki-bito.jp/theaters/kabukiza/play/978";
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">秀山祭九月大歌舞伎</h3></a><p class="term">2026年9月2日（水）～3日（木）</p></li>'
+          : `<p class="text type-timetable">昼の部 午前11時～ 夜の部 午後4時～ 終演予定時間：昼の部 午後3時05分頃／夜の部 午後8時35分頃 ※終演予定時間は変更になる可能性があります</p>
+             <p class="text type-term">2026年9月2日（水）～3日（木）</p>
+             <p class="text type-theater">歌舞伎座</p>
+             <section id="timetable">
+               <h3>上演時間</h3>
+               <dl class="type-part"><dt>昼の部</dt><dd><ul class="type-program">
+                 <li><time class="time">11：00－11：41</time></li>
+                 <li><time class="time">1：26－3：12</time></li>
+               </ul></dd></dl>
+               <dl class="type-part"><dt>夜の部</dt><dd><ul class="type-program">
+                 <li><time class="time">4：00－4：19</time></li>
+                 <li><time class="time">4：39－6：27</time></li>
+                 <li><time class="time">7：02－7：32</time></li>
+                 <li><time class="time">7：52－8：49</time></li>
+               </ul></dd></dl>
+             </section>`,
+      ),
+    );
+    const [draft] = await adapter.acquire(source);
+    if (draft?.candidateKind !== "event")
+      throw new Error("event draft missing");
+    expect(draft.canonicalUrl).toBe(detailUrl);
+    expect(draft.proposal.occurrences.map((item) => item.endsAt)).toEqual([
+      "2026-09-02T15:12:00+09:00",
+      "2026-09-02T20:49:00+09:00",
+      "2026-09-03T15:12:00+09:00",
+      "2026-09-03T20:49:00+09:00",
+    ]);
+    expect(draft.proposal.memo).toContain("掲載時点の予定");
+    expect(draft.proposal.memo).not.toContain("概算予定");
+  });
+
+  it("stages approximate closing times until an act-by-act timetable is published", async () => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/979"><h3 class="ttl">錦秋十月大歌舞伎</h3></a><p class="term">2026年10月2日（金）～3日（土）</p></li>'
+          : `<p class="text type-timetable">第一部 午前11時～ 第二部 午後2時30分～ 第三部 午後6時～ 終演予定時間：第一部 午後1時35分頃／第二部 午後5時05分頃／第三部 午後9時10分頃 ※終演予定時間は変更になる可能性があります</p>
+             <p class="text type-term">2026年10月2日（金）～3日（土）</p>
+             <p class="text type-theater">歌舞伎座</p>`,
+      ),
+    );
+    const [draft] = await adapter.acquire(source);
+    if (draft?.candidateKind !== "event")
+      throw new Error("event draft missing");
+    expect(draft.proposal.occurrences.map((item) => item.endsAt)).toEqual([
+      "2026-10-02T13:35:00+09:00",
+      "2026-10-02T17:05:00+09:00",
+      "2026-10-02T21:10:00+09:00",
+      "2026-10-03T13:35:00+09:00",
+      "2026-10-03T17:05:00+09:00",
+      "2026-10-03T21:10:00+09:00",
+    ]);
+    expect(draft.proposal.memo).toContain("概算予定");
+  });
+
   it("reports only unverified detail pages while retaining verified siblings", async () => {
     const validUrl = "https://www.kabuki-bito.jp/theaters/kabukiza/play/978";
     const heldUrl = "https://www.kabuki-bito.jp/theaters/kabukiza/play/979";

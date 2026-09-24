@@ -37,9 +37,15 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   when every full rest day and part-specific private exception is completely
   parsed. The exact school-group attendance note is validated as informational
   and does not remove public occurrences. Unknown notes and date-specific
-  changes fail closed. A fully validated approximate closing-time note is
-  informational and never becomes an exact occurrence end. A single-month
-  daily calendar is read only when the complete permitted headline notes and
+  changes fail closed. A fully validated approximate closing-time note supplies
+  a provisional occurrence end and a source-check memo; an absent or malformed
+  note never creates an end. An act-by-act `上演時間` section takes precedence
+  and may supply a final-act end only when each named part matches its verified
+  headline opening, the act/interlude sequence is complete, and its footer is
+  recognized on a page without a daily calendar. Unknown layouts
+  and date-specific notes do not override a verified approximate end or invent
+  an end; staged ends still require human review. A single-month daily calendar
+  is read only when the complete permitted headline notes and
   the PC/mobile table views agree on every day and part. A/B program and
   circle markers use an explicit base clock for their part; numeric cells
   retain their own exact clocks. Unknown table symbols, notes, or combinations
