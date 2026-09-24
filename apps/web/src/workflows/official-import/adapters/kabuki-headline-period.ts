@@ -12,6 +12,31 @@ import {
 
 type Clock = { hour: number; minute: number };
 type Part = { name: string; clock: Clock };
+const WEEKDAYS = "日月火水木金土";
+
+export function validateKabukiWeekdayAnnotation(
+  date: string,
+  annotation: string,
+): void {
+  const match = annotation.match(
+    /^([日月火水木金土])(?:・(祝|休))?$|^(?:祝|休)・([日月火水木金土])$/u,
+  );
+  const weekday = match?.[1] ?? match?.[3];
+  if (
+    weekday === undefined ||
+    weekday !== WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]
+  )
+    throw new SourceParseFailure();
+  if (annotation.includes("祝") || annotation.includes("休")) {
+    const tokyoDate = tokyoCalendarDateSchema.safeParse(date);
+    if (
+      !tokyoDate.success ||
+      !isWithinJapaneseHolidayDataCoverage(tokyoDate.data) ||
+      !isJapaneseHoliday(tokyoDate.data)
+    )
+      throw new SourceParseFailure();
+  }
+}
 
 function parseStrictJapaneseClock(value: string): Clock {
   const match = value
@@ -50,29 +75,9 @@ function parseDays(
     value.replace(pattern, "").replace(/[、，\s]/gu, "") !== ""
   )
     throw new SourceParseFailure();
-  const weekdays = "日月火水木金土";
   const dates = matches.map((match) => {
     const date = dateForDayInRange(Number(match[1]), startsOn, endsOn);
-    if (match[2] !== undefined) {
-      const annotation = match[2].match(
-        /^([日月火水木金土])$|^祝・([日月火水木金土])$/u,
-      );
-      const dayName = annotation?.[1] ?? annotation?.[2];
-      if (
-        dayName === undefined ||
-        dayName !== weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()]
-      )
-        throw new SourceParseFailure();
-      if (annotation?.[2] !== undefined) {
-        const tokyoDate = tokyoCalendarDateSchema.safeParse(date);
-        if (
-          !tokyoDate.success ||
-          !isWithinJapaneseHolidayDataCoverage(tokyoDate.data) ||
-          !isJapaneseHoliday(tokyoDate.data)
-        )
-          throw new SourceParseFailure();
-      }
-    }
+    if (match[2] !== undefined) validateKabukiWeekdayAnnotation(date, match[2]);
     return date;
   });
   if (new Set(dates).size !== dates.length) throw new SourceParseFailure();

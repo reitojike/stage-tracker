@@ -24,10 +24,12 @@ import {
   calendarDate,
   enumerateDates,
   parseJapaneseClock,
-  parseJapaneseDateRange,
   tokyoDateTime,
 } from "./japanese-date";
-import { parseKabukiHeadlinePeriod } from "./kabuki-headline-period";
+import {
+  parseKabukiHeadlinePeriod,
+  validateKabukiWeekdayAnnotation,
+} from "./kabuki-headline-period";
 import { parseKabukiVerifiedCalendar } from "./kabuki-verified-calendar";
 
 const MAX_PLAYS_PER_SCAN = 30;
@@ -41,7 +43,7 @@ function parseKabukiPeriod(text: string): {
   // counted against the index cap and may be revisited on a later weekly scan.
   if (/^\d{4}年\d{1,2}月$/u.test(normalized)) return null;
   const single = normalized.match(
-    /^(\d{4})年(\d{1,2})月(\d{1,2})日(?:[（(][^）)]*[）)])?$/u,
+    /^(\d{4})年(\d{1,2})月(\d{1,2})日(?:[（(]([^）)]+)[）)])?$/u,
   );
   if (single !== null) {
     const date = calendarDate(
@@ -49,9 +51,30 @@ function parseKabukiPeriod(text: string): {
       Number(single[2]),
       Number(single[3]),
     );
+    if (single[4] !== undefined)
+      validateKabukiWeekdayAnnotation(date, single[4]);
     return { startsOn: date, endsOn: date };
   }
-  return parseJapaneseDateRange(normalized);
+  const range = normalized.match(
+    /^(\d{4})年(\d{1,2})月(\d{1,2})日(?:[（(]([^）)]+)[）)])?[～〜](?:(\d{4})年)?(?:(\d{1,2})月)?(\d{1,2})日(?:[（(]([^）)]+)[）)])?$/u,
+  );
+  if (range === null) throw new SourceParseFailure();
+  if (range[5] !== undefined && range[6] === undefined)
+    throw new SourceParseFailure();
+  const startYear = Number(range[1]);
+  const startMonth = Number(range[2]);
+  const startsOn = calendarDate(startYear, startMonth, Number(range[3]));
+  const endMonth = Number(range[6] ?? range[2]);
+  const endYear =
+    range[5] === undefined && endMonth < startMonth
+      ? startYear + 1
+      : Number(range[5] ?? range[1]);
+  const endsOn = calendarDate(endYear, endMonth, Number(range[7]));
+  if (startsOn > endsOn) throw new SourceParseFailure();
+  if (range[4] !== undefined)
+    validateKabukiWeekdayAnnotation(startsOn, range[4]);
+  if (range[8] !== undefined) validateKabukiWeekdayAnnotation(endsOn, range[8]);
+  return { startsOn, endsOn };
 }
 
 export interface KabukiIndexFact {
@@ -202,7 +225,7 @@ export function parseKabukiDetailedOccurrences(
   // Require every date and clock token to be paired. Varying daily tables are
   // not yet mapped to verified showtime columns and cannot be inferred here.
   const datedClock =
-    /(\d{1,2})日(?:[（(][^）)]*[）)])?\s*(午前|午後)?\s*(\d{1,2})時(?:\s*(\d{1,2})分)?\s*[～〜]?/gu;
+    /(\d{1,2})日(?:[（(]([^）)]+)[）)])?\s*(午前|午後)?\s*(\d{1,2})時(?:\s*(\d{1,2})分)?\s*[～〜]?/gu;
   const matches = [...timetable.matchAll(datedClock)];
   const allDates = timetable.match(/\d{1,2}日/gu) ?? [];
   const allClocks =
@@ -218,9 +241,19 @@ export function parseKabukiDetailedOccurrences(
     const coveredDates = new Set<string>();
     const occurrences = matches.map((match) => {
       const date = dateForDayInRange(Number(match[1]), startsOn, endsOn);
+      if (match[2] !== undefined)
+        validateKabukiWeekdayAnnotation(date, match[2]);
+      const sourceHour = Number(match[4]);
+      const sourceMinute = Number(match[5] ?? 0);
+      if (
+        sourceHour < (match[3] === undefined ? 0 : 1) ||
+        sourceHour > (match[3] === undefined ? 23 : 12) ||
+        sourceMinute > 59
+      )
+        throw new SourceParseFailure();
       coveredDates.add(date);
       const clock = parseJapaneseClock(
-        `${match[2] ?? ""}${match[3]}時${match[4] ?? ""}分`,
+        `${match[3] ?? ""}${match[4]}時${match[5] ?? ""}分`,
       );
       if (clock === null) throw new SourceParseFailure();
       const startsAt = tokyoDateTime(date, clock.hour, clock.minute);
@@ -246,6 +279,62 @@ function detailText(html: string, className: string): string | null {
   return node === undefined ? null : normalizedText(node);
 }
 
+function verifiedDetailText(
+  node: ReturnType<typeof parseHtml>,
+  className: string,
+): string {
+  const classNames = (attribute(node, "class") ?? "")
+    .split(/\s+/u)
+    .filter(Boolean);
+  if (
+    elementName(node) !== "p" ||
+    classNames.length < 1 ||
+    classNames.length > 2 ||
+    !classNames.includes(className) ||
+    classNames.some((name) => name !== className && name !== "text") ||
+    !("attrs" in node) ||
+    node.attrs.length !== 1 ||
+    !("childNodes" in node) ||
+    node.childNodes.some(
+      (child) =>
+        child.nodeName !== "#text" &&
+        !(
+          elementName(child) === "br" &&
+          "attrs" in child &&
+          child.attrs.length === 0
+        ),
+    )
+  )
+    throw new SourceParseFailure();
+  return normalizedText(node);
+}
+
+function verifiedDetailSchedule(html: string): {
+  timetable: string;
+  period: { startsOn: string; endsOn: string };
+} {
+  const document = parseHtml(html);
+  const timetables = descendants(document, (node) =>
+    hasClass(node, "type-timetable"),
+  );
+  const periods = descendants(
+    document,
+    (node) =>
+      hasClass(node, "type-term") && /^\d{4}年/u.test(normalizedText(node)),
+  );
+  if (
+    timetables.length !== 1 ||
+    timetables[0] === undefined ||
+    periods.length !== 1 ||
+    periods[0] === undefined
+  )
+    throw new SourceParseFailure();
+  const timetable = verifiedDetailText(timetables[0], "type-timetable");
+  const period = parseKabukiPeriod(verifiedDetailText(periods[0], "type-term"));
+  if (period === null) throw new SourceParseFailure();
+  return { timetable, period };
+}
+
 export function createKabukiBitoAdapter(
   fetcher: OfficialHtmlFetcher = fetchOfficialHtml,
   pauseBetweenBatches: () => Promise<void> = () =>
@@ -266,8 +355,20 @@ export function createKabukiBitoAdapter(
             .slice(offset, offset + 2)
             .map(async (fact) => {
               const detail = await fetcher(source, fact.canonicalUrl);
-              const timetable = detailText(detail.body, "type-timetable");
-              if (timetable === null) throw new SourceParseFailure();
+              const finalPath = new URL(detail.url).pathname.match(
+                /^\/theaters\/([^/]+)\/play\/(\d+)\/?$/u,
+              );
+              if (
+                finalPath?.[1] !== fact.theater ||
+                finalPath?.[2] !== fact.officialId
+              )
+                throw new SourceParseFailure();
+              const { timetable, period } = verifiedDetailSchedule(detail.body);
+              if (
+                period.startsOn !== fact.startsOn ||
+                period.endsOn !== fact.endsOn
+              )
+                throw new SourceParseFailure();
               const venue = detailText(detail.body, "type-theater");
               return {
                 candidateKind: "event" as const,
