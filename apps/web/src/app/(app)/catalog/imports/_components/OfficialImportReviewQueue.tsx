@@ -679,7 +679,9 @@ export function OfficialImportReviewQueue({
       ? candidate.currentEvent?.sourceKey === candidate.proposal.sourceKey
       : candidate.currentTicketOpportunity?.sourceKey ===
         candidate.proposal.sourceKey);
-  const actionable = state.data.filter((candidate) => !isUnchangedPending(candidate));
+  const actionable = state.data.filter(
+    (candidate) => !isUnchangedPending(candidate),
+  );
   const unchanged = state.data.filter(isUnchangedPending);
   return (
     <div className="flex flex-col gap-lg">

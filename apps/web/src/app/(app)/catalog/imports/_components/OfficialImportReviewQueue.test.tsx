@@ -158,7 +158,9 @@ describe("OfficialImportReviewQueue", () => {
         applyAction={mockApplyAction}
       />,
     );
-    expect(screen.queryByText(/取得時点で変更なし 1件/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/取得時点で変更なし 1件/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "テスト公演" }),
     ).toBeInTheDocument();
@@ -254,7 +256,11 @@ describe("OfficialImportReviewQueue", () => {
                   },
                 ],
               },
-              plan: { action: "update", hasChanges: true, changes: ["基本情報を更新"] },
+              plan: {
+                action: "update",
+                hasChanges: true,
+                changes: ["基本情報を更新"],
+              },
             },
           ],
         }}

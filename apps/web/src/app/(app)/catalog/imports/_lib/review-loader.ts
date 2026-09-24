@@ -382,8 +382,7 @@ function ticketPlanHasChanges(plan: z.infer<typeof ticketPlanSchema>): boolean {
 function eventPlanChanges(plan: z.infer<typeof eventPlanSchema>): string[] {
   const changes: string[] = [];
   if (plan.action === "create") changes.push("新しいイベントを作成");
-  if (!eventPlanHasChanges(plan))
-    changes.push("現在のイベントから変更なし");
+  if (!eventPlanHasChanges(plan)) changes.push("現在のイベントから変更なし");
   if (plan.detailsChanged) changes.push("基本情報を更新");
   if (plan.rangeChanged) changes.push("公演期間を更新");
   if (plan.newOccurrenceCount > 0)
