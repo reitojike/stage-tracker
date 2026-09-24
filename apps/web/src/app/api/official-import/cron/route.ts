@@ -17,7 +17,7 @@ function authorized(request: Request, secret: string): boolean {
   return timingSafeEqual(actual, expected);
 }
 
-/** Inert until a separate per-source policy gate and Vercel Cron are enabled. */
+/** Production-only and authenticated; starts only code-owned due shadow sources. */
 export async function GET(request: Request): Promise<NextResponse> {
   if (process.env.VERCEL_ENV !== "production")
     return NextResponse.json(

@@ -4,16 +4,17 @@ This runbook covers promoting one already-working shadow source to scheduled
 ingestion. Scheduled runs only stage review candidates; they never approve,
 apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
 
-## Current safe state
+## Current rollout state
 
-- Every source in the code-owned Source Registry has `scheduledEnabled: false`.
+- Kabuki Event is the only source with `scheduledEnabled: true`; every other
+  source remains unscheduled. Its weekly due slot is Monday in Asia/Tokyo.
 - The Production-only machine-auth route is exactly
   `/api/official-import/cron`. The proxy lets this path reach its route handler
   without a Supabase user session; the handler still requires the
   `CRON_SECRET` bearer. This exception does not apply to
   `/api/official-import/shadow` or other application/API paths.
-  `apps/web/vercel.json` has no Cron registration. No scheduled acquisition is
-  active.
+  `apps/web/vercel.json` registers one daily 00:00 UTC Cron call; on other Tokyo
+  weekdays it has no due source. No source is approved or applied by Cron.
 - The route requires a Production `CRON_SECRET` of at least 32 characters and
   Vercel's `Authorization: Bearer <secret>` header. Missing configuration fails
   closed. Never store or print the value in the repository, PRs, or logs.
@@ -86,7 +87,14 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   **not** by itself a clean promotion canary: compare every exact-dated index
   row with staged or held identities, inspect the major-theater coverage and
   held reasons, and record operator acceptance of the omissions before
-  scheduling. Month-only teasers remain excluded.
+  scheduling. Month-only teasers remain excluded. The 2026-09-25 read-only
+  full-index audit found 26 unique play links: 21 exact-dated rows, with 15
+  timed proposals, five Event-only proposals, and one held London local-time
+  page (#1006). All 14 exact-dated pages at Kabukiza, Minamiza, Misonoza, and
+  Hakataza were accounted for as timed or Event-only. The operator accepted
+  leaving #1006 held and confirmed a subsequent unchanged manual Production
+  run created no new candidates. The 30-link index ceiling remains a
+  fail-closed operational watchpoint.
   Takarazuka Event also has a weekly cadence preference but remains unscheduled.
   The private-household product boundary is settled in
   [#681](https://github.com/reitojike/stage-tracker/issues/681); the exact
