@@ -245,14 +245,35 @@ function fingerprint(value: unknown): string {
 }
 
 function result(
+  source: OfficialSourceDefinition,
   draft: EventAcquisitionDraft,
   plan: EventPlanInput,
   match: Omit<EventPlanningResult, "plan" | "planFingerprint">,
   current: CatalogEventMatch | null,
 ): EventPlanningResult {
+  const currentByInstant = new Map(
+    current?.occurrences.map((occurrence) => [
+      Date.parse(occurrence.startsAt),
+      occurrence,
+    ]) ?? [],
+  );
+  const publishedEndMissing =
+    source.id === "event.kabuki-bito.schedule" &&
+    current?.sourceKey === draft.proposal.sourceKey &&
+    draft.proposal.occurrences.some((occurrence) => {
+      const existing = currentByInstant.get(Date.parse(occurrence.startsAt));
+      return (
+        existing?.endsAt !== null &&
+        existing?.endsAt !== undefined &&
+        (occurrence.endsAt === null || occurrence.endsAt === undefined)
+      );
+    });
   return {
     ...match,
     plan,
+    ...(publishedEndMissing
+      ? { holdReason: "published_end_missing" as const }
+      : {}),
     planFingerprint: fingerprint({
       proposal: draft.proposal,
       plan,
@@ -268,7 +289,7 @@ export function createEventCandidatePlanner(
 ): Pick<OfficialImportCandidatePlanner, "planEvent"> {
   return {
     async planEvent(
-      _source: OfficialSourceDefinition,
+      source: OfficialSourceDefinition,
       draft: EventAcquisitionDraft,
     ) {
       const exact = await repository.findExactBySourceKey(
@@ -276,6 +297,7 @@ export function createEventCandidatePlanner(
       );
       if (exact !== null) {
         return result(
+          source,
           draft,
           planFor(draft, exact),
           {
@@ -296,6 +318,7 @@ export function createEventCandidatePlanner(
       );
       if (plausible.length === 0) {
         return result(
+          source,
           draft,
           planFor(draft, null),
           {
@@ -313,6 +336,7 @@ export function createEventCandidatePlanner(
       const deterministic = deterministicCrossSourceMatch(draft, plausible);
       if (!manualPossibleDuplicate && deterministic !== null) {
         return result(
+          source,
           draft,
           planFor(draft, deterministic),
           {
@@ -327,6 +351,7 @@ export function createEventCandidatePlanner(
       const alignment = await aligner.align(draft, plausible);
       if (manualPossibleDuplicate) {
         return result(
+          source,
           draft,
           planFor(draft, null),
           {
@@ -348,6 +373,7 @@ export function createEventCandidatePlanner(
         );
         if (matched !== undefined && alignment.confidence >= 0.85) {
           return result(
+            source,
             draft,
             planFor(draft, matched),
             {
@@ -362,6 +388,7 @@ export function createEventCandidatePlanner(
       }
       if (alignment.status === "unmatched") {
         return result(
+          source,
           draft,
           planFor(draft, null),
           {
@@ -374,6 +401,7 @@ export function createEventCandidatePlanner(
         );
       }
       return result(
+        source,
         draft,
         planFor(draft, null),
         {

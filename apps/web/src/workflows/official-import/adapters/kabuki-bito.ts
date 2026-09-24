@@ -32,8 +32,10 @@ import {
   parseKabukiDaySet,
   parseKabukiHeadlinePeriod,
   validateKabukiWeekdayAnnotation,
+  type KabukiHeadlinePart,
 } from "./kabuki-headline-period";
 import { parseKabukiVerifiedCalendar } from "./kabuki-verified-calendar";
+import { withKabukiPerformanceEnds } from "./kabuki-performance-times";
 
 const MAX_PLAYS_PER_SCAN = 30;
 const KABUKIZA_997_UNTIMED_NOTE_SHA256 =
@@ -156,46 +158,6 @@ export function parseKabukiIndex(
   return facts;
 }
 
-function markedDays(text: string, marker: "休演" | "貸切"): Set<number> {
-  const section =
-    text.match(new RegExp(`【${marker}】([^【]+)`, "u"))?.[1] ?? "";
-  return new Set(
-    [...section.matchAll(/(\d{1,2})日/gu)].map((match) => Number(match[1])),
-  );
-}
-
-export function expandKabukiSchedule(
-  startsOn: string,
-  endsOn: string,
-  timetable: string,
-): readonly { readonly startsAt: string; readonly endsAt: null }[] {
-  const partMatches = [
-    ...timetable.matchAll(
-      /(?:^|[／/\s])([^【／/\n]{0,20}?の部)\s*(午前|午後)?\s*(\d{1,2})時(?:\s*(\d{1,2})分)?/gu,
-    ),
-  ];
-  const clocks = partMatches.map((match) =>
-    parseJapaneseClock(`${match[2] ?? ""}${match[3]}時${match[4] ?? ""}分`),
-  );
-  if (clocks.length === 0 || clocks.some((clock) => clock === null)) {
-    throw new SourceParseFailure();
-  }
-  const excludedDays = new Set([
-    ...markedDays(timetable, "休演"),
-    ...markedDays(timetable, "貸切"),
-  ]);
-  return enumerateDates(startsOn, endsOn).flatMap((date) => {
-    if (excludedDays.has(Number(date.slice(-2)))) return [];
-    return clocks.map((clock) => {
-      if (clock === null) throw new SourceParseFailure();
-      return {
-        startsAt: tokyoDateTime(date, clock.hour, clock.minute),
-        endsAt: null,
-      };
-    });
-  });
-}
-
 function dateForDayInRange(
   day: number,
   startsOn: string,
@@ -216,7 +178,8 @@ export function parseKabukiDetailedOccurrences(
   timetable: string,
   html = "",
   onAnnotation?: () => void,
-): readonly { startsAt: string; endsAt: null }[] {
+  onHeadlineParts?: (parts: readonly KabukiHeadlinePart[]) => void,
+): readonly { startsAt: string; endsAt: string | null }[] {
   // A calendar is authoritative only when both rendered views and the entire
   // headline can be verified together. Never expand its base times by default.
   if (
@@ -282,7 +245,12 @@ export function parseKabukiDetailedOccurrences(
     return occurrences;
   }
 
-  return parseKabukiHeadlinePeriod(startsOn, endsOn, timetable);
+  return parseKabukiHeadlinePeriod(
+    startsOn,
+    endsOn,
+    timetable,
+    onHeadlineParts,
+  );
 }
 
 function detailText(html: string, className: string): string | null {
@@ -297,24 +265,19 @@ function verifiedDetailText(
   node: ReturnType<typeof parseHtml>,
   className: string,
 ): string {
-  let ancestor: ReturnType<typeof parseHtml> | null = node;
-  while (ancestor !== null) {
-    if (
-      ["del", "s", "strike"].includes(elementName(ancestor) ?? "") ||
-      /(?:^|\s)(?:cancelled|canceled|deleted|struck|strikethrough|is-cancelled|is-canceled|is-deleted)(?:\s|$)/iu.test(
-        attribute(ancestor, "class") ?? "",
-      ) ||
-      /(?:^|;)\s*text-decoration(?:-line)?\s*:\s*[^;]*\bline-through\b/iu.test(
-        attribute(ancestor, "style") ?? "",
-      )
-    )
-      throw new SourceParseFailure();
-    ancestor = "parentNode" in ancestor ? ancestor.parentNode : null;
-  }
+  const parent = "parentNode" in node ? node.parentNode : null;
+  const expectedParent =
+    parent !== null &&
+    elementName(parent) === "div" &&
+    hasClass(parent, "box") &&
+    hasClass(parent, "type-content") &&
+    "attrs" in parent &&
+    parent.attrs.length === 1;
   const classNames = (attribute(node, "class") ?? "")
     .split(/\s+/u)
     .filter(Boolean);
   if (
+    !expectedParent ||
     elementName(node) !== "p" ||
     classNames.length < 1 ||
     classNames.length > 2 ||
@@ -436,6 +399,8 @@ export function createKabukiBitoAdapter(
                 throw new SourceParseFailure();
               const venue = detailText(detail.body, "type-theater");
               let hasAnnotation = false;
+              let performanceEndsVerified = false;
+              let headlineParts: readonly KabukiHeadlinePart[] | null = null;
               let occurrences: {
                 startsAt: string;
                 endsAt: string | null;
@@ -457,8 +422,18 @@ export function createKabukiBitoAdapter(
                         () => {
                           hasAnnotation = true;
                         },
+                        (parts) => {
+                          headlineParts = parts;
+                        },
                       ),
                     ];
+                const performanceEnds = withKabukiPerformanceEnds(
+                  detail.body,
+                  occurrences,
+                  headlineParts,
+                );
+                occurrences = performanceEnds.occurrences;
+                performanceEndsVerified = performanceEnds.verified;
               } catch (error) {
                 if (
                   reportHeldPage === undefined ||
@@ -479,6 +454,11 @@ export function createKabukiBitoAdapter(
                 /[【〖](?:休演|貸切)[】〗]/u.test(timetable)
                   ? "公式日程の休演・貸切日をOccurrence候補から除外"
                   : null,
+                performanceEndsVerified
+                  ? "終演時刻は公式の上演時間（掲載時点の予定）。最新情報は元ページで確認"
+                  : /終演予定時間：/u.test(timetable)
+                    ? "終演時刻は公式の概算予定。最新情報は元ページで確認"
+                    : null,
                 hasAnnotation
                   ? "公式日程に注記あり。承認・反映前に公式ページで日時を確認"
                   : null,

@@ -41,7 +41,7 @@ describe("latest Kabuki held-page report", () => {
             title: "保留公演",
             starts_on: "2026-10-01",
             ends_on: "2026-10-02",
-            reason_code: "source_parse",
+            reason_code: "published_end_missing",
           },
         ]);
       }),
@@ -52,7 +52,9 @@ describe("latest Kabuki held-page report", () => {
       value: {
         runId: RUN_ID,
         startedAt: "2026-09-24T00:00:00.123456+00:00",
-        pages: [{ officialExternalId: "1000", reasonCode: "source_parse" }],
+        pages: [
+          { officialExternalId: "1000", reasonCode: "published_end_missing" },
+        ],
       },
     });
   });

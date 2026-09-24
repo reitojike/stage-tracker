@@ -88,7 +88,7 @@ describe("verified Kabuki headline period", () => {
   const octoberClosingNote =
     "終演予定時間：第一部 午後1時35分頃／第二部 午後5時05分頃／第三部 午後9時10分頃 ※終演予定時間は変更になる可能性があります";
 
-  it("validates approximate closing-time information without making it an occurrence end", () => {
+  it("stages fully validated approximate closing times as occurrence ends", () => {
     const occurrences = parseKabukiHeadlinePeriod(
       "2026-10-02",
       "2026-10-20",
@@ -97,8 +97,10 @@ describe("verified Kabuki headline period", () => {
     expect(occurrences).toHaveLength(54);
     expect(occurrences[0]).toEqual({
       startsAt: "2026-10-02T11:00:00+09:00",
-      endsAt: null,
+      endsAt: "2026-10-02T13:35:00+09:00",
     });
+    expect(occurrences[1]?.endsAt).toBe("2026-10-02T17:05:00+09:00");
+    expect(occurrences[2]?.endsAt).toBe("2026-10-02T21:10:00+09:00");
     expect(occurrences.map((item) => item.startsAt)).not.toContain(
       "2026-10-09T11:00:00+09:00",
     );
@@ -134,15 +136,6 @@ describe("verified Kabuki headline period", () => {
         "2026-09-04",
         `昼の部 午前11時～ 夜の部 午後4時～ ※下記日程は学校団体様がいらっしゃいます ${dates}`,
       ),
-    ).toThrow(SourceParseFailure);
-  });
-
-  it.each([
-    ["2026-12-21", "2026-12-21", "21日（祝・月）"],
-    ["2028-01-03", "2028-01-03", "3日（祝・月）"],
-  ])("rejects an unverified holiday marker on %s", (startsOn, endsOn, day) => {
-    expect(() =>
-      parseKabukiHeadlinePeriod(startsOn, endsOn, `午前11時～【休演】${day}`),
     ).toThrow(SourceParseFailure);
   });
 

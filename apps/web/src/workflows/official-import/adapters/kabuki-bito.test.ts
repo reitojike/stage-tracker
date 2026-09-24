@@ -3,7 +3,6 @@ import { SourceFetchFailure, SourceParseFailure } from "../acquisition";
 import { getOfficialSource } from "../source-registry";
 import {
   createKabukiBitoAdapter,
-  expandKabukiSchedule,
   parseKabukiDetailedOccurrences,
   parseKabukiIndex,
 } from "./kabuki-bito";
@@ -35,6 +34,92 @@ describe("Kabuki-bito adapter facts", () => {
       throw new Error("event draft missing");
     expect(draft.proposal.sourceKey).toBe("kabuki-bito:kabukiza:play:978");
     expect(draft.proposal.occurrences).toHaveLength(2);
+  });
+
+  it("stages published act-by-act closing times for a verified headline period", async () => {
+    const detailUrl = "https://www.kabuki-bito.jp/theaters/kabukiza/play/978";
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">秀山祭九月大歌舞伎</h3></a><p class="term">2026年9月2日（水）～3日（木）</p></li>'
+          : `<p class="text type-timetable">昼の部 午前11時～ 夜の部 午後4時～ 終演予定時間：昼の部 午後3時05分頃／夜の部 午後8時35分頃 ※終演予定時間は変更になる可能性があります</p>
+             <p class="text type-term">2026年9月2日（水）～3日（木）</p>
+             <p class="text type-theater">歌舞伎座</p>
+             <section id="timetable">
+               <h3>上演時間</h3>
+               <dl class="list type-part"><dt><span>昼の部</span></dt><dd><ul class="list type-program">
+                 <li class="item"><time class="time">11：00－11：41</time></li>
+                 <li class="item type-interlude"><span class="span">幕間 20分</span></li>
+                 <li class="item"><time class="time">12：00－12：51</time></li>
+                 <li class="item"><time class="time">1：26－3：12</time></li>
+               </ul></dd></dl>
+               <dl class="list type-part"><dt><span>夜の部</span></dt><dd><ul class="list type-program">
+                 <li class="item"><time class="time">4：00－4：19</time></li>
+                 <li class="item"><time class="time">4：39－6：27</time></li>
+                 <li class="item"><time class="time">7：02－7：32</time></li>
+                 <li class="item"><time class="time">7：52－8：49</time></li>
+               </ul></dd></dl>
+             </section>`,
+      ),
+    );
+    const [draft] = await adapter.acquire(source);
+    if (draft?.candidateKind !== "event")
+      throw new Error("event draft missing");
+    expect(draft.canonicalUrl).toBe(detailUrl);
+    expect(draft.proposal.occurrences.map((item) => item.endsAt)).toEqual([
+      "2026-09-02T15:12:00+09:00",
+      "2026-09-02T20:49:00+09:00",
+      "2026-09-03T15:12:00+09:00",
+      "2026-09-03T20:49:00+09:00",
+    ]);
+    expect(draft.proposal.memo).toContain("掲載時点の予定");
+    expect(draft.proposal.memo).not.toContain("概算予定");
+  });
+
+  it("stages approximate closing times until an act-by-act timetable is published", async () => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/979"><h3 class="ttl">錦秋十月大歌舞伎</h3></a><p class="term">2026年10月2日（金）～3日（土）</p></li>'
+          : `<p class="text type-timetable">第一部 午前11時～ 第二部 午後2時30分～ 第三部 午後6時～ 終演予定時間：第一部 午後1時35分頃／第二部 午後5時05分頃／第三部 午後9時10分頃 ※終演予定時間は変更になる可能性があります</p>
+             <p class="text type-term">2026年10月2日（金）～3日（土）</p>
+             <p class="text type-theater">歌舞伎座</p>`,
+      ),
+    );
+    const [draft] = await adapter.acquire(source);
+    if (draft?.candidateKind !== "event")
+      throw new Error("event draft missing");
+    expect(draft.proposal.occurrences.map((item) => item.endsAt)).toEqual([
+      "2026-10-02T13:35:00+09:00",
+      "2026-10-02T17:05:00+09:00",
+      "2026-10-02T21:10:00+09:00",
+      "2026-10-03T13:35:00+09:00",
+      "2026-10-03T17:05:00+09:00",
+      "2026-10-03T21:10:00+09:00",
+    ]);
+    expect(draft.proposal.memo).toContain("概算予定");
+  });
+
+  it("reports an unsupported performance-time section as a held page", async () => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年9月2日（水）～3日（木）</p></li>'
+          : `<p class="type-timetable">昼の部 午前11時～ 夜の部 午後4時～</p>
+             <p class="type-term">2026年9月2日（水）～3日（木）</p>
+             <p class="type-theater">歌舞伎座</p>
+             <section id="timetable"><h3>上演時間</h3><p>未対応の構造</p></section>`,
+      ),
+    );
+    const held: string[] = [];
+    const drafts = await adapter.acquire(source, (page) => {
+      held.push(page.officialExternalId);
+    });
+    expect(drafts).toEqual([]);
+    expect(held).toEqual(["978"]);
   });
 
   it("reports only unverified detail pages while retaining verified siblings", async () => {
@@ -198,7 +283,7 @@ describe("Kabuki-bito adapter facts", () => {
     expect(held).not.toHaveBeenCalled();
   });
 
-  it("uses the official play id and expands fixed part times while excluding closed/private days", () => {
+  it("uses the official play id from the index", () => {
     const [fact] = parseKabukiIndex(
       source,
       `
@@ -211,19 +296,6 @@ describe("Kabuki-bito adapter facts", () => {
       startsOn: "2026-10-01",
       endsOn: "2026-10-25",
     });
-    const occurrences = expandKabukiSchedule(
-      fact.startsOn,
-      fact.endsOn,
-      "昼の部 午前11時～ ／ 夜の部 午後4時～ 【休演】9日、18日 【貸切】12日",
-    );
-    expect(occurrences).toHaveLength(44);
-    expect(occurrences[0]?.startsAt).toBe("2026-10-01T11:00:00+09:00");
-    expect(
-      occurrences.some((item) => item.startsAt.startsWith("2026-10-09")),
-    ).toBe(false);
-    expect(
-      occurrences.some((item) => item.startsAt.startsWith("2026-10-12")),
-    ).toBe(false);
   });
 
   it("deduplicates teaser links and stages only exact-dated full rows", () => {
@@ -292,12 +364,6 @@ describe("Kabuki-bito adapter facts", () => {
     expect(() => parseKabukiIndex(source, index)).toThrow(SourceParseFailure);
   });
 
-  it("rejects a timetable without deterministic part times", () => {
-    expect(() =>
-      expandKabukiSchedule("2026-10-01", "2026-10-02", "時間未定"),
-    ).toThrow();
-  });
-
   it("maps explicit per-date headline times without expanding them across the range", () => {
     const occurrences = parseKabukiDetailedOccurrences(
       "2026-09-25",
@@ -335,37 +401,31 @@ describe("Kabuki-bito adapter facts", () => {
     "1日（金） 午前11時～",
     "1日（木） 午後13時～",
     "1日（木） 午前0時～",
-    "1日（祝・木） 午前11時～",
   ])("rejects inconsistent per-date annotations or clocks: %s", (text) => {
     expect(() =>
       parseKabukiDetailedOccurrences("2026-10-01", "2026-10-01", text),
     ).toThrow(SourceParseFailure);
   });
 
-  it("rejects semantic cancellation markup in a headline timetable", async () => {
+  it("holds an unrecognized headline element structure", async () => {
     const adapter = createKabukiBitoAdapter(async (_source, url) =>
       document(
         url,
         url === source.canonicalUrl
           ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
-          : '<p class="type-timetable"><del>昼の部 午前11時～</del></p><p class="type-theater">歌舞伎座</p>',
+          : '<p class="type-timetable"><em>昼の部 午前11時～</em></p><p class="type-theater">歌舞伎座</p>',
       ),
     );
     await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
   });
 
-  it.each([
-    '<del><p class="type-timetable">昼の部 午前11時～</p></del>',
-    '<div class="is-cancelled"><p class="type-timetable">昼の部 午前11時～</p></div>',
-    '<div style="text-decoration-line: line-through"><p class="type-timetable">昼の部 午前11時～</p></div>',
-    '<div style="color: red; text-decoration: red line-through"><p class="type-timetable">昼の部 午前11時～</p></div>',
-  ])("rejects an externally withdrawn timetable: %s", async (timetable) => {
+  it("holds a headline outside its observed container", async () => {
     const adapter = createKabukiBitoAdapter(async (_source, url) =>
       document(
         url,
         url === source.canonicalUrl
           ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
-          : `${timetable}<p class="type-theater">歌舞伎座</p>`,
+          : '<aside><p class="type-timetable">昼の部 午前11時～</p></aside><p class="type-theater">歌舞伎座</p>',
       ),
     );
     await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
@@ -450,12 +510,16 @@ describe("Kabuki-bito adapter facts", () => {
 });
 
 function document(url: string, body: string): OfficialHtmlDocument {
+  const isDetail = /\/play\/\d+/u.test(url);
+  const detailBody =
+    isDetail && !body.includes("type-term")
+      ? `${body}<p class="text type-term">2026年10月1日～2日</p>`
+      : body;
   return {
     url,
-    body:
-      url.includes("/theaters/") && !body.includes("type-term")
-        ? `${body}<p class="text type-term">2026年10月1日～2日</p>`
-        : body,
+    body: isDetail
+      ? `<div class="box type-content">${detailBody}</div>`
+      : detailBody,
     observedAt: "2026-09-22T00:00:00.000Z",
     contentHash: "a".repeat(64),
     etag: null,

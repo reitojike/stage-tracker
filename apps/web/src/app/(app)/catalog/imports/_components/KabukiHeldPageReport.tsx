@@ -14,10 +14,10 @@ export function KabukiHeldPageReport({
     >
       <div className="flex flex-col gap-2xs">
         <SectionHeading id="kabuki-held-heading">
-          歌舞伎の解析保留ページ
+          歌舞伎の要確認ページ
         </SectionHeading>
         <p className="text-body-sm text-muted-foreground">
-          直近の完了した取得で解釈できなかった公演です。今回の候補には含めません。以前の候補を承認・反映する前にも、公式ページで日程を確認してください。
+          直近の完了した取得で確認が必要になった公演です。今回の候補には含めません。以前の候補を承認・反映する前にも、公式ページで日程と終演時刻を確認してください。
         </p>
       </div>
       {state.variant === "unavailable" ? (
@@ -40,7 +40,7 @@ export function KabukiHeldPageReport({
           </p>
           {state.data.pages.length === 0 ? (
             <p className="text-body-sm">
-              この取得で解析保留のページはありません。
+              この取得で要確認のページはありません。
             </p>
           ) : (
             <ul className="flex flex-col gap-sm">
@@ -56,7 +56,10 @@ export function KabukiHeldPageReport({
                   </a>
                   <span className="text-muted-foreground">
                     {" "}
-                    （{page.startsOn}〜{page.endsOn}）— 日程の解釈を要確認
+                    （{page.startsOn}〜{page.endsOn}）—{" "}
+                    {page.reasonCode === "published_end_missing"
+                      ? "公式ページに終演時刻の掲載がありません。登録済み時刻は維持し、要確認"
+                      : "日程の解釈を要確認"}
                   </span>
                 </li>
               ))}

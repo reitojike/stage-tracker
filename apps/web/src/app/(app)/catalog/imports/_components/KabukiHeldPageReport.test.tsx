@@ -50,11 +50,39 @@ describe("Kabuki held page report", () => {
       />,
     );
     expect(
-      screen.getByText("この取得で解析保留のページはありません。"),
+      screen.getByText("この取得で要確認のページはありません。"),
     ).toBeInTheDocument();
     rerender(<KabukiHeldPageReport state={{ variant: "empty" }} />);
     expect(
       screen.getByText("完了した歌舞伎の取得履歴はまだありません。"),
+    ).toBeInTheDocument();
+  });
+
+  it("identifies a disappeared published end without suggesting it was cleared", () => {
+    render(
+      <KabukiHeldPageReport
+        state={{
+          variant: "populated",
+          data: {
+            runId: "00000000-0000-4000-8000-000000000001",
+            startedAt: "2026-09-24T00:00:00Z",
+            pages: [
+              {
+                canonicalUrl:
+                  "https://www.kabuki-bito.jp/theaters/kabukiza/play/985",
+                officialExternalId: "985",
+                title: "歌舞伎座の公演",
+                startsOn: "2026-10-01",
+                endsOn: "2026-10-20",
+                reasonCode: "published_end_missing",
+              },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(/登録済み時刻は維持し、要確認/u),
     ).toBeInTheDocument();
   });
 });

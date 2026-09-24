@@ -1,8 +1,3 @@
-import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
-import {
-  isJapaneseHoliday,
-  isWithinJapaneseHolidayDataCoverage,
-} from "../../../app/_lib/japanese-holidays";
 import { SourceParseFailure } from "../acquisition";
 import {
   enumerateDates,
@@ -11,7 +6,8 @@ import {
 } from "./japanese-date";
 
 type Clock = { hour: number; minute: number };
-type Part = { name: string; clock: Clock };
+export type KabukiHeadlinePart = { name: string; clock: Clock };
+type Part = KabukiHeadlinePart;
 const WEEKDAYS = "日月火水木金土";
 
 export function validateKabukiWeekdayAnnotation(
@@ -27,15 +23,6 @@ export function validateKabukiWeekdayAnnotation(
     weekday !== WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]
   )
     throw new SourceParseFailure();
-  if (annotation.includes("祝") || annotation.includes("休")) {
-    const tokyoDate = tokyoCalendarDateSchema.safeParse(date);
-    if (
-      !tokyoDate.success ||
-      !isWithinJapaneseHolidayDataCoverage(tokyoDate.data) ||
-      !isJapaneseHoliday(tokyoDate.data)
-    )
-      throw new SourceParseFailure();
-  }
 }
 
 function parseStrictJapaneseClock(value: string): Clock {
@@ -120,7 +107,7 @@ export function parseKabukiBaseTimes(base: string): readonly Part[] {
 function validateApproximateClosingTimes(
   note: string,
   parts: readonly Part[],
-): void {
+): ReadonlyMap<string, Clock> {
   const pattern =
     /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)\s*((?:午前|午後)\s*\d{1,2}時\s*\d{1,2}分)頃/gu;
   const matches = [...note.matchAll(pattern)];
@@ -129,6 +116,7 @@ function validateApproximateClosingTimes(
     note.replace(pattern, "").replace(/[／/\s]/gu, "") !== ""
   )
     throw new SourceParseFailure();
+  const closingTimes = new Map<string, Clock>();
   for (const [index, match] of matches.entries()) {
     const part = parts[index];
     const clock = parseStrictJapaneseClock(match[2] ?? "");
@@ -138,14 +126,17 @@ function validateApproximateClosingTimes(
       clock.hour * 60 + clock.minute <= part.clock.hour * 60 + part.clock.minute
     )
       throw new SourceParseFailure();
+    closingTimes.set(part.name, clock);
   }
+  return closingTimes;
 }
 
 export function parseKabukiHeadlinePeriod(
   startsOn: string,
   endsOn: string,
   timetable: string,
-): readonly { startsAt: string; endsAt: null }[] {
+  onParts?: (parts: readonly KabukiHeadlinePart[]) => void,
+): readonly { startsAt: string; endsAt: string | null }[] {
   if (/現地時間/u.test(timetable)) throw new SourceParseFailure();
   const text = timetable.trim();
   const morningOnly = text.match(
@@ -175,8 +166,10 @@ export function parseKabukiHeadlinePeriod(
   const parts = parseKabukiBaseTimes(
     schedule.slice(0, markers[0]?.index ?? schedule.length),
   );
-  if (closingNote !== null)
-    validateApproximateClosingTimes(closingNote[1] ?? "", parts);
+  const closingTimes =
+    closingNote === null
+      ? null
+      : validateApproximateClosingTimes(closingNote[1] ?? "", parts);
   if (schoolDates !== null) {
     const labels = [
       ...schoolDates.matchAll(
@@ -277,8 +270,9 @@ export function parseKabukiHeadlinePeriod(
   const occurrences = enumerateDates(startsOn, endsOn).flatMap((date) =>
     closed.has(date)
       ? []
-      : parts.flatMap((part) =>
-          privateByPart.get(part.name)?.has(date)
+      : parts.flatMap((part) => {
+          const closingClock = closingTimes?.get(part.name);
+          return privateByPart.get(part.name)?.has(date)
             ? []
             : [
                 {
@@ -287,11 +281,19 @@ export function parseKabukiHeadlinePeriod(
                     part.clock.hour,
                     part.clock.minute,
                   ),
-                  endsAt: null,
+                  endsAt:
+                    closingClock === undefined
+                      ? null
+                      : tokyoDateTime(
+                          date,
+                          closingClock.hour,
+                          closingClock.minute,
+                        ),
                 },
-              ],
-        ),
+              ];
+        }),
   );
   if (occurrences.length === 0) throw new SourceParseFailure();
+  onParts?.(parts);
   return occurrences;
 }
