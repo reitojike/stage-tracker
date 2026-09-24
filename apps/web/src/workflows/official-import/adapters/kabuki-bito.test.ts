@@ -321,6 +321,21 @@ describe("Kabuki-bito adapter facts", () => {
   });
 
   it.each([
+    '<del><p class="type-timetable">昼の部 午前11時～</p></del>',
+    '<div class="is-cancelled"><p class="type-timetable">昼の部 午前11時～</p></div>',
+  ])("rejects an externally withdrawn timetable: %s", async (timetable) => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
+          : `${timetable}<p class="type-theater">歌舞伎座</p>`,
+      ),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
+  });
+
+  it.each([
     {
       name: "redirected play identity",
       url: "https://www.kabuki-bito.jp/theaters/kabukiza/play/999",

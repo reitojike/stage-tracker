@@ -283,6 +283,20 @@ function verifiedDetailText(
   node: ReturnType<typeof parseHtml>,
   className: string,
 ): string {
+  let ancestor: ReturnType<typeof parseHtml> | null = node;
+  while (ancestor !== null) {
+    if (
+      ["del", "s", "strike"].includes(elementName(ancestor) ?? "") ||
+      /(?:^|\s)(?:cancelled|canceled|deleted|struck|strikethrough|is-cancelled|is-canceled|is-deleted)(?:\s|$)/iu.test(
+        attribute(ancestor, "class") ?? "",
+      ) ||
+      /text-decoration\s*:\s*line-through/iu.test(
+        attribute(ancestor, "style") ?? "",
+      )
+    )
+      throw new SourceParseFailure();
+    ancestor = "parentNode" in ancestor ? ancestor.parentNode : null;
+  }
   const classNames = (attribute(node, "class") ?? "")
     .split(/\s+/u)
     .filter(Boolean);
