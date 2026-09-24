@@ -7,7 +7,7 @@ name: Verify
 # `Verify / Database` starts a local Supabase stack (via the `supabase` npm
 # devDependency, using
 # ubuntu-latest's preinstalled Docker) to run the generated-types drift check
-# and the DB/RLS/client-role pgTAP checks against a real local Postgres - no
+# and the DB/RLS/full pgTAP suite against a real local Postgres - no
 # remote
 # Supabase project or credentials are required. Auth unit coverage belongs to
 # Verify / Code; real HTTP/browser Auth coverage belongs to Verify / E2E.
