@@ -209,6 +209,18 @@ describe("Kabuki-bito adapter facts", () => {
     ]);
   });
 
+  it.each([
+    ["2026年11月3日（火・祝）", "2026-11-03"],
+    ["2027年3月22日（月・休）", "2027-03-22"],
+  ])("accepts a verified holiday date %s", (term, expected) => {
+    const [fact] = parseKabukiIndex(
+      source,
+      `<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">${term}</p></li>`,
+    );
+    expect(fact?.startsOn).toBe(expected);
+    expect(fact?.endsOn).toBe(expected);
+  });
+
   it("fails closed for a teaser without a full row or a malformed full date", () => {
     expect(() =>
       parseKabukiIndex(
@@ -220,6 +232,19 @@ describe("Kabuki-bito adapter facts", () => {
       parseKabukiIndex(
         source,
         `<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演A</h3></a><p class="term">2026年9月頃</p></li>`,
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it.each([
+    "2026年10月1日（金）～2日（金）",
+    "2026年10月1日（木）～2日（金） ※3日は中止",
+    "2026年10月1日（木）～2日（土）",
+  ])("rejects inconsistent or trailing index date text: %s", (term) => {
+    expect(() =>
+      parseKabukiIndex(
+        source,
+        `<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">${term}</p></li>`,
       ),
     ).toThrow(SourceParseFailure);
   });
@@ -272,6 +297,69 @@ describe("Kabuki-bito adapter facts", () => {
     ).toThrow(SourceParseFailure);
   });
 
+  it.each([
+    "1日（金） 午前11時～",
+    "1日（木） 午後13時～",
+    "1日（木） 午前0時～",
+    "1日（祝・木） 午前11時～",
+  ])("rejects inconsistent per-date annotations or clocks: %s", (text) => {
+    expect(() =>
+      parseKabukiDetailedOccurrences("2026-10-01", "2026-10-01", text),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("rejects semantic cancellation markup in a headline timetable", async () => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
+          : '<p class="type-timetable"><del>昼の部 午前11時～</del></p><p class="type-theater">歌舞伎座</p>',
+      ),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
+  });
+
+  it.each([
+    '<del><p class="type-timetable">昼の部 午前11時～</p></del>',
+    '<div class="is-cancelled"><p class="type-timetable">昼の部 午前11時～</p></div>',
+    '<div style="text-decoration-line: line-through"><p class="type-timetable">昼の部 午前11時～</p></div>',
+    '<div style="color: red; text-decoration: red line-through"><p class="type-timetable">昼の部 午前11時～</p></div>',
+  ])("rejects an externally withdrawn timetable: %s", async (timetable) => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
+          : `${timetable}<p class="type-theater">歌舞伎座</p>`,
+      ),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
+  });
+
+  it.each([
+    {
+      name: "redirected play identity",
+      url: "https://www.kabuki-bito.jp/theaters/kabukiza/play/999",
+      period: "2026年10月1日～2日",
+    },
+    {
+      name: "changed detail period",
+      url: "https://www.kabuki-bito.jp/theaters/kabukiza/play/978",
+      period: "2026年10月10日～11日",
+    },
+  ])("rejects a $name", async ({ url: detailUrl, period }) => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url === source.canonicalUrl ? url : detailUrl,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
+          : `<p class="type-timetable">昼の部 午前11時～</p><p class="text type-term">${period}</p><p class="type-theater">歌舞伎座</p>`,
+      ),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
+  });
+
   it("does not stage an Event-only draft when a single day has no public showtime", () => {
     expect(() =>
       parseKabukiDetailedOccurrences(
@@ -286,7 +374,10 @@ describe("Kabuki-bito adapter facts", () => {
 function document(url: string, body: string): OfficialHtmlDocument {
   return {
     url,
-    body,
+    body:
+      url.includes("/theaters/") && !body.includes("type-term")
+        ? `${body}<p class="text type-term">2026年10月1日～2日</p>`
+        : body,
     observedAt: "2026-09-22T00:00:00.000Z",
     contentHash: "a".repeat(64),
     etag: null,
