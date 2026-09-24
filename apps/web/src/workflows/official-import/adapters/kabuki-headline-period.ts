@@ -63,7 +63,7 @@ function dateForDayInRange(
   return matches[0];
 }
 
-function parseDays(
+export function parseKabukiDaySet(
   value: string,
   startsOn: string,
   endsOn: string,
@@ -192,7 +192,7 @@ export function parseKabukiHeadlinePeriod(
     for (const [index, label] of labels.entries()) {
       if (!parts.some((part) => part.name === label[1]))
         throw new SourceParseFailure();
-      parseDays(
+      parseKabukiDaySet(
         schoolDates.slice(
           (label.index ?? 0) + label[0].length,
           labels[index + 1]?.index ?? schoolDates.length,
@@ -217,7 +217,7 @@ export function parseKabukiHeadlinePeriod(
     if (marker[1] === "休演") {
       if (hasClosure) throw new SourceParseFailure();
       hasClosure = true;
-      closed = parseDays(content, startsOn, endsOn);
+      closed = parseKabukiDaySet(content, startsOn, endsOn);
       continue;
     }
     if (marker[1] !== "貸切" || hasPrivate) throw new SourceParseFailure();
@@ -231,7 +231,7 @@ export function parseKabukiHeadlinePeriod(
     if (labels.length === 0 && parts.length === 1) {
       privateByPart.set(
         parts[0]?.name ?? "",
-        parseDays(privateText, startsOn, endsOn),
+        parseKabukiDaySet(privateText, startsOn, endsOn),
       );
       continue;
     }
@@ -250,7 +250,7 @@ export function parseKabukiHeadlinePeriod(
         throw new SourceParseFailure();
       privateByPart.set(
         name,
-        parseDays(
+        parseKabukiDaySet(
           privateText.slice(
             (label.index ?? 0) + label[0].length,
             labels[partIndex + 1]?.index ?? privateText.length,
@@ -270,7 +270,7 @@ export function parseKabukiHeadlinePeriod(
       throw new SourceParseFailure();
     privateByPart.set(
       afternoon.name,
-      parseDays(morningOnly[1] ?? "", startsOn, endsOn),
+      parseKabukiDaySet(morningOnly[1] ?? "", startsOn, endsOn),
     );
   }
 

@@ -39,15 +39,16 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   and does not remove public occurrences. Unknown notes and date-specific
   changes fail closed. A fully validated approximate closing-time note is
   informational and never becomes an exact occurrence end. A single-month
-  daily calendar is read only when the complete headline and the PC/mobile
-  table views agree on every day and part;
-  unknown table symbols or notes remain held. A headline is never used to
-  guess times through a table. The current bounded read-only scan still has
-  unsupported detail pages, so this
-  source has **not** passed its clean shadow canary or promotion gate. The
-  operator chose to keep scheduling disabled until day-level times are
-  accurate across the intended scan, rather than stage Event-only drafts for
-  manual time completion.
+  daily calendar is read only when the complete permitted headline notes and
+  the PC/mobile table views agree on every day and part. A/B program and
+  circle markers use an explicit base clock for their part; numeric cells
+  retain their own exact clocks. Unknown table symbols or notes remain held.
+  A headline is never used to guess times through a table. Exact-dated pages
+  with no published opening clock and no calendar may produce an Event-only
+  candidate with zero Occurrences; month-only teasers are skipped. A published
+  clock or unresolved schedule must not be downgraded to Event-only. The
+  current bounded read-only scan still has unsupported detail pages, so this
+  source has **not** passed its source-wide shadow canary or promotion gate.
   Takarazuka Event also has a weekly cadence preference but remains unscheduled.
   The private-household product boundary is settled in
   [#681](https://github.com/reitojike/stage-tracker/issues/681); the exact

@@ -9,8 +9,16 @@ import {
   textContent,
   type HtmlNode,
 } from "./html";
-import { parseKabukiBaseTimes } from "./kabuki-headline-period";
-import { calendarDate, enumerateDates, tokyoDateTime } from "./japanese-date";
+import {
+  parseKabukiBaseTimes,
+  parseKabukiDaySet,
+} from "./kabuki-headline-period";
+import {
+  calendarDate,
+  enumerateDates,
+  parseJapaneseClock,
+  tokyoDateTime,
+} from "./japanese-date";
 
 type CalendarRows = Map<string, readonly string[]>;
 const WEEKDAYS = "日月火水木金土";
@@ -290,6 +298,131 @@ function parseDesktop(
   return result;
 }
 
+function validateSchoolGroupNote(
+  note: string,
+  partNames: readonly string[],
+  startsOn: string,
+  endsOn: string,
+): void {
+  const prefix = "※下記日程は学校団体様がいらっしゃいます";
+  if (!note.startsWith(prefix)) throw new SourceParseFailure();
+  const entries = note.slice(prefix.length).trim();
+  const labels = [
+    ...entries.matchAll(/([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)[:：]/gu),
+  ];
+  if (
+    labels.length === 0 ||
+    entries.slice(0, labels[0]?.index ?? 0).trim() !== "" ||
+    new Set(labels.map((label) => label[1])).size !== labels.length
+  )
+    throw new SourceParseFailure();
+  for (const [index, label] of labels.entries()) {
+    if (!partNames.includes(label[1] ?? "")) throw new SourceParseFailure();
+    parseKabukiDaySet(
+      entries.slice(
+        (label.index ?? 0) + label[0].length,
+        labels[index + 1]?.index ?? entries.length,
+      ),
+      startsOn,
+      endsOn,
+    );
+  }
+}
+
+function validateCalendarNotes(
+  note: string,
+  rows: CalendarRows,
+  parts: ReturnType<typeof parseKabukiBaseTimes>,
+  startsOn: string,
+  endsOn: string,
+): void {
+  let remainder = note.trim();
+  const revisedPeriodNote = "※当初の発表から公演日程を変更しております";
+  if (remainder.startsWith(revisedPeriodNote))
+    remainder = remainder.slice(revisedPeriodNote.length).trim();
+
+  const detail = remainder.match(
+    /^[【〖](?:休演|休演・貸切)[】〗]日程詳細をご確認ください(?:\s*(※下記日程は学校団体様がいらっしゃいます.+))?$/u,
+  );
+  if (detail !== null) {
+    if (detail[1] !== undefined)
+      validateSchoolGroupNote(
+        detail[1],
+        parts.map((part) => part.name),
+        startsOn,
+        endsOn,
+      );
+    return;
+  }
+
+  const explicit = remainder.match(
+    /^[【〖]休演[】〗](.+?)[【〖]貸切[】〗]※幕見席は営業\s*(.+)$/u,
+  );
+  if (explicit === null) throw new SourceParseFailure();
+  const closed = parseKabukiDaySet(explicit[1] ?? "", startsOn, endsOn);
+  let privateText = explicit[2] ?? "";
+  const informationalPrefix = "昼の部では、古式に則り、";
+  const informationalAt = privateText.indexOf(informationalPrefix);
+  if (informationalAt >= 0) {
+    const informational = privateText.slice(informationalAt);
+    privateText = privateText.slice(0, informationalAt).trim();
+    const reference = informational.match(
+      /^昼の部では、古式に則り、.+・開演[（(]((?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?)[）)]に先立ち、.+・.+$/u,
+    );
+    const daytime = parts.find((part) => part.name === "昼の部");
+    const referenceClock = parseJapaneseClock(reference?.[1] ?? "");
+    if (
+      reference === null ||
+      daytime === undefined ||
+      referenceClock === null ||
+      referenceClock.hour !== daytime.clock.hour ||
+      referenceClock.minute !== daytime.clock.minute ||
+      /\d{1,2}日|中止|休演|貸切|変更|のみ|夜の部|[【〖]/u.test(informational)
+    )
+      throw new SourceParseFailure();
+  }
+  const labels = [
+    ...privateText.matchAll(
+      /([昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)[:：]/gu,
+    ),
+  ];
+  if (
+    labels.length === 0 ||
+    privateText.slice(0, labels[0]?.index ?? 0).trim() !== "" ||
+    new Set(labels.map((label) => label[1])).size !== labels.length
+  )
+    throw new SourceParseFailure();
+  const privateByPart = new Map<string, Set<string>>();
+  for (const [index, label] of labels.entries()) {
+    const name = label[1] ?? "";
+    if (!parts.some((part) => part.name === name))
+      throw new SourceParseFailure();
+    privateByPart.set(
+      name,
+      parseKabukiDaySet(
+        privateText.slice(
+          (label.index ?? 0) + label[0].length,
+          labels[index + 1]?.index ?? privateText.length,
+        ),
+        startsOn,
+        endsOn,
+      ),
+    );
+  }
+  for (const [date, cells] of rows) {
+    if (closed.has(date) !== cells.every((cell) => cell === "-"))
+      throw new SourceParseFailure();
+    for (const [index, part] of parts.entries()) {
+      if (
+        (privateByPart.get(part.name)?.has(date) ?? false) ===
+        (cells[index] === "貸切")
+      )
+        continue;
+      throw new SourceParseFailure();
+    }
+  }
+}
+
 export function parseKabukiVerifiedCalendar(
   startsOn: string,
   endsOn: string,
@@ -305,14 +438,7 @@ export function parseKabukiVerifiedCalendar(
   if (markerAt === undefined || /現地時間/u.test(timetable))
     throw new SourceParseFailure();
   const parts = parseKabukiBaseTimes(timetable.slice(0, markerAt));
-  const note = timetable
-    .slice(markerAt)
-    .replace("※当初の発表から公演日程を変更しております", "");
-  if (
-    !/[【〖](?:休演|貸切|休演・貸切)[】〗]/u.test(note) ||
-    /中止|取りやめ|取り消し|変更/u.test(note)
-  )
-    throw new SourceParseFailure();
+  const note = timetable.slice(markerAt);
   const labels = parts.map((part) =>
     part.name === "単独"
       ? `${String(part.clock.hour).padStart(2, "0")}：${String(part.clock.minute).padStart(2, "0")}`
@@ -394,22 +520,13 @@ export function parseKabukiVerifiedCalendar(
     )
       throw new SourceParseFailure();
   }
+  validateCalendarNotes(note, mobileRows, parts, startsOn, endsOn);
   for (const [index, part] of parts.entries()) {
     const base = `${String(part.clock.hour).padStart(2, "0")}:${String(part.clock.minute).padStart(2, "0")}`;
     const values = [...mobileRows.values()].map((cells) => cells[index]);
     const symbols = ["〇", "A", "B", "Aプロ", "Bプロ"];
     const hasSymbol = values.some((value) => symbols.includes(value ?? ""));
-    if (
-      (!hasSymbol && !values.includes(base)) ||
-      (hasSymbol &&
-        values.some(
-          (value) =>
-            value !== undefined &&
-            /^\d{2}:\d{2}$/u.test(value) &&
-            value !== base,
-        ))
-    )
-      throw new SourceParseFailure();
+    if (!hasSymbol && !values.includes(base)) throw new SourceParseFailure();
   }
   const occurrences = dates.flatMap((date) =>
     (mobileRows.get(date) ?? []).flatMap((cell, index) => {

@@ -93,6 +93,17 @@ describe("verified Kabuki daily calendar", () => {
     ]);
   });
 
+  it("keeps an explicit changed clock authoritative beside symbolic cells", () => {
+    const cells = [
+      ["〇", "16：00"],
+      ["12：30", "16：00"],
+      ["-", "-"],
+    ];
+    expect(parse(calendarHtml(cells)).map((item) => item.startsAt)).toContain(
+      "2026-10-02T12:30:00+09:00",
+    );
+  });
+
   it("uses a stated single clock for circle markers, but excludes private and closed dates", () => {
     const cells = [["〇"], ["貸切"], ["-"]];
     const html = calendarHtml(cells, cells, ["14：00"]);
@@ -110,6 +121,38 @@ describe("verified Kabuki daily calendar", () => {
       '<p class="schedule-footer">※貸切公演が入る場合があります</p></section>',
     );
     expect(parse(html)).toHaveLength(4);
+  });
+
+  it("checks explicit rest and part-private notes against the day table", () => {
+    const cells = [
+      ["A", "A"],
+      ["-", "-"],
+      ["貸切", "B"],
+    ];
+    const headline =
+      "昼の部 午前11時～ 夜の部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 昼の部：3日（土） 昼の部では、古式に則り、説明・開演（午前11時）に先立ち、説明・説明";
+    expect(
+      parse(calendarHtml(cells, cells, ["昼の部", "夜の部"]), headline).map(
+        (item) => item.startsAt,
+      ),
+    ).toEqual([
+      "2026-10-01T11:00:00+09:00",
+      "2026-10-01T16:00:00+09:00",
+      "2026-10-03T16:00:00+09:00",
+    ]);
+  });
+
+  it("rejects a table that contradicts an explicit private-day note", () => {
+    const cells = [
+      ["A", "A"],
+      ["-", "-"],
+      ["A", "B"],
+    ];
+    const headline =
+      "昼の部 午前11時～ 夜の部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 昼の部：3日（土）";
+    expect(() =>
+      parse(calendarHtml(cells, cells, ["昼の部", "夜の部"]), headline),
+    ).toThrow(SourceParseFailure);
   });
 
   it.each([
@@ -149,6 +192,12 @@ describe("verified Kabuki daily calendar", () => {
       "unparsed change note",
       calendarHtml(),
       `${HEADLINE} ※第二部 午後5時～に変更`,
+    ],
+    ["unparsed part-only note", calendarHtml(), `${HEADLINE} ※2日は第一部のみ`],
+    [
+      "school-group note with a date outside the performance range",
+      calendarHtml(),
+      `${HEADLINE} ※下記日程は学校団体様がいらっしゃいます 第一部：4日（日）`,
     ],
     ["local clock disclaimer", calendarHtml(), `${HEADLINE} ※現地時間`],
     [
