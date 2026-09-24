@@ -49,7 +49,7 @@ export interface HeldSourcePage {
   readonly title: string;
   readonly startsOn: string;
   readonly endsOn: string;
-  readonly reasonCode: "source_parse";
+  readonly reasonCode: "source_parse" | "published_end_missing";
 }
 
 /**
@@ -77,6 +77,7 @@ interface PlannedCandidateMetadata {
 
 export interface EventPlanningResult extends PlannedCandidateMetadata {
   readonly plan: EventPlanInput;
+  readonly holdReason?: "published_end_missing";
 }
 
 export interface TicketOpportunityPlanningResult extends PlannedCandidateMetadata {

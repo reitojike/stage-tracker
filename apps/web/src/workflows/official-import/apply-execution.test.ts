@@ -302,6 +302,38 @@ describe("approved official import apply execution", () => {
     expect(harness.getFailureClassification()).toBe("source_changed");
   });
 
+  it("does not apply an older Kabuki candidate after a missing-end hold appears", async () => {
+    const harness = setup(eventCandidate());
+    vi.mocked(harness.planner.planEvent).mockResolvedValueOnce({
+      holdReason: "published_end_missing",
+      planFingerprint: "reviewed-event-fingerprint",
+      deterministicMatchStatus: "matched",
+      semanticMatchStatus: "not_used",
+      resolvedEventId: "event-1",
+      plan: {
+        action: "unchanged",
+        detailsChanged: false,
+        rangeChanged: false,
+      },
+    });
+
+    await expect(
+      executeOfficialImportCandidateApply(
+        CANDIDATE_ID,
+        ATTEMPT_TOKEN,
+        harness.planner,
+        harness.repository,
+        harness.catalog,
+      ),
+    ).resolves.toEqual({
+      status: "failed",
+      candidateId: CANDIDATE_ID,
+      failureClassification: "source_changed",
+    });
+    expect(harness.catalog.prepareEvent).not.toHaveBeenCalled();
+    expect(harness.eventPlan.apply).not.toHaveBeenCalled();
+  });
+
   it("marks a changed fingerprint converged when the exact proposal is already current", async () => {
     const candidate = eventCandidate({ resolvedEventId: null });
     const harness = setup(candidate);

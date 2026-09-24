@@ -45,6 +45,9 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   has a readable time range, and the footer is recognized on a page without a
   daily calendar. A present but unreadable `上演時間` section holds the page for
   human review; an absent section leaves a verified approximate end in place.
+  If an existing occurrence has an end but the same opening on the latest
+  official page has no end, stage no update for that play. Report the page as
+  `published_end_missing`; keep the catalog end until a person checks it.
   Staged ends still require human review. A single-month daily calendar
   is read only when the complete permitted headline notes and
   the PC/mobile table views agree on every day and part. A/B program and

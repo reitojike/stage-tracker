@@ -30,7 +30,7 @@ const heldPageSchema = z.object({
   title: z.string().min(1).max(512),
   starts_on: z.iso.date(),
   ends_on: z.iso.date(),
-  reason_code: z.literal("source_parse"),
+  reason_code: z.enum(["source_parse", "published_end_missing"]),
 });
 
 export interface KabukiHeldPageReport {
@@ -42,7 +42,7 @@ export interface KabukiHeldPageReport {
     readonly title: string;
     readonly startsOn: string;
     readonly endsOn: string;
-    readonly reasonCode: "source_parse";
+    readonly reasonCode: "source_parse" | "published_end_missing";
   }[];
 }
 

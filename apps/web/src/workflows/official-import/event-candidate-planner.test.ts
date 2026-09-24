@@ -10,6 +10,8 @@ import { getOfficialSource } from "./source-registry";
 
 const source = getOfficialSource("event.cynhn.calendar");
 if (source === null) throw new Error("test source missing");
+const kabukiSource = getOfficialSource("event.kabuki-bito.schedule");
+if (kabukiSource === null) throw new Error("test Kabuki source missing");
 
 function draft(
   overrides: Partial<EventAcquisitionDraft["proposal"]> = {},
@@ -153,6 +155,52 @@ describe("Event candidate planning", () => {
         endsAt: "2026-10-10T20:49:00+09:00",
       }),
     ]);
+  });
+
+  it("holds a Kabuki play when a previously published end disappears", async () => {
+    const sourceKey = "kabuki-bito:kabukiza:play:985";
+    const current = event({
+      sourceKey,
+      occurrences: [
+        {
+          startsAt: "2026-10-10T18:00:00+09:00",
+          doorsAt: null,
+          endsAt: "2026-10-10T20:35:00+09:00",
+        },
+      ],
+    });
+    const proposal = draft({
+      sourceKey,
+      occurrences: [
+        { startsAt: "2026-10-10T18:00:00+09:00", endsAt: null },
+      ],
+    });
+    const result = await setup(current, []).planner.planEvent(
+      kabukiSource,
+      proposal,
+    );
+    expect(result.holdReason).toBe("published_end_missing");
+    expect(result.plan.endsAtFixes).toEqual([]);
+
+    const withExactEnd = await setup(current, []).planner.planEvent(
+      kabukiSource,
+      draft({
+        sourceKey,
+        occurrences: [
+          {
+            startsAt: "2026-10-10T18:00:00+09:00",
+            endsAt: "2026-10-10T20:49:00+09:00",
+          },
+        ],
+      }),
+    );
+    expect(withExactEnd.holdReason).toBeUndefined();
+    expect(withExactEnd.plan.endsAtFixes).toHaveLength(1);
+    const otherSource = await setup(current, []).planner.planEvent(
+      source,
+      proposal,
+    );
+    expect(otherSource.holdReason).toBeUndefined();
   });
 
   it("resolves differently titled multi-group official notices by unique time and venue", async () => {

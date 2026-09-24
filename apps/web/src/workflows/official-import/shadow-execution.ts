@@ -219,12 +219,13 @@ export async function executeOfficialImportShadowRun(
   try {
     const heldPages: HeldSourcePage[] = [];
     const heldUrls = new Set<string>();
-    const drafts = await adapter.acquire(source, (page) => {
+    const recordHeldPage = (page: HeldSourcePage) => {
       const canonicalUrl = assertAllowedSourceUrl(source, page.canonicalUrl);
       if (
         heldPages.length >= 30 ||
         heldUrls.has(canonicalUrl) ||
-        page.reasonCode !== "source_parse" ||
+        (page.reasonCode !== "source_parse" &&
+          page.reasonCode !== "published_end_missing") ||
         page.officialExternalId.length < 1 ||
         page.officialExternalId.length > 512 ||
         page.officialExternalId.trim() !== page.officialExternalId ||
@@ -240,7 +241,8 @@ export async function executeOfficialImportShadowRun(
         );
       heldUrls.add(canonicalUrl);
       heldPages.push({ ...page, canonicalUrl });
-    });
+    };
+    const drafts = await adapter.acquire(source, recordHeldPage);
     lease.assertOwned();
     const eventCandidates: EventDurableCandidate[] = [];
     const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
@@ -281,6 +283,17 @@ export async function executeOfficialImportShadowRun(
           proposal,
         };
         const planning = await planner.planEvent(source, canonicalDraft);
+        if (planning.holdReason === "published_end_missing") {
+          recordHeldPage({
+            canonicalUrl,
+            officialExternalId: draft.officialExternalId ?? "",
+            title: proposal.title,
+            startsOn: proposal.startsOn,
+            endsOn: proposal.endsOn,
+            reasonCode: "published_end_missing",
+          });
+          continue;
+        }
         const candidate = createEventDurableCandidate({
           runId,
           sourceId: source.id,

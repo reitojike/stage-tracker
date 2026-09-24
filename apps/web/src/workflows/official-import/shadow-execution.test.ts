@@ -353,6 +353,74 @@ describe("official import shadow execution", () => {
     );
   });
 
+  it("reports a vanished Kabuki end without staging an update for that play", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    const url = "https://www.kabuki-bito.jp/theaters/kabukiza/play/985";
+    const result = await executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      {
+        async acquire() {
+          return [
+            {
+              candidateKind: "event",
+              canonicalUrl: url,
+              officialExternalId: "985",
+              observedAt: "2026-09-24T00:00:00.000Z",
+              contentHash: "a".repeat(64),
+              proposal: {
+                sourceKey: "kabuki-bito:kabukiza:play:985",
+                title: "歌舞伎座の公演",
+                startsOn: "2026-10-01",
+                endsOn: "2026-10-20",
+                occurrences: [
+                  { startsAt: "2026-10-01T11:00:00+09:00", endsAt: null },
+                ],
+              },
+            },
+          ];
+        },
+      },
+      {
+        async planEvent() {
+          return {
+            holdReason: "published_end_missing" as const,
+            planFingerprint: "b".repeat(64),
+            plan: {
+              action: "unchanged" as const,
+              detailsChanged: false,
+              rangeChanged: false,
+            },
+          };
+        },
+        async planTicketOpportunity() {
+          throw new Error("not used");
+        },
+      },
+      harness.repository,
+    );
+    expect(result).toMatchObject({ status: "completed", candidateCount: 0 });
+    expect(harness.commitCandidates).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+      [],
+      [
+        {
+          canonicalUrl: url,
+          officialExternalId: "985",
+          title: "歌舞伎座の公演",
+          startsOn: "2026-10-01",
+          endsOn: "2026-10-20",
+          reasonCode: "published_end_missing",
+        },
+      ],
+    );
+    expect(harness.eventCandidates).toHaveLength(0);
+  });
+
   it("does not commit a held page outside the source allowlist", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const harness = repositoryHarness();
