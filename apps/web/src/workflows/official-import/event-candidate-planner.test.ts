@@ -171,9 +171,7 @@ describe("Event candidate planning", () => {
     });
     const proposal = draft({
       sourceKey,
-      occurrences: [
-        { startsAt: "2026-10-10T18:00:00+09:00", endsAt: null },
-      ],
+      occurrences: [{ startsAt: "2026-10-10T18:00:00+09:00", endsAt: null }],
     });
     const result = await setup(current, []).planner.planEvent(
       kabukiSource,
