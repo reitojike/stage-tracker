@@ -18,10 +18,14 @@ describe("official source registry", () => {
     expect(source.canonicalUrl).toBe("https://www.kabuki-bito.jp/schedule/");
   });
 
-  it("keeps every source out of Cron until its separate operator gate clears", () => {
-    expect(listScheduledShadowSources()).toEqual([]);
+  it("schedules only the cleared weekly Kabuki source", () => {
+    expect(listScheduledShadowSources().map((source) => source.id)).toEqual([
+      "event.kabuki-bito.schedule",
+    ]);
     expect(
-      listOfficialSources().every((source) => !source.scheduledEnabled),
+      listOfficialSources()
+        .filter((source) => source.id !== "event.kabuki-bito.schedule")
+        .every((source) => !source.scheduledEnabled),
     ).toBe(true);
     expect(
       getOfficialSource("event.kabuki-bito.schedule")?.fetchCadenceHint,
@@ -30,10 +34,7 @@ describe("official source registry", () => {
       "weekly",
     );
     const approved = requireEnabledShadowSource("event.kabuki-bito.schedule");
-    expect(isScheduledShadowSource(approved)).toBe(false);
-    expect(
-      isScheduledShadowSource({ ...approved, scheduledEnabled: true }),
-    ).toBe(true);
+    expect(isScheduledShadowSource(approved)).toBe(true);
     expect(
       isScheduledShadowSource({
         ...approved,

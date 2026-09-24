@@ -5,5 +5,11 @@
       "**": false,
       "main": true
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/official-import/cron",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

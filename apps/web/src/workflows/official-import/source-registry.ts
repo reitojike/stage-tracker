@@ -39,7 +39,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "kabuki_bito",
     domainKind: "event",
     enabled: true,
-    scheduledEnabled: false,
+    scheduledEnabled: true,
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "weekly",
