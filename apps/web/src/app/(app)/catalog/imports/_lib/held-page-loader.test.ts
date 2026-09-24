@@ -26,7 +26,7 @@ describe("latest Kabuki held-page report", () => {
         expect(query.get("source_id")).toBe("eq.event.kabuki-bito.schedule");
         expect(query.get("status")).toBe("eq.completed");
         return HttpResponse.json([
-          { id: RUN_ID, started_at: "2026-09-24T00:00:00Z" },
+          { id: RUN_ID, started_at: "2026-09-24T00:00:00.123456+00:00" },
         ]);
       }),
       http.get(`${REST_URL}/official_import_held_pages`, ({ request }) => {
@@ -51,6 +51,7 @@ describe("latest Kabuki held-page report", () => {
       ok: true,
       value: {
         runId: RUN_ID,
+        startedAt: "2026-09-24T00:00:00.123456+00:00",
         pages: [{ officialExternalId: "1000", reasonCode: "source_parse" }],
       },
     });

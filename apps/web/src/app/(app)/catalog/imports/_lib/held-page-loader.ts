@@ -11,7 +11,7 @@ import { runSupabaseSelect } from "@/lib/data/supabase-select";
 const SOURCE_ID = "event.kabuki-bito.schedule";
 const runSchema = z.object({
   id: z.uuid(),
-  started_at: z.iso.datetime(),
+  started_at: z.iso.datetime({ offset: true }),
 });
 const heldPageSchema = z.object({
   canonical_url: z.url().refine((value) => {
