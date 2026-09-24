@@ -290,7 +290,7 @@ function verifiedDetailText(
       /(?:^|\s)(?:cancelled|canceled|deleted|struck|strikethrough|is-cancelled|is-canceled|is-deleted)(?:\s|$)/iu.test(
         attribute(ancestor, "class") ?? "",
       ) ||
-      /text-decoration\s*:\s*line-through/iu.test(
+      /(?:^|;)\s*text-decoration(?:-line)?\s*:\s*[^;]*\bline-through\b/iu.test(
         attribute(ancestor, "style") ?? "",
       )
     )

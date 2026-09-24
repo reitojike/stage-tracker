@@ -323,6 +323,8 @@ describe("Kabuki-bito adapter facts", () => {
   it.each([
     '<del><p class="type-timetable">昼の部 午前11時～</p></del>',
     '<div class="is-cancelled"><p class="type-timetable">昼の部 午前11時～</p></div>',
+    '<div style="text-decoration-line: line-through"><p class="type-timetable">昼の部 午前11時～</p></div>',
+    '<div style="color: red; text-decoration: red line-through"><p class="type-timetable">昼の部 午前11時～</p></div>',
   ])("rejects an externally withdrawn timetable: %s", async (timetable) => {
     const adapter = createKabukiBitoAdapter(async (_source, url) =>
       document(
