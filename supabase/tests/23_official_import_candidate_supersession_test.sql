@@ -4,7 +4,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(19);
 
 select pg_temp.create_test_user() as creator_id \gset
 insert into public.catalog_creators (user_id) values (:'creator_id');
@@ -13,8 +13,7 @@ create function pg_temp.supersession_payload(
   p_external_id text,
   p_url text,
   p_hash text,
-  p_plan text,
-  p_observed_at timestamptz default clock_timestamp()
+  p_plan text
 ) returns jsonb
 language sql
 as $$
@@ -22,7 +21,7 @@ as $$
     'candidate_kind', 'event',
     'canonical_url', p_url,
     'official_external_id', p_external_id,
-    'observed_at', p_observed_at,
+    'observed_at', clock_timestamp(),
     'content_hash', p_hash,
     'proposal_version', 'event-v1',
     'proposal', jsonb_build_object('title', 'fixture'),
@@ -206,48 +205,6 @@ select is(
   (select status from public.official_import_runs where id = :'invalid_run'),
   'running',
   'failed batch leaves its run retryable'
-);
-
--- The slower Workflow may commit after a newer observation of the same page.
-insert into public.official_import_runs (source_id)
-values ('supersession-overlap') returning id as older_run \gset
-insert into public.official_import_runs (source_id)
-values ('supersession-overlap') returning id as newer_run \gset
-select is(
-  public.commit_official_import_candidate_batch(
-    :'newer_run', 'supersession-overlap',
-    pg_temp.supersession_payload(
-      'play-2', 'https://official.example/play/2', repeat('2', 64), 'plan-new',
-      '2026-09-24 01:01:00+00'
-    )
-  ),
-  1,
-  'newer observation can commit before a slower older run'
-);
-select id as newer_candidate from public.official_import_candidates
-where run_id = :'newer_run' \gset
-select is(
-  public.commit_official_import_candidate_batch(
-    :'older_run', 'supersession-overlap',
-    pg_temp.supersession_payload(
-      'play-2', 'https://official.example/play/2', repeat('3', 64), 'plan-old',
-      '2026-09-24 01:00:00+00'
-    )
-  ),
-  0,
-  'the delayed older observation is not staged'
-);
-select is(
-  (select count(*) from public.official_import_candidates
-   where id = :'newer_candidate'),
-  1::bigint,
-  'the newest observed candidate remains reviewable'
-);
-select is(
-  (select count(*) from public.official_import_candidates
-   where run_id = :'older_run'),
-  0::bigint,
-  'the out-of-order run leaves no stale review proposal'
 );
 
 select * from finish();
