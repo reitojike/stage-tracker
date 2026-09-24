@@ -138,8 +138,8 @@ select is(
       'https://official.example/event/renamed', 'official-1', repeat('a', 64), 'plan-a'
     )
   ),
-  0,
-  'an official external ID remains stable across a permalink change'
+  1,
+  'a previously superseded version can return as the latest candidate under the stable external ID'
 );
 
 insert into public.official_import_runs (source_id)
