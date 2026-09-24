@@ -66,13 +66,17 @@ function verifiedTimeText(node: HtmlNode): string | null {
 function partTimes(part: HtmlNode): { start: number; end: number } | null {
   const headers = children(part, "dt");
   const contents = children(part, "dd");
+  const partElements = elementChildrenWithoutLooseText(part);
   const header = headers[0];
   const content = contents[0];
   if (
     headers.length !== 1 ||
     contents.length !== 1 ||
     header === undefined ||
-    content === undefined
+    content === undefined ||
+    partElements?.length !== 2 ||
+    partElements[0] !== header ||
+    partElements[1] !== content
   )
     return null;
   if (
@@ -109,10 +113,17 @@ function partTimes(part: HtmlNode): { start: number; end: number } | null {
     const times = elements.filter(
       (node) => elementName(node) === "time" && hasClass(node, "time"),
     );
+    const playNames = elements.filter(
+      (node) => elementName(node) === "p" && hasClass(node, "playname"),
+    );
     const time = times[0];
     if (
       times.length !== 1 ||
       time === undefined ||
+      playNames.length > 1 ||
+      playNames.some((node) =>
+        /※|終演|上演時間|変更|\d{1,2}日/u.test(normalizedText(node)),
+      ) ||
       elements.some(
         (node) =>
           node !== time &&
@@ -173,21 +184,21 @@ export function withKabukiPerformanceEnds<T extends Occurrence>(
   );
   const section = sections[0];
   if (sections.length !== 1 || section === undefined) return unchanged;
+  const sectionElements = elementChildrenWithoutLooseText(section);
   const headings = children(section, "h3");
   const notes = children(section, "div");
   const parts = children(section, "dl");
-  const tags =
-    "childNodes" in section
-      ? section.childNodes.map(elementName).filter((name) => name !== null)
-      : [];
   if (
+    sectionElements === null ||
     headings.length !== 1 ||
     headings[0] === undefined ||
     normalizedText(headings[0]) !== "上演時間" ||
     notes.length > 1 ||
     parts.length === 0 ||
     parts.some((part) => !hasClass(part, "type-part")) ||
-    tags.some((tag) => !["h3", "dl", "div"].includes(tag))
+    sectionElements.some(
+      (element) => !["h3", "dl", "div"].includes(elementName(element) ?? ""),
+    )
   )
     return unchanged;
   const note = notes[0] === undefined ? "" : normalizedText(notes[0]);

@@ -88,6 +88,11 @@ describe("Kabuki act-by-act performance ends", () => {
     timetable.replace("7：52－8：49", "7：52－終演未定"),
     timetable.replace("1：26－3：12", "1：26－0：12"),
     timetable.replace("12：00－12：51", "10：00－10：51"),
+    timetable.replace("</dl>\n  <div>", "</dl>※3日は終演が変更になります<div>"),
+    timetable.replace(
+      "</dd></dl>",
+      "</dd><p>※3日は終演が変更になります</p></dl>",
+    ),
     timetable.replace(
       "</ul>\n  </dd>",
       "</ul><p>※3日は終演が変更になります</p></dd>",
@@ -96,6 +101,10 @@ describe("Kabuki act-by-act performance ends", () => {
     timetable.replace(
       '<li class="item"><time class="time">1：26－3：12</time></li>',
       '<li class="item"><time class="time">1：26－3：12</time></li><li>※3日は終演が変更になります</li>',
+    ),
+    timetable.replace(
+      '<li class="item"><time class="time">1：26－3：12</time></li>',
+      '<li class="item"><p class="playname">※3日は終演変更</p><time class="time">1：26－3：12</time></li>',
     ),
     timetable.replace(
       /<dl class="list type-part"><dt><span>夜の部<\/span><\/dt>[\s\S]*?<\/dl>/u,
