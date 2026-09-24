@@ -286,6 +286,103 @@ describe("official import shadow execution", () => {
     expect(harness.failRun).not.toHaveBeenCalled();
   });
 
+  it("commits verified candidates and a bounded held-page report together", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const held = {
+      canonicalUrl: "https://www.kabuki-bito.jp/theaters/other/play/1000",
+      officialExternalId: "1000",
+      title: "保留公演",
+      startsOn: "2026-10-01",
+      endsOn: "2026-10-02",
+      reasonCode: "source_parse" as const,
+    };
+    const adapter: OfficialSourceAdapter = {
+      async acquire(_source, reportHeldPage) {
+        reportHeldPage?.(held);
+        return [
+          {
+            candidateKind: "event",
+            canonicalUrl:
+              "https://www.kabuki-bito.jp/theaters/kabukiza/play/986",
+            officialExternalId: "986",
+            observedAt: "2026-09-22T00:00:00.000Z",
+            contentHash: "a".repeat(64),
+            proposal: {
+              sourceKey: "kabuki-bito:kabukiza:play:986",
+              title: "確認済み公演",
+              startsOn: "2026-10-01",
+              endsOn: "2026-10-02",
+              occurrences: [{ startsAt: "2026-10-01T11:00:00+09:00" }],
+            },
+          },
+        ];
+      },
+    };
+    const planner: OfficialImportCandidatePlanner = {
+      async planEvent() {
+        return {
+          planFingerprint: "b".repeat(64),
+          plan: {
+            action: "create",
+            detailsChanged: false,
+            rangeChanged: false,
+            newOccurrences: [{}],
+          },
+        };
+      },
+      async planTicketOpportunity() {
+        throw new Error("not used");
+      },
+    };
+    const harness = repositoryHarness();
+    const result = await executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      adapter,
+      planner,
+      harness.repository,
+    );
+    expect(result).toMatchObject({ status: "completed", candidateCount: 1 });
+    expect(harness.commitCandidates).toHaveBeenCalledWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+      [expect.objectContaining({ officialExternalId: "986" })],
+      [held],
+    );
+  });
+
+  it("does not commit a held page outside the source allowlist", async () => {
+    const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+    const harness = repositoryHarness();
+    const result = await executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      {
+        async acquire(_source, reportHeldPage) {
+          reportHeldPage?.({
+            canonicalUrl: "https://example.org/foreign",
+            officialExternalId: "1000",
+            title: "保留公演",
+            startsOn: "2026-10-01",
+            endsOn: "2026-10-02",
+            reasonCode: "source_parse",
+          });
+          return [];
+        },
+      },
+      unusedPlanner,
+      harness.repository,
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      failureClassification: "validation",
+    });
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
+  });
+
   it("releases ownership and retries a transient fetch failure", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const harness = repositoryHarness();

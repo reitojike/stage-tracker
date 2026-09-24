@@ -292,6 +292,11 @@ marker ではなく、依然として reviewer の運用規律が担う。
   Workflow retry に渡します。parse、validation、unexpected failure は現在の所有者だけが
   terminal failure として記録します。failure 記録時に所有権を失っていた場合は terminal
   state を上書きせず、現在の attempt または次の retry が確定済み state を読み直します。
+- 歌舞伎sourceは、個別詳細ページの厳密な日程解析だけが失敗した場合、そのページを
+  候補から除外してURL・公式ID・作品名・日付範囲・定型理由コードをheld reportへ記録します。
+  検証済みの兄弟ページの候補とheld reportは、所有権を確認した単一DB transactionで
+  完了します。index全体、HTTP/provider、所有権、候補検証の失敗は従来どおりrun全体を
+  fail-closedにします。報告は指定creatorに限って見せ、raw本文・解析エラー文は保存しません。
 - P4 の Event canary は宝塚公式、歌舞伎美人、SKIYAKI calendar（CYNHN）を
   source-family extractorとして実装します。取得方式とextractor familyはregistryで
   分離し、MEME TOKYO / ARCANA PROJECTは同じSKIYAKI extractorを再利用できます。

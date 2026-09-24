@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   SourceParseFailure,
   type EventAcquisitionDraft,
+  type HeldSourcePage,
   type OfficialSourceAdapter,
 } from "../acquisition";
 import {
@@ -214,6 +215,7 @@ export function parseKabukiDetailedOccurrences(
   endsOn: string,
   timetable: string,
   html = "",
+  onAnnotation?: () => void,
 ): readonly { startsAt: string; endsAt: null }[] {
   // A calendar is authoritative only when both rendered views and the entire
   // headline can be verified together. Never expand its base times by default.
@@ -223,8 +225,16 @@ export function parseKabukiDetailedOccurrences(
       (node) =>
         elementName(node) === "table" && hasClass(node, "type-calendar"),
     ).length > 0
-  )
-    return parseKabukiVerifiedCalendar(startsOn, endsOn, timetable, html);
+  ) {
+    const calendar = parseKabukiVerifiedCalendar(
+      startsOn,
+      endsOn,
+      timetable,
+      html,
+    );
+    if (calendar.hasAnnotation) onAnnotation?.();
+    return calendar.occurrences;
+  }
   // Some short engagements publish each date/time directly in the headline.
   // Require every date and clock token to be paired. Varying daily tables are
   // not yet mapped to verified showtime columns and cannot be inferred here.
@@ -393,7 +403,10 @@ export function createKabukiBitoAdapter(
     new Promise((resolve) => setTimeout(resolve, 1_000)),
 ): OfficialSourceAdapter {
   return {
-    async acquire(source): Promise<readonly EventAcquisitionDraft[]> {
+    async acquire(
+      source,
+      reportHeldPage,
+    ): Promise<readonly EventAcquisitionDraft[]> {
       const index = await fetcher(source, source.canonicalUrl);
       const facts = parseKabukiIndex(source, index.body);
       if (facts.length > MAX_PLAYS_PER_SCAN) throw new SourceParseFailure();
@@ -406,61 +419,92 @@ export function createKabukiBitoAdapter(
           facts
             .slice(offset, offset + 2)
             .map(async (fact) => {
-              const detail = await fetcher(source, fact.canonicalUrl);
-              const finalPath = new URL(detail.url).pathname.match(
-                /^\/theaters\/([^/]+)\/play\/(\d+)\/?$/u,
-              );
-              if (
-                finalPath?.[1] !== fact.theater ||
-                finalPath?.[2] !== fact.officialId
-              )
-                throw new SourceParseFailure();
-              const { timetable, period } = verifiedDetailSchedule(detail.body);
-              if (
-                period.startsOn !== fact.startsOn ||
-                period.endsOn !== fact.endsOn
-              )
-                throw new SourceParseFailure();
-              const venue = detailText(detail.body, "type-theater");
-              return {
-                candidateKind: "event" as const,
-                canonicalUrl: detail.url,
-                officialExternalId: fact.officialId,
-                observedAt: detail.observedAt,
-                contentHash: hashOfficialDocuments([index, detail]),
-                etag: detail.etag,
-                lastModified: detail.lastModified,
-                evidenceLocator: {
-                  sectionLabel: "公演情報",
-                  fragmentId: fact.officialId,
-                },
-                proposal: {
-                  sourceKey: `kabuki-bito:${fact.theater}:play:${fact.officialId}`,
-                  title: fact.title,
-                  venue,
-                  memo: /[【〖](?:休演|貸切)[】〗]/u.test(timetable)
+              try {
+                const detail = await fetcher(source, fact.canonicalUrl);
+                const finalPath = new URL(detail.url).pathname.match(
+                  /^\/theaters\/([^/]+)\/play\/(\d+)\/?$/u,
+                );
+                if (
+                  finalPath?.[1] !== fact.theater ||
+                  finalPath?.[2] !== fact.officialId
+                )
+                  throw new SourceParseFailure();
+                const { timetable, period } = verifiedDetailSchedule(
+                  detail.body,
+                );
+                if (
+                  period.startsOn !== fact.startsOn ||
+                  period.endsOn !== fact.endsOn
+                )
+                  throw new SourceParseFailure();
+                const venue = detailText(detail.body, "type-theater");
+                let hasAnnotation = false;
+                const occurrences = hasUnpublishedOpeningTime(
+                  timetable,
+                  detail.body,
+                  fact.startsOn,
+                  fact.endsOn,
+                )
+                  ? []
+                  : [
+                      ...parseKabukiDetailedOccurrences(
+                        fact.startsOn,
+                        fact.endsOn,
+                        timetable,
+                        detail.body,
+                        () => {
+                          hasAnnotation = true;
+                        },
+                      ),
+                    ];
+                const memoParts = [
+                  /[【〖](?:休演|貸切)[】〗]/u.test(timetable)
                     ? "公式日程の休演・貸切日をOccurrence候補から除外"
                     : null,
-                  sourceUrl: detail.url,
+                  hasAnnotation
+                    ? "公式日程に注記あり。承認・反映前に公式ページで日時を確認"
+                    : null,
+                ].filter((value): value is string => value !== null);
+                const draft: EventAcquisitionDraft = {
+                  candidateKind: "event",
+                  canonicalUrl: detail.url,
+                  officialExternalId: fact.officialId,
+                  observedAt: detail.observedAt,
+                  contentHash: hashOfficialDocuments([index, detail]),
+                  etag: detail.etag,
+                  lastModified: detail.lastModified,
+                  evidenceLocator: {
+                    sectionLabel: "公演情報",
+                    fragmentId: fact.officialId,
+                  },
+                  proposal: {
+                    sourceKey: `kabuki-bito:${fact.theater}:play:${fact.officialId}`,
+                    title: fact.title,
+                    venue,
+                    memo: memoParts.length > 0 ? memoParts.join("。") : null,
+                    sourceUrl: detail.url,
+                    startsOn: fact.startsOn,
+                    endsOn: fact.endsOn,
+                    occurrences,
+                  },
+                };
+                return { kind: "draft" as const, draft };
+              } catch (error) {
+                if (
+                  reportHeldPage === undefined ||
+                  !(error instanceof SourceParseFailure)
+                )
+                  throw error;
+                const held: HeldSourcePage = {
+                  canonicalUrl: fact.canonicalUrl,
+                  officialExternalId: fact.officialId,
+                  title: fact.title,
                   startsOn: fact.startsOn,
                   endsOn: fact.endsOn,
-                  occurrences: hasUnpublishedOpeningTime(
-                    timetable,
-                    detail.body,
-                    fact.startsOn,
-                    fact.endsOn,
-                  )
-                    ? []
-                    : [
-                        ...parseKabukiDetailedOccurrences(
-                          fact.startsOn,
-                          fact.endsOn,
-                          timetable,
-                          detail.body,
-                        ),
-                      ],
-                },
-              };
+                  reasonCode: "source_parse",
+                };
+                return { kind: "held" as const, held };
+              }
             })
             .map((request) =>
               request.catch((reason: unknown) => {
@@ -473,11 +517,11 @@ export function createKabukiBitoAdapter(
         // and retries; otherwise old and new attempts can overlap requests.
         // Preserve arrival order, not the input order returned by allSettled.
         if (firstFailure !== undefined) throw firstFailure.reason;
-        drafts.push(
-          ...settled.flatMap((result) =>
-            result.status === "fulfilled" ? [result.value] : [],
-          ),
-        );
+        for (const result of settled) {
+          if (result.status !== "fulfilled") continue;
+          if (result.value.kind === "draft") drafts.push(result.value.draft);
+          else reportHeldPage?.(result.value.held);
+        }
         if (offset + 2 < facts.length) await pauseBetweenBatches();
       }
       return drafts;

@@ -1,11 +1,16 @@
 import { userIdSchema } from "@stage-tracker/domain";
 import { BackLink, PageHeading, StatePanel } from "@stage-tracker/ui";
-import { classifyListReadResult } from "@/lib/data/read-result";
+import {
+  classifyListReadResult,
+  classifyReadResult,
+} from "@/lib/data/read-result";
 import { isDesignatedCatalogCreator } from "@/lib/data/creator-capability";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { reviewOfficialImportCandidateAction } from "@/lib/actions/officialImportReview.actions";
 import { startOfficialImportApplyAction } from "@/lib/actions/officialImportApply.actions";
 import { OfficialImportReviewQueue } from "./_components/OfficialImportReviewQueue";
+import { KabukiHeldPageReport } from "./_components/KabukiHeldPageReport";
+import { loadLatestKabukiHeldPageReport } from "./_lib/held-page-loader";
 import { loadOfficialImportReviewQueue } from "./_lib/review-loader";
 
 export default async function OfficialImportReviewPage() {
@@ -34,7 +39,10 @@ export default async function OfficialImportReviewPage() {
       />
     );
   }
-  const queue = await loadOfficialImportReviewQueue(supabase);
+  const [queue, heldPages] = await Promise.all([
+    loadOfficialImportReviewQueue(supabase),
+    loadLatestKabukiHeldPageReport(supabase),
+  ]);
   return (
     <div className="flex flex-col gap-section">
       <div className="flex flex-col gap-sm">
@@ -44,6 +52,13 @@ export default async function OfficialImportReviewPage() {
           公式情報から生成された候補を確認します。承認後に反映を開始すると、最新のカタログ状態で再計画してからEventまたはTicketOpportunityへ反映します。
         </p>
       </div>
+      <KabukiHeldPageReport
+        state={classifyReadResult(
+          heldPages,
+          (report) => report,
+          (report) => report === null,
+        )}
+      />
       <OfficialImportReviewQueue
         state={classifyListReadResult(queue)}
         reviewAction={reviewOfficialImportCandidateAction}

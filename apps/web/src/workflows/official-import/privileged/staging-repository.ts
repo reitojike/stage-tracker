@@ -7,6 +7,7 @@ import { parseCanonicalProposal } from "@stage-tracker/official-import/durable-c
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/data/database.types";
 import { deriveOfficialImportCandidateReviewStatus } from "../candidate-review";
+import type { HeldSourcePage } from "../acquisition";
 import {
   OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS,
   OfficialImportAttemptRetryError,
@@ -134,6 +135,7 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
     candidates: readonly (
       EventDurableCandidate | TicketOpportunityDurableCandidate
     )[],
+    heldPages: readonly HeldSourcePage[] = [],
   ): Promise<number> {
     if (
       candidates.some(
@@ -145,15 +147,32 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
         "Official import candidate batch identity does not match",
       );
 
-    const { data, error } = await this.client.rpc(
-      "commit_owned_official_import_candidate_batch",
-      {
-        p_run_id: runId,
-        p_source_id: sourceId,
-        p_attempt_token: attemptToken,
-        p_candidates: candidates.map(candidateBatchPayload),
-      },
-    );
+    const candidatePayload = candidates.map(candidateBatchPayload);
+    const { data, error } =
+      heldPages.length === 0
+        ? await this.client.rpc(
+            "commit_owned_official_import_candidate_batch",
+            {
+              p_run_id: runId,
+              p_source_id: sourceId,
+              p_attempt_token: attemptToken,
+              p_candidates: candidatePayload,
+            },
+          )
+        : await this.client.rpc("commit_owned_official_import_partial_batch", {
+            p_run_id: runId,
+            p_source_id: sourceId,
+            p_attempt_token: attemptToken,
+            p_candidates: candidatePayload,
+            p_held_pages: heldPages.map((page) => ({
+              canonical_url: page.canonicalUrl,
+              official_external_id: page.officialExternalId,
+              title: page.title,
+              starts_on: page.startsOn,
+              ends_on: page.endsOn,
+              reason_code: page.reasonCode,
+            })),
+          });
     if (error?.code === "55000")
       throw new OfficialImportAttemptRetryError("ownership_lost");
     if (error !== null || data === null)
