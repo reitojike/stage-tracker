@@ -40,11 +40,12 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   changes fail closed. A fully validated approximate closing-time note supplies
   a provisional occurrence end and a source-check memo; an absent or malformed
   note never creates an end. An act-by-act `上演時間` section takes precedence
-  and may supply a final-act end only when each named part matches its verified
-  headline opening, the act/interlude sequence is complete, and its footer is
-  recognized on a page without a daily calendar. Unknown layouts
-  and date-specific notes do not override a verified approximate end or invent
-  an end; staged ends still require human review. A single-month daily calendar
+  and may supply a final-act end only for the observed official timetable
+  structure: each named part matches its verified headline opening, each act
+  has a readable time range, and the footer is recognized on a page without a
+  daily calendar. A present but unreadable `上演時間` section holds the page for
+  human review; an absent section leaves a verified approximate end in place.
+  Staged ends still require human review. A single-month daily calendar
   is read only when the complete permitted headline notes and
   the PC/mobile table views agree on every day and part. A/B program and
   circle markers use an explicit base clock for their part; numeric cells

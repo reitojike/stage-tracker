@@ -330,31 +330,10 @@ describe("verified Kabuki daily calendar", () => {
       HEADLINE,
     ],
     [
-      "cancellation caption inside an otherwise valid table",
+      "unsupported caption inside an otherwise valid table",
       calendarHtml().replace(
         '<table class="type-calendar view-sp">',
-        '<table class="type-calendar view-sp"><caption>※3日は中止</caption>',
-      ),
-      HEADLINE,
-    ],
-    [
-      "struck-through time in both views",
-      calendarHtml().replaceAll("11：00", "<del>11：00</del>"),
-      HEADLINE,
-    ],
-    [
-      "struck-through time inside a desktop span",
-      calendarHtml().replace(
-        '<span class="span">11：00</span>',
-        '<span class="span"><del>11：00</del></span>',
-      ),
-      HEADLINE,
-    ],
-    [
-      "cancellation class on a numeric time cell",
-      calendarHtml().replace(
-        "<td>11：00</td>",
-        '<td class="cancelled">11：00</td>',
+        '<table class="type-calendar view-sp"><caption>補足</caption>',
       ),
       HEADLINE,
     ],

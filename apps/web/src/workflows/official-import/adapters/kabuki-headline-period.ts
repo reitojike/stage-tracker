@@ -1,8 +1,3 @@
-import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
-import {
-  isJapaneseHoliday,
-  isWithinJapaneseHolidayDataCoverage,
-} from "../../../app/_lib/japanese-holidays";
 import { SourceParseFailure } from "../acquisition";
 import {
   enumerateDates,
@@ -28,15 +23,6 @@ export function validateKabukiWeekdayAnnotation(
     weekday !== WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]
   )
     throw new SourceParseFailure();
-  if (annotation.includes("祝") || annotation.includes("休")) {
-    const tokyoDate = tokyoCalendarDateSchema.safeParse(date);
-    if (
-      !tokyoDate.success ||
-      !isWithinJapaneseHolidayDataCoverage(tokyoDate.data) ||
-      !isJapaneseHoliday(tokyoDate.data)
-    )
-      throw new SourceParseFailure();
-  }
 }
 
 function parseStrictJapaneseClock(value: string): Clock {

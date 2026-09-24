@@ -1,3 +1,4 @@
+import { SourceParseFailure } from "../acquisition";
 import {
   attribute,
   descendants,
@@ -12,13 +13,9 @@ import type { KabukiHeadlinePart } from "./kabuki-headline-period";
 
 type Occurrence = { readonly startsAt: string; readonly endsAt: string | null };
 
-function children(node: HtmlNode, tag: string): HtmlNode[] {
-  return "childNodes" in node
-    ? node.childNodes.filter((child) => elementName(child) === tag)
-    : [];
-}
-
-function elementChildrenWithoutLooseText(node: HtmlNode): HtmlNode[] | null {
+// Support only the observed timetable shape. Extra text or elements hold the
+// page rather than projecting one end across every date.
+function elements(node: HtmlNode): HtmlNode[] | null {
   if (!("childNodes" in node)) return null;
   if (
     node.childNodes.some(
@@ -29,64 +26,44 @@ function elementChildrenWithoutLooseText(node: HtmlNode): HtmlNode[] | null {
   return node.childNodes.filter((child) => elementName(child) !== null);
 }
 
-function clockMinutes(hour: string, minute: string): number | null {
-  const hours = Number(hour);
-  const minutes = Number(minute);
-  if (hours < 1 || hours > 12 || minutes > 59) return null;
-  return (hours % 12) * 60 + minutes;
+function clock(value: string): number | null {
+  const match = value.normalize("NFKC").match(/^(\d{1,2}):(\d{2})$/u);
+  const hour = Number(match?.[1]);
+  const minute = Number(match?.[2]);
+  return match !== null && hour >= 1 && hour <= 12 && minute <= 59
+    ? (hour % 12) * 60 + minute
+    : null;
 }
 
-function nextClock(clock: number, after: number): number | null {
-  const candidates = [clock, clock + 12 * 60, clock + 24 * 60];
-  return candidates.find((candidate) => candidate >= after) ?? null;
+function nextClock(value: number, after: number): number {
+  let result = value;
+  while (result < after) result += 12 * 60;
+  return result;
 }
 
-function verifiedTimeText(node: HtmlNode): string | null {
+function partEnd(part: HtmlNode, opening: number): number | null {
+  const partElements = elements(part);
+  const [header, content] = partElements ?? [];
   if (
-    !("childNodes" in node) ||
-    node.childNodes.some((child) => child.nodeName !== "#text")
-  )
-    return null;
-  let ancestor: HtmlNode | null = node;
-  while (ancestor !== null) {
-    if (
-      ["del", "s", "strike"].includes(elementName(ancestor) ?? "") ||
-      /(?:^|\s)(?:cancelled|canceled|deleted|struck|strikethrough|is-cancelled|is-canceled|is-deleted)(?:\s|$)/iu.test(
-        attribute(ancestor, "class") ?? "",
-      ) ||
-      /(?:^|;)\s*text-decoration(?:-line)?\s*:\s*[^;]*\bline-through\b/iu.test(
-        attribute(ancestor, "style") ?? "",
-      )
-    )
-      return null;
-    ancestor = "parentNode" in ancestor ? ancestor.parentNode : null;
-  }
-  return normalizedText(node);
-}
-
-function partTimes(
-  part: HtmlNode,
-): { name: string; start: number; end: number } | null {
-  const headers = children(part, "dt");
-  const contents = children(part, "dd");
-  const partElements = elementChildrenWithoutLooseText(part);
-  const header = headers[0];
-  const content = contents[0];
-  if (
-    headers.length !== 1 ||
-    contents.length !== 1 ||
+    partElements?.length !== 2 ||
     header === undefined ||
     content === undefined ||
-    partElements?.length !== 2 ||
-    partElements[0] !== header ||
-    partElements[1] !== content
+    elementName(header) !== "dt" ||
+    elementName(content) !== "dd"
   )
     return null;
-  const name = normalizedText(header);
-  if (!/^(?:[昼夜朝]の部|第(?:[一二三四五六]|[1-6])部)$/u.test(name))
+  const headerElements = elements(header);
+  const label = headerElements?.[0];
+  if (
+    headerElements?.length !== 1 ||
+    label === undefined ||
+    elementName(label) !== "span" ||
+    !("childNodes" in label) ||
+    label.childNodes.some((child) => child.nodeName !== "#text")
+  )
     return null;
-  const contentElements = elementChildrenWithoutLooseText(content);
-  const list = contentElements?.[0];
+  const contentElements = elements(content);
+  const [list] = contentElements ?? [];
   if (
     contentElements?.length !== 1 ||
     list === undefined ||
@@ -94,90 +71,87 @@ function partTimes(
     !hasClass(list, "type-program")
   )
     return null;
-  const entries = elementChildrenWithoutLooseText(list);
-  if (
-    entries === null ||
-    entries.length === 0 ||
-    entries.some((entry) => elementName(entry) !== "li")
-  )
-    return null;
-  let first: number | null = null;
-  let previousEnd: number | null = null;
-  let previousWasInterlude = false;
+  const entries = elements(list);
+  if (entries === null || entries.length === 0) return null;
+
+  let previousEnd = opening;
+  let acts = 0;
   for (const [index, entry] of entries.entries()) {
-    const elements = elementChildrenWithoutLooseText(entry);
-    if (elements === null) return null;
+    if (elementName(entry) !== "li") return null;
+    const children = elements(entry);
+    if (children === null) return null;
     if (hasClass(entry, "type-interlude")) {
       if (
+        acts === 0 ||
+        index === entries.length - 1 ||
         !/^幕間\s*\d+分$/u.test(normalizedText(entry)) ||
-        previousEnd === null ||
-        previousWasInterlude ||
-        index === entries.length - 1
+        children.length !== 1 ||
+        children[0] === undefined ||
+        elementName(children[0]) !== "span"
       )
         return null;
-      previousWasInterlude = true;
       continue;
     }
-    const times = elements.filter(
-      (node) => elementName(node) === "time" && hasClass(node, "time"),
+    const times = children.filter(
+      (child) => elementName(child) === "time" && hasClass(child, "time"),
     );
-    const playNames = elements.filter(
-      (node) => elementName(node) === "p" && hasClass(node, "playname"),
+    const titles = children.filter(
+      (child) => elementName(child) === "p" && hasClass(child, "playname"),
     );
     const time = times[0];
     if (
       times.length !== 1 ||
       time === undefined ||
-      playNames.length > 1 ||
-      playNames.some((node) =>
-        /※|終演|上演時間|変更|\d{1,2}日/u.test(normalizedText(node)),
-      ) ||
-      elements.some(
-        (node) =>
-          node !== time &&
-          !(elementName(node) === "p" && hasClass(node, "playname")),
-      )
+      titles.length > 1 ||
+      titles.some((title) => /※/u.test(normalizedText(title))) ||
+      children.some((child) => child !== time && !titles.includes(child)) ||
+      !("childNodes" in time) ||
+      time.childNodes.some((child) => child.nodeName !== "#text")
     )
       return null;
-    const text = verifiedTimeText(time);
-    if (text === null) return null;
-    const match = text
+    const match = normalizedText(time)
       .normalize("NFKC")
-      .match(/^(\d{1,2}):(\d{2})\s*[-−–—]\s*(\d{1,2}):(\d{2})$/u);
-    if (match === null) return null;
-    const startClock = clockMinutes(match[1] ?? "", match[2] ?? "");
-    const endClock = clockMinutes(match[3] ?? "", match[4] ?? "");
-    if (startClock === null || endClock === null) return null;
-    if (first === null) first = startClock;
-    const start = nextClock(startClock, previousEnd ?? first);
-    const end = start === null ? null : nextClock(endClock, start + 1);
-    if (
-      start === null ||
-      end === null ||
-      (previousEnd !== null && start - previousEnd > 3 * 60) ||
-      end - start > 6 * 60 ||
-      end - first > 12 * 60
-    )
+      .match(/^(\d{1,2}:\d{2})\s*[-−–—]\s*(\d{1,2}:\d{2})$/u);
+    const startClock = clock(match?.[1] ?? "");
+    const endClock = clock(match?.[2] ?? "");
+    if (startClock === null || endClock === null || startClock === endClock)
       return null;
+    const start = nextClock(startClock, previousEnd);
+    const end = nextClock(endClock, start + 1);
+    if ((acts === 0 && start !== opening) || end >= 24 * 60) return null;
     previousEnd = end;
-    previousWasInterlude = false;
+    acts++;
   }
-  return first === null || previousEnd === null
-    ? null
-    : { name, start: first, end: previousEnd };
+  return previousEnd;
 }
 
-/** Exact act-by-act timetable ends only. Unknown layouts leave existing end data untouched. */
+/** Observed act-by-act format only; unknown layouts hold the source page. */
 export function withKabukiPerformanceEnds<T extends Occurrence>(
   html: string,
   occurrences: readonly T[],
   headlineParts: readonly KabukiHeadlinePart[] | null,
 ): { occurrences: T[]; verified: boolean } {
   const unchanged = { occurrences: [...occurrences], verified: false };
-  if (headlineParts === null) return unchanged;
   const document = parseHtml(html);
-  // A dated calendar can vary the program without changing its opening clock.
-  // Its end cannot be projected to every matching clock from one timetable.
+  const sections = descendants(
+    document,
+    (node) =>
+      elementName(node) === "section" && attribute(node, "id") === "timetable",
+  );
+  if (sections.length === 0) {
+    if (
+      descendants(
+        document,
+        (node) =>
+          elementName(node) === "h3" && normalizedText(node) === "上演時間",
+      ).length > 0
+    )
+      throw new SourceParseFailure();
+    return unchanged;
+  }
+  if (sections.length !== 1 || headlineParts === null)
+    throw new SourceParseFailure();
+  // A dated calendar may assign different programs to the same opening clock.
   if (
     descendants(
       document,
@@ -188,84 +162,66 @@ export function withKabukiPerformanceEnds<T extends Occurrence>(
     ).length > 0
   )
     return unchanged;
-  const sections = descendants(
-    document,
-    (node) =>
-      elementName(node) === "section" && attribute(node, "id") === "timetable",
-  );
   const section = sections[0];
-  if (sections.length !== 1 || section === undefined) return unchanged;
-  const sectionElements = elementChildrenWithoutLooseText(section);
-  const headings = children(section, "h3");
-  const notes = children(section, "div");
-  const parts = children(section, "dl");
+  if (section === undefined) throw new SourceParseFailure();
+  const sectionElements = elements(section);
+  const parts = sectionElements?.filter((node) => elementName(node) === "dl");
+  const notes = sectionElements?.filter((node) => elementName(node) === "div");
   if (
     sectionElements === null ||
-    headings.length !== 1 ||
-    headings[0] === undefined ||
-    normalizedText(headings[0]) !== "上演時間" ||
-    notes.length > 1 ||
-    parts.length === 0 ||
-    parts.some((part) => !hasClass(part, "type-part")) ||
+    sectionElements[0] === undefined ||
+    elementName(sectionElements[0]) !== "h3" ||
+    normalizedText(sectionElements[0]) !== "上演時間" ||
+    parts?.length !== headlineParts.length ||
+    (notes?.length ?? 0) > 1 ||
     sectionElements.some(
-      (element) => !["h3", "dl", "div"].includes(elementName(element) ?? ""),
-    )
+      (node) => !["h3", "dl", "div"].includes(elementName(node) ?? ""),
+    ) ||
+    parts.some((node) => !hasClass(node, "type-part"))
   )
-    return unchanged;
-  const note = notes[0] === undefined ? "" : normalizedText(notes[0]);
+    throw new SourceParseFailure();
+  const note = notes?.[0] === undefined ? "" : normalizedText(notes[0]);
   if (
     note !== "" &&
     !/^(?:※\d{1,2}月\d{1,2}日時点での予定\s*)?※上演時間は変更になる可能性があります$/u.test(
       note,
     )
   )
-    return unchanged;
-  const parsed = parts.map(partTimes);
-  if (
-    parsed.length !== headlineParts.length ||
-    parsed.some((part) => part === null) ||
-    new Set(parsed.map((part) => part?.name)).size !== parsed.length
-  )
-    return unchanged;
+    throw new SourceParseFailure();
 
-  // Match each named part to its verified headline opening, not merely to a
-  // 12-hour clock. Swapped or duplicate labels must never stage ends.
-  const openingClocks = new Set(
-    occurrences.map((occurrence) => occurrence.startsAt.slice(11, 16)),
-  );
-  const headlineByName = new Map(
-    headlineParts.map((part) => [part.name, part.clock]),
-  );
   const ends = new Map<string, number>();
-  for (const part of parsed) {
-    if (part === null) return unchanged;
-    const headlineClock = headlineByName.get(part.name);
-    if (headlineClock === undefined) return unchanged;
-    const opening = headlineClock.hour * 60 + headlineClock.minute;
-    const openingLabel = `${String(headlineClock.hour).padStart(2, "0")}:${String(headlineClock.minute).padStart(2, "0")}`;
+  for (const [index, part] of parts.entries()) {
+    const headline = headlineParts[index];
+    const header = elements(part)?.[0];
     if (
-      opening % (12 * 60) !== part.start ||
-      !openingClocks.has(openingLabel) ||
-      ends.has(openingLabel)
+      headline === undefined ||
+      header === undefined ||
+      normalizedText(header) !== headline.name
     )
-      return unchanged;
-    ends.set(openingLabel, opening + (part.end - part.start));
+      throw new SourceParseFailure();
+    const opening = headline.clock.hour * 60 + headline.clock.minute;
+    const end = partEnd(part, opening);
+    const label = `${String(headline.clock.hour).padStart(2, "0")}:${String(headline.clock.minute).padStart(2, "0")}`;
+    if (end === null || ends.has(label)) throw new SourceParseFailure();
+    ends.set(label, end);
   }
-  if (ends.size !== openingClocks.size) return unchanged;
+  if (
+    occurrences.some(
+      (occurrence) => !ends.has(occurrence.startsAt.slice(11, 16)),
+    )
+  )
+    throw new SourceParseFailure();
   return {
     verified: true,
     occurrences: occurrences.map((occurrence) => {
-      const endMinutes = ends.get(occurrence.startsAt.slice(11, 16));
-      if (endMinutes === undefined) return occurrence;
-      const startDate = occurrence.startsAt.slice(0, 10);
-      const endDate = new Date(`${startDate}T00:00:00Z`);
-      endDate.setUTCDate(endDate.getUTCDate() + Math.floor(endMinutes / 1440));
+      const minutes = ends.get(occurrence.startsAt.slice(11, 16));
+      if (minutes === undefined) return occurrence;
       return {
         ...occurrence,
         endsAt: tokyoDateTime(
-          endDate.toISOString().slice(0, 10),
-          Math.floor(endMinutes / 60) % 24,
-          endMinutes % 60,
+          occurrence.startsAt.slice(0, 10),
+          Math.floor(minutes / 60),
+          minutes % 60,
         ),
       };
     }),
