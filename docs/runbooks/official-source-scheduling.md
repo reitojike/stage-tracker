@@ -27,7 +27,8 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   conditionally releases a still-owned lease before retrying.
 - A changed candidate for the same source and official identity replaces older
   pending or approved-but-not-applied review proposals in the same staging
-  transaction. In-flight, applied, failed, and rejected records remain for
+  transaction. Observation time, not Workflow completion order, determines
+  which overlapping scan is newer. In-flight, applied, failed, and rejected records remain for
   operational evidence. Completed run records remain; this never deletes a
   catalog Event or TicketOpportunity. If a new scan removes an approved candidate
   after its Apply button is pressed but before the Workflow claims it, that

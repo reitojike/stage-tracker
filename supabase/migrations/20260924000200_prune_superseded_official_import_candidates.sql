@@ -65,6 +65,7 @@ begin
           and replacement_run.status = 'running'
           and replacement.source_id = old.source_id
           and replacement.candidate_kind = old.candidate_kind
+          and replacement.observed_at > old.observed_at
           and (
             (old.official_external_id is not null
               and replacement.official_external_id = old.official_external_id)
@@ -203,9 +204,16 @@ begin
           and prior.official_external_id is null
           and prior.canonical_url = candidate.canonical_url)
       )
-      and prior.content_hash = candidate.content_hash
-      and prior.proposal_version = candidate.proposal_version
-      and prior.plan_fingerprint = candidate.plan_fingerprint
+      and (
+        -- An older snapshot must not become actionable just because its
+        -- Workflow committed after a newer observation of this identity.
+        prior.observed_at >= candidate.observed_at
+        or (
+          prior.content_hash = candidate.content_hash
+          and prior.proposal_version = candidate.proposal_version
+          and prior.plan_fingerprint = candidate.plan_fingerprint
+        )
+      )
   );
 
   get diagnostics v_candidate_count = row_count;
@@ -224,6 +232,7 @@ begin
     and prior.source_id = p_source_id
     and prior.source_id = replacement.source_id
     and prior.candidate_kind = replacement.candidate_kind
+    and prior.observed_at < replacement.observed_at
     and (
       (replacement.official_external_id is not null
         and prior.official_external_id = replacement.official_external_id)
@@ -263,7 +272,7 @@ with ranked as (
       partition by candidate.source_id, candidate.candidate_kind,
         (candidate.official_external_id is null),
         coalesce(candidate.official_external_id, candidate.canonical_url)
-      order by run.finished_at desc, candidate.observed_at desc,
+      order by candidate.observed_at desc, run.started_at desc,
         candidate.created_at desc, candidate.id desc
     ) as position
   from public.official_import_candidates as candidate
