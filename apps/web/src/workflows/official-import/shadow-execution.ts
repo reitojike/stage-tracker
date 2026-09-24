@@ -8,12 +8,14 @@ import {
   type EventDurableCandidate,
   type TicketOpportunityDurableCandidate,
 } from "@stage-tracker/official-import/durable-candidate";
+import { tokyoCalendarDateSchema } from "@stage-tracker/domain";
 import {
   ProviderUnavailableFailure,
   SourceFetchFailure,
   SourceParseFailure,
   type OfficialImportCandidatePlanner,
   type OfficialSourceAdapter,
+  type HeldSourcePage,
 } from "./acquisition";
 import {
   OfficialSourceRegistryError,
@@ -71,6 +73,7 @@ export interface OfficialImportStagingRepository {
     candidates: readonly (
       EventDurableCandidate | TicketOpportunityDurableCandidate
     )[],
+    heldPages?: readonly HeldSourcePage[],
   ): Promise<number>;
   releaseRun(
     runId: string,
@@ -214,7 +217,30 @@ export async function executeOfficialImportShadowRun(
     leaseHeartbeatIntervalMs,
   );
   try {
-    const drafts = await adapter.acquire(source);
+    const heldPages: HeldSourcePage[] = [];
+    const heldUrls = new Set<string>();
+    const drafts = await adapter.acquire(source, (page) => {
+      const canonicalUrl = assertAllowedSourceUrl(source, page.canonicalUrl);
+      if (
+        heldPages.length >= 30 ||
+        heldUrls.has(canonicalUrl) ||
+        page.reasonCode !== "source_parse" ||
+        page.officialExternalId.length < 1 ||
+        page.officialExternalId.length > 512 ||
+        page.officialExternalId.trim() !== page.officialExternalId ||
+        page.title.length < 1 ||
+        page.title.length > 512 ||
+        page.title.trim() !== page.title ||
+        !tokyoCalendarDateSchema.safeParse(page.startsOn).success ||
+        !tokyoCalendarDateSchema.safeParse(page.endsOn).success ||
+        page.startsOn > page.endsOn
+      )
+        throw new DurableCandidateValidationError(
+          "Invalid held official source page",
+        );
+      heldUrls.add(canonicalUrl);
+      heldPages.push({ ...page, canonicalUrl });
+    });
     lease.assertOwned();
     const eventCandidates: EventDurableCandidate[] = [];
     const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
@@ -226,6 +252,10 @@ export async function executeOfficialImportShadowRun(
         );
       }
       const canonicalUrl = assertAllowedSourceUrl(source, draft.canonicalUrl);
+      if (heldUrls.has(canonicalUrl))
+        throw new DurableCandidateValidationError(
+          "Official page cannot be both held and a candidate",
+        );
       if (draft.candidateKind === "event") {
         const proposal = createEventProposal(
           draft.proposal.sourceUrl === null ||
@@ -333,12 +363,22 @@ export async function executeOfficialImportShadowRun(
     // the already committed count from that same serialization boundary.
     await lease.stopAndDrain();
     lease.assertOwned();
-    const candidateCount = await repository.commitCandidates(
-      runId,
-      source.id,
-      attemptToken,
-      [...eventCandidates, ...ticketOpportunityCandidates],
-    );
+    const candidates = [...eventCandidates, ...ticketOpportunityCandidates];
+    const candidateCount =
+      heldPages.length === 0
+        ? await repository.commitCandidates(
+            runId,
+            source.id,
+            attemptToken,
+            candidates,
+          )
+        : await repository.commitCandidates(
+            runId,
+            source.id,
+            attemptToken,
+            candidates,
+            heldPages,
+          );
     return {
       status: "completed",
       runId,

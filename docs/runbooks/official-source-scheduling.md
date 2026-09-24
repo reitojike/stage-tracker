@@ -44,6 +44,14 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   circle markers use an explicit base clock for their part; numeric cells
   retain their own exact clocks. Unknown table symbols, notes, or combinations
   of otherwise known note forms remain held until separately verified.
+  A single `★` on a numeric clock may retain that exact clock only when the
+  same date/part marker appears in both calendar views, the headline note and
+  the calendar footer agree on its referent, and the note contains no
+  scheduling-change language. The candidate then carries a fixed reminder
+  to inspect the official page before review/apply; the note prose itself is
+  not copied into the candidate. A missing, mismatched, or time-changing note
+  remains held. This covers the observed Asakusa #1000 annotation without
+  assuming that every future marked note is harmless.
   The observed non-scheduling prose on Kabukiza #986 and Minamiza #965 is
   accepted only by exact normalized fingerprints; any edit to those notes
   holds the page for human review, even if the table is unchanged.
@@ -53,9 +61,16 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   rest-day list, or the exact observed non-scheduling note fingerprint on
   Kabukiza #997. Other notices, including part-only notes, remain held;
   month-only teasers are skipped. A published clock or unresolved schedule
-  must not be downgraded to Event-only. The
-  current bounded read-only scan still has unsupported detail pages, so this
-  source has **not** passed its source-wide shadow canary or promotion gate.
+  must not be downgraded to Event-only.
+  A detail page that fails strict schedule parsing may be reported as a held
+  page while verified sibling pages stage review candidates. The held record
+  contains only the official URL, id, title, date range, and bounded reason
+  code; it contains no raw page or error prose. Index, fetch/provider, and
+  ownership failures still fail the entire run. A completed partial run is
+  **not** by itself a clean promotion canary: compare every exact-dated index
+  row with staged or held identities, inspect the major-theater coverage and
+  held reasons, and record operator acceptance of the omissions before
+  scheduling. Month-only teasers remain excluded.
   Takarazuka Event also has a weekly cadence preference but remains unscheduled.
   The private-household product boundary is settled in
   [#681](https://github.com/reitojike/stage-tracker/issues/681); the exact
@@ -79,7 +94,10 @@ Record evidence in the source's rollout PR or Issue comment before changing its
 2. The adapter has a clean, bounded shadow canary on current official content:
    correct physical-event relevance, event/occurrence/ticket precision,
    complete pagination or page coverage, no invented times, and fail-closed
-   behavior on ambiguous or malformed data.
+   behavior on ambiguous or malformed data. For a source with page-level held
+   reporting, every exact-dated index row must be accounted for as a verified
+   candidate or an explicit held page; review the measured omissions rather
+   than treating successful completion as proof of full coverage.
 3. Stable source identity and content-hash behavior are demonstrated. An
    unchanged second run stages zero duplicate review candidates; changed
    content or plan remains reviewable. Include retry, provider-failure, and

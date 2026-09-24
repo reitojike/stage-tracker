@@ -166,12 +166,12 @@ function token(value: string): string {
   if (normalized === "-" || normalized === "貸切") return normalized;
   if (["〇", "○", "A", "B", "Aプロ", "Bプロ"].includes(normalized))
     return normalized === "○" ? "〇" : normalized;
-  const clock = normalized.match(/^(\d{1,2}):(\d{2})$/u);
+  const clock = normalized.match(/^(\d{1,2}):(\d{2})(★)?$/u);
   if (clock === null) throw new SourceParseFailure();
   const hour = Number(clock[1]);
   const minute = Number(clock[2]);
   if (hour > 23 || minute > 59) throw new SourceParseFailure();
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}${clock[3] ?? ""}`;
 }
 
 function dateForDay(day: number, year: number, month: number): string {
@@ -337,16 +337,22 @@ function validateCalendarNotes(
   parts: ReturnType<typeof parseKabukiBaseTimes>,
   startsOn: string,
   endsOn: string,
-): void {
+): string | null {
   let remainder = note.trim();
   const revisedPeriodNote = "※当初の発表から公演日程を変更しております";
   if (remainder.startsWith(revisedPeriodNote))
     remainder = remainder.slice(revisedPeriodNote.length).trim();
 
+  const marked = [...rows].flatMap(([date, cells]) =>
+    cells.flatMap((cell, index) =>
+      cell.endsWith("★") ? [{ date, part: parts[index]?.name }] : [],
+    ),
+  );
   const detail = remainder.match(
     /^[【〖](?:休演|休演・貸切)[】〗]日程詳細をご確認ください(?:\s*(※下記日程は学校団体様がいらっしゃいます.+))?$/u,
   );
   if (detail !== null) {
+    if (marked.length !== 0) throw new SourceParseFailure();
     if (detail[1] !== undefined)
       validateSchoolGroupNote(
         detail[1],
@@ -354,13 +360,36 @@ function validateCalendarNotes(
         startsOn,
         endsOn,
       );
-    return;
+    return null;
+  }
+
+  // A marked numeric clock is still an explicit clock. Only the verified
+  // non-scheduling note may accompany it; a new note must be reviewed first.
+  const markedDetail = remainder.match(
+    /^[【〖](?:休演|休演・貸切)[】〗]日程詳細をご確認ください\s*(※.+)$/u,
+  );
+  if (markedDetail !== null && marked.length === 1) {
+    const info = (markedDetail[1] ?? "").match(
+      /^※(\d{1,2})日[（(]([日月火水木金土])[）)](.+?)は(.{1,180})$/u,
+    );
+    const markedCell = marked[0];
+    const date = markedCell?.date ?? "";
+    const body = info?.[4] ?? "";
+    if (
+      info === null ||
+      markedCell?.part !== info[3] ||
+      Number(date.slice(-2)) !== Number(info[1]) ||
+      WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()] !== info[2] ||
+      body !== "「着物で歌舞伎」です。皆様、お着物でご観劇ください"
+    )
+      throw new SourceParseFailure();
+    return `★${(markedDetail[1] ?? "").slice(1)}`;
   }
 
   const explicit = remainder.match(
     /^[【〖]休演[】〗](.+?)[【〖]貸切[】〗]※幕見席は営業\s*(.+)$/u,
   );
-  if (explicit === null) throw new SourceParseFailure();
+  if (explicit === null || marked.length !== 0) throw new SourceParseFailure();
   const closed = parseKabukiDaySet(explicit[1] ?? "", startsOn, endsOn);
   let privateText = explicit[2] ?? "";
   const informationalPrefix = "昼の部では、古式に則り、";
@@ -417,6 +446,7 @@ function validateCalendarNotes(
       throw new SourceParseFailure();
     }
   }
+  return null;
 }
 
 export function parseKabukiVerifiedCalendar(
@@ -424,7 +454,10 @@ export function parseKabukiVerifiedCalendar(
   endsOn: string,
   timetable: string,
   html: string,
-): readonly { startsAt: string; endsAt: null }[] {
+): {
+  readonly occurrences: readonly { startsAt: string; endsAt: null }[];
+  readonly hasAnnotation: boolean;
+} {
   const dates = enumerateDates(startsOn, endsOn);
   if (startsOn.slice(0, 7) !== endsOn.slice(0, 7))
     throw new SourceParseFailure();
@@ -486,14 +519,7 @@ export function parseKabukiVerifiedCalendar(
       headings.find((heading) => hasClass(heading, "view-sp")) ||
     sectionChildren[4] !== mobile ||
     (footer !== undefined &&
-      (elementName(footer) !== "p" ||
-        !hasClass(footer, "schedule-footer") ||
-        !(
-          footerText === "※貸切公演が入る場合があります" ||
-          (footerText !== null &&
-            createHash("sha256").update(footerText).digest("hex") ===
-              MINAMIZA_965_FOOTER_SHA256)
-        )))
+      (elementName(footer) !== "p" || !hasClass(footer, "schedule-footer")))
   )
     throw new SourceParseFailure();
   for (const view of ["view-sp", "view-pc"]) {
@@ -516,7 +542,23 @@ export function parseKabukiVerifiedCalendar(
     )
       throw new SourceParseFailure();
   }
-  validateCalendarNotes(note, mobileRows, parts, startsOn, endsOn);
+  const annotationFooter = validateCalendarNotes(
+    note,
+    mobileRows,
+    parts,
+    startsOn,
+    endsOn,
+  );
+  const knownFooter =
+    footerText === "※貸切公演が入る場合があります" ||
+    (footerText !== null &&
+      createHash("sha256").update(footerText).digest("hex") ===
+        MINAMIZA_965_FOOTER_SHA256);
+  if (
+    (annotationFooter !== null && footerText !== annotationFooter) ||
+    (annotationFooter === null && footerText !== null && !knownFooter)
+  )
+    throw new SourceParseFailure();
   for (const [index, part] of parts.entries()) {
     const base = `${String(part.clock.hour).padStart(2, "0")}:${String(part.clock.minute).padStart(2, "0")}`;
     const values = [...mobileRows.values()].map((cells) => cells[index]);
@@ -527,8 +569,8 @@ export function parseKabukiVerifiedCalendar(
   const occurrences = dates.flatMap((date) =>
     (mobileRows.get(date) ?? []).flatMap((cell, index) => {
       if (cell === "-" || cell === "貸切") return [];
-      const clock = /^\d{2}:\d{2}$/u.test(cell)
-        ? cell.split(":").map(Number)
+      const clock = /^\d{2}:\d{2}★?$/u.test(cell)
+        ? cell.replace(/★$/u, "").split(":").map(Number)
         : [parts[index]?.clock.hour, parts[index]?.clock.minute];
       const [hour, minute] = clock;
       return [
@@ -540,5 +582,5 @@ export function parseKabukiVerifiedCalendar(
     }),
   );
   if (occurrences.length === 0) throw new SourceParseFailure();
-  return occurrences;
+  return { occurrences, hasAnnotation: annotationFooter !== null };
 }

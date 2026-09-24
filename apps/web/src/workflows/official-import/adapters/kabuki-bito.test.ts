@@ -37,6 +37,36 @@ describe("Kabuki-bito adapter facts", () => {
     expect(draft.proposal.occurrences).toHaveLength(2);
   });
 
+  it("reports only unverified detail pages while retaining verified siblings", async () => {
+    const validUrl = "https://www.kabuki-bito.jp/theaters/kabukiza/play/978";
+    const heldUrl = "https://www.kabuki-bito.jp/theaters/kabukiza/play/979";
+    const index = [
+      '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">確認済み公演</h3></a><p class="term">2026年10月1日～2日</p></li>',
+      '<li class="item"><a href="/theaters/kabukiza/play/979"><h3 class="ttl">保留公演</h3></a><p class="term">2026年10月1日～2日</p></li>',
+    ].join("");
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? index
+          : url === validUrl
+            ? '<p class="type-timetable">1日（木） 午前11時～ 2日（金） 午前11時～</p><p class="type-theater">歌舞伎座</p>'
+            : '<p class="type-timetable">※2日は第一部のみ</p><p class="type-theater">歌舞伎座</p>',
+      ),
+    );
+    const held = vi.fn();
+    const drafts = await adapter.acquire(source, held);
+    expect(drafts.map((draft) => draft.officialExternalId)).toEqual(["978"]);
+    expect(held).toHaveBeenCalledExactlyOnceWith({
+      canonicalUrl: heldUrl,
+      officialExternalId: "979",
+      title: "保留公演",
+      startsOn: "2026-10-01",
+      endsOn: "2026-10-02",
+      reasonCode: "source_parse",
+    });
+  });
+
   it("bounds detail-page concurrency and pauses between batches", async () => {
     const index = [1, 2, 3, 4, 5]
       .map(
@@ -96,7 +126,8 @@ describe("Kabuki-bito adapter facts", () => {
           );
       });
     });
-    const acquisition = adapter.acquire(source);
+    const held = vi.fn();
+    const acquisition = adapter.acquire(source, held);
     let completed = false;
     void acquisition.then(
       () => {
@@ -115,6 +146,7 @@ describe("Kabuki-bito adapter facts", () => {
     finishSecond();
     await outcome;
     expect(completed).toBe(true);
+    expect(held).not.toHaveBeenCalled();
   });
 
   it("preserves an early parse failure when a lower-index sibling fails later", async () => {
@@ -159,9 +191,11 @@ describe("Kabuki-bito adapter facts", () => {
       return document(url, index);
     });
     const adapter = createKabukiBitoAdapter(fetcher);
+    const held = vi.fn();
 
-    await expect(adapter.acquire(source)).rejects.toThrow();
+    await expect(adapter.acquire(source, held)).rejects.toThrow();
     expect(fetcher).toHaveBeenCalledOnce();
+    expect(held).not.toHaveBeenCalled();
   });
 
   it("uses the official play id and expands fixed part times while excluding closed/private days", () => {
@@ -357,7 +391,11 @@ describe("Kabuki-bito adapter facts", () => {
           : `<p class="type-timetable">昼の部 午前11時～</p><p class="text type-term">${period}</p><p class="type-theater">歌舞伎座</p>`,
       ),
     );
-    await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
+    const held = vi.fn();
+    await expect(adapter.acquire(source, held)).rejects.toThrow(
+      SourceParseFailure,
+    );
+    expect(held).not.toHaveBeenCalled();
   });
 
   it("does not stage an Event-only draft when a single day has no public showtime", () => {

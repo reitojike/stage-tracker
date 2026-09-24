@@ -42,6 +42,16 @@ export interface TicketOpportunityAcquisitionDraft extends AcquisitionMetadata {
 export type AcquisitionDraft =
   EventAcquisitionDraft | TicketOpportunityAcquisitionDraft;
 
+/** Compact page identity only; never include a raw response or parse error. */
+export interface HeldSourcePage {
+  readonly canonicalUrl: string;
+  readonly officialExternalId: string;
+  readonly title: string;
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly reasonCode: "source_parse";
+}
+
 /**
  * Implementations own fetch and parsing together. Raw bodies, PDF bytes,
  * converted Markdown, DOM snapshots, and provider responses must remain local
@@ -50,6 +60,7 @@ export type AcquisitionDraft =
 export interface OfficialSourceAdapter {
   acquire(
     source: OfficialSourceDefinition,
+    reportHeldPage?: (page: HeldSourcePage) => void,
   ): Promise<readonly AcquisitionDraft[]>;
 }
 

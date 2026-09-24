@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SourceParseFailure } from "../acquisition";
 import { parseKabukiDetailedOccurrences } from "./kabuki-bito";
 
@@ -77,6 +77,77 @@ describe("verified Kabuki daily calendar", () => {
     expect(parse(calendarHtml(changed)).map((item) => item.startsAt)).toContain(
       "2026-10-02T12:30:00+09:00",
     );
+  });
+
+  it("keeps a marked exact clock and reports its matching non-scheduling note", () => {
+    const cells = [
+      ["11：00", "16：00"],
+      ["11：00", "16：00★"],
+      ["貸切", "16：00"],
+    ];
+    const headline =
+      "第一部 午前11時～ 第二部 午後4時～ 〖休演・貸切〗日程詳細をご確認ください ※2日（金）第二部は「着物で歌舞伎」です。皆様、お着物でご観劇ください";
+    const html = calendarHtml(cells).replace(
+      "</section>",
+      '<p class="schedule-footer">★2日（金）第二部は「着物で歌舞伎」です。皆様、お着物でご観劇ください</p></section>',
+    );
+    const onAnnotation = vi.fn();
+    const occurrences = parseKabukiDetailedOccurrences(
+      "2026-10-01",
+      "2026-10-03",
+      headline,
+      html,
+      onAnnotation,
+    );
+    expect(occurrences.map((item) => item.startsAt)).toContain(
+      "2026-10-02T16:00:00+09:00",
+    );
+    expect(onAnnotation).toHaveBeenCalledOnce();
+  });
+
+  it("holds an unmatched or schedule-changing marked note", () => {
+    const cells = [
+      ["11：00", "16：00"],
+      ["11：00", "16：00★"],
+      ["貸切", "16：00"],
+    ];
+    const base =
+      "第一部 午前11時～ 第二部 午後4時～ 〖休演・貸切〗日程詳細をご確認ください";
+    const html = calendarHtml(cells).replace(
+      "</section>",
+      '<p class="schedule-footer">★2日（金）第二部は「着物で歌舞伎」です。皆様、お着物でご観劇ください</p></section>',
+    );
+    expect(() => parse(html, base)).toThrow(SourceParseFailure);
+    expect(() =>
+      parse(
+        calendarHtml(cells, NORMAL),
+        `${base} ※2日（金）第二部は「着物で歌舞伎」です。皆様、お着物でご観劇ください`,
+      ),
+    ).toThrow(SourceParseFailure);
+    expect(() =>
+      parse(
+        html,
+        `${base} ※3日（土）第二部は「着物で歌舞伎」です。皆様、お着物でご観劇ください`,
+      ),
+    ).toThrow(SourceParseFailure);
+    expect(() =>
+      parse(
+        calendarHtml(cells).replace(
+          "</section>",
+          '<p class="schedule-footer">★2日（金）第二部は午後5時開演に変更します</p></section>',
+        ),
+        `${base} ※2日（金）第二部は午後5時開演に変更します`,
+      ),
+    ).toThrow(SourceParseFailure);
+    expect(() =>
+      parse(
+        calendarHtml(cells).replace(
+          "</section>",
+          '<p class="schedule-footer">★2日（金）第二部は通常より遅れて始まります</p></section>',
+        ),
+        `${base} ※2日（金）第二部は通常より遅れて始まります`,
+      ),
+    ).toThrow(SourceParseFailure);
   });
 
   it("maps program and circle markers to explicitly stated part clocks", () => {
