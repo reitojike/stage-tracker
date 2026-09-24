@@ -369,6 +369,39 @@ describe("Kabuki-bito adapter facts", () => {
       ),
     ).toThrow(SourceParseFailure);
   });
+
+  it("stages an exact-dated Event without Occurrences when opening times are unpublished", async () => {
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
+          : '<p class="type-timetable">【休演】2日（金）</p><p class="type-theater">歌舞伎座</p>',
+      ),
+    );
+    const [draft] = await adapter.acquire(source);
+    expect(draft?.candidateKind).toBe("event");
+    if (draft?.candidateKind !== "event")
+      throw new Error("missing Event draft");
+    expect(draft.proposal.startsOn).toBe("2026-10-01");
+    expect(draft.proposal.endsOn).toBe("2026-10-02");
+    expect(draft.proposal.occurrences).toEqual([]);
+  });
+
+  it.each(["14：00", "※開演時刻が変更になりました", "※公演中止"])(
+    "does not downgrade a schedule-bearing detail to Event-only: %s",
+    async (timetable) => {
+      const adapter = createKabukiBitoAdapter(async (_source, url) =>
+        document(
+          url,
+          url === source.canonicalUrl
+            ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日～2日</p></li>'
+            : `<p class="type-timetable">${timetable}</p><p class="type-theater">歌舞伎座</p>`,
+        ),
+      );
+      await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
+    },
+  );
 });
 
 function document(url: string, body: string): OfficialHtmlDocument {

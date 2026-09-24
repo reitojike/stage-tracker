@@ -349,6 +349,26 @@ function verifiedDetailSchedule(html: string): {
   return { timetable, period };
 }
 
+function hasUnpublishedOpeningTime(timetable: string, html: string): boolean {
+  const document = parseHtml(html);
+  if (
+    descendants(
+      document,
+      (node) =>
+        (elementName(node) === "table" && hasClass(node, "type-calendar")) ||
+        (elementName(node) === "section" &&
+          attribute(node, "id") === "schedule"),
+    ).length > 0
+  )
+    return false;
+  // An exact period is enough for an Event, but a visible clock, a change or
+  // cancellation notice, or another schedule section must not be downgraded
+  // to an apparently complete Event-only result.
+  return !/(?:午前|午後)\s*\d|\d{1,2}\s*時|\d{1,2}\s*[:：]\s*\d{2}|開演|現地時間|中止|延期|取りやめ|取り消し|見合わせ/u.test(
+    timetable,
+  );
+}
+
 export function createKabukiBitoAdapter(
   fetcher: OfficialHtmlFetcher = fetchOfficialHtml,
   pauseBetweenBatches: () => Promise<void> = () =>
@@ -406,14 +426,16 @@ export function createKabukiBitoAdapter(
                   sourceUrl: detail.url,
                   startsOn: fact.startsOn,
                   endsOn: fact.endsOn,
-                  occurrences: [
-                    ...parseKabukiDetailedOccurrences(
-                      fact.startsOn,
-                      fact.endsOn,
-                      timetable,
-                      detail.body,
-                    ),
-                  ],
+                  occurrences: hasUnpublishedOpeningTime(timetable, detail.body)
+                    ? []
+                    : [
+                        ...parseKabukiDetailedOccurrences(
+                          fact.startsOn,
+                          fact.endsOn,
+                          timetable,
+                          detail.body,
+                        ),
+                      ],
                 },
               };
             })

@@ -154,6 +154,8 @@ function noSpan(cell: HtmlNode): void {
 function token(value: string): string {
   const normalized = value.replace(/：/gu, ":");
   if (normalized === "-" || normalized === "貸切") return normalized;
+  if (["〇", "○", "A", "B", "Aプロ", "Bプロ"].includes(normalized))
+    return normalized === "○" ? "〇" : normalized;
   const clock = normalized.match(/^(\d{1,2}):(\d{2})$/u);
   if (clock === null) throw new SourceParseFailure();
   const hour = Number(clock[1]);
@@ -299,13 +301,23 @@ export function parseKabukiVerifiedCalendar(
     throw new SourceParseFailure();
   const year = Number(startsOn.slice(0, 4));
   const month = Number(startsOn.slice(5, 7));
-  const headline = timetable
-    .trim()
-    .match(/^(.*?)(?:【休演】|〖休演〗)日程詳細をご確認ください$/u);
-  if (headline === null || /現地時間/u.test(timetable))
+  const markerAt = [...timetable.matchAll(/[【〖※]/gu)][0]?.index;
+  if (markerAt === undefined || /現地時間/u.test(timetable))
     throw new SourceParseFailure();
-  const parts = parseKabukiBaseTimes(headline[1] ?? "");
-  const labels = parts.map((part) => part.name);
+  const parts = parseKabukiBaseTimes(timetable.slice(0, markerAt));
+  const note = timetable
+    .slice(markerAt)
+    .replace("※当初の発表から公演日程を変更しております", "");
+  if (
+    !/[【〖](?:休演|貸切|休演・貸切)[】〗]/u.test(note) ||
+    /中止|取りやめ|取り消し|変更/u.test(note)
+  )
+    throw new SourceParseFailure();
+  const labels = parts.map((part) =>
+    part.name === "単独"
+      ? `${String(part.clock.hour).padStart(2, "0")}：${String(part.clock.minute).padStart(2, "0")}`
+      : part.name,
+  );
   const document = parseHtml(html);
   const section = unique(
     descendants(
@@ -335,12 +347,14 @@ export function parseKabukiVerifiedCalendar(
   assertCalendarMarkup(mobile, "view-sp");
   assertCalendarMarkup(desktop, "view-pc");
   const sectionChildren = childElements(section);
+  const footer = sectionChildren[5];
+  const footerText = footer === undefined ? null : normalizedText(footer);
   if (
     ("childNodes" in section &&
       section.childNodes.some(
         (child) => child.nodeName === "#text" && normalizedText(child) !== "",
       )) ||
-    sectionChildren.length !== 5 ||
+    (sectionChildren.length !== 5 && sectionChildren.length !== 6) ||
     elementName(sectionChildren[0] ?? section) !== "h3" ||
     normalizedText(sectionChildren[0] ?? section) !== "日程詳細" ||
     sectionChildren[1] !==
@@ -348,7 +362,16 @@ export function parseKabukiVerifiedCalendar(
     sectionChildren[2] !== desktop ||
     sectionChildren[3] !==
       headings.find((heading) => hasClass(heading, "view-sp")) ||
-    sectionChildren[4] !== mobile
+    sectionChildren[4] !== mobile ||
+    (footer !== undefined &&
+      (elementName(footer) !== "p" ||
+        !hasClass(footer, "schedule-footer") ||
+        !(
+          footerText === "※貸切公演が入る場合があります" ||
+          (footerText !== null &&
+            /^※夜の部は、.+上演いたします$/u.test(footerText) &&
+            !/\d|時|日|休演|貸切|中止|変更/u.test(footerText))
+        )))
   )
     throw new SourceParseFailure();
   for (const view of ["view-sp", "view-pc"]) {
@@ -373,13 +396,28 @@ export function parseKabukiVerifiedCalendar(
   }
   for (const [index, part] of parts.entries()) {
     const base = `${String(part.clock.hour).padStart(2, "0")}:${String(part.clock.minute).padStart(2, "0")}`;
-    if (![...mobileRows.values()].some((cells) => cells[index] === base))
+    const values = [...mobileRows.values()].map((cells) => cells[index]);
+    const symbols = ["〇", "A", "B", "Aプロ", "Bプロ"];
+    const hasSymbol = values.some((value) => symbols.includes(value ?? ""));
+    if (
+      (!hasSymbol && !values.includes(base)) ||
+      (hasSymbol &&
+        values.some(
+          (value) =>
+            value !== undefined &&
+            /^\d{2}:\d{2}$/u.test(value) &&
+            value !== base,
+        ))
+    )
       throw new SourceParseFailure();
   }
   const occurrences = dates.flatMap((date) =>
-    (mobileRows.get(date) ?? []).flatMap((cell) => {
+    (mobileRows.get(date) ?? []).flatMap((cell, index) => {
       if (cell === "-" || cell === "貸切") return [];
-      const [hour, minute] = cell.split(":").map(Number);
+      const clock = /^\d{2}:\d{2}$/u.test(cell)
+        ? cell.split(":").map(Number)
+        : [parts[index]?.clock.hour, parts[index]?.clock.minute];
+      const [hour, minute] = clock;
       return [
         {
           startsAt: tokyoDateTime(date, hour ?? -1, minute ?? -1),

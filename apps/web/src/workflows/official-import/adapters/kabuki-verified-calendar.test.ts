@@ -13,8 +13,8 @@ const NORMAL = [
 function calendarHtml(
   mobile: readonly (readonly string[])[] = NORMAL,
   desktop: readonly (readonly string[])[] = mobile,
+  labels: readonly string[] = ["第一部", "第二部"],
 ): string {
-  const labels = ["第一部", "第二部"];
   const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
   const days = ["木", "金", "土"];
   const mobileRows = mobile
@@ -79,6 +79,39 @@ describe("verified Kabuki daily calendar", () => {
     );
   });
 
+  it("maps program and circle markers to explicitly stated part clocks", () => {
+    const cells = [
+      ["Aプロ", "〇"],
+      ["Bプロ", "〇"],
+      ["-", "-"],
+    ];
+    expect(parse(calendarHtml(cells)).map((item) => item.startsAt)).toEqual([
+      "2026-10-01T11:00:00+09:00",
+      "2026-10-01T16:00:00+09:00",
+      "2026-10-02T11:00:00+09:00",
+      "2026-10-02T16:00:00+09:00",
+    ]);
+  });
+
+  it("uses a stated single clock for circle markers, but excludes private and closed dates", () => {
+    const cells = [["〇"], ["貸切"], ["-"]];
+    const html = calendarHtml(cells, cells, ["14：00"]);
+    expect(
+      parse(
+        html,
+        "午後2時～※当初の発表から公演日程を変更しております 〖休演・貸切〗日程詳細をご確認ください",
+      ),
+    ).toEqual([{ startsAt: "2026-10-01T14:00:00+09:00", endsAt: null }]);
+  });
+
+  it("allows only a non-date-specific informational schedule footer", () => {
+    const html = calendarHtml().replace(
+      "</section>",
+      '<p class="schedule-footer">※貸切公演が入る場合があります</p></section>',
+    );
+    expect(parse(html)).toHaveLength(4);
+  });
+
   it.each([
     [
       "conflicting views",
@@ -87,7 +120,15 @@ describe("verified Kabuki daily calendar", () => {
     ],
     [
       "unmapped symbol",
-      calendarHtml([["11：00", "〇"], ...NORMAL.slice(1)]),
+      calendarHtml([["11：00", "◎"], ...NORMAL.slice(1)]),
+      HEADLINE,
+    ],
+    [
+      "conflicting program markers",
+      calendarHtml(
+        [["A", "B"], ...NORMAL.slice(1)],
+        [["B", "B"], ...NORMAL.slice(1)],
+      ),
       HEADLINE,
     ],
     ["missing mobile day", calendarHtml(NORMAL.slice(0, 2)), HEADLINE],
