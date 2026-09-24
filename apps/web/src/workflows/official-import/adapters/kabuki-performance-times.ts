@@ -167,6 +167,7 @@ export function withKabukiPerformanceEnds<T extends Occurrence>(
   const sectionElements = elements(section);
   const parts = sectionElements?.filter((node) => elementName(node) === "dl");
   const notes = sectionElements?.filter((node) => elementName(node) === "div");
+  const ordered = [sectionElements?.[0], ...(parts ?? []), ...(notes ?? [])];
   if (
     sectionElements === null ||
     sectionElements[0] === undefined ||
@@ -174,9 +175,8 @@ export function withKabukiPerformanceEnds<T extends Occurrence>(
     normalizedText(sectionElements[0]) !== "上演時間" ||
     parts?.length !== headlineParts.length ||
     (notes?.length ?? 0) > 1 ||
-    sectionElements.some(
-      (node) => !["h3", "dl", "div"].includes(elementName(node) ?? ""),
-    ) ||
+    sectionElements.length !== ordered.length ||
+    sectionElements.some((node, index) => node !== ordered[index]) ||
     parts.some((node) => !hasClass(node, "type-part"))
   )
     throw new SourceParseFailure();

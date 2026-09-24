@@ -112,6 +112,7 @@ describe("Kabuki act-by-act performance ends", () => {
     ),
     timetable + timetable,
     timetable.replace('id="timetable"', 'id="new-format"'),
+    timetable.replace("</section>", "<h3>別の案内</h3></section>"),
   ])("holds a timetable outside the supported structure", (html) => {
     expect(() =>
       withKabukiPerformanceEnds(html, occurrences, headlineParts),
