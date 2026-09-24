@@ -48,6 +48,9 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   If an existing occurrence has an end but the same opening on the latest
   official page has no end, stage no update for that play. Report the page as
   `published_end_missing`; keep the catalog end until a person checks it.
+  This report does not automatically revoke older candidates. Approval and
+  catalog apply are separate human actions; check the latest official page and
+  held report before acting on an older candidate.
   Staged ends still require human review. A single-month daily calendar
   is read only when the complete permitted headline notes and
   the PC/mobile table views agree on every day and part. A/B program and

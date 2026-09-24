@@ -58,7 +58,7 @@ export function KabukiHeldPageReport({
                     {" "}
                     （{page.startsOn}〜{page.endsOn}）—{" "}
                     {page.reasonCode === "published_end_missing"
-                      ? "公式ページから終演時刻の掲載が消えました。登録済み時刻は維持し、要確認"
+                      ? "公式ページに終演時刻の掲載がありません。登録済み時刻は維持し、要確認"
                       : "日程の解釈を要確認"}
                   </span>
                 </li>

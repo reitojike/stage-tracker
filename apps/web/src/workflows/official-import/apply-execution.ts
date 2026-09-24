@@ -332,8 +332,6 @@ export async function executeOfficialImportCandidateApply(
         source,
         eventDraft(candidate, proposal),
       );
-      if (planning.holdReason === "published_end_missing")
-        failure("source_changed");
       requireDeterministicEventIdentity(planning);
       freshFingerprint = planning.planFingerprint;
       freshEventId = planning.resolvedEventId ?? null;
