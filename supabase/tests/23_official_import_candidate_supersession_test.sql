@@ -179,13 +179,13 @@ select throws_ok(
     'select public.commit_official_import_candidate_batch(%L, %L, %L::jsonb)',
     :'invalid_run', 'supersession-a',
     (pg_temp.supersession_payload(
-      'play-1', 'https://official.example/play/1', repeat('d', 64), 'plan-d'
+      'play-1', 'https://official.example/play/renamed', repeat('f', 64), 'plan-f'
     ) || pg_temp.supersession_payload(
       'play-1', 'https://official.example/play/1', repeat('e', 64), 'plan-e'
     ))::text
   ),
   '22023', null,
-  'two conflicting versions of one official identity fail the whole batch'
+  'two versions of one identity fail before the unchanged version is suppressed'
 );
 select is(
   (select count(*) from public.official_import_candidates

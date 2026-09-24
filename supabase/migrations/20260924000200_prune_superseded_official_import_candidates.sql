@@ -7,6 +7,8 @@
 -- Migration ordering: additive. The RPC signature and result are unchanged;
 -- a zero candidate count and an empty review queue were already valid.
 
+begin;
+
 create or replace function public.enforce_official_import_candidate_delete() returns trigger
 language plpgsql
 set search_path = ''
@@ -77,75 +79,170 @@ begin
 end;
 $$;
 
-create function public.prune_superseded_official_import_candidates() returns trigger
+create or replace function public.commit_official_import_candidate_batch(
+  p_run_id uuid,
+  p_source_id text,
+  p_candidates jsonb
+) returns integer
 language plpgsql
+security invoker
 set search_path = ''
 as $$
 declare
-  v_previous_context text := current_setting(
-    'stage_tracker.official_import_superseding_run_id', true
-  );
+  v_run_status text;
+  v_run_source_id text;
+  v_candidate_count integer;
 begin
-  -- Direct service-role inserts into an unfinished run are not publication.
-  if current_setting('stage_tracker.official_import_batch_run_id', true)
-    is distinct from new.run_id::text then
-    return new;
+  if p_candidates is null or jsonb_typeof(p_candidates) <> 'array' then
+    raise exception 'official import candidates must be a JSON array'
+      using errcode = '22023';
   end if;
 
-  -- Different versions of one official identity in one batch are ambiguous.
+  select run.status, run.source_id
+    into v_run_status, v_run_source_id
+  from public.official_import_runs as run
+  where run.id = p_run_id
+  for update;
+
+  if not found then
+    raise exception 'official import run is missing'
+      using errcode = '22023';
+  end if;
+  if v_run_source_id is distinct from p_source_id then
+    raise exception 'official import run source does not match'
+      using errcode = '22023';
+  end if;
+  if v_run_status = 'completed' then
+    select count(*)::integer into v_candidate_count
+    from public.official_import_candidates as candidate
+    where candidate.run_id = p_run_id;
+    return v_candidate_count;
+  end if;
+  if v_run_status <> 'running' then
+    raise exception 'official import run is not writable'
+      using errcode = '22023';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('official-import-candidates:' || p_source_id, 0)
+  );
+
+  -- Validate before unchanged-content suppression can filter either version.
   if exists (
     select 1
-    from public.official_import_candidates as sibling
-    where sibling.run_id = new.run_id
-      and sibling.id <> new.id
-      and sibling.candidate_kind = new.candidate_kind
-      and (
-        (new.official_external_id is not null
-          and sibling.official_external_id = new.official_external_id)
-        or (new.official_external_id is null
-          and sibling.official_external_id is null
-          and sibling.canonical_url = new.canonical_url)
-      )
+    from jsonb_to_recordset(p_candidates) as candidate(
+      candidate_kind text,
+      canonical_url text,
+      official_external_id text
+    )
+    group by candidate.candidate_kind,
+      (candidate.official_external_id is null),
+      coalesce(candidate.official_external_id, candidate.canonical_url)
+    having count(*) > 1
   ) then
     raise exception 'official import batch contains duplicate source identities'
       using errcode = '22023';
   end if;
 
   perform set_config(
-    'stage_tracker.official_import_superseding_run_id',
-    new.run_id::text,
-    true
+    'stage_tracker.official_import_batch_run_id', p_run_id::text, true
+  );
+  delete from public.official_import_candidates as candidate
+  where candidate.run_id = p_run_id;
+
+  insert into public.official_import_candidates (
+    run_id, source_id, candidate_kind, canonical_url, official_external_id,
+    observed_at, content_hash, etag, last_modified, proposal_version,
+    proposal, evidence_locator, deterministic_match_status,
+    semantic_match_status, resolved_event_id, resolved_ticket_opportunity_id,
+    jev_decision_evidence, plan_summary, plan_fingerprint, review_status
+  )
+  select
+    p_run_id, p_source_id, candidate.candidate_kind, candidate.canonical_url,
+    candidate.official_external_id, candidate.observed_at,
+    candidate.content_hash, candidate.etag, candidate.last_modified,
+    candidate.proposal_version, candidate.proposal, candidate.evidence_locator,
+    candidate.deterministic_match_status, candidate.semantic_match_status,
+    candidate.resolved_event_id, candidate.resolved_ticket_opportunity_id,
+    candidate.jev_decision_evidence, candidate.plan_summary,
+    candidate.plan_fingerprint, candidate.review_status
+  from jsonb_to_recordset(p_candidates) as candidate(
+    candidate_kind text,
+    canonical_url text,
+    official_external_id text,
+    observed_at timestamptz,
+    content_hash text,
+    etag text,
+    last_modified text,
+    proposal_version text,
+    proposal jsonb,
+    evidence_locator jsonb,
+    deterministic_match_status text,
+    semantic_match_status text,
+    resolved_event_id uuid,
+    resolved_ticket_opportunity_id uuid,
+    jev_decision_evidence jsonb,
+    plan_summary jsonb,
+    plan_fingerprint text,
+    review_status text
+  )
+  where not exists (
+    select 1
+    from public.official_import_candidates as prior
+    join public.official_import_runs as prior_run on prior_run.id = prior.run_id
+    where prior_run.status = 'completed'
+      and prior.source_id = p_source_id
+      and prior.candidate_kind = candidate.candidate_kind
+      and (
+        (candidate.official_external_id is not null
+          and prior.official_external_id = candidate.official_external_id)
+        or (candidate.official_external_id is null
+          and prior.official_external_id is null
+          and prior.canonical_url = candidate.canonical_url)
+      )
+      and prior.content_hash = candidate.content_hash
+      and prior.proposal_version = candidate.proposal_version
+      and prior.plan_fingerprint = candidate.plan_fingerprint
+  );
+
+  get diagnostics v_candidate_count = row_count;
+
+  -- A new candidate and removal of its older unapplied proposals must commit
+  -- together. Applied or in-flight rows are never deletion targets.
+  perform set_config(
+    'stage_tracker.official_import_superseding_run_id', p_run_id::text, true
   );
   delete from public.official_import_candidates as prior
-  using public.official_import_runs as prior_run
+  using public.official_import_runs as prior_run,
+    public.official_import_candidates as replacement
   where prior.run_id = prior_run.id
     and prior_run.status = 'completed'
-    and prior.source_id = new.source_id
-    and prior.candidate_kind = new.candidate_kind
+    and replacement.run_id = p_run_id
+    and prior.source_id = p_source_id
+    and prior.source_id = replacement.source_id
+    and prior.candidate_kind = replacement.candidate_kind
     and (
-      (new.official_external_id is not null
-        and prior.official_external_id = new.official_external_id)
-      or (new.official_external_id is null
+      (replacement.official_external_id is not null
+        and prior.official_external_id = replacement.official_external_id)
+      or (replacement.official_external_id is null
         and prior.official_external_id is null
-        and prior.canonical_url = new.canonical_url)
+        and prior.canonical_url = replacement.canonical_url)
     )
     and prior.apply_status = 'not_started'
     and prior.review_status in (
       'pending', 'approved', 'blocked_for_identity_review'
     );
   perform set_config(
-    'stage_tracker.official_import_superseding_run_id',
-    coalesce(v_previous_context, ''),
-    true
+    'stage_tracker.official_import_superseding_run_id', '', true
   );
-  return new;
+
+  update public.official_import_runs as run
+  set status = 'completed', finished_at = now()
+  where run.id = p_run_id;
+
+  return v_candidate_count;
 end;
 $$;
-
-create trigger official_import_candidates_prune_superseded
-  after insert on public.official_import_candidates
-  for each row
-  execute function public.prune_superseded_official_import_candidates();
 
 -- A one-time cleanup also removes stale pre-migration proposals already shown
 -- in Production. Rank completed-run identities first, then delete only older
@@ -183,3 +280,5 @@ select set_config(
   '',
   true
 );
+
+commit;
