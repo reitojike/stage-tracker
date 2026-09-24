@@ -391,7 +391,11 @@ describe("Kabuki-bito adapter facts", () => {
           : `<p class="type-timetable">昼の部 午前11時～</p><p class="text type-term">${period}</p><p class="type-theater">歌舞伎座</p>`,
       ),
     );
-    await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
+    const held = vi.fn();
+    await expect(adapter.acquire(source, held)).rejects.toThrow(
+      SourceParseFailure,
+    );
+    expect(held).not.toHaveBeenCalled();
   });
 
   it("does not stage an Event-only draft when a single day has no public showtime", () => {

@@ -139,6 +139,15 @@ describe("verified Kabuki daily calendar", () => {
         `${base} ※2日（金）第二部は午後5時開演に変更します`,
       ),
     ).toThrow(SourceParseFailure);
+    expect(() =>
+      parse(
+        calendarHtml(cells).replace(
+          "</section>",
+          '<p class="schedule-footer">★2日（金）第二部は通常より遅れて始まります</p></section>',
+        ),
+        `${base} ※2日（金）第二部は通常より遅れて始まります`,
+      ),
+    ).toThrow(SourceParseFailure);
   });
 
   it("maps program and circle markers to explicitly stated part clocks", () => {

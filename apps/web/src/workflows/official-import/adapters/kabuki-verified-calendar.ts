@@ -363,9 +363,8 @@ function validateCalendarNotes(
     return null;
   }
 
-  // A marked numeric clock is still an explicit clock. Accept only one
-  // cross-view marker with a matching date/part note that contains no
-  // scheduling vocabulary; reviewers must inspect the official page.
+  // A marked numeric clock is still an explicit clock. Only the verified
+  // non-scheduling note may accompany it; a new note must be reviewed first.
   const markedDetail = remainder.match(
     /^[【〖](?:休演|休演・貸切)[】〗]日程詳細をご確認ください\s*(※.+)$/u,
   );
@@ -381,9 +380,7 @@ function validateCalendarNotes(
       markedCell?.part !== info[3] ||
       Number(date.slice(-2)) !== Number(info[1]) ||
       WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()] !== info[2] ||
-      /[0-9０-９]|午前|午後|時|分|開演|終演|休演|貸切|中止|延期|変更|振替|のみ|無し|なし|上演|公演|時刻|時間|開始|停止|取りやめ/u.test(
-        body,
-      )
+      body !== "「着物で歌舞伎」です。皆様、お着物でご観劇ください"
     )
       throw new SourceParseFailure();
     return `★${(markedDetail[1] ?? "").slice(1)}`;
