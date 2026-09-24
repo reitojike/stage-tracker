@@ -124,7 +124,7 @@ select throws_ok(
     )$$,
     :'run_id'
   ),
-  '23514', null, 'the unowned legacy batch RPC cannot bypass an active claim'
+  '55000', null, 'the unowned legacy batch RPC cannot bypass an active claim'
 );
 select throws_ok(
   format(
