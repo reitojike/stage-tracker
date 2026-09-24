@@ -6,6 +6,9 @@
 -- If Apply was clicked but its Workflow has not yet claimed the candidate,
 -- supersession can win. That Workflow then fails at claim, before catalog
 -- writes, and the newer candidate is available for human review.
+-- Shadow Workflows publish through the owned batch RPC. A per-source lease
+-- prevents overlapping acquisition, and publication rechecks ownership; a
+-- displaced Workflow cannot commit a stale snapshot after its successor.
 --
 -- Migration ordering: additive. The RPC signature and result are unchanged;
 -- a zero candidate count and an empty review queue were already valid.

@@ -2,7 +2,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(10);
 
 set local role service_role;
 
@@ -58,6 +58,16 @@ select is(
   ),
   'busy',
   'the released run cannot overlap the new source owner'
+);
+select throws_ok(
+  format(
+    $$select public.commit_owned_official_import_candidate_batch(
+      %L, 'source-attempt-fixture', 'first-attempt', '[]'::jsonb
+    )$$,
+    :'first_run'
+  ),
+  '55000', null,
+  'a displaced earlier run cannot publish after another run takes ownership'
 );
 select is(
   public.commit_owned_official_import_candidate_batch(
