@@ -44,13 +44,16 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   circle markers use an explicit base clock for their part; numeric cells
   retain their own exact clocks. Unknown table symbols, notes, or combinations
   of otherwise known note forms remain held until separately verified.
-  The observed non-scheduling pre-show note on Kabukiza #986 is accepted only
-  by its exact normalized fingerprint; any edit to that note holds the page
-  for human review, even if the table is unchanged.
+  The observed non-scheduling prose on Kabukiza #986 and Minamiza #965 is
+  accepted only by exact normalized fingerprints; any edit to those notes
+  holds the page for human review, even if the table is unchanged.
   A headline is never used to guess times through a table. Exact-dated pages
   with no published opening clock and no calendar may produce an Event-only
-  candidate with zero Occurrences; month-only teasers are skipped. A published
-  clock or unresolved schedule must not be downgraded to Event-only. The
+  candidate with zero Occurrences only for an empty timetable, a validated
+  rest-day list, or the exact observed non-scheduling note fingerprint on
+  Kabukiza #997. Other notices, including part-only notes, remain held;
+  month-only teasers are skipped. A published clock or unresolved schedule
+  must not be downgraded to Event-only. The
   current bounded read-only scan still has unsupported detail pages, so this
   source has **not** passed its source-wide shadow canary or promotion gate.
   Takarazuka Event also has a weekly cadence preference but remains unscheduled.

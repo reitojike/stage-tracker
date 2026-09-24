@@ -388,7 +388,14 @@ describe("Kabuki-bito adapter facts", () => {
     expect(draft.proposal.occurrences).toEqual([]);
   });
 
-  it.each(["14：00", "※開演時刻が変更になりました", "※公演中止"])(
+  it.each([
+    "14：00",
+    "※開演時刻が変更になりました",
+    "※公演中止",
+    "※2日は第一部のみ",
+    "【休演】2日（金） ※3日は夜の部のみ",
+    "【休演】4日（日）",
+  ])(
     "does not downgrade a schedule-bearing detail to Event-only: %s",
     async (timetable) => {
       const adapter = createKabukiBitoAdapter(async (_source, url) =>

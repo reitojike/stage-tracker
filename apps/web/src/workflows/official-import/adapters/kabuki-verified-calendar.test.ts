@@ -241,6 +241,14 @@ describe("verified Kabuki daily calendar", () => {
       HEADLINE,
     ],
     [
+      "unverified evening-part footer without a numeric clock",
+      calendarHtml().replace(
+        "</section>",
+        '<p class="schedule-footer">※夜の部は、通常より遅く上演いたします</p></section>',
+      ),
+      HEADLINE,
+    ],
+    [
       "unwrapped schedule footnote",
       calendarHtml().replace("</section>", "※3日は中止</section>"),
       HEADLINE,

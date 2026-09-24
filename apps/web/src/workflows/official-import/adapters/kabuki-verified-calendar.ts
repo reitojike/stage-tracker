@@ -18,6 +18,12 @@ import { calendarDate, enumerateDates, tokyoDateTime } from "./japanese-date";
 
 type CalendarRows = Map<string, readonly string[]>;
 const WEEKDAYS = "日月火水木金土";
+// Fingerprints of observed non-scheduling prose on the named major-theater
+// pages. These are exact exceptions, not a grammar for arbitrary footnotes.
+const KABUKIZA_986_PRESHOW_NOTE_SHA256 =
+  "d2251fede6f8a365da2c23a9516d0a2803c5d7684bc3668b93c6aba7a14216a5";
+const MINAMIZA_965_FOOTER_SHA256 =
+  "1c24f0451a9051d7386d62205cc8f4eea04d0f2db08fbfd34f1988c80ad4484b";
 const CELL_CLASSES = new Set([
   "",
   "th",
@@ -363,16 +369,11 @@ function validateCalendarNotes(
     const informational = privateText.slice(informationalAt);
     privateText = privateText.slice(0, informationalAt).trim();
     const daytime = parts.find((part) => part.name === "昼の部");
-    // The observed #986 pre-show prose is not a schedule grammar. Permit only
-    // its exact normalized fingerprint, never arbitrary prose after the
-    // private-day list. The source text itself is not retained in the code.
-    const observedNoteHash =
-      "d2251fede6f8a365da2c23a9516d0a2803c5d7684bc3668b93c6aba7a14216a5";
     if (
       daytime?.clock.hour !== 11 ||
       daytime.clock.minute !== 0 ||
       createHash("sha256").update(informational).digest("hex") !==
-        observedNoteHash
+        KABUKIZA_986_PRESHOW_NOTE_SHA256
     )
       throw new SourceParseFailure();
   }
@@ -490,8 +491,8 @@ export function parseKabukiVerifiedCalendar(
         !(
           footerText === "※貸切公演が入る場合があります" ||
           (footerText !== null &&
-            /^※夜の部は、.+上演いたします$/u.test(footerText) &&
-            !/\d|時|日|休演|貸切|中止|変更/u.test(footerText))
+            createHash("sha256").update(footerText).digest("hex") ===
+              MINAMIZA_965_FOOTER_SHA256)
         )))
   )
     throw new SourceParseFailure();

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   SourceParseFailure,
   type EventAcquisitionDraft,
@@ -27,12 +28,15 @@ import {
   tokyoDateTime,
 } from "./japanese-date";
 import {
+  parseKabukiDaySet,
   parseKabukiHeadlinePeriod,
   validateKabukiWeekdayAnnotation,
 } from "./kabuki-headline-period";
 import { parseKabukiVerifiedCalendar } from "./kabuki-verified-calendar";
 
 const MAX_PLAYS_PER_SCAN = 30;
+const KABUKIZA_997_UNTIMED_NOTE_SHA256 =
+  "049963564e7bd7fdf688b23646c76335aeed9340c4fff07a76fe5152cb7b1182";
 
 function parseKabukiPeriod(text: string): {
   startsOn: string;
@@ -349,7 +353,12 @@ function verifiedDetailSchedule(html: string): {
   return { timetable, period };
 }
 
-function hasUnpublishedOpeningTime(timetable: string, html: string): boolean {
+function hasUnpublishedOpeningTime(
+  timetable: string,
+  html: string,
+  startsOn: string,
+  endsOn: string,
+): boolean {
   const document = parseHtml(html);
   if (
     descendants(
@@ -361,12 +370,21 @@ function hasUnpublishedOpeningTime(timetable: string, html: string): boolean {
     ).length > 0
   )
     return false;
-  // An exact period is enough for an Event, but a visible clock, a change or
-  // cancellation notice, or another schedule section must not be downgraded
-  // to an apparently complete Event-only result.
-  return !/(?:午前|午後)\s*\d|\d{1,2}\s*時|\d{1,2}\s*[:：]\s*\d{2}|開演|現地時間|中止|延期|取りやめ|取り消し|見合わせ/u.test(
-    timetable,
-  );
+  // Exact dates are enough for an Event-only proposal, but only these observed
+  // no-clock forms are understood. Unknown notices must reach the strict
+  // parser and fail closed, not be classified by absence of blacklist tokens.
+  if (timetable === "") return true;
+  if (
+    createHash("sha256").update(timetable).digest("hex") ===
+    KABUKIZA_997_UNTIMED_NOTE_SHA256
+  )
+    return true;
+  const rest = timetable.match(/^[【〖]休演[】〗](.+)$/u);
+  if (rest !== null) {
+    parseKabukiDaySet(rest[1] ?? "", startsOn, endsOn);
+    return true;
+  }
+  return false;
 }
 
 export function createKabukiBitoAdapter(
@@ -426,7 +444,12 @@ export function createKabukiBitoAdapter(
                   sourceUrl: detail.url,
                   startsOn: fact.startsOn,
                   endsOn: fact.endsOn,
-                  occurrences: hasUnpublishedOpeningTime(timetable, detail.body)
+                  occurrences: hasUnpublishedOpeningTime(
+                    timetable,
+                    detail.body,
+                    fact.startsOn,
+                    fact.endsOn,
+                  )
                     ? []
                     : [
                         ...parseKabukiDetailedOccurrences(
