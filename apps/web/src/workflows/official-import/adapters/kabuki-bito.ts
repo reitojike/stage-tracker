@@ -34,6 +34,7 @@ import {
   validateKabukiWeekdayAnnotation,
 } from "./kabuki-headline-period";
 import { parseKabukiVerifiedCalendar } from "./kabuki-verified-calendar";
+import { withKabukiPerformanceEnds } from "./kabuki-performance-times";
 
 const MAX_PLAYS_PER_SCAN = 30;
 const KABUKIZA_997_UNTIMED_NOTE_SHA256 =
@@ -216,7 +217,7 @@ export function parseKabukiDetailedOccurrences(
   timetable: string,
   html = "",
   onAnnotation?: () => void,
-): readonly { startsAt: string; endsAt: null }[] {
+): readonly { startsAt: string; endsAt: string | null }[] {
   // A calendar is authoritative only when both rendered views and the entire
   // headline can be verified together. Never expand its base times by default.
   if (
@@ -475,10 +476,20 @@ export function createKabukiBitoAdapter(
                 };
                 return { kind: "held" as const, held };
               }
+              const performanceEnds = withKabukiPerformanceEnds(
+                detail.body,
+                occurrences,
+              );
+              occurrences = performanceEnds.occurrences;
               const memoParts = [
                 /[【〖](?:休演|貸切)[】〗]/u.test(timetable)
                   ? "公式日程の休演・貸切日をOccurrence候補から除外"
                   : null,
+                performanceEnds.verified
+                  ? "終演時刻は公式の上演時間（掲載時点の予定）。最新情報は元ページで確認"
+                  : /終演予定時間：/u.test(timetable)
+                    ? "終演時刻は公式の概算予定。最新情報は元ページで確認"
+                    : null,
                 hasAnnotation
                   ? "公式日程に注記あり。承認・反映前に公式ページで日時を確認"
                   : null,
