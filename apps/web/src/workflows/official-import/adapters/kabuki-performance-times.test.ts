@@ -13,7 +13,7 @@ const timetable = `<section id="timetable">
   <dl class="list type-part"><dt><span>昼の部</span></dt><dd>
     <ul class="list type-program">
       <li class="item"><time class="time">11：00－11：41</time></li>
-      <li class="item type-interlude">幕間 20分</li>
+      <li class="item type-interlude"><span class="span">幕間 20分</span></li>
       <li class="item"><time class="time">12：00－12：51</time></li>
       <li class="item"><time class="time">1：26－3：12</time></li>
     </ul>
@@ -62,11 +62,41 @@ describe("Kabuki act-by-act performance ends", () => {
     });
   });
 
+  it("retains a verified approximate end when an extra timetable annotation is unparsed", () => {
+    const approximate = [
+      {
+        startsAt: "2026-09-02T11:00:00+09:00",
+        endsAt: "2026-09-02T15:05:00+09:00",
+      },
+      {
+        startsAt: "2026-09-02T16:00:00+09:00",
+        endsAt: "2026-09-02T20:35:00+09:00",
+      },
+    ];
+    const annotated = timetable.replace(
+      "</ul>\n  </dd>",
+      "</ul><p>※2日は終演予定時刻が異なります</p></dd>",
+    );
+    expect(withKabukiPerformanceEnds(annotated, approximate)).toEqual({
+      occurrences: approximate,
+      verified: false,
+    });
+  });
+
   it.each([
     timetable.replace("11：00－11：41", "10：00－11：41"),
     timetable.replace("7：52－8：49", "7：52－終演未定"),
     timetable.replace("1：26－3：12", "1：26－0：12"),
     timetable.replace("12：00－12：51", "10：00－10：51"),
+    timetable.replace(
+      "</ul>\n  </dd>",
+      "</ul><p>※3日は終演が変更になります</p></dd>",
+    ),
+    timetable.replace("</ul>\n  </dd>", "</ul>※3日は終演が変更になります</dd>"),
+    timetable.replace(
+      '<li class="item"><time class="time">1：26－3：12</time></li>',
+      '<li class="item"><time class="time">1：26－3：12</time></li><li>※3日は終演が変更になります</li>',
+    ),
     timetable.replace(
       /<dl class="list type-part"><dt><span>夜の部<\/span><\/dt>[\s\S]*?<\/dl>/u,
       "",

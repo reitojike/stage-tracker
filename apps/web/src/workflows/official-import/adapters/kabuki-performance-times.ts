@@ -17,6 +17,17 @@ function children(node: HtmlNode, tag: string): HtmlNode[] {
     : [];
 }
 
+function elementChildrenWithoutLooseText(node: HtmlNode): HtmlNode[] | null {
+  if (!("childNodes" in node)) return null;
+  if (
+    node.childNodes.some(
+      (child) => elementName(child) === null && normalizedText(child) !== "",
+    )
+  )
+    return null;
+  return node.childNodes.filter((child) => elementName(child) !== null);
+}
+
 function clockMinutes(hour: string, minute: string): number | null {
   const hours = Number(hour);
   const minutes = Number(minute);
@@ -70,23 +81,45 @@ function partTimes(part: HtmlNode): { start: number; end: number } | null {
     )
   )
     return null;
-  const lists = descendants(
-    content,
-    (node) => elementName(node) === "ul" && hasClass(node, "type-program"),
-  );
-  const list = lists[0];
-  if (lists.length !== 1 || list === undefined) return null;
-  const entries = children(list, "li");
+  const contentElements = elementChildrenWithoutLooseText(content);
+  const list = contentElements?.[0];
+  if (
+    contentElements?.length !== 1 ||
+    list === undefined ||
+    elementName(list) !== "ul" ||
+    !hasClass(list, "type-program")
+  )
+    return null;
+  const entries = elementChildrenWithoutLooseText(list);
+  if (
+    entries === null ||
+    entries.length === 0 ||
+    entries.some((entry) => elementName(entry) !== "li")
+  )
+    return null;
   let first: number | null = null;
   let previousEnd: number | null = null;
   for (const entry of entries) {
-    if (hasClass(entry, "type-interlude")) continue;
-    const clocks = descendants(
-      entry,
+    const elements = elementChildrenWithoutLooseText(entry);
+    if (elements === null) return null;
+    if (hasClass(entry, "type-interlude")) {
+      if (!/^幕間\s*\d+分$/u.test(normalizedText(entry))) return null;
+      continue;
+    }
+    const times = elements.filter(
       (node) => elementName(node) === "time" && hasClass(node, "time"),
     );
-    const time = clocks[0];
-    if (clocks.length !== 1 || time === undefined) return null;
+    const time = times[0];
+    if (
+      times.length !== 1 ||
+      time === undefined ||
+      elements.some(
+        (node) =>
+          node !== time &&
+          !(elementName(node) === "p" && hasClass(node, "playname")),
+      )
+    )
+      return null;
     const text = verifiedTimeText(time);
     if (text === null) return null;
     const match = text
