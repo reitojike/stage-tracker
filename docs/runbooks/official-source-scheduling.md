@@ -42,7 +42,8 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   daily calendar is read only when the complete permitted headline notes and
   the PC/mobile table views agree on every day and part. A/B program and
   circle markers use an explicit base clock for their part; numeric cells
-  retain their own exact clocks. Unknown table symbols or notes remain held.
+  retain their own exact clocks. Unknown table symbols, notes, or combinations
+  of otherwise known note forms remain held until separately verified.
   A headline is never used to guess times through a table. Exact-dated pages
   with no published opening clock and no calendar may produce an Event-only
   candidate with zero Occurrences; month-only teasers are skipped. A published

@@ -199,6 +199,11 @@ describe("verified Kabuki daily calendar", () => {
       calendarHtml(),
       `${HEADLINE} ※下記日程は学校団体様がいらっしゃいます 第一部：4日（日）`,
     ],
+    [
+      "unverified combination of explicit private days and a school-group note",
+      calendarHtml(),
+      "第一部 午前11時～ 第二部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 第一部：3日（土） ※下記日程は学校団体様がいらっしゃいます 第一部：1日（木）",
+    ],
     ["local clock disclaimer", calendarHtml(), `${HEADLINE} ※現地時間`],
     [
       "unread schedule footnote",
