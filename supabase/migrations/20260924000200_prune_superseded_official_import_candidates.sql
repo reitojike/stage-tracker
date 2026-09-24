@@ -3,6 +3,9 @@
 -- remain as audit/operational evidence. This never deletes catalog Events or
 -- TicketOpportunities. The batch insert and pruning are one transaction;
 -- completed import runs remain intact.
+-- If Apply was clicked but its Workflow has not yet claimed the candidate,
+-- supersession can win. That Workflow then fails at claim, before catalog
+-- writes, and the newer candidate is available for human review.
 --
 -- Migration ordering: additive. The RPC signature and result are unchanged;
 -- a zero candidate count and an empty review queue were already valid.

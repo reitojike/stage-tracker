@@ -4,7 +4,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(19);
 
 select pg_temp.create_test_user() as creator_id \gset
 insert into public.catalog_creators (user_id) values (:'creator_id');
@@ -83,6 +83,14 @@ select is(
   (select count(*) from public.official_import_candidates where id = :'first_candidate'),
   0::bigint,
   'the earlier approved but unapplied proposal is removed'
+);
+select throws_ok(
+  format(
+    $$select public.claim_official_import_candidate_apply(%L, 'late-workflow', 300)$$,
+    :'first_candidate'
+  ),
+  '22023', null,
+  'a Workflow starting after supersession fails before any catalog write'
 );
 select is(
   (select count(*) from public.official_import_candidates

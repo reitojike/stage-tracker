@@ -29,7 +29,9 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   pending or approved-but-not-applied review proposals in the same staging
   transaction. In-flight, applied, failed, and rejected records remain for
   operational evidence. Completed run records remain; this never deletes a
-  catalog Event or TicketOpportunity.
+  catalog Event or TicketOpportunity. If a new scan removes an approved candidate
+  after its Apply button is pressed but before the Workflow claims it, that
+  Workflow fails before catalog writes; review the newer candidate instead.
 - Initial rollout preference (2026-09-23): Kabuki Event first, weekly. Its
   adapter bounds a scan to 30 play pages, fetching at most two at a time with a
   pause between batches. An index over the cap fails closed rather than being
