@@ -130,7 +130,7 @@ describe("verified Kabuki daily calendar", () => {
       ["貸切", "B"],
     ];
     const headline =
-      "昼の部 午前11時～ 夜の部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 昼の部：3日（土） 昼の部では、古式に則り、説明・開演（午前11時）に先立ち、説明・説明";
+      "昼の部 午前11時～ 夜の部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 昼の部：3日（土）";
     expect(
       parse(calendarHtml(cells, cells, ["昼の部", "夜の部"]), headline).map(
         (item) => item.startsAt,
@@ -152,6 +152,24 @@ describe("verified Kabuki daily calendar", () => {
       "昼の部 午前11時～ 夜の部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 昼の部：3日（土）";
     expect(() =>
       parse(calendarHtml(cells, cells, ["昼の部", "夜の部"]), headline),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("holds an unverified combination of otherwise known note forms", () => {
+    const cells = [
+      ["A", "A"],
+      ["-", "-"],
+      ["貸切", "B"],
+    ];
+    const html = calendarHtml(cells, cells);
+    const headline =
+      "第一部 午前11時～ 第二部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 第一部：3日（土）";
+    expect(parse(html, headline)).toHaveLength(3);
+    expect(() =>
+      parse(
+        html,
+        `${headline} ※下記日程は学校団体様がいらっしゃいます 第一部：1日（木）`,
+      ),
     ).toThrow(SourceParseFailure);
   });
 
@@ -200,9 +218,21 @@ describe("verified Kabuki daily calendar", () => {
       `${HEADLINE} ※下記日程は学校団体様がいらっしゃいます 第一部：4日（日）`,
     ],
     [
-      "unverified combination of explicit private days and a school-group note",
-      calendarHtml(),
-      "第一部 午前11時～ 第二部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 第一部：3日（土） ※下記日程は学校団体様がいらっしゃいます 第一部：1日（木）",
+      "unverified informational note with a trailing clock change",
+      calendarHtml(
+        [
+          ["A", "A"],
+          ["-", "-"],
+          ["貸切", "B"],
+        ],
+        [
+          ["A", "A"],
+          ["-", "-"],
+          ["貸切", "B"],
+        ],
+        ["昼の部", "夜の部"],
+      ),
+      "昼の部 午前11時～ 夜の部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 昼の部：3日（土） 昼の部では、古式に則り、説明・開演（午前11時）に先立ち、説明・説明 ※夜公演は午後5時に開演",
     ],
     ["local clock disclaimer", calendarHtml(), `${HEADLINE} ※現地時間`],
     [

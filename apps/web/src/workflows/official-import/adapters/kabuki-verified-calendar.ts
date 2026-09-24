@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { SourceParseFailure } from "../acquisition";
 import {
   attribute,
@@ -13,12 +14,7 @@ import {
   parseKabukiBaseTimes,
   parseKabukiDaySet,
 } from "./kabuki-headline-period";
-import {
-  calendarDate,
-  enumerateDates,
-  parseJapaneseClock,
-  tokyoDateTime,
-} from "./japanese-date";
+import { calendarDate, enumerateDates, tokyoDateTime } from "./japanese-date";
 
 type CalendarRows = Map<string, readonly string[]>;
 const WEEKDAYS = "日月火水木金土";
@@ -366,18 +362,17 @@ function validateCalendarNotes(
   if (informationalAt >= 0) {
     const informational = privateText.slice(informationalAt);
     privateText = privateText.slice(0, informationalAt).trim();
-    const reference = informational.match(
-      /^昼の部では、古式に則り、.+・開演[（(]((?:午前|午後)\s*\d{1,2}時(?:\s*\d{1,2}分)?)[）)]に先立ち、.+・.+$/u,
-    );
     const daytime = parts.find((part) => part.name === "昼の部");
-    const referenceClock = parseJapaneseClock(reference?.[1] ?? "");
+    // The observed #986 pre-show prose is not a schedule grammar. Permit only
+    // its exact normalized fingerprint, never arbitrary prose after the
+    // private-day list. The source text itself is not retained in the code.
+    const observedNoteHash =
+      "d2251fede6f8a365da2c23a9516d0a2803c5d7684bc3668b93c6aba7a14216a5";
     if (
-      reference === null ||
-      daytime === undefined ||
-      referenceClock === null ||
-      referenceClock.hour !== daytime.clock.hour ||
-      referenceClock.minute !== daytime.clock.minute ||
-      /\d{1,2}日|中止|休演|貸切|変更|のみ|夜の部|[【〖]/u.test(informational)
+      daytime?.clock.hour !== 11 ||
+      daytime.clock.minute !== 0 ||
+      createHash("sha256").update(informational).digest("hex") !==
+        observedNoteHash
     )
       throw new SourceParseFailure();
   }

@@ -44,6 +44,9 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   circle markers use an explicit base clock for their part; numeric cells
   retain their own exact clocks. Unknown table symbols, notes, or combinations
   of otherwise known note forms remain held until separately verified.
+  The observed non-scheduling pre-show note on Kabukiza #986 is accepted only
+  by its exact normalized fingerprint; any edit to that note holds the page
+  for human review, even if the table is unchanged.
   A headline is never used to guess times through a table. Exact-dated pages
   with no published opening clock and no calendar may produce an Event-only
   candidate with zero Occurrences; month-only teasers are skipped. A published
