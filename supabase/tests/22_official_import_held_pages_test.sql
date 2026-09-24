@@ -2,7 +2,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(20);
 
 select has_table('public', 'official_import_held_pages', 'held pages have a durable report table');
 select has_column('public', 'official_import_held_pages', 'reason_code', 'held report has a bounded reason code');
@@ -26,6 +26,7 @@ select ok(
 set local role service_role;
 select gen_random_uuid() as run_id \gset
 select gen_random_uuid() as invalid_run_id \gset
+select gen_random_uuid() as missing_end_run_id \gset
 
 select is(
   public.claim_official_import_run_attempt(
@@ -122,6 +123,43 @@ select is(
   (select count(*) from public.official_import_held_pages where run_id = :'invalid_run_id'),
   0::bigint,
   'candidate failure leaves no partial held report'
+);
+select is(
+  public.release_official_import_run_attempt(
+    :'invalid_run_id', 'event.kabuki-bito.schedule', 'second-owner'
+  ),
+  'released',
+  'the prior active attempt releases the source before the next run'
+);
+
+select is(
+  public.claim_official_import_run_attempt(
+    :'missing_end_run_id', 'event.kabuki-bito.schedule', 'missing-end-owner', 300
+  ),
+  'claimed',
+  'another run can claim a missing-end report'
+);
+select is(
+  public.commit_owned_official_import_partial_batch(
+    :'missing_end_run_id', 'event.kabuki-bito.schedule',
+    'missing-end-owner', '[]'::jsonb,
+    jsonb_build_array(jsonb_build_object(
+      'canonical_url', 'https://www.kabuki-bito.jp/theaters/kabukiza/play/985',
+      'official_external_id', '985',
+      'title', '歌舞伎座の公演',
+      'starts_on', '2026-10-01',
+      'ends_on', '2026-10-20',
+      'reason_code', 'published_end_missing'
+    ))
+  ),
+  0,
+  'a missing published end can be reported without a candidate'
+);
+select is(
+  (select reason_code from public.official_import_held_pages
+   where run_id = :'missing_end_run_id'),
+  'published_end_missing',
+  'the distinct missing-end reason is retained'
 );
 
 select * from finish();
