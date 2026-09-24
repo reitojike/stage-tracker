@@ -669,9 +669,26 @@ export function OfficialImportReviewQueue({
       />
     );
   }
+  const isUnchangedPending = (candidate: OfficialImportReviewCandidate) =>
+    candidate.reviewStatus === "pending" &&
+    candidate.applyStatus === "not_started" &&
+    !candidate.plan.hasChanges &&
+    candidate.match.deterministicStatus === "matched" &&
+    candidate.match.semanticStatus === "not_used" &&
+    (candidate.kind === "event"
+      ? candidate.currentEvent?.sourceKey === candidate.proposal.sourceKey
+      : candidate.currentTicketOpportunity?.sourceKey ===
+        candidate.proposal.sourceKey);
+  const actionable = state.data.filter(
+    (candidate) => !isUnchangedPending(candidate),
+  );
+  const unchanged = state.data.filter(isUnchangedPending);
   return (
     <div className="flex flex-col gap-lg">
-      {state.data.map((candidate) => (
+      {actionable.length === 0 && (
+        <StatePanel variant="empty" title="確認が必要な候補はありません" />
+      )}
+      {actionable.map((candidate) => (
         <CandidateCard
           key={candidate.id}
           candidate={candidate}
@@ -679,6 +696,23 @@ export function OfficialImportReviewQueue({
           applyAction={applyAction}
         />
       ))}
+      {unchanged.length > 0 && (
+        <details className="rounded-lg border border-border p-sm">
+          <summary className="cursor-pointer text-body-sm">
+            取得時点で変更なし {unchanged.length}件（必要なら表示）
+          </summary>
+          <div className="mt-sm flex flex-col gap-lg">
+            {unchanged.map((candidate) => (
+              <CandidateCard
+                key={candidate.id}
+                candidate={candidate}
+                reviewAction={reviewAction}
+                applyAction={applyAction}
+              />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

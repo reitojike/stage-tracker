@@ -39,7 +39,11 @@ const pendingCandidate: OfficialImportReviewCandidate = {
   },
   currentEvent: null,
   currentTicketOpportunity: null,
-  plan: { action: "create", changes: ["新しいイベントを作成"] },
+  plan: {
+    action: "create",
+    hasChanges: true,
+    changes: ["新しいイベントを作成"],
+  },
   evidence: { sectionLabel: "公演情報", rowLabel: "宝塚大劇場" },
   match: {
     deterministicStatus: "unmatched",

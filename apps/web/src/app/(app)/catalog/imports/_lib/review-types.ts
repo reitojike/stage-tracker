@@ -115,6 +115,7 @@ export interface OfficialImportReviewCandidate {
   readonly currentTicketOpportunity: CurrentTicketOpportunityReviewTarget | null;
   readonly plan: {
     readonly action: "create" | "update" | "unchanged";
+    readonly hasChanges: boolean;
     readonly changes: readonly string[];
   };
   readonly evidence: {

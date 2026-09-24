@@ -45,6 +45,7 @@ const candidate: OfficialImportReviewCandidate = {
   currentTicketOpportunity: null,
   plan: {
     action: "create",
+    hasChanges: true,
     changes: ["新しいイベントを作成", "公演回 1件を追加"],
   },
   evidence: { sectionLabel: "2026年10月", rowLabel: "テスト公演" },
@@ -61,6 +62,108 @@ describe("OfficialImportReviewQueue", () => {
     mockReviewAction.mockReset();
     mockApplyAction.mockReset();
     mockRefresh.mockReset();
+  });
+
+  it("collapses only exact-identity pending candidates with no planned changes", () => {
+    const unchanged = {
+      ...candidate,
+      currentEvent: {
+        id: "22222222-2222-4222-8222-222222222222",
+        sourceKey: candidate.proposal.sourceKey,
+        title: "テスト公演",
+        venue: "テスト劇場",
+        memo: null,
+        sourceUrl: candidate.canonicalUrl,
+        startsOn: "2026-10-01",
+        endsOn: "2026-10-02",
+        occurrences: [],
+      },
+      plan: {
+        action: "unchanged" as const,
+        hasChanges: false,
+        changes: ["現在のイベントから変更なし"],
+      },
+      match: {
+        deterministicStatus: "matched" as const,
+        semanticStatus: "not_used" as const,
+        jev: null,
+      },
+    } satisfies OfficialImportReviewCandidate;
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            unchanged,
+            {
+              ...unchanged,
+              id: "33333333-3333-4333-8333-333333333333",
+              reviewStatus: "blocked_for_identity_review",
+              blockedReason: "同一性を確認してください",
+            },
+            {
+              ...unchanged,
+              id: "44444444-4444-4444-8444-444444444444",
+              plan: {
+                action: "unchanged",
+                hasChanges: true,
+                changes: ["現在のイベントから変更なし", "グループを更新"],
+              },
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+      />,
+    );
+
+    const summary = screen.getByText("取得時点で変更なし 1件（必要なら表示）");
+    const details = summary.closest("details");
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute("open");
+    expect(details?.querySelectorAll("article")).toHaveLength(1);
+    expect(screen.getAllByRole("article")).toHaveLength(3);
+    fireEvent.click(summary);
+    expect(details).toHaveAttribute("open");
+  });
+
+  it("does not collapse a matching plan when the catalog source identity differs", () => {
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              currentEvent: {
+                id: "22222222-2222-4222-8222-222222222222",
+                sourceKey: "another:source",
+                title: "テスト公演",
+                venue: "テスト劇場",
+                memo: null,
+                sourceUrl: candidate.canonicalUrl,
+                startsOn: "2026-10-01",
+                endsOn: "2026-10-02",
+                occurrences: [],
+              },
+              plan: {
+                action: "unchanged",
+                hasChanges: false,
+                changes: ["現在のイベントから変更なし"],
+              },
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+      />,
+    );
+    expect(
+      screen.queryByText(/取得時点で変更なし 1件/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "テスト公演" }),
+    ).toBeInTheDocument();
   });
 
   it("presents source, proposal, diff, evidence, match and Jev as supporting evidence", () => {
@@ -153,7 +256,11 @@ describe("OfficialImportReviewQueue", () => {
                   },
                 ],
               },
-              plan: { action: "update", changes: ["基本情報を更新"] },
+              plan: {
+                action: "update",
+                hasChanges: true,
+                changes: ["基本情報を更新"],
+              },
             },
           ],
         }}
@@ -228,7 +335,11 @@ describe("OfficialImportReviewQueue", () => {
                   },
                 ],
               },
-              plan: { action: "update", changes: ["対象公演回を更新（1件）"] },
+              plan: {
+                action: "update",
+                hasChanges: true,
+                changes: ["対象公演回を更新（1件）"],
+              },
             },
           ],
         }}
