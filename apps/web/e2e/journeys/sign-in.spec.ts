@@ -254,7 +254,9 @@ test("local Supabase enforces the Passkey credential and session boundary", asyn
   const anonymous = createPasskeyClient();
   const anonymousList = await anonymous.auth.passkey.list();
   expect(anonymousList.data).toBeNull();
-  expect(anonymousList.error).toMatchObject({ name: "AuthSessionMissingError" });
+  expect(anonymousList.error).toMatchObject({
+    name: "AuthSessionMissingError",
+  });
   const anonymousDelete = await anonymous.auth.passkey.delete({
     passkeyId: "00000000-0000-0000-0000-000000000000",
   });
