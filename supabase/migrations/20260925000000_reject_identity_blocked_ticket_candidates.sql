@@ -2,6 +2,8 @@
 -- Approval remains impossible until deterministic Event identity is resolved.
 -- Rejected rows retain reviewer evidence and suppress identical later proposals.
 -- Migration ordering: additive.
+-- Existing clients only review pending rows, so this relaxes a transition they
+-- cannot currently invoke and does not change their observed response shapes.
 
 create or replace function public.enforce_official_import_candidate_state() returns trigger
 language plpgsql
