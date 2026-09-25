@@ -105,6 +105,173 @@ describe("Ticket Opportunity candidate planning", () => {
     expect(align).not.toHaveBeenCalled();
   });
 
+  it("uses a known Kabuki Event identity despite observed Minamiza title and venue variants", async () => {
+    const matched = event({
+      sourceKey: "kabuki-bito:kyoto:play:955",
+      title: "流白浪燦星",
+      venue: "劇場：南座",
+    });
+    const proposal = draft();
+    const { planner } = setup(matched, []);
+    const result = await planner.planTicketOpportunity(source, {
+      ...proposal,
+      proposal: {
+        ...proposal.proposal,
+        eventSourceKey: matched.sourceKey ?? "",
+        displayName: "一般発売",
+      },
+      eventReference: {
+        title: "流白浪燦星 碧翠の麗城",
+        venue: "京都四條南座",
+        startsOn: matched.startsOn,
+        endsOn: matched.endsOn,
+      },
+    });
+    expect(result.deterministicMatchStatus).toBe("matched");
+    expect(result.proposal).toMatchObject({
+      eventSourceKey: "kabuki-bito:kyoto:play:955",
+      sourceKey: "shochiku:kabuki-bito:kyoto:play:955:general",
+      displayName: "一般発売",
+    });
+  });
+
+  it("does not deterministically bind a substring title without source identity", async () => {
+    const matched = event({ title: "流白浪燦星", venue: "南座" });
+    const proposal = draft();
+    const { planner } = setup(null, [matched]);
+    const result = await planner.planTicketOpportunity(source, {
+      ...proposal,
+      eventReference: {
+        title: "流白浪燦星 碧翠の麗城",
+        venue: "南座",
+        startsOn: matched.startsOn,
+        endsOn: matched.endsOn,
+      },
+    });
+    expect(result.deterministicMatchStatus).toBe("unresolved");
+    expect(result.resolvedEventId).toBeNull();
+  });
+
+  it("keeps an explicit Kabuki clock when Shochiku later lists only the same sale date", async () => {
+    const matched = event();
+    const current: CatalogTicketOpportunityMatch = {
+      id: "opportunity-1",
+      eventId: matched.id,
+      displayName: "一般販売",
+      targetScope: "event_wide",
+      sourceUrl: "https://www.kabuki-bito.jp/theaters/kabukiza/play/123",
+      memo: null,
+      targetOccurrences: [],
+      milestones: [
+        {
+          type: "sale_start",
+          precision: "datetime",
+          date: null,
+          at: "2026-08-14T10:00:00+09:00",
+          startsAt: null,
+          endsAt: null,
+        },
+      ],
+    };
+    const { planner } = setup(matched, [], undefined, current);
+    const result = await planner.planTicketOpportunity(source, {
+      ...draft(matched.sourceKey ?? ""),
+      proposal: {
+        ...draft().proposal,
+        displayName: "一般販売",
+      },
+    });
+    expect(result.proposal?.sourceKey).toBe(
+      "shochiku:kabuki-bito:kabukiza:play:123:general",
+    );
+    expect(result.plan).toMatchObject({
+      action: "unchanged",
+      milestonesChanged: false,
+    });
+    const changed = await planner.planTicketOpportunity(source, {
+      ...draft(matched.sourceKey ?? ""),
+      proposal: {
+        ...draft().proposal,
+        displayName: "一般販売",
+        milestones: [
+          { type: "sale_start", precision: "date", date: "2026-08-15" },
+        ],
+      },
+    });
+    expect(changed.plan).toMatchObject({
+      action: "update",
+      milestonesChanged: true,
+    });
+  });
+
+  it("upgrades a same-day Kabuki date-only notice to Shochiku evidence", async () => {
+    const matched = event();
+    const { planner } = setup(matched, [], undefined, {
+      id: "opportunity-1",
+      eventId: matched.id,
+      displayName: "チケット発売予定",
+      targetScope: "event_wide",
+      sourceUrl: "https://www.kabuki-bito.jp/theaters/kabukiza/play/123",
+      memo: "公式ページでは発売予定。承認前に最新情報を確認",
+      targetOccurrences: [],
+      milestones: [
+        {
+          type: "sale_start",
+          precision: "date",
+          date: "2026-08-14",
+          at: null,
+          startsAt: null,
+          endsAt: null,
+        },
+      ],
+    });
+    const result = await planner.planTicketOpportunity(
+      source,
+      draft(matched.sourceKey ?? ""),
+    );
+    expect(result.plan).toMatchObject({
+      action: "update",
+      detailsChanged: true,
+    });
+  });
+
+  it("does not downgrade an applied Shochiku general sale when only the Kabuki preliminary remains", async () => {
+    const matched = event();
+    const { planner } = setup(matched, [], undefined, {
+      id: "opportunity-1",
+      eventId: matched.id,
+      displayName: "一般販売",
+      targetScope: "event_wide",
+      sourceUrl:
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+      memo: null,
+      targetOccurrences: [],
+      milestones: [
+        {
+          type: "sale_start",
+          precision: "date",
+          date: "2026-08-15",
+          at: null,
+          startsAt: null,
+          endsAt: null,
+        },
+      ],
+    });
+    const preliminary = draft(matched.sourceKey ?? "");
+    const result = await planner.planTicketOpportunity(source, {
+      ...preliminary,
+      canonicalUrl: "https://www.kabuki-bito.jp/theaters/kabukiza/play/123",
+      proposal: {
+        ...preliminary.proposal,
+        sourceUrl: "https://www.kabuki-bito.jp/theaters/kabukiza/play/123",
+      },
+    });
+    expect(result.proposal?.sourceKey).toBe(
+      "shochiku:kabuki-bito:kabukiza:play:123:general",
+    );
+    expect(result.plan?.action).toBe("unchanged");
+  });
+
   it("uses current replace-all semantics when diffing an existing opportunity", async () => {
     const matched = event();
     const current: CatalogTicketOpportunityMatch = {

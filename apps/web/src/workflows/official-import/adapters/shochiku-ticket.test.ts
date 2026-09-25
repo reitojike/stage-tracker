@@ -62,6 +62,84 @@ describe("Shochiku ticket schedule", () => {
       startsAt: "2026-09-29T10:00:00+09:00",
       endsAt: "2026-09-29T17:30:00+09:00",
     });
+    expect(
+      parseShochikuSaleMilestone(
+        "9月16日（水）10時～9月17日（木）17時まで 電話・Web",
+        "2026-10-02",
+      ),
+    ).toEqual({
+      type: "sale_start",
+      precision: "window",
+      startsAt: "2026-09-16T10:00:00+09:00",
+      endsAt: "2026-09-17T17:00:00+09:00",
+    });
+    expect(
+      parseShochikuSaleMilestone(
+        "ほうおう10月号到着後～9月13日（日）17時まで Web抽選申込",
+        "2026-10-02",
+      ),
+    ).toBeNull();
+  });
+
+  it("does not mix sales rows across adjacent performances", () => {
+    const nested = `<h4 class="page-block__title title3">歌舞伎座</h4>
+      <div class="performance__body">
+        <h4 class="performance-title">九月公演</h4>
+        <p class="agenda_size">2026年9月2日（水）～9月26日（土）</p>
+        <table><tr><th>一般販売</th><td>8月14日～</td></tr></table>
+        <h4 class="performance-title">十月公演</h4>
+        <p class="agenda_size">2026年10月26日（月）</p>
+        <table><tr><th>一般発売</th><td>9月30日～</td></tr></table>
+      </div>`;
+    expect(parseShochikuSchedule(nested)).toMatchObject([
+      {
+        title: "九月公演",
+        startsOn: "2026-09-02",
+        endsOn: "2026-09-26",
+        rowText: "8月14日～",
+      },
+      {
+        title: "十月公演",
+        startsOn: "2026-10-26",
+        endsOn: "2026-10-26",
+        rowText: "9月30日～",
+      },
+    ]);
+  });
+
+  it("accepts observed adjacent-day notation and excludes month-only teasers", () => {
+    const page = `<h4 class="page-block__title title3">歌舞伎座ホール</h4>
+      <div class="performance__body">
+        <h4 class="performance-title">二日間公演</h4>
+        <p class="agenda_size">2026年9月5日（土）・6日（日）</p>
+        <table><tr><th>一般販売</th><td>8月8日～</td></tr></table>
+        <h4 class="performance-title">月だけの予告</h4>
+        <p class="agenda_size">2026年9月～12月（詳細は後日）</p>
+        <table><tr><th>一般販売</th><td>8月8日～</td></tr></table>
+      </div>`;
+    expect(parseShochikuSchedule(page)).toMatchObject([
+      { title: "二日間公演", startsOn: "2026-09-05", endsOn: "2026-09-06" },
+    ]);
+  });
+
+  it("does not stage a deadline as the opening of an undated magazine application", () => {
+    const page = `<h4 class="page-block__title title3">新橋演舞場</h4>
+      <div class="performance__body">
+        <h4 class="performance-title">十月公演</h4>
+        <p class="agenda_size">2026年10月2(金)～10月28日(水)</p>
+        <table>
+          <tr><th>松竹歌舞伎会会員</th><td>ほうおう10月号到着後～9月13日（日）17時まで Web抽選申込</td></tr>
+          <tr><th>一般販売</th><td>9月20日（日）～</td></tr>
+        </table>
+      </div>`;
+    expect(parseShochikuSchedule(page)).toMatchObject([
+      {
+        title: "十月公演",
+        startsOn: "2026-10-02",
+        endsOn: "2026-10-28",
+        displayName: "一般販売",
+      },
+    ]);
   });
 
   it("uses the previous year for a sale date preceding a January production", () => {

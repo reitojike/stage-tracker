@@ -18,6 +18,10 @@ export interface OfficialSourceDefinition {
   readonly canonicalUrl: string;
   readonly allowedOrigin: string;
   readonly allowedPathPrefixes: readonly string[];
+  readonly additionalAllowedLocations?: readonly {
+    readonly origin: string;
+    readonly pathPrefixes: readonly string[];
+  }[];
   readonly adapter: SourceFamilyAdapter;
   readonly extractor: SourceExtractorFamily;
   readonly domainKind: OfficialImportDomainKind;
@@ -175,6 +179,12 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
       "/t/info/sale_schedule_east.html",
       "/t/info/sale_schedule_west.html",
     ],
+    additionalAllowedLocations: [
+      {
+        origin: "https://www.kabuki-bito.jp",
+        pathPrefixes: ["/schedule/", "/theaters/"],
+      },
+    ],
     adapter: "http_html",
     extractor: "shochiku_ticket",
     domainKind: "ticket_opportunity",
@@ -293,7 +303,6 @@ export function assertAllowedSourceUrl(
   }
   if (
     parsed.protocol !== "https:" ||
-    parsed.origin !== source.allowedOrigin ||
     parsed.username !== "" ||
     parsed.password !== ""
   ) {
@@ -301,7 +310,18 @@ export function assertAllowedSourceUrl(
       `Source URL is outside the allowlisted origin for ${source.id}`,
     );
   }
-  const pathAllowed = source.allowedPathPrefixes.some((prefix) =>
+  const paths =
+    parsed.origin === source.allowedOrigin
+      ? source.allowedPathPrefixes
+      : source.additionalAllowedLocations?.find(
+          (location) => location.origin === parsed.origin,
+        )?.pathPrefixes;
+  if (paths === undefined) {
+    throw new OfficialSourceRegistryError(
+      `Source URL is outside the allowlisted origin for ${source.id}`,
+    );
+  }
+  const pathAllowed = paths.some((prefix) =>
     prefix.endsWith("/")
       ? parsed.pathname.startsWith(prefix)
       : parsed.pathname === prefix,

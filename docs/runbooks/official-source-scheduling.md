@@ -8,6 +8,31 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
 
 - Kabuki Event is the only source with `scheduledEnabled: true`; every other
   source remains unscheduled. Its weekly due slot is Monday in Asia/Tokyo.
+- `ticket.shochiku.schedule` remains manual shadow only. Its adapter reads
+  public Kabuki-bito play detail ticket starts as preliminary general-sale
+  evidence, then the Shochiku east/west sale rows. One source/run reconciles
+  the same Event's general sale: a later Shochiku date change replaces the
+  preliminary date, while a Shochiku date-only row for the same day does not
+  erase a Kabuki-bito explicitly published clock. Shochiku member tiers remain
+  separate opportunities. Differently titled productions are not paired by
+  substring alone; unresolved Event identities remain review-blocked;
+  approval/apply is never automatic. The creator's `/catalog/imports` page has
+  a separate manual ticket shadow button and latest held-page report.
+  A 2026-09-25 read-only live scan parsed 71 distinct ticket drafts: 13 from
+  Kabuki-bito detail pages and 58 from Shochiku east/west, with zero held play
+  pages. Kabukiza #986 yielded general sale 2026-10-14 10:00 JST from its
+  [official ticket section](https://www.kabuki-bito.jp/theaters/kabukiza/play/986).
+  This did **not** stage Production candidates or prove catalog linkage,
+  unchanged-run suppression, or apply convergence. Do not schedule the ticket
+  source until a clean Production manual canary and operator policy/cadence
+  review are recorded. The [Shochiku terms](https://www1.ticket-web-shochiku.com/t/info/rules.html)
+  reserve rights in site content; its `/robots.txt` returned 404 on this
+  check, which is not positive permission. Reuse only normalized facts and
+  source links within the accepted private-household boundary; do not retain
+  or republish page prose, images, or raw HTML. A separate operator judgment
+  is needed before its Cron promotion. The daily Cron entry already exists,
+  so a time-bounded daily ticket trial needs only a source-specific cadence
+  decision and `scheduledEnabled` promotion; no second Cron or secret is needed.
 - The Production-only machine-auth route is exactly
   `/api/official-import/cron`. The proxy lets this path reach its route handler
   without a Supabase user session; the handler still requires the

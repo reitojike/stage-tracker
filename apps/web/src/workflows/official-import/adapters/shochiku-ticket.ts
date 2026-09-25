@@ -18,35 +18,21 @@ import {
   fetchOfficialHtml,
   hashOfficialDocuments,
 } from "./http";
+import { calendarDate, slug } from "./japanese-date";
 import {
-  calendarDate,
-  parseJapaneseClock,
-  slug,
-  tokyoDateTime,
-} from "./japanese-date";
+  acquireKabukiGeneralSales,
+  type KabukiTicketIdentity,
+} from "./kabuki-ticket-sales";
+import {
+  parseShochikuSaleMilestone,
+  type TicketMilestone,
+} from "./ticket-sale-date";
+export { parseShochikuSaleMilestone } from "./ticket-sale-date";
 
 const SCHEDULE_PAGES = [
   "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
   "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_west.html",
 ] as const;
-
-type TicketMilestone =
-  | {
-      readonly type: "sale_start";
-      readonly precision: "date";
-      readonly date: string;
-    }
-  | {
-      readonly type: "sale_start";
-      readonly precision: "datetime";
-      readonly at: string;
-    }
-  | {
-      readonly type: "sale_start";
-      readonly precision: "window";
-      readonly startsAt: string;
-      readonly endsAt: string;
-    };
 
 export interface ShochikuTicketFact {
   readonly title: string;
@@ -56,24 +42,6 @@ export interface ShochikuTicketFact {
   readonly displayName: string;
   readonly rowText: string;
   readonly milestone: TicketMilestone | null;
-}
-
-function isHtmlNode(value: unknown): value is HtmlNode {
-  return typeof value === "object" && value !== null && "nodeName" in value;
-}
-
-function parent(node: HtmlNode): HtmlNode | null {
-  const candidate: unknown = Reflect.get(node, "parentNode");
-  return isHtmlNode(candidate) ? candidate : null;
-}
-
-function closest(node: HtmlNode, predicate: (node: HtmlNode) => boolean) {
-  let cursor: HtmlNode | null = node;
-  while (cursor !== null) {
-    if (predicate(cursor)) return cursor;
-    cursor = parent(cursor);
-  }
-  return null;
 }
 
 function headingLabel(node: HtmlNode): string {
@@ -87,115 +55,53 @@ function headingLabel(node: HtmlNode): string {
   return directText === "" ? normalizedText(node) : directText;
 }
 
-function dateForSale(
-  text: string,
-  performanceStartsOn: string,
-  performanceEndsOn: string = performanceStartsOn,
-): string | null {
-  const normalized = text.normalize("NFKC");
-  const dateMatch = normalized.match(
-    /(?:(\d{4})年)?\s*(\d{1,2})月\s*(\d{1,2})日/u,
-  );
-  if (dateMatch === null) return null;
-  const explicitYear = dateMatch[1];
-  const month = Number(dateMatch[2]);
-  const day = Number(dateMatch[3]);
-  if (explicitYear !== undefined) {
-    return calendarDate(Number(explicitYear), month, day);
-  }
-  const startYear = Number(performanceStartsOn.slice(0, 4));
-  const endYear = Number(performanceEndsOn.slice(0, 4));
-  const candidates = [...new Set([startYear - 1, startYear, endYear])]
-    .flatMap((year) => {
-      try {
-        return [calendarDate(year, month, day)];
-      } catch (error) {
-        if (error instanceof SourceParseFailure) return [];
-        throw error;
-      }
-    })
-    .filter((date) => date <= performanceEndsOn)
-    .sort();
-  if (candidates.length === 0) throw new SourceParseFailure();
-  const duringPerformance = candidates.find(
-    (date) => date >= performanceStartsOn,
-  );
-  return duringPerformance ?? candidates.at(-1) ?? null;
-}
-
-export function parseShochikuSaleMilestone(
-  text: string,
-  performanceStartsOn: string,
-  performanceEndsOn: string = performanceStartsOn,
-): TicketMilestone | null {
-  const date = dateForSale(text, performanceStartsOn, performanceEndsOn);
-  if (date === null) return null;
-  const clockMatches = [
-    ...text
-      .normalize("NFKC")
-      .matchAll(
-        /(?:(?:午前|午後)?\s*\d{1,2}時(?:\s*\d{1,2}分)?|\d{1,2}\s*[:：]\s*\d{2})/gu,
-      ),
-  ];
-  const clocks = clockMatches.flatMap((match) => {
-    const parsed = parseJapaneseClock(match[0]);
-    return parsed === null ? [] : [parsed];
-  });
-  const [firstClock, secondClock] = clocks;
-  if (firstClock !== undefined && secondClock !== undefined) {
-    return {
-      type: "sale_start",
-      precision: "window",
-      startsAt: tokyoDateTime(date, firstClock.hour, firstClock.minute),
-      endsAt: tokyoDateTime(date, secondClock.hour, secondClock.minute),
-    };
-  }
-  if (firstClock !== undefined) {
-    return {
-      type: "sale_start",
-      precision: "datetime",
-      at: tokyoDateTime(date, firstClock.hour, firstClock.minute),
-    };
-  }
-  return { type: "sale_start", precision: "date", date };
-}
-
 export function parseShochikuSchedule(
   html: string,
 ): readonly ShochikuTicketFact[] {
   const document = parseHtml(html);
   const all = descendants(document, () => true);
-  const performanceTitles = all.filter(
-    (node) => elementName(node) === "h4" && hasClass(node, "performance-title"),
-  );
+  const isPerformanceTitle = (node: HtmlNode) =>
+    elementName(node) === "h4" && hasClass(node, "performance-title");
+  const isVenueHeading = (node: HtmlNode) =>
+    elementName(node) === "h4" &&
+    hasClass(node, "page-block__title") &&
+    hasClass(node, "title3");
+  const performanceTitles = all.filter(isPerformanceTitle);
   const facts: ShochikuTicketFact[] = [];
   for (const titleNode of performanceTitles) {
     const titleIndex = all.indexOf(titleNode);
-    const venueNode = all
-      .slice(0, titleIndex)
-      .reverse()
-      .find(
-        (node) =>
-          elementName(node) === "h4" &&
-          hasClass(node, "page-block__title") &&
-          hasClass(node, "title3"),
-      );
-    const block = closest(titleNode, (node) =>
-      hasClass(node, "performance__body"),
+    const nextBoundary = all.findIndex(
+      (node, index) =>
+        index > titleIndex &&
+        (isPerformanceTitle(node) || isVenueHeading(node)),
     );
-    if (venueNode === undefined || block === null) {
+    const section = all.slice(
+      titleIndex + 1,
+      nextBoundary === -1 ? undefined : nextBoundary,
+    );
+    const venueNode = all.slice(0, titleIndex).reverse().find(isVenueHeading);
+    const periodNodes = section.filter(
+      (node) => elementName(node) === "p" && hasClass(node, "agenda_size"),
+    );
+    const periodNode = periodNodes[0];
+    if (
+      venueNode === undefined ||
+      periodNodes.length !== 1 ||
+      periodNode === undefined
+    ) {
       throw new SourceParseFailure();
     }
-    const periodNode = descendants(
-      block,
-      (node) => elementName(node) === "p" && hasClass(node, "agenda_size"),
-    )[0];
-    const periodText =
-      periodNode === undefined ? "" : normalizedText(periodNode);
+    const periodText = normalizedText(periodNode);
+    // An observed month-only teaser cannot be associated with a dated Event.
+    if (
+      /^\d{4}年\d{1,2}月[～〜~]\d{1,2}月/u.test(periodText.normalize("NFKC"))
+    ) {
+      continue;
+    }
     const periodMatch = periodText
       .normalize("NFKC")
       .match(
-        /(\d{4})年(\d{1,2})月(\d{1,2})日[^0-9]*(?:(\d{4})年)?(?:(\d{1,2})月)?(\d{1,2})日/u,
+        /^(\d{4})年(\d{1,2})月(\d{1,2})日?(?:\([^)]+\))?(?:(?:～|〜|~|・)(?:(\d{4})年)?(?:(\d{1,2})月)?(\d{1,2})日?(?:\([^)]+\))?)?(?:\s*\d{1,2}:\d{2}開演)?$/u,
       );
     if (periodMatch === null) throw new SourceParseFailure();
     const startsOn = calendarDate(
@@ -208,19 +114,26 @@ export function parseShochikuSchedule(
     if (periodMatch[4] === undefined && endMonth < Number(periodMatch[2])) {
       endYear += 1;
     }
-    const endsOn = calendarDate(endYear, endMonth, Number(periodMatch[6]));
+    const endsOn = calendarDate(
+      endYear,
+      endMonth,
+      Number(periodMatch[6] ?? periodMatch[3]),
+    );
+    if (endsOn < startsOn) throw new SourceParseFailure();
     const title = normalizedText(titleNode);
     const venue = headingLabel(venueNode);
-    for (const row of descendants(
-      block,
-      (node) => elementName(node) === "tr",
-    )) {
+    for (const row of section.filter((node) => elementName(node) === "tr")) {
       const heading = descendants(row, (node) => elementName(node) === "th")[0];
       const value = descendants(row, (node) => elementName(node) === "td")[0];
       if (heading === undefined || value === undefined) continue;
       const displayName = normalizedText(heading);
       const rowText = normalizedText(value);
       if (displayName === "" || rowText === "") continue;
+      const milestone = parseShochikuSaleMilestone(rowText, startsOn, endsOn);
+      // The observed magazine-delivery opening has no published start date.
+      // Do not turn its application deadline into a sale start candidate.
+      if (milestone === null && rowText.includes("到着後")) continue;
+      if (milestone === null) throw new SourceParseFailure();
       facts.push({
         title,
         venue,
@@ -228,7 +141,7 @@ export function parseShochikuSchedule(
         endsOn,
         displayName,
         rowText,
-        milestone: parseShochikuSaleMilestone(rowText, startsOn, endsOn),
+        milestone,
       });
     }
   }
@@ -274,19 +187,110 @@ function draftFor(
   };
 }
 
+function comparable(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(/^劇場\s*[:：]\s*/u, "")
+    .replace(/[^\p{Letter}\p{Number}]/gu, "")
+    .replace(/^京都四條南座/u, "南座");
+}
+
+const OBSERVED_TITLE_ALIASES = new Map([
+  ["流白浪燦星碧翠の麗城", "流白浪燦星"],
+]);
+
+function samePerformance(
+  left: TicketOpportunityAcquisitionDraft["eventReference"],
+  right: TicketOpportunityAcquisitionDraft["eventReference"],
+): boolean {
+  if (left === undefined || right === undefined) return false;
+  const leftTitle = comparable(left.title);
+  const rightTitle = comparable(right.title);
+  return (
+    left.startsOn === right.startsOn &&
+    left.endsOn === right.endsOn &&
+    comparable(left.venue ?? "") === comparable(right.venue ?? "") &&
+    (OBSERVED_TITLE_ALIASES.get(leftTitle) ?? leftTitle) === rightTitle
+  );
+}
+
+function milestoneDay(
+  milestone: NonNullable<
+    TicketOpportunityAcquisitionDraft["proposal"]["milestones"]
+  >[number],
+): string {
+  return milestone.precision === "date"
+    ? milestone.date
+    : milestone.precision === "datetime"
+      ? milestone.at.slice(0, 10)
+      : milestone.startsAt.slice(0, 10);
+}
+
+function mergeGeneralSales(
+  detailed: readonly TicketOpportunityAcquisitionDraft[],
+  preliminary: readonly TicketOpportunityAcquisitionDraft[],
+  identities: readonly KabukiTicketIdentity[],
+): readonly TicketOpportunityAcquisitionDraft[] {
+  const remaining = new Set(preliminary);
+  const merged = detailed.map((draft) => {
+    if (!/^(?:一般販売|一般発売)$/u.test(draft.proposal.displayName))
+      return draft;
+    const matches = identities.filter((identity) =>
+      samePerformance(draft.eventReference, identity.eventReference),
+    );
+    const match = matches[0];
+    if (matches.length !== 1 || match === undefined) return draft;
+    const preliminaryMatch = preliminary.find(
+      (candidate) => candidate.officialExternalId === match.officialExternalId,
+    );
+    if (preliminaryMatch !== undefined) remaining.delete(preliminaryMatch);
+    const detailedMilestone = draft.proposal.milestones?.[0];
+    const preliminaryMilestone = preliminaryMatch?.proposal.milestones?.[0];
+    if (
+      preliminaryMatch !== undefined &&
+      detailedMilestone !== undefined &&
+      preliminaryMilestone !== undefined &&
+      milestoneDay(detailedMilestone) === milestoneDay(preliminaryMilestone) &&
+      detailedMilestone.precision === "date" &&
+      preliminaryMilestone.precision === "datetime"
+    )
+      return preliminaryMatch;
+    return {
+      ...draft,
+      officialExternalId: match.officialExternalId,
+      eventReference: match.eventReference,
+      proposal: {
+        ...draft.proposal,
+        eventSourceKey: match.eventSourceKey,
+        sourceKey: `shochiku:${match.officialExternalId}`,
+      },
+    };
+  });
+  return [...merged, ...remaining];
+}
+
 export function createShochikuTicketAdapter(
   fetcher: OfficialHtmlFetcher = fetchOfficialHtml,
 ): OfficialSourceAdapter {
   return {
-    async acquire(source) {
+    async acquire(source, reportHeldPage) {
       const documents = await Promise.all(
         SCHEDULE_PAGES.map((url) => fetcher(source, url)),
       );
       const contentHash = hashOfficialDocuments(documents);
-      return documents.flatMap((document) =>
+      const detailed = documents.flatMap((document) =>
         parseShochikuSchedule(document.body).map((fact) =>
           draftFor(document, fact, contentHash),
         ),
+      );
+      const preliminary = await acquireKabukiGeneralSales(
+        fetcher,
+        reportHeldPage,
+      );
+      return mergeGeneralSales(
+        detailed,
+        preliminary.drafts,
+        preliminary.identities,
       );
     },
   };
