@@ -28,7 +28,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "cn": "^0.4.0",
-    "next": "16.3.4",
+    "next": "16.3.5",
     "next-safe-action": "^8.7.1",
     "parse5": "^8.0.0",
     "react": "19.3.0",
@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@eslint-react/eslint-plugin": "5.20.0",
-    "@next/eslint-plugin-next": "16.3.4",
+    "@next/eslint-plugin-next": "16.3.5",
     "@playwright/test": "^1.63.0",
     "@storybook/addon-a11y": "^9.1.20",
     "@storybook/addon-docs": "^9.1.20",
