@@ -26,6 +26,10 @@ type EventRow = Pick<
 
 const MATCH_FACT_PAGE_SIZE = 500;
 const MAX_MATCH_FACT_ROWS = 5_000;
+const TICKET_MATCH_SCAN_LIMIT = 500;
+
+const EVENT_COLUMNS =
+  "id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, current_genre:genres!events_genre_id_fkey(key)";
 
 async function readOccurrences(
   client: SupabaseClient<Database>,
@@ -137,12 +141,64 @@ export function createEventMatchRepository(
         throw new Error("Failed to resolve exact Event identity");
       return data === null ? null : hydrate(client, data);
     },
-    async findPotentialMatches(startsOn, endsOn) {
+    async findPotentialMatches(startsOn, endsOn, prefilter) {
+      if (prefilter !== undefined) {
+        // Only the compact identity facts are scanned before the ticket-only
+        // title/venue filter. Do not hydrate unrelated overlapping Events.
+        const readMatchingSummaries = async () => {
+          const { data: summaries, error: summaryError } = await client
+            .from("events")
+            .select("id, title, venue")
+            .is("canceled_at", null)
+            .lte("starts_on", endsOn)
+            .gte("ends_on", startsOn)
+            .order("starts_on")
+            .order("id")
+            .limit(TICKET_MATCH_SCAN_LIMIT + 1);
+          if (summaryError !== null || summaries === null)
+            throw new Error("Failed to retrieve ticket Event match summaries");
+          if (summaries.length > TICKET_MATCH_SCAN_LIMIT)
+            throw new Error(
+              "Ticket Event match scan exceeded the bounded limit",
+            );
+          return requireCompleteEventMatchWindow(summaries.filter(prefilter));
+        };
+        const matching = await readMatchingSummaries();
+        if (matching.length === 0) return [];
+        const { data, error } = await client
+          .from("events")
+          .select(EVENT_COLUMNS)
+          .is("canceled_at", null)
+          .lte("starts_on", endsOn)
+          .gte("ends_on", startsOn)
+          .in(
+            "id",
+            matching.map((event) => event.id),
+          );
+        if (error !== null || data === null || data.length !== matching.length)
+          throw new Error("Failed to retrieve ticket Event match facts");
+        const byId = new Map(data.map((event) => [event.id, event]));
+        const hydrated = await Promise.all(
+          matching.map((summary) => {
+            const event = byId.get(summary.id);
+            if (event === undefined || !prefilter(event))
+              throw new Error("Ticket Event match facts are incomplete");
+            return hydrate(client, event);
+          }),
+        );
+        const currentMatching = await readMatchingSummaries();
+        if (
+          currentMatching.length !== matching.length ||
+          currentMatching.some(
+            (event, index) => event.id !== matching[index]?.id,
+          )
+        )
+          throw new Error("Ticket Event match set changed during hydration");
+        return hydrated;
+      }
       const { data, error } = await client
         .from("events")
-        .select(
-          "id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, current_genre:genres!events_genre_id_fkey(key)",
-        )
+        .select(EVENT_COLUMNS)
         .is("canceled_at", null)
         .lte("starts_on", endsOn)
         .gte("ends_on", startsOn)

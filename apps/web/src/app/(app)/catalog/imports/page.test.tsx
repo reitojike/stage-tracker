@@ -8,6 +8,7 @@ const mockIsCreator = vi.fn();
 const mockLoadQueue = vi.fn();
 const mockLoadHeldPages = vi.fn();
 const mockLoadTicketHeldPages = vi.fn();
+const mockLoadLatestTicketRun = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
@@ -44,6 +45,10 @@ vi.mock("./_lib/held-page-loader", () => ({
     const result: unknown = mockLoadTicketHeldPages(...args);
     return result;
   },
+  loadLatestShochikuTicketRun: (...args: unknown[]) => {
+    const result: unknown = mockLoadLatestTicketRun(...args);
+    return result;
+  },
 }));
 
 describe("OfficialImportReviewPage", () => {
@@ -53,6 +58,7 @@ describe("OfficialImportReviewPage", () => {
     mockLoadQueue.mockReset();
     mockLoadHeldPages.mockReset();
     mockLoadTicketHeldPages.mockReset();
+    mockLoadLatestTicketRun.mockReset();
   });
 
   it("does not read or render the queue for a non-creator", async () => {
@@ -67,6 +73,7 @@ describe("OfficialImportReviewPage", () => {
     expect(mockLoadQueue).not.toHaveBeenCalled();
     expect(mockLoadHeldPages).not.toHaveBeenCalled();
     expect(mockLoadTicketHeldPages).not.toHaveBeenCalled();
+    expect(mockLoadLatestTicketRun).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "歌舞伎を手動取得" }),
     ).not.toBeInTheDocument();
@@ -81,6 +88,7 @@ describe("OfficialImportReviewPage", () => {
     mockLoadQueue.mockResolvedValue({ ok: true, value: [] });
     mockLoadHeldPages.mockResolvedValue({ ok: true, value: null });
     mockLoadTicketHeldPages.mockResolvedValue({ ok: true, value: null });
+    mockLoadLatestTicketRun.mockResolvedValue({ ok: true, value: null });
 
     render(await OfficialImportReviewPage());
 
@@ -97,6 +105,7 @@ describe("OfficialImportReviewPage", () => {
     expect(mockLoadQueue).toHaveBeenCalledTimes(1);
     expect(mockLoadHeldPages).toHaveBeenCalledTimes(1);
     expect(mockLoadTicketHeldPages).toHaveBeenCalledTimes(1);
+    expect(mockLoadLatestTicketRun).toHaveBeenCalledTimes(1);
   });
 
   it("requires authentication", async () => {

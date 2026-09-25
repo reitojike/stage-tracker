@@ -37,6 +37,7 @@ export interface EventMatchRepository {
   findPotentialMatches(
     startsOn: string,
     endsOn: string,
+    prefilter?: (event: Pick<CatalogEventMatch, "title" | "venue">) => boolean,
   ): Promise<readonly CatalogEventMatch[]>;
 }
 

@@ -282,17 +282,18 @@ export function createTicketOpportunityCandidatePlanner(
       const reference = eventDraft(draft);
 
       if (matchedEvent === null && reference !== null) {
+        const sameTitleAndVenue = (
+          candidate: Pick<CatalogEventMatch, "title" | "venue">,
+        ) =>
+          normalize(candidate.title) === normalize(reference.proposal.title) &&
+          normalizeVenue(candidate.venue) ===
+            normalizeVenue(reference.proposal.venue);
         const candidates = await events.findPotentialMatches(
           reference.proposal.startsOn,
           reference.proposal.endsOn,
+          sameTitleAndVenue,
         );
-        const plausible = candidates.filter(
-          (candidate) =>
-            normalize(candidate.title) ===
-              normalize(reference.proposal.title) &&
-            normalizeVenue(candidate.venue) ===
-              normalizeVenue(reference.proposal.venue),
-        );
+        const plausible = candidates.filter(sameTitleAndVenue);
         const includesManualIdentity = plausible.some(
           (candidate) => candidate.sourceKey === null,
         );

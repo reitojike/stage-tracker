@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { KabukiHeldPageReport } from "./KabukiHeldPageReport";
+import {
+  KabukiHeldPageReport,
+  ShochikuTicketHeldPageReport,
+} from "./KabukiHeldPageReport";
 
 describe("Kabuki held page report", () => {
   it("links only the bounded page identity for human follow-up", () => {
@@ -85,6 +88,26 @@ describe("Kabuki held page report", () => {
       screen.getByText(
         /今回の取得では終演時刻を確認できませんでした。登録済み時刻は維持し、要確認/u,
       ),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("ticket held page report", () => {
+  it("shows a failed run even when there is no completed ticket report", () => {
+    render(
+      <ShochikuTicketHeldPageReport
+        state={{ variant: "empty" }}
+        latestRun={{
+          variant: "populated",
+          data: { startedAt: "2026-09-25T03:38:20Z", status: "failed" },
+        }}
+      />,
+    );
+    expect(
+      screen.getByText("直近のチケット取得は失敗しました"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("完了したチケット取得履歴はまだありません。"),
     ).toBeInTheDocument();
   });
 });

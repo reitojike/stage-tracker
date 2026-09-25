@@ -1,6 +1,9 @@
 import { SectionHeading, StatePanel } from "@stage-tracker/ui";
 import type { ReadState } from "@/lib/data/read-result";
-import type { KabukiHeldPageReport as Report } from "../_lib/held-page-loader";
+import type {
+  KabukiHeldPageReport as Report,
+  LatestTicketRun,
+} from "../_lib/held-page-loader";
 
 function HeldPageReport({
   state,
@@ -88,16 +91,38 @@ export function KabukiHeldPageReport({
 
 export function ShochikuTicketHeldPageReport({
   state,
+  latestRun,
 }: {
   readonly state: ReadState<Report | null>;
+  readonly latestRun: ReadState<LatestTicketRun | null>;
 }) {
   return (
-    <HeldPageReport
-      state={state}
-      headingId="ticket-held-heading"
-      heading="チケット販売情報の要確認ページ"
-      description="直近の完了したチケット取得で発売情報を安全に確定できなかった公演です。今回の候補には含めません。元ページで確認してください。"
-      emptyHistory="完了したチケット取得履歴はまだありません。"
-    />
+    <div className="flex flex-col gap-sm">
+      {latestRun.variant === "populated" && latestRun.data !== null ? (
+        latestRun.data.status === "failed" ? (
+          <StatePanel
+            variant="error"
+            title="直近のチケット取得は失敗しました"
+            description="この取得では候補を作成していません。再実行する前に取得処理を確認してください。"
+          />
+        ) : latestRun.data.status === "running" ? (
+          <p role="status" className="text-body-sm">
+            直近のチケット取得は実行中です。完了後に画面を更新してください。
+          </p>
+        ) : null
+      ) : latestRun.variant === "error" ? (
+        <StatePanel
+          variant="error"
+          title="チケット取得の状態を確認できません"
+        />
+      ) : null}
+      <HeldPageReport
+        state={state}
+        headingId="ticket-held-heading"
+        heading="チケット販売情報の要確認ページ"
+        description="直近の完了したチケット取得で発売情報を安全に確定できなかった公演です。今回の候補には含めません。元ページで確認してください。"
+        emptyHistory="完了したチケット取得履歴はまだありません。"
+      />
+    </div>
   );
 }
