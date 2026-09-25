@@ -144,4 +144,65 @@ describe("Kabuki preliminary ticket sales", () => {
     expect(revised[0]?.canonicalUrl).toContain("ticket-web-shochiku.com");
     expect(revised[0]?.proposal.sourceKey).toBe(general[0]?.proposal.sourceKey);
   });
+
+  it("keeps the candidate identity when a previously undated Kabuki detail gains a sale", async () => {
+    const index = `<li class="item"><a href="/theaters/kabukiza/play/986"><h3 class="ttl">吉例顔見世大歌舞伎</h3></a><p class="term">2026年11月1日（日）～25日（水）</p></li>`;
+    const east = `<h4 class="page-block__title title3">歌舞伎座</h4>
+      <div class="performance__body"><h4 class="performance-title">吉例顔見世大歌舞伎</h4>
+      <p class="agenda_size">2026年11月1日（日）～25日（水）</p>
+      <table><tr><th>一般発売</th><td>10月15日（木）～</td></tr></table></div>`;
+    const pages = new Map([
+      ["https://www.kabuki-bito.jp/schedule/", index],
+      [
+        "https://www.kabuki-bito.jp/theaters/kabukiza/play/986",
+        `<p class="type-theater">歌舞伎座</p>`,
+      ],
+      [
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+        east,
+      ],
+      [
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_west.html",
+        `<h4 class="page-block__title title3">南座</h4>
+          <div class="performance__body"><h4 class="performance-title">別公演</h4>
+          <p class="agenda_size">2026年11月1日（日）</p>
+          <table><tr><th>一般発売</th><td>10月1日～</td></tr></table></div>`,
+      ],
+    ]);
+    const adapter = createShochikuTicketAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    const first = (await adapter.acquire(source)).filter(
+      (draft): draft is TicketOpportunityAcquisitionDraft =>
+        draft.candidateKind === "ticket_opportunity",
+    );
+    const firstGeneral = first.find(
+      (draft) => draft.eventReference?.title === "吉例顔見世大歌舞伎",
+    );
+    expect(firstGeneral).toMatchObject({
+      officialExternalId: "kabuki-bito:kabukiza:play:986:general",
+      proposal: {
+        sourceKey: "shochiku:kabuki-bito:kabukiza:play:986:general",
+        displayName: "一般発売",
+      },
+    });
+
+    pages.set("https://www.kabuki-bito.jp/theaters/kabukiza/play/986", detail);
+    const second = (await adapter.acquire(source)).filter(
+      (draft): draft is TicketOpportunityAcquisitionDraft =>
+        draft.candidateKind === "ticket_opportunity",
+    );
+    const secondGeneral = second.find(
+      (draft) => draft.eventReference?.title === "吉例顔見世大歌舞伎",
+    );
+    expect(secondGeneral?.officialExternalId).toBe(
+      firstGeneral?.officialExternalId,
+    );
+    expect(secondGeneral?.proposal.sourceKey).toBe(
+      firstGeneral?.proposal.sourceKey,
+    );
+    expect(secondGeneral?.proposal.displayName).toBe("一般発売");
+  });
 });

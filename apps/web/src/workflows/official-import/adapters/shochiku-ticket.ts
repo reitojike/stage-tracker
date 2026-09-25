@@ -19,7 +19,10 @@ import {
   hashOfficialDocuments,
 } from "./http";
 import { calendarDate, slug } from "./japanese-date";
-import { acquireKabukiGeneralSales } from "./kabuki-ticket-sales";
+import {
+  acquireKabukiGeneralSales,
+  type KabukiTicketIdentity,
+} from "./kabuki-ticket-sales";
 import {
   parseShochikuSaleMilestone,
   type TicketMilestone,
@@ -193,11 +196,9 @@ function comparable(value: string): string {
 }
 
 function samePerformance(
-  detailed: TicketOpportunityAcquisitionDraft,
-  preliminary: TicketOpportunityAcquisitionDraft,
+  left: TicketOpportunityAcquisitionDraft["eventReference"],
+  right: TicketOpportunityAcquisitionDraft["eventReference"],
 ): boolean {
-  const left = detailed.eventReference;
-  const right = preliminary.eventReference;
   if (left === undefined || right === undefined) return false;
   const leftTitle = comparable(left.title);
   const rightTitle = comparable(right.title);
@@ -227,42 +228,40 @@ function milestoneDay(
 function mergeGeneralSales(
   detailed: readonly TicketOpportunityAcquisitionDraft[],
   preliminary: readonly TicketOpportunityAcquisitionDraft[],
+  identities: readonly KabukiTicketIdentity[],
 ): readonly TicketOpportunityAcquisitionDraft[] {
   const remaining = new Set(preliminary);
   const merged = detailed.map((draft) => {
     if (!/^(?:一般販売|一般発売)$/u.test(draft.proposal.displayName))
       return draft;
-    const matches = preliminary.filter((candidate) =>
-      samePerformance(draft, candidate),
+    const matches = identities.filter((identity) =>
+      samePerformance(draft.eventReference, identity.eventReference),
     );
     const match = matches[0];
-    if (
-      matches.length !== 1 ||
-      match === undefined ||
-      match.eventReference === undefined ||
-      match.officialExternalId === undefined
-    )
-      return draft;
-    remaining.delete(match);
+    if (matches.length !== 1 || match === undefined) return draft;
+    const preliminaryMatch = preliminary.find(
+      (candidate) => candidate.officialExternalId === match.officialExternalId,
+    );
+    if (preliminaryMatch !== undefined) remaining.delete(preliminaryMatch);
     const detailedMilestone = draft.proposal.milestones?.[0];
-    const preliminaryMilestone = match.proposal.milestones?.[0];
+    const preliminaryMilestone = preliminaryMatch?.proposal.milestones?.[0];
     if (
+      preliminaryMatch !== undefined &&
       detailedMilestone !== undefined &&
       preliminaryMilestone !== undefined &&
       milestoneDay(detailedMilestone) === milestoneDay(preliminaryMilestone) &&
       detailedMilestone.precision === "date" &&
       preliminaryMilestone.precision === "datetime"
     )
-      return match;
+      return preliminaryMatch;
     return {
       ...draft,
       officialExternalId: match.officialExternalId,
       eventReference: match.eventReference,
       proposal: {
         ...draft.proposal,
-        eventSourceKey: match.proposal.eventSourceKey,
-        sourceKey: match.proposal.sourceKey,
-        displayName: "一般販売",
+        eventSourceKey: match.eventSourceKey,
+        sourceKey: `shochiku:${match.officialExternalId}`,
       },
     };
   });
@@ -287,7 +286,11 @@ export function createShochikuTicketAdapter(
         fetcher,
         reportHeldPage,
       );
-      return mergeGeneralSales(detailed, preliminary);
+      return mergeGeneralSales(
+        detailed,
+        preliminary.drafts,
+        preliminary.identities,
+      );
     },
   };
 }

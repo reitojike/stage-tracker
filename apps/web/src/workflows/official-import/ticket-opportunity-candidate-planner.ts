@@ -192,7 +192,7 @@ function retainExistingGeneralSale(
   if (
     current === null ||
     current.eventId !== eventId ||
-    proposal.displayName !== "一般販売"
+    !/^(?:一般販売|一般発売)$/u.test(proposal.displayName)
   )
     return false;
   const proposedOrigin = originOf(proposal.sourceUrl);
@@ -377,7 +377,6 @@ export function createTicketOpportunityCandidatePlanner(
         ...(generalSale
           ? {
               sourceKey: `shochiku:${matchedEvent.sourceKey}:general`,
-              displayName: "一般販売",
             }
           : {}),
       };

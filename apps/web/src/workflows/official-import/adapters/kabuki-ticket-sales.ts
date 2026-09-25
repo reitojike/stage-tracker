@@ -21,6 +21,14 @@ import {
 
 const KABUKI_SOURCE = requireEnabledShadowSource("event.kabuki-bito.schedule");
 
+export interface KabukiTicketIdentity {
+  readonly officialExternalId: string;
+  readonly eventSourceKey: string;
+  readonly eventReference: NonNullable<
+    TicketOpportunityAcquisitionDraft["eventReference"]
+  >;
+}
+
 function saleDate(milestone: TicketMilestone): string {
   return milestone.precision === "date"
     ? milestone.date
@@ -107,22 +115,21 @@ export async function acquireKabukiGeneralSales(
   reportHeldPage?: (page: HeldSourcePage) => void,
   pauseBetweenBatches: () => Promise<void> = () =>
     new Promise((resolve) => setTimeout(resolve, 1_000)),
-): Promise<readonly TicketOpportunityAcquisitionDraft[]> {
+): Promise<{
+  readonly drafts: readonly TicketOpportunityAcquisitionDraft[];
+  readonly identities: readonly KabukiTicketIdentity[];
+}> {
   const index = await fetcher(KABUKI_SOURCE, KABUKI_SOURCE.canonicalUrl);
   const facts = parseKabukiIndex(KABUKI_SOURCE, index.body);
   const drafts: TicketOpportunityAcquisitionDraft[] = [];
+  const identities: KabukiTicketIdentity[] = [];
   for (let offset = 0; offset < facts.length; offset += 2) {
     const settled = await Promise.allSettled(
       facts.slice(offset, offset + 2).map(async (fact) => {
         const detail = await fetcher(KABUKI_SOURCE, fact.canonicalUrl);
         if (detail.url !== fact.canonicalUrl) throw new SourceParseFailure();
+        let identity: KabukiTicketIdentity | null = null;
         try {
-          const milestone = parseKabukiGeneralSale(
-            detail.body,
-            fact.startsOn,
-            fact.endsOn,
-          );
-          if (milestone === null) return null;
           const venues = descendants(
             parseHtml(detail.body),
             (node) =>
@@ -132,11 +139,26 @@ export async function acquireKabukiGeneralSales(
             throw new SourceParseFailure();
           const venue = normalizedText(venues[0]);
           const eventSourceKey = `kabuki-bito:${fact.theater}:play:${fact.officialId}`;
-          const identity = `${eventSourceKey}:general`;
-          return {
+          identity = {
+            officialExternalId: `${eventSourceKey}:general`,
+            eventSourceKey,
+            eventReference: {
+              title: fact.title,
+              venue,
+              startsOn: fact.startsOn,
+              endsOn: fact.endsOn,
+            },
+          };
+          const milestone = parseKabukiGeneralSale(
+            detail.body,
+            fact.startsOn,
+            fact.endsOn,
+          );
+          if (milestone === null) return { identity, draft: null };
+          const draft = {
             candidateKind: "ticket_opportunity" as const,
             canonicalUrl: detail.url,
-            officialExternalId: identity,
+            officialExternalId: identity.officialExternalId,
             observedAt: detail.observedAt,
             contentHash: detail.contentHash,
             etag: detail.etag,
@@ -146,15 +168,10 @@ export async function acquireKabukiGeneralSales(
               fragmentId: "ticket",
               rowLabel: "一般販売",
             },
-            eventReference: {
-              title: fact.title,
-              venue,
-              startsOn: fact.startsOn,
-              endsOn: fact.endsOn,
-            },
+            eventReference: identity.eventReference,
             proposal: {
               eventSourceKey,
-              sourceKey: `shochiku:${identity}`,
+              sourceKey: `shochiku:${identity.officialExternalId}`,
               displayName: "一般販売",
               sourceUrl: detail.url,
               ...(milestone.precision === "date"
@@ -164,6 +181,7 @@ export async function acquireKabukiGeneralSales(
               milestones: [milestone],
             },
           } satisfies TicketOpportunityAcquisitionDraft;
+          return { identity, draft };
         } catch (error) {
           if (
             !(error instanceof SourceParseFailure) ||
@@ -178,17 +196,19 @@ export async function acquireKabukiGeneralSales(
             endsOn: fact.endsOn,
             reasonCode: "source_parse",
           });
-          return null;
+          return { identity, draft: null };
         }
       }),
     );
     const rejected = settled.find((result) => result.status === "rejected");
     if (rejected?.status === "rejected") throw rejected.reason;
     for (const result of settled) {
-      if (result.status === "fulfilled" && result.value !== null)
-        drafts.push(result.value);
+      if (result.status !== "fulfilled") continue;
+      if (result.value.identity !== null)
+        identities.push(result.value.identity);
+      if (result.value.draft !== null) drafts.push(result.value.draft);
     }
     if (offset + 2 < facts.length) await pauseBetweenBatches();
   }
-  return drafts;
+  return { drafts, identities };
 }

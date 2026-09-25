@@ -130,7 +130,7 @@ describe("Ticket Opportunity candidate planning", () => {
     expect(result.proposal).toMatchObject({
       eventSourceKey: "kabuki-bito:kyoto:play:955",
       sourceKey: "shochiku:kabuki-bito:kyoto:play:955:general",
-      displayName: "一般販売",
+      displayName: "一般発売",
     });
   });
 
