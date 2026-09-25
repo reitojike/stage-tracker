@@ -340,11 +340,9 @@ function CurrentTarget({
 function ReviewControls({
   candidate,
   reviewAction,
-  rejectOnly = false,
 }: {
   candidate: OfficialImportReviewCandidate;
   reviewAction: OfficialImportReviewAction;
-  rejectOnly?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -379,22 +377,20 @@ function ReviewControls({
   return (
     <div className="flex flex-col gap-2xs">
       <div className="flex flex-wrap gap-xs">
-        {rejectOnly ? null : (
-          <Button
-            type="button"
-            disabled={isPending || completed}
-            onClick={() => review("approved")}
-          >
-            承認
-          </Button>
-        )}
+        <Button
+          type="button"
+          disabled={isPending || completed}
+          onClick={() => review("approved")}
+        >
+          承認
+        </Button>
         <Button
           type="button"
           variant="destructive"
           disabled={isPending || completed}
           onClick={() => review("rejected")}
         >
-          {rejectOnly ? "取り込み不要として却下" : "却下"}
+          却下
         </Button>
       </div>
       {errorMessage !== null ? (
@@ -636,22 +632,12 @@ function CandidateCard({
       </section>
 
       {candidate.blockedReason !== null ? (
-        <div className="flex flex-col gap-xs">
-          <p
-            role="alert"
-            className="rounded-lg border border-border bg-muted p-sm text-body-sm"
-          >
-            {candidate.blockedReason}
-          </p>
-          {candidate.kind === "ticket_opportunity" &&
-          candidate.reviewStatus === "blocked_for_identity_review" ? (
-            <ReviewControls
-              candidate={candidate}
-              reviewAction={reviewAction}
-              rejectOnly
-            />
-          ) : null}
-        </div>
+        <p
+          role="alert"
+          className="rounded-lg border border-border bg-muted p-sm text-body-sm"
+        >
+          {candidate.blockedReason}
+        </p>
       ) : candidate.reviewStatus === "pending" ? (
         <ReviewControls candidate={candidate} reviewAction={reviewAction} />
       ) : (

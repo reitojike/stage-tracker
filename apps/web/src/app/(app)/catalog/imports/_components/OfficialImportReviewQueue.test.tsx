@@ -517,60 +517,10 @@ describe("OfficialImportReviewQueue", () => {
       screen.queryByRole("button", { name: "承認" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "取り込み不要として却下" }),
-    ).not.toBeInTheDocument();
-    expect(
       screen.getByText(
         "手動登録イベントとの同一性を確定できないため、承認できません。",
       ),
     ).toBeInTheDocument();
-  });
-
-  it("lets a creator reject an identity-blocked TicketOpportunity without offering approval", async () => {
-    mockReviewAction.mockResolvedValue({ data: { reviewStatus: "rejected" } });
-    render(
-      <OfficialImportReviewQueue
-        state={{
-          variant: "populated",
-          data: [
-            {
-              ...candidate,
-              kind: "ticket_opportunity",
-              reviewStatus: "blocked_for_identity_review",
-              blockedReason: "対象Eventを確定できないため承認できません。",
-              proposal: {
-                kind: "ticket_opportunity",
-                eventSourceKey: "unresolved:shochiku:example",
-                sourceKey: "shochiku:example:general",
-                displayName: "一般販売",
-                sourceUrl: "https://example.test/ticket",
-                memo: null,
-                targetScope: "event_wide",
-                targetOccurrences: [],
-                milestones: [],
-              },
-            },
-          ],
-        }}
-        reviewAction={mockReviewAction}
-        applyAction={mockApplyAction}
-      />,
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "承認" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "取り込み不要として却下" }),
-    );
-    await waitFor(() =>
-      expect(mockReviewAction).toHaveBeenCalledWith({
-        candidateId: candidate.id,
-        decision: "rejected",
-      }),
-    );
-    expect(await screen.findByText("却下しました。")).toBeInTheDocument();
-    expect(mockRefresh).toHaveBeenCalled();
   });
 
   it.each(["empty", "unavailable", "error"] as const)(
