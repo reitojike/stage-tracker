@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { SourceParseFailure } from "../acquisition";
 import type { TicketOpportunityAcquisitionDraft } from "../acquisition";
 import { getOfficialSource } from "../source-registry";
-import { parseKabukiGeneralSale } from "./kabuki-ticket-sales";
+import {
+  acquireKabukiGeneralSales,
+  parseKabukiGeneralSale,
+} from "./kabuki-ticket-sales";
 import { createShochikuTicketAdapter } from "./shochiku-ticket";
 import type { OfficialHtmlDocument } from "./http";
 
@@ -71,6 +74,26 @@ describe("Kabuki preliminary ticket sales", () => {
     ).toThrow(SourceParseFailure);
   });
 
+  it("uses the Kabuki headline wording for a date-only preliminary candidate", async () => {
+    const pages = new Map([
+      [
+        "https://www.kabuki-bito.jp/schedule/",
+        `<li class="item"><a href="/theaters/kabukiza/play/986"><h3 class="ttl">吉例顔見世大歌舞伎</h3></a><p class="term">2026年11月1日（日）～25日（水）</p></li>`,
+      ],
+      [
+        "https://www.kabuki-bito.jp/theaters/kabukiza/play/986",
+        `<p class="type-theater">歌舞伎座</p><p class="type-term text blue">10月14日（水）チケット発売予定</p>`,
+      ],
+    ]);
+    const result = await acquireKabukiGeneralSales(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    expect(result.drafts).toHaveLength(1);
+    expect(result.drafts[0]?.proposal.displayName).toBe("チケット発売予定");
+  });
+
   it("retains the precise Kabuki start until Shochiku publishes a different date", async () => {
     const index = `<li class="item"><a href="/theaters/kabukiza/play/986"><h3 class="ttl">吉例顔見世大歌舞伎</h3></a><p class="term">2026年11月1日（日）～25日（水）</p></li>`;
     const east = `<h4 class="page-block__title title3">歌舞伎座</h4>
@@ -108,9 +131,10 @@ describe("Kabuki preliminary ticket sales", () => {
       .filter(
         (draft) =>
           draft.eventReference?.title === "吉例顔見世大歌舞伎" &&
-          draft.proposal.displayName === "一般販売",
+          draft.proposal.sourceKey.endsWith(":general"),
       );
     expect(general).toHaveLength(1);
+    expect(general[0]?.proposal.displayName).toBe("Web・電話受付開始");
     expect(general[0]?.proposal.milestones).toEqual([
       {
         type: "sale_start",
@@ -135,7 +159,7 @@ describe("Kabuki preliminary ticket sales", () => {
       (draft): draft is TicketOpportunityAcquisitionDraft =>
         draft.candidateKind === "ticket_opportunity" &&
         draft.eventReference?.title === "吉例顔見世大歌舞伎" &&
-        draft.proposal.displayName === "一般販売",
+        draft.proposal.sourceKey.endsWith(":general"),
     );
     expect(revised).toHaveLength(1);
     expect(revised[0]?.proposal.milestones).toEqual([
@@ -204,5 +228,45 @@ describe("Kabuki preliminary ticket sales", () => {
       firstGeneral?.proposal.sourceKey,
     );
     expect(secondGeneral?.proposal.displayName).toBe("一般発売");
+  });
+
+  it("pairs the observed Minamiza title alias without a generic substring rule", async () => {
+    const pages = new Map([
+      [
+        "https://www.kabuki-bito.jp/schedule/",
+        `<li class="item"><a href="/theaters/kyoto/play/1000"><h3 class="ttl">流白浪燦星</h3></a><p class="term">2026年9月2日（水）～26日（土）</p></li>`,
+      ],
+      [
+        "https://www.kabuki-bito.jp/theaters/kyoto/play/1000",
+        `<p class="type-theater">劇場：南座</p>`,
+      ],
+      [
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+        `<h4 class="page-block__title title3">歌舞伎座</h4><div class="performance__body"><h4 class="performance-title">別公演</h4><p class="agenda_size">2026年9月2日（水）</p><table><tr><th>一般発売</th><td>8月1日～</td></tr></table></div>`,
+      ],
+      [
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_west.html",
+        `<h4 class="page-block__title title3">京都四條南座</h4><div class="performance__body"><h4 class="performance-title">流白浪燦星 碧翠の麗城</h4><p class="agenda_size">2026年9月2日（水）～26日（土）</p><table><tr><th>一般発売</th><td>8月15日～</td></tr></table></div>`,
+      ],
+    ]);
+    const adapter = createShochikuTicketAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    const drafts = (await adapter.acquire(source)).filter(
+      (draft): draft is TicketOpportunityAcquisitionDraft =>
+        draft.candidateKind === "ticket_opportunity",
+    );
+    const matched = drafts.find(
+      (draft) => draft.eventReference?.title === "流白浪燦星",
+    );
+    expect(matched).toMatchObject({
+      officialExternalId: "kabuki-bito:kyoto:play:1000:general",
+      proposal: {
+        sourceKey: "shochiku:kabuki-bito:kyoto:play:1000:general",
+        displayName: "一般発売",
+      },
+    });
   });
 });

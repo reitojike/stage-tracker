@@ -172,7 +172,10 @@ export async function acquireKabukiGeneralSales(
             proposal: {
               eventSourceKey,
               sourceKey: `shochiku:${identity.officialExternalId}`,
-              displayName: "一般販売",
+              displayName:
+                milestone.precision === "date"
+                  ? "チケット発売予定"
+                  : "Web・電話受付開始",
               sourceUrl: detail.url,
               ...(milestone.precision === "date"
                 ? { memo: "公式ページでは発売予定。承認前に最新情報を確認" }

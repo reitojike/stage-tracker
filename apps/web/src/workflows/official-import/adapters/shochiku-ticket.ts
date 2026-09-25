@@ -195,6 +195,10 @@ function comparable(value: string): string {
     .replace(/^京都四條南座/u, "南座");
 }
 
+const OBSERVED_TITLE_ALIASES = new Map([
+  ["流白浪燦星碧翠の麗城", "流白浪燦星"],
+]);
+
 function samePerformance(
   left: TicketOpportunityAcquisitionDraft["eventReference"],
   right: TicketOpportunityAcquisitionDraft["eventReference"],
@@ -206,10 +210,7 @@ function samePerformance(
     left.startsOn === right.startsOn &&
     left.endsOn === right.endsOn &&
     comparable(left.venue ?? "") === comparable(right.venue ?? "") &&
-    (leftTitle === rightTitle ||
-      (leftTitle.length >= 5 &&
-        rightTitle.length >= 5 &&
-        (leftTitle.includes(rightTitle) || rightTitle.includes(leftTitle))))
+    (OBSERVED_TITLE_ALIASES.get(leftTitle) ?? leftTitle) === rightTitle
   );
 }
 

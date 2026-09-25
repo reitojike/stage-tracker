@@ -14,7 +14,8 @@ apply, or delete catalog data automatically. Issue #634 is the rollout tracker.
   the same Event's general sale: a later Shochiku date change replaces the
   preliminary date, while a Shochiku date-only row for the same day does not
   erase a Kabuki-bito explicitly published clock. Shochiku member tiers remain
-  separate opportunities. Ambiguous Event identities remain review-blocked;
+  separate opportunities. Differently titled productions are not paired by
+  substring alone; unresolved Event identities remain review-blocked;
   approval/apply is never automatic. The creator's `/catalog/imports` page has
   a separate manual ticket shadow button and latest held-page report.
   A 2026-09-25 read-only live scan parsed 71 distinct ticket drafts: 13 from

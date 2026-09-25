@@ -49,15 +49,6 @@ function normalizeVenue(value: string | null | undefined): string {
     .replace(/^京都四條南座/u, "南座");
 }
 
-function compatibleTitle(left: string, right: string): boolean {
-  const a = normalize(left);
-  const b = normalize(right);
-  return (
-    a === b ||
-    (a.length >= 5 && b.length >= 5 && (a.includes(b) || b.includes(a)))
-  );
-}
-
 function sameInstant(left: string, right: string): boolean {
   return Date.parse(left) === Date.parse(right);
 }
@@ -192,7 +183,8 @@ function retainExistingGeneralSale(
   if (
     current === null ||
     current.eventId !== eventId ||
-    !/^(?:一般販売|一般発売)$/u.test(proposal.displayName)
+    !proposal.sourceKey.startsWith("shochiku:kabuki-bito:") ||
+    !proposal.sourceKey.endsWith(":general")
   )
     return false;
   const proposedOrigin = originOf(proposal.sourceUrl);
@@ -209,9 +201,8 @@ function retainExistingGeneralSale(
     currentOrigin === "https://www.kabuki-bito.jp" &&
     proposed?.precision === "date" &&
     existing?.type === "sale_start" &&
-    (existing.precision === "date"
-      ? existing.date
-      : existing.at?.slice(0, 10)) === proposed.date
+    existing.precision === "datetime" &&
+    existing.at?.slice(0, 10) === proposed.date
   );
 }
 
@@ -247,7 +238,7 @@ function deterministicEvent(
   const matches = candidates.filter(
     (candidate) =>
       candidate.sourceKey !== null &&
-      compatibleTitle(candidate.title, draft.proposal.title) &&
+      normalize(candidate.title) === normalize(draft.proposal.title) &&
       normalizeVenue(candidate.venue) !== "" &&
       normalizeVenue(candidate.venue) ===
         normalizeVenue(draft.proposal.venue) &&
@@ -297,7 +288,8 @@ export function createTicketOpportunityCandidatePlanner(
         );
         const plausible = candidates.filter(
           (candidate) =>
-            compatibleTitle(candidate.title, reference.proposal.title) &&
+            normalize(candidate.title) ===
+              normalize(reference.proposal.title) &&
             normalizeVenue(candidate.venue) ===
               normalizeVenue(reference.proposal.venue),
         );
