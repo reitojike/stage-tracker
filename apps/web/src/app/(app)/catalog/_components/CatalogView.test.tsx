@@ -700,8 +700,9 @@ describe("CatalogView", () => {
     // recoverable errors makes the detection deterministic.
     const recoverableErrors: string[] = [];
 
+    let root: ReturnType<typeof hydrateRoot> | undefined;
     act(() => {
-      hydrateRoot(container, element, {
+      root = hydrateRoot(container, element, {
         onRecoverableError: (error) => {
           recoverableErrors.push(
             error instanceof Error ? error.message : String(error),
@@ -721,6 +722,11 @@ describe("CatalogView", () => {
     // effect, not during the initial render.
     expect(container.textContent).toContain("絞り込み中");
 
+    const mountedRoot = root;
+    if (mountedRoot === undefined) {
+      throw new Error("hydration root was not created");
+    }
+    act(() => mountedRoot.unmount());
     document.body.removeChild(container);
   });
 
