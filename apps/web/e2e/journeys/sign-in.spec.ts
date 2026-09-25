@@ -248,14 +248,15 @@ test("local Supabase enforces the Passkey credential and session boundary", asyn
       auth: {
         autoRefreshToken: false,
         persistSession: false,
-        experimental: { passkey: true },
       },
     });
 
   const anonymous = createPasskeyClient();
   const anonymousList = await anonymous.auth.passkey.list();
   expect(anonymousList.data).toBeNull();
-  expect(anonymousList.error).not.toBeNull();
+  expect(anonymousList.error).toMatchObject({
+    name: "AuthSessionMissingError",
+  });
   const anonymousDelete = await anonymous.auth.passkey.delete({
     passkeyId: "00000000-0000-0000-0000-000000000000",
   });
@@ -285,11 +286,6 @@ test("local Supabase enforces the Passkey credential and session boundary", asyn
     const authenticatedList = await authenticated.auth.passkey.list();
     expect(authenticatedList.error).toBeNull();
     expect(authenticatedList.data).toEqual([]);
-
-    const withoutOptIn = createClient<Database>(status.apiUrl, status.anonKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    await expect(withoutOptIn.auth.passkey.list()).rejects.toThrow();
   } finally {
     await deleteActor(admin, actor.userId);
   }

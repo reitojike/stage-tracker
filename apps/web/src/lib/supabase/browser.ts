@@ -10,9 +10,8 @@ import type { Database } from "@/lib/data/database.types";
  * 使い、cookie の読み書きは `@supabase/ssr` の browser 既定
  * （ブラウザの cookie storage）に任せる。
  *
- * Passkey の WebAuthn ceremony が現在の利用者であり、experimental capability
- * はこの shared factory に集約する。呼び出しごとに client を生成する設計と
- * browser の既定 cookie storage は維持する。
+ * Passkey Auth API は supabase-js でデフォルト有効になっている。呼び出しごとに client を
+ * 生成する設計と browser の既定 cookie storage は維持する。
  *
  * 生成済み Database 型を client factory に接続し、schema/table/column/RPC
  * の drift を TypeScript boundary で検知する。これは runtime の client
@@ -23,6 +22,5 @@ export function createSupabaseBrowserClient() {
   return createBrowserClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { auth: { experimental: { passkey: true } } },
   );
 }

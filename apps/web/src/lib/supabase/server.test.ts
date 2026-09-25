@@ -66,12 +66,13 @@ describe("Supabase server factories", () => {
     mockGetAll.mockReturnValue([{ name: "sb-session", value: "session" }]);
   });
 
-  it("enables Passkey on the typed shared server client and preserves cookie wiring", async () => {
+  it("uses default Auth capabilities and preserves cookie wiring", async () => {
     await createSupabaseServerClient();
     const options = createdOptions[0];
-    if (options === undefined || options.auth?.experimental?.passkey !== true) {
+    if (options === undefined) {
       throw new Error("createServerClient options were not captured");
     }
+    expect(options.auth).toBeUndefined();
 
     expect(options.cookies.getAll()).toEqual([
       { name: "sb-session", value: "session" },

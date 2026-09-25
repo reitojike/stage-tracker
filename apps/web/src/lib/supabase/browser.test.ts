@@ -19,7 +19,7 @@ vi.mock("@supabase/ssr", () => ({
 const { createSupabaseBrowserClient } = await import("./browser");
 
 describe("createSupabaseBrowserClient", () => {
-  it("owns the Passkey capability while keeping per-call browser clients", () => {
+  it("creates per-call browser clients with default Auth capabilities", () => {
     const first = createSupabaseBrowserClient();
     const second = createSupabaseBrowserClient();
 
@@ -28,7 +28,6 @@ describe("createSupabaseBrowserClient", () => {
       1,
       "https://example-project.supabase.test",
       "anon-key",
-      { auth: { experimental: { passkey: true } } },
     );
   });
 });
