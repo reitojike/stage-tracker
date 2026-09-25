@@ -64,12 +64,69 @@ describe("Event match repository", () => {
     expect(matches.map((match) => match.id)).toEqual(["event-41"]);
     expect(
       requestedUrls.filter((url) => url.pathname === "/rest/v1/events"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(
       requestedUrls.filter(
         (url) => url.pathname === "/rest/v1/event_occurrences",
       ),
     ).toHaveLength(1);
+  });
+
+  it("fails closed when another matching Event appears during hydration", async () => {
+    let summaryReads = 0;
+    const client = createClient<Database>(
+      "https://example.test",
+      "public-test-key",
+      {
+        global: {
+          fetch: async (input) => {
+            const url = new URL(String(input));
+            if (url.pathname === "/rest/v1/events") {
+              if (url.searchParams.get("select") === "id,title,venue") {
+                summaryReads += 1;
+                return Response.json(
+                  summaryReads === 1
+                    ? [{ id: "event-1", title: "公演", venue: "歌舞伎座" }]
+                    : [
+                        { id: "event-1", title: "公演", venue: "歌舞伎座" },
+                        { id: "event-2", title: "公演", venue: "歌舞伎座" },
+                      ],
+                );
+              }
+              return Response.json([
+                {
+                  id: "event-1",
+                  title: "公演",
+                  venue: "歌舞伎座",
+                  source_key: null,
+                  source_url: null,
+                  memo: null,
+                  genre_id: null,
+                  starts_on: "2026-09-02",
+                  ends_on: "2026-09-26",
+                  current_genre: null,
+                },
+              ]);
+            }
+            if (
+              url.pathname === "/rest/v1/event_occurrences" ||
+              url.pathname === "/rest/v1/event_groups"
+            )
+              return Response.json([]);
+            throw new Error(`Unexpected catalog request: ${url.pathname}`);
+          },
+        },
+      },
+    );
+
+    await expect(
+      createEventMatchRepository(client).findPotentialMatches(
+        "2026-09-02",
+        "2026-09-26",
+        (event) => event.title === "公演" && event.venue === "歌舞伎座",
+      ),
+    ).rejects.toThrow("Ticket Event match set changed during hydration");
+    expect(summaryReads).toBe(2);
   });
 
   it("includes canceled occurrences when resolving current Event facts", async () => {

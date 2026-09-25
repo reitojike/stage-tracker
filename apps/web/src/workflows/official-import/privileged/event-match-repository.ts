@@ -145,22 +145,25 @@ export function createEventMatchRepository(
       if (prefilter !== undefined) {
         // Only the compact identity facts are scanned before the ticket-only
         // title/venue filter. Do not hydrate unrelated overlapping Events.
-        const { data: summaries, error: summaryError } = await client
-          .from("events")
-          .select("id, title, venue")
-          .is("canceled_at", null)
-          .lte("starts_on", endsOn)
-          .gte("ends_on", startsOn)
-          .order("starts_on")
-          .order("id")
-          .limit(TICKET_MATCH_SCAN_LIMIT + 1);
-        if (summaryError !== null || summaries === null)
-          throw new Error("Failed to retrieve ticket Event match summaries");
-        if (summaries.length > TICKET_MATCH_SCAN_LIMIT)
-          throw new Error("Ticket Event match scan exceeded the bounded limit");
-        const matching = requireCompleteEventMatchWindow(
-          summaries.filter(prefilter),
-        );
+        const readMatchingSummaries = async () => {
+          const { data: summaries, error: summaryError } = await client
+            .from("events")
+            .select("id, title, venue")
+            .is("canceled_at", null)
+            .lte("starts_on", endsOn)
+            .gte("ends_on", startsOn)
+            .order("starts_on")
+            .order("id")
+            .limit(TICKET_MATCH_SCAN_LIMIT + 1);
+          if (summaryError !== null || summaries === null)
+            throw new Error("Failed to retrieve ticket Event match summaries");
+          if (summaries.length > TICKET_MATCH_SCAN_LIMIT)
+            throw new Error(
+              "Ticket Event match scan exceeded the bounded limit",
+            );
+          return requireCompleteEventMatchWindow(summaries.filter(prefilter));
+        };
+        const matching = await readMatchingSummaries();
         if (matching.length === 0) return [];
         const { data, error } = await client
           .from("events")
@@ -175,7 +178,7 @@ export function createEventMatchRepository(
         if (error !== null || data === null || data.length !== matching.length)
           throw new Error("Failed to retrieve ticket Event match facts");
         const byId = new Map(data.map((event) => [event.id, event]));
-        return Promise.all(
+        const hydrated = await Promise.all(
           matching.map((summary) => {
             const event = byId.get(summary.id);
             if (event === undefined || !prefilter(event))
@@ -183,6 +186,15 @@ export function createEventMatchRepository(
             return hydrate(client, event);
           }),
         );
+        const currentMatching = await readMatchingSummaries();
+        if (
+          currentMatching.length !== matching.length ||
+          currentMatching.some(
+            (event, index) => event.id !== matching[index]?.id,
+          )
+        )
+          throw new Error("Ticket Event match set changed during hydration");
+        return hydrated;
       }
       const { data, error } = await client
         .from("events")
