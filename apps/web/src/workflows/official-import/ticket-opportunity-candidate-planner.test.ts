@@ -4,6 +4,7 @@ import { deriveOfficialImportCandidateReviewStatus } from "./candidate-review";
 import type {
   CatalogEventMatch,
   EventAlignmentResult,
+  EventMatchRepository,
 } from "./event-candidate-planner";
 import { getOfficialSource } from "./source-registry";
 import {
@@ -69,15 +70,18 @@ function setup(
 ) {
   const align = vi.fn(async () => alignment);
   const findOpportunity = vi.fn(async () => opportunity);
+  const findPotentialMatches = vi.fn<
+    EventMatchRepository["findPotentialMatches"]
+  >(async () => potential);
   const planner = createTicketOpportunityCandidatePlanner(
     {
       findExactBySourceKey: vi.fn(async () => exact),
-      findPotentialMatches: vi.fn(async () => potential),
+      findPotentialMatches,
     },
     { findExactBySourceKey: findOpportunity },
     { align },
   );
-  return { planner, align, findOpportunity };
+  return { planner, align, findOpportunity, findPotentialMatches };
 }
 
 describe("Ticket Opportunity candidate planning", () => {
@@ -96,13 +100,19 @@ describe("Ticket Opportunity candidate planning", () => {
   });
 
   it("resolves one exact title, venue, and range deterministically", async () => {
-    const { planner, align } = setup(null, [event()]);
+    const { planner, align, findPotentialMatches } = setup(null, [event()]);
     const result = await planner.planTicketOpportunity(source, draft());
     expect(result.deterministicMatchStatus).toBe("matched");
     expect(result.proposal?.eventSourceKey).toBe(
       "kabuki-bito:kabukiza:play:123",
     );
     expect(align).not.toHaveBeenCalled();
+    const prefilter = findPotentialMatches.mock.calls[0]?.[2];
+    expect(prefilter).toEqual(expect.any(Function));
+    expect(
+      prefilter?.({ title: "秀山祭九月大歌舞伎", venue: "歌舞伎座" }),
+    ).toBe(true);
+    expect(prefilter?.({ title: "別公演", venue: "歌舞伎座" })).toBe(false);
   });
 
   it("uses a known Kabuki Event identity despite observed Minamiza title and venue variants", async () => {

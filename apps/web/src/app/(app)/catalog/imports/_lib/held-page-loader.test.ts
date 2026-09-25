@@ -6,6 +6,7 @@ import { server } from "@/test/msw/server";
 import {
   loadLatestKabukiHeldPageReport,
   loadLatestShochikuTicketHeldPageReport,
+  loadLatestShochikuTicketRun,
 } from "./held-page-loader";
 
 vi.mock("server-only", () => ({}));
@@ -81,6 +82,23 @@ describe("latest Kabuki held-page report", () => {
 });
 
 describe("latest ticket held-page report", () => {
+  it("shows the latest failed ticket run rather than treating it as no history", async () => {
+    server.use(
+      http.get(`${REST_URL}/official_import_runs`, ({ request }) => {
+        const query = new URL(request.url).searchParams;
+        expect(query.get("source_id")).toBe("eq.ticket.shochiku.schedule");
+        expect(query.has("status")).toBe(false);
+        return HttpResponse.json([
+          { started_at: "2026-09-25T03:38:20+00:00", status: "failed" },
+        ]);
+      }),
+    );
+    await expect(loadLatestShochikuTicketRun(client())).resolves.toMatchObject({
+      ok: true,
+      value: { status: "failed" },
+    });
+  });
+
   it("reads only the ticket source's latest completed run", async () => {
     server.use(
       http.get(`${REST_URL}/official_import_runs`, ({ request }) => {

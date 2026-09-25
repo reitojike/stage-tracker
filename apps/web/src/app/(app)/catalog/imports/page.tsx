@@ -20,6 +20,7 @@ import {
 import {
   loadLatestKabukiHeldPageReport,
   loadLatestShochikuTicketHeldPageReport,
+  loadLatestShochikuTicketRun,
 } from "./_lib/held-page-loader";
 import { loadOfficialImportReviewQueue } from "./_lib/review-loader";
 
@@ -49,11 +50,13 @@ export default async function OfficialImportReviewPage() {
       />
     );
   }
-  const [queue, heldPages, ticketHeldPages] = await Promise.all([
-    loadOfficialImportReviewQueue(supabase),
-    loadLatestKabukiHeldPageReport(supabase),
-    loadLatestShochikuTicketHeldPageReport(supabase),
-  ]);
+  const [queue, heldPages, ticketHeldPages, latestTicketRun] =
+    await Promise.all([
+      loadOfficialImportReviewQueue(supabase),
+      loadLatestKabukiHeldPageReport(supabase),
+      loadLatestShochikuTicketHeldPageReport(supabase),
+      loadLatestShochikuTicketRun(supabase),
+    ]);
   return (
     <div className="flex flex-col gap-section">
       <div className="flex flex-col gap-sm">
@@ -77,6 +80,11 @@ export default async function OfficialImportReviewPage() {
           ticketHeldPages,
           (report) => report,
           (report) => report === null,
+        )}
+        latestRun={classifyReadResult(
+          latestTicketRun,
+          (run) => run,
+          (run) => run === null,
         )}
       />
       <OfficialImportReviewQueue

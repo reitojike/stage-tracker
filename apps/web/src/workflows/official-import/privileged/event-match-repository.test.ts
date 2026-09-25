@@ -8,6 +8,70 @@ vi.mock("./supabase", () => ({ createPrivilegedIngestionClient: vi.fn() }));
 const { createEventMatchRepository } = await import("./event-match-repository");
 
 describe("Event match repository", () => {
+  it("filters a 42-Event ticket window before hydrating the one matching Event", async () => {
+    const requestedUrls: URL[] = [];
+    const summaries = Array.from({ length: 42 }, (_, index) => ({
+      id: `event-${index}`,
+      title: index === 41 ? "秀山祭九月大歌舞伎" : `別公演${index}`,
+      venue: index === 41 ? "歌舞伎座" : "別会場",
+    }));
+    const client = createClient<Database>(
+      "https://example.test",
+      "public-test-key",
+      {
+        global: {
+          fetch: async (input) => {
+            const url = new URL(String(input));
+            requestedUrls.push(url);
+            if (url.pathname === "/rest/v1/events") {
+              if (url.searchParams.get("select") === "id,title,venue")
+                return Response.json(summaries);
+              expect(url.searchParams.get("id")).toBe("in.(event-41)");
+              return Response.json([
+                {
+                  ...summaries[41],
+                  source_key: "kabuki-bito:kabukiza:play:123",
+                  source_url:
+                    "https://www.kabuki-bito.jp/theaters/kabukiza/play/123",
+                  memo: null,
+                  genre_id: null,
+                  starts_on: "2026-09-02",
+                  ends_on: "2026-09-26",
+                  current_genre: null,
+                },
+              ]);
+            }
+            if (
+              url.pathname === "/rest/v1/event_occurrences" ||
+              url.pathname === "/rest/v1/event_groups"
+            )
+              return Response.json([]);
+            throw new Error(`Unexpected catalog request: ${url.pathname}`);
+          },
+        },
+      },
+    );
+
+    const matches = await createEventMatchRepository(
+      client,
+    ).findPotentialMatches(
+      "2026-09-02",
+      "2026-09-26",
+      (event) =>
+        event.title === "秀山祭九月大歌舞伎" && event.venue === "歌舞伎座",
+    );
+
+    expect(matches.map((match) => match.id)).toEqual(["event-41"]);
+    expect(
+      requestedUrls.filter((url) => url.pathname === "/rest/v1/events"),
+    ).toHaveLength(2);
+    expect(
+      requestedUrls.filter(
+        (url) => url.pathname === "/rest/v1/event_occurrences",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("includes canceled occurrences when resolving current Event facts", async () => {
     const requestedUrls: URL[] = [];
     const client = createClient<Database>(

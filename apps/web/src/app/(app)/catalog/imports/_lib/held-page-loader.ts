@@ -14,6 +14,10 @@ const runSchema = z.object({
   id: z.uuid(),
   started_at: z.iso.datetime({ offset: true }),
 });
+const latestTicketRunSchema = z.object({
+  started_at: z.iso.datetime({ offset: true }),
+  status: z.enum(["running", "completed", "failed"]),
+});
 const heldPageSchema = z.object({
   canonical_url: z.url().refine((value) => {
     try {
@@ -45,6 +49,29 @@ export interface KabukiHeldPageReport {
     readonly endsOn: string;
     readonly reasonCode: "source_parse" | "published_end_missing";
   }[];
+}
+
+export interface LatestTicketRun {
+  readonly startedAt: string;
+  readonly status: "running" | "completed" | "failed";
+}
+
+export async function loadLatestShochikuTicketRun(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<LatestTicketRun | null>> {
+  const runs = await runSupabaseSelect(
+    client
+      .from("official_import_runs")
+      .select("started_at, status")
+      .eq("source_id", TICKET_SOURCE_ID)
+      .order("started_at", { ascending: false })
+      .limit(1),
+  );
+  if (!runs.ok) return runs;
+  if (runs.value.length === 0) return ok(null);
+  const run = latestTicketRunSchema.safeParse(runs.value[0]);
+  if (!run.success) return err(readError("failure"));
+  return ok({ startedAt: run.data.started_at, status: run.data.status });
 }
 
 async function loadLatestHeldPageReport(
