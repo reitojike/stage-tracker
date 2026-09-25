@@ -3,7 +3,10 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/data/database.types";
 import { server } from "@/test/msw/server";
-import { loadLatestKabukiHeldPageReport } from "./held-page-loader";
+import {
+  loadLatestKabukiHeldPageReport,
+  loadLatestShochikuTicketHeldPageReport,
+} from "./held-page-loader";
 
 vi.mock("server-only", () => ({}));
 
@@ -74,5 +77,29 @@ describe("latest Kabuki held-page report", () => {
       ok: false,
       error: { kind: "permission-denied" },
     });
+  });
+});
+
+describe("latest ticket held-page report", () => {
+  it("reads only the ticket source's latest completed run", async () => {
+    server.use(
+      http.get(`${REST_URL}/official_import_runs`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("source_id")).toBe(
+          "eq.ticket.shochiku.schedule",
+        );
+        return HttpResponse.json([
+          { id: RUN_ID, started_at: "2026-09-25T00:00:00.000+00:00" },
+        ]);
+      }),
+      http.get(`${REST_URL}/official_import_held_pages`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("source_id")).toBe(
+          "eq.ticket.shochiku.schedule",
+        );
+        return HttpResponse.json([]);
+      }),
+    );
+    await expect(
+      loadLatestShochikuTicketHeldPageReport(client()),
+    ).resolves.toMatchObject({ ok: true, value: { pages: [] } });
   });
 });

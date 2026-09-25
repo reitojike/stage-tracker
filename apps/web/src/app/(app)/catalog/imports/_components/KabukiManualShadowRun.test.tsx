@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { KabukiManualShadowRun } from "./KabukiManualShadowRun";
+import {
+  KabukiManualShadowRun,
+  ShochikuTicketManualShadowRun,
+} from "./KabukiManualShadowRun";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -49,5 +52,29 @@ describe("Kabuki manual shadow run", () => {
       "取得を開始しました",
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Shochiku ticket manual shadow run", () => {
+  it("starts only the ticket source and leaves review/apply manual", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 202 });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ShochikuTicketManualShadowRun />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "チケット販売情報を手動取得" }),
+    );
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      "/api/official-import/shadow",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId: "ticket.shochiku.schedule" }),
+      },
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "取得を開始しました",
+    );
+    expect(screen.getByText(/自動承認・反映はしません/u)).toBeInTheDocument();
   });
 });

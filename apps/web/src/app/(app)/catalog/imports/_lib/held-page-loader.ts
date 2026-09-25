@@ -8,7 +8,8 @@ import { readError } from "@/lib/data/read-error";
 import type { ReadResult } from "@/lib/data/read-result";
 import { runSupabaseSelect } from "@/lib/data/supabase-select";
 
-const SOURCE_ID = "event.kabuki-bito.schedule";
+const KABUKI_SOURCE_ID = "event.kabuki-bito.schedule";
+const TICKET_SOURCE_ID = "ticket.shochiku.schedule";
 const runSchema = z.object({
   id: z.uuid(),
   started_at: z.iso.datetime({ offset: true }),
@@ -46,14 +47,15 @@ export interface KabukiHeldPageReport {
   }[];
 }
 
-export async function loadLatestKabukiHeldPageReport(
+async function loadLatestHeldPageReport(
   client: SupabaseClient<Database>,
+  sourceId: string,
 ): Promise<ReadResult<KabukiHeldPageReport | null>> {
   const runs = await runSupabaseSelect(
     client
       .from("official_import_runs")
       .select("id, started_at")
-      .eq("source_id", SOURCE_ID)
+      .eq("source_id", sourceId)
       .eq("status", "completed")
       .order("started_at", { ascending: false })
       .limit(1),
@@ -70,7 +72,7 @@ export async function loadLatestKabukiHeldPageReport(
         "canonical_url, official_external_id, title, starts_on, ends_on, reason_code",
       )
       .eq("run_id", run.data.id)
-      .eq("source_id", SOURCE_ID)
+      .eq("source_id", sourceId)
       .order("canonical_url", { ascending: true })
       .limit(31),
   );
@@ -90,4 +92,16 @@ export async function loadLatestKabukiHeldPageReport(
       reasonCode: page.reason_code,
     })),
   });
+}
+
+export function loadLatestKabukiHeldPageReport(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<KabukiHeldPageReport | null>> {
+  return loadLatestHeldPageReport(client, KABUKI_SOURCE_ID);
+}
+
+export function loadLatestShochikuTicketHeldPageReport(
+  client: SupabaseClient<Database>,
+): Promise<ReadResult<KabukiHeldPageReport | null>> {
+  return loadLatestHeldPageReport(client, TICKET_SOURCE_ID);
 }

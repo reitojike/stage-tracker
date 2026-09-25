@@ -115,6 +115,15 @@ describe("official source registry", () => {
         "https://www1.ticket-web-shochiku.com/t/other.html",
       ),
     ).toThrow(OfficialSourceRegistryError);
+    expect(
+      assertAllowedSourceUrl(
+        source,
+        "https://www.kabuki-bito.jp/theaters/kabukiza/play/986",
+      ),
+    ).toContain("/play/986");
+    expect(() =>
+      assertAllowedSourceUrl(source, "https://www.kabuki-bito.jp/sitepolicy/"),
+    ).toThrow(OfficialSourceRegistryError);
   });
 
   it.each([

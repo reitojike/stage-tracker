@@ -43,6 +43,21 @@ function normalize(value: string | null | undefined): string {
     .replace(/[\s\p{P}]+/gu, "");
 }
 
+function normalizeVenue(value: string | null | undefined): string {
+  return normalize(value)
+    .replace(/^劇場/u, "")
+    .replace(/^京都四條南座/u, "南座");
+}
+
+function compatibleTitle(left: string, right: string): boolean {
+  const a = normalize(left);
+  const b = normalize(right);
+  return (
+    a === b ||
+    (a.length >= 5 && b.length >= 5 && (a.includes(b) || b.includes(a)))
+  );
+}
+
 function sameInstant(left: string, right: string): boolean {
   return Date.parse(left) === Date.parse(right);
 }
@@ -160,6 +175,46 @@ function planFor(
   };
 }
 
+function originOf(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function retainExistingGeneralSale(
+  proposal: TicketOpportunityProposalInput,
+  current: CatalogTicketOpportunityMatch | null,
+  eventId: string,
+): boolean {
+  if (
+    current === null ||
+    current.eventId !== eventId ||
+    proposal.displayName !== "一般販売"
+  )
+    return false;
+  const proposedOrigin = originOf(proposal.sourceUrl);
+  const currentOrigin = originOf(current.sourceUrl);
+  if (
+    proposedOrigin === "https://www.kabuki-bito.jp" &&
+    currentOrigin === "https://www1.ticket-web-shochiku.com"
+  )
+    return true;
+  const proposed = proposal.milestones?.[0];
+  const existing = current.milestones[0];
+  return (
+    proposedOrigin === "https://www1.ticket-web-shochiku.com" &&
+    currentOrigin === "https://www.kabuki-bito.jp" &&
+    proposed?.precision === "date" &&
+    existing?.type === "sale_start" &&
+    (existing.precision === "date"
+      ? existing.date
+      : existing.at?.slice(0, 10)) === proposed.date
+  );
+}
+
 function fingerprint(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -192,9 +247,10 @@ function deterministicEvent(
   const matches = candidates.filter(
     (candidate) =>
       candidate.sourceKey !== null &&
-      normalize(candidate.title) === normalize(draft.proposal.title) &&
-      normalize(candidate.venue) !== "" &&
-      normalize(candidate.venue) === normalize(draft.proposal.venue) &&
+      compatibleTitle(candidate.title, draft.proposal.title) &&
+      normalizeVenue(candidate.venue) !== "" &&
+      normalizeVenue(candidate.venue) ===
+        normalizeVenue(draft.proposal.venue) &&
       candidate.startsOn === draft.proposal.startsOn &&
       candidate.endsOn === draft.proposal.endsOn,
   );
@@ -241,9 +297,9 @@ export function createTicketOpportunityCandidatePlanner(
         );
         const plausible = candidates.filter(
           (candidate) =>
-            normalize(candidate.title) ===
-              normalize(reference.proposal.title) &&
-            normalize(candidate.venue) === normalize(reference.proposal.venue),
+            compatibleTitle(candidate.title, reference.proposal.title) &&
+            normalizeVenue(candidate.venue) ===
+              normalizeVenue(reference.proposal.venue),
         );
         const includesManualIdentity = plausible.some(
           (candidate) => candidate.sourceKey === null,
@@ -311,14 +367,34 @@ export function createTicketOpportunityCandidatePlanner(
         );
       }
 
+      const generalSale =
+        _source.id === "ticket.shochiku.schedule" &&
+        /^(?:一般販売|一般発売)$/u.test(draft.proposal.displayName) &&
+        matchedEvent.sourceKey.startsWith("kabuki-bito:");
       const proposal = {
         ...draft.proposal,
         eventSourceKey: matchedEvent.sourceKey,
+        ...(generalSale
+          ? {
+              sourceKey: `shochiku:${matchedEvent.sourceKey}:general`,
+              displayName: "一般販売",
+            }
+          : {}),
       };
       const current = await opportunities.findExactBySourceKey(
         proposal.sourceKey,
       );
-      const plan = planFor(proposal, matchedEvent, current);
+      const planned = planFor(proposal, matchedEvent, current);
+      const plan = retainExistingGeneralSale(proposal, current, matchedEvent.id)
+        ? {
+            ...planned,
+            action: "unchanged" as const,
+            eventChanged: false,
+            detailsChanged: false,
+            occurrencesChanged: false,
+            milestonesChanged: false,
+          }
+        : planned;
       return result(
         proposal,
         {

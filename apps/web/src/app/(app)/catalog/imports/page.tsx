@@ -9,9 +9,18 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { reviewOfficialImportCandidateAction } from "@/lib/actions/officialImportReview.actions";
 import { startOfficialImportApplyAction } from "@/lib/actions/officialImportApply.actions";
 import { OfficialImportReviewQueue } from "./_components/OfficialImportReviewQueue";
-import { KabukiHeldPageReport } from "./_components/KabukiHeldPageReport";
-import { KabukiManualShadowRun } from "./_components/KabukiManualShadowRun";
-import { loadLatestKabukiHeldPageReport } from "./_lib/held-page-loader";
+import {
+  KabukiHeldPageReport,
+  ShochikuTicketHeldPageReport,
+} from "./_components/KabukiHeldPageReport";
+import {
+  KabukiManualShadowRun,
+  ShochikuTicketManualShadowRun,
+} from "./_components/KabukiManualShadowRun";
+import {
+  loadLatestKabukiHeldPageReport,
+  loadLatestShochikuTicketHeldPageReport,
+} from "./_lib/held-page-loader";
 import { loadOfficialImportReviewQueue } from "./_lib/review-loader";
 
 export default async function OfficialImportReviewPage() {
@@ -40,9 +49,10 @@ export default async function OfficialImportReviewPage() {
       />
     );
   }
-  const [queue, heldPages] = await Promise.all([
+  const [queue, heldPages, ticketHeldPages] = await Promise.all([
     loadOfficialImportReviewQueue(supabase),
     loadLatestKabukiHeldPageReport(supabase),
+    loadLatestShochikuTicketHeldPageReport(supabase),
   ]);
   return (
     <div className="flex flex-col gap-section">
@@ -54,9 +64,17 @@ export default async function OfficialImportReviewPage() {
         </p>
       </div>
       <KabukiManualShadowRun />
+      <ShochikuTicketManualShadowRun />
       <KabukiHeldPageReport
         state={classifyReadResult(
           heldPages,
+          (report) => report,
+          (report) => report === null,
+        )}
+      />
+      <ShochikuTicketHeldPageReport
+        state={classifyReadResult(
+          ticketHeldPages,
           (report) => report,
           (report) => report === null,
         )}
