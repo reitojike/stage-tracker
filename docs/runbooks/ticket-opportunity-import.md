@@ -47,6 +47,12 @@ DBを再読込してresolve / re-planします。review済みidentityまたはma
 現在のcatalogの正本はProduction DBです。`user_ticket_opportunity_states`はこの経路でも変更
 しません。現時点ではmanual triggerだけで、定期実行（Cron）はありません。
 
+Eventとの同一性を確定できないTicketOpportunity候補は承認・反映できません。
+対象Eventを取り込まない等でOpportunityも不要と判断した場合は、
+`/catalog/imports`で「取り込み不要として却下」を選びます。却下記録は履歴として残り、
+同じ公式内容・変更計画の再取得では再提示されません。公式内容または変更計画が変われば
+新しい候補として確認できます。
+
 reviewed applyはP1 coreで読んだEvent・対象Occurrence・Opportunity・milestoneの
 current factsをservice-role-only条件付きRPCへ渡します。RPCは対象行をlockして
 同じtransaction内で比較し、変化があれば`source_changed`としてreplace-allを実行せず
