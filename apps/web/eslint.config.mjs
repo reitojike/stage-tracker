@@ -40,18 +40,6 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    name: "stage-tracker:storybook-type-aware-config",
-    files: [".storybook/**/*.{ts,tsx}"],
-    languageOptions: {
-      parserOptions: {
-        tsconfigRootDir: import.meta.dirname,
-        projectService: {
-          allowDefaultProject: [".storybook/*.ts", ".storybook/*.tsx"],
-        },
-      },
-    },
-  },
-  {
     name: "stage-tracker:react",
     files: ["**/*.{jsx,tsx}"],
     plugins: { "@eslint-react": reactX },
