@@ -12,7 +12,7 @@ canonical Issueまたはtask contractがagentに`MERGE_READY`への到達を要�
 作成後に継続するentry point:
 
 ```text
-pnpm run post-pr:converge -- --create \
+pnpm run post-pr:converge --create \
   --title "<PR title>" \
   --body-file "<PR body file>"
 ```
@@ -20,7 +20,7 @@ pnpm run post-pr:converge -- --create \
 PRをすでに作成済みの場合は、次のcommandで続行します:
 
 ```text
-pnpm run post-pr:converge -- --pr <number>
+pnpm run post-pr:converge --pr <number>
 ```
 
 このcommandは、PR作成、GitHub APIの観測、review threadの観測、reviewの依頼に、認証済みの`gh` CLI経路を使用します。

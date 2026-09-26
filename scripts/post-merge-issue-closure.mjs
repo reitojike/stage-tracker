@@ -153,15 +153,15 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm run post-merge:closure -- snapshot --repo owner/name --issue N --pr N
-  pnpm run post-merge:closure -- update --repo owner/name --issue N --pr N
+  pnpm run post-merge:closure snapshot --repo owner/name --issue N --pr N
+  pnpm run post-merge:closure update --repo owner/name --issue N --pr N
     --expected-body-sha256 SHA256 --check-index N [--check-index N ...]
     --allow-completion --semantic-ac-verified --no-known-remaining-work
-  pnpm run post-merge:closure -- evidence --repo owner/name --issue N --pr N
+  pnpm run post-merge:closure evidence --repo owner/name --issue N --pr N
     --evidence-file PATH --allow-completion --semantic-ac-verified --no-known-remaining-work
-  pnpm run post-merge:closure -- verify --repo owner/name --issue N --pr N
+  pnpm run post-merge:closure verify --repo owner/name --issue N --pr N
     --allow-completion --semantic-ac-verified --no-known-remaining-work
-  pnpm run post-merge:closure -- close --repo owner/name --issue N --pr N
+  pnpm run post-merge:closure close --repo owner/name --issue N --pr N
     --allow-completion --semantic-ac-verified --no-known-remaining-work
 
 snapshot is read-only. update changes only explicitly selected top-level AC

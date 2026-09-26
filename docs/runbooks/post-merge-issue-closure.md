@@ -10,7 +10,7 @@ canonical Issue / Task Contractが、merge済み実装によってIssueが完了
 repositoryのentry point:
 
 ```text
-pnpm run post-merge:closure -- <command> ...
+pnpm run post-merge:closure <command> ...
 ```
 
 helperの役割は意図的に限定されています。認証済みGitHub `gh` CLI/API経路を通じ、現在のIssueと明示された実装PRを読み取ります。決定的に
@@ -24,7 +24,7 @@ helperの役割は意図的に限定されています。認証済みGitHub `gh`
 実装PRのmergeを確認した後、次を実行します。
 
 ```text
-pnpm run post-merge:closure -- snapshot --repo owner/name --issue <issue> --pr <pr> --json
+pnpm run post-merge:closure snapshot --repo owner/name --issue <issue> --pr <pr> --json
 ```
 
 outputには最新Issue body、bodyのSHA-256値、PRのmerge state/SHA、解析したAC itemが含まれます。parserが受け付けるのは、top-levelの
@@ -51,7 +51,7 @@ outputには最新Issue body、bodyのSHA-256値、PRのmerge state/SHA、解析
 最新snapshotの`bodySha256`を使い、達成済みACごとに`--check-index`を指定します。例:
 
 ```text
-pnpm run post-merge:closure -- update --repo owner/name --issue <issue> --pr <pr> --expected-body-sha256 <snapshot-sha256> --check-index 1 --check-index 4 --allow-completion --semantic-ac-verified --no-known-remaining-work
+pnpm run post-merge:closure update --repo owner/name --issue <issue> --pr <pr> --expected-body-sha256 <snapshot-sha256> --check-index 1 --check-index 4 --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
 helperは書き込み直前にIssueを再取得し、body hashが一致しなければ拒否します。最新bodyに差分を適用し、期待するcheckbox stateを確認するため、
@@ -78,7 +78,7 @@ Unresolved items: 0
 次に実行します。
 
 ```text
-pnpm run post-merge:closure -- evidence --repo owner/name --issue <issue> --pr <pr> --evidence-file <path> --allow-completion --semantic-ac-verified --no-known-remaining-work
+pnpm run post-merge:closure evidence --repo owner/name --issue <issue> --pr <pr> --evidence-file <path> --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
 helperはIssue number、PR number、merge SHAを含む小さなidentity markerを追加します。先に同markerを確認し、十分なcommentを重複投稿しません。
@@ -89,13 +89,13 @@ helperはIssue number、PR number、merge SHAを含む小さなidentity marker�
 決定的な前提条件checkを実行します。
 
 ```text
-pnpm run post-merge:closure -- verify --repo owner/name --issue <issue> --pr <pr> --allow-completion --semantic-ac-verified --no-known-remaining-work
+pnpm run post-merge:closure verify --repo owner/name --issue <issue> --pr <pr> --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
 `READY_TO_CLOSE`の場合に限り、最後のcommandを実行できます。
 
 ```text
-pnpm run post-merge:closure -- close --repo owner/name --issue <issue> --pr <pr> --allow-completion --semantic-ac-verified --no-known-remaining-work
+pnpm run post-merge:closure close --repo owner/name --issue <issue> --pr <pr> --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
 `close`はIssue/PR/commentを再度最新取得し、変更前にIssue bodyを再確認して、stateだけを更新するGitHub操作を行い、`state=closed`と
