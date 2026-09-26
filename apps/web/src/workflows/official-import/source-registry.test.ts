@@ -38,6 +38,9 @@ describe("official source registry", () => {
     expect(
       getOfficialSource("ticket.shochiku.schedule")?.fetchCadenceHint,
     ).toBe("daily");
+    expect(
+      getOfficialSource("ticket.shochiku.schedule")?.fetchCadenceHint,
+    ).toBe(getOfficialSource("event.kabuki-bito.schedule")?.fetchCadenceHint);
     expect(getOfficialSource("event.takarazuka.revue")?.fetchCadenceHint).toBe(
       "weekly",
     );

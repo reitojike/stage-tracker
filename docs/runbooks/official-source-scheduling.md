@@ -5,7 +5,7 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
 
 ## 現在のrollout状態
 
-- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。運用観測を早めるため、両sourceを一時的に日次（毎日09:00 JST）のdue slotで取得します。sourceごとに連続するscheduled runの結果を確認した後、安定していればsource固有PRで週次へ戻します。
+- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。運用観測を早めるため、両sourceを一時的に日次（毎日09:00 JST）のdue slotで取得します。両sourceで連続するscheduled runの結果を確認した後、安定していれば同じPRで両方を週次へ戻します。片方だけ先に週次へ戻し、もう片方だけが日次で動く期間を作りません。
 - `ticket.shochiku.schedule`は短期の日次shadow試行中です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
   general saleの暫定evidenceとして読み、その後Shochiku東西のsale rowを読みます。同じEventのgeneral saleは1つのsource/run内でreconcileします。
   Shochikuの日付が後から変われば暫定日付を置き換えますが、同じ日のShochiku date-only rowによってKabuki-bitoが明示した時刻を消すことは

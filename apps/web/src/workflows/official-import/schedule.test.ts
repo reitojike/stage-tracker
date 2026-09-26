@@ -49,6 +49,25 @@ describe("official source schedule slots", () => {
     ]);
   });
 
+  it("keeps Event before Ticket after both sources return to weekly cadence", () => {
+    const weeklyTicket = { ...ticket, fetchCadenceHint: "weekly" as const };
+    expect(
+      dueScheduledSourceSlots(
+        [weeklyTicket, weekly],
+        new Date("2026-09-28T00:00:00.000Z"),
+      ),
+    ).toEqual([
+      { source: weekly, tokyoDate: "2026-09-28" },
+      { source: weeklyTicket, tokyoDate: "2026-09-28" },
+    ]);
+    expect(
+      dueScheduledSourceSlots(
+        [weeklyTicket, weekly],
+        new Date("2026-09-29T00:00:00.000Z"),
+      ),
+    ).toEqual([]);
+  });
+
   it("rejects an invalid clock", () => {
     expect(() =>
       dueScheduledSourceSlots([daily], new Date("invalid")),
