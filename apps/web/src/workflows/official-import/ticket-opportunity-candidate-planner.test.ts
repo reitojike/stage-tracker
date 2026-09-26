@@ -285,6 +285,7 @@ describe("Ticket Opportunity candidate planning", () => {
 
   it("holds a ticket if a new exact identity conflicts with its reviewed binding", async () => {
     const manual = event({ sourceKey: null });
+    const unavailable: EventAlignmentResult = { status: "unavailable" };
     const newlyImported = event({
       id: "event-2",
       sourceKey: "kabuki-bito:kabukiza:play:456",
@@ -297,7 +298,7 @@ describe("Ticket Opportunity candidate planning", () => {
         findPotentialMatches,
       },
       { findExactBySourceKey: findOpportunity },
-      { align: vi.fn(async () => ({ status: "unavailable" })) },
+      { align: vi.fn(async () => unavailable) },
       {
         find: vi.fn(async () => ({ eventId: manual.id, eventSourceKey: null })),
       },
