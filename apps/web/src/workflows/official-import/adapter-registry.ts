@@ -7,6 +7,7 @@ import { env } from "@/env";
 import { createKabukiBitoAdapter } from "./adapters/kabuki-bito";
 import { createSkiyakiCalendarAdapter } from "./adapters/skiyaki-calendar";
 import { createTakarazukaRevueAdapter } from "./adapters/takarazuka-revue";
+import { createTakarazukaGeneralSaleAdapter } from "./adapters/takarazuka-general-sale";
 import { createShochikuTicketAdapter } from "./adapters/shochiku-ticket";
 import { createTakarazukaFriendsAdapter } from "./adapters/takarazuka-friends";
 import { createWordpressTribeEventsAdapter } from "./adapters/wordpress-tribe-events";
@@ -31,6 +32,7 @@ const ADAPTERS: Readonly<Record<SourceExtractorFamily, OfficialSourceAdapter>> =
   {
     kabuki_bito: createKabukiBitoAdapter(),
     takarazuka_revue: createTakarazukaRevueAdapter(),
+    takarazuka_general_sale: createTakarazukaGeneralSaleAdapter(),
     skiyaki_calendar: createSkiyakiCalendarAdapter(),
     shochiku_ticket: createShochikuTicketAdapter(),
     takarazuka_friends_pdf: createTakarazukaFriendsAdapter(

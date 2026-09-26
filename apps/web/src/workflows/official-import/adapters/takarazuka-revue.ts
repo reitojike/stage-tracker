@@ -24,7 +24,6 @@ import {
   calendarDate,
   parseJapaneseClock,
   parseJapaneseDateRange,
-  slug,
   tokyoDateTime,
 } from "./japanese-date";
 
@@ -33,7 +32,10 @@ interface TakarazukaVenueFact {
   readonly venueSlug: string;
   readonly startsOn: string;
   readonly endsOn: string;
+  readonly generalSaleOn: string | null;
 }
+
+const MAX_REQUESTS = 30;
 
 export interface TakarazukaProductionFact {
   readonly year: string;
@@ -46,7 +48,7 @@ export interface TakarazukaProductionFact {
 function venueSlug(venue: string): string {
   if (venue.includes("東京宝塚劇場")) return "tokyo";
   if (venue.includes("宝塚大劇場")) return "takarazuka";
-  return slug(venue);
+  throw new SourceParseFailure();
 }
 
 export function parseTakarazukaIndex(
@@ -58,7 +60,9 @@ export function parseTakarazukaIndex(
   const candidateItems = items.filter(
     (item) =>
       descendants(item, (node) =>
-        /\/sp\/revue\//u.test(attribute(node, "href") ?? ""),
+        /\/sp\/revue\/\d{4}\/[^/]+\/index\.html/u.test(
+          attribute(node, "href") ?? "",
+        ),
       ).length > 0,
   );
   const facts = candidateItems.flatMap((item): TakarazukaProductionFact[] => {
@@ -77,18 +81,36 @@ export function parseTakarazukaIndex(
     const titleNode = descendants(item, (node) => hasClass(node, "title"))[0];
     if (year === undefined || workSlug === undefined || titleNode === undefined)
       return [];
-    const venueBlocks = descendants(item, (node) => elementName(node) === "dl");
+    const venueBlocks = descendants(
+      item,
+      (node) => elementName(node) === "dl",
+    ).filter((dl) => {
+      const dt = descendants(dl, (node) => elementName(node) === "dt")[0];
+      return dt === undefined || normalizedText(dt) !== "主な出演者";
+    });
     const venues = venueBlocks.flatMap((dl): TakarazukaVenueFact[] => {
       const dt = descendants(dl, (node) => elementName(node) === "dt")[0];
       const dd = descendants(dl, (node) => elementName(node) === "dd")[0];
       if (dt === undefined || dd === undefined) return [];
       const venue = normalizedText(dt);
+      const detail = normalizedText(dd);
+      const generalSale = detail.match(
+        /一般前売[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日/u,
+      );
       try {
         return [
           {
             venue,
             venueSlug: venueSlug(venue),
-            ...parseJapaneseDateRange(normalizedText(dd)),
+            ...parseJapaneseDateRange(detail),
+            generalSaleOn:
+              generalSale === null
+                ? null
+                : calendarDate(
+                    Number(generalSale[1]),
+                    Number(generalSale[2]),
+                    Number(generalSale[3]),
+                  ),
           },
         ];
       } catch {
@@ -118,6 +140,38 @@ function scheduleVenueSlug(href: string): string | null {
   if (/schedule_takarazuka\.html/u.test(href)) return "takarazuka";
   if (/schedule\.html/u.test(href)) return "single";
   return null;
+}
+
+function assertNoPublishedDaySchedule(
+  document: ReturnType<typeof parseHtml>,
+  venue: TakarazukaVenueFact,
+): void {
+  const blocks = descendants(
+    document,
+    (node) =>
+      elementName(node) === "dl" &&
+      hasClass(node, "revueInfo") &&
+      hasClass(node, "accordion"),
+  ).filter((block) => {
+    const heading = descendants(block, (node) => elementName(node) === "dt")[0];
+    return (
+      heading !== undefined &&
+      venueSlug(normalizedText(heading)) === venue.venueSlug
+    );
+  });
+  if (blocks.length !== 1) throw new SourceParseFailure();
+  const block = blocks[0];
+  if (block === undefined) throw new SourceParseFailure();
+  const text = normalizedText(block);
+  if (
+    !text.includes("公演期間") ||
+    !text.includes("一般前売") ||
+    text.includes("公演日程を見る")
+  )
+    throw new SourceParseFailure();
+  const range = parseJapaneseDateRange(text);
+  if (range.startsOn !== venue.startsOn || range.endsOn !== venue.endsOn)
+    throw new SourceParseFailure();
 }
 
 export function parseTakarazukaSchedule(
@@ -170,11 +224,17 @@ export function createTakarazukaRevueAdapter(
 ): OfficialSourceAdapter {
   return {
     async acquire(source): Promise<readonly EventAcquisitionDraft[]> {
-      const index = await fetcher(source, source.canonicalUrl);
+      let requests = 0;
+      const fetchBounded: OfficialHtmlFetcher = async (definition, url) => {
+        requests += 1;
+        if (requests > MAX_REQUESTS) throw new SourceParseFailure();
+        return fetcher(definition, url);
+      };
+      const index = await fetchBounded(source, source.canonicalUrl);
       const productions = parseTakarazukaIndex(source, index.body);
       const drafts: EventAcquisitionDraft[] = [];
       for (const production of productions) {
-        const detail = await fetcher(source, production.canonicalUrl);
+        const detail = await fetchBounded(source, production.canonicalUrl);
         const detailDocument = parseHtml(detail.body);
         const scheduleLinks = descendants(detailDocument, (node) => {
           const href = attribute(node, "href") ?? "";
@@ -183,6 +243,8 @@ export function createTakarazukaRevueAdapter(
             /schedule(?:_[a-z-]+)?\.html/u.test(href)
           );
         });
+        const seenScheduleUrls = new Set<string>();
+        const stagedVenues = new Set<string>();
         for (const link of scheduleLinks) {
           const href = attribute(link, "href") ?? "";
           const linkVenueSlug = scheduleVenueSlug(href);
@@ -192,12 +254,16 @@ export function createTakarazukaRevueAdapter(
               : production.venues.find(
                   (candidate) => candidate.venueSlug === linkVenueSlug,
                 );
-          if (venue === undefined) continue;
+          if (venue === undefined) throw new SourceParseFailure();
           const scheduleUrl = assertAllowedSourceUrl(
             source,
             new URL(href, detail.url).toString(),
           );
-          const schedule = await fetcher(source, scheduleUrl);
+          if (seenScheduleUrls.has(scheduleUrl)) continue;
+          seenScheduleUrls.add(scheduleUrl);
+          if (stagedVenues.has(venue.venueSlug)) throw new SourceParseFailure();
+          const schedule = await fetchBounded(source, scheduleUrl);
+          stagedVenues.add(venue.venueSlug);
           drafts.push({
             candidateKind: "event",
             canonicalUrl: schedule.url,
@@ -221,6 +287,29 @@ export function createTakarazukaRevueAdapter(
                   venue.endsOn,
                 ),
               ],
+            },
+          });
+        }
+        for (const venue of production.venues) {
+          if (stagedVenues.has(venue.venueSlug)) continue;
+          assertNoPublishedDaySchedule(detailDocument, venue);
+          drafts.push({
+            candidateKind: "event",
+            canonicalUrl: detail.url,
+            officialExternalId: `${production.year}:${production.workSlug}:${venue.venueSlug}`,
+            observedAt: detail.observedAt,
+            contentHash: hashOfficialDocuments([index, detail]),
+            etag: detail.etag,
+            lastModified: detail.lastModified,
+            evidenceLocator: { sectionLabel: venue.venue },
+            proposal: {
+              sourceKey: `takarazuka:${production.year}:${production.workSlug}:${venue.venueSlug}`,
+              title: production.title,
+              venue: venue.venue,
+              sourceUrl: detail.url,
+              startsOn: venue.startsOn,
+              endsOn: venue.endsOn,
+              occurrences: [],
             },
           });
         }

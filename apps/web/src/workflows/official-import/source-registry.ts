@@ -4,6 +4,7 @@ export type SourceFamilyAdapter =
 export type SourceExtractorFamily =
   | "kabuki_bito"
   | "takarazuka_revue"
+  | "takarazuka_general_sale"
   | "skiyaki_calendar"
   | "shochiku_ticket"
   | "takarazuka_friends_pdf"
@@ -193,6 +194,20 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "daily",
+  },
+  {
+    id: "ticket.takarazuka.revue-general-sale",
+    canonicalUrl: "https://kageki.hankyu.co.jp/sp/revue/index.html",
+    allowedOrigin: "https://kageki.hankyu.co.jp",
+    allowedPathPrefixes: ["/sp/revue/"],
+    adapter: "http_html",
+    extractor: "takarazuka_general_sale",
+    domainKind: "ticket_opportunity",
+    enabled: false,
+    scheduledEnabled: false,
+    shadow: true,
+    policyState: "planned",
+    fetchCadenceHint: "weekly",
   },
   {
     id: "ticket.takarazuka-friends.schedule-pdf",
