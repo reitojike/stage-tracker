@@ -127,6 +127,22 @@ function ticketCandidateRow() {
 afterEach(() => server.resetHandlers());
 
 describe("loadOfficialImportReviewQueue", () => {
+  it("excludes dismissed failures at the database query boundary", async () => {
+    server.use(
+      http.get(`${REST_URL}/official_import_candidates`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("dismissed_at")).toBe(
+          "is.null",
+        );
+        return HttpResponse.json([], {
+          headers: { "content-range": "*/0" },
+        });
+      }),
+    );
+    await expect(
+      loadOfficialImportReviewQueue(createTestClient()),
+    ).resolves.toMatchObject({ ok: true, value: [] });
+  });
+
   it("suggests the observed Hakataza Event despite a changed published period", async () => {
     const ticket = {
       ...ticketCandidateRow(),

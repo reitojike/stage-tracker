@@ -559,6 +559,7 @@ export async function loadOfficialImportReviewQueue(
         "blocked_for_identity_review",
       ])
       .neq("apply_status", "applied")
+      .is("dismissed_at", null)
       .eq("official_import_runs.status", "completed");
     const afterCursor = cursor === null ? query : query.gt("id", cursor);
     return afterCursor

@@ -337,6 +337,11 @@ marker ではなく、依然として reviewer の運用規律が担う。
 - review action の client input は candidate UUID と `approved` / `rejected` decision だけです。
   reviewer と reviewed time は P2 RPC が `auth.uid()` / database time から記録します。この
   action 自身は Event / Occurrence / TicketOpportunity を直接変更しません。
+- failed apply の閉鎖 action は candidate UUID だけを受け、designated catalog creator
+  のみが専用 RPC を呼べます。completed run の `approved` / `failed` candidate に限って
+  `dismissed_at` と `dismissed_by` を DB が記録し、review / failure evidence は保持します。
+  DB guard は閉鎖後の apply retry を拒否します。通常の queue は `dismissed_at is null` の
+  candidate だけを読み、閉鎖しても Event / Occurrence / TicketOpportunity は変更しません。
 - apply action の client input は candidate UUID だけです。designated catalog creator の
   server action が durable Workflow を開始し、Workflow の privileged step だけが dedicated
   secret と apply ownership RPC に到達します。candidate row は5分leaseのattempt tokenでclaimし、

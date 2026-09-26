@@ -8,6 +8,7 @@ import { isDesignatedCatalogCreator } from "@/lib/data/creator-capability";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   bindOfficialImportTicketCandidateAction,
+  dismissFailedOfficialImportCandidateAction,
   lookupOfficialImportBindingEventAction,
   reviewOfficialImportCandidateAction,
 } from "@/lib/actions/officialImportReview.actions";
@@ -95,6 +96,7 @@ export default async function OfficialImportReviewPage() {
         state={classifyListReadResult(queue)}
         reviewAction={reviewOfficialImportCandidateAction}
         applyAction={startOfficialImportApplyAction}
+        dismissAction={dismissFailedOfficialImportCandidateAction}
         bindAction={bindOfficialImportTicketCandidateAction}
         lookupEventAction={lookupOfficialImportBindingEventAction}
       />

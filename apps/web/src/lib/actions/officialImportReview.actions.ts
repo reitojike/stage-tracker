@@ -30,6 +30,37 @@ export const reviewOfficialImportCandidateAction = authActionClient
     return result.value;
   });
 
+export const dismissFailedOfficialImportCandidateAction = authActionClient
+  .inputSchema(z.object({ candidateId: z.uuid() }).strict())
+  .action(async ({ parsedInput, ctx }) => {
+    const { data, error } = await ctx.supabase.rpc(
+      "dismiss_failed_official_import_candidate",
+      { p_candidate_id: parsedInput.candidateId },
+    );
+    if (error !== null || data !== true) {
+      if (error?.code === "42501")
+        throw new ActionError(
+          "permission-denied",
+          "公式情報を確認する権限がありません。",
+        );
+      if (error?.code === "22023")
+        throw new ActionError(
+          "validation",
+          "この候補は閉じられません。画面を再読み込みしてください。",
+        );
+      console.error("[official import dismissal] RPC failed", {
+        code: error?.code,
+        message: error?.message,
+      });
+      throw new ActionError(
+        "failure",
+        "候補を閉じられませんでした。しばらくして再試行してください。",
+      );
+    }
+    revalidateReadSurfaces(affectedReadSurfaces.officialImportReview());
+    return { dismissed: true as const };
+  });
+
 const bindTicketInputSchema = z
   .object({ candidateId: z.uuid(), eventId: z.uuid() })
   .strict();

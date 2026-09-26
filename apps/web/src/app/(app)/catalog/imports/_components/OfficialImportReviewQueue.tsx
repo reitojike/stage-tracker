@@ -23,6 +23,7 @@ export interface OfficialImportReviewQueueProps {
   readonly state: ReadState<readonly OfficialImportReviewCandidate[]>;
   readonly reviewAction: OfficialImportReviewAction;
   readonly applyAction: OfficialImportApplyAction;
+  readonly dismissAction?: OfficialImportDismissAction | undefined;
   readonly bindAction?: OfficialImportBindAction | undefined;
   readonly lookupEventAction?: OfficialImportEventLookupAction | undefined;
 }
@@ -71,6 +72,17 @@ export type OfficialImportReviewAction = (input: {
 >;
 
 export type OfficialImportApplyAction = (input: {
+  readonly candidateId: string;
+}) => Promise<
+  | {
+      readonly data?: unknown | undefined;
+      readonly serverError?: { readonly message: string } | undefined;
+      readonly validationErrors?: unknown | undefined;
+    }
+  | undefined
+>;
+
+export type OfficialImportDismissAction = (input: {
   readonly candidateId: string;
 }) => Promise<
   | {
@@ -643,9 +655,11 @@ function applyFailureMessage(
 function ApplyControls({
   candidate,
   applyAction,
+  dismissAction,
 }: {
   candidate: OfficialImportReviewCandidate;
   applyAction: OfficialImportApplyAction;
+  dismissAction?: OfficialImportDismissAction | undefined;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -680,6 +694,27 @@ function ApplyControls({
     });
   }
 
+  function dismiss() {
+    if (dismissAction === undefined) return;
+    setNotice(null);
+    setErrorMessage(null);
+    startTransition(async () => {
+      const result = await dismissAction({ candidateId: candidate.id });
+      setAttempt((value) => value + 1);
+      if (result?.serverError) {
+        setErrorMessage(result.serverError.message);
+        return;
+      }
+      if (result?.validationErrors || !result?.data) {
+        setErrorMessage("入力内容を確認してください。");
+        return;
+      }
+      setCompleted(true);
+      setNotice("候補を閉じました。履歴は保持されます。");
+      router.refresh();
+    });
+  }
+
   const failureMessage = applyFailureMessage(candidate);
   return (
     <div className="flex flex-col gap-2xs">
@@ -697,6 +732,16 @@ function ApplyControls({
           {candidate.applyStatus === "not_started"
             ? "カタログへ反映"
             : "反映を再試行"}
+        </Button>
+      ) : null}
+      {candidate.applyStatus === "failed" && dismissAction !== undefined ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending || completed}
+          onClick={dismiss}
+        >
+          対応不要として閉じる
         </Button>
       ) : null}
       {errorMessage !== null ? (
@@ -726,12 +771,14 @@ function CandidateCard({
   candidate,
   reviewAction,
   applyAction,
+  dismissAction,
   bindAction,
   lookupEventAction,
 }: {
   candidate: OfficialImportReviewCandidate;
   reviewAction: OfficialImportReviewAction;
   applyAction: OfficialImportApplyAction;
+  dismissAction?: OfficialImportDismissAction | undefined;
   bindAction?: OfficialImportBindAction | undefined;
   lookupEventAction?: OfficialImportEventLookupAction | undefined;
 }) {
@@ -864,7 +911,11 @@ function CandidateCard({
       ) : candidate.reviewStatus === "pending" ? (
         <ReviewControls candidate={candidate} reviewAction={reviewAction} />
       ) : (
-        <ApplyControls candidate={candidate} applyAction={applyAction} />
+        <ApplyControls
+          candidate={candidate}
+          applyAction={applyAction}
+          dismissAction={dismissAction}
+        />
       )}
     </article>
   );
@@ -874,6 +925,7 @@ export function OfficialImportReviewQueue({
   state,
   reviewAction,
   applyAction,
+  dismissAction,
   bindAction,
   lookupEventAction,
 }: OfficialImportReviewQueueProps) {
@@ -918,6 +970,7 @@ export function OfficialImportReviewQueue({
           candidate={candidate}
           reviewAction={reviewAction}
           applyAction={applyAction}
+          dismissAction={dismissAction}
           bindAction={bindAction}
           lookupEventAction={lookupEventAction}
         />
