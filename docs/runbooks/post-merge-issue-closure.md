@@ -1,54 +1,42 @@
-# Bounded post-merge Issue closure
+# post-merge Issue closeの範囲限定手順
 
-This runbook is a separate phase after
-[`post-pr-convergence.md`](post-pr-convergence.md). The post-PR phase still
-ends at `MERGE_READY`; it does not merge PRs or close Issues.
+このrunbookは[`post-pr-convergence.md`](post-pr-convergence.md)の後に行う別phaseです。post-PR phaseは引き続き`MERGE_READY`で終了し、
+PRのmergeやIssueのcloseは行いません。
 
-Use this phase only when the canonical Issue / Task Contract says that the
-merged implementation completes that Issue and the agent has authority to
-perform the completion actions. Do not use it for a read-only checkpoint,
-report-plus-STOP task, parent/coordination/umbrella/tracking Issue, a task with
-known follow-up work, a close-prohibited task, or a task whose semantic close
-reason is not `completed`. If applicability is uncertain, stop at `HOLD`.
+canonical Issue / Task Contractが、merge済み実装によってIssueが完了し、agentに完了操作を行う権限があると定めている場合に限り、このphaseを
+使用します。read-only checkpoint、report-plus-STOP task、parent/coordination/umbrella/tracking Issue、既知のfollow-up workがあるtask、closeが
+禁止されたtask、または意味上のclose reasonが`completed`ではないtaskには使用しません。適用可否が不明なら`HOLD`で停止します。
 
-The repository entry point is:
+repositoryのentry point:
 
 ```text
 pnpm run post-merge:closure -- <command> ...
 ```
 
-The helper is deliberately narrow. It reads the current Issue and the
-explicitly supplied implementation PR through the authenticated GitHub `gh`
-CLI/API path. It checks deterministic prerequisites, but it never decides
-whether an Acceptance Criterion is satisfied, whether an Issue is a parent or
-tracking item, or whether post-merge work remains. Those are agent judgments
-and must be supplied as explicit assertions.
+helperの役割は意図的に限定されています。認証済みGitHub `gh` CLI/API経路を通じ、現在のIssueと明示された実装PRを読み取ります。決定的に
+確認できる前提条件を検査しますが、Acceptance Criterionが満たされたか、Issueが親またはtracking itemか、merge後の作業が残っているかは判断しません。
+これらはagentの判断事項であり、明示的なassertionとして渡す必要があります。
 
-## Procedure
+## 手順
 
-### 1. Obtain a fresh snapshot
+### 1. 最新snapshotを取得する
 
-Run this after the implementation PR is confirmed merged:
+実装PRのmergeを確認した後、次を実行します。
 
 ```text
 pnpm run post-merge:closure -- snapshot --repo owner/name --issue <issue> --pr <pr> --json
 ```
 
-The output contains the fresh Issue body, a body SHA-256 value, the PR merge
-state/SHA, and the parsed AC items. The parser accepts only one exact
-`## Acceptance Criteria` section with top-level `- [ ]` / `- [x]` items. A
-missing, duplicate, nested, or otherwise ambiguous section is `HOLD` for
-closure purposes; do not repair it heuristically.
+outputには最新Issue body、bodyのSHA-256値、PRのmerge state/SHA、解析したAC itemが含まれます。parserが受け付けるのは、top-levelの
+`- [ ]` / `- [x]` itemを持つ正確な`## Acceptance Criteria` sectionが1つだけの場合です。sectionがない、重複している、nested、またはその他の
+曖昧さがある場合、close判定では`HOLD`とします。推測で修復してはなりません。
 
-### 2. Perform semantic verification
+### 2. 意味上のverificationを行う
 
-Using the fresh body and the merged code, tests, CI, review, and durable
-artifacts, review every AC one at a time. Select only criteria that the
-evidence actually satisfies. Leave unmet, deferred, scope-external, or
-uncertain criteria unchecked.
+最新bodyとmerge済みcode、test、CI、review、永続artifactを使い、ACを1件ずつ確認します。evidenceで実際に満たしたと判断できるcriterionだけを
+選択します。未達、deferred、scope外、不確かなcriterionは未チェックのままにします。
 
-Before any mutating command, the agent must be able to affirm all three of
-these facts:
+変更を行うcommandの前に、agentは次の3つすべてをaffirmできなければなりません。
 
 ```text
 --allow-completion
@@ -56,35 +44,27 @@ these facts:
 --no-known-remaining-work
 ```
 
-These flags are assertions, not a semantic classifier. Omitting any one makes
-the helper fail closed.
+これらのflagはassertionであり、意味を判定するclassifierではありません。1つでも省略するとhelperはfail closedになります。
 
-### 3. Update only satisfied AC checkboxes
+### 3. 達成済みACのcheckboxだけを更新する
 
-Use the `bodySha256` from the fresh snapshot and repeat `--check-index` for
-each satisfied AC. For example:
+最新snapshotの`bodySha256`を使い、達成済みACごとに`--check-index`を指定します。例:
 
 ```text
 pnpm run post-merge:closure -- update --repo owner/name --issue <issue> --pr <pr> --expected-body-sha256 <snapshot-sha256> --check-index 1 --check-index 4 --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
-The helper fresh-reads the Issue immediately before writing, refuses a body
-hash mismatch, applies the delta to that fresh body, and fresh-reads the body
-again to confirm the expected checkbox state. It changes only the selected
-direct checklist lines. GitHub's standard Issue update is a full body
-replacement and does not provide a documented atomic conditional body write;
-the helper therefore does not pretend to provide an optimistic-locking
-framework. Do not run this mutation while another editor or bot may be
-changing the Issue. If that safe window cannot be established, use `HOLD`.
-Any API/auth/write-confirmation failure is also `HOLD`.
+helperは書き込み直前にIssueを再取得し、body hashが一致しなければ拒否します。最新bodyに差分を適用し、期待するcheckbox stateを確認するため、
+書き込み後にもbodyを再取得します。変更するのは選択された直接のchecklist lineだけです。GitHub標準のIssue更新はbody全体を置き換え、
+文書化されたatomicな条件付きbody writeを提供しません。そのためhelperはoptimistic-locking frameworkを提供すると偽りません。別のeditorやbotが
+Issueを変更する可能性のある間は、この変更を実行しないでください。安全な実行時間を確保できない場合は`HOLD`とします。API/auth/write確認の
+失敗も`HOLD`です。
 
-If an AC is not satisfied, do not select its index. If any unchecked AC remains,
-do not continue to evidence or close.
+ACが未達ならそのindexを選択しません。未チェックのACが1件でも残る場合は、evidence追加やcloseへ進みません。
 
-### 4. Add durable completion evidence
+### 4. 完了evidenceを永続化する
 
-Prepare a short text file outside tracked repository files with at least these
-fields, using the actual values:
+tracked repository fileの外に、実際の値を使った次の項目を含む短いtext fileを用意します。
 
 ```text
 Implementation PR: #<pr>
@@ -95,65 +75,53 @@ Review: <relevant exact-head review evidence>
 Unresolved items: 0
 ```
 
-Then run:
+次に実行します。
 
 ```text
 pnpm run post-merge:closure -- evidence --repo owner/name --issue <issue> --pr <pr> --evidence-file <path> --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
-The helper adds a small identity marker containing the Issue number, PR
-number, and merge SHA; it checks for that marker first and does not post a
-duplicate sufficient comment. Missing required fields, a malformed existing
-comment, or an API/auth/confirmation failure is `HOLD`.
+helperはIssue number、PR number、merge SHAを含む小さなidentity markerを追加します。先に同markerを確認し、十分なcommentを重複投稿しません。
+必須fieldの欠落、既存commentの形式不正、API/auth/confirmation failureは`HOLD`です。
 
-### 5. Verify, then close
+### 5. 検証後にcloseする
 
-Run the deterministic prerequisite check:
+決定的な前提条件checkを実行します。
 
 ```text
 pnpm run post-merge:closure -- verify --repo owner/name --issue <issue> --pr <pr> --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
-Only `READY_TO_CLOSE` permits the final command:
+`READY_TO_CLOSE`の場合に限り、最後のcommandを実行できます。
 
 ```text
 pnpm run post-merge:closure -- close --repo owner/name --issue <issue> --pr <pr> --allow-completion --semantic-ac-verified --no-known-remaining-work
 ```
 
-`close` performs another fresh Issue/PR/comment read, rechecks the Issue body
-before mutation, uses a state-only GitHub update, and confirms
-`state=closed` with `state_reason=completed`. It never closes a PR's Issue
-merely because the PR is merged.
+`close`はIssue/PR/commentを再度最新取得し、変更前にIssue bodyを再確認して、stateだけを更新するGitHub操作を行い、`state=closed`と
+`state_reason=completed`を確認します。PRがmergeされたという理由だけで、そのPRのIssueをcloseすることはありません。
 
-The close guard requires all of the following:
+close guardでは、次のすべてを必須とします。
 
-- Issue is currently open;
-- the agent explicitly affirmed completion applicability, per-item semantic
-  AC verification, and no known remaining work;
-- the supplied implementation PR is merged and has a full merge SHA;
-- the explicit AC section is unambiguous and has zero unchecked items;
-- sufficient identity-matched completion evidence exists; and
-- the final fresh-read state update is accepted and confirmed.
+- Issueが現在openである。
+- agentが適用可能性、ACごとの意味上のverification、既知の残作業がないことを明示的にaffirmしている。
+- 指定された実装PRがmerge済みで、完全なmerge SHAを持つ。
+- 明示されたAC sectionに曖昧さがなく、未チェックitemが0件である。
+- identityが一致する十分な完了evidenceがある。
+- 最新取得後の最終state更新が受理され、確認されている。
 
-Any failed, unknown, stale, concurrent, or ambiguous condition remains
-`HOLD`; do not retry by weakening an assertion or by editing unrelated Issue
-content.
+失敗、不明、stale、競合、または曖昧な条件が1つでもあれば`HOLD`です。assertionを弱めたり無関係なIssue内容を編集したりして再試行しては
+なりません。
 
-## Canary and continuity boundary
+## Canaryと継続性の境界
 
-Issue #517 / PR #518 is a read-only negative example: the PR is merged but the
-Issue is open with unchecked AC, so it must remain `HOLD` and must not be
-closed by this task.
+Issue #517 / PR #518はread-onlyのnegative exampleです。PRはmerge済みですがIssueには未チェックのACが残っているため、`HOLD`のままにし、
+このtaskでcloseしてはなりません。
 
-Issue #527 itself may be used as a bounded self-canary only after its
-implementation PR is merged by explicit merge authority. That proves the
-procedure, semantic checkbox update, deterministic guard, evidence, and close
-path. Because the implementing session already knows this routing, it does not
-prove future-agent discovery or automatic post-merge continuation. The next
-naturally closable real-work Issue must supply that separate continuity proof:
-merge, no extra user prompt, fresh Issue read, semantic AC review, checkbox
-update, evidence, and `completed` close.
+Issue #527自体は、明示的なmerge authorityにより実装PRがmergeされた後に限り、範囲限定のself-canaryとして使用できます。これにより手順、意味に
+基づくcheckbox更新、決定的なguard、evidence、close pathを検証できます。この実装sessionはすでにこのroutingを知っているため、将来のagentが
+手順を発見できることや、merge後に自動で継続することの証明にはなりません。次に通常業務でclose可能となるIssueで、merge、追加のuser prompt
+なしの継続、Issueの最新read、意味に基づくAC review、checkbox更新、evidence、`completed` closeを実証する必要があります。
 
-No daemon, webhook, Issue/PR registry, arbitrary-Markdown parser, semantic
-classifier, lifecycle engine, custom Skill, reviewer router, evidence ledger,
-or Foundation compatibility layer belongs in this phase.
+daemon、webhook、Issue/PR registry、任意Markdown parser、semantic classifier、lifecycle engine、custom Skill、reviewer router、evidence ledger、
+Foundation compatibility layerはこのphaseの対象ではありません。

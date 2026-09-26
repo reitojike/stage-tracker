@@ -1,4 +1,4 @@
-# Feature Specification: Calendar Month-Grid Cancellation Semantics
+# Feature Specification: Calendar Month-Gridのcancellation semantics
 
 **Feature Branch**: `004-calendar-month-grid`
 
@@ -6,123 +6,94 @@
 
 **Status**: Current behavior contract
 
-**Input**: GitHub Issue #505 and the settled Catalog / My Calendar product
-decision recorded under Issue #493.
+**Input**: GitHub Issue #505、およびIssue #493で記録された確定済みのCatalog / My Calendar product decision。
 
-## Authority Boundary
+## 権限境界
 
-This document is the current product behavior authority for cancellation meaning
-in the Catalog and My Calendar month grids. Issue #505 remains the canonical
-change intent. Architecture documents, implementation, tests, data schemas, and
-CI retain their respective responsibilities and are not duplicated here.
+この文書はCatalogとMy Calendarのmonth gridにおけるcancellationの意味を定める、現行product behavior authorityです。
+Issue #505は引き続きcanonicalな変更意図です。architecture文書、実装、test、data schema、CIはそれぞれの責務を維持し、この文書では
+重複して記述しません。
 
-The My Calendar participation boundary and effective-cancellation lifecycle
-remain owned by [`specs/001-occurrence-participation/spec.md`](../001-occurrence-participation/spec.md).
-This topic records only the month-grid projection and its detail visibility
-boundary.
+My CalendarのParticipation境界とeffective-cancellation lifecycleは、引き続き
+[`specs/001-occurrence-participation/spec.md`](../001-occurrence-participation/spec.md)が管轄します。このtopicではmonth-gridへの
+projectionとdetail visibilityの境界だけを記録します。
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Browse published Catalog information (Priority: P1)
+### User Story 1 - 公開されたCatalog情報を閲覧する (Priority: P1)
 
-As a user browsing the Catalog, I want the month grid to represent published
-Event information so that cancellation does not make an Event silently
-disappear from the catalog.
+Catalogを閲覧する利用者として、公開されたEvent情報をmonth gridに表示したい。これにより、cancellationによってEventがcatalogから
+ひそかに消えないようにします。
 
-**Independent Test**: Show a canceled single-day Event, a single-day Event with
-a canceled occurrence, and a canceled multi-day Event, then compare the month
-count, band, and cancellation cues.
+**Independent Test**: canceledされた単日Event、Occurrenceがcancelledの単日Event、cancelledされた複数日Eventを表示し、月ごとのcount、
+band、cancellation cueを比較します。
 
 **Acceptance Scenarios**:
 
-1. **Given** a canceled single-day Event, **when** its month is shown, **then**
-   it remains included in the Catalog publication count.
-2. **Given** an active Event with a canceled occurrence, **when** its month is
-   shown, **then** the Event remains included in the Catalog publication count;
-   the count is per Event, not per occurrence.
-3. **Given** a canceled multi-day Event, **when** its range is shown, **then**
-   its band remains visible and is identifiable as canceled.
-4. **Given** a canceled Event or occurrence is available in selected-day detail,
-   **when** the user opens that detail, **then** the canceled state remains
-   identifiable.
+1. **Given** 単日Eventがcancelledされた状態で、**when** その月を表示すると、**then** Catalog publication countに含まれたままである。
+2. **Given** activeなEventのOccurrenceがcancelledされた状態で、**when** その月を表示すると、**then** EventはCatalog publication countに
+   含まれたままである。countはOccurrenceごとではなくEventごとである。
+3. **Given** 複数日Eventがcancelledされた状態で、**when** rangeを表示すると、**then** bandは表示され続け、cancelled状態を識別できる。
+4. **Given** cancelledされたEventまたはOccurrenceがselected-day detailで利用可能な状態で、**when** 利用者がdetailを開くと、**then**
+   cancelled状態を引き続き識別できる。
 
-### User Story 2 - Plan active participation in My Calendar (Priority: P1)
+### User Story 2 - My Calendarでactiveな参加を計画する (Priority: P1)
 
-As a user checking My Calendar, I want month markers and counts to represent
-active planning so that canceled participation does not look like an active
-commitment.
+My Calendarを確認する利用者として、month markerとcountにactive planningを表したい。cancelledされたParticipationがactiveなcommitmentに
+見えないようにするためです。
 
-**Independent Test**: Project event-level and occurrence-level cancellation
-through the month marker/count projection, then open the corresponding selected
-day detail.
+**Independent Test**: event-levelとoccurrence-levelのcancellationをmonth marker/count projectionに反映し、その後、対応するselected-day
+detailを開きます。
 
 **Acceptance Scenarios**:
 
-1. **Given** an event-level or occurrence-level effectively canceled occurrence,
-   **when** My Calendar is shown, **then** it contributes neither an active dot
-   nor an active participation count.
-2. **Given** a canceled occurrence remains in the source/detail data, **when**
-   its selected day is shown, **then** the detail remains available and the
-   canceled state is identifiable.
-3. **Given** a non-canceled occurrence or personal schedule item, **when** the
-   month is shown, **then** its established active marker/count meaning remains
-   unchanged.
+1. **Given** event-levelまたはoccurrence-levelでeffectively cancelledされたOccurrenceの場合、**when** My Calendarを表示すると、**then**
+   active dotにもactive participation countにも加算されない。
+2. **Given** cancelledされたOccurrenceがsource/detail dataに残っている状態で、**when** そのselected dayを表示すると、**then** detailは
+   引き続き利用可能で、cancelled状態を識別できる。
+3. **Given** cancelledされていないOccurrenceまたはPersonal Schedule itemの場合、**when** 月を表示すると、**then** 確立済みのactive
+   marker/countの意味は変わらない。
 
-### Shared Product Boundary
+### 共有product境界
 
-Cancellation is not deletion. Catalog publication and My Calendar active
-planning are intentionally different surfaces and therefore intentionally use
-different month-grid count semantics.
+Cancellationはdeletionではありません。Catalog publicationとMy Calendarのactive planningは意図的に異なるsurfaceであるため、month gridの
+count semanticsも意図的に異なります。
 
 ## Requirements _(mandatory)_
 
-- **FR-001**: The Catalog month grid MUST represent published Events, including
-  canceled Events and Events related to canceled occurrences.
-- **FR-002**: A Catalog single-day count MUST count Events once per Event and
-  MUST NOT apply an active-only cancellation filter or become an occurrence
-  count.
-- **FR-003**: A canceled Catalog multi-day Event MUST remain represented by its
-  range and MUST expose an identifiable canceled state.
-- **FR-004**: Catalog selected-day detail MUST remain independently available
-  from month-grid count or band projection and MUST identify cancellation when
-  applicable.
-- **FR-005**: My Calendar month participation markers and counts MUST represent
-  active planning only.
-- **FR-006**: My Calendar MUST exclude event-level and occurrence-level
-  effectively canceled occurrences from active participation markers and counts.
-- **FR-007**: Excluding a canceled occurrence from My Calendar month markers or
-  counts MUST NOT remove it from selected-day source/detail data.
-- **FR-008**: My Calendar selected-day detail MUST identify the canceled state
-  when the selected item is effectively canceled.
-- **FR-009**: Catalog and My Calendar MUST retain their intentionally asymmetric
-  cancellation count semantics; cancellation MUST NOT be treated as deletion
-  across both surfaces.
+- **FR-001**: Catalog month gridは、cancelled Eventとcancelled Occurrenceに関連するEventを含む公開済みEventを表さなければならない。
+- **FR-002**: Catalogの単日countはEventごとに1回Eventを数えなければならず、activeのみを対象とするcancellation filterを適用したり、
+  Occurrence countにしたりしてはならない。
+- **FR-003**: cancelledされたCatalogの複数日Eventは、そのrangeで表され続け、識別可能なcancelled状態を示さなければならない。
+- **FR-004**: Catalog selected-day detailはmonth-grid countまたはband projectionとは独立して引き続き利用可能でなければならず、該当時には
+  cancellationを識別できなければならない。
+- **FR-005**: My Calendarのmonth participation markerとcountはactive planningのみを表さなければならない。
+- **FR-006**: My Calendarはevent-levelおよびoccurrence-levelでeffectively cancelledされたOccurrenceをactive participation markerとcountから
+  除外しなければならない。
+- **FR-007**: cancelledされたOccurrenceをMy Calendarのmonth markerまたはcountから除外しても、selected-day source/detail dataから取り除いては
+  ならない。
+- **FR-008**: My Calendarのselected-day itemがeffectively cancelledされている場合、selected-day detailはcancelled状態を識別できなければならない。
+- **FR-009**: CatalogとMy Calendarは、意図的に非対称なcancellation count semanticsを維持しなければならない。両surfaceでcancellationをdeletionと
+  扱ってはならない。
 
-## Scope Boundaries
+## 対象範囲の境界
 
-This specification covers only user-visible month-grid publication, active
-planning markers/counts, cancellation cues, and the relationship between month
-projection and selected-day detail on Catalog and My Calendar.
+この仕様が対象とするのは、CatalogとMy Calendarにおけるuser-visibleなmonth-grid publication、active planning marker/count、cancellation cue、
+月表示とselected-day detailの関係だけです。
 
-It does not define Event or Occurrence schemas, cancellation writes, the
-Participation lifecycle, Personal Schedule semantics, calendar navigation,
-weekday conventions, or implementation structure.
+EventまたはOccurrence schema、cancellation write、Participation lifecycle、Personal Schedule semantics、calendar navigation、weekday convention、
+実装構造は定義しません。
 
 ## Success Criteria _(mandatory)_
 
-- **SC-001**: Canceled Catalog Events remain observable in their publication
-  count or range band in all representative month-grid cases.
-- **SC-002**: Effectively canceled My Calendar occurrences contribute zero active
-  participation dot/count while remaining reachable in selected-day detail.
-- **SC-003**: Catalog and My Calendar preserve their different cancellation
-  meanings without either surface silently adopting the other's filter.
-- **SC-004**: Canceled state remains distinguishable in the representative
-  Catalog band and selected-day detail, and in My Calendar selected-day detail.
+- **SC-001**: 代表的なすべてのmonth-grid caseで、cancelledされたCatalog Eventはpublication countまたはrange bandに引き続き表示されます。
+- **SC-002**: effectively cancelledされたMy Calendar Occurrenceはactive participation dot/countに加算されず、selected-day detailからは引き続き
+  到達可能です。
+- **SC-003**: CatalogとMy Calendarは異なるcancellationの意味を維持し、どちらのsurfaceも他方のfilterを暗黙に採用しません。
+- **SC-004**: 代表的なCatalog bandとselected-day detail、およびMy Calendar selected-day detailで、cancelled状態を引き続き識別できます。
 
 ## Assumptions
 
-- Product calendar dates follow the existing Asia/Tokyo convention.
-- Existing effective-cancellation rules continue to be authoritative for My
-  Calendar participation projection.
-- The month grid remains a bounded tap-target calendar; this specification does
-  not add keyboard grid navigation or a new calendar interaction model.
+- product calendar dateは既存のAsia/Tokyo conventionに従います。
+- 既存のeffective-cancellation ruleが、引き続きMy Calendar participation projectionのauthorityです。
+- month gridは引き続きtap targetを限定したcalendarです。この仕様はkeyboard grid navigationや新しいcalendar interaction modelを追加しません。
