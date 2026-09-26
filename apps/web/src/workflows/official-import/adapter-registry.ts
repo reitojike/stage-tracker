@@ -14,6 +14,7 @@ import { createFirecrawlPdfProvider } from "./adapters/firecrawl-pdf";
 import { createEventCandidatePlanner } from "./event-candidate-planner";
 import { createEventMatchRepository } from "./privileged/event-match-repository";
 import { createTicketOpportunityMatchRepository } from "./privileged/ticket-opportunity-match-repository";
+import { createTicketEventBindingRepository } from "./privileged/ticket-event-binding-repository";
 import { createJevEventAligner } from "./privileged/jev-event-aligner";
 import { createTicketOpportunityCandidatePlanner } from "./ticket-opportunity-candidate-planner";
 import type { SourceExtractorFamily } from "./source-registry";
@@ -54,6 +55,7 @@ export function createFoundationCandidatePlanner(): OfficialImportCandidatePlann
     events,
     createTicketOpportunityMatchRepository(),
     aligner,
+    createTicketEventBindingRepository(),
   );
   return {
     planEvent: eventPlanner.planEvent,

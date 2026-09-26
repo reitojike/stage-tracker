@@ -509,6 +509,44 @@ export type Database = {
         }
         Relationships: []
       }
+      official_import_ticket_event_bindings: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          event_id: string
+          event_source_key: string
+          reviewer: string
+          source_id: string
+          ticket_source_key: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          event_id: string
+          event_source_key: string
+          reviewer: string
+          source_id: string
+          ticket_source_key: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          event_id?: string
+          event_source_key?: string
+          reviewer?: string
+          source_id?: string
+          ticket_source_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_import_ticket_event_bindings_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       personal_schedule_entries: {
         Row: {
           blocking: boolean
@@ -858,6 +896,47 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "ticket_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      bind_official_import_ticket_candidate: {
+        Args: { p_candidate_id: string; p_event_id: string }
+        Returns: {
+          active_apply_attempt_token: string | null
+          active_apply_lease_expires_at: string | null
+          applied_at: string | null
+          apply_status: string
+          candidate_kind: string
+          canonical_url: string
+          content_hash: string
+          created_at: string
+          deterministic_match_status: string
+          etag: string | null
+          evidence_locator: Json
+          failure_classification: string | null
+          id: string
+          jev_decision_evidence: Json | null
+          last_modified: string | null
+          observed_at: string
+          official_external_id: string | null
+          plan_fingerprint: string
+          plan_summary: Json
+          proposal: Json
+          proposal_version: string
+          resolved_event_id: string | null
+          resolved_ticket_opportunity_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewer: string | null
+          run_id: string
+          semantic_match_status: string
+          source_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "official_import_candidates"
           isOneToOne: true
           isSetofReturn: false
         }

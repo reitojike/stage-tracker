@@ -331,6 +331,7 @@ function reviewMilestone(
 }
 
 function effectiveReviewStatus(row: z.infer<typeof candidateRowSchema>) {
+  if (row.review_status === "approved") return row.review_status;
   return deriveOfficialImportCandidateReviewStatus({
     deterministicMatchStatus: row.deterministic_match_status,
     semanticMatchStatus: row.semantic_match_status,
@@ -341,6 +342,8 @@ function effectiveReviewStatus(row: z.infer<typeof candidateRowSchema>) {
 
 function blockedReason(row: z.infer<typeof candidateRowSchema>): string | null {
   if (effectiveReviewStatus(row) !== "blocked_for_identity_review") return null;
+  if (row.candidate_kind === "ticket_opportunity")
+    return "対象Eventを自動で確定できません。候補を照合するか、既存Eventを指定して承認できます。";
   if (row.deterministic_match_status === "ambiguous") {
     return "同一の可能性がある既存イベントが複数、または手動登録イベントを含むため承認できません。公式IDの解決が必要です。";
   }
@@ -584,6 +587,11 @@ export async function loadOfficialImportReviewQueue(
   );
   if (!currentTicketDetails.ok) return currentTicketDetails;
 
+  const suggestions = await loadTicketEventSuggestions(
+    client,
+    candidates.value,
+  );
+
   return ok(
     candidates.value
       .map((candidate) => {
@@ -595,6 +603,7 @@ export async function loadOfficialImportReviewQueue(
               );
         return {
           ...candidate,
+          suggestedEvents: suggestions.get(candidate.id) ?? [],
           currentEvent:
             candidate.currentEvent === null
               ? null
@@ -619,6 +628,105 @@ export async function loadOfficialImportReviewQueue(
           left.id.localeCompare(right.id),
       ),
   );
+}
+
+function compactMatchText(value: string | null): string {
+  return (value ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s\p{P}]+/gu, "");
+}
+
+function compactVenue(value: string | null): string {
+  return compactMatchText(value)
+    .replace(/^劇場/u, "")
+    .replace(/^京都四條南座/u, "南座");
+}
+
+async function loadTicketEventSuggestions(
+  client: SupabaseClient<Database>,
+  candidates: readonly OfficialImportReviewCandidate[],
+): Promise<
+  Map<string, NonNullable<OfficialImportReviewCandidate["suggestedEvents"]>>
+> {
+  const relevant = candidates.flatMap((candidate) => {
+    if (
+      candidate.kind !== "ticket_opportunity" ||
+      candidate.reviewStatus !== "blocked_for_identity_review" ||
+      candidate.sourceId !== "ticket.shochiku.schedule"
+    )
+      return [];
+    const year = /^\d{4}(?=:)/u.exec(candidate.officialExternalId ?? "")?.[0];
+    const [venue, title] = candidate.evidence.sectionLabel?.split(" / ") ?? [];
+    return year === undefined || venue === undefined || title === undefined
+      ? []
+      : [{ candidate, year, venue, title }];
+  });
+  const byYear = new Map<
+    string,
+    {
+      id: string;
+      title: string;
+      venue: string | null;
+      starts_on: string;
+      ends_on: string;
+    }[]
+  >();
+  for (const year of new Set(relevant.map((item) => item.year))) {
+    const { data, error } = await client
+      .from("events")
+      .select("id, title, venue, starts_on, ends_on")
+      .gte("starts_on", `${year}-01-01`)
+      .lte("starts_on", `${year}-12-31`)
+      .is("canceled_at", null)
+      .not("source_key", "is", null)
+      .order("starts_on")
+      .limit(1001);
+    if (error !== null || data === null || data.length > 1000) {
+      console.error("[official import review] Event suggestions unavailable", {
+        year,
+        code: error?.code,
+      });
+      continue;
+    }
+    byYear.set(year, data);
+  }
+  const result = new Map<
+    string,
+    NonNullable<OfficialImportReviewCandidate["suggestedEvents"]>
+  >();
+  for (const { candidate, year, venue, title } of relevant) {
+    const wantedVenue = compactVenue(venue);
+    const wantedTitle = compactMatchText(title);
+    if (wantedVenue === "") continue;
+    const matches = (byYear.get(year) ?? [])
+      .filter((event) => compactVenue(event.venue) === wantedVenue)
+      .toSorted((left, right) => {
+        const rank = (eventTitle: string) => {
+          const normalized = compactMatchText(eventTitle);
+          return normalized === wantedTitle
+            ? 0
+            : normalized.includes(wantedTitle) ||
+                wantedTitle.includes(normalized)
+              ? 1
+              : 2;
+        };
+        return (
+          rank(left.title) - rank(right.title) ||
+          left.starts_on.localeCompare(right.starts_on)
+        );
+      })
+      .slice(0, 5)
+      .map((event) => ({
+        id: event.id,
+        title: event.title,
+        venue: event.venue,
+        startsOn: event.starts_on,
+        endsOn: event.ends_on,
+      }));
+    result.set(candidate.id, matches);
+  }
+  return result;
 }
 
 async function loadCurrentTicketDetails(

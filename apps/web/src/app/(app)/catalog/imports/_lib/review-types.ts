@@ -137,4 +137,11 @@ export interface OfficialImportReviewCandidate {
     } | null;
   };
   readonly blockedReason: string | null;
+  readonly suggestedEvents?: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly venue: string | null;
+    readonly startsOn: string;
+    readonly endsOn: string;
+  }[];
 }

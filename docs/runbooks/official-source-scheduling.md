@@ -169,6 +169,18 @@ the Workflow to finish, refresh the page, and inspect both the candidate queue
 and latest held-page report before another run. The button is not a substitute
 for the separate per-source scheduling gate.
 
+For a TicketOpportunity whose Event identity is blocked, `/catalog/imports`
+shows up to five possible Events from the same venue and year when the source
+provides those facts. These are suggestions, not automatic matches; compare
+the official page's title and period with the Event before selecting one. If
+none is right, paste the existing catalog Event URL or UUID, inspect its
+preview, then select **このEventに紐づけて承認**. This records the reviewed binding for
+later scans of the same ticket source identity, but does not apply the ticket;
+**カタログへ反映** remains a separate step. Only active Events with a stable
+`source_key` can be bound. A canceled/deleted or identity-changed Event is held
+again rather than silently redirected. Do not select a merely similar Event
+when the source actually describes a distinct performance.
+
 ## Enable and observe
 
 1. Verify the exact-path Cron machine-auth/proxy implementation from

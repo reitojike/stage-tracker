@@ -217,6 +217,88 @@ describe("approved official import apply execution", () => {
     expect(harness.eventPlan.apply).not.toHaveBeenCalled();
   });
 
+  it("applies a manually bound ticket only to the reviewed Event", async () => {
+    const harness = setup(
+      ticketCandidate({
+        proposal: {
+          eventSourceKey: "unresolved:shochiku:example",
+          sourceKey: "shochiku:example:general",
+          displayName: "一般販売",
+          sourceUrl:
+            "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+          targetScope: "event_wide",
+          milestones: [
+            { type: "sale_start", precision: "date", date: "2026-09-01" },
+          ],
+        },
+        planFingerprint: "unresolved-plan",
+        deterministicMatchStatus: "unresolved",
+        semanticMatchStatus: "low_confidence",
+        resolvedEventId: null,
+        resolvedTicketOpportunityId: null,
+        manualEventBinding: {
+          eventId: "event-1",
+          eventSourceKey: "kabuki-bito:example",
+        },
+      }),
+    );
+
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+
+    expect(result).toMatchObject({ status: "applied", outcome: "written" });
+    const plannedDraft = vi.mocked(harness.planner.planTicketOpportunity).mock
+      .calls[0]?.[1];
+    expect(plannedDraft?.proposal.eventSourceKey).toBe("kabuki-bito:example");
+    expect(harness.catalog.prepareTicketOpportunity).toHaveBeenCalledWith(
+      expect.objectContaining({ eventSourceKey: "kabuki-bito:example" }),
+    );
+    expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
+  });
+
+  it("holds a manually bound ticket if its existing source identity points elsewhere", async () => {
+    const harness = setup(
+      ticketCandidate({
+        semanticMatchStatus: "low_confidence",
+        manualEventBinding: {
+          eventId: "event-1",
+          eventSourceKey: "kabuki-bito:example",
+        },
+      }),
+    );
+    vi.mocked(harness.planner.planTicketOpportunity).mockResolvedValueOnce({
+      planFingerprint: "changed",
+      deterministicMatchStatus: "matched",
+      semanticMatchStatus: "not_used",
+      resolvedEventId: "event-1",
+      resolvedTicketOpportunityId: "ticket-1",
+      plan: {
+        action: "update",
+        eventChanged: true,
+        detailsChanged: false,
+        occurrencesChanged: false,
+        milestonesChanged: false,
+      },
+    });
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      failureClassification: "identity_ambiguous",
+    });
+    expect(harness.ticketPlan.apply).not.toHaveBeenCalled();
+  });
+
   it("returns an idempotent no-op before reading or planning an already applied candidate", async () => {
     const harness = setup(eventCandidate());
     harness.prepareCandidate.mockResolvedValueOnce({ status: "applied" });

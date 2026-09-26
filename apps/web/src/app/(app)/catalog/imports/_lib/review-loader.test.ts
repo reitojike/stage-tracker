@@ -127,6 +127,61 @@ function ticketCandidateRow() {
 afterEach(() => server.resetHandlers());
 
 describe("loadOfficialImportReviewQueue", () => {
+  it("suggests the observed Hakataza Event despite a changed published period", async () => {
+    const ticket = {
+      ...ticketCandidateRow(),
+      source_id: "ticket.shochiku.schedule",
+      official_external_id: "2026:hakataza:play:general",
+      evidence_locator: {
+        sectionLabel: "博多座 / 九月博多座特別公演 坂東玉三郎 出演",
+      },
+      review_status: "blocked_for_identity_review",
+      deterministic_match_status: "unresolved",
+      semantic_match_status: "low_confidence",
+      resolved_ticket_opportunity_id: null,
+      current_ticket_opportunity: null,
+    };
+    const eventId = "22222222-2222-4222-8222-222222222222";
+    server.use(
+      http.get(`${REST_URL}/official_import_candidates`, () =>
+        HttpResponse.json([ticket], {
+          headers: { "content-range": "0-0/1" },
+        }),
+      ),
+      http.get(`${REST_URL}/events`, () =>
+        HttpResponse.json([
+          {
+            id: eventId,
+            title: "九月博多座特別公演",
+            venue: "博多座",
+            starts_on: "2026-09-03",
+            ends_on: "2026-09-14",
+          },
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            title: "無関係な公演",
+            venue: "南座",
+            starts_on: "2026-09-04",
+            ends_on: "2026-09-14",
+          },
+        ]),
+      ),
+    );
+    const result = await loadOfficialImportReviewQueue(createTestClient());
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value[0]?.suggestedEvents).toEqual([
+        {
+          id: eventId,
+          title: "九月博多座特別公演",
+          venue: "博多座",
+          startsOn: "2026-09-03",
+          endsOn: "2026-09-14",
+        },
+      ]);
+    }
+  });
+
   it("blocks legacy pending Jev-dependent Event and Ticket candidates in the review UI", async () => {
     const matchedEvent = {
       ...candidateRow(1),
@@ -160,7 +215,11 @@ describe("loadOfficialImportReviewQueue", () => {
       expect(result.value).toHaveLength(3);
       for (const candidate of result.value) {
         expect(candidate.reviewStatus).toBe("blocked_for_identity_review");
-        expect(candidate.blockedReason).toContain("Jevの照合結果だけでは");
+        expect(candidate.blockedReason).toContain(
+          candidate.kind === "ticket_opportunity"
+            ? "既存Eventを指定して承認できます"
+            : "Jevの照合結果だけでは",
+        );
       }
     }
   });
