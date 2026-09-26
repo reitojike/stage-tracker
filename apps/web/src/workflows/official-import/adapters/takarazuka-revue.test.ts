@@ -204,6 +204,16 @@ describe("Takarazuka revue adapter facts", () => {
       ),
     ).toThrow();
   });
+
+  it("does not expand the main-theater source to an unobserved venue", () => {
+    expect(() =>
+      parseTakarazukaIndex(
+        source,
+        `<div class="item"><a href="/sp/revue/2027/example/index.html"><p class="title">Example</p></a>
+        <dl><dt>梅田芸術劇場</dt><dd>2027年4月3日～5月16日</dd></dl></div>`,
+      ),
+    ).toThrow("Official source parse failed");
+  });
 });
 
 function document(url: string, body: string): OfficialHtmlDocument {

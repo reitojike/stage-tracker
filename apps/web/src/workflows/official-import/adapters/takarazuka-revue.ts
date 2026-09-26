@@ -24,7 +24,6 @@ import {
   calendarDate,
   parseJapaneseClock,
   parseJapaneseDateRange,
-  slug,
   tokyoDateTime,
 } from "./japanese-date";
 
@@ -49,7 +48,7 @@ export interface TakarazukaProductionFact {
 function venueSlug(venue: string): string {
   if (venue.includes("東京宝塚劇場")) return "tokyo";
   if (venue.includes("宝塚大劇場")) return "takarazuka";
-  return slug(venue);
+  throw new SourceParseFailure();
 }
 
 export function parseTakarazukaIndex(
