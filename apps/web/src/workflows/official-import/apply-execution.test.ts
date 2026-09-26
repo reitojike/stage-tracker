@@ -242,6 +242,24 @@ describe("approved official import apply execution", () => {
         },
       }),
     );
+    vi.mocked(harness.planner.planTicketOpportunity).mockResolvedValueOnce({
+      planFingerprint: "bound-create-plan",
+      deterministicMatchStatus: "matched",
+      semanticMatchStatus: "not_used",
+      resolvedEventId: "event-1",
+      resolvedTicketOpportunityId: null,
+      plan: {
+        action: "create",
+        eventChanged: false,
+        detailsChanged: true,
+        occurrencesChanged: false,
+        milestonesChanged: true,
+      },
+    });
+    Object.assign(harness.ticketPlan, {
+      action: "create",
+      resolvedTicketOpportunityId: null,
+    });
 
     const result = await executeOfficialImportCandidateApply(
       CANDIDATE_ID,
@@ -259,6 +277,36 @@ describe("approved official import apply execution", () => {
       expect.objectContaining({ eventSourceKey: "kabuki-bito:example" }),
     );
     expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
+  });
+
+  it("holds an unreviewed update to an existing ticket after manual Event binding", async () => {
+    const harness = setup(
+      ticketCandidate({
+        planFingerprint: "unresolved-plan",
+        deterministicMatchStatus: "unresolved",
+        semanticMatchStatus: "low_confidence",
+        resolvedEventId: null,
+        resolvedTicketOpportunityId: null,
+        manualEventBinding: {
+          eventId: "event-1",
+          eventSourceKey: "kabuki-bito:example",
+        },
+      }),
+    );
+
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+
+    expect(result).toMatchObject({
+      status: "failed",
+      failureClassification: "source_changed",
+    });
+    expect(harness.ticketPlan.apply).not.toHaveBeenCalled();
   });
 
   it("holds a manually bound ticket if its existing source identity points elsewhere", async () => {

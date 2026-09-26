@@ -180,6 +180,10 @@ later scans of the same ticket source identity, but does not apply the ticket;
 `source_key` can be bound. A canceled/deleted or identity-changed Event is held
 again rather than silently redirected. Do not select a merely similar Event
 when the source actually describes a distinct performance.
+If a manually bound candidate would update an already-existing TicketOpportunity,
+apply stops with `source_changed`: the unresolved candidate did not display that
+update for review. Run the ticket scan again and inspect the newly resolved
+change before approving it.
 
 ## Enable and observe
 

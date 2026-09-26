@@ -384,6 +384,15 @@ export async function executeOfficialImportCandidateApply(
     }
 
     const converged = !catalogPlan.hasChanges;
+    // The unresolved candidate did not show a reviewed diff against an
+    // existing TicketOpportunity. A manual Event decision may create a new
+    // opportunity, but must never silently apply an existing target's update.
+    if (
+      manualBinding !== null &&
+      freshTicketOpportunityId !== null &&
+      !converged
+    )
+      failure("source_changed");
     if (
       manualBinding === null &&
       !compatibleReviewedIdentity(
