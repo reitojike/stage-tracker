@@ -54,7 +54,9 @@ import {
  * エラーの文言粒度は current runtime の Event write feedback を
  * 移植した `./event-write-feedback.ts` の operation 別 thrower へ委譲する
  * （M8 journey 比較で確定した分類2の不具合修正 -
- * `docs/v2/m8-journey-comparison.md` 参照）。
+ * The behavior is covered by the Event lifecycle contract in
+ * `specs/005-event-occurrence-lifecycle/spec.md` and the focused regression
+ * tests in this module.
  */
 
 const createEventRpcRowSchema = z.object({ id: eventIdSchema });

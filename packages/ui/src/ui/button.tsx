@@ -5,8 +5,8 @@ import { TAP_TARGET_44_CLASS } from '../tap-target';
 
 /**
  * shadcn generates Button with 2 already-independent axes: `variant`
- * (meaning) and `size` (dimension). This resolves decisions.md A1: legacy
- * stage-tracker's single `variant` enum mixed meaning and size (`secondary`
+ * (meaning) and `size` (dimension). Legacy stage-tracker's single
+ * `variant` enum mixed meaning and size (`secondary`
  * and `small` were the same chrome at 2 different sizes; `quiet`/`icon`/
  * `danger` mixed "emphasis" with "shape"). v2 keeps shadcn's 2-axis shape
  * rather than reintroducing a 6-value legacy-named enum. The mapping from

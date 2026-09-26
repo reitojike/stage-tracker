@@ -1,5 +1,5 @@
--- oracle: docs/v2/oracle-database.md §3.2 Cancellation and §5 invariants
--- 11-12 ("effective cancellation" = Event.canceled_at OR
+-- Current cancellation boundary is enforced by the applied function/trigger
+-- migrations. "Effective cancellation" = Event.canceled_at OR
 -- Occurrence.canceled_at; new active participation actions on an
 -- effectively-canceled occurrence are rejected with custom SQLSTATE
 -- 90002; withdraw/downgrade/unrelated updates remain allowed).

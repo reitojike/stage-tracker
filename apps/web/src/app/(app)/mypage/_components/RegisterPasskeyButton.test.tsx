@@ -17,8 +17,7 @@ vi.mock("@/lib/supabase/browser", () => ({
 
 describe("RegisterPasskeyButton", () => {
   it("shows the specific 'duplicate' feedback (not a generic message) when the ceremony reports an already-registered credential", async () => {
-    // Historical M8 journey comparison (docs/v2/m8-journey-comparison.md)
-    // identified this classification-2 regression; the
+    // PR #407 introduced this registration feedback mapping; the
     // regression test: passkey ceremony outcomes must reach the specific
     // feedback mapping through the real component wiring.
     registerPasskey.mockResolvedValueOnce({

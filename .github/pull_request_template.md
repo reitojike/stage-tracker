@@ -6,14 +6,14 @@
 （scripts/check-migration-ordering-fence.mjs）がこのPR本文のmarkerを
 literalに読み取ります。2行とも残っている場合はambiguousとしてfailします。
 判断基準は docs/architecture/runtime-stack.md「デプロイ・実行経路」と
-docs/v2/decisions.md「A8 追補」を参照してください（Issue #131 / #393）。
+Issue #393 の runtime-first rationale を参照してください（Issue #131）。
 -->
 
 ## Migration ordering
 
 <!--
 **この PR は migration と、deploy に届く artifact を同時に含めてはいけません**
-（PO 判断 D1 = D、docs/v2/decisions.md）。`Verify / Artifact Sequencing Fence`
+（Issue #387）。`Verify / Artifact Sequencing Fence`
 が機械的に拒否します。
 
 migration を含む PR で同居してよいのは次だけです。それ以外は既定で拒否されます
@@ -32,8 +32,7 @@ config.toml / seed.sql も実需が出るまで許可しないためです。
 Issue #121/#124/#125 の事故（code → schema: PR のコードが新しい schema を
 必要とする）は、artifact sequencing fence が**同一 PR 内**の同居を拒否
 するため単一 PR の中ではもう起きません。ただし **PR をまたぐ merge 順序
-までは保証しません**（docs/v2/decisions.md「D が保証しないこと（残存
-リスク）」）。新しい build が直ちに参照する migration を別 PR に分離した
+までは保証しません**（Issue #387）。新しい build が直ちに参照する migration を別 PR に分離した
 場合、migration PR が app code PR より先に merge・適用済みであることを、
 app code PR の reviewer が確認してください。
 

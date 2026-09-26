@@ -1,6 +1,5 @@
--- oracle: docs/v2/oracle-database.md §2 "events" / "event_occurrences" SELECT,
--- and §6 "shared read: authenticated は誰の event/occurrence も読める。anon は
--- ...読めない".
+-- Current grants/RLS are defined by the applied table migrations and checked
+-- here for the shared catalog's anonymous and authenticated read boundaries.
 --
 -- anon has no grant at all on these tables (table-level `revoke all` in the
 -- create-table migrations), so a read attempt raises a permission error

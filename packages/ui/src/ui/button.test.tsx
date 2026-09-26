@@ -46,10 +46,10 @@ describe('Button', () => {
     );
   });
 
-  // decisions.md A1: variant (meaning) and size (dimension) are independent
+  // variant (meaning) and size (dimension) are independent
   // axes. These pin the specific legacy `danger`/`icon` mappings this task
   // decided on.
-  describe('variant/size 2-axis mapping (decisions.md A1)', () => {
+  describe('variant/size 2-axis mapping', () => {
     it('maps legacy "danger" to variant="destructive" (shadcn\'s irreversible/destructive-action semantic)', () => {
       render(<Button variant="destructive">削除</Button>);
       expect(screen.getByRole('button', { name: '削除' })).toHaveClass('bg-destructive/10');

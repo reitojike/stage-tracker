@@ -474,8 +474,8 @@ void test('source_key is unique among imported events but repeatable as null', a
 //
 // The operator import writes an event and its occurrences in one call so a
 // half-finished create cannot leave a zero-occurrence event in the shared
-// catalog (product-rules.md D4). These tests pin the two things that makes
-// depend on: only service_role can reach it, and any failure inside it takes
+// catalog. These tests pin two requirements for this import path: only
+// service_role can reach it, and any failure inside it takes
 // the event row with it.
 
 const IMPORT_RPC = 'import_event_with_occurrences';

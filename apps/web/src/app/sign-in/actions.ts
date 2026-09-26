@@ -47,9 +47,9 @@ export async function requestSignInLink(formData: FormData): Promise<void> {
   }
 
   const supabase = await createSupabaseCookielessServerClient();
-  // emailRedirectTo は渡さない。PO 判断（decisions.md「Preview 環境の位置づけ」）
-  // により、Free 運用中は remote Preview Supabase を持たず、Vercel Preview で
-  // authenticated flow を提供しない。Supabase の Site URL による既定の挙動へ委ねる。
+  // emailRedirectTo は渡さず、Supabase の Site URL による既定の挙動へ委ねる。
+  // Preview の authenticated flow と deployment 境界は
+  // docs/architecture/runtime-stack.md で管理する。
   await requestMagicLink(supabase, email, diagnostics);
 
   // unconditional: ここに分岐を再導入しないこと。account の有無・送信

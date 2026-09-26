@@ -1,4 +1,5 @@
--- oracle: docs/v2/oracle-database.md §1.2 CHECK constraints
+-- Current occurrence temporal ordering is enforced by the applied CHECK
+-- constraint and checked here.
 -- (event_occurrences_doors_at_le_starts_at,
 -- event_occurrences_starts_at_le_ends_at) and §5 invariant 3
 -- "doors_at <= starts_at <= ends_at ... 未設定の項は比較対象から除外".

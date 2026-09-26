@@ -1,7 +1,7 @@
 name: Apply Migrations
 
-# main へ merge された migration を Production へ適用する（PO 判断 D1 = D、
-# docs/v2/decisions.md）。**operator が手元で supabase login / db push する
+# main へ merge された migration を Production へ適用する（Issue #387）。
+# **operator が手元で supabase login / db push する
 # 手間を無くすため。**
 #
 # ## deploy には一切関与しない

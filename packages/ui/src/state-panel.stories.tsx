@@ -14,7 +14,7 @@ const meta: Meta<typeof StatePanel> = {
     docs: {
       description: {
         component:
-          'empty / error / unavailable の3 variant。RLS 等の silent failure を空状態 UI へ誤変換しないための全画面共通原則（decisions.md 「引き継ぐと決めた不変原則」）。3 状態は同一構造(title→description→action)を共有し、色/icon では区別しない。',
+          'empty / error / unavailable の3 variant。RLS 等の silent failure を空状態 UI へ誤変換しないための全画面共通原則（詳細は docs/ux-ui.md）。3 状態は同一構造(title→description→action)を共有し、色/icon では区別しない。',
       },
     },
   },

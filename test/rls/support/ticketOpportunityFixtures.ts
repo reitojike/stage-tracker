@@ -93,7 +93,8 @@ export async function createEventWithOpportunity(
 ) {
   const secondStartsAt = new Date(Date.now() + 86_400_000).toISOString();
   // The Event range (starts_on/ends_on) must contain both occurrences'
-  // Tokyo calendar dates (product-rules.md "公演回の日付は...Event range内
+  // Tokyo calendar dates must remain within the Event range, per the current
+  // Event/Occurrence contract in specs/005-event-occurrence-lifecycle/spec.md.
   // に収まっていなければならない", DB-enforced) - the second occurrence
   // added below is deliberately a day after the first, so endsOn has to be
   // widened to cover it rather than defaulting to the first occurrence's

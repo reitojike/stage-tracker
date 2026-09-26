@@ -47,8 +47,8 @@ export const Disabled: Story = {
 };
 
 /**
- * decisions.md A1: v2 replaces legacy's single 6-value `variant` enum
- * (which mixed meaning and size) with shadcn's 2 independent axes. This
+ * The button API uses two independent axes in place of the legacy single
+ * 6-value `variant` enum (which mixed meaning and size). This
  * story renders every legacy variant using its (variant, size) mapping -
  * see the comment above `buttonVariants` in button.tsx for the full table.
  */

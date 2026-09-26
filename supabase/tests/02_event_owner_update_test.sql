@@ -1,4 +1,5 @@
--- oracle: docs/v2/oracle-database.md §2 "events" UPDATE
+-- Current owner-only UPDATE boundary is enforced by the applied events
+-- policies and checked here.
 -- (events_update_own: owner のみ、owner_id は column grant 自体が無い)
 -- and §6 "owner-only write: 非ownerは...更新できず、行は変化しない。owner
 -- 自身も id/created_at/updated_at/owner_id を直接書き換えられない".
