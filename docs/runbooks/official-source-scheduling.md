@@ -118,7 +118,7 @@ databaseに残ります。close操作でcatalog dataを削除したり、失敗�
 3. repositoryのpre-PR gateとpost-PR convergenceを実行します。merge後、Cronを有効と扱う前にProduction deploymentの成功を確認します。
 4. 最初のdue slotを2回以上観測します: `official_import_runs`の件数とstatus、candidate/review/applyの結果、変更なしrunでcandidateが0件となるbehavior、
    failure分類、request量、provider costの概算。同じEventを扱う別々のofficial sourceがcatalog Eventを重複作成していないことを確認します。evidenceを#634に
-   記録します。Kabuki Eventの日次試行は、各runのindex/detail coverage、held page、意図しない候補の増加、重複起動、fetch failureも確認し、安定を確認できたら週次cadenceへ戻します。問題が出たら週次を待たずにsourceを停止するか修正します。
+   記録します。Kabuki EventとShochiku Ticketの日次試行は、各sourceのrunごとにindex/detail coverage、held page、意図しない候補の増加、重複起動、fetch failureも確認します。両sourceの安定を確認できたら、同じPRで両方を週次cadenceへ戻します。問題が出たら週次復帰を待たずに該当sourceを停止するか修正します。
 5. acquisitionまたはpolicyのevidenceが後退した場合、rollback PRで`scheduledEnabled`を`false`に戻します。candidate approvalとcatalog applyは別操作の
    ままとし、rollback手段として使わないでください。
 
