@@ -11,6 +11,19 @@ const source = getOfficialSource("event.takarazuka.revue");
 if (source === null) throw new Error("test source missing");
 
 describe("Takarazuka revue adapter facts", () => {
+  it("keeps only observed work names and canonical main-theater names", () => {
+    const [fact] = parseTakarazukaIndex(
+      source,
+      `<div class="item"><a href="/sp/revue/2027/abunaideka/index.html">
+      <p class="title">YOKOHAMA CITY MEMORY 『あぶない刑事』 原作／「あぶない刑事」 ©セントラル・アーツ
+      脚本・演出／齋藤 吉正 鴨川清作メモリーズ・オブ・ドリームス 『PURE LOVE!!』
+      監修／三木 章雄 作・演出／藤井 大介</p></a>
+      <dl><dt>宝塚大劇場 (兵庫県)</dt><dd>2027年5月8日～6月20日</dd></dl></div>`,
+    );
+    expect(fact?.title).toBe("『あぶない刑事』 『PURE LOVE!!』");
+    expect(fact?.venues[0]?.venue).toBe("宝塚大劇場");
+  });
+
   it("keeps Event facts when only the general-sale field is unreadable", () => {
     const facts = parseTakarazukaIndex(
       source,

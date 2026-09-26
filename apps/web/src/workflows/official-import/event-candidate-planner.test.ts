@@ -12,6 +12,9 @@ const source = getOfficialSource("event.cynhn.calendar");
 if (source === null) throw new Error("test source missing");
 const kabukiSource = getOfficialSource("event.kabuki-bito.schedule");
 if (kabukiSource === null) throw new Error("test Kabuki source missing");
+const takarazukaSource = getOfficialSource("event.takarazuka.revue");
+if (takarazukaSource === null)
+  throw new Error("test Takarazuka source missing");
 
 function draft(
   overrides: Partial<EventAcquisitionDraft["proposal"]> = {},
@@ -73,6 +76,83 @@ function setup(
 }
 
 describe("Event candidate planning", () => {
+  it("preserves curated Takarazuka details while planning published occurrences", async () => {
+    const existing = event({
+      sourceKey: "takarazuka:2027:thelondonway:takarazuka",
+      title: "宙組公演 『The London Way』『Ivresse Vague』",
+      venue: "宝塚大劇場",
+      sourceUrl:
+        "https://kageki.hankyu.co.jp/revue/2027/thelondonway/index.html",
+      memo: "貸切公演についての手動確認メモ",
+      startsOn: "2027-01-30",
+      endsOn: "2027-03-14",
+      occurrences: [],
+    });
+    const proposal = {
+      ...draft().proposal,
+      sourceKey: existing.sourceKey ?? "",
+      title:
+        "ミュージカル・タペストリー 『The London Way』 作・演出／正塚 晴彦",
+      venue: "宝塚大劇場 (兵庫県)",
+      sourceUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/thelondonway/schedule_takarazuka.html",
+      startsOn: existing.startsOn,
+      endsOn: existing.endsOn,
+      occurrences: [{ startsAt: "2027-01-30T13:00:00+09:00" }],
+    };
+    const planned = await setup(existing, []).planner.planEvent(
+      takarazukaSource,
+      { ...draft(), proposal },
+    );
+    expect(planned.plan).toMatchObject({
+      action: "update",
+      detailsChanged: false,
+      newOccurrences: [expect.any(Object)],
+    });
+    expect(planned.proposal).toMatchObject({
+      title: existing.title,
+      venue: existing.venue,
+      sourceUrl: existing.sourceUrl,
+      memo: existing.memo,
+    });
+  });
+
+  it("does not turn an unpublished day schedule into a destructive Event update", async () => {
+    const existing = event({
+      sourceKey: "takarazuka:2026:ponoichizoku:takarazuka",
+      title: "雪組公演 ミュージカル・ゴシック『ポーの一族』",
+      venue: "宝塚大劇場",
+      sourceUrl:
+        "https://kageki.hankyu.co.jp/revue/2026/ponoichizoku/index.html",
+      memo: "既存の公演回についての確認メモ",
+      startsOn: "2026-07-11",
+      endsOn: "2026-08-23",
+    });
+    const planned = await setup(existing, []).planner.planEvent(
+      takarazukaSource,
+      {
+        ...draft(),
+        proposal: {
+          ...draft().proposal,
+          sourceKey: existing.sourceKey ?? "",
+          title: "『ポーの一族』",
+          venue: existing.venue,
+          sourceUrl: existing.sourceUrl,
+          startsOn: existing.startsOn,
+          endsOn: existing.endsOn,
+          occurrences: [],
+        },
+      },
+    );
+    expect(planned.plan).toMatchObject({
+      action: "unchanged",
+      detailsChanged: false,
+      newOccurrences: [],
+      keptOccurrences: 1,
+    });
+    expect(planned.proposal?.memo).toBe(existing.memo);
+  });
+
   it("never calls Jev on an exact official source identity", async () => {
     const { planner, align } = setup(
       event({ sourceKey: "skiyaki:cynhn.com:123" }),

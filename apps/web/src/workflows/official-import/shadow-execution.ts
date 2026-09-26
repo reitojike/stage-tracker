@@ -283,13 +283,14 @@ export async function executeOfficialImportShadowRun(
           proposal,
         };
         const planning = await planner.planEvent(source, canonicalDraft);
+        const plannedProposal = planning.proposal ?? proposal;
         if (planning.holdReason === "published_end_missing") {
           recordHeldPage({
             canonicalUrl,
             officialExternalId: draft.officialExternalId ?? "",
-            title: proposal.title,
-            startsOn: proposal.startsOn,
-            endsOn: proposal.endsOn,
+            title: plannedProposal.title,
+            startsOn: plannedProposal.startsOn,
+            endsOn: plannedProposal.endsOn,
             reasonCode: "published_end_missing",
           });
           continue;
@@ -303,7 +304,7 @@ export async function executeOfficialImportShadowRun(
           contentHash: draft.contentHash,
           etag: draft.etag,
           lastModified: draft.lastModified,
-          proposal,
+          proposal: plannedProposal,
           evidenceLocator: draft.evidenceLocator,
           plan: planning.plan,
           planFingerprint: planning.planFingerprint,

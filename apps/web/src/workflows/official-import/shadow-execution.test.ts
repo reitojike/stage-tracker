@@ -96,6 +96,67 @@ const unusedPlanner: OfficialImportCandidatePlanner = {
 };
 
 describe("official import shadow execution", () => {
+  it("stores the planner's curated Event details in the reviewed candidate", async () => {
+    const source = requireEnabledShadowSource("event.takarazuka.revue");
+    const sourceKey = "takarazuka:2027:thelondonway:takarazuka";
+    const proposal = {
+      sourceKey,
+      title: "公式の長いタイトルとクレジット",
+      venue: "宝塚大劇場",
+      sourceUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/thelondonway/index.html",
+      startsOn: "2027-01-30",
+      endsOn: "2027-03-14",
+      occurrences: [],
+    };
+    const adapter: OfficialSourceAdapter = {
+      async acquire() {
+        return [
+          {
+            candidateKind: "event",
+            canonicalUrl: proposal.sourceUrl,
+            observedAt: "2026-09-27T00:00:00.000Z",
+            contentHash: "a".repeat(64),
+            proposal,
+          },
+        ];
+      },
+    };
+    const planner: OfficialImportCandidatePlanner = {
+      async planEvent() {
+        return {
+          proposal: {
+            ...proposal,
+            title: "既存の整えたタイトル",
+            memo: "既存メモ",
+          },
+          planFingerprint: "b".repeat(64),
+          plan: {
+            action: "unchanged",
+            detailsChanged: false,
+            rangeChanged: false,
+          },
+        };
+      },
+      async planTicketOpportunity() {
+        throw new Error("not used");
+      },
+    };
+    const harness = repositoryHarness();
+    await executeOfficialImportShadowRun(
+      RUN_ID,
+      ATTEMPT_TOKEN,
+      source,
+      adapter,
+      planner,
+      harness.repository,
+    );
+    expect(harness.eventCandidates[0]?.proposal).toMatchObject({
+      title: "既存の整えたタイトル",
+      memo: "既存メモ",
+    });
+  });
+
   it("refreshes the same attempt lease during slow acquisition", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const harness = repositoryHarness();

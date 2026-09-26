@@ -77,6 +77,7 @@ interface PlannedCandidateMetadata {
 
 export interface EventPlanningResult extends PlannedCandidateMetadata {
   readonly plan: EventPlanInput;
+  readonly proposal?: EventProposalInput;
   readonly holdReason?: "published_end_missing";
 }
 
