@@ -1,4 +1,4 @@
-# Feature Specification: TicketOpportunity Timeline Current Behavior
+# Feature Specification: 現行TicketOpportunity Timeline behavior
 
 **Feature Branch**: `003-ticket-opportunity-timeline`
 
@@ -6,132 +6,96 @@
 
 **Status**: Current behavior contract
 
-**Input**: Current TicketOpportunity timeline behavior and the settled product
-decision that a window belongs to the month of its deadline.
+**Input**: 現行TicketOpportunity timeline behavior、およびwindowはdeadlineの月に属するという確定済みproduct decision。
 
-## Authority Boundary
+## 権限境界
 
-This document is the current product behavior authority for the TicketOpportunity
-timeline. It describes only what users should see and how milestone dates are
-understood. Architecture documents, data schemas, implementation, tests, and CI
-retain their respective responsibilities and are not duplicated here.
+この文書はTicketOpportunity timelineの現行product behavior authorityです。利用者に見える内容とmilestone dateの解釈だけを
+記述します。architecture文書、data schema、実装、test、CIはそれぞれの責務を維持し、この文書では重複して記述しません。
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Understand when a ticket opportunity matters (Priority: P1)
+### User Story 1 - ticket opportunityが重要となる時期を把握する (Priority: P1)
 
-As a user reviewing ticket opportunities, I want each milestone's relevant date to
-reflect its precision so that deadlines and current status are understandable.
+ticket opportunityを確認する利用者として、deadlineと現在のstatusを理解できるように、各milestoneの有効日付をその精度に
+応じたものにしたい。
 
-**Why this priority**: The relevant date is the basis for deadline communication,
-past status, retained history, and timeline month placement.
+**Why this priority**: 有効日付はdeadlineの表示、過去判定、保持されるhistory、timeline上の月配置の基準となるためです。
 
-**Independent Test**: Review date, datetime, same-month window, and month-crossing
-window milestones and compare their displayed date, month, and status boundaries.
+**Independent Test**: date、datetime、同月内window、月をまたぐwindowの各milestoneを確認し、表示日付、月、status境界を比較します。
 
 **Acceptance Scenarios**:
 
-1. **Given** a date milestone, **when** it is shown, **then** its relevant date is
-   that calendar day.
-2. **Given** a datetime milestone, **when** it is shown, **then** its relevant date
-   is the Tokyo calendar date containing that datetime.
-3. **Given** a window milestone, **when** its deadline or final date is evaluated,
-   **then** the window end is the relevant date and the window remains current until
-   that end is reached.
-4. **Given** a window begins in one month and ends in the next, **when** the timeline
-   is displayed, **then** the window appears in the month containing its end date.
+1. **Given** date型milestoneの場合、**when** 表示すると、**then** その暦日が有効日付となる。
+2. **Given** datetime型milestoneの場合、**when** 表示すると、**then** そのdatetimeを含むTokyo暦日が有効日付となる。
+3. **Given** window型milestoneの場合、**when** deadlineまたは最終日を評価すると、**then** windowの終了日が有効日付となり、
+   その終了日に達するまではwindowがcurrentのままである。
+4. **Given** windowがある月に始まり翌月に終了する場合、**when** timelineを表示すると、**then** 終了日を含む月にそのwindowが表示される。
 
-### User Story 2 - Read the timeline in chronological order (Priority: P1)
+### User Story 2 - timelineを時系列順に読む (Priority: P1)
 
-As a user scanning ticket opportunities, I want the timeline order to remain stable
-while month labels communicate deadline ownership.
+ticket opportunityを見渡す利用者として、月labelでdeadlineが属する月を示しつつ、timelineの順序を安定させたい。
 
-**Why this priority**: Month placement explains the relevant deadline, while the
-timeline sequence still needs to preserve the established chronological reading
-order.
+**Why this priority**: 月配置は有効なdeadlineを説明しますが、timelineの並びは確立済みの時系列順を維持する必要があるためです。
 
-**Independent Test**: Compare a month-crossing window with milestones beginning
-around it and verify that changing its month placement does not move its row in the
-timeline.
+**Independent Test**: 月をまたぐwindowと前後に始まるmilestoneを比較し、月配置を変えてもtimeline内のrow位置が変わらないことを
+確認します。
 
 **Acceptance Scenarios**:
 
-1. **Given** a month-crossing window and other milestones, **when** the timeline is
-   displayed, **then** rows retain their established chronological order.
-2. **Given** rows whose month labels are not contiguous after applying relevant
-   dates, **when** the timeline is displayed, **then** row order is preserved and
-   later rows are not merged into an earlier month section solely because the month
-   key matches.
+1. **Given** 月をまたぐwindowと他のmilestoneがある場合、**when** timelineを表示すると、**then** rowは確立済みの時系列順を保つ。
+2. **Given** 有効日付を適用すると月labelが連続しなくなるrowがある場合、**when** timelineを表示すると、**then** row順を維持し、
+   month keyが同じという理由だけで後続rowを先行する月sectionへ統合しない。
 
 ### Edge Cases
 
-The following boundaries are intentionally explicit:
+以下の境界を明示します。
 
-- A same-month window remains in that same month.
-- A window may be shown under a later month than the month in which it begins.
-- A month label may recur later when the preserved row sequence makes that month
-  non-contiguous.
-- A datetime near midnight is assigned to its Tokyo calendar date.
+- 同じ月内のwindowはその月にとどまります。
+- windowは、開始月より後の月に表示される場合があります。
+- row sequenceを維持した結果、ある月が連続しない場合、その月labelは後で再度現れることがあります。
+- 深夜に近いdatetimeは、そのTokyo暦日に割り当てられます。
 
 ## Requirements _(mandatory)_
 
-### Milestone Date Semantics
+### Milestoneの日付semantics
 
-- **FR-001**: A date milestone MUST use its own calendar day as its relevant date.
-- **FR-002**: A datetime milestone MUST use the Tokyo calendar date containing its
-  datetime as its relevant date.
-- **FR-003**: A window milestone MUST use the Tokyo calendar date containing its
-  ending side as its product-relevant deadline and final date.
-- **FR-004**: A window milestone MUST remain non-past until its ending side has
-  elapsed.
-- **FR-005**: Deadline display, past status, retained history, and final-date
-  behavior MUST remain consistent with the applicable precision-specific date
-  semantics.
+- **FR-001**: date型milestoneは、それ自身の暦日を有効日付として使用しなければならない。
+- **FR-002**: datetime型milestoneは、そのdatetimeを含むTokyo暦日を有効日付として使用しなければならない。
+- **FR-003**: window型milestoneは、その終了側を含むTokyo暦日をproduct上有効なdeadlineおよび最終日として使用しなければならない。
+- **FR-004**: window型milestoneは、終了側が経過するまでは過去扱いになってはならない。
+- **FR-005**: deadline表示、過去判定、保持history、最終日のbehaviorは、適用される精度別の日付semanticsと一貫していなければならない。
 
-### Timeline Month Placement
+### Timeline上の月配置
 
-- **FR-006**: A timeline month section MUST be determined from the milestone's
-  product-relevant Tokyo calendar date.
-- **FR-007**: A month-crossing window MUST appear in the month containing its end
-  date.
-- **FR-008**: Date and datetime milestones, and windows that begin and end in one
-  month, MUST retain their existing month placement.
+- **FR-006**: timelineの月sectionは、milestoneのproduct上有効なTokyo暦日から決定しなければならない。
+- **FR-007**: 月をまたぐwindowは、終了日を含む月に表示しなければならない。
+- **FR-008**: date型、datetime型milestone、および開始日と終了日が同月のwindowは、既存の月配置を維持しなければならない。
 
-### Ordering Boundary
+### 順序の境界
 
-- **FR-009**: Changing a window's month placement MUST NOT change the established
-  chronological order of timeline rows.
-- **FR-010**: The month in which a row is displayed and the order in which rows are
-  read MUST remain separate product concepts.
-- **FR-011**: When applying relevant dates produces non-contiguous month labels, the
-  timeline MUST preserve row order rather than merging separated sections solely by
-  month name.
+- **FR-009**: windowの月配置を変えても、timeline rowの確立済み時系列順を変えてはならない。
+- **FR-010**: rowが表示される月とrowを読む順序は、product上別の概念として維持しなければならない。
+- **FR-011**: 有効日付の適用によって月labelが連続しなくなる場合、timelineは月名だけを理由に離れたsectionを統合せず、row順を維持
+  しなければならない。
 
-## Scope Boundaries
+## 対象範囲の境界
 
-- This specification covers current TicketOpportunity milestone date semantics and
-  timeline month placement.
-- It covers the user-visible full timeline and the deadline meaning shared by
-  TicketOpportunity surfaces.
-- It does not define TicketOpportunity data modeling, import behavior, personal
-  planning state, cancellation rules, retention duration, or calendar/catalog
-  presentation outside TicketOpportunity milestones.
+- この仕様は現行TicketOpportunity milestoneの日付semanticsとtimeline上の月配置を対象とします。
+- user-visibleなfull timelineと、TicketOpportunity surface間で共有されるdeadlineの意味を対象とします。
+- TicketOpportunityのdata modeling、import behavior、personal planning state、cancellation rule、保持期間、またはTicketOpportunity milestone
+  以外のcalendar/catalog表示は定義しません。
 
 ## Success Criteria
 
 ### Measurable Outcomes
 
-- **SC-001**: All four milestone precision cases—date, datetime, same-month window,
-  and month-crossing window—show the expected relevant date and month.
-- **SC-002**: A month-crossing window is displayed under its deadline month in every
-  TicketOpportunity timeline surface.
-- **SC-003**: Existing timeline row order is unchanged when a window crosses a month
-  boundary.
-- **SC-004**: Deadline, past, retained-history, and final-date outcomes agree on the
-  same precision-specific product meaning.
+- **SC-001**: date、datetime、同月内window、月をまたぐwindowの4つすべてのmilestone精度ケースで、期待される有効日付と月を表示します。
+- **SC-002**: すべてのTicketOpportunity timeline surfaceで、月をまたぐwindowがdeadlineの月に表示されます。
+- **SC-003**: windowが月境界をまたいでも、既存timeline row順は変わりません。
+- **SC-004**: deadline、過去判定、保持history、最終日の結果が、同じ精度別product意味に一致します。
 
 ## Assumptions
 
-- User-facing calendar dates follow the product's existing Asia/Tokyo convention.
-- The timeline continues to preserve its established row sequence when month
-  membership does not form one globally monotonic sequence.
+- user-facing calendar dateは、product既存のAsia/Tokyo conventionに従います。
+- 月への所属が全体として単調なsequenceにならない場合も、timelineは確立済みのrow sequenceを維持します。
