@@ -578,7 +578,15 @@ describe("OfficialImportReviewQueue", () => {
     const bindAction = vi.fn(async () => ({
       data: { reviewStatus: "approved" },
     }));
-    const lookupEventAction = vi.fn();
+    const lookupEventAction = vi.fn(async () => ({
+      data: {
+        id: eventId,
+        title: "九月博多座特別公演",
+        venue: "博多座",
+        startsOn: "2026-09-03",
+        endsOn: "2026-09-14",
+      },
+    }));
     render(
       <OfficialImportReviewQueue
         state={{
@@ -620,18 +628,35 @@ describe("OfficialImportReviewQueue", () => {
       />,
     );
     expect(screen.getByText("もしかしてこのEvent？")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /九月博多座特別公演/ }));
-    expect(screen.getByText("2026-09-03〜2026-09-14")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "このEventに紐づけて承認" }),
+    fireEvent.change(screen.getByLabelText("Event URL または ID"), {
+      target: {
+        value: `${window.location.origin}/catalog/events/${eventId}`,
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eventを確認" }));
+    await waitFor(() =>
+      expect(lookupEventAction).toHaveBeenCalledWith({ eventId }),
     );
+    expect(
+      await screen.findByRole("link", { name: "Event詳細を開く" }),
+    ).toBeInTheDocument();
+    const suggestion = screen.getByRole("button", {
+      name: /九月博多座特別公演/,
+    });
+    await waitFor(() => expect(suggestion).toBeEnabled());
+    fireEvent.click(suggestion);
+    expect(screen.getByText("2026-09-03〜2026-09-14")).toBeInTheDocument();
+    const bindButton = screen.getByRole("button", {
+      name: "このEventに紐づけて承認",
+    });
+    await waitFor(() => expect(bindButton).toBeEnabled());
+    fireEvent.click(bindButton);
     await waitFor(() =>
       expect(bindAction).toHaveBeenCalledWith({
         candidateId: candidate.id,
         eventId,
       }),
     );
-    expect(lookupEventAction).not.toHaveBeenCalled();
     expect(mockRefresh).toHaveBeenCalled();
   });
 

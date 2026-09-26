@@ -448,7 +448,11 @@ function eventIdFromInput(value: string): string | null {
   if (id.test(trimmed)) return trimmed;
   try {
     const url = new URL(trimmed);
-    if (url.origin !== "https://stage-tracker.com") return null;
+    if (
+      url.origin !== "https://stage-tracker.com" &&
+      url.origin !== window.location.origin
+    )
+      return null;
     const match = /^\/catalog\/events\/([0-9a-f-]+)\/?$/iu.exec(url.pathname);
     return match !== null && id.test(match[1] ?? "")
       ? (match[1] ?? null)
