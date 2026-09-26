@@ -1,103 +1,34 @@
-# Repository guidance
+# リポジトリのガイダンス
 
-This is a hand-written, project-owned authority router. It is a table of contents
-for the current repository guidance, not a second specification or a generated
-policy bundle.
+このファイルは、プロジェクトが手書きで管理する権威ある情報源への案内です。現在のリポジトリガイダンスの目次であり、第二の仕様書でも、生成されたポリシー一式でもありません。
 
-## Start here
+## まず確認する場所
 
-- The canonical change intent for a task is its GitHub Issue and the relevant
-  pull request. Use Git history for what changed and why; do not treat an old
-  branch, commit, or migration note as current behavior by itself.
-- Project principles and artifact responsibilities live in
-  [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
-- Current user-visible product behavior lives in the relevant Living Spec under
-  [`specs/**/spec.md`](specs/). For Occurrence Participation, start at
-  [`specs/001-occurrence-participation/spec.md`](specs/001-occurrence-participation/spec.md).
-- Current structure and boundaries live in
-  [`docs/architecture/`](docs/architecture/).
-- Current operational procedures live in [`docs/runbooks/`](docs/runbooks/).
-- Run the bounded pre-PR mechanical gate in
-  [`docs/runbooks/pre-pr-verification.md`](docs/runbooks/pre-pr-verification.md)
-  before creating a PR; use the post-PR runbook only when the Task Contract
-  requires merge-ready convergence.
-- For Task Contracts that explicitly require merge-ready, use the bounded
-  continuation in [`docs/runbooks/post-pr-convergence.md`](docs/runbooks/post-pr-convergence.md)
-  after PR creation; its `MERGE_READY` result is the stop boundary.
-- For Task Contracts that permit the merged implementation to complete the
-  canonical Issue, use the separate bounded procedure in
-  [`docs/runbooks/post-merge-issue-closure.md`](docs/runbooks/post-merge-issue-closure.md);
-  semantic AC verification remains an agent responsibility and the helper is
-  fail-closed.
-- Mechanical correctness and safety are enforced by executable configuration,
-  tests, and CI. The default mandatory pre-PR mechanical floor is defined by
-  [`docs/runbooks/pre-pr-verification.md`](docs/runbooks/pre-pr-verification.md).
-  The normal repository full local verification entry point remains
-  [`pnpm run verify`](package.json) for tasks or risks that require broader
-  build/database coverage; it is not synonymous with the default mandatory
-  pre-PR floor. Inspect the applicable workflow in [`.github/workflows/`](.github/workflows/)
-  for CI authority.
-- Every current product domain is routed to its relevant Living Spec under
-  [`specs/**/spec.md`](specs/). The `.ai-dev-foundation/product-rules.md` file
-  is retained only as historical/supporting material and is not a current
-  fallback authority or runtime harness.
+- タスクの変更意図を確定する一次情報は、GitHub Issueと関連するプルリクエストです。何がなぜ変わったかはGit履歴を確認してください。古いブランチ、コミット、移行メモだけを根拠に現在の動作を判断しないでください。
+- プロジェクトの原則と各成果物の責務は[`.specify/memory/constitution.md`](.specify/memory/constitution.md)に記載されています。
+- ユーザーに見える現在の製品動作は、[`specs/**/spec.md`](specs/)にある該当するLiving Specに記載されています。Occurrence Participationについては、[`specs/001-occurrence-participation/spec.md`](specs/001-occurrence-participation/spec.md)から確認してください。
+- 現在の構成と境界は[`docs/architecture/`](docs/architecture/)に記載されています。
+- 現在の運用手順は[`docs/runbooks/`](docs/runbooks/)に記載されています。
+- PRを作成する前に、[`docs/runbooks/pre-pr-verification.md`](docs/runbooks/pre-pr-verification.md)にある範囲を限定したPR前の機械的ゲートを実行してください。マージ可能な状態への収束がTask Contractで求められる場合に限り、PR後のランブックを使用してください。
+- Task Contractが明示的にマージ可能な状態を求める場合は、PR作成後に[`docs/runbooks/post-pr-convergence.md`](docs/runbooks/post-pr-convergence.md)の範囲を限定した継続手順を実行してください。`MERGE_READY`の結果が停止境界です。
+- マージ済みの実装をもって一次Issueを完了できるTask Contractの場合は、別手順である[`docs/runbooks/post-merge-issue-closure.md`](docs/runbooks/post-merge-issue-closure.md)の範囲を限定した手順を使用してください。意味上のAC（受け入れ条件）の検証は引き続きエージェントの責務であり、補助ツールはフェイルクローズで動作します。
+- 機械的な正しさと安全性は、実行可能な設定、テスト、CIによって担保されます。既定で必須となるPR前の機械的検証の最低ラインは[`docs/runbooks/pre-pr-verification.md`](docs/runbooks/pre-pr-verification.md)に定義されています。より広いビルドやデータベースの検証が必要なタスクやリスクでは、通常のリポジトリ全体のローカル検証入口である[`pnpm run verify`](package.json)を使用してください。これは既定の必須PR前検証と同じものではありません。CIの根拠となる該当ワークフローは[`.github/workflows/`](.github/workflows/)で確認してください。
+- 現在のすべての製品ドメインは、[`specs/**/spec.md`](specs/)にある該当するLiving Specへ案内されています。`.ai-dev-foundation/product-rules.md`は履歴・参考資料としてのみ保持されており、現在の代替権威情報源でも実行時ハーネスでもありません。
 
-## Authority boundaries
+## 権威情報の境界
 
-- Keep product behavior, architecture, procedures, mechanical enforcement, and
-  change history in their respective artifacts. Do not copy their detailed
-  contents into this file.
-- A Spec Kit artifact generated while implementing a task is a work artifact
-  until the repository explicitly designates it as a current Living Spec. Do
-  not infer current product authority from a filename alone.
-- Migration-era or historical documents are supporting/history rather than
-  current normative authority for topics whose authority cutover is complete.
-  Do not infer historical status from the `docs/v2` path alone; mixed documents
-  remain source material until their current content is extracted or superseded.
-  Historical intent belongs to GitHub and Git.
-- The public application keeps its product and data boundaries in the current
-  Living Spec, architecture, schema, tests, and CI. When these responsibilities
-  appear to disagree, re-read the canonical artifacts and the task Issue before
-  making a new rule.
+- 製品動作、アーキテクチャ、手順、機械的な強制、変更履歴は、それぞれの成果物に記載してください。詳細をこのファイルにコピーしないでください。
+- タスク実装中に生成されたSpec Kit成果物は、リポジトリが現在のLiving Specとして明示的に指定するまでは作業成果物です。ファイル名だけから、現在の製品に関する権威を推定しないでください。
+- 権威の切り替えが完了したトピックについて、移行期や過去の文書は、現在の規範的な根拠ではなく参考・履歴資料です。`docs/v2`というパスだけで履歴資料と判断しないでください。内容が混在する文書は、現行内容が抽出されるか置き換えられるまでは、引き続き情報源として扱います。過去の意図はGitHubとGitに記録されています。
+- 公開アプリケーションの製品境界とデータ境界は、現在のLiving Spec、アーキテクチャ、スキーマ、テスト、CIで定めます。これらの責務が食い違っているように見える場合、新しいルールを作る前に一次成果物とタスクIssueを読み直してください。
 
-## Working boundary
+## 作業上の境界
 
-- Use the applicable GitHub Spec Kit standard workflow and its project
-  integrations (`.agents/skills/speckit-*` or `.claude/skills/speckit-*`) when a
-  task benefits from them. Keep generated task artifacts scoped to that task.
-- Prefer standard or existing project capabilities. Do not add a custom
-  authority index, compatibility layer, generated/sync router, or equivalent
-  process machinery without a demonstrated project need recorded in the
-  canonical task context.
-- A merge-ready Task Contract treats PR creation as an intermediate checkpoint
-  and continues into the bounded post-PR phase without an additional user
-  prompt. This does not override read-only, report-plus-STOP, or explicit
-  PR-creation STOP contracts.
-- Post-merge Issue closure is a separate phase. Do not extend
-  `post-pr:converge` into Issue lifecycle, parent/tracking coordination, or
-  automatic close behavior; parent, tracking, read-only, close-prohibited, or
-  otherwise ambiguous Tasks remain `HOLD`.
-- When the primary implementation provider is known from the canonical Task
-  Contract or handoff, prefer an independent semantic review by a different
-  provider when that provider is available. The current required deterministic
-  merge-ready review remains a top-level `@codex review` and is not replaced by
-  this preference.
-- A Claude implementation is covered by the required Codex review as its
-  cross-provider review; do not add another reviewer by default. For a Codex
-  implementation, prefer a Claude independent semantic second opinion when
-  available, in addition to the required Codex review.
-- Cross-provider review is optional and does not currently form a
-  repository-level required merge gate. For high-risk changes such as auth,
-  RLS, security boundaries, secrets, migrations, destructive data operations,
-  release safety, or the review/convergence mechanism itself, strongly prefer
-  the cross-provider semantic second opinion. Its unavailability or lack of
-  machine-observable evidence alone must not block the normal deterministic
-  `MERGE_READY` contract, which currently requires only the supported Codex
-  review evidence. Do not make cross-provider review required until a safe,
-  fail-closed evidence path can be machine-observed; establish that path in a
-  separate task first.
-- This router does not revive the retired Foundation-generated guidance,
-  external checkout/pin/sync dependency, provider/model-specific capability
-  rules, reviewer routing, provider abstraction, quorum, or compatibility
-  machinery. If a capability is genuinely missing, record the evidence in the
-  task and reassess it separately.
+- タスクに適している場合は、GitHub Spec Kitの標準ワークフローとプロジェクト連携機能（`.agents/skills/speckit-*`または`.claude/skills/speckit-*`）を使用してください。生成したタスク成果物は、そのタスクの範囲内に保ってください。
+- 標準機能または既存のプロジェクト機能を優先してください。一次タスクコンテキストに明確な必要性が記録されていない限り、独自の権威情報インデックス、互換レイヤー、生成・同期型の案内役、または同等のプロセス機構を追加しないでください。
+- マージ可能な状態を求めるTask Contractでは、PR作成は中間チェックポイントであり、追加のユーザープロンプトなしに範囲を限定したPR後フェーズへ進みます。これは、読み取り専用、報告して停止、またはPR作成後に停止することを明示したContractを上書きしません。
+- マージ後のIssueクローズは別フェーズです。`post-pr:converge`をIssueのライフサイクル、親・追跡Issueの調整、自動クローズの動作に拡張しないでください。親Issue、追跡Issue、読み取り専用、クローズ禁止、またはその他の曖昧なTaskは`HOLD`のままにしてください。
+- 一次実装プロバイダーが一次Task Contractまたは引き継ぎで分かっている場合、別プロバイダーが利用可能なら、独立した意味上のレビューには別プロバイダーを優先してください。現時点で必須の、決定的なマージ可能状態のレビューはトップレベルの`@codex review`であり、この推奨によって置き換わるものではありません。
+- Claudeによる実装は、必須のCodexレビューがプロバイダー横断レビューを兼ねるため、通常は追加レビュアーを加えないでください。Codexによる実装では、必須のCodexレビューに加えて、可能であればClaudeによる独立した意味上のセカンドオピニオンを優先してください。
+- プロバイダー横断レビューは任意であり、現時点ではリポジトリレベルの必須マージゲートではありません。認証、RLS、セキュリティ境界、シークレット、マイグレーション、破壊的なデータ操作、リリース安全性、レビューや収束の仕組み自体などの高リスク変更では、プロバイダー横断の意味上のセカンドオピニオンを強く推奨します。それを利用できないことや、機械で観測可能な証跡がないことだけを理由に、通常の決定的な`MERGE_READY` Contractを妨げてはいけません。現在このContractで求められるのは、サポート対象のCodexレビュー証跡のみです。安全かつフェイルクローズな証跡経路を機械で観測できるようになるまでは、プロバイダー横断レビューを必須にしないでください。その経路は別タスクで整備してください。
+- この案内は、廃止されたFoundation生成ガイダンス、外部チェックアウト・ピン留め・同期への依存、プロバイダーやモデル固有の能力ルール、レビュアーの振り分け、プロバイダー抽象化、定足数、互換性機構を復活させるものではありません。能力が本当に不足している場合は、根拠をタスクに記録し、別途再評価してください。
