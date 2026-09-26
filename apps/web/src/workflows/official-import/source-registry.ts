@@ -46,7 +46,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     scheduledEnabled: true,
     shadow: true,
     policyState: "approved",
-    fetchCadenceHint: "weekly",
+    fetchCadenceHint: "daily",
   },
   {
     id: "event.takarazuka.revue",

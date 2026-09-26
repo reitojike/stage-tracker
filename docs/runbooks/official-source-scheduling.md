@@ -5,7 +5,7 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
 
 ## 現在のrollout状態
 
-- `scheduledEnabled: true`なのはKabuki Eventだけで、他のsourceはすべてunscheduledです。週次のdue slotはAsia/Tokyoの月曜日です。
+- `scheduledEnabled: true`なのはKabuki Eventだけで、他のsourceはすべてunscheduledです。運用観測を早めるため、Kabuki Eventだけを一時的に日次（毎日09:00 JST）のdue slotで取得します。連続するscheduled runの結果を確認した後、安定していればsource固有PRで週次へ戻します。
 - `ticket.shochiku.schedule`は引き続きmanual shadowのみです。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
   general saleの暫定evidenceとして読み、その後Shochiku東西のsale rowを読みます。同じEventのgeneral saleは1つのsource/run内でreconcileします。
   Shochikuの日付が後から変われば暫定日付を置き換えますが、同じ日のShochiku date-only rowによってKabuki-bitoが明示した時刻を消すことは
@@ -22,7 +22,7 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
   Cronやsecretは不要です。
 - Production専用machine-auth routeは正確に`/api/official-import/cron`です。proxyによりSupabase user sessionがなくてもこのpathからroute handlerへ
   到達できますが、handlerは引き続き`CRON_SECRET` bearerを要求します。この例外は`/api/official-import/shadow`や他のapplication/API pathには
-  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されており、その他のTokyo曜日にはdue sourceがありません。Cronは
+  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。日次試行中はKabuki Eventが毎日dueとなり、他sourceはdueになりません。Cronは
   sourceをapproveもapplyもしません。
 - このrouteには32文字以上のProduction `CRON_SECRET`とVercelの`Authorization: Bearer <secret>` headerが必要です。設定がなければfail closedと
   なります。値をrepository、PR、logに保存または表示してはなりません。
@@ -116,9 +116,9 @@ databaseに残ります。close操作でcatalog dataを削除したり、失敗�
    `/api/official-import/cron`の日次UTC Cron登録を追加します。後続sourceは同じrouteとcodeで管理される日次/週次cadenceを使います。overlap/rate
    evidenceを再確認せず、sourceごとに別jobを登録してはなりません。
 3. repositoryのpre-PR gateとpost-PR convergenceを実行します。merge後、Cronを有効と扱う前にProduction deploymentの成功を確認します。
-4. 最初のdue slotを2回観測します: `official_import_runs`の件数とstatus、candidate/review/applyの結果、変更なしrunでcandidateが0件となるbehavior、
+4. 最初のdue slotを2回以上観測します: `official_import_runs`の件数とstatus、candidate/review/applyの結果、変更なしrunでcandidateが0件となるbehavior、
    failure分類、request量、provider costの概算。同じEventを扱う別々のofficial sourceがcatalog Eventを重複作成していないことを確認します。evidenceを#634に
-   記録します。
+   記録します。Kabuki Eventの日次試行は、各runのindex/detail coverage、held page、意図しない候補の増加、重複起動、fetch failureも確認し、安定を確認できたら週次cadenceへ戻します。問題が出たら週次を待たずにsourceを停止するか修正します。
 5. acquisitionまたはpolicyのevidenceが後退した場合、rollback PRで`scheduledEnabled`を`false`に戻します。candidate approvalとcatalog applyは別操作の
    ままとし、rollback手段として使わないでください。
 
