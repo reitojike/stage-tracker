@@ -20,7 +20,11 @@ describe("Takarazuka revue adapter facts", () => {
         `<div class="item"><a href="/sp/revue/2027/thelondonway/index.html"><p class="title">The London Way</p></a>
         <dl><dt>東京宝塚劇場</dt><dd>2027年4月3日～5月16日</dd></dl></div>`,
       ],
-      [detailUrl, `<section><h2>公演情報</h2></section>`],
+      [
+        detailUrl,
+        `<dl class="revueInfo accordion"><dt class="acc-trigger">東京宝塚劇場 [東京都]</dt>
+        <dd>公演期間 2027年4月3日～5月16日 一般前売 2027年3月7日</dd></dl>`,
+      ],
     ]);
     const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
       const body = pages.get(url);
@@ -36,6 +40,33 @@ describe("Takarazuka revue adapter facts", () => {
       endsOn: "2027-05-16",
       occurrences: [],
     });
+  });
+
+  it("does not treat a renamed day-schedule link as an unpublished schedule", async () => {
+    const detailUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2027/thelondonway/index.html";
+    const pages = new Map<string, string>([
+      [
+        source.canonicalUrl,
+        `<div class="item"><a href="/sp/revue/2027/thelondonway/index.html"><p class="title">The London Way</p></a>
+        <dl><dt>東京宝塚劇場</dt><dd>2027年4月3日～5月16日</dd></dl></div>`,
+      ],
+      [
+        detailUrl,
+        `<dl class="revueInfo accordion"><dt class="acc-trigger">東京宝塚劇場 [東京都]</dt>
+        <dd>公演期間 2027年4月3日～5月16日
+        <a href="days_tokyo.html">公演日程を見る</a>
+        一般前売 2027年3月7日</dd></dl>`,
+      ],
+    ]);
+    const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    await expect(adapter.acquire(source)).rejects.toThrow(
+      "Official source parse failed",
+    );
   });
 
   it("fails closed before fetching more than 30 Takarazuka pages", async () => {

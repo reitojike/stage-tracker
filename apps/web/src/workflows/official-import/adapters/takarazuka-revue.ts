@@ -143,6 +143,38 @@ function scheduleVenueSlug(href: string): string | null {
   return null;
 }
 
+function assertNoPublishedDaySchedule(
+  document: ReturnType<typeof parseHtml>,
+  venue: TakarazukaVenueFact,
+): void {
+  const blocks = descendants(
+    document,
+    (node) =>
+      elementName(node) === "dl" &&
+      hasClass(node, "revueInfo") &&
+      hasClass(node, "accordion"),
+  ).filter((block) => {
+    const heading = descendants(block, (node) => elementName(node) === "dt")[0];
+    return (
+      heading !== undefined &&
+      venueSlug(normalizedText(heading)) === venue.venueSlug
+    );
+  });
+  if (blocks.length !== 1) throw new SourceParseFailure();
+  const block = blocks[0];
+  if (block === undefined) throw new SourceParseFailure();
+  const text = normalizedText(block);
+  if (
+    !text.includes("公演期間") ||
+    !text.includes("一般前売") ||
+    text.includes("公演日程を見る")
+  )
+    throw new SourceParseFailure();
+  const range = parseJapaneseDateRange(text);
+  if (range.startsOn !== venue.startsOn || range.endsOn !== venue.endsOn)
+    throw new SourceParseFailure();
+}
+
 export function parseTakarazukaSchedule(
   html: string,
   startsOn: string,
@@ -261,6 +293,7 @@ export function createTakarazukaRevueAdapter(
         }
         for (const venue of production.venues) {
           if (stagedVenues.has(venue.venueSlug)) continue;
+          assertNoPublishedDaySchedule(detailDocument, venue);
           drafts.push({
             candidateKind: "event",
             canonicalUrl: detail.url,
