@@ -145,10 +145,7 @@ class SupabaseOfficialImportApplyRepository implements OfficialImportApplyReposi
     }
     let manualEventBinding: OfficialImportApplyCandidate["manualEventBinding"] =
       null;
-    if (
-      data.candidate_kind === "ticket_opportunity" &&
-      data.semantic_match_status !== "not_used"
-    ) {
+    if (data.candidate_kind === "ticket_opportunity") {
       const sourceKey =
         data.proposal !== null &&
         typeof data.proposal === "object" &&

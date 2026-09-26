@@ -48,6 +48,7 @@ export function validateSeedEntries(
 export function resolvePlans(
   admin: unknown,
   entries: readonly ValidatedTicketOpportunityEntry[],
+  options?: { readonly targetEventId?: string | null },
 ): Promise<
   | {
       readonly ok: true;

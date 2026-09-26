@@ -141,6 +141,16 @@ export function createEventMatchRepository(
         throw new Error("Failed to resolve exact Event identity");
       return data === null ? null : hydrate(client, data);
     },
+    async findById(eventId) {
+      const { data, error } = await client
+        .from("events")
+        .select(EVENT_COLUMNS)
+        .eq("id", eventId)
+        .is("canceled_at", null)
+        .maybeSingle();
+      if (error !== null) throw new Error("Failed to resolve Event by id");
+      return data === null ? null : hydrate(client, data);
+    },
     async findPotentialMatches(startsOn, endsOn, prefilter) {
       if (prefilter !== undefined) {
         // Only the compact identity facts are scanned before the ticket-only

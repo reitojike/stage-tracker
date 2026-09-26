@@ -42,7 +42,7 @@ export interface TicketEventBindingRepository {
     ticketSourceKey: string,
   ): Promise<{
     readonly eventId: string;
-    readonly eventSourceKey: string;
+    readonly eventSourceKey: string | null;
   } | null>;
 }
 
@@ -291,16 +291,19 @@ export function createTicketOpportunityCandidatePlanner(
       let jevDecisionEvidence = null;
       const reference = eventDraft(draft);
 
-      if (matchedEvent === null && bindings !== undefined) {
+      if (bindings !== undefined) {
         const binding = await bindings.find(
           _source.id,
           draft.proposal.sourceKey,
         );
         if (binding !== null) {
-          const bound = await events.findExactBySourceKey(
-            binding.eventSourceKey,
-          );
-          if (bound?.id !== binding.eventId) {
+          const bound = await events.findById(binding.eventId);
+          if (
+            bound === null ||
+            bound.id !== binding.eventId ||
+            bound.sourceKey !== binding.eventSourceKey ||
+            (matchedEvent !== null && matchedEvent.id !== bound.id)
+          ) {
             const plan = planFor(draft.proposal, null, null);
             return result(
               draft.proposal,
@@ -388,7 +391,7 @@ export function createTicketOpportunityCandidatePlanner(
         }
       }
 
-      if (matchedEvent === null || matchedEvent.sourceKey === null) {
+      if (matchedEvent === null) {
         const plan = planFor(draft.proposal, null, null);
         return result(
           draft.proposal,
@@ -413,10 +416,10 @@ export function createTicketOpportunityCandidatePlanner(
       const generalSale =
         _source.id === "ticket.shochiku.schedule" &&
         /^(?:一般販売|一般発売)$/u.test(draft.proposal.displayName) &&
-        matchedEvent.sourceKey.startsWith("kabuki-bito:");
+        matchedEvent.sourceKey?.startsWith("kabuki-bito:") === true;
       const proposal = {
         ...draft.proposal,
-        eventSourceKey: matchedEvent.sourceKey,
+        eventSourceKey: matchedEvent.sourceKey ?? draft.proposal.eventSourceKey,
         ...(generalSale
           ? {
               sourceKey: `shochiku:${matchedEvent.sourceKey}:general`,

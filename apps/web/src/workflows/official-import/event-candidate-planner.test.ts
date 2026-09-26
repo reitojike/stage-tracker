@@ -64,6 +64,7 @@ function setup(
   const planner = createEventCandidatePlanner(
     {
       findExactBySourceKey: vi.fn(async () => exact),
+      findById: vi.fn(async () => exact),
       findPotentialMatches: vi.fn(async () => potential),
     },
     { align },

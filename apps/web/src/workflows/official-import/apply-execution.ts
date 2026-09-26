@@ -54,7 +54,7 @@ export interface OfficialImportApplyCandidate {
   readonly reviewerId: string;
   readonly manualEventBinding?: {
     readonly eventId: string;
-    readonly eventSourceKey: string;
+    readonly eventSourceKey: string | null;
   } | null;
 }
 
@@ -99,6 +99,7 @@ export interface OfficialImportCatalogGateway {
   ): Promise<OfficialImportCatalogApplyPlan>;
   prepareTicketOpportunity(
     proposal: TicketOpportunityProposalInput,
+    targetEventId?: string | null,
   ): Promise<OfficialImportCatalogApplyPlan>;
 }
 
@@ -318,6 +319,8 @@ export async function executeOfficialImportCandidateApply(
     candidate.candidateKind === "ticket_opportunity"
       ? (candidate.manualEventBinding ?? null)
       : null;
+  const newlyBoundTicket =
+    manualBinding !== null && candidate.resolvedEventId === null;
   try {
     const source = requireEnabledShadowSource(candidate.sourceId);
     if (source.domainKind !== candidate.candidateKind)
@@ -352,9 +355,9 @@ export async function executeOfficialImportCandidateApply(
     } else {
       const proposal = createTicketOpportunityProposal(canonical);
       const planningInput =
-        manualBinding === null
-          ? proposal
-          : { ...proposal, eventSourceKey: manualBinding.eventSourceKey };
+        newlyBoundTicket && manualBinding?.eventSourceKey !== null
+          ? { ...proposal, eventSourceKey: manualBinding.eventSourceKey }
+          : proposal;
       const planning = await planner.planTicketOpportunity(
         source,
         ticketDraft(candidate, planningInput),
@@ -363,7 +366,7 @@ export async function executeOfficialImportCandidateApply(
       if (
         manualBinding !== null &&
         (planning.resolvedEventId !== manualBinding.eventId ||
-          planning.plan.eventChanged)
+          (newlyBoundTicket && planning.plan.eventChanged))
       )
         failure("identity_ambiguous");
       freshFingerprint = planning.planFingerprint;
@@ -373,6 +376,7 @@ export async function executeOfficialImportCandidateApply(
         manualBinding === null
           ? proposal
           : createTicketOpportunityProposal(planning.proposal ?? planningInput),
+        manualBinding?.eventId ?? null,
       );
     }
 
@@ -387,14 +391,10 @@ export async function executeOfficialImportCandidateApply(
     // The unresolved candidate did not show a reviewed diff against an
     // existing TicketOpportunity. A manual Event decision may create a new
     // opportunity, but must never silently apply an existing target's update.
-    if (
-      manualBinding !== null &&
-      freshTicketOpportunityId !== null &&
-      !converged
-    )
+    if (newlyBoundTicket && freshTicketOpportunityId !== null && !converged)
       failure("source_changed");
     if (
-      manualBinding === null &&
+      !newlyBoundTicket &&
       !compatibleReviewedIdentity(
         candidate,
         freshEventId,
@@ -407,10 +407,7 @@ export async function executeOfficialImportCandidateApply(
       failure("source_changed");
     }
 
-    if (
-      manualBinding === null &&
-      freshFingerprint !== candidate.planFingerprint
-    ) {
+    if (!newlyBoundTicket && freshFingerprint !== candidate.planFingerprint) {
       if (!converged) failure("source_changed");
       await catalogPlan.apply();
       await complete(repository, candidateId, attemptToken);

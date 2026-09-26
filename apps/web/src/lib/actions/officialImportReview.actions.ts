@@ -73,7 +73,7 @@ export const lookupOfficialImportBindingEventAction = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     const { data, error } = await ctx.supabase
       .from("events")
-      .select("id, source_key, title, venue, starts_on, ends_on")
+      .select("id, title, venue, starts_on, ends_on")
       .eq("id", parsedInput.eventId)
       .is("canceled_at", null)
       .maybeSingle();
@@ -84,7 +84,7 @@ export const lookupOfficialImportBindingEventAction = authActionClient
       });
       throw new ActionError("failure", "Eventを確認できませんでした。");
     }
-    if (data === null || data.source_key === null)
+    if (data === null)
       throw new ActionError(
         "validation",
         "紐づけ可能なEventが見つかりません。",
