@@ -4,7 +4,9 @@ import { getOfficialSource } from "./source-registry";
 
 const daily = getOfficialSource("event.cynhn.calendar");
 const kabuki = getOfficialSource("event.kabuki-bito.schedule");
-if (daily === null || kabuki === null) throw new Error("test source missing");
+const ticket = getOfficialSource("ticket.shochiku.schedule");
+if (daily === null || kabuki === null || ticket === null)
+  throw new Error("test source missing");
 const weekly = { ...kabuki, fetchCadenceHint: "weekly" as const };
 
 describe("official source schedule slots", () => {
@@ -33,6 +35,18 @@ describe("official source schedule slots", () => {
     expect(
       dueScheduledSourceSlots([kabuki], new Date("2026-09-22T00:00:00.000Z")),
     ).toEqual([{ source: kabuki, tokyoDate: "2026-09-22" }]);
+  });
+
+  it("runs both cleared Kabuki Event and Shochiku Ticket sources in the daily slot", () => {
+    expect(
+      dueScheduledSourceSlots(
+        [ticket, kabuki],
+        new Date("2026-09-22T00:00:00.000Z"),
+      ),
+    ).toEqual([
+      { source: kabuki, tokyoDate: "2026-09-22" },
+      { source: ticket, tokyoDate: "2026-09-22" },
+    ]);
   });
 
   it("rejects an invalid clock", () => {

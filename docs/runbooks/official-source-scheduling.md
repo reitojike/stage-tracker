@@ -5,24 +5,24 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
 
 ## 現在のrollout状態
 
-- `scheduledEnabled: true`なのはKabuki Eventだけで、他のsourceはすべてunscheduledです。運用観測を早めるため、Kabuki Eventだけを一時的に日次（毎日09:00 JST）のdue slotで取得します。連続するscheduled runの結果を確認した後、安定していればsource固有PRで週次へ戻します。
-- `ticket.shochiku.schedule`は引き続きmanual shadowのみです。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
+- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。運用観測を早めるため、両sourceを一時的に日次（毎日09:00 JST）のdue slotで取得します。sourceごとに連続するscheduled runの結果を確認した後、安定していればsource固有PRで週次へ戻します。
+- `ticket.shochiku.schedule`は短期の日次shadow試行中です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
   general saleの暫定evidenceとして読み、その後Shochiku東西のsale rowを読みます。同じEventのgeneral saleは1つのsource/run内でreconcileします。
   Shochikuの日付が後から変われば暫定日付を置き換えますが、同じ日のShochiku date-only rowによってKabuki-bitoが明示した時刻を消すことは
   ありません。Shochikuの会員tierは別々のopportunityとして扱います。titleの異なるproductionをsubstringだけで紐付けません。Event identityを
   解決できない場合はreview-blockedのままとし、approval/applyは自動化しません。creatorの`/catalog/imports` pageには、ticket用の別個のmanual
   shadow buttonと最新のheld-page reportがあります。2026-09-25のread-only live scanでは、異なるticket draftを71件解析しました。Kabuki-bito
   detail pageから13件、Shochiku東西から58件で、held play pageは0件でした。Kabukiza #986では[official ticket section](https://www.kabuki-bito.jp/theaters/kabukiza/play/986)
-  からgeneral sale 2026-10-14 10:00 JSTを取得しました。このscanではProduction candidateをstageしておらず、catalog linkage、変更なしrunの抑止、
-  applyへの収束も証明していません。Productionでcleanなmanual canaryを行い、operatorのpolicy/cadence reviewを記録するまでticket sourceを
-  scheduleしてはなりません。[Shochiku terms](https://www1.ticket-web-shochiku.com/t/info/rules.html)はsite contentの権利を留保しています。
-  今回の確認では`/robots.txt`が404を返しましたが、これは許可を示すものではありません。認められたprivate-household境界内で正規化済みfactと
-  source linkだけを再利用し、pageのprose、image、raw HTMLを保持または再公開してはなりません。Cron昇格にはoperatorによる別途の判断が必要です。
-  daily Cron entryはすでにあるため、期間限定の日次ticket試行に必要なのはsource固有のcadence決定と`scheduledEnabled`への昇格だけで、2つ目の
-  Cronやsecretは不要です。
+  からgeneral sale 2026-10-14 10:00 JSTを取得しました。このread-only scan自体はProduction candidateをstageしていません。その後、operatorは
+  Production手動取得の候補を一通り確認・整理し、変更なし再取得で追加差分が出なかったことを2026-09-27に報告しました。このevidenceを基に、
+  短期の日次shadow試行へ昇格しています。[Shochiku terms](https://www1.ticket-web-shochiku.com/t/info/rules.html)はsite contentの権利を留保しています。
+  2026-09-27の再確認でも`/robots.txt`は404でしたが、これは許可を示すものではありません。operatorが指定したprivate-household境界内で正規化済みfactと
+  source linkだけを再利用し、pageのprose、image、raw HTMLを保持または再公開してはなりません。初回のscheduled runから、source別のcandidate、
+  held、failure、request量を観測します。adapterはKabuki-bitoのindexと最大30 detail page、Shochikuの東西2 pageに範囲を制限します。
+  同じCronがEventを先に取得し、そのWorkflow stepが完了してからTicketを取得するため、合計のaccess量も確認します。Eventのstepが失敗してもTicketは試行し、失敗したsourceはrun結果に残します。追加のCronやsecretは不要です。
 - Production専用machine-auth routeは正確に`/api/official-import/cron`です。proxyによりSupabase user sessionがなくてもこのpathからroute handlerへ
   到達できますが、handlerは引き続き`CRON_SECRET` bearerを要求します。この例外は`/api/official-import/shadow`や他のapplication/API pathには
-  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。日次試行中はKabuki Eventが毎日dueとなり、他sourceはdueになりません。Cronは
+  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。日次試行中はKabuki EventとShochiku Ticketが毎日dueとなり、Eventの取得完了後にTicketの取得を開始します。週次に戻した後も同じ順序です。他sourceはdueになりません。Cronは
   sourceをapproveもapplyもしません。
 - このrouteには32文字以上のProduction `CRON_SECRET`とVercelの`Authorization: Bearer <secret>` headerが必要です。設定がなければfail closedと
   なります。値をrepository、PR、logに保存または表示してはなりません。

@@ -189,7 +189,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "shochiku_ticket",
     domainKind: "ticket_opportunity",
     enabled: true,
-    scheduledEnabled: false,
+    scheduledEnabled: true,
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "daily",

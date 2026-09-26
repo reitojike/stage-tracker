@@ -22,8 +22,8 @@ vi.mock(
     listScheduledShadowSources: () => mocks.listSources(),
   }),
 );
-vi.mock("@/workflows/official-import/shadow-workflow", () => ({
-  officialImportShadowWorkflow: vi.fn(),
+vi.mock("@/workflows/official-import/scheduled-shadow-workflow", () => ({
+  officialImportScheduledShadowWorkflow: vi.fn(),
 }));
 
 const { GET } = await import("./route");
@@ -84,26 +84,28 @@ describe("GET /api/official-import/cron", () => {
     expect((await GET(authorized)).status).toBe(202);
     expect(mocks.start).toHaveBeenCalledTimes(2);
     expect(mocks.start.mock.calls[0]?.[1]).toEqual([
-      "event.kabuki-bito.schedule",
-      "2026-09-21",
+      [{ sourceId: "event.kabuki-bito.schedule", tokyoDate: "2026-09-21" }],
     ]);
     expect(mocks.start.mock.calls[1]?.[1]).toEqual(
       mocks.start.mock.calls[0]?.[1],
     );
   });
 
-  it("attempts other sources even if one Workflow start fails", async () => {
+  it("returns a failure if the scheduled Workflow cannot start", async () => {
     const first = {
       id: "event.kabuki-bito.schedule",
       fetchCadenceHint: "daily",
     };
-    const second = { id: "event.cynhn.calendar", fetchCadenceHint: "daily" };
+    const second = {
+      id: "ticket.shochiku.schedule",
+      fetchCadenceHint: "daily",
+    };
     mocks.listSources.mockReturnValue([first, second]);
     mocks.start.mockRejectedValueOnce(new Error("unavailable"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       expect((await GET(request(`Bearer ${"s".repeat(32)}`))).status).toBe(500);
-      expect(mocks.start).toHaveBeenCalledTimes(2);
+      expect(mocks.start).toHaveBeenCalledTimes(1);
       expect(log).toHaveBeenCalledOnce();
     } finally {
       log.mockRestore();

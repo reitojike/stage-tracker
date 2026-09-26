@@ -20,5 +20,12 @@ export function dueScheduledSourceSlots(
         source.fetchCadenceHint === "daily" ||
         (source.fetchCadenceHint === "weekly" && mondayInTokyo),
     )
+    .sort((left, right) =>
+      left.domainKind === right.domainKind
+        ? 0
+        : left.domainKind === "event"
+          ? -1
+          : 1,
+    )
     .map((source) => ({ source, tokyoDate }));
 }
