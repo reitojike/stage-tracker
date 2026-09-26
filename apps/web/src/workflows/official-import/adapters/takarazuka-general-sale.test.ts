@@ -7,6 +7,23 @@ const source = getOfficialSource("ticket.takarazuka.revue-general-sale");
 if (source === null) throw new Error("test source missing");
 
 describe("Takarazuka general-sale index adapter", () => {
+  it("fails closed when a published general-sale field cannot be parsed", async () => {
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: `<div class="item"><a href="/sp/revue/2026/example/index.html"><p class="title">Example</p></a>
+          <dl><dt>宝塚大劇場</dt><dd>2026年10月17日～11月22日 一般前売 2026年9月26日</dd></dl></div>`,
+        observedAt: "2026-09-27T00:00:00.000Z",
+        contentHash: "a".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(
+      "Official source parse failed",
+    );
+  });
+
   it("stages separate date-only general sales for each published venue", async () => {
     const index = `<div class="item">
       <a href="/sp/revue/2026/elisabeth/index.html"><p class="title">エリザベート</p></a>

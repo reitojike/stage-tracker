@@ -54,6 +54,7 @@ function venueSlug(venue: string): string {
 export function parseTakarazukaIndex(
   source: OfficialSourceDefinition,
   html: string,
+  options: { strictGeneralSale?: boolean } = {},
 ): readonly TakarazukaProductionFact[] {
   const document = parseHtml(html);
   const items = descendants(document, (node) => hasClass(node, "item"));
@@ -98,20 +99,27 @@ export function parseTakarazukaIndex(
       const generalSale = detail.match(
         /一般前売[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日/u,
       );
+      let generalSaleOn: string | null = null;
+      if (generalSale !== null) {
+        try {
+          generalSaleOn = calendarDate(
+            Number(generalSale[1]),
+            Number(generalSale[2]),
+            Number(generalSale[3]),
+          );
+        } catch {
+          if (options.strictGeneralSale) return [];
+        }
+      } else if (options.strictGeneralSale && detail.includes("一般前売")) {
+        return [];
+      }
       try {
         return [
           {
             venue,
             venueSlug: venueSlug(venue),
             ...parseJapaneseDateRange(detail),
-            generalSaleOn:
-              generalSale === null
-                ? null
-                : calendarDate(
-                    Number(generalSale[1]),
-                    Number(generalSale[2]),
-                    Number(generalSale[3]),
-                  ),
+            generalSaleOn,
           },
         ];
       } catch {

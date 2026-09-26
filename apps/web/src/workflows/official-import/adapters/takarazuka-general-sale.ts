@@ -13,7 +13,9 @@ export function createTakarazukaGeneralSaleAdapter(
       source,
     ): Promise<readonly TicketOpportunityAcquisitionDraft[]> {
       const index = await fetcher(source, source.canonicalUrl);
-      const productions = parseTakarazukaIndex(source, index.body);
+      const productions = parseTakarazukaIndex(source, index.body, {
+        strictGeneralSale: true,
+      });
       const drafts: TicketOpportunityAcquisitionDraft[] = [];
       for (const production of productions) {
         for (const venue of production.venues) {

@@ -74,8 +74,9 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
   2026-09-27の読み取り専用監査では、7作品・14会場をEvent 14件（公開済み日別表からOccurrenceを得られる9件、
   日別表リンク未掲載でEvent-onlyの5件）として説明できました。Event adapterは1 run最大30 requestに制限し、この監査で17 requestを使用しました。
   同じ公式一覧に明記された会場別の一般前売日は14件をdate-onlyのTicketOpportunity候補として解析でき、14件すべてがEvent source keyに対応しました。
-  このHTML ticket sourceは`planned`/`enabled: false`/`scheduledEnabled: false`のままで、先行販売は扱いません。PDF sourceの抽出精度gateも
-  未解決のままです。いずれもProduction候補作成・clean shadow再取得・human review/applyを確認する前に定期取得へ昇格しません。
+  このHTML ticket sourceは管理者の手動shadow取得に限り`enabled: true`/`scheduledEnabled: false`とし、先行販売は扱いません。PDF sourceの抽出精度gateも
+  未解決のままです。宝塚Eventを先に手動取得し、候補確認・反映と変更なし再取得を確認してからHTML ticketを手動取得してください。TicketのEvent紐づけと候補内容を人が確認し、
+  変更なし再取得を確認する前に定期取得へ昇格しません。手動取得の有効化は定期取得の許可や正確性の証明を意味しません。
 
 ## sourceごとの昇格gate
 
