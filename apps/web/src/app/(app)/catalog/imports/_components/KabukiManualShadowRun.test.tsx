@@ -110,5 +110,8 @@ describe("Takarazuka manual shadow runs", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "取得を開始しました",
     );
+    if (sourceId === "ticket.takarazuka.revue-general-sale") {
+      expect(screen.getByText(/変更なしの再取得を確認/u)).toBeInTheDocument();
+    }
   });
 });

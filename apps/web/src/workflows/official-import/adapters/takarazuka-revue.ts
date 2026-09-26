@@ -98,6 +98,7 @@ export function parseTakarazukaIndex(
       const generalSale = detail.match(
         /一般前売[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日/u,
       );
+      if (detail.includes("一般前売") && generalSale === null) return [];
       try {
         return [
           {
