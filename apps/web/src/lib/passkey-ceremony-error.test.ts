@@ -58,8 +58,7 @@ describe("classifyPasskeyCeremonyError", () => {
 
 describe("resolveRegisterPasskeyFeedback", () => {
   it("returns a distinct title for every kind (no silent collapse to a single generic message)", () => {
-    // Historical M8 journey comparison (docs/v2/m8-journey-comparison.md)
-    // identified this classification-2 regression; the
+    // PR #407 introduced this registration feedback mapping; the
     // regression test: the current registration feedback mapping must classify
     // each ceremony outcome and return distinct user-facing titles.
     const kinds = [

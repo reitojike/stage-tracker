@@ -23,7 +23,10 @@ import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 // supabase/migrations/20260826000200_create_event_occurrence_cancellation.sql
 // for the full design rationale this file exercises.
 //
-// Product semantics under test (product-rules.md "Cancellation"):
+// This test exercises the current cancellation contract in
+// specs/005-event-occurrence-lifecycle/spec.md against the RPC/trigger
+// implementation in
+// supabase/migrations/20260826000200_create_event_occurrence_cancellation.sql:
 // - Event-level and Occurrence-level cancellation are independent booleans,
 //   owner-only, both directions (cancel and uncancel) reversible.
 // - Effective cancellation = Event canceled OR Occurrence canceled.

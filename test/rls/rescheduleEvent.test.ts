@@ -13,8 +13,8 @@ import { createEventWithOccurrence, eventFixtureTitle } from './support/eventFix
 // together with its occurrences, deferring the cross-table containment
 // constraint triggers (20260825000200_add_event_range_containment_triggers.sql)
 // to the end of its own transaction so this can succeed even when neither a
-// range-first nor an occurrence-first plain UPDATE could
-// (product-rules.md "Mutable / system-managed fields").
+// range-first nor an occurrence-first plain UPDATE could. The current
+// Event-range contract is in specs/005-event-occurrence-lifecycle/spec.md.
 
 const PASSWORD = 'Str0ng-Test-Passw0rd!';
 

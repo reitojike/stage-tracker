@@ -121,7 +121,8 @@ void test('another authenticated user can read a public participation', async ()
 });
 
 // "No row" is the canonical representation of not participating -
-// product-rules.md rules out persisting `not_attending` alongside it - so
+// specs/001-occurrence-participation/spec.md rules out persisting
+// `not_attending` alongside it - so
 // withdrawing has to be expressible, or `considering`/`attending` would be
 // one-way doors.
 void test('the participant can withdraw by deleting their own row', async () => {

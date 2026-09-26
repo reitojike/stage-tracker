@@ -10,10 +10,9 @@ import { cn } from './lib/utils';
  * - `unavailable`: the caller is not allowed to see this (RLS denial,
  *   permission check failed, ...).
  *
- * `docs/ux-ui.md` records this as the cross-screen invariant:
- * an auth/permission failure or a fetch failure must never be silently
- * rendered as "0 results" (`empty`). decisions.md keeps this as one of the
- * explicitly-carried-forward invariants for v2.
+ * `docs/ux-ui.md` records the cross-screen invariant: an auth/permission
+ * failure or a fetch failure must never be silently rendered as "0 results"
+ * (`empty`).
  */
 export const STATE_PANEL_VARIANTS = ['empty', 'error', 'unavailable'] as const;
 

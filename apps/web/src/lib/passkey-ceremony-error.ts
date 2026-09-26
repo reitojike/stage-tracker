@@ -3,12 +3,10 @@ import { UNKNOWN_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 /**
  * The current account-access contract is in Spec 009; this module implements
  * the `/mypage` registration and `/sign-in` passkey error classification and
- * feedback mapping. The M8 journey comparison
- * (`docs/v2/m8-journey-comparison.md`) records the historical reason for the
- * distinction (register: PR #407; sign-in: Issue #406).
+ * feedback mapping. The change history is recorded in PR #407 (registration)
+ * and Issue #406 (sign-in).
  *
- * historical M8 comparison の `classifyCeremonyError` / `REGISTER_FEEDBACK` /
- * `SIGN_IN_FEEDBACK` と同じ SQLSTATE 集合・同じ文言を再実装したもの
+ * PR #407 / Issue #406 の変更に沿って SQLSTATE 集合・文言を実装したもの
  * （`apps/web/src/app/(app)/mypage/_data/passkeyDisplay.ts` と同じ理由）。
  *
  * `AuthError`/`WebAuthnError` は構造的にこの interface を満たすため、

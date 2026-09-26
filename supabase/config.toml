@@ -204,7 +204,8 @@ enabled = true
 # #294). Production RP settings are configured separately in the Supabase
 # Dashboard/Management API against the deployed domain - see Issue #106 Phase 1
 # checkpoint; that step is an operational task outside this repo, the same way
-# remote Supabase project provisioning is (see product-rules.md "Supabase").
+# remote Supabase project provisioning is covered by
+# ../docs/runbooks/gate-a-remote-environment.md.
 [auth.webauthn]
 rp_display_name = "stage-tracker"
 rp_id = "localhost"

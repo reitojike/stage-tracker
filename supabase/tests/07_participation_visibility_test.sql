@@ -1,4 +1,5 @@
--- oracle: docs/v2/oracle-database.md §2 "occurrence_participations" and §6
+-- Current participation visibility is enforced by the applied policies and
+-- checked here.
 -- "Participation" (本人のみが自分のparticipationを書ける、event owner
 -- でさえ他人のprivate participationを読めない、default visibility=private).
 \ir helpers/auth.psql

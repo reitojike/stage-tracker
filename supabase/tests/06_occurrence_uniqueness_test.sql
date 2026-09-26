@@ -1,4 +1,5 @@
--- oracle: docs/v2/oracle-database.md §1.2 UK
+-- Current occurrence identity uniqueness is enforced by the applied unique
+-- constraint and checked here.
 -- event_occurrences_event_id_starts_at_key and §5 invariant 2 "同一event内で
 -- occurrenceは開始instant(starts_at)によって一意に識別される".
 \ir helpers/auth.psql

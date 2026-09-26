@@ -1,4 +1,5 @@
--- oracle: docs/v2/oracle-database.md §5 invariants 1, 4, 5
+-- Current Event range invariants are enforced by the applied constraints and
+-- triggers and checked here.
 -- (events_starts_on_le_ends_on CHECK; the two DEFERRABLE constraint
 -- triggers event_occurrences_within_event_range /
 -- events_range_contains_occurrences).

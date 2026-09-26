@@ -1,5 +1,5 @@
--- A8: share_schedule_entry_by_email が業務上の拒否理由を custom SQLSTATE で
--- 表すことを固定する（`docs/v2/decisions.md`）。
+-- share_schedule_entry_by_email が業務上の拒否理由を custom SQLSTATE で
+-- 表すことを固定する（実装: supabase/migrations/20260908010000_add_share_by_email_sqlstates.sql）。
 --
 -- 以前は SQLSTATE を持たず、呼び出し側がメッセージ本文の完全一致で意味を
 -- 復元していた。この結合は migration の文言を変えた瞬間に静かに壊れる。

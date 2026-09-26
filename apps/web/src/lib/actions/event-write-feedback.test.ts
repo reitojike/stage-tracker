@@ -13,8 +13,8 @@ import {
 import type { RawPostgrestLikeError } from "./postgrest-error";
 
 /**
- * M8 journey 比較（`docs/v2/m8-journey-comparison.md`）で確定した分類2の
- * 不具合修正: v2 は Event write/delete/cancellation の全 operation を
+ * PR #408 で導入した operation-specific feedback behavior: Event
+ * write/delete/cancellation の全 operation を
  * `classifyPostgrestLikeError` 経由の単一の汎用メッセージへ collapse して
  * いた。legacy の `eventWriteFeedback.ts` は operation ごとに異なる文言を
  * 返す。Historical legacy behavior is used only as regression provenance;

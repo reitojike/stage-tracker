@@ -13,10 +13,9 @@ import {
 
 /**
  * Event write/delete/cancellation feedback is kept in this module as the
- * `operation × EventCatalogWriteErrorKind` matrix. The M8 journey comparison
- * (`docs/v2/m8-journey-comparison.md`) records the historical reason for
- * preserving that distinction; the regression contract is exercised by
- * `event-write-feedback.test.ts`.
+ * `operation × EventCatalogWriteErrorKind` matrix. Its regression coverage
+ * is exercised by `event-write-feedback.test.ts`; the behavior change was
+ * made in PR #408.
  *
  * historical M8 comparison の Event write feedback と同じ文言を、v2 の
  * `ActionError`（`{kind, message}` の単一 message field。legacy の

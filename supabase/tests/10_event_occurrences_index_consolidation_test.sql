@@ -1,6 +1,6 @@
--- oracle: docs/v2/oracle-database.md §7 point 8 (A14, Issue #375 In Scope
--- #3). Verifies the index consolidation migration
--- (20260908000100_consolidate_event_occurrences_event_id_index.sql): the
+-- Verifies the index consolidation migration in
+-- 20260908000100_consolidate_event_occurrences_event_id_index.sql (Issue #375
+-- In Scope #3): the
 -- redundant plain btree(event_id) index is gone, the composite unique
 -- index backing event_occurrences_event_id_starts_at_key remains, and an
 -- event_id-only lookup still returns the right rows (functional behavior is

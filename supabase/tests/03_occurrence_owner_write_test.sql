@@ -1,4 +1,5 @@
--- oracle: docs/v2/oracle-database.md §2 "event_occurrences" INSERT/UPDATE
+-- Current occurrence INSERT/UPDATE boundary is enforced by the applied
+-- policies and checked here.
 -- (event_occurrences_insert_own / event_occurrences_update_own: derived
 -- from the parent event's owner_id, occurrence has no independent owner)
 -- and §5 invariant 14 "Occurrenceの管理権限は常に親Eventのownerから導出される".

@@ -171,7 +171,8 @@ void test('an already-attending user is out of scope for invite: no invitation r
 // --- Opacity: the branch taken must not be observable by the inviter ---
 //
 // Which of the three branches runs is decided by the invitee's participation
-// status, and product-rules.md makes participation private by default
+// status, and the current participation contract in
+// specs/001-occurrence-participation/spec.md makes participation private by default
 // (`private` = 本人のみ). An inviter who could tell "already attending" apart
 // from the other two branches would have a one-bit oracle over any user id
 // they knew, for any occurrence they attend - which is exactly the privacy
@@ -271,8 +272,9 @@ void test('a user with no participation cannot invite', async () => {
   assert.deepEqual(await invitationsReceived(invitee, occurrence.id), []);
 });
 
-// product-rules.md is explicit that owning the event is an
-// information-management role only - it confers no participation and no
+// The current invitation contract in
+// specs/006-invitation-coordination-opacity/spec.md makes clear that event
+// ownership is an information-management role only - it confers no participation and no
 // invite right.
 void test('the parent event owner cannot invite without attending', async () => {
   const { occurrence } = await createEventWithOccurrence(catalogOwner);
@@ -373,7 +375,8 @@ void test('decline/no Participation: resolves the pending invitation and creates
 });
 
 // Declining is expressed entirely by resolving the invitation.
-// product-rules.md rules out representing it as a `not_attending`
+// specs/006-invitation-coordination-opacity/spec.md rules out representing it
+// as a `not_attending`
 // participation, and an existing self-created `considering` must survive a
 // decline unchanged (Issue #225/#230: "decline/existing considering ->
 // considering維持").

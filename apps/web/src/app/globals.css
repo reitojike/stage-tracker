@@ -213,8 +213,7 @@
   /*
    * legacy --color-accent (#2f4a7a, 藍): primary operation color (Button
    * primary, links, selected chip, focus ring). This is the token
-   * decisions.md A2 warns about (`--color-primary` was an undefined typo
-   * for --color-accent in the legacy file) - that bug is not carried
+   * the legacy file's undefined `--color-primary` token - that bug is not carried
    * forward: shadcn's *own* --primary slot is what now legitimately holds
    * this value, under its own name, not as a stray reference to a
    * non-existent --color-accent.

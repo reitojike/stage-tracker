@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * 消えても PostgREST は成功を返す）を、こちらだけが抱えたままだった。
  *
  * accept は「通常の participation write と全く同一の operation」であるという
- * specs/001-occurrence-participation/spec.md / decisions.md の決定を、コード上でも成立させる。ここで検証するのは
+ * specs/001-occurrence-participation/spec.md の契約を、コード上でも成立させる。ここで検証するのは
  * **canonical な write boundary を本当に通っているか**であり、race の処理そのもの
  * ではない（それは `participation.test.ts` の担当）。
  *

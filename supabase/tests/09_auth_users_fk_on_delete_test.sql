@@ -1,5 +1,5 @@
--- oracle: docs/v2/oracle-database.md §7 point 2 and decisions.md "PO 判断:
--- v2 の DB 方針" P5 (Issue #375 In Scope #1). Verifies the ON DELETE policy
+-- Current FK behavior is defined by the applied migrations. The historical
+-- policy was made for Issue #375 In Scope #1. Verifies the ON DELETE policy
 -- expand/validate/swap migration set (supabase/migrations/20260908000000
 -- through 20260908000025):
 -- shared catalog data (events.owner_id) is kept - deleting its owner is

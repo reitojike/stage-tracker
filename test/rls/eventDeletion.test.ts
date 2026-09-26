@@ -26,7 +26,9 @@ import { setParticipation } from './support/participationFixtures.ts';
 // SECURITY DEFINER - see supabase/migrations/20260826000100_create_event_
 // delete_rpcs.sql for the full design rationale this file exercises).
 //
-// Product semantics under test (product-rules.md "Deletion"):
+// This test exercises the current deletion contract in
+// specs/005-event-occurrence-lifecycle/spec.md against the RPC implementation
+// in supabase/migrations/20260826000100_create_event_delete_rpcs.sql:
 // - owner-only, for both RPCs.
 // - a standalone occurrence cannot be deleted while occurrence_participations /
 //   occurrence_invitations reference it, or while it is an explicit target of

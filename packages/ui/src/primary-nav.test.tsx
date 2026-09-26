@@ -8,7 +8,7 @@ const { usePathname } = vi.hoisted(() => ({ usePathname: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname }));
 
 describe('PrimaryNav', () => {
-  it('renders exactly the 4 fixed items (decisions.md P2)', () => {
+  it('renders exactly the 4 fixed navigation items', () => {
     usePathname.mockReturnValue('/');
     render(<PrimaryNav />);
 
