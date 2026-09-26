@@ -168,6 +168,47 @@ function setup(candidate: OfficialImportApplyCandidate) {
 }
 
 describe("approved official import apply execution", () => {
+  it("uses the freshly preserved Takarazuka details when applying", async () => {
+    const reviewedProposal = {
+      sourceKey: "takarazuka:2027:thelondonway:takarazuka",
+      title: "既存の整えたタイトル",
+      venue: "宝塚大劇場",
+      memo: "既存メモ",
+      sourceUrl:
+        "https://kageki.hankyu.co.jp/revue/2027/thelondonway/index.html",
+      startsOn: "2027-01-30",
+      endsOn: "2027-03-14",
+      occurrences: [],
+    };
+    const candidate = eventCandidate({
+      sourceId: "event.takarazuka.revue",
+      canonicalUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/thelondonway/index.html",
+      proposal: reviewedProposal,
+    });
+    const harness = setup(candidate);
+    vi.mocked(harness.planner.planEvent).mockResolvedValueOnce({
+      planFingerprint: "reviewed-event-fingerprint",
+      deterministicMatchStatus: "matched",
+      semanticMatchStatus: "not_used",
+      resolvedEventId: "event-1",
+      proposal: { ...reviewedProposal, memo: "最新の既存メモ" },
+      plan: { action: "update", detailsChanged: false, rangeChanged: true },
+    });
+    await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+    expect(harness.catalog.prepareEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ memo: "最新の既存メモ" }),
+      REVIEWER_ID,
+      "event-1",
+    );
+  });
+
   it("freshly replans and applies an Event through the shared catalog gateway", async () => {
     const candidate = eventCandidate();
     const harness = setup(candidate);

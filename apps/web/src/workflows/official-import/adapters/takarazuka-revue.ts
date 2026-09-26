@@ -51,6 +51,14 @@ function venueSlug(venue: string): string {
   throw new SourceParseFailure();
 }
 
+function productionTitle(node: ReturnType<typeof parseHtml>): string {
+  const text = normalizedText(node);
+  // The observed index title block also contains credits. Only the quoted
+  // work names belong in an Event title.
+  const workNames = [...text.matchAll(/『[^』]+』/gu)].map(([name]) => name);
+  return workNames.length > 0 ? workNames.join(" ") : text;
+}
+
 export function parseTakarazukaIndex(
   source: OfficialSourceDefinition,
   html: string,
@@ -94,7 +102,9 @@ export function parseTakarazukaIndex(
       const dt = descendants(dl, (node) => elementName(node) === "dt")[0];
       const dd = descendants(dl, (node) => elementName(node) === "dd")[0];
       if (dt === undefined || dd === undefined) return [];
-      const venue = normalizedText(dt);
+      const rawVenue = normalizedText(dt);
+      const slug = venueSlug(rawVenue);
+      const venue = slug === "tokyo" ? "東京宝塚劇場" : "宝塚大劇場";
       const detail = normalizedText(dd);
       const generalSale = detail.match(
         /一般前売[：:]\s*(\d{4})年(\d{1,2})月(\d{1,2})日/u,
@@ -117,7 +127,7 @@ export function parseTakarazukaIndex(
         return [
           {
             venue,
-            venueSlug: venueSlug(venue),
+            venueSlug: slug,
             ...parseJapaneseDateRange(detail),
             generalSaleOn,
           },
@@ -131,7 +141,7 @@ export function parseTakarazukaIndex(
       {
         year,
         workSlug,
-        title: normalizedText(titleNode),
+        title: productionTitle(titleNode),
         canonicalUrl: assertAllowedSourceUrl(
           source,
           new URL(href, source.canonicalUrl).toString(),

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
   EventPlanInput,
+  EventProposalInput,
   JevDecisionEvidenceInput,
 } from "@stage-tracker/official-import/durable-candidate";
 import type {
@@ -8,7 +9,10 @@ import type {
   EventPlanningResult,
   OfficialImportCandidatePlanner,
 } from "./acquisition";
-import type { OfficialSourceDefinition } from "./source-registry";
+import {
+  assertAllowedSourceUrl,
+  type OfficialSourceDefinition,
+} from "./source-registry";
 
 export interface CatalogEventMatch {
   readonly id: string;
@@ -285,6 +289,28 @@ function result(
   };
 }
 
+function preserveTakarazukaDetails(
+  source: OfficialSourceDefinition,
+  proposal: EventProposalInput,
+  current: CatalogEventMatch,
+): EventProposalInput {
+  let sourceUrl = proposal.sourceUrl ?? null;
+  if (current.sourceUrl !== null) {
+    try {
+      sourceUrl = assertAllowedSourceUrl(source, current.sourceUrl);
+    } catch {
+      // A legacy non-official URL is not carried into an official candidate.
+    }
+  }
+  return {
+    ...proposal,
+    title: current.title,
+    venue: current.venue,
+    sourceUrl,
+    memo: current.memo,
+  };
+}
+
 export function createEventCandidatePlanner(
   repository: EventMatchRepository,
   aligner: EventSemanticAligner,
@@ -298,10 +324,21 @@ export function createEventCandidatePlanner(
         draft.proposal.sourceKey,
       );
       if (exact !== null) {
-        return result(
+        const plannedDraft =
+          source.id === "event.takarazuka.revue"
+            ? {
+                ...draft,
+                proposal: preserveTakarazukaDetails(
+                  source,
+                  draft.proposal,
+                  exact,
+                ),
+              }
+            : draft;
+        const planned = result(
           source,
-          draft,
-          planFor(draft, exact),
+          plannedDraft,
+          planFor(plannedDraft, exact),
           {
             deterministicMatchStatus: "matched",
             semanticMatchStatus: "not_used",
@@ -309,6 +346,9 @@ export function createEventCandidatePlanner(
           },
           exact,
         );
+        return plannedDraft === draft
+          ? planned
+          : { ...planned, proposal: plannedDraft.proposal };
       }
 
       const candidates = await repository.findPotentialMatches(

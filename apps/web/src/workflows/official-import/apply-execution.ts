@@ -348,7 +348,7 @@ export async function executeOfficialImportCandidateApply(
       freshEventId = planning.resolvedEventId ?? null;
       freshTicketOpportunityId = null;
       catalogPlan = await catalog.prepareEvent(
-        proposal,
+        planning.proposal ?? proposal,
         candidate.reviewerId,
         freshEventId,
       );

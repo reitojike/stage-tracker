@@ -53,7 +53,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     id: "event.takarazuka.revue",
     canonicalUrl: "https://kageki.hankyu.co.jp/sp/revue/index.html",
     allowedOrigin: "https://kageki.hankyu.co.jp",
-    allowedPathPrefixes: ["/sp/revue/"],
+    allowedPathPrefixes: ["/sp/revue/", "/revue/"],
     adapter: "http_html",
     extractor: "takarazuka_revue",
     domainKind: "event",
