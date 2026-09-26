@@ -21,6 +21,8 @@ import {
 import {
   KabukiManualShadowRun,
   ShochikuTicketManualShadowRun,
+  TakarazukaEventManualShadowRun,
+  TakarazukaTicketManualShadowRun,
 } from "./_components/KabukiManualShadowRun";
 import {
   loadLatestKabukiHeldPageReport,
@@ -73,6 +75,8 @@ export default async function OfficialImportReviewPage() {
       </div>
       <KabukiManualShadowRun />
       <ShochikuTicketManualShadowRun />
+      <TakarazukaEventManualShadowRun />
+      <TakarazukaTicketManualShadowRun />
       <KabukiHeldPageReport
         state={classifyReadResult(
           heldPages,

@@ -203,10 +203,10 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     adapter: "http_html",
     extractor: "takarazuka_general_sale",
     domainKind: "ticket_opportunity",
-    enabled: false,
+    enabled: true,
     scheduledEnabled: false,
     shadow: true,
-    policyState: "planned",
+    policyState: "approved",
     fetchCadenceHint: "weekly",
   },
   {

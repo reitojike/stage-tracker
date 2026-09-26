@@ -60,6 +60,22 @@ describe("POST /api/official-import/shadow", () => {
     expect(mockStart).toHaveBeenCalledOnce();
   });
 
+  it("allows the Takarazuka general-sale source only through the creator-gated shadow route", async () => {
+    mockIsDesignatedCatalogCreator.mockResolvedValueOnce(false);
+    const denied = await POST(
+      request({ sourceId: "ticket.takarazuka.revue-general-sale" }),
+    );
+    expect(denied.status).toBe(403);
+    expect(mockStart).not.toHaveBeenCalled();
+
+    const response = await POST(
+      request({ sourceId: "ticket.takarazuka.revue-general-sale" }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(mockStart).toHaveBeenCalledOnce();
+  });
+
   it("rejects arbitrary URL input before auth or workflow start", async () => {
     const response = await POST(
       request({

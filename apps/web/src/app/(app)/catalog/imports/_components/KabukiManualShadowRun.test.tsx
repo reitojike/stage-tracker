@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   KabukiManualShadowRun,
   ShochikuTicketManualShadowRun,
+  TakarazukaEventManualShadowRun,
+  TakarazukaTicketManualShadowRun,
 } from "./KabukiManualShadowRun";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -76,5 +78,37 @@ describe("Shochiku ticket manual shadow run", () => {
       "取得を開始しました",
     );
     expect(screen.getByText(/自動承認・反映はしません/u)).toBeInTheDocument();
+  });
+});
+
+describe("Takarazuka manual shadow runs", () => {
+  it.each([
+    [
+      TakarazukaEventManualShadowRun,
+      "宝塚の公演情報を手動取得",
+      "event.takarazuka.revue",
+    ],
+    [
+      TakarazukaTicketManualShadowRun,
+      "宝塚の一般前売日を手動取得",
+      "ticket.takarazuka.revue-general-sale",
+    ],
+  ])("starts only its own source", async (Component, label, sourceId) => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 202 });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<Component />);
+
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      "/api/official-import/shadow",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId }),
+      },
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "取得を開始しました",
+    );
   });
 });

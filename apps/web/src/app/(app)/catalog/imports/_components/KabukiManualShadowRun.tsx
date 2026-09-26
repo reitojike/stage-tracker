@@ -91,3 +91,27 @@ export function ShochikuTicketManualShadowRun() {
     />
   );
 }
+
+export function TakarazukaEventManualShadowRun() {
+  return (
+    <ManualShadowRun
+      sourceId="event.takarazuka.revue"
+      headingId="takarazuka-event-run-heading"
+      heading="宝塚の公演情報の手動取得"
+      label="宝塚の公演情報を手動取得"
+      description="宝塚大劇場・東京宝塚劇場の公式公演情報を確認待ち候補にします。自動承認・反映はしません。日別表が未掲載の公演は開演日時なしのEvent候補です。"
+    />
+  );
+}
+
+export function TakarazukaTicketManualShadowRun() {
+  return (
+    <ManualShadowRun
+      sourceId="ticket.takarazuka.revue-general-sale"
+      headingId="takarazuka-ticket-run-heading"
+      heading="宝塚の一般前売日の手動取得"
+      label="宝塚の一般前売日を手動取得"
+      description="先に宝塚の公演候補を確認・反映してください。公式公演一覧に明記された一般前売日だけを確認待ち候補にします。先行販売や未掲載時刻は推測せず、自動承認・反映もしません。"
+    />
+  );
+}
