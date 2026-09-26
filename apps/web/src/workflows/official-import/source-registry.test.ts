@@ -81,6 +81,22 @@ describe("official source registry", () => {
     expect(vpass).toMatchObject({ enabled: false, policyState: "hold" });
   });
 
+  it("keeps the observed Takarazuka HTML general-sale source unscheduled", () => {
+    const source = getOfficialSource("ticket.takarazuka.revue-general-sale");
+    expect(source).toMatchObject({
+      adapter: "http_html",
+      extractor: "takarazuka_general_sale",
+      domainKind: "ticket_opportunity",
+      enabled: false,
+      scheduledEnabled: false,
+      policyState: "planned",
+      fetchCadenceHint: "weekly",
+    });
+    expect(() =>
+      requireEnabledShadowSource("ticket.takarazuka.revue-general-sale"),
+    ).toThrow(OfficialSourceRegistryError);
+  });
+
   it("keeps WordPress API sources disabled until source-specific rollout gates clear", () => {
     for (const id of ["event.kyurushite.schedule", "event.chumtoto.schedule"]) {
       expect(getOfficialSource(id)).toMatchObject({
