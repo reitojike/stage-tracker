@@ -243,8 +243,8 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm run post-pr:converge -- --pr <number> [options]
-  pnpm run post-pr:converge -- --create --title <title> --body-file <path> [options]
+  pnpm run post-pr:converge --pr <number> [options]
+  pnpm run post-pr:converge --create --title <title> --body-file <path> [options]
 
 The --create form creates the PR through gh and immediately enters the same
 bounded post-PR convergence phase. It never merges the PR.
