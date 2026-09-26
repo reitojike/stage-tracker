@@ -1,43 +1,44 @@
-# Vercel native observability
+# Vercel標準observability
 
-This runbook covers the stage-tracker Production baseline introduced by Issue #717. It uses Vercel Runtime / Build Logs, Web Analytics, and Speed Insights. Check the linked Vercel documentation before use because plan limits and command syntax can change.
+このrunbookはIssue #717で導入されたstage-tracker Productionのbaselineを扱います。Vercel Runtime / Build Logs、Web Analytics、Speed Insightsを
+使用します。plan limitやcommand syntaxは変わる可能性があるため、使用前にlink先のVercel documentationを確認してください。
 
-## Enablement and intake
+## 有効化とデータ取り込み
 
-1. The project owner enables **Web Analytics** and **Speed Insights** for the stage-tracker project in the Vercel Dashboard. [Web Analytics setup](https://vercel.com/docs/analytics/quickstart) requires Dashboard enablement and a subsequent deployment; [Speed Insights setup](https://vercel.com/docs/speed-insights/quickstart) documents the package and deployment path.
-2. Merge the reviewed code and wait for its Production deployment. The project deploys `main`, not PR heads.
-3. The owner visits an authenticated Production page. Check Web Analytics for a page view and Speed Insights for an initial data point. Low traffic may delay useful aggregates.
+1. project ownerはVercel Dashboardでstage-tracker projectの**Web Analytics**と**Speed Insights**を有効にします。[Web Analytics setup](https://vercel.com/docs/analytics/quickstart)にはDashboardでの有効化とその後のdeploymentが必要です。[Speed Insights setup](https://vercel.com/docs/speed-insights/quickstart)にはpackageとdeploymentの手順が記載されています。
+2. review済みcodeをmergeし、Production deploymentを待ちます。このprojectがdeployするのはPR headではなく`main`です。
+3. ownerはauthenticatedなProduction pageへアクセスします。Web Analyticsでpage view、Speed Insightsで初回のdata pointを確認します。trafficが少ないと、有用な集計が得られるまで時間がかかる場合があります。
 
-As checked on 2026-09-25, [Web Analytics Hobby pricing](https://vercel.com/docs/analytics/limits-and-pricing) includes 50,000 monthly events, and [Speed Insights free pricing](https://vercel.com/docs/speed-insights/limits-and-pricing) includes 10,000 events in a rolling 30-day window shared by the team. The free Speed Insights Dashboard emphasizes Real Experience Score; the [CLI documentation](https://vercel.com/docs/speed-insights/accessing-metrics-with-vercel-cli) separately documents LCP, INP, CLS, FCP, and TTFB queries without Observability Plus. Confirm the project's actual plan and enabled tier in Vercel before treating either allowance as project-specific evidence. No sampling override is configured.
+2026-09-25時点の確認では、[Web Analytics Hobby pricing](https://vercel.com/docs/analytics/limits-and-pricing)には月間50,000 eventが含まれ、[Speed Insights free pricing](https://vercel.com/docs/speed-insights/limits-and-pricing)にはteam内で共有されるrolling 30-day windowあたり10,000 eventが含まれます。無料版Speed Insights DashboardではReal Experience Scoreが中心です。[CLI documentation](https://vercel.com/docs/speed-insights/accessing-metrics-with-vercel-cli)にはObservability PlusなしでLCP、INP、CLS、FCP、TTFBをqueryする方法も別途記載されています。いずれの上限もproject固有のevidenceとして扱う前に、Vercelで実際のplanと有効tierを確認してください。sampling overrideは設定されていません。
 
-## URL privacy census
+## URL privacyの棚卸し
 
-The App Router pages were checked on 2026-09-25. The two Vercel packages share one narrowly scoped `beforeSend` URL rule in `apps/web/src/app/vercel-observability-url.ts`:
+App Router pageは2026-09-25に確認しました。2つのVercel packageは、`apps/web/src/app/vercel-observability-url.ts`にある範囲を限定した共通の`beforeSend` URL ruleを使用します。
 
-| Surface                                                                   | Current URL values                                                                              | Sending rule                                           |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `/auth/confirm`                                                           | `token_hash`, `type`, `next`; Route Handler redirects without rendering a page                  | Drop an event if one is emitted                        |
-| `/sign-in`                                                                | Fixed `error` / `requested` state; form email is submitted in the body                          | Remove the query, including any unexpected email value |
-| `/catalog/invitations`                                                    | Invitation data is loaded for the authenticated user; no invitation token in the route or query | No change                                              |
-| `/notifications`                                                          | `cursor`, `before`, and `snapshot` encode private pagination state                              | Remove the query                                       |
-| `/catalog/events/[eventId]` and `/edit`                                   | Event ID in the path; optional occurrence ID in the query                                       | Replace the ID with `[eventId]` and remove the query   |
-| `/schedule/[entryId]` and `/edit`                                         | Private entry ID in the path                                                                    | Replace the ID with `[entryId]` and remove the query   |
-| Other pages (`/`, `/calendar`, `/catalog`, new, imports, tickets, mypage) | No user email or secret in app-generated URLs; calendar navigation uses month/date              | No change                                              |
-| `/api/official-import/*`                                                  | Server endpoints, not rendered pages                                                            | No browser collection                                  |
+| 対象                                                                      | 現在のURL値                                                                                 | 送信時のrule                               |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `/auth/confirm`                                                           | `token_hash`、`type`、`next`。Route Handlerはpageをrenderせずredirectする                   | eventが生成された場合は破棄する            |
+| `/sign-in`                                                                | `error` / `requested` stateは固定。form emailはbodyで送信する                               | 想定外のemail値も含めてqueryを削除する     |
+| `/catalog/invitations`                                                    | authenticated user向けのInvitation dataを読み込む。routeまたはqueryにinvitation tokenはない | 変更なし                                   |
+| `/notifications`                                                          | `cursor`、`before`、`snapshot`はprivate pagination stateを含む                              | queryを削除する                            |
+| `/catalog/events/[eventId]` and `/edit`                                   | path内のEvent ID。queryにはoptional occurrence IDがある                                     | IDを`[eventId]`に置き換え、queryを削除する |
+| `/schedule/[entryId]` and `/edit`                                         | path内のprivate entry ID                                                                    | IDを`[entryId]`に置き換え、queryを削除する |
+| Other pages (`/`, `/calendar`, `/catalog`, new, imports, tickets, mypage) | app生成URLにuser emailやsecretは含まれない。calendar navigationではmonth/dateを使う         | 変更なし                                   |
+| `/api/official-import/*`                                                  | server endpointであり、renderされるpageではない                                             | browserでのcollectionなし                  |
 
-The magic-link template fixes `next=/`; the callback consumes the token server-side and redirects. Invitation and share forms send email in action bodies, not URLs. New URL-bearing routes or query parameters need the same census before deployment. [Vercel's redaction guidance](https://vercel.com/docs/analytics/redacting-sensitive-data) and [Speed Insights `beforeSend`](https://vercel.com/docs/speed-insights/package) define the collection boundary.
+magic-link templateでは`next=/`に固定されています。callbackはserver-sideでtokenを処理してredirectします。Invitation formとshare formはemailをURLではなくaction bodyで送信します。URLを含む新しいrouteまたはquery parameterをdeploymentする前に、同じ棚卸しが必要です。[Vercelのredaction guidance](https://vercel.com/docs/analytics/redacting-sensitive-data)と[Speed Insights `beforeSend`](https://vercel.com/docs/speed-insights/package)がcollection boundaryを定めます。
 
-## Codex read paths
+## Codexからの読み取り経路
 
-Use [Vercel's official MCP endpoint](https://vercel.com/docs/agent-resources/vercel-mcp) with Codex CLI:
+Codex CLIで[Vercelの公式MCP endpoint](https://vercel.com/docs/agent-resources/vercel-mcp)を使用します。
 
 ```text
 codex mcp add vercel --url https://mcp.vercel.com
 ```
 
-The owner approves the browser OAuth prompt if shown. Do not put credentials in the repository or Issue. In a Codex session, use `list_projects` and `list_deployments` to identify the project and Production deployment, then `get_deployment_build_logs` for bounded build output and `get_runtime_logs` with `environment: production`, a short `since` window, and a small `limit`. Filter by level or status for investigations. The [current MCP tool list](https://vercel.com/docs/agent-resources/vercel-mcp/tools) also provides `get_web_analytics` for `visits` counts or aggregates, so an API token is unnecessary for the primary programmatic page-view read path. These queries are read-only even though Vercel MCP also exposes write tools.
+browser OAuth promptが表示された場合、ownerが承認します。credentialをrepositoryやIssueへ記載しないでください。Codex sessionでは`list_projects`と`list_deployments`でprojectとProduction deploymentを特定し、上限を設けたbuild outputには`get_deployment_build_logs`を使用します。`get_runtime_logs`は`environment: production`、短い`since`期間、小さい`limit`で実行します。調査ではlevelまたはstatusでfilterします。[現在のMCP tool一覧](https://vercel.com/docs/agent-resources/vercel-mcp/tools)には`visits` countまたはaggregateを取得する`get_web_analytics`もあるため、主なprogrammatic page-view read pathにAPI tokenは不要です。Vercel MCPにはwrite toolもありますが、ここでのqueryはread-onlyです。
 
-With an already authenticated Vercel CLI session, use the official [Speed Insights](https://vercel.com/docs/speed-insights/accessing-metrics-with-vercel-cli) and [Web Analytics](https://vercel.com/docs/analytics/accessing-metrics-with-vercel-cli) schemas and queries. Replace `<project>` with the actual project name:
+Vercel CLIで認証済みのsessionがある場合、公式の[Speed Insights](https://vercel.com/docs/speed-insights/accessing-metrics-with-vercel-cli)と[Web Analytics](https://vercel.com/docs/analytics/accessing-metrics-with-vercel-cli)のschemaおよびqueryを使用します。`<project>`は実際のproject名に置き換えます。
 
 ```text
 vercel metrics schema vercel.speed_insights
@@ -50,4 +51,4 @@ vercel metrics schema vercel.analytics
 vercel metrics vercel.analytics.page_view.count --since 7d --project <project> --prod
 ```
 
-The [Web Analytics REST API](https://vercel.com/docs/analytics/web-analytics-api) is another read path, but its official instructions require a Vercel access token. Prefer MCP or the authenticated CLI context; do not create a long-lived token for this baseline.
+[Web Analytics REST API](https://vercel.com/docs/analytics/web-analytics-api)も読み取り経路の1つですが、公式手順ではVercel access tokenが必要です。MCPまたは認証済みCLI contextを優先し、このbaselineのために長期tokenを作成しないでください。
