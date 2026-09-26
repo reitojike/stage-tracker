@@ -11,6 +11,20 @@ const source = getOfficialSource("event.takarazuka.revue");
 if (source === null) throw new Error("test source missing");
 
 describe("Takarazuka revue adapter facts", () => {
+  it("keeps Event facts when only the general-sale field is unreadable", () => {
+    const facts = parseTakarazukaIndex(
+      source,
+      `<div class="item"><a href="/sp/revue/2026/example/index.html"><p class="title">Example</p></a>
+      <dl><dt>宝塚大劇場</dt><dd>2026年10月17日～11月22日 一般前売 2026年9月26日</dd></dl></div>`,
+    );
+    expect(facts).toHaveLength(1);
+    expect(facts[0]?.venues[0]).toMatchObject({
+      startsOn: "2026-10-17",
+      endsOn: "2026-11-22",
+      generalSaleOn: null,
+    });
+  });
+
   it("fails closed when the index has no recognized production links", () => {
     expect(() =>
       parseTakarazukaIndex(
