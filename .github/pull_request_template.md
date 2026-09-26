@@ -6,7 +6,7 @@
 （scripts/check-migration-ordering-fence.mjs）がこのPR本文のmarkerを
 literalに読み取ります。2行とも残っている場合はambiguousとしてfailします。
 判断基準は docs/architecture/runtime-stack.md「デプロイ・実行経路」と
-Issue #393 の runtime-first rationale を参照してください（Issue #131）。
+Issue #393 に記録された runtime-first の経緯を参照してください（Issue #131）。
 -->
 
 ## Migration ordering

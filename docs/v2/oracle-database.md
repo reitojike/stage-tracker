@@ -1,19 +1,10 @@
-# Migration-era database locator
+# 移行期のデータベース資料インデックス
 
-**Status: historical resolver, not a current database specification.** Current DB
-behavior is defined by the applied schema and migrations, current database tests,
-and the relevant Living Specs.
+**状態: 履歴の参照解決用であり、現行のデータベース仕様ではありません。** 現在の DB 挙動は適用済みスキーマとマイグレーション、現行 DB テスト、および該当する Living Spec が定義します。
 
-The full historical oracle is preserved at the exact pre-compaction commit:
-[`oracle-database.md at 891807ba2977466477b0292bd22ee51c2d80a3d9`](https://github.com/reitojike/stage-tracker/blob/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2/oracle-database.md).
+データベース資料の完全版は圧縮直前のコミットに保存されています。
+[891807ba2977466477b0292bd22ee51c2d80a3d9 時点の oracle-database.md](https://github.com/reitojike/stage-tracker/blob/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2/oracle-database.md)。
 
-## Immutable migration locator
+## 変更されないマイグレーションの参照先
 
-The applied migration `20260908000100_consolidate_event_occurrences_event_id_index.sql`
-refers to “§7 point 8 (A14, Issue #375 In Scope #3)”. Resolve it at [§7,
-point 8 in the full oracle](https://github.com/reitojike/stage-tracker/blob/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2/oracle-database.md#L1141);
-the A14 decision record is also available
-[here](https://github.com/reitojike/stage-tracker/blob/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2/decisions.md#L61),
-alongside [Issue #375](https://github.com/reitojike/stage-tracker/issues/375).
-The current implementation is the applied migration and current DB test; this
-historical locator does not specify current schema behavior.
+適用済みマイグレーション `20260908000100_consolidate_event_occurrences_event_id_index.sql` は、「§7 point 8 (A14, Issue #375 In Scope #3)」を参照しています。参照先は完全版の[§7 第8項](https://github.com/reitojike/stage-tracker/blob/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2/oracle-database.md#L1141)です。A14 の判断記録は[こちら](https://github.com/reitojike/stage-tracker/blob/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2/decisions.md#L61)、関連する [Issue #375](https://github.com/reitojike/stage-tracker/issues/375) も参照してください。現在の実装は適用済みマイグレーションと現行 DB テストです。この履歴参照先は現行スキーマの挙動を定めません。

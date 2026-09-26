@@ -1,21 +1,12 @@
-# Migration-era historical index
+# 移行期の履歴インデックス
 
-This directory records the completed v2 rebuild and authority cutover. It is
-historical material, not current product, architecture, or operational authority.
+このディレクトリには v2 再構築と仕様の参照先切り替えの記録がありました。現在の製品・アーキテクチャ・運用の根拠ではなく、履歴資料です。
 
-Current product behavior is in the relevant `specs/**/spec.md`; product scope and
-future intent are in `docs/prd.md`, `docs/roadmap.md`, and GitHub Issues; UX is
-in `docs/ux-ui.md`; structure and mechanics are in `docs/architecture/**`,
-source, schema, migrations, and tests; procedures are in `docs/runbooks/**`.
+現在の製品挙動は該当する `specs/**/spec.md` の Living Spec、製品の範囲と今後の方針は `docs/prd.md`、`docs/roadmap.md` および GitHub Issue、UX は `docs/ux-ui.md`、構造と機械的な制約は `docs/architecture/**`、ソース、スキーマ、マイグレーション、テスト、手順は `docs/runbooks/**` を参照してください。
 
-## Remaining resolvers
+## 残っている参照解決用ファイル
 
-- [`decisions.md`](./decisions.md) resolves historical identifiers still named
-  by immutable migration comments and current historical references.
-- [`oracle-database.md`](./oracle-database.md) resolves the database locator
-  retained by an immutable migration comment.
+- [`decisions.md`](./decisions.md) は、変更されないマイグレーションコメントと現在の履歴参照に残る過去の識別子を解決します。
+- [`oracle-database.md`](./oracle-database.md) は、変更されないマイグレーションコメントが参照するデータベース資料の場所を示します。
 
-The removed full records and comparison evidence remain recoverable from the
-immutable [pre-compaction tree at
-`891807ba2977466477b0292bd22ee51c2d80a3d9`](https://github.com/reitojike/stage-tracker/tree/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2).
-That snapshot is a historical locator only.
+削除した完全版と比較資料は、変更されない[圧縮直前のツリー `891807ba2977466477b0292bd22ee51c2d80a3d9`](https://github.com/reitojike/stage-tracker/tree/891807ba2977466477b0292bd22ee51c2d80a3d9/docs/v2)から参照できます。このスナップショットは履歴の参照先です。

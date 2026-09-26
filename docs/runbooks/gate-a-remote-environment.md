@@ -249,7 +249,7 @@ the hosted project」の手動手順は、この自動 workflow が使えない�
 **Artifact Sequencing Fence（`scripts/lib/artifactSequencingFence.mjs`）が
 migration と app code の同一 PR 同居を拒否する**ため、migration PR 自身に
 app code が同居することはありません。ただし**これは PR をまたぐ merge
-順序までは保証しません**（historical rationale: Issue #387
+順序までは保証しません**（経緯: Issue #387
 （残存リスク）」）。新しいビルドが直ちに参照する migration を別 PR に
 分離した場合、その migration PR が app code PR より先に merge・適用済み
 であることを、app code PR の reviewer が確認してください。これを怠ると
