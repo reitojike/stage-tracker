@@ -143,9 +143,39 @@ class SupabaseOfficialImportApplyRepository implements OfficialImportApplyReposi
     if (readError !== null || data === null) {
       throw new Error("Failed to read claimed official import candidate");
     }
+    let manualEventBinding: OfficialImportApplyCandidate["manualEventBinding"] =
+      null;
+    if (
+      data.candidate_kind === "ticket_opportunity" &&
+      data.semantic_match_status !== "not_used"
+    ) {
+      const sourceKey =
+        data.proposal !== null &&
+        typeof data.proposal === "object" &&
+        !Array.isArray(data.proposal)
+          ? data.proposal.sourceKey
+          : null;
+      if (typeof sourceKey !== "string" || sourceKey.length === 0)
+        throw new Error("Manually approved ticket has no source identity");
+      const { data: binding, error: bindingError } = await this.client
+        .from("official_import_ticket_event_bindings")
+        .select("event_id, event_source_key")
+        .eq("source_id", data.source_id)
+        .eq("ticket_source_key", sourceKey)
+        .maybeSingle();
+      if (bindingError !== null)
+        throw new Error(
+          "Failed to read manually approved ticket Event binding",
+        );
+      if (binding !== null)
+        manualEventBinding = {
+          eventId: binding.event_id,
+          eventSourceKey: binding.event_source_key,
+        };
+    }
     return {
       status: "ready",
-      candidate: parseCandidate(data, attemptToken),
+      candidate: { ...parseCandidate(data, attemptToken), manualEventBinding },
     };
   }
 

@@ -6,7 +6,11 @@ import {
 } from "@/lib/data/read-result";
 import { isDesignatedCatalogCreator } from "@/lib/data/creator-capability";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { reviewOfficialImportCandidateAction } from "@/lib/actions/officialImportReview.actions";
+import {
+  bindOfficialImportTicketCandidateAction,
+  lookupOfficialImportBindingEventAction,
+  reviewOfficialImportCandidateAction,
+} from "@/lib/actions/officialImportReview.actions";
 import { startOfficialImportApplyAction } from "@/lib/actions/officialImportApply.actions";
 import { OfficialImportReviewQueue } from "./_components/OfficialImportReviewQueue";
 import {
@@ -91,6 +95,8 @@ export default async function OfficialImportReviewPage() {
         state={classifyListReadResult(queue)}
         reviewAction={reviewOfficialImportCandidateAction}
         applyAction={startOfficialImportApplyAction}
+        bindAction={bindOfficialImportTicketCandidateAction}
+        lookupEventAction={lookupOfficialImportBindingEventAction}
       />
     </div>
   );

@@ -36,6 +36,16 @@ export interface TicketOpportunityMatchRepository {
   ): Promise<CatalogTicketOpportunityMatch | null>;
 }
 
+export interface TicketEventBindingRepository {
+  find(
+    sourceId: string,
+    ticketSourceKey: string,
+  ): Promise<{
+    readonly eventId: string;
+    readonly eventSourceKey: string;
+  } | null>;
+}
+
 function normalize(value: string | null | undefined): string {
   return (value ?? "")
     .normalize("NFKC")
@@ -238,7 +248,6 @@ function deterministicEvent(
   const matches = candidates.filter(
     (candidate) =>
       candidate.sourceKey !== null &&
-      normalize(candidate.title) === normalize(draft.proposal.title) &&
       normalizeVenue(candidate.venue) !== "" &&
       normalizeVenue(candidate.venue) ===
         normalizeVenue(draft.proposal.venue) &&
@@ -267,6 +276,7 @@ export function createTicketOpportunityCandidatePlanner(
   events: EventMatchRepository,
   opportunities: TicketOpportunityMatchRepository,
   aligner: EventSemanticAligner,
+  bindings?: TicketEventBindingRepository,
 ): Pick<OfficialImportCandidatePlanner, "planTicketOpportunity"> {
   return {
     async planTicketOpportunity(_source, draft) {
@@ -281,35 +291,75 @@ export function createTicketOpportunityCandidatePlanner(
       let jevDecisionEvidence = null;
       const reference = eventDraft(draft);
 
+      if (matchedEvent === null && bindings !== undefined) {
+        const binding = await bindings.find(
+          _source.id,
+          draft.proposal.sourceKey,
+        );
+        if (binding !== null) {
+          const bound = await events.findExactBySourceKey(
+            binding.eventSourceKey,
+          );
+          if (bound?.id !== binding.eventId) {
+            const plan = planFor(draft.proposal, null, null);
+            return result(
+              draft.proposal,
+              {
+                plan,
+                deterministicMatchStatus: "ambiguous",
+                semanticMatchStatus: "low_confidence",
+                resolvedEventId: null,
+                resolvedTicketOpportunityId: null,
+              },
+              { event: null, opportunity: null },
+            );
+          }
+          matchedEvent = bound;
+          deterministicMatchStatus = "matched";
+        }
+      }
+
       if (matchedEvent === null && reference !== null) {
-        const sameTitleAndVenue = (
+        const sameVenue = (
           candidate: Pick<CatalogEventMatch, "title" | "venue">,
         ) =>
-          normalize(candidate.title) === normalize(reference.proposal.title) &&
+          normalizeVenue(candidate.venue) !== "" &&
           normalizeVenue(candidate.venue) ===
             normalizeVenue(reference.proposal.venue);
         const candidates = await events.findPotentialMatches(
           reference.proposal.startsOn,
           reference.proposal.endsOn,
-          sameTitleAndVenue,
+          sameVenue,
         );
-        const plausible = candidates.filter(sameTitleAndVenue);
-        const includesManualIdentity = plausible.some(
+        const samePeriod = candidates.filter(
+          (candidate) =>
+            sameVenue(candidate) &&
+            candidate.startsOn === reference.proposal.startsOn &&
+            candidate.endsOn === reference.proposal.endsOn,
+        );
+        const plausible = candidates.filter(
+          (candidate) =>
+            sameVenue(candidate) &&
+            normalize(candidate.title) === normalize(reference.proposal.title),
+        );
+        const includesManualIdentity = samePeriod.some(
           (candidate) => candidate.sourceKey === null,
         );
         matchedEvent = includesManualIdentity
           ? null
-          : deterministicEvent(reference, plausible);
+          : deterministicEvent(reference, samePeriod);
         if (matchedEvent !== null) {
           deterministicMatchStatus = "matched";
         } else if (plausible.length === 0) {
+          if (samePeriod.length > 1 || includesManualIdentity)
+            deterministicMatchStatus = "ambiguous";
           semanticMatchStatus = "low_confidence";
         } else {
           const alignment = await aligner.align(reference, plausible);
           if (alignment.status !== "unavailable") {
             jevDecisionEvidence = alignment.evidence;
           }
-          if (includesManualIdentity) {
+          if (samePeriod.length > 1 || includesManualIdentity) {
             deterministicMatchStatus = "ambiguous";
             semanticMatchStatus =
               alignment.status === "unavailable"

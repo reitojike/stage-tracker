@@ -52,6 +52,10 @@ export interface OfficialImportApplyCandidate {
   readonly resolvedEventId: string | null;
   readonly resolvedTicketOpportunityId: string | null;
   readonly reviewerId: string;
+  readonly manualEventBinding?: {
+    readonly eventId: string;
+    readonly eventSourceKey: string;
+  } | null;
 }
 
 export type CandidateApplyPreparation =
@@ -310,6 +314,10 @@ export async function executeOfficialImportCandidateApply(
   }
 
   const { candidate } = preparation;
+  const manualBinding =
+    candidate.candidateKind === "ticket_opportunity"
+      ? (candidate.manualEventBinding ?? null)
+      : null;
   try {
     const source = requireEnabledShadowSource(candidate.sourceId);
     if (source.domainKind !== candidate.candidateKind)
@@ -343,15 +351,29 @@ export async function executeOfficialImportCandidateApply(
       );
     } else {
       const proposal = createTicketOpportunityProposal(canonical);
+      const planningInput =
+        manualBinding === null
+          ? proposal
+          : { ...proposal, eventSourceKey: manualBinding.eventSourceKey };
       const planning = await planner.planTicketOpportunity(
         source,
-        ticketDraft(candidate, proposal),
+        ticketDraft(candidate, planningInput),
       );
       requireDeterministicTicketIdentity(planning);
+      if (
+        manualBinding !== null &&
+        (planning.resolvedEventId !== manualBinding.eventId ||
+          planning.plan.eventChanged)
+      )
+        failure("identity_ambiguous");
       freshFingerprint = planning.planFingerprint;
       freshEventId = planning.resolvedEventId ?? null;
       freshTicketOpportunityId = planning.resolvedTicketOpportunityId ?? null;
-      catalogPlan = await catalog.prepareTicketOpportunity(proposal);
+      catalogPlan = await catalog.prepareTicketOpportunity(
+        manualBinding === null
+          ? proposal
+          : createTicketOpportunityProposal(planning.proposal ?? planningInput),
+      );
     }
 
     if (
@@ -362,18 +384,33 @@ export async function executeOfficialImportCandidateApply(
     }
 
     const converged = !catalogPlan.hasChanges;
+    // The unresolved candidate did not show a reviewed diff against an
+    // existing TicketOpportunity. A manual Event decision may create a new
+    // opportunity, but must never silently apply an existing target's update.
     if (
+      manualBinding !== null &&
+      freshTicketOpportunityId !== null &&
+      !converged
+    )
+      failure("source_changed");
+    if (
+      manualBinding === null &&
       !compatibleReviewedIdentity(
         candidate,
         freshEventId,
         freshTicketOpportunityId,
         converged,
       )
-    ) {
+    )
+      failure("source_changed");
+    if (manualBinding !== null && freshEventId !== manualBinding.eventId) {
       failure("source_changed");
     }
 
-    if (freshFingerprint !== candidate.planFingerprint) {
+    if (
+      manualBinding === null &&
+      freshFingerprint !== candidate.planFingerprint
+    ) {
       if (!converged) failure("source_changed");
       await catalogPlan.apply();
       await complete(repository, candidateId, attemptToken);

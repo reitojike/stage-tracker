@@ -573,6 +573,93 @@ describe("OfficialImportReviewQueue", () => {
     expect(mockRefresh).toHaveBeenCalled();
   });
 
+  it("previews a suggested Event before manually binding a blocked ticket", async () => {
+    const eventId = "22222222-2222-4222-8222-222222222222";
+    const bindAction = vi.fn(async () => ({
+      data: { reviewStatus: "approved" },
+    }));
+    const lookupEventAction = vi.fn(async () => ({
+      data: {
+        id: eventId,
+        title: "九月博多座特別公演",
+        venue: "博多座",
+        startsOn: "2026-09-03",
+        endsOn: "2026-09-14",
+      },
+    }));
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              kind: "ticket_opportunity",
+              sourceId: "ticket.shochiku.schedule",
+              reviewStatus: "blocked_for_identity_review",
+              blockedReason: "対象Eventを自動で確定できません。",
+              proposal: {
+                kind: "ticket_opportunity",
+                eventSourceKey: "unresolved:shochiku:example",
+                sourceKey: "shochiku:example:general",
+                displayName: "一般販売",
+                sourceUrl: "https://example.test/ticket",
+                memo: null,
+                targetScope: "event_wide",
+                targetOccurrences: [],
+                milestones: [],
+              },
+              suggestedEvents: [
+                {
+                  id: eventId,
+                  title: "九月博多座特別公演",
+                  venue: "博多座",
+                  startsOn: "2026-09-03",
+                  endsOn: "2026-09-14",
+                },
+              ],
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+        bindAction={bindAction}
+        lookupEventAction={lookupEventAction}
+      />,
+    );
+    expect(screen.getByText("もしかしてこのEvent？")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Event URL または ID"), {
+      target: {
+        value: `${window.location.origin}/catalog/events/${eventId}`,
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eventを確認" }));
+    await waitFor(() =>
+      expect(lookupEventAction).toHaveBeenCalledWith({ eventId }),
+    );
+    expect(
+      await screen.findByRole("link", { name: "Event詳細を開く" }),
+    ).toBeInTheDocument();
+    const suggestion = screen.getByRole("button", {
+      name: /九月博多座特別公演/,
+    });
+    await waitFor(() => expect(suggestion).toBeEnabled());
+    fireEvent.click(suggestion);
+    expect(screen.getByText("2026-09-03〜2026-09-14")).toBeInTheDocument();
+    const bindButton = screen.getByRole("button", {
+      name: "このEventに紐づけて承認",
+    });
+    await waitFor(() => expect(bindButton).toBeEnabled());
+    fireEvent.click(bindButton);
+    await waitFor(() =>
+      expect(bindAction).toHaveBeenCalledWith({
+        candidateId: candidate.id,
+        eventId,
+      }),
+    );
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
   it.each(["empty", "unavailable", "error"] as const)(
     "renders the %s state without a fake queue",
     (variant) => {

@@ -7,6 +7,7 @@ import {
   AnchorButton,
   Badge,
   Button,
+  Input,
   StatePanel,
   WriteNotice,
 } from "@stage-tracker/ui";
@@ -22,7 +23,40 @@ export interface OfficialImportReviewQueueProps {
   readonly state: ReadState<readonly OfficialImportReviewCandidate[]>;
   readonly reviewAction: OfficialImportReviewAction;
   readonly applyAction: OfficialImportApplyAction;
+  readonly bindAction?: OfficialImportBindAction | undefined;
+  readonly lookupEventAction?: OfficialImportEventLookupAction | undefined;
 }
+
+interface BindableEvent {
+  readonly id: string;
+  readonly title: string;
+  readonly venue: string | null;
+  readonly startsOn: string;
+  readonly endsOn: string;
+}
+
+export type OfficialImportBindAction = (input: {
+  readonly candidateId: string;
+  readonly eventId: string;
+}) => Promise<
+  | {
+      readonly data?: unknown | undefined;
+      readonly serverError?: { readonly message: string } | undefined;
+      readonly validationErrors?: unknown | undefined;
+    }
+  | undefined
+>;
+
+export type OfficialImportEventLookupAction = (input: {
+  readonly eventId: string;
+}) => Promise<
+  | {
+      readonly data?: BindableEvent | undefined;
+      readonly serverError?: { readonly message: string } | undefined;
+      readonly validationErrors?: unknown | undefined;
+    }
+  | undefined
+>;
 
 export type OfficialImportReviewAction = (input: {
   readonly candidateId: string;
@@ -408,6 +442,168 @@ function ReviewControls({
   );
 }
 
+function eventIdFromInput(value: string): string | null {
+  const trimmed = value.trim();
+  const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+  if (id.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if (
+      url.origin !== "https://stage-tracker.com" &&
+      url.origin !== window.location.origin
+    )
+      return null;
+    const match = /^\/catalog\/events\/([0-9a-f-]+)\/?$/iu.exec(url.pathname);
+    return match !== null && id.test(match[1] ?? "")
+      ? (match[1] ?? null)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function ManualBindingControls({
+  candidate,
+  bindAction,
+  lookupEventAction,
+}: {
+  candidate: OfficialImportReviewCandidate;
+  bindAction: OfficialImportBindAction;
+  lookupEventAction: OfficialImportEventLookupAction;
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState("");
+  const [preview, setPreview] = useState<BindableEvent | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [completed, setCompleted] = useState(false);
+
+  function lookup() {
+    const eventId = eventIdFromInput(value);
+    setPreview(null);
+    setErrorMessage(null);
+    if (eventId === null) {
+      setErrorMessage("EventのURLまたはIDを入力してください。");
+      return;
+    }
+    startTransition(async () => {
+      const result = await lookupEventAction({ eventId });
+      if (result?.serverError || result?.validationErrors || !result?.data) {
+        setErrorMessage(
+          result?.serverError?.message ?? "Eventを確認できませんでした。",
+        );
+        return;
+      }
+      setPreview(result.data);
+    });
+  }
+
+  function bind() {
+    if (preview === null) return;
+    setErrorMessage(null);
+    startTransition(async () => {
+      const result = await bindAction({
+        candidateId: candidate.id,
+        eventId: preview.id,
+      });
+      if (result?.serverError || result?.validationErrors || !result?.data) {
+        setErrorMessage(
+          result?.serverError?.message ?? "紐づけを保存できませんでした。",
+        );
+        return;
+      }
+      setCompleted(true);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-xs rounded-lg border border-border p-sm">
+      <p className="text-body-sm font-semibold">既存Eventに紐づける</p>
+      <p className="text-body-sm text-muted-foreground">
+        公演名や期間が一致しない場合は、正しいEventを確認して指定できます。
+      </p>
+      {(candidate.suggestedEvents?.length ?? 0) > 0 ? (
+        <div className="flex flex-col gap-2xs">
+          <p className="text-body-sm font-semibold">もしかしてこのEvent？</p>
+          <p className="text-body-sm text-muted-foreground">
+            会場と公演年から探した候補です。公演名・期間を元ページと照らして選んでください。
+          </p>
+          {candidate.suggestedEvents?.map((event) => (
+            <Button
+              key={event.id}
+              type="button"
+              variant="outline"
+              disabled={isPending || completed}
+              onClick={() => {
+                setValue(event.id);
+                setPreview(event);
+                setErrorMessage(null);
+              }}
+            >
+              {event.title} / {event.venue ?? "会場未設定"} / {event.startsOn}〜
+              {event.endsOn}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      <label htmlFor={`binding-event-${candidate.id}`} className="text-body-sm">
+        Event URL または ID
+      </label>
+      <Input
+        id={`binding-event-${candidate.id}`}
+        value={value}
+        disabled={isPending || completed}
+        onChange={(event) => {
+          setValue(event.target.value);
+          setPreview(null);
+        }}
+      />
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending || completed}
+          onClick={lookup}
+        >
+          Eventを確認
+        </Button>
+      </div>
+      {preview !== null ? (
+        <div className="flex flex-col gap-2xs rounded-lg bg-muted p-sm text-body-sm">
+          <p>
+            {preview.title} / {preview.venue ?? "会場未設定"}
+          </p>
+          <p>
+            {preview.startsOn}〜{preview.endsOn}
+          </p>
+          <AnchorButton
+            href={`/catalog/events/${preview.id}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            variant="link"
+            size="sm"
+          >
+            Event詳細を開く
+          </AnchorButton>
+          <Button
+            type="button"
+            disabled={isPending || completed}
+            onClick={bind}
+          >
+            このEventに紐づけて承認
+          </Button>
+        </div>
+      ) : null}
+      {errorMessage !== null ? (
+        <p role="alert" className="text-body-sm text-destructive">
+          {errorMessage}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 const RETRYABLE_APPLY_FAILURES = new Set([
   "write_conflict",
   "provider_unavailable",
@@ -530,10 +726,14 @@ function CandidateCard({
   candidate,
   reviewAction,
   applyAction,
+  bindAction,
+  lookupEventAction,
 }: {
   candidate: OfficialImportReviewCandidate;
   reviewAction: OfficialImportReviewAction;
   applyAction: OfficialImportApplyAction;
+  bindAction?: OfficialImportBindAction | undefined;
+  lookupEventAction?: OfficialImportEventLookupAction | undefined;
 }) {
   return (
     <article
@@ -645,11 +845,20 @@ function CandidateCard({
           </p>
           {candidate.kind === "ticket_opportunity" &&
           candidate.reviewStatus === "blocked_for_identity_review" ? (
-            <ReviewControls
-              candidate={candidate}
-              reviewAction={reviewAction}
-              rejectOnly
-            />
+            <div className="flex flex-col gap-sm">
+              {bindAction !== undefined && lookupEventAction !== undefined ? (
+                <ManualBindingControls
+                  candidate={candidate}
+                  bindAction={bindAction}
+                  lookupEventAction={lookupEventAction}
+                />
+              ) : null}
+              <ReviewControls
+                candidate={candidate}
+                reviewAction={reviewAction}
+                rejectOnly
+              />
+            </div>
           ) : null}
         </div>
       ) : candidate.reviewStatus === "pending" ? (
@@ -665,6 +874,8 @@ export function OfficialImportReviewQueue({
   state,
   reviewAction,
   applyAction,
+  bindAction,
+  lookupEventAction,
 }: OfficialImportReviewQueueProps) {
   if (state.variant !== "populated") {
     return (
@@ -707,6 +918,8 @@ export function OfficialImportReviewQueue({
           candidate={candidate}
           reviewAction={reviewAction}
           applyAction={applyAction}
+          bindAction={bindAction}
+          lookupEventAction={lookupEventAction}
         />
       ))}
     </div>

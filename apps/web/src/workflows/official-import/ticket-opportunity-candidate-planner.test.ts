@@ -99,7 +99,7 @@ describe("Ticket Opportunity candidate planning", () => {
     expect(align).not.toHaveBeenCalled();
   });
 
-  it("resolves one exact title, venue, and range deterministically", async () => {
+  it("resolves one exact venue and range deterministically", async () => {
     const { planner, align, findPotentialMatches } = setup(null, [event()]);
     const result = await planner.planTicketOpportunity(source, draft());
     expect(result.deterministicMatchStatus).toBe("matched");
@@ -112,7 +112,10 @@ describe("Ticket Opportunity candidate planning", () => {
     expect(
       prefilter?.({ title: "秀山祭九月大歌舞伎", venue: "歌舞伎座" }),
     ).toBe(true);
-    expect(prefilter?.({ title: "別公演", venue: "歌舞伎座" })).toBe(false);
+    expect(prefilter?.({ title: "別公演", venue: "歌舞伎座" })).toBe(true);
+    expect(prefilter?.({ title: "秀山祭九月大歌舞伎", venue: "南座" })).toBe(
+      false,
+    );
   });
 
   it("uses a known Kabuki Event identity despite observed Minamiza title and venue variants", async () => {
@@ -145,7 +148,7 @@ describe("Ticket Opportunity candidate planning", () => {
     });
   });
 
-  it("does not deterministically bind a substring title without source identity", async () => {
+  it("binds an observed title variant when venue and full period uniquely agree", async () => {
     const matched = event({ title: "流白浪燦星", venue: "南座" });
     const proposal = draft();
     const { planner } = setup(null, [matched]);
@@ -158,7 +161,107 @@ describe("Ticket Opportunity candidate planning", () => {
         endsOn: matched.endsOn,
       },
     });
-    expect(result.deterministicMatchStatus).toBe("unresolved");
+    expect(result.deterministicMatchStatus).toBe("matched");
+    expect(result.semanticMatchStatus).toBe("not_used");
+    expect(result.resolvedEventId).toBe(matched.id);
+  });
+
+  it("does not bind a changed period, even with the same venue and title", async () => {
+    const matched = event({
+      title: "九月博多座特別公演",
+      venue: "博多座",
+      startsOn: "2026-09-03",
+      endsOn: "2026-09-14",
+    });
+    const proposal = draft();
+    const { planner } = setup(null, [matched]);
+    const result = await planner.planTicketOpportunity(source, {
+      ...proposal,
+      eventReference: {
+        title: matched.title,
+        venue: matched.venue,
+        startsOn: "2026-09-04",
+        endsOn: matched.endsOn,
+      },
+    });
+    expect(result.deterministicMatchStatus).not.toBe("matched");
+    expect(result.resolvedEventId).toBeNull();
+  });
+
+  it("reuses a human-reviewed binding on later scans with a changed period", async () => {
+    const matched = event({
+      title: "九月博多座特別公演",
+      venue: "博多座",
+      startsOn: "2026-09-03",
+      endsOn: "2026-09-14",
+    });
+    const { align, findOpportunity, findPotentialMatches } = setup(null, []);
+    const planner = createTicketOpportunityCandidatePlanner(
+      {
+        findExactBySourceKey: vi.fn(async (key) =>
+          key === matched.sourceKey ? matched : null,
+        ),
+        findPotentialMatches,
+      },
+      { findExactBySourceKey: findOpportunity },
+      { align },
+      {
+        find: vi.fn(async () => ({
+          eventId: matched.id,
+          eventSourceKey: matched.sourceKey ?? "",
+        })),
+      },
+    );
+    const proposal = draft();
+    const result = await planner.planTicketOpportunity(source, {
+      ...proposal,
+      eventReference: {
+        title: matched.title,
+        venue: matched.venue,
+        startsOn: "2026-09-04",
+        endsOn: matched.endsOn,
+      },
+    });
+    expect(result.resolvedEventId).toBe(matched.id);
+    expect(result.semanticMatchStatus).toBe("not_used");
+    expect(align).not.toHaveBeenCalled();
+  });
+
+  it("holds a reviewed binding whose Event identity has changed", async () => {
+    const other = event({ id: "event-2" });
+    const unavailable: EventAlignmentResult = { status: "unavailable" };
+    const { findOpportunity, findPotentialMatches } = setup(null, []);
+    const planner = createTicketOpportunityCandidatePlanner(
+      {
+        findExactBySourceKey: vi.fn(async (key) =>
+          key === other.sourceKey ? other : null,
+        ),
+        findPotentialMatches,
+      },
+      { findExactBySourceKey: findOpportunity },
+      { align: vi.fn(async () => unavailable) },
+      {
+        find: vi.fn(async () => ({
+          eventId: "event-1",
+          eventSourceKey: "kabuki-bito:kabukiza:play:123",
+        })),
+      },
+    );
+    const result = await planner.planTicketOpportunity(source, draft());
+    expect(result.deterministicMatchStatus).toBe("ambiguous");
+    expect(result.resolvedEventId).toBeNull();
+  });
+
+  it("holds two Events with the same venue and period for human review", async () => {
+    const first = event({ title: "第一部" });
+    const second = event({
+      id: "event-2",
+      sourceKey: "kabuki-bito:kabukiza:play:124",
+      title: "第二部",
+    });
+    const { planner } = setup(null, [first, second]);
+    const result = await planner.planTicketOpportunity(source, draft());
+    expect(result.deterministicMatchStatus).toBe("ambiguous");
     expect(result.resolvedEventId).toBeNull();
   });
 
