@@ -11,6 +11,89 @@ const source = getOfficialSource("event.takarazuka.revue");
 if (source === null) throw new Error("test source missing");
 
 describe("Takarazuka revue adapter facts", () => {
+  it("stages a dated venue without a published day schedule as Event-only", async () => {
+    const detailUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2027/thelondonway/index.html";
+    const pages = new Map<string, string>([
+      [
+        source.canonicalUrl,
+        `<div class="item"><a href="/sp/revue/2027/thelondonway/index.html"><p class="title">The London Way</p></a>
+        <dl><dt>東京宝塚劇場</dt><dd>2027年4月3日～5月16日</dd></dl></div>`,
+      ],
+      [detailUrl, `<section><h2>公演情報</h2></section>`],
+    ]);
+    const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    const drafts = await adapter.acquire(source);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]?.proposal).toMatchObject({
+      sourceKey: "takarazuka:2027:thelondonway:tokyo",
+      sourceUrl: detailUrl,
+      startsOn: "2027-04-03",
+      endsOn: "2027-05-16",
+      occurrences: [],
+    });
+  });
+
+  it("fails closed before fetching more than 30 Takarazuka pages", async () => {
+    const index = Array.from(
+      { length: 15 },
+      (_, index) => `
+      <div class="item"><a href="/sp/revue/2027/work${index}/index.html">
+      <p class="title">Work ${index}</p></a>
+      <dl><dt>東京宝塚劇場</dt><dd>2027年4月3日～5月16日</dd></dl></div>`,
+    ).join("");
+    let requests = 0;
+    const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+      requests += 1;
+      const body =
+        url === source.canonicalUrl
+          ? index
+          : url.endsWith("/index.html")
+            ? `<a href="schedule_tokyo.html">日程</a>`
+            : `<table><tr><th>4/3</th><td>13:30</td></tr></table>`;
+      return document(url, body);
+    });
+    await expect(adapter.acquire(source)).rejects.toThrow(
+      "Official source parse failed",
+    );
+    expect(requests).toBe(30);
+  });
+
+  it("ignores the observed navigation and cast blocks and fetches duplicate schedule links once", async () => {
+    const detailUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2026/ponoichizoku/index.html";
+    const scheduleUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2026/ponoichizoku/schedule_tokyo.html";
+    const pages = new Map<string, string>([
+      [
+        source.canonicalUrl,
+        `<div class="item"><a href="/sp/revue/index.html">公演案内</a></div>
+        <div class="item"><a href="/sp/revue/2026/ponoichizoku/index.html"><p class="title">『ポーの一族』</p></a>
+        <dl><dt>東京宝塚劇場</dt><dd>2026年9月12日～13日</dd></dl>
+        <dl><dt>主な出演者</dt><dd>出演者名</dd></dl></div>`,
+      ],
+      [
+        detailUrl,
+        `<a href="schedule_tokyo.html">日程</a><a href="schedule_tokyo.html">日程</a>`,
+      ],
+      [scheduleUrl, `<table><tr><th>9/12</th><td>13:30</td></tr></table>`],
+    ]);
+    const requests: string[] = [];
+    const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+      requests.push(url);
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    const drafts = await adapter.acquire(source);
+    expect(drafts).toHaveLength(1);
+    expect(requests).toEqual([source.canonicalUrl, detailUrl, scheduleUrl]);
+  });
+
   it("derives one venue-specific Event source key and occurrence draft", async () => {
     const pages = new Map<string, string>([
       [
