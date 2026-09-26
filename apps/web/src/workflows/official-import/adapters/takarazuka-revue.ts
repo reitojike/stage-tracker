@@ -65,6 +65,7 @@ export function parseTakarazukaIndex(
         ),
       ).length > 0,
   );
+  if (candidateItems.length === 0) throw new SourceParseFailure();
   const facts = candidateItems.flatMap((item): TakarazukaProductionFact[] => {
     const anchor = descendants(item, (node) => {
       const href = attribute(node, "href") ?? "";

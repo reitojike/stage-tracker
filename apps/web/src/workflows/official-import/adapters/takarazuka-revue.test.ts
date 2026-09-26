@@ -11,6 +11,16 @@ const source = getOfficialSource("event.takarazuka.revue");
 if (source === null) throw new Error("test source missing");
 
 describe("Takarazuka revue adapter facts", () => {
+  it("fails closed when the index has no recognized production links", () => {
+    expect(() =>
+      parseTakarazukaIndex(
+        source,
+        `<div class="item"><a href="/sp/revue/index.html">公演案内</a></div>
+        <div class="item"><a href="/sp/revue/2027/example/performance.html">Example</a></div>`,
+      ),
+    ).toThrow("Official source parse failed");
+  });
+
   it("stages a dated venue without a published day schedule as Event-only", async () => {
     const detailUrl =
       "https://kageki.hankyu.co.jp/sp/revue/2027/thelondonway/index.html";
