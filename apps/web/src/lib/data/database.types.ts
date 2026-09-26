@@ -514,7 +514,7 @@ export type Database = {
           candidate_id: string
           created_at: string
           event_id: string
-          event_source_key: string
+          event_source_key: string | null
           reviewer: string
           source_id: string
           ticket_source_key: string
@@ -523,7 +523,7 @@ export type Database = {
           candidate_id: string
           created_at?: string
           event_id: string
-          event_source_key: string
+          event_source_key?: string | null
           reviewer: string
           source_id: string
           ticket_source_key: string
@@ -532,7 +532,7 @@ export type Database = {
           candidate_id?: string
           created_at?: string
           event_id?: string
-          event_source_key?: string
+          event_source_key?: string | null
           reviewer?: string
           source_id?: string
           ticket_source_key?: string
