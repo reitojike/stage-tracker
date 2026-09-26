@@ -366,7 +366,7 @@ export async function executeOfficialImportCandidateApply(
       if (
         manualBinding !== null &&
         (planning.resolvedEventId !== manualBinding.eventId ||
-          planning.plan.eventChanged)
+          (newlyBoundTicket && planning.plan.eventChanged))
       )
         failure("identity_ambiguous");
       freshFingerprint = planning.planFingerprint;

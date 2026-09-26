@@ -360,6 +360,40 @@ describe("approved official import apply execution", () => {
     );
   });
 
+  it("applies a later reviewed correction from another Event to the manual Event", async () => {
+    const harness = setup(
+      ticketCandidate({
+        proposal: ticketProposal("unresolved:shochiku:example"),
+        manualEventBinding: { eventId: "event-1", eventSourceKey: null },
+      }),
+    );
+    vi.mocked(harness.planner.planTicketOpportunity).mockResolvedValueOnce({
+      planFingerprint: "reviewed-ticket-fingerprint",
+      deterministicMatchStatus: "matched",
+      semanticMatchStatus: "not_used",
+      resolvedEventId: "event-1",
+      resolvedTicketOpportunityId: "ticket-1",
+      plan: {
+        action: "update",
+        eventChanged: true,
+        detailsChanged: false,
+        occurrencesChanged: false,
+        milestonesChanged: false,
+      },
+    });
+
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+
+    expect(result).toMatchObject({ status: "applied", outcome: "written" });
+    expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
+  });
+
   it("holds an unreviewed update to an existing ticket after manual Event binding", async () => {
     const harness = setup(
       ticketCandidate({
@@ -394,6 +428,8 @@ describe("approved official import apply execution", () => {
     const harness = setup(
       ticketCandidate({
         semanticMatchStatus: "low_confidence",
+        resolvedEventId: null,
+        resolvedTicketOpportunityId: null,
         manualEventBinding: {
           eventId: "event-1",
           eventSourceKey: "kabuki-bito:example",
