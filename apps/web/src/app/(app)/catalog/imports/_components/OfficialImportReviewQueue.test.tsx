@@ -5,6 +5,7 @@ import { OfficialImportReviewQueue } from "./OfficialImportReviewQueue";
 
 const mockReviewAction = vi.fn();
 const mockApplyAction = vi.fn();
+const mockDismissAction = vi.fn();
 const mockRefresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -61,6 +62,7 @@ describe("OfficialImportReviewQueue", () => {
   beforeEach(() => {
     mockReviewAction.mockReset();
     mockApplyAction.mockReset();
+    mockDismissAction.mockReset();
     mockRefresh.mockReset();
   });
 
@@ -455,6 +457,7 @@ describe("OfficialImportReviewQueue", () => {
         }}
         reviewAction={mockReviewAction}
         applyAction={mockApplyAction}
+        dismissAction={mockDismissAction}
       />,
     );
 
@@ -463,6 +466,60 @@ describe("OfficialImportReviewQueue", () => {
     );
     expect(
       screen.queryByRole("button", { name: "反映を再試行" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "対応不要として閉じる" }),
+    ).toBeInTheDocument();
+  });
+
+  it("closes a failed candidate without applying or changing its review decision", async () => {
+    mockDismissAction.mockResolvedValue({ data: { dismissed: true } });
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [
+            {
+              ...candidate,
+              reviewStatus: "approved",
+              applyStatus: "failed",
+              applyFailureClassification: "source_changed",
+            },
+          ],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+        dismissAction={mockDismissAction}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "対応不要として閉じる" }),
+    );
+    await waitFor(() =>
+      expect(mockDismissAction).toHaveBeenCalledWith({
+        candidateId: candidate.id,
+      }),
+    );
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+    expect(mockApplyAction).not.toHaveBeenCalled();
+    expect(mockReviewAction).not.toHaveBeenCalled();
+  });
+
+  it("does not offer dismissal before an apply has failed", () => {
+    render(
+      <OfficialImportReviewQueue
+        state={{
+          variant: "populated",
+          data: [{ ...candidate, reviewStatus: "approved" }],
+        }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+        dismissAction={mockDismissAction}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "対応不要として閉じる" }),
     ).not.toBeInTheDocument();
   });
 

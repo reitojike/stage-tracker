@@ -176,14 +176,21 @@ the official page's title and period with the Event before selecting one. If
 none is right, paste the existing catalog Event URL or UUID, inspect its
 preview, then select **このEventに紐づけて承認**. This records the reviewed binding for
 later scans of the same ticket source identity, but does not apply the ticket;
-**カタログへ反映** remains a separate step. Only active Events with a stable
-`source_key` can be bound. A canceled/deleted or identity-changed Event is held
-again rather than silently redirected. Do not select a merely similar Event
+**カタログへ反映** remains a separate step. Active manually registered Events
+without a `source_key` may also be bound; the reviewed Event ID is retained.
+A canceled/deleted or identity-changed Event is
+held again rather than silently redirected. Do not select a merely similar Event
 when the source actually describes a distinct performance.
 If a manually bound candidate would update an already-existing TicketOpportunity,
 apply stops with `source_changed`: the unresolved candidate did not display that
 update for review. Run the ticket scan again and inspect the newly resolved
 change before approving it.
+If an approved candidate's apply has failed and the operator confirms it no
+longer needs action (for example, a more precise TicketOpportunity is already
+in the catalog), select **対応不要として閉じる**. This removes only the failed candidate
+from the active review queue; its approval, failure, closing actor, and closing
+time remain in the database. Closing cannot delete catalog data or retry the
+failed apply. Do not use it for a change that still needs a fresh review.
 
 ## Enable and observe
 
