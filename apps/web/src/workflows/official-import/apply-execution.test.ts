@@ -50,6 +50,18 @@ function eventCandidate(
   };
 }
 
+function ticketProposal(eventSourceKey = "kabuki-bito:example") {
+  return {
+    eventSourceKey,
+    sourceKey: "shochiku:example:general",
+    displayName: "一般販売",
+    sourceUrl:
+      "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+    targetScope: "event_wide",
+    milestones: [{ type: "sale_start", precision: "date", date: "2026-09-01" }],
+  };
+}
+
 function ticketCandidate(
   overrides: Partial<OfficialImportApplyCandidate> = {},
 ): OfficialImportApplyCandidate {
@@ -65,17 +77,7 @@ function ticketCandidate(
     etag: null,
     lastModified: null,
     proposalVersion: "ticket_opportunity.v1",
-    proposal: {
-      eventSourceKey: "kabuki-bito:example",
-      sourceKey: "shochiku:example:general",
-      displayName: "一般販売",
-      sourceUrl:
-        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
-      targetScope: "event_wide",
-      milestones: [
-        { type: "sale_start", precision: "date", date: "2026-09-01" },
-      ],
-    },
+    proposal: ticketProposal(),
     evidenceLocator: {},
     planFingerprint: "reviewed-ticket-fingerprint",
     deterministicMatchStatus: "matched",
@@ -212,6 +214,7 @@ describe("approved official import apply execution", () => {
     expect(harness.planner.planTicketOpportunity).toHaveBeenCalledOnce();
     expect(harness.catalog.prepareTicketOpportunity).toHaveBeenCalledWith(
       expect.objectContaining({ sourceKey: "shochiku:example:general" }),
+      null,
     );
     expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
     expect(harness.eventPlan.apply).not.toHaveBeenCalled();
@@ -275,8 +278,86 @@ describe("approved official import apply execution", () => {
     expect(plannedDraft?.proposal.eventSourceKey).toBe("kabuki-bito:example");
     expect(harness.catalog.prepareTicketOpportunity).toHaveBeenCalledWith(
       expect.objectContaining({ eventSourceKey: "kabuki-bito:example" }),
+      "event-1",
     );
     expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
+  });
+
+  it("applies a reviewed ticket to a manual Event without a source key", async () => {
+    const candidate = ticketCandidate({
+      proposal: ticketProposal("unresolved:shochiku:example"),
+      planFingerprint: "unresolved-plan",
+      deterministicMatchStatus: "unresolved",
+      semanticMatchStatus: "low_confidence",
+      resolvedEventId: null,
+      resolvedTicketOpportunityId: null,
+      manualEventBinding: { eventId: "event-1", eventSourceKey: null },
+    });
+    const harness = setup(candidate);
+    vi.mocked(harness.planner.planTicketOpportunity).mockResolvedValueOnce({
+      planFingerprint: "bound-create-plan",
+      deterministicMatchStatus: "matched",
+      semanticMatchStatus: "not_used",
+      resolvedEventId: "event-1",
+      resolvedTicketOpportunityId: null,
+      plan: {
+        action: "create",
+        eventChanged: false,
+        detailsChanged: false,
+        occurrencesChanged: false,
+        milestonesChanged: false,
+      },
+    });
+    Object.assign(harness.ticketPlan, {
+      action: "create",
+      resolvedTicketOpportunityId: null,
+    });
+
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+
+    expect(result).toMatchObject({ status: "applied", outcome: "written" });
+    const plannedDraft = vi.mocked(harness.planner.planTicketOpportunity).mock
+      .calls[0]?.[1];
+    expect(plannedDraft?.proposal.eventSourceKey).toBe(
+      "unresolved:shochiku:example",
+    );
+    expect(harness.catalog.prepareTicketOpportunity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventSourceKey: "unresolved:shochiku:example",
+      }),
+      "event-1",
+    );
+    expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
+  });
+
+  it("keeps normal review checks for later updates to a manually bound Event", async () => {
+    const candidate = ticketCandidate({
+      proposal: ticketProposal("unresolved:shochiku:example"),
+      manualEventBinding: { eventId: "event-1", eventSourceKey: null },
+    });
+    const harness = setup(candidate);
+
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+
+    expect(result).toMatchObject({ status: "applied", outcome: "written" });
+    expect(harness.catalog.prepareTicketOpportunity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventSourceKey: "unresolved:shochiku:example",
+      }),
+      "event-1",
+    );
   });
 
   it("holds an unreviewed update to an existing ticket after manual Event binding", async () => {

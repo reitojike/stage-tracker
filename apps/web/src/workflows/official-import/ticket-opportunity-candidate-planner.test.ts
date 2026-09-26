@@ -76,6 +76,7 @@ function setup(
   const planner = createTicketOpportunityCandidatePlanner(
     {
       findExactBySourceKey: vi.fn(async () => exact),
+      findById: vi.fn(async () => exact),
       findPotentialMatches,
     },
     { findExactBySourceKey: findOpportunity },
@@ -201,6 +202,7 @@ describe("Ticket Opportunity candidate planning", () => {
         findExactBySourceKey: vi.fn(async (key) =>
           key === matched.sourceKey ? matched : null,
         ),
+        findById: vi.fn(async (id) => (id === matched.id ? matched : null)),
         findPotentialMatches,
       },
       { findExactBySourceKey: findOpportunity },
@@ -227,6 +229,34 @@ describe("Ticket Opportunity candidate planning", () => {
     expect(align).not.toHaveBeenCalled();
   });
 
+  it("reuses a reviewed binding to a manual Event without inventing a source key", async () => {
+    const matched = event({ sourceKey: null, title: "俳優祭" });
+    const { align, findOpportunity, findPotentialMatches } = setup(null, []);
+    const planner = createTicketOpportunityCandidatePlanner(
+      {
+        findExactBySourceKey: vi.fn(async () => null),
+        findById: vi.fn(async (id) => (id === matched.id ? matched : null)),
+        findPotentialMatches,
+      },
+      { findExactBySourceKey: findOpportunity },
+      { align },
+      {
+        find: vi.fn(async () => ({
+          eventId: matched.id,
+          eventSourceKey: null,
+        })),
+      },
+    );
+
+    const result = await planner.planTicketOpportunity(source, draft());
+    expect(result.resolvedEventId).toBe(matched.id);
+    expect(result.deterministicMatchStatus).toBe("matched");
+    expect(result.proposal?.eventSourceKey).toBe(
+      "unresolved:shochiku:2026:kabukiza",
+    );
+    expect(align).not.toHaveBeenCalled();
+  });
+
   it("holds a reviewed binding whose Event identity has changed", async () => {
     const other = event({ id: "event-2" });
     const unavailable: EventAlignmentResult = { status: "unavailable" };
@@ -236,6 +266,7 @@ describe("Ticket Opportunity candidate planning", () => {
         findExactBySourceKey: vi.fn(async (key) =>
           key === other.sourceKey ? other : null,
         ),
+        findById: vi.fn(async () => other),
         findPotentialMatches,
       },
       { findExactBySourceKey: findOpportunity },
@@ -248,6 +279,34 @@ describe("Ticket Opportunity candidate planning", () => {
       },
     );
     const result = await planner.planTicketOpportunity(source, draft());
+    expect(result.deterministicMatchStatus).toBe("ambiguous");
+    expect(result.resolvedEventId).toBeNull();
+  });
+
+  it("holds a ticket if a new exact identity conflicts with its reviewed binding", async () => {
+    const manual = event({ sourceKey: null });
+    const newlyImported = event({
+      id: "event-2",
+      sourceKey: "kabuki-bito:kabukiza:play:456",
+    });
+    const { findOpportunity, findPotentialMatches } = setup(null, []);
+    const planner = createTicketOpportunityCandidatePlanner(
+      {
+        findExactBySourceKey: vi.fn(async () => newlyImported),
+        findById: vi.fn(async () => manual),
+        findPotentialMatches,
+      },
+      { findExactBySourceKey: findOpportunity },
+      { align: vi.fn(async () => ({ status: "unavailable" })) },
+      {
+        find: vi.fn(async () => ({ eventId: manual.id, eventSourceKey: null })),
+      },
+    );
+
+    const result = await planner.planTicketOpportunity(
+      source,
+      draft(newlyImported.sourceKey ?? ""),
+    );
     expect(result.deterministicMatchStatus).toBe("ambiguous");
     expect(result.resolvedEventId).toBeNull();
   });

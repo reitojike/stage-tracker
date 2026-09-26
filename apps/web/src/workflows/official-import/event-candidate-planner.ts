@@ -34,6 +34,7 @@ export interface CatalogEventMatch {
 
 export interface EventMatchRepository {
   findExactBySourceKey(sourceKey: string): Promise<CatalogEventMatch | null>;
+  findById(eventId: string): Promise<CatalogEventMatch | null>;
   findPotentialMatches(
     startsOn: string,
     endsOn: string,

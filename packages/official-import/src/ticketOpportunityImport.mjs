@@ -113,17 +113,24 @@ async function readBoundedMatchRows(admin, table, columns, filterColumn, ids, or
  * (#163 "全seed validationをwrite前に完了"), mirroring
  * import-catalog-events.mjs's own all-before-any-write discipline.
  */
-export async function resolvePlans(admin, entries) {
+export async function resolvePlans(admin, entries, { targetEventId = null } = {}) {
   const problems = [];
   const plans = [];
 
+  if (targetEventId !== null && entries.length !== 1) {
+    return { ok: false, problems: ['An Event id override requires exactly one ticket entry.'] };
+  }
+
   const eventSourceKeys = [...new Set(entries.map((entry) => entry.eventSourceKey))];
-  const { data: eventRows, error: eventError } = await admin
+  const eventQuery = admin
     .from('events')
     .select(
       'id, source_key, title, venue, source_url, memo, genre_id, starts_on, ends_on, canceled_at',
-    )
-    .in('source_key', eventSourceKeys);
+    );
+  const { data: eventRows, error: eventError } =
+    targetEventId === null
+      ? await eventQuery.in('source_key', eventSourceKeys)
+      : await eventQuery.eq('id', targetEventId);
   if (eventError) {
     return {
       ok: false,
@@ -259,9 +266,16 @@ export async function resolvePlans(admin, entries) {
   }
 
   for (const entry of entries) {
-    const event = eventBySourceKey.get(entry.eventSourceKey);
+    const event =
+      targetEventId === null
+        ? eventBySourceKey.get(entry.eventSourceKey)
+        : eventRows.find((row) => row.id === targetEventId);
     if (event === undefined) {
-      problems.push(`${entry.sourceKey}: no Event found with source_key "${entry.eventSourceKey}"`);
+      problems.push(
+        targetEventId === null
+          ? `${entry.sourceKey}: no Event found with source_key "${entry.eventSourceKey}"`
+          : `${entry.sourceKey}: reviewed Event is no longer available`,
+      );
       continue;
     }
 

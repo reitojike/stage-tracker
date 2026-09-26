@@ -317,7 +317,11 @@ marker ではなく、依然として reviewer の運用規律が担う。
   candidates を検索し、exact source identity、title + venue + exact range の一意一致、
   ambiguous 時だけ Jev の順で解決します。解決済みの場合だけ durable proposal の
   `eventSourceKey` を catalog の current source key に置き換え、未解決・manual identity・
-  low confidence は identity review block にします。
+  low confidence は identity review block にします。designated catalog creator が既存 Event
+  を明示的に確認した場合は、manual `source_key = null` の Event も Event ID で紐づけます。
+  この判断は Ticket source identity と Event ID の binding に保存し、後続取得で再利用します。
+  source key の無い Event に仮の source key は付けません。初回の手動判断だけでは既存
+  Opportunity の未確認更新を反映せず、後続の差分は通常の review / apply を通します。
 - 2026-09-22 の bounded live shadow check では、raw pageを保存せず同じ parserを公式
   east / west URLへ適用し、HTTP 200 / `text/html` からそれぞれ 34 / 16 の販売行を
   抽出しました。全 50 行に source date があり、この時点の precision はすべて `date`、
@@ -328,7 +332,8 @@ marker ではなく、依然として reviewer の運用規律が担う。
   run の未判断 candidate と未反映の approved candidate を読みます。proposal、現在の
   対象、plan diff、evidence locator、deterministic / Jev 補助結果を表示しますが、raw source
   body と provider secret は扱いません。Jev は参考情報と明記し、identity blocked candidate
-  には承認操作を出しません。
+  には通常の承認操作を出しません。Ticket は確認者が既存 Event ID を指定した場合だけ
+  guarded binding RPC で紐づけと承認を同時に記録できます。
 - review action の client input は candidate UUID と `approved` / `rejected` decision だけです。
   reviewer と reviewed time は P2 RPC が `auth.uid()` / database time から記録します。この
   action 自身は Event / Occurrence / TicketOpportunity を直接変更しません。

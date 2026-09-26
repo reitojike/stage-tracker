@@ -89,6 +89,7 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
 
   async prepareTicketOpportunity(
     proposal: TicketOpportunityProposalInput,
+    targetEventId: string | null = null,
   ): Promise<OfficialImportCatalogApplyPlan> {
     const validated = validateSeedEntries([
       { raw: proposal, where: "approved official import candidate" },
@@ -99,6 +100,7 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
     const resolved = await resolveTicketOpportunityPlans(
       this.client,
       validated.entries,
+      { targetEventId },
     );
     if (!resolved.ok) {
       throw new OfficialImportCatalogFailure(

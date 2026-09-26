@@ -194,6 +194,50 @@ describe("Event match repository", () => {
     ).toBe(false);
   });
 
+  it("finds an active manual Event by id", async () => {
+    const requestedUrls: URL[] = [];
+    const client = createClient<Database>(
+      "https://example.test",
+      "public-test-key",
+      {
+        global: {
+          fetch: async (input) => {
+            const url = new URL(String(input));
+            requestedUrls.push(url);
+            if (url.pathname === "/rest/v1/events")
+              return Response.json({
+                id: "manual-event-1",
+                source_key: null,
+                title: "俳優祭",
+                venue: "歌舞伎座",
+                source_url: "https://actors.or.jp/wp/news/340/",
+                memo: null,
+                genre_id: null,
+                starts_on: "2026-10-26",
+                ends_on: "2026-10-26",
+                current_genre: null,
+              });
+            if (
+              url.pathname === "/rest/v1/event_occurrences" ||
+              url.pathname === "/rest/v1/event_groups"
+            )
+              return Response.json([]);
+            throw new Error(`Unexpected catalog request: ${url.pathname}`);
+          },
+        },
+      },
+    );
+
+    const event =
+      await createEventMatchRepository(client).findById("manual-event-1");
+    expect(event?.sourceKey).toBeNull();
+    const eventRequest = requestedUrls.find(
+      (url) => url.pathname === "/rest/v1/events",
+    );
+    expect(eventRequest?.searchParams.get("id")).toBe("eq.manual-event-1");
+    expect(eventRequest?.searchParams.get("canceled_at")).toBe("is.null");
+  });
+
   it("pages past 1,000 occurrence and group match facts without truncating the review fingerprint", async () => {
     const requestedOffsets: number[] = [];
     const occurrences = Array.from({ length: 1_001 }, (_, index) => ({

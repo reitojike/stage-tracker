@@ -185,6 +185,66 @@ void test('reviewed Ticket plan snapshots all target Event match facts', async (
   assert.match(oversized.problems[0], /exceeds the reviewed match-fact limit/);
 });
 
+void test('reviewed Event id resolves a manual Event without a source key', async () => {
+  const validated = validateSeedEntryShape(
+    validEntry({ eventSourceKey: 'unresolved:shochiku:haikusai' }),
+    'manual-ticket.json',
+  );
+  assert.equal(validated.ok, true);
+  const event = {
+    id: 'manual-event-1',
+    source_key: null,
+    title: '俳優祭',
+    venue: '歌舞伎座',
+    source_url: 'https://actors.or.jp/wp/news/340/',
+    memo: null,
+    genre_id: null,
+    starts_on: '2026-10-26',
+    ends_on: '2026-10-26',
+    canceled_at: null,
+  };
+  const admin = {
+    from(table) {
+      return {
+        select() {
+          return {
+            async eq(column, value) {
+              assert.equal(table, 'events');
+              assert.equal(column, 'id');
+              return { data: value === event.id ? [event] : [], error: null };
+            },
+            in() {
+              if (table === 'event_occurrences' || table === 'event_groups')
+                return {
+                  order() {
+                    return this;
+                  },
+                  async range() {
+                    return { data: [], error: null };
+                  },
+                };
+              return Promise.resolve({ data: [], error: null });
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const resolved = await resolvePlans(admin, [validated.entry], {
+    targetEventId: event.id,
+  });
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.plans[0].event.id, event.id);
+  assert.equal(resolved.plans[0].event.source_key, null);
+
+  const missing = await resolvePlans(admin, [validated.entry], {
+    targetEventId: 'other-event',
+  });
+  assert.equal(missing.ok, false);
+  assert.match(missing.problems[0], /reviewed Event is no longer available/);
+});
+
 void test('reviewed event-wide apply sends a null target list and surfaces stale catalog state', async () => {
   const validated = validateSeedEntryShape(validEntry(), 'seed.json[0]');
   assert.equal(validated.ok, true);
