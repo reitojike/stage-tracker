@@ -2,8 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { start } from "workflow/api";
 import { env } from "@/env";
-import { officialImportShadowWorkflow } from "@/workflows/official-import/shadow-workflow";
 import { dueScheduledSourceSlots } from "@/workflows/official-import/schedule";
+import { officialImportScheduledShadowWorkflow } from "@/workflows/official-import/scheduled-shadow-workflow";
 import { listScheduledShadowSources } from "@/workflows/official-import/source-registry";
 
 export const dynamic = "force-dynamic";
@@ -44,18 +44,16 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (slots.length === 0)
     return new NextResponse(null, { status: 204, headers: NO_STORE });
 
-  const results = await Promise.allSettled(
-    slots.map(({ source, tokyoDate }) =>
-      start(officialImportShadowWorkflow, [source.id, tokyoDate]),
-    ),
-  );
-  const failed = results.filter(
-    (result) => result.status === "rejected",
-  ).length;
-  if (failed > 0) {
-    console.error("Official import Cron could not start every source", {
+  try {
+    await start(officialImportScheduledShadowWorkflow, [
+      slots.map(({ source, tokyoDate }) => ({
+        sourceId: source.id,
+        tokyoDate,
+      })),
+    ]);
+  } catch {
+    console.error("Official import Cron could not start scheduled sources", {
       scheduled: slots.length,
-      failed,
     });
     return NextResponse.json(
       { error: "start_failed" },

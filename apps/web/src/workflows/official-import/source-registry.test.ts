@@ -18,18 +18,29 @@ describe("official source registry", () => {
     expect(source.canonicalUrl).toBe("https://www.kabuki-bito.jp/schedule/");
   });
 
-  it("schedules only the cleared Kabuki source for daily observation", () => {
+  it("schedules only the cleared Kabuki Event and Shochiku Ticket sources for daily observation", () => {
     expect(listScheduledShadowSources().map((source) => source.id)).toEqual([
       "event.kabuki-bito.schedule",
+      "ticket.shochiku.schedule",
     ]);
     expect(
       listOfficialSources()
-        .filter((source) => source.id !== "event.kabuki-bito.schedule")
+        .filter(
+          (source) =>
+            source.id !== "event.kabuki-bito.schedule" &&
+            source.id !== "ticket.shochiku.schedule",
+        )
         .every((source) => !source.scheduledEnabled),
     ).toBe(true);
     expect(
       getOfficialSource("event.kabuki-bito.schedule")?.fetchCadenceHint,
     ).toBe("daily");
+    expect(
+      getOfficialSource("ticket.shochiku.schedule")?.fetchCadenceHint,
+    ).toBe("daily");
+    expect(
+      getOfficialSource("ticket.shochiku.schedule")?.fetchCadenceHint,
+    ).toBe(getOfficialSource("event.kabuki-bito.schedule")?.fetchCadenceHint);
     expect(getOfficialSource("event.takarazuka.revue")?.fetchCadenceHint).toBe(
       "weekly",
     );

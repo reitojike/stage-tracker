@@ -15,8 +15,8 @@ vi.mock("workflow/api", () => ({ start: mocks.start }));
 vi.mock("@/workflows/official-import/source-registry", () => ({
   listScheduledShadowSources: () => [],
 }));
-vi.mock("@/workflows/official-import/shadow-workflow", () => ({
-  officialImportShadowWorkflow: vi.fn(),
+vi.mock("@/workflows/official-import/scheduled-shadow-workflow", () => ({
+  officialImportScheduledShadowWorkflow: vi.fn(),
 }));
 
 const { proxy } = await import("./proxy");

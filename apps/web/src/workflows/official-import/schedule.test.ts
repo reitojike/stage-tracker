@@ -4,7 +4,9 @@ import { getOfficialSource } from "./source-registry";
 
 const daily = getOfficialSource("event.cynhn.calendar");
 const kabuki = getOfficialSource("event.kabuki-bito.schedule");
-if (daily === null || kabuki === null) throw new Error("test source missing");
+const ticket = getOfficialSource("ticket.shochiku.schedule");
+if (daily === null || kabuki === null || ticket === null)
+  throw new Error("test source missing");
 const weekly = { ...kabuki, fetchCadenceHint: "weekly" as const };
 
 describe("official source schedule slots", () => {
@@ -33,6 +35,37 @@ describe("official source schedule slots", () => {
     expect(
       dueScheduledSourceSlots([kabuki], new Date("2026-09-22T00:00:00.000Z")),
     ).toEqual([{ source: kabuki, tokyoDate: "2026-09-22" }]);
+  });
+
+  it("runs both cleared Kabuki Event and Shochiku Ticket sources in the daily slot", () => {
+    expect(
+      dueScheduledSourceSlots(
+        [ticket, kabuki],
+        new Date("2026-09-22T00:00:00.000Z"),
+      ),
+    ).toEqual([
+      { source: kabuki, tokyoDate: "2026-09-22" },
+      { source: ticket, tokyoDate: "2026-09-22" },
+    ]);
+  });
+
+  it("keeps Event before Ticket after both sources return to weekly cadence", () => {
+    const weeklyTicket = { ...ticket, fetchCadenceHint: "weekly" as const };
+    expect(
+      dueScheduledSourceSlots(
+        [weeklyTicket, weekly],
+        new Date("2026-09-28T00:00:00.000Z"),
+      ),
+    ).toEqual([
+      { source: weekly, tokyoDate: "2026-09-28" },
+      { source: weeklyTicket, tokyoDate: "2026-09-28" },
+    ]);
+    expect(
+      dueScheduledSourceSlots(
+        [weeklyTicket, weekly],
+        new Date("2026-09-29T00:00:00.000Z"),
+      ),
+    ).toEqual([]);
   });
 
   it("rejects an invalid clock", () => {
