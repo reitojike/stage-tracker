@@ -316,6 +316,8 @@ export type Database = {
           content_hash: string
           created_at: string
           deterministic_match_status: string
+          dismissed_at: string | null
+          dismissed_by: string | null
           etag: string | null
           evidence_locator: Json
           failure_classification: string | null
@@ -348,6 +350,8 @@ export type Database = {
           content_hash: string
           created_at?: string
           deterministic_match_status?: string
+          dismissed_at?: string | null
+          dismissed_by?: string | null
           etag?: string | null
           evidence_locator?: Json
           failure_classification?: string | null
@@ -380,6 +384,8 @@ export type Database = {
           content_hash?: string
           created_at?: string
           deterministic_match_status?: string
+          dismissed_at?: string | null
+          dismissed_by?: string | null
           etag?: string | null
           evidence_locator?: Json
           failure_classification?: string | null
@@ -912,6 +918,8 @@ export type Database = {
           content_hash: string
           created_at: string
           deterministic_match_status: string
+          dismissed_at: string | null
+          dismissed_by: string | null
           etag: string | null
           evidence_locator: Json
           failure_classification: string | null
@@ -1040,6 +1048,10 @@ export type Database = {
       delete_event_occurrence: {
         Args: { p_occurrence_id: string }
         Returns: undefined
+      }
+      dismiss_failed_official_import_candidate: {
+        Args: { p_candidate_id: string }
+        Returns: boolean
       }
       event_occurrence_is_effectively_canceled: {
         Args: { p_occurrence_id: string }
@@ -1266,6 +1278,8 @@ export type Database = {
           content_hash: string
           created_at: string
           deterministic_match_status: string
+          dismissed_at: string | null
+          dismissed_by: string | null
           etag: string | null
           evidence_locator: Json
           failure_classification: string | null
