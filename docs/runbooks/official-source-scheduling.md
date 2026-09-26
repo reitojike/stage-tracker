@@ -71,6 +71,11 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
   [Issue #677](https://github.com/reitojike/stage-tracker/issues/677#issuecomment-5796382733)では、後日行う範囲限定のprivate-household・facts-only rolloutは
   妥当と判断されましたが、自動的に許可されたわけではありません。昇格前に[official site policy](https://kageki.hankyu.co.jp/rules.html)を再確認し、
   site policyに関して残る不確実性をoperatorが受け入れたことを記録し、source固有の厳格なrequest上限を適用し、個別のclean shadow canaryを完了してください。
+  2026-09-27の読み取り専用監査では、7作品・14会場をEvent 14件（公開済み日別表からOccurrenceを得られる9件、
+  日別表リンク未掲載でEvent-onlyの5件）として説明できました。Event adapterは1 run最大30 requestに制限し、この監査で17 requestを使用しました。
+  同じ公式一覧に明記された会場別の一般前売日は14件をdate-onlyのTicketOpportunity候補として解析でき、14件すべてがEvent source keyに対応しました。
+  このHTML ticket sourceは`planned`/`enabled: false`/`scheduledEnabled: false`のままで、先行販売は扱いません。PDF sourceの抽出精度gateも
+  未解決のままです。いずれもProduction候補作成・clean shadow再取得・human review/applyを確認する前に定期取得へ昇格しません。
 
 ## sourceごとの昇格gate
 
