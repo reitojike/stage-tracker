@@ -1,12 +1,12 @@
 # stage-tracker PRD
 
-## Product overview
+## Product概要
 
 stage-tracker は、オペレーター本人と、オペレーターが明示的に事前プロビジョニングした
 家族が複数ジャンルのイベント参加情報を一箇所で管理する private household
 application です。
 
-## User problem
+## 利用者の課題
 
 イベント参加者は、以下の情報が別々の場所に分散しがちです。
 
@@ -18,14 +18,14 @@ application です。
 stage-tracker はこれらを一つのproductの中で扱えるようにし、分散管理の負担を
 減らすことを目的とします。
 
-## Target user / usage context
+## 対象利用者 / 利用状況
 
 現在の利用対象は、オペレーター本人と、オペレーターが明示的に事前プロビジョニングした
 家族のアカウントです。友人・任意の第三者・一般ユーザーへの展開や public
 event-information service は current scope に含みません。将来その範囲へ拡張するには、
 別途明示的な product decision が必要です。
 
-## Main domain concepts
+## 主要なdomain concept
 
 現在採用しているtop-level domain conceptは次の5つです。各conceptの内部構造
 （例: **event** と公演回（occurrence）の関係）はこの一覧では展開せず、
@@ -66,7 +66,7 @@ event-independent **personal schedule**、occurrence-level
 persistence / RLS baseline と、UIがad-hocなSupabase table/RPC accessを
 せずに済む typed feature-level read/write boundary が実装済みです
 （personal schedule は sharing も含む。詳細は
-[Current committed scope](#current-committed-scope) 参照）。この3 domainの
+[現在確定済みのscope](#現在確定済みのscope) 参照）。この3 domainの
 user-facing UI journeyも実装済みです。詳細な申込・acquired Ticket inventory・
 ownership transfer は Issue #234 で current schema / runtime から撤去しており、
 現行PRDのdomainではありません。
@@ -89,7 +89,7 @@ ownership transfer は Issue #234 で current schema / runtime から撤去し�
 この分離は、screen構成やDB schemaの形を固定するものではなく、conceptとして
 の責務分離を表します。
 
-## Current-approved product-level semantics
+## 現在承認済みのproduct-level semantics
 
 Event / Occurrenceのnormativeなconstraintは
 [`Event / Occurrence Living Spec`](../specs/005-event-occurrence-lifecycle/spec.md)を
@@ -110,7 +110,7 @@ timeline projectionは[Spec 003](../specs/003-ticket-opportunity-timeline/spec.m
 Catalog classification / filterのcurrent semanticsは
 [Spec 011](../specs/011-catalog-classification-filter/spec.md)が正本です。
 
-## Current committed scope
+## 現在確定済みのscope
 
 現在current repositoryでschema/RLS/permission実装として成立している主な
 scopeは、shared Event catalog と owner semantics（owner限定更新・owner
@@ -170,7 +170,7 @@ timeline projectionについては[Spec 003](../specs/003-ticket-opportunity-tim
 その他の current semantics は各 topic の relevant Living Spec を参照します。
 calendar presentationは[`docs/ux-ui.md`](./ux-ui.md)を参照してください。
 
-## Deferred decisions
+## 保留中の決定
 
 以下は、関連する専用product Taskが起票されるまで未決定（deferred /
 uncommitted）です。current committed scopeには含みません。
@@ -213,7 +213,7 @@ credentialです。現時点でdeferredなのはproduction hosting providerと
 PWAのoffline / Web Push scopeのみで、sign-in providerをこれらと同一の
 deferred項目として扱いません。
 
-## Canonical constraints
+## 正本となる制約
 
 実装agentが従うべきnormativeなproduct/domain constraint（permission /
 invariant / default / 禁止事項等）は、該当する domain の Living Spec

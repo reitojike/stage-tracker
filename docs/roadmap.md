@@ -103,7 +103,7 @@ TicketOpportunityを前提に新しいbounded product Taskで再設計します�
 
 以下はcurrent committed scopeに含まれない、未決定領域です。必要になった
 時点で専用のproduct Taskで評価します（詳細は
-[`docs/prd.md`](./prd.md#deferred-decisions) 参照）。
+[`docs/prd.md`](./prd.md#保留中の決定) 参照）。
 
 - MCP product scope
 - PWAのoffline capabilityとWeb Push notificationのproduct scope
@@ -120,5 +120,5 @@ sign-in providerはEmail magic link + Supabase Auth cookie-based session
 （Issue #11、account bootstrap / recovery用）に加え、日常sign-inの
 primary pathとしてPasskey（Issue #106、Magic Linkを置換しないoptional
 credential）を追加した構成として決定済みです（詳細は
-[`docs/prd.md`](./prd.md#deferred-decisions) 参照）。production hosting
+[`docs/prd.md`](./prd.md#保留中の決定) 参照）。production hosting
 providerとは別項目として扱います。
