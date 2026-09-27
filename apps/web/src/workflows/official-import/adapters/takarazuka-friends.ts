@@ -1,5 +1,6 @@
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type OfficialSourceAdapter,
   type TicketOpportunityAcquisitionDraft,
 } from "../acquisition";
@@ -135,7 +136,9 @@ export function createTakarazukaFriendsAdapter(
     async acquire(source) {
       const document = await fetcher(source, source.canonicalUrl);
       const extraction = await provider.extractTakarazukaFriends(document.body);
-      return takarazukaFriendsDrafts(extraction, document);
+      return withSourceParsePage(document.url, () =>
+        takarazukaFriendsDrafts(extraction, document),
+      );
     },
   };
 }

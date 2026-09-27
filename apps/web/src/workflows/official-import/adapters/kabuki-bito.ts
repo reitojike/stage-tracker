@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type EventAcquisitionDraft,
   type HeldSourcePage,
   type OfficialSourceAdapter,
@@ -374,8 +375,11 @@ export function createKabukiBitoAdapter(
       reportHeldPage,
     ): Promise<readonly EventAcquisitionDraft[]> {
       const index = await fetcher(source, source.canonicalUrl);
-      const facts = parseKabukiIndex(source, index.body);
-      if (facts.length > MAX_PLAYS_PER_SCAN) throw new SourceParseFailure();
+      const facts = withSourceParsePage(index.url, () =>
+        parseKabukiIndex(source, index.body),
+      );
+      if (facts.length > MAX_PLAYS_PER_SCAN)
+        throw new SourceParseFailure(index.url, "request_limit");
       const drafts: EventAcquisitionDraft[] = [];
       // A current index can contain dozens of plays. Avoid a simultaneous
       // burst against the official site even when the Cron itself is weekly.
@@ -393,14 +397,19 @@ export function createKabukiBitoAdapter(
                 finalPath?.[1] !== fact.theater ||
                 finalPath?.[2] !== fact.officialId
               )
-                throw new SourceParseFailure();
-              const { timetable, period } = verifiedDetailSchedule(detail.body);
+                throw new SourceParseFailure(detail.url);
+              const { timetable, period } = withSourceParsePage(
+                detail.url,
+                () => verifiedDetailSchedule(detail.body),
+              );
               if (
                 period.startsOn !== fact.startsOn ||
                 period.endsOn !== fact.endsOn
               )
-                throw new SourceParseFailure();
-              const venue = detailText(detail.body, "type-theater");
+                throw new SourceParseFailure(detail.url);
+              const venue = withSourceParsePage(detail.url, () =>
+                detailText(detail.body, "type-theater"),
+              );
               let hasAnnotation = false;
               let performanceEndsVerified = false;
               let headlineParts: readonly KabukiHeadlinePart[] | null = null;

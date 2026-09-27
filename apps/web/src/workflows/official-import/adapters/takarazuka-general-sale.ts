@@ -1,5 +1,6 @@
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type OfficialSourceAdapter,
   type TicketOpportunityAcquisitionDraft,
 } from "../acquisition";
@@ -166,13 +167,16 @@ export function createTakarazukaGeneralSaleAdapter(
       let requests = 0;
       const read = (url: string) => {
         requests += 1;
-        if (requests > MAX_REQUESTS) throw new SourceParseFailure();
+        if (requests > MAX_REQUESTS)
+          throw new SourceParseFailure(url, "request_limit");
         return fetcher(source, url);
       };
       const index = await read(source.canonicalUrl);
-      const productions = parseTakarazukaIndex(source, index.body, {
-        strictGeneralSale: true,
-      });
+      const productions = withSourceParsePage(index.url, () =>
+        parseTakarazukaIndex(source, index.body, {
+          strictGeneralSale: true,
+        }),
+      );
       const drafts: TicketOpportunityAcquisitionDraft[] = [];
       for (const production of productions) {
         const detail = await read(production.canonicalUrl);
@@ -215,16 +219,17 @@ export function createTakarazukaGeneralSaleAdapter(
               },
             });
           }
-          const ticketUrl = ticketPageUrl(
-            source,
-            detail.url,
-            detail.body,
-            venue.venueSlug,
+          const ticketUrl = withSourceParsePage(detail.url, () =>
+            ticketPageUrl(source, detail.url, detail.body, venue.venueSlug),
           );
           if (ticketUrl === null) continue;
-          if (venue.generalSaleOn === null) throw new SourceParseFailure();
+          if (venue.generalSaleOn === null)
+            throw new SourceParseFailure(detail.url);
+          const generalSaleOn = venue.generalSaleOn;
           const ticket = await read(ticketUrl);
-          for (const sale of advanceSales(ticket.body, venue.generalSaleOn)) {
+          for (const sale of withSourceParsePage(ticket.url, () =>
+            advanceSales(ticket.body, generalSaleOn),
+          )) {
             const sourceKey = `${eventSourceKey}:${sale.key}`;
             drafts.push({
               candidateKind: "ticket_opportunity",

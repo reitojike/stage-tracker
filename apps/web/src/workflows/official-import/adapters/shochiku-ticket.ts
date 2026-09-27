@@ -1,5 +1,6 @@
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type OfficialSourceAdapter,
   type TicketOpportunityAcquisitionDraft,
 } from "../acquisition";
@@ -279,8 +280,10 @@ export function createShochikuTicketAdapter(
       );
       const contentHash = hashOfficialDocuments(documents);
       const detailed = documents.flatMap((document) =>
-        parseShochikuSchedule(document.body).map((fact) =>
-          draftFor(document, fact, contentHash),
+        withSourceParsePage(document.url, () =>
+          parseShochikuSchedule(document.body).map((fact) =>
+            draftFor(document, fact, contentHash),
+          ),
         ),
       );
       const preliminary = await acquireKabukiGeneralSales(

@@ -1,5 +1,6 @@
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type HeldSourcePage,
   type TicketOpportunityAcquisitionDraft,
 } from "../acquisition";
@@ -120,14 +121,17 @@ export async function acquireKabukiGeneralSales(
   readonly identities: readonly KabukiTicketIdentity[];
 }> {
   const index = await fetcher(KABUKI_SOURCE, KABUKI_SOURCE.canonicalUrl);
-  const facts = parseKabukiIndex(KABUKI_SOURCE, index.body);
+  const facts = withSourceParsePage(index.url, () =>
+    parseKabukiIndex(KABUKI_SOURCE, index.body),
+  );
   const drafts: TicketOpportunityAcquisitionDraft[] = [];
   const identities: KabukiTicketIdentity[] = [];
   for (let offset = 0; offset < facts.length; offset += 2) {
     const settled = await Promise.allSettled(
       facts.slice(offset, offset + 2).map(async (fact) => {
         const detail = await fetcher(KABUKI_SOURCE, fact.canonicalUrl);
-        if (detail.url !== fact.canonicalUrl) throw new SourceParseFailure();
+        if (detail.url !== fact.canonicalUrl)
+          throw new SourceParseFailure(fact.canonicalUrl);
         let identity: KabukiTicketIdentity | null = null;
         try {
           const venues = descendants(

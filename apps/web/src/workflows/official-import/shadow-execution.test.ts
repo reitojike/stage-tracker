@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ProviderUnavailableFailure,
   SourceFetchFailure,
+  SourceParseFailure,
   type AcquisitionDraft,
   type OfficialImportCandidatePlanner,
   type OfficialSourceAdapter,
@@ -96,6 +97,42 @@ const unusedPlanner: OfficialImportCandidatePlanner = {
 };
 
 describe("official import shadow execution", () => {
+  it("logs only the source and allowlisted page when an unsupported format fails a run", async () => {
+    const source = requireEnabledShadowSource("event.takarazuka.revue");
+    const harness = repositoryHarness();
+    const pageUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2026/example/schedule_tokyo.html";
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const result = await executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          async acquire() {
+            throw new SourceParseFailure(pageUrl);
+          },
+        },
+        {
+          planEvent: vi.fn(),
+          planTicketOpportunity: vi.fn(),
+        },
+        harness.repository,
+      );
+
+      expect(result).toMatchObject({
+        status: "failed",
+        failureClassification: "source_parse",
+      });
+      expect(errorLog).toHaveBeenCalledWith(
+        "Official source page has unsupported format",
+        { sourceId: source.id, canonicalUrl: pageUrl },
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
   it("stores the planner's curated Event details in the reviewed candidate", async () => {
     const source = requireEnabledShadowSource("event.takarazuka.revue");
     const sourceKey = "takarazuka:2027:thelondonway:takarazuka";
