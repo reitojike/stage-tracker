@@ -175,6 +175,28 @@ describe("Takarazuka general-sale index adapter", () => {
     });
   });
 
+  it("holds lottery dates after the January general sale instead of assigning them to the prior year", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2026/tenkyuunoartemis/index.html"><p class="title">『天穹のアルテミス』</p></a>
+      <dl><dt>東京宝塚劇場</dt><dd>2027年2月13日～3月28日 一般前売：2027年1月17日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_tokyo.html")
+          ? `<div class="set"><h4>宝塚友の会</h4><p class="txt">■「第1抽選方式」申込期間：1月18日（月）10:00〜1月19日（火）23:00 結果照会：1月20日（水）10:00〜</p></div>`
+          : url.endsWith("tenkyuunoartemis/index.html")
+            ? `<a href="/sp/revue/2026/tenkyuunoartemis/ticket_tokyo.html">チケット</a>`
+            : index,
+        observedAt: "2026-09-27T00:00:00.000Z",
+        contentHash: "a".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(
+      "Official source parse failed",
+    );
+  });
+
   it("holds a linked ticket page with an unreadable lottery time", async () => {
     const index = `<div class="item"><a href="/sp/revue/2026/elisabeth/index.html"><p class="title">『エリザベート』</p></a>
       <dl><dt>宝塚大劇場</dt><dd>2026年10月17日～11月22日 一般前売：2026年9月26日</dd></dl></div>`;

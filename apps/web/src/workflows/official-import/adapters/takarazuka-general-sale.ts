@@ -67,12 +67,9 @@ function datedClock(text: string, generalSaleOn: string): string {
   if (match === null) throw new SourceParseFailure();
   const month = Number(match[1]);
   const day = Number(match[2]);
+  const saleMonth = Number(generalSaleOn.slice(5, 7));
   const year =
-    Number(generalSaleOn.slice(0, 4)) -
-    (month * 100 + day >
-    Number(generalSaleOn.slice(5, 7)) * 100 + Number(generalSaleOn.slice(8, 10))
-      ? 1
-      : 0);
+    Number(generalSaleOn.slice(0, 4)) - (saleMonth <= 3 && month >= 10 ? 1 : 0);
   const date = calendarDate(year, month, day);
   return tokyoDateTime(date, Number(match[3]), Number(match[4]));
 }
