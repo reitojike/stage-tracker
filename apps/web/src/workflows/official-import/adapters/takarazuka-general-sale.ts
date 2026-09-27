@@ -3,7 +3,10 @@ import {
   type OfficialSourceAdapter,
   type TicketOpportunityAcquisitionDraft,
 } from "../acquisition";
-import { assertAllowedSourceUrl, type OfficialSourceDefinition } from "../source-registry";
+import {
+  assertAllowedSourceUrl,
+  type OfficialSourceDefinition,
+} from "../source-registry";
 import {
   attribute,
   descendants,
@@ -48,7 +51,10 @@ function ticketPageUrl(
   if (links.size > 1) throw new SourceParseFailure();
   const url = [...links][0];
   if (url === undefined) return null;
-  const productionPath = new URL(productionUrl).pathname.replace(/index\.html$/u, "");
+  const productionPath = new URL(productionUrl).pathname.replace(
+    /index\.html$/u,
+    "",
+  );
   if (!new URL(url).pathname.startsWith(productionPath))
     throw new SourceParseFailure();
   return url;
@@ -132,9 +138,12 @@ function advanceSales(html: string, generalSaleOn: string): AdvanceSale[] {
         generalSaleOn,
       );
       sales.push({
-        key: key === "plus" ? "common-id-plus-lottery" : `friends-lottery-${key}`,
+        key:
+          key === "plus" ? "common-id-plus-lottery" : `friends-lottery-${key}`,
         displayName:
-          key === "plus" ? "宝塚歌劇共通ID＋ 抽選方式" : `宝塚友の会 第${key}抽選方式`,
+          key === "plus"
+            ? "宝塚歌劇共通ID＋ 抽選方式"
+            : `宝塚友の会 第${key}抽選方式`,
         sectionLabel,
         milestones,
       });
