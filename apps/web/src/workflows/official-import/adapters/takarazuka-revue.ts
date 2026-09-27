@@ -59,6 +59,34 @@ function productionTitle(node: ReturnType<typeof parseHtml>): string {
   return workNames.length > 0 ? workNames.join(" ") : text;
 }
 
+function productionGroup(document: ReturnType<typeof parseHtml>): {
+  key: string;
+  displayName: string;
+} {
+  const title = descendants(
+    document,
+    (node) => elementName(node) === "title",
+  )[0];
+  const troupe =
+    title === undefined
+      ? null
+      : normalizedText(title).match(/^([花月雪星宙])組公演/u)?.[1];
+  const slugs: Record<string, string> = {
+    花: "hana",
+    月: "tsuki",
+    雪: "yuki",
+    星: "hoshi",
+    宙: "sora",
+  };
+  if (typeof troupe !== "string") throw new SourceParseFailure();
+  const slug = slugs[troupe];
+  if (slug === undefined) throw new SourceParseFailure();
+  return {
+    key: `takarazuka-${slug}`,
+    displayName: `${troupe}組`,
+  };
+}
+
 export function parseTakarazukaIndex(
   source: OfficialSourceDefinition,
   html: string,
@@ -255,6 +283,7 @@ export function createTakarazukaRevueAdapter(
       for (const production of productions) {
         const detail = await fetchBounded(source, production.canonicalUrl);
         const detailDocument = parseHtml(detail.body);
+        const group = productionGroup(detailDocument);
         const scheduleLinks = descendants(detailDocument, (node) => {
           const href = attribute(node, "href") ?? "";
           return (
@@ -295,6 +324,8 @@ export function createTakarazukaRevueAdapter(
             proposal: {
               sourceKey: `takarazuka:${production.year}:${production.workSlug}:${venue.venueSlug}`,
               title: production.title,
+              genre: "takarazuka",
+              groups: [group],
               venue: venue.venue,
               sourceUrl: schedule.url,
               startsOn: venue.startsOn,
@@ -324,6 +355,8 @@ export function createTakarazukaRevueAdapter(
             proposal: {
               sourceKey: `takarazuka:${production.year}:${production.workSlug}:${venue.venueSlug}`,
               title: production.title,
+              genre: "takarazuka",
+              groups: [group],
               venue: venue.venue,
               sourceUrl: detail.url,
               startsOn: venue.startsOn,
