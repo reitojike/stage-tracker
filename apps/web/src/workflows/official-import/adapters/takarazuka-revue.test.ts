@@ -24,6 +24,55 @@ describe("Takarazuka revue adapter facts", () => {
     expect(fact?.venues[0]?.venue).toBe("宝塚大劇場");
   });
 
+  it("uses the official production-page title for the observed Star Troupe event", async () => {
+    const detailUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2027/abunaideka/index.html";
+    const pages = new Map([
+      [
+        source.canonicalUrl,
+        `<div class="item"><a href="/sp/revue/2027/abunaideka/index.html"><p class="title">『あぶない刑事』</p></a>
+        <dl><dt>宝塚大劇場</dt><dd>2027年5月8日～6月20日</dd></dl></div>`,
+      ],
+      [
+        detailUrl,
+        `<title>星組公演 『あぶない刑事』『PURE LOVE!!』</title>
+        <dl class="revueInfo accordion"><dt class="acc-trigger">宝塚大劇場 [兵庫県]</dt>
+        <dd>公演期間 2027年5月8日～6月20日 一般前売 2027年4月10日</dd></dl>`,
+      ],
+    ]);
+    const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    const [draft] = await adapter.acquire(source);
+    expect(draft?.proposal).toMatchObject({
+      genre: "takarazuka",
+      groups: [{ key: "takarazuka-hoshi", displayName: "星組" }],
+    });
+  });
+
+  it("holds an unrecognized production-page troupe instead of guessing", async () => {
+    const detailUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2027/abunaideka/index.html";
+    const pages = new Map([
+      [
+        source.canonicalUrl,
+        `<div class="item"><a href="/sp/revue/2027/abunaideka/index.html"><p class="title">『あぶない刑事』</p></a>
+        <dl><dt>宝塚大劇場</dt><dd>2027年5月8日～6月20日</dd></dl></div>`,
+      ],
+      [detailUrl, `<title>組公演 『あぶない刑事』</title>`],
+    ]);
+    const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    await expect(adapter.acquire(source)).rejects.toThrow(
+      "Official source parse failed",
+    );
+  });
+
   it("keeps Event facts when only the general-sale field is unreadable", () => {
     const facts = parseTakarazukaIndex(
       source,
@@ -59,7 +108,8 @@ describe("Takarazuka revue adapter facts", () => {
       ],
       [
         detailUrl,
-        `<dl class="revueInfo accordion"><dt class="acc-trigger">東京宝塚劇場 [東京都]</dt>
+        `<title>宙組公演 『The London Way』</title>
+        <dl class="revueInfo accordion"><dt class="acc-trigger">東京宝塚劇場 [東京都]</dt>
         <dd>公演期間 2027年4月3日～5月16日 一般前売 2027年3月7日</dd></dl>`,
       ],
     ]);
@@ -76,6 +126,8 @@ describe("Takarazuka revue adapter facts", () => {
       startsOn: "2027-04-03",
       endsOn: "2027-05-16",
       occurrences: [],
+      genre: "takarazuka",
+      groups: [{ key: "takarazuka-sora", displayName: "宙組" }],
     });
   });
 
@@ -90,7 +142,8 @@ describe("Takarazuka revue adapter facts", () => {
       ],
       [
         detailUrl,
-        `<dl class="revueInfo accordion"><dt class="acc-trigger">東京宝塚劇場 [東京都]</dt>
+        `<title>宙組公演 『The London Way』</title>
+        <dl class="revueInfo accordion"><dt class="acc-trigger">東京宝塚劇場 [東京都]</dt>
         <dd>公演期間 2027年4月3日～5月16日
         <a href="days_tokyo.html">公演日程を見る</a>
         一般前売 2027年3月7日</dd></dl>`,
@@ -121,7 +174,7 @@ describe("Takarazuka revue adapter facts", () => {
         url === source.canonicalUrl
           ? index
           : url.endsWith("/index.html")
-            ? `<a href="schedule_tokyo.html">日程</a>`
+            ? `<title>星組公演 Work</title><a href="schedule_tokyo.html">日程</a>`
             : `<table><tr><th>4/3</th><td>13:30</td></tr></table>`;
       return document(url, body);
     });
@@ -146,7 +199,7 @@ describe("Takarazuka revue adapter facts", () => {
       ],
       [
         detailUrl,
-        `<a href="schedule_tokyo.html">日程</a><a href="schedule_tokyo.html">日程</a>`,
+        `<title>雪組公演 『ポーの一族』</title><a href="schedule_tokyo.html">日程</a><a href="schedule_tokyo.html">日程</a>`,
       ],
       [scheduleUrl, `<table><tr><th>9/12</th><td>13:30</td></tr></table>`],
     ]);
@@ -170,7 +223,7 @@ describe("Takarazuka revue adapter facts", () => {
       ],
       [
         "https://kageki.hankyu.co.jp/sp/revue/2026/ponoichizoku/index.html",
-        `<a href="schedule_tokyo.html">東京公演日程</a>`,
+        `<title>雪組公演 『ポーの一族』</title><a href="schedule_tokyo.html">東京公演日程</a>`,
       ],
       [
         "https://kageki.hankyu.co.jp/sp/revue/2026/ponoichizoku/schedule_tokyo.html",
@@ -187,6 +240,10 @@ describe("Takarazuka revue adapter facts", () => {
     if (draft?.candidateKind !== "event")
       throw new Error("event draft missing");
     expect(draft.proposal.sourceKey).toBe("takarazuka:2026:ponoichizoku:tokyo");
+    expect(draft.proposal).toMatchObject({
+      genre: "takarazuka",
+      groups: [{ key: "takarazuka-yuki", displayName: "雪組" }],
+    });
     expect(draft.proposal.occurrences).toEqual([
       { startsAt: "2026-09-12T13:30:00+09:00", endsAt: null },
     ]);

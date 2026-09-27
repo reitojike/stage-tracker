@@ -76,6 +76,48 @@ function setup(
 }
 
 describe("Event candidate planning", () => {
+  it("plans a classification-only update for an already imported Takarazuka Event", async () => {
+    const existing = event({
+      sourceKey: "takarazuka:2027:abunaideka:takarazuka",
+      title: "『あぶない刑事』 『PURE LOVE!!』",
+      venue: "宝塚大劇場",
+      sourceUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/abunaideka/index.html",
+      startsOn: "2027-05-08",
+      endsOn: "2027-06-20",
+      occurrences: [],
+      genreKey: null,
+      groups: [],
+    });
+    const planned = await setup(existing, []).planner.planEvent(
+      takarazukaSource,
+      {
+        ...draft(),
+        proposal: {
+          sourceKey: existing.sourceKey ?? "",
+          title: existing.title,
+          venue: existing.venue,
+          sourceUrl: existing.sourceUrl,
+          startsOn: existing.startsOn,
+          endsOn: existing.endsOn,
+          occurrences: [],
+          genre: "takarazuka",
+          groups: [{ key: "takarazuka-hoshi", displayName: "星組" }],
+        },
+      },
+    );
+    expect(planned.plan).toMatchObject({
+      action: "unchanged",
+      detailsChanged: false,
+      genrePlan: { changed: true },
+      groupsPlan: { changed: true },
+    });
+    expect(planned.proposal).toMatchObject({
+      genre: "takarazuka",
+      groups: [{ key: "takarazuka-hoshi", displayName: "星組" }],
+    });
+  });
+
   it("preserves curated Takarazuka details while planning published occurrences", async () => {
     const existing = event({
       sourceKey: "takarazuka:2027:thelondonway:takarazuka",
