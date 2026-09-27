@@ -60,18 +60,25 @@ function ticketPageUrl(
   return url;
 }
 
-function datedClock(text: string, year: number): string {
+function datedClock(text: string, generalSaleOn: string): string {
   const match = text.match(
     /^(\d{1,2})月(\d{1,2})日(?:[（(][^）)]*[）)])?\s*(\d{1,2}):(\d{2})$/u,
   );
   if (match === null) throw new SourceParseFailure();
-  const date = calendarDate(year, Number(match[1]), Number(match[2]));
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const year =
+    Number(generalSaleOn.slice(0, 4)) -
+    (month * 100 + day >
+    Number(generalSaleOn.slice(5, 7)) * 100 + Number(generalSaleOn.slice(8, 10))
+      ? 1
+      : 0);
+  const date = calendarDate(year, month, day);
   return tokyoDateTime(date, Number(match[3]), Number(match[4]));
 }
 
 function lotteryMilestones(
   text: string,
-  year: number,
   generalSaleOn: string,
 ): AdvanceSale["milestones"] {
   const period = text.match(
@@ -81,9 +88,9 @@ function lotteryMilestones(
     /結果照会[：:]\s*(\d{1,2}月\d{1,2}日(?:[（(][^）)]*[）)])?\s*\d{1,2}:\d{2})\s*[〜～~]/u,
   );
   if (period === null || result === null) throw new SourceParseFailure();
-  const open = datedClock(period[1] ?? "", year);
-  const close = datedClock(period[2] ?? "", year);
-  const announcement = datedClock(result[1] ?? "", year);
+  const open = datedClock(period[1] ?? "", generalSaleOn);
+  const close = datedClock(period[2] ?? "", generalSaleOn);
+  const announcement = datedClock(result[1] ?? "", generalSaleOn);
   if (
     !(open < close && close < announcement) ||
     announcement.slice(0, 10) > generalSaleOn
@@ -97,7 +104,6 @@ function lotteryMilestones(
 }
 
 function advanceSales(html: string, generalSaleOn: string): AdvanceSale[] {
-  const year = Number(generalSaleOn.slice(0, 4));
   const document = parseHtml(html);
   const sections = descendants(document, (node) => hasClass(node, "set"));
   const sales: AdvanceSale[] = [];
@@ -134,7 +140,6 @@ function advanceSales(html: string, generalSaleOn: string): AdvanceSale[] {
       const end = markers[index + 1]?.index ?? text.length;
       const milestones = lotteryMilestones(
         text.slice(start, end),
-        year,
         generalSaleOn,
       );
       sales.push({
