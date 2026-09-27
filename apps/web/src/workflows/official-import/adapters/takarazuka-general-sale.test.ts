@@ -60,4 +60,162 @@ describe("Takarazuka general-sale index adapter", () => {
       }),
     ]);
   });
+
+  it("stages the observed friends and common-ID lotteries from a linked ticket page", async () => {
+    const index = `<div class="item">
+      <a href="/sp/revue/2026/elisabeth/index.html"><p class="title">『エリザベート』</p></a>
+      <dl><dt>宝塚大劇場</dt><dd>2026年10月17日～11月22日 一般前売：2026年9月26日</dd></dl>
+    </div>`;
+    const detail = `<a href="/sp/revue/2026/elisabeth/ticket_takarazuka.html">チケット</a>`;
+    const ticket = `<div class="set"><h4>宝塚友の会</h4><p class="txt">
+      ■「第1抽選方式」<br>申込期間：8月8日（土）10:00〜8月9日（日）23:00<br>結果照会：8月12日（水）10:00〜<br>
+      ■「第2抽選方式」<br>申込期間：8月14日（金）10:00〜8月15日（土）23:00<br>結果照会：8月18日（火）10:00〜<br>
+      ■「第3抽選方式」<br>申込期間：8月19日（水）10:00〜8月20日（木）23:00<br>結果照会：8月23日（日）10:00〜
+    </p></div><div class="set"><h4>宝塚歌劇共通ID＋（プラス）</h4><p class="txt">
+      ■「抽選方式」<br>申込期間：8月25日（火）10:00〜8月26日（水）23:00<br>結果照会：8月29日（土）10:00〜
+    </p></div>`;
+    const fetched: string[] = [];
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => {
+        fetched.push(url);
+        return {
+          url,
+          body: url.endsWith("ticket_takarazuka.html")
+            ? ticket
+            : url.endsWith("elisabeth/index.html")
+              ? detail
+              : index,
+          observedAt: "2026-09-27T00:00:00.000Z",
+          contentHash: "a".repeat(64),
+          etag: null,
+          lastModified: null,
+        };
+      },
+    );
+    const drafts = await adapter.acquire(source);
+    expect(fetched).toHaveLength(3);
+    expect(drafts).toHaveLength(5);
+    expect(drafts.map((draft) => draft.proposal.sourceKey)).toEqual([
+      "takarazuka:2026:elisabeth:takarazuka:general-sale",
+      "takarazuka:2026:elisabeth:takarazuka:friends-lottery-1",
+      "takarazuka:2026:elisabeth:takarazuka:friends-lottery-2",
+      "takarazuka:2026:elisabeth:takarazuka:friends-lottery-3",
+      "takarazuka:2026:elisabeth:takarazuka:common-id-plus-lottery",
+    ]);
+    expect(drafts[1]?.proposal).toEqual(
+      expect.objectContaining({
+        eventSourceKey: "takarazuka:2026:elisabeth:takarazuka",
+        displayName: "宝塚友の会 第1抽選方式",
+        sourceUrl:
+          "https://kageki.hankyu.co.jp/sp/revue/2026/elisabeth/ticket_takarazuka.html",
+        milestones: [
+          {
+            type: "application_open",
+            precision: "datetime",
+            at: "2026-08-08T10:00:00+09:00",
+          },
+          {
+            type: "application_close",
+            precision: "datetime",
+            at: "2026-08-09T23:00:00+09:00",
+          },
+          {
+            type: "result_announcement",
+            precision: "datetime",
+            at: "2026-08-12T10:00:00+09:00",
+          },
+        ],
+      }),
+    );
+    expect(drafts[4]).toMatchObject({
+      proposal: { displayName: "宝塚歌劇共通ID＋ 抽選方式" },
+    });
+    expect(drafts[1]).toMatchObject({
+      evidenceLocator: { sectionLabel: "宝塚大劇場 / 宝塚友の会" },
+    });
+  });
+
+  it("resolves December lotteries before a January general sale to the previous year", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2026/tenkyuunoartemis/index.html"><p class="title">『天穹のアルテミス』</p></a>
+      <dl><dt>東京宝塚劇場</dt><dd>2027年2月13日～3月28日 一般前売：2027年1月17日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_tokyo.html")
+          ? `<div class="set"><h4>宝塚友の会</h4><p class="txt">■「第1抽選方式」申込期間：12月5日（土）10:00〜12月6日（日）23:00 結果照会：12月9日（水）10:00〜</p></div>`
+          : url.endsWith("tenkyuunoartemis/index.html")
+            ? `<a href="/sp/revue/2026/tenkyuunoartemis/ticket_tokyo.html">チケット</a>`
+            : index,
+        observedAt: "2026-09-27T00:00:00.000Z",
+        contentHash: "a".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+    const drafts = await adapter.acquire(source);
+    expect(drafts).toHaveLength(2);
+    expect(drafts[1]?.proposal).toMatchObject({
+      milestones: [
+        {
+          type: "application_open",
+          precision: "datetime",
+          at: "2026-12-05T10:00:00+09:00",
+        },
+        {
+          type: "application_close",
+          precision: "datetime",
+          at: "2026-12-06T23:00:00+09:00",
+        },
+        {
+          type: "result_announcement",
+          precision: "datetime",
+          at: "2026-12-09T10:00:00+09:00",
+        },
+      ],
+    });
+  });
+
+  it("holds lottery dates after the January general sale instead of assigning them to the prior year", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2026/tenkyuunoartemis/index.html"><p class="title">『天穹のアルテミス』</p></a>
+      <dl><dt>東京宝塚劇場</dt><dd>2027年2月13日～3月28日 一般前売：2027年1月17日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_tokyo.html")
+          ? `<div class="set"><h4>宝塚友の会</h4><p class="txt">■「第1抽選方式」申込期間：1月18日（月）10:00〜1月19日（火）23:00 結果照会：1月20日（水）10:00〜</p></div>`
+          : url.endsWith("tenkyuunoartemis/index.html")
+            ? `<a href="/sp/revue/2026/tenkyuunoartemis/ticket_tokyo.html">チケット</a>`
+            : index,
+        observedAt: "2026-09-27T00:00:00.000Z",
+        contentHash: "a".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(
+      "Official source parse failed",
+    );
+  });
+
+  it("holds a linked ticket page with an unreadable lottery time", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2026/elisabeth/index.html"><p class="title">『エリザベート』</p></a>
+      <dl><dt>宝塚大劇場</dt><dd>2026年10月17日～11月22日 一般前売：2026年9月26日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_takarazuka.html")
+          ? `<div class="set"><h4>宝塚友の会</h4><p class="txt">■「第1抽選方式」申込期間：8月8日（土）10:00〜8月9日（日）未定 結果照会：8月12日（水）10:00〜</p></div>`
+          : url.endsWith("elisabeth/index.html")
+            ? `<a href="/sp/revue/2026/elisabeth/ticket_takarazuka.html">チケット</a>`
+            : index,
+        observedAt: "2026-09-27T00:00:00.000Z",
+        contentHash: "a".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+    await expect(adapter.acquire(source)).rejects.toThrow(
+      "Official source parse failed",
+    );
+  });
 });

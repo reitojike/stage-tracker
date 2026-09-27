@@ -90,7 +90,7 @@ describe("Takarazuka manual shadow runs", () => {
     ],
     [
       TakarazukaTicketManualShadowRun,
-      "宝塚の一般前売日を手動取得",
+      "宝塚のチケット販売情報を手動取得",
       "ticket.takarazuka.revue-general-sale",
     ],
   ])("starts only its own source", async (Component, label, sourceId) => {
