@@ -1,5 +1,6 @@
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type EventAcquisitionDraft,
   type OfficialSourceAdapter,
 } from "../acquisition";
@@ -175,13 +176,17 @@ export function createSkiyakiCalendarAdapter(
   return {
     async acquire(source): Promise<readonly EventAcquisitionDraft[]> {
       const index = await fetcher(source, source.canonicalUrl);
-      const facts = parseSkiyakiCalendar(source, index.body).filter(
-        (fact) => fact.relevance === "physical_event",
+      const facts = withSourceParsePage(index.url, () =>
+        parseSkiyakiCalendar(source, index.body).filter(
+          (fact) => fact.relevance === "physical_event",
+        ),
       );
       return Promise.all(
         facts.map(async (fact) => {
           const detail = await fetcher(source, fact.canonicalUrl);
-          const parsed = parseDetail(detail.body, fact.date);
+          const parsed = withSourceParsePage(detail.url, () =>
+            parseDetail(detail.body, fact.date),
+          );
           const groups = groupFor(source);
           return {
             candidateKind: "event" as const,

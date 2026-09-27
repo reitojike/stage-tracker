@@ -135,7 +135,14 @@ export function createTakarazukaFriendsAdapter(
   return {
     async acquire(source) {
       const document = await fetcher(source, source.canonicalUrl);
-      const extraction = await provider.extractTakarazukaFriends(document.body);
+      let extraction: TakarazukaFriendsExtraction;
+      try {
+        extraction = await provider.extractTakarazukaFriends(document.body);
+      } catch (error) {
+        if (error instanceof SourceParseFailure && error.canonicalUrl === null)
+          throw new SourceParseFailure(document.url, error.reason);
+        throw error;
+      }
       return withSourceParsePage(document.url, () =>
         takarazukaFriendsDrafts(extraction, document),
       );

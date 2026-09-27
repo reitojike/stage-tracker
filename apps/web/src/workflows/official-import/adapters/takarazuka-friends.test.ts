@@ -5,7 +5,10 @@ import {
   createFirecrawlPdfProvider,
   parseFirecrawlTakarazukaResponse,
 } from "./firecrawl-pdf";
-import { takarazukaFriendsDrafts } from "./takarazuka-friends";
+import {
+  createTakarazukaFriendsAdapter,
+  takarazukaFriendsDrafts,
+} from "./takarazuka-friends";
 
 const source = getOfficialSource("ticket.takarazuka-friends.schedule-pdf");
 if (source === null) throw new Error("test source missing");
@@ -50,6 +53,29 @@ const extraction = {
 };
 
 describe("Takarazuka Friends PDF adapter", () => {
+  it("identifies the PDF when the provider rejects its parsed response", async () => {
+    const adapter = createTakarazukaFriendsAdapter(
+      {
+        async extractTakarazukaFriends() {
+          throw new SourceParseFailure();
+        },
+      },
+      async (_source, url) => ({
+        url,
+        body: new Uint8Array(),
+        observedAt: "2026-09-27T00:00:00.000Z",
+        contentHash: "a".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl: source.canonicalUrl,
+    });
+  });
+
   it("separates phases and maps date-only facts without inventing times", () => {
     const drafts = takarazukaFriendsDrafts(extraction, {
       url: source.canonicalUrl,
