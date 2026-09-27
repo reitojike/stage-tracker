@@ -74,8 +74,11 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
   2026-09-27の読み取り専用監査では、7作品・14会場をEvent 14件（公開済み日別表からOccurrenceを得られる9件、
   日別表リンク未掲載でEvent-onlyの5件）として説明できました。Event adapterは1 run最大30 requestに制限し、この監査で17 requestを使用しました。
   同じ公式一覧に明記された会場別の一般前売日は14件をdate-onlyのTicketOpportunity候補として解析でき、14件すべてがEvent source keyに対応しました。
-  このHTML ticket sourceは管理者の手動shadow取得に限り`enabled: true`/`scheduledEnabled: false`とし、先行販売は扱いません。PDF sourceの抽出精度gateも
-  未解決のままです。宝塚Eventを先に手動取得し、候補確認・反映と変更なし再取得を確認してからHTML ticketを手動取得してください。TicketのEvent紐づけと候補内容を人が確認し、
+  このHTML ticket sourceは管理者の手動shadow取得に限り`enabled: true`/`scheduledEnabled: false`とします。公演別ticket pageへの公開済みlinkがある場合、
+  宝塚友の会の第1〜第3抽選と宝塚歌劇共通ID＋の抽選について、明記された申込開始・締切・結果照会を時刻付きで別候補にします。link未掲載の先行販売は
+  推測せず、読み取れない時刻はfail closedにします。2026-09-27の読み取り専用canaryでは14 requestで一般前売14件と、公開済みの先行抽選15件
+  （友の会第1〜第3抽選が各4件、共通ID＋抽選が3件）を解析しました。これはProduction candidateのstageや正確性gateの完了を意味しません。
+  PDF sourceの抽出精度gateは未解決のままです。宝塚Eventを先に手動取得し、候補確認・反映と変更なし再取得を確認してからHTML ticketを手動取得してください。TicketのEvent紐づけと候補内容を人が確認し、
   変更なし再取得を確認する前に定期取得へ昇格しません。手動取得の有効化は定期取得の許可や正確性の証明を意味しません。
 
 ## sourceごとの昇格gate

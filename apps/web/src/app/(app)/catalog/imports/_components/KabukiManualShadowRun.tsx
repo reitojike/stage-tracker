@@ -109,9 +109,9 @@ export function TakarazukaTicketManualShadowRun() {
     <ManualShadowRun
       sourceId="ticket.takarazuka.revue-general-sale"
       headingId="takarazuka-ticket-run-heading"
-      heading="宝塚の一般前売日の手動取得"
-      label="宝塚の一般前売日を手動取得"
-      description="先に宝塚の公演候補を確認・反映し、変更なしの再取得を確認してください。公式公演一覧に明記された一般前売日だけを確認待ち候補にします。先行販売や未掲載時刻は推測せず、自動承認・反映もしません。"
+      heading="宝塚のチケット販売情報の手動取得"
+      label="宝塚のチケット販売情報を手動取得"
+      description="先に宝塚の公演候補を確認・反映し、変更なしの再取得を確認してください。公式公演一覧の一般前売日と、公開済み公演別ページの友の会・共通ID＋抽選日程を確認待ち候補にします。未掲載情報は推測せず、自動承認・反映もしません。"
     />
   );
 }
