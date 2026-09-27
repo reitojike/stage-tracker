@@ -84,7 +84,9 @@ describe("OfficialImportReviewPage", () => {
       screen.queryByRole("button", { name: "宝塚の公演情報を手動取得" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "宝塚の一般前売日を手動取得" }),
+      screen.queryByRole("button", {
+        name: "宝塚のチケット販売情報を手動取得",
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -112,7 +114,7 @@ describe("OfficialImportReviewPage", () => {
       screen.getByRole("button", { name: "宝塚の公演情報を手動取得" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "宝塚の一般前売日を手動取得" }),
+      screen.getByRole("button", { name: "宝塚のチケット販売情報を手動取得" }),
     ).toBeInTheDocument();
     expect(mockLoadQueue).toHaveBeenCalledTimes(1);
     expect(mockLoadHeldPages).toHaveBeenCalledTimes(1);
