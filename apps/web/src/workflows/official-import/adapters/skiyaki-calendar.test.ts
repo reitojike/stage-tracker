@@ -10,6 +10,20 @@ const source = getOfficialSource("event.cynhn.calendar");
 if (source === null) throw new Error("test source missing");
 
 describe("SKIYAKI calendar parser", () => {
+  it("identifies the index page when its calendar format is unreadable", async () => {
+    const adapter = createSkiyakiCalendarAdapter(async (_source, url) =>
+      document(
+        url,
+        `<li class="list-group-item tag-event"><a href="/contents/101">Unreadable row</a></li>`,
+      ),
+    );
+
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl: source.canonicalUrl,
+    });
+  });
+
   it.each([
     {
       sourceId: "event.meme-tokyo.calendar",

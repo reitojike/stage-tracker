@@ -68,9 +68,10 @@ describe("Takarazuka revue adapter facts", () => {
       if (body === undefined) throw new Error(`unexpected URL ${url}`);
       return document(url, body);
     });
-    await expect(adapter.acquire(source)).rejects.toThrow(
-      "Official source parse failed",
-    );
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl: detailUrl,
+    });
   });
 
   it("keeps Event facts when only the general-sale field is unreadable", () => {
@@ -178,9 +179,10 @@ describe("Takarazuka revue adapter facts", () => {
             : `<table><tr><th>4/3</th><td>13:30</td></tr></table>`;
       return document(url, body);
     });
-    await expect(adapter.acquire(source)).rejects.toThrow(
-      "Official source parse failed",
-    );
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      reason: "request_limit",
+    });
     expect(requests).toBe(30);
   });
 

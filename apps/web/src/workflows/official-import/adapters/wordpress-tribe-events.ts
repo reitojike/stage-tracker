@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type EventAcquisitionDraft,
   type OfficialSourceAdapter,
 } from "../acquisition";
@@ -132,8 +133,8 @@ export function createWordpressTribeEventsAdapter(
   return {
     async acquire(source): Promise<readonly EventAcquisitionDraft[]> {
       if (source.extractor !== "wordpress_tribe_events")
-        throw new SourceParseFailure();
-      groupFor(source);
+        throw new SourceParseFailure(source.canonicalUrl);
+      withSourceParsePage(source.canonicalUrl, () => groupFor(source));
       const initial = new URL(API_PATH, source.canonicalUrl);
       initial.searchParams.set("per_page", "50");
       let next: string | null = initial.toString();
@@ -142,6 +143,7 @@ export function createWordpressTribeEventsAdapter(
       const seenUrls = new Set<string>();
       const seenIds = new Set<number>();
       const drafts: EventAcquisitionDraft[] = [];
+      let lastPageUrl = source.canonicalUrl;
 
       for (
         let pageIndex = 0;
@@ -149,18 +151,19 @@ export function createWordpressTribeEventsAdapter(
         pageIndex += 1
       ) {
         const requestUrl = assertAllowedSourceUrl(source, next);
+        lastPageUrl = requestUrl;
         if (
           new URL(requestUrl).pathname !== API_PATH ||
           seenUrls.has(requestUrl)
         )
-          throw new SourceParseFailure();
+          throw new SourceParseFailure(requestUrl);
         seenUrls.add(requestUrl);
         const document = await fetcher(source, requestUrl);
         let raw: unknown;
         try {
           raw = JSON.parse(document.body);
         } catch {
-          throw new SourceParseFailure();
+          throw new SourceParseFailure(requestUrl);
         }
         const parsed = pageSchema.safeParse(raw);
         if (!parsed.success) {
@@ -171,7 +174,7 @@ export function createWordpressTribeEventsAdapter(
               code: issue.code,
             })),
           );
-          throw new SourceParseFailure();
+          throw new SourceParseFailure(requestUrl);
         }
         const page = parsed.data;
         total ??= page.total;
@@ -184,11 +187,13 @@ export function createWordpressTribeEventsAdapter(
           (page.total === 0) !== (page.total_pages === 0) ||
           (page.total > 0 && page.events.length === 0)
         )
-          throw new SourceParseFailure();
+          throw new SourceParseFailure(requestUrl);
         for (const event of page.events) {
-          if (seenIds.has(event.id)) throw new SourceParseFailure();
+          if (seenIds.has(event.id)) throw new SourceParseFailure(requestUrl);
           seenIds.add(event.id);
-          const draft = draftFor(source, event, document.observedAt);
+          const draft = withSourceParsePage(requestUrl, () =>
+            draftFor(source, event, document.observedAt),
+          );
           if (draft !== null) drafts.push(draft);
         }
         next = page.next_rest_url ?? null;
@@ -196,10 +201,10 @@ export function createWordpressTribeEventsAdapter(
           (next === null) !==
           (totalPages === 0 || pageIndex + 1 === totalPages)
         )
-          throw new SourceParseFailure();
+          throw new SourceParseFailure(requestUrl);
       }
       if (next !== null || total === null || seenIds.size !== total)
-        throw new SourceParseFailure();
+        throw new SourceParseFailure(lastPageUrl);
       return drafts;
     },
   };

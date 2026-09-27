@@ -105,9 +105,27 @@ export class SourceFetchFailure extends Error {
 }
 
 export class SourceParseFailure extends Error {
-  constructor() {
+  constructor(
+    readonly canonicalUrl: string | null = null,
+    readonly reason:
+      "unsupported_format" | "request_limit" = "unsupported_format",
+  ) {
     super("Official source parse failed");
     this.name = "SourceParseFailure";
+  }
+}
+
+/** Attach the official page identity without retaining its raw content. */
+export function withSourceParsePage<T>(
+  canonicalUrl: string,
+  parse: () => T,
+): T {
+  try {
+    return parse();
+  } catch (error) {
+    if (error instanceof SourceParseFailure && error.canonicalUrl === null)
+      throw new SourceParseFailure(canonicalUrl, error.reason);
+    throw error;
   }
 }
 

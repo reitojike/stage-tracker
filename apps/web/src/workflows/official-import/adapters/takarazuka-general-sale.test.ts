@@ -214,8 +214,10 @@ describe("Takarazuka general-sale index adapter", () => {
         lastModified: null,
       }),
     );
-    await expect(adapter.acquire(source)).rejects.toThrow(
-      "Official source parse failed",
-    );
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2026/elisabeth/ticket_takarazuka.html",
+    });
   });
 });

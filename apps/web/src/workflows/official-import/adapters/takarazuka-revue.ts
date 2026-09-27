@@ -1,5 +1,6 @@
 import {
   SourceParseFailure,
+  withSourceParsePage,
   type EventAcquisitionDraft,
   type OfficialSourceAdapter,
 } from "../acquisition";
@@ -274,16 +275,23 @@ export function createTakarazukaRevueAdapter(
       let requests = 0;
       const fetchBounded: OfficialHtmlFetcher = async (definition, url) => {
         requests += 1;
-        if (requests > MAX_REQUESTS) throw new SourceParseFailure();
+        if (requests > MAX_REQUESTS)
+          throw new SourceParseFailure(url, "request_limit");
         return fetcher(definition, url);
       };
       const index = await fetchBounded(source, source.canonicalUrl);
-      const productions = parseTakarazukaIndex(source, index.body);
+      const productions = withSourceParsePage(index.url, () =>
+        parseTakarazukaIndex(source, index.body),
+      );
       const drafts: EventAcquisitionDraft[] = [];
       for (const production of productions) {
         const detail = await fetchBounded(source, production.canonicalUrl);
-        const detailDocument = parseHtml(detail.body);
-        const group = productionGroup(detailDocument);
+        const detailDocument = withSourceParsePage(detail.url, () =>
+          parseHtml(detail.body),
+        );
+        const group = withSourceParsePage(detail.url, () =>
+          productionGroup(detailDocument),
+        );
         const scheduleLinks = descendants(detailDocument, (node) => {
           const href = attribute(node, "href") ?? "";
           return (
@@ -295,21 +303,24 @@ export function createTakarazukaRevueAdapter(
         const stagedVenues = new Set<string>();
         for (const link of scheduleLinks) {
           const href = attribute(link, "href") ?? "";
-          const linkVenueSlug = scheduleVenueSlug(href);
+          const linkVenueSlug = withSourceParsePage(detail.url, () =>
+            scheduleVenueSlug(href),
+          );
           const venue =
             linkVenueSlug === "single" && production.venues.length === 1
               ? production.venues[0]
               : production.venues.find(
                   (candidate) => candidate.venueSlug === linkVenueSlug,
                 );
-          if (venue === undefined) throw new SourceParseFailure();
+          if (venue === undefined) throw new SourceParseFailure(detail.url);
           const scheduleUrl = assertAllowedSourceUrl(
             source,
             new URL(href, detail.url).toString(),
           );
           if (seenScheduleUrls.has(scheduleUrl)) continue;
           seenScheduleUrls.add(scheduleUrl);
-          if (stagedVenues.has(venue.venueSlug)) throw new SourceParseFailure();
+          if (stagedVenues.has(venue.venueSlug))
+            throw new SourceParseFailure(detail.url);
           const schedule = await fetchBounded(source, scheduleUrl);
           stagedVenues.add(venue.venueSlug);
           drafts.push({
@@ -331,10 +342,12 @@ export function createTakarazukaRevueAdapter(
               startsOn: venue.startsOn,
               endsOn: venue.endsOn,
               occurrences: [
-                ...parseTakarazukaSchedule(
-                  schedule.body,
-                  venue.startsOn,
-                  venue.endsOn,
+                ...withSourceParsePage(schedule.url, () =>
+                  parseTakarazukaSchedule(
+                    schedule.body,
+                    venue.startsOn,
+                    venue.endsOn,
+                  ),
                 ),
               ],
             },
@@ -342,7 +355,9 @@ export function createTakarazukaRevueAdapter(
         }
         for (const venue of production.venues) {
           if (stagedVenues.has(venue.venueSlug)) continue;
-          assertNoPublishedDaySchedule(detailDocument, venue);
+          withSourceParsePage(detail.url, () =>
+            assertNoPublishedDaySchedule(detailDocument, venue),
+          );
           drafts.push({
             candidateKind: "event",
             canonicalUrl: detail.url,

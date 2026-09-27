@@ -241,6 +241,12 @@ export async function executeOfficialImportShadowRun(
         );
       heldUrls.add(canonicalUrl);
       heldPages.push({ ...page, canonicalUrl });
+      if (page.reasonCode === "source_parse") {
+        console.warn("Official source page has unsupported format", {
+          sourceId: source.id,
+          canonicalUrl,
+        });
+      }
     };
     const drafts = await adapter.acquire(source, recordHeldPage);
     lease.assertOwned();
@@ -413,6 +419,25 @@ export async function executeOfficialImportShadowRun(
     }
     if (error instanceof OfficialImportAttemptRetryError) throw error;
     const failureClassification = classifyFailure(error);
+    if (error instanceof SourceParseFailure) {
+      let canonicalUrl: string | null = null;
+      if (error.canonicalUrl !== null) {
+        try {
+          canonicalUrl = assertAllowedSourceUrl(source, error.canonicalUrl);
+        } catch {
+          // Keep an invalid URL out of logs without masking the parse failure.
+        }
+      }
+      console.error(
+        error.reason === "request_limit"
+          ? "Official source request limit reached"
+          : "Official source page has unsupported format",
+        {
+          sourceId: source.id,
+          canonicalUrl,
+        },
+      );
+    }
     if (isTransientFailure(failureClassification)) {
       await repository.releaseRun(runId, source.id, attemptToken);
       throw new OfficialImportAttemptRetryError(failureClassification);
