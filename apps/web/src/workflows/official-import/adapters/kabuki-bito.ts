@@ -107,7 +107,6 @@ export function parseKabukiIndex(
       ).length > 0,
   );
   if (candidateItems.length === 0) throw new SourceParseFailure();
-  const allPlayUrls = new Set<string>();
   const datedRowUrls = new Set<string>();
   const fullRowUrls = new Set<string>();
   const facts: KabukiIndexFact[] = [];
@@ -125,15 +124,14 @@ export function parseKabukiIndex(
       source,
       new URL(href, source.canonicalUrl).toString(),
     );
-    allPlayUrls.add(canonicalUrl);
     const titleNode = descendants(item, (node) => hasClass(node, "ttl"))[0];
     const termNode = descendants(item, (node) => hasClass(node, "term"))[0];
     const theater = identity?.[1];
     const officialId = identity?.[2];
     if (theater === undefined || officialId === undefined)
       throw new SourceParseFailure();
-    // The index repeats some productions in a teaser carousel without the
-    // detailed title/term fields. Every teaser must have a full row below.
+    // News teasers can link to productions no longer listed in the schedule.
+    // Only full schedule rows supply the dates needed for acquisition.
     if (titleNode === undefined && termNode === undefined) continue;
     if (titleNode === undefined || termNode === undefined)
       throw new SourceParseFailure();
@@ -151,8 +149,8 @@ export function parseKabukiIndex(
     });
   }
   if (
-    allPlayUrls.size > MAX_PLAYS_PER_SCAN ||
-    [...allPlayUrls].some((url) => !fullRowUrls.has(url)) ||
+    fullRowUrls.size === 0 ||
+    fullRowUrls.size > MAX_PLAYS_PER_SCAN ||
     datedRowUrls.size !== facts.length
   )
     throw new SourceParseFailure();

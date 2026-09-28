@@ -374,6 +374,7 @@ describe("Kabuki-bito adapter facts", () => {
       source,
       `
       <div class="item"><a href="/theaters/kabukiza/play/978">teaser</a></div>
+      <div class="item"><a href="/theaters/other/play/996">news for a past production</a></div>
       <li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演A</h3></a><p class="term">2026年9月25日（金）</p></li>
       <li class="item"><a href="/theaters/kabukiza/play/979"><h3 class="ttl">公演B</h3></a><p class="term">2027年4月</p></li>`,
     );
@@ -398,7 +399,7 @@ describe("Kabuki-bito adapter facts", () => {
     expect(fact?.endsOn).toBe(expected);
   });
 
-  it("fails closed for a teaser without a full row or a malformed full date", () => {
+  it("fails closed when there are no full rows or a full date is malformed", () => {
     expect(() =>
       parseKabukiIndex(
         source,
