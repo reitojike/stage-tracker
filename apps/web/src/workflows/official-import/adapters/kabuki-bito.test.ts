@@ -373,7 +373,10 @@ describe("Kabuki-bito adapter facts", () => {
     const facts = parseKabukiIndex(
       source,
       `
-      <div class="item"><a href="/theaters/kabukiza/play/978">teaser</a></div>
+      <section class="l-update"><ul>
+        <li class="item"><a href="/theaters/kabukiza/play/978"><dl class="type-date"><dt><time>2026/09/24</time></dt><dd>news</dd></dl></a></li>
+        <li class="item"><a href="/theaters/other/play/996"><dl class="type-date"><dt><time>2026/09/25</time></dt><dd>news for a past production</dd></dl></a></li>
+      </ul></section>
       <li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演A</h3></a><p class="term">2026年9月25日（金）</p></li>
       <li class="item"><a href="/theaters/kabukiza/play/979"><h3 class="ttl">公演B</h3></a><p class="term">2027年4月</p></li>`,
     );
@@ -398,7 +401,7 @@ describe("Kabuki-bito adapter facts", () => {
     expect(fact?.endsOn).toBe(expected);
   });
 
-  it("fails closed for a teaser without a full row or a malformed full date", () => {
+  it("fails closed when there are no full rows or a full date is malformed", () => {
     expect(() =>
       parseKabukiIndex(
         source,
@@ -409,6 +412,16 @@ describe("Kabuki-bito adapter facts", () => {
       parseKabukiIndex(
         source,
         `<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演A</h3></a><p class="term">2026年9月頃</p></li>`,
+      ),
+    ).toThrow(SourceParseFailure);
+  });
+
+  it("fails closed if a schedule row loses its title and term", () => {
+    expect(() =>
+      parseKabukiIndex(
+        source,
+        `<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演A</h3></a><p class="term">2026年10月1日（木）</p></li>
+         <li class="item"><a href="/theaters/kabukiza/play/979">公演B</a></li>`,
       ),
     ).toThrow(SourceParseFailure);
   });
@@ -433,6 +446,22 @@ describe("Kabuki-bito adapter facts", () => {
         `<li class="item"><a href="/theaters/kabukiza/play/${id + 1}"><h3 class="ttl">公演${id + 1}</h3></a><p class="term">2027年4月</p></li>`,
     ).join("");
     expect(() => parseKabukiIndex(source, index)).toThrow(SourceParseFailure);
+  });
+
+  it("counts stale news teasers against the index scan cap", () => {
+    const teasers = Array.from(
+      { length: 30 },
+      (_, id) =>
+        `<li class="item"><a href="/theaters/other/play/${id + 1}"><dl class="type-date"><dt><time>2026/09/25</time></dt><dd>news</dd></dl></a></li>`,
+    ).join("");
+    const fullRow =
+      '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日（木）</p></li>';
+    expect(() =>
+      parseKabukiIndex(
+        source,
+        `<section class="l-update"><ul>${teasers}</ul></section>${fullRow}`,
+      ),
+    ).toThrow(SourceParseFailure);
   });
 
   it("maps explicit per-date headline times without expanding them across the range", () => {

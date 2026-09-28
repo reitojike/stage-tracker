@@ -100,6 +100,14 @@ export function parseKabukiIndex(
 ): readonly KabukiIndexFact[] {
   const document = parseHtml(html);
   const items = descendants(document, (node) => hasClass(node, "item"));
+  const newsItems = new Set(
+    descendants(
+      document,
+      (node) => elementName(node) === "section" && hasClass(node, "l-update"),
+    ).flatMap((section) =>
+      descendants(section, (node) => hasClass(node, "item")),
+    ),
+  );
   const candidateItems = items.filter(
     (item) =>
       descendants(item, (node) =>
@@ -132,9 +140,21 @@ export function parseKabukiIndex(
     const officialId = identity?.[2];
     if (theater === undefined || officialId === undefined)
       throw new SourceParseFailure();
-    // The index repeats some productions in a teaser carousel without the
-    // detailed title/term fields. Every teaser must have a full row below.
-    if (titleNode === undefined && termNode === undefined) continue;
+    // News teasers can outlive their production's schedule row. A schedule row
+    // without its title and term is still an unsupported format.
+    if (titleNode === undefined && termNode === undefined) {
+      const datedNewsBox = descendants(
+        item,
+        (node) => elementName(node) === "dl" && hasClass(node, "type-date"),
+      );
+      if (
+        !newsItems.has(item) ||
+        elementName(item) !== "li" ||
+        datedNewsBox.length !== 1
+      )
+        throw new SourceParseFailure();
+      continue;
+    }
     if (titleNode === undefined || termNode === undefined)
       throw new SourceParseFailure();
     if (fullRowUrls.has(canonicalUrl)) throw new SourceParseFailure();
@@ -151,8 +171,8 @@ export function parseKabukiIndex(
     });
   }
   if (
+    fullRowUrls.size === 0 ||
     allPlayUrls.size > MAX_PLAYS_PER_SCAN ||
-    [...allPlayUrls].some((url) => !fullRowUrls.has(url)) ||
     datedRowUrls.size !== facts.length
   )
     throw new SourceParseFailure();
