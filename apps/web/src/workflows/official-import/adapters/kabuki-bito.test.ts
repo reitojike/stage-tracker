@@ -436,6 +436,19 @@ describe("Kabuki-bito adapter facts", () => {
     expect(() => parseKabukiIndex(source, index)).toThrow(SourceParseFailure);
   });
 
+  it("counts stale news teasers against the index scan cap", () => {
+    const teasers = Array.from(
+      { length: 30 },
+      (_, id) =>
+        `<div class="item"><a href="/theaters/other/play/${id + 1}">news</a></div>`,
+    ).join("");
+    const fullRow =
+      '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">公演</h3></a><p class="term">2026年10月1日（木）</p></li>';
+    expect(() => parseKabukiIndex(source, teasers + fullRow)).toThrow(
+      SourceParseFailure,
+    );
+  });
+
   it("maps explicit per-date headline times without expanding them across the range", () => {
     const occurrences = parseKabukiDetailedOccurrences(
       "2026-09-25",

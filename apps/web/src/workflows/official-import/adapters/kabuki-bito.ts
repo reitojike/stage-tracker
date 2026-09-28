@@ -107,6 +107,7 @@ export function parseKabukiIndex(
       ).length > 0,
   );
   if (candidateItems.length === 0) throw new SourceParseFailure();
+  const allPlayUrls = new Set<string>();
   const datedRowUrls = new Set<string>();
   const fullRowUrls = new Set<string>();
   const facts: KabukiIndexFact[] = [];
@@ -124,6 +125,7 @@ export function parseKabukiIndex(
       source,
       new URL(href, source.canonicalUrl).toString(),
     );
+    allPlayUrls.add(canonicalUrl);
     const titleNode = descendants(item, (node) => hasClass(node, "ttl"))[0];
     const termNode = descendants(item, (node) => hasClass(node, "term"))[0];
     const theater = identity?.[1];
@@ -150,7 +152,7 @@ export function parseKabukiIndex(
   }
   if (
     fullRowUrls.size === 0 ||
-    fullRowUrls.size > MAX_PLAYS_PER_SCAN ||
+    allPlayUrls.size > MAX_PLAYS_PER_SCAN ||
     datedRowUrls.size !== facts.length
   )
     throw new SourceParseFailure();
