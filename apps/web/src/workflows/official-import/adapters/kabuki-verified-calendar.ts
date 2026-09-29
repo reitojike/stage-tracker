@@ -394,6 +394,25 @@ function validateCalendarNotes(
   const closed = parseKabukiDaySet(explicit[1] ?? "", startsOn, endsOn);
   let privateText = explicit[2] ?? "";
   const informationalPrefix = "昼の部では、古式に則り、";
+  const schoolGroupPrefix = "※下記日程は学校団体様がいらっしゃいます";
+  const schoolGroupAt = privateText.indexOf(schoolGroupPrefix);
+  if (schoolGroupAt >= 0) {
+    // School-group attendance does not change the public performance dates.
+    const informationalAt = privateText.indexOf(
+      informationalPrefix,
+      schoolGroupAt,
+    );
+    const schoolGroupEnd =
+      informationalAt < 0 ? privateText.length : informationalAt;
+    validateSchoolGroupNote(
+      privateText.slice(schoolGroupAt, schoolGroupEnd).trim(),
+      parts.map((part) => part.name),
+      startsOn,
+      endsOn,
+    );
+    privateText =
+      `${privateText.slice(0, schoolGroupAt).trim()} ${privateText.slice(schoolGroupEnd).trim()}`.trim();
+  }
   const informationalAt = privateText.indexOf(informationalPrefix);
   if (informationalAt >= 0) {
     const informational = privateText.slice(informationalAt);
