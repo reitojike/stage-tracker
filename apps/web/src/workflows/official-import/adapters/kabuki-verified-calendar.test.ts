@@ -262,7 +262,7 @@ describe("verified Kabuki daily calendar", () => {
     ).toThrow(SourceParseFailure);
   });
 
-  it("holds an unverified combination of otherwise known note forms", () => {
+  it("keeps verified private dates when a school-group note follows", () => {
     const cells = [
       ["A", "A"],
       ["-", "-"],
@@ -271,11 +271,16 @@ describe("verified Kabuki daily calendar", () => {
     const html = calendarHtml(cells, cells);
     const headline =
       "第一部 午前11時～ 第二部 午後4時～ 〖休演〗2日（金）〖貸切〗※幕見席は営業 第一部：3日（土）";
-    expect(parse(html, headline)).toHaveLength(3);
+    const withSchoolGroup = `${headline} ※下記日程は学校団体様がいらっしゃいます 第一部：1日（木） 第二部：3日（土）`;
+    expect(parse(html, withSchoolGroup).map((item) => item.startsAt)).toEqual([
+      "2026-10-01T11:00:00+09:00",
+      "2026-10-01T16:00:00+09:00",
+      "2026-10-03T16:00:00+09:00",
+    ]);
     expect(() =>
       parse(
         html,
-        `${headline} ※下記日程は学校団体様がいらっしゃいます 第一部：1日（木）`,
+        `${headline} ※下記日程は学校団体様がいらっしゃいます 第一部：4日（日）`,
       ),
     ).toThrow(SourceParseFailure);
   });
