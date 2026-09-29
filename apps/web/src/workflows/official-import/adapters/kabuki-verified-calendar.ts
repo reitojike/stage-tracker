@@ -410,7 +410,8 @@ function validateCalendarNotes(
       startsOn,
       endsOn,
     );
-    privateText = `${privateText.slice(0, schoolGroupAt).trim()} ${privateText.slice(schoolGroupEnd).trim()}`.trim();
+    privateText =
+      `${privateText.slice(0, schoolGroupAt).trim()} ${privateText.slice(schoolGroupEnd).trim()}`.trim();
   }
   const informationalAt = privateText.indexOf(informationalPrefix);
   if (informationalAt >= 0) {
