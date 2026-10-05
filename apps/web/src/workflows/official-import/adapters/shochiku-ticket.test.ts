@@ -142,6 +142,51 @@ describe("Shochiku ticket schedule", () => {
     ]);
   });
 
+  it("excludes an explicitly undecided end without losing adjacent sales", () => {
+    const teaser = `<h4 class="performance-title">未確定期間の予告</h4>
+      <p class="agenda_size">2027年2月1日（月）～6月（未定）</p>
+      <table><tr><th>一般発売</th><td>10月17日（土）～</td></tr></table>`;
+    const next = `<h4 class="performance-title">次の公演</h4>
+      <p class="agenda_size">2027年3月1日（月）～3月25日（木）</p>
+      <table><tr><th>一般発売</th><td>2月10日（水）～</td></tr></table>`;
+    const expected = parseShochikuSchedule(`${html}${next}`);
+    expect(parseShochikuSchedule(`${html}${teaser}${next}`)).toEqual(expected);
+    expect(
+      parseShochikuSchedule(`${html}${teaser}${next}`.normalize("NFKC")),
+    ).toEqual(parseShochikuSchedule(`${html}${next}`.normalize("NFKC")));
+    expect(
+      parseShochikuSchedule(
+        `${html}${teaser}`.replace("6月（未定）", "6月30日（水）"),
+      ),
+    ).toContainEqual(
+      expect.objectContaining({
+        title: "未確定期間の予告",
+        startsOn: "2027-02-01",
+        endsOn: "2027-06-30",
+      }),
+    );
+  });
+
+  it.each([
+    "2027年2月30日（月）～6月（未定）",
+    "2027年2月1日（月）～13月（未定）",
+    "2027年2月1日（月）～0月（未定）",
+    "2027年2月1日（月）～1月（未定）",
+    "2027年2月1日（月）～6月",
+    "2027年2月1日（月）～6月（調整中）",
+    "2027年2月1日（月）～6月（未定） ※日程変更あり",
+  ])(
+    "still fails closed for an unsupported or invalid period: %s",
+    (period) => {
+      expect(() =>
+        parseShochikuSchedule(`${html}
+        <h4 class="performance-title">別公演</h4>
+        <p class="agenda_size">${period}</p>
+        <table><tr><th>一般発売</th><td>10月17日～</td></tr></table>`),
+      ).toThrow();
+    },
+  );
+
   it("uses the previous year for a sale date preceding a January production", () => {
     expect(parseShochikuSaleMilestone("11月30日～", "2027-01-02")).toEqual({
       type: "sale_start",

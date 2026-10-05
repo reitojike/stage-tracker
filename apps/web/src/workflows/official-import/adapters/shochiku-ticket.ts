@@ -56,6 +56,20 @@ function headingLabel(node: HtmlNode): string {
   return directText === "" ? normalizedText(node) : directText;
 }
 
+function hasUnpublishedEndDate(periodText: string): boolean {
+  const match = periodText
+    .normalize("NFKC")
+    .match(
+      /^(\d{4})年(\d{1,2})月(\d{1,2})日(?:\([^)]+\))?[～〜~](\d{1,2})月\(未定\)$/u,
+    );
+  if (match === null) return false;
+  const startMonth = Number(match[2]);
+  const endMonth = Number(match[4]);
+  calendarDate(Number(match[1]), startMonth, Number(match[3]));
+  if (endMonth < startMonth || endMonth > 12) throw new SourceParseFailure();
+  return true;
+}
+
 export function parseShochikuSchedule(
   html: string,
 ): readonly ShochikuTicketFact[] {
@@ -99,6 +113,9 @@ export function parseShochikuSchedule(
     ) {
       continue;
     }
+    // A published start with an explicitly undecided end is also a teaser.
+    // Its sale rows cannot establish a complete Event match window.
+    if (hasUnpublishedEndDate(periodText)) continue;
     const periodMatch = periodText
       .normalize("NFKC")
       .match(
