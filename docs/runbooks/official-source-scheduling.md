@@ -9,7 +9,10 @@ stageするだけであり、catalog dataを自動でapprove、apply、deleteす
 - `ticket.shochiku.schedule`は短期の日次shadow試行中です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
   general saleの暫定evidenceとして読み、その後Shochiku東西のsale rowを読みます。同じEventのgeneral saleは1つのsource/run内でreconcileします。
   Shochikuの日付が後から変われば暫定日付を置き換えますが、同じ日のShochiku date-only rowによってKabuki-bitoが明示した時刻を消すことは
-  ありません。Shochikuの会員tierは別々のopportunityとして扱います。titleの異なるproductionをsubstringだけで紐付けません。Event identityを
+  ありません。Shochikuの会員tierは別々のopportunityとして扱います。月単位の予告と、正確な開始日に続いて終了月が「未定」と明記された予告
+  （例: `2027年2月1日（月）～6月（未定）`）は候補から除外します。終了日を推測したり、開始日を終了日としてEventへ紐付けたりしません。
+  これは日付rangeが確定した公演のheld-page reportとは別の除外で、同じpageにある解析可能な公演の取得を継続します。他の未対応書式や不正な日付は
+  引き続きrunを失敗させます。titleの異なるproductionをsubstringだけで紐付けません。Event identityを
   解決できない場合はreview-blockedのままとし、approval/applyは自動化しません。creatorの`/catalog/imports` pageには、ticket用の別個のmanual
   shadow buttonと最新のheld-page reportがあります。2026-09-25のread-only live scanでは、異なるticket draftを71件解析しました。Kabuki-bito
   detail pageから13件、Shochiku東西から58件で、held play pageは0件でした。Kabukiza #986では[official ticket section](https://www.kabuki-bito.jp/theaters/kabukiza/play/986)

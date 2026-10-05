@@ -230,6 +230,42 @@ describe("Kabuki preliminary ticket sales", () => {
     expect(secondGeneral?.proposal.displayName).toBe("一般発売");
   });
 
+  it("continues both schedule pages and Kabuki sales after an undecided-end teaser", async () => {
+    const sale = (title: string, period: string) =>
+      `<h4 class="performance-title">${title}</h4>
+       <p class="agenda_size">${period}</p>
+       <table><tr><th>一般発売</th><td>10月14日～</td></tr></table>`;
+    const pages = new Map([
+      [
+        "https://www.kabuki-bito.jp/schedule/",
+        `<li class="item"><a href="/theaters/kabukiza/play/986"><h3 class="ttl">歌舞伎公演</h3></a><p class="term">2026年11月1日（日）～25日（水）</p></li>`,
+      ],
+      ["https://www.kabuki-bito.jp/theaters/kabukiza/play/986", detail],
+      [
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_east.html",
+        `<h4 class="page-block__title title3">東の劇場</h4>${sale("東の公演", "2026年11月1日（日）")}`,
+      ],
+      [
+        "https://www1.ticket-web-shochiku.com/t/info/sale_schedule_west.html",
+        `<h4 class="page-block__title title3">西の劇場</h4>${sale("予告公演", "2027年2月1日（月）～6月（未定）")}${sale("西の公演", "2026年11月1日（日）")}`,
+      ],
+    ]);
+    const adapter = createShochikuTicketAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return document(url, body);
+    });
+    const drafts = await adapter.acquire(source);
+    expect(drafts).toHaveLength(3);
+    expect(
+      drafts.map((draft) =>
+        draft.candidateKind === "ticket_opportunity"
+          ? draft.eventReference?.title
+          : null,
+      ),
+    ).toEqual(["東の公演", "西の公演", "歌舞伎公演"]);
+  });
+
   it("pairs the observed Minamiza title alias without a generic substring rule", async () => {
     const pages = new Map([
       [
