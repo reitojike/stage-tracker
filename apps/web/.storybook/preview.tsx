@@ -13,7 +13,7 @@ const preview: Preview = {
       },
     },
     a11y: {
-      // Storybook 9 の標準 test-runner で全 story を検査し、violation を
+      // 標準 addon-vitest で全 story を検査し、violation を
       // CLI / CI failure として扱う。
       test: "error",
       config: {
