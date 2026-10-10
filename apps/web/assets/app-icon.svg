@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>stage-tracker — a stage in your calendar</title>
+  <rect width="512" height="512" fill="#2f4a7a" />
+  <g id="stage-mark">
+    <rect x="120" y="154" width="272" height="236" rx="32" fill="#ffffff" />
+    <rect x="188" y="122" width="24" height="64" rx="12" fill="#ffffff" />
+    <rect x="300" y="122" width="24" height="64" rx="12" fill="#ffffff" />
+    <path d="M208 214h96c1 48 21 74 60 94v48H148v-48c39-20 59-46 60-94Z" fill="#253455" />
+    <path d="M256 240c4 22 12 30 34 34-22 4-30 12-34 34-4-22-12-30-34-34 22-4 30-12 34-34Z" fill="#b6d4f2" />
+  </g>
+</svg>
