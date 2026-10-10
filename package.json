@@ -13,7 +13,7 @@
     "typecheck": "turbo run typecheck && pnpm run typecheck:rls",
     "typecheck:rls": "tsc --noEmit -p test/rls/tsconfig.json",
     "test:unit": "turbo run test:unit",
-    "test:storybook": "pnpm run build-storybook && pnpm --filter @stage-tracker/web run test-storybook:ci",
+    "test:storybook": "pnpm run build-storybook && pnpm --filter @stage-tracker/web run test-storybook:vitest",
     "build": "turbo run build",
     "build-storybook": "turbo run build-storybook",
     "db:start": "supabase start",
