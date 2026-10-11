@@ -432,6 +432,53 @@ export type Database = {
           },
         ]
       }
+      official_import_failure_observations: {
+        Row: {
+          acquired_draft_count: number | null
+          canonical_url: string | null
+          held_page_count: number
+          observed_at: string
+          official_external_id: string | null
+          phase: string
+          reason_code: string
+          run_id: string
+          source_id: string
+          validated_candidate_count: number
+        }
+        Insert: {
+          acquired_draft_count?: number | null
+          canonical_url?: string | null
+          held_page_count: number
+          observed_at?: string
+          official_external_id?: string | null
+          phase: string
+          reason_code: string
+          run_id: string
+          source_id: string
+          validated_candidate_count: number
+        }
+        Update: {
+          acquired_draft_count?: number | null
+          canonical_url?: string | null
+          held_page_count?: number
+          observed_at?: string
+          official_external_id?: string | null
+          phase?: string
+          reason_code?: string
+          run_id?: string
+          source_id?: string
+          validated_candidate_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_import_failure_observations_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "official_import_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       official_import_held_pages: {
         Row: {
           canonical_url: string
@@ -1237,6 +1284,21 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_owned_official_import_failure_observation: {
+        Args: {
+          p_acquired_draft_count?: number
+          p_attempt_token: string
+          p_canonical_url?: string
+          p_held_page_count?: number
+          p_official_external_id?: string
+          p_phase: string
+          p_reason_code: string
+          p_run_id: string
+          p_source_id: string
+          p_validated_candidate_count?: number
+        }
+        Returns: boolean
       }
       release_official_import_run_attempt: {
         Args: { p_attempt_token: string; p_run_id: string; p_source_id: string }
