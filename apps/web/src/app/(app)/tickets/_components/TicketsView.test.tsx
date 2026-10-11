@@ -177,6 +177,21 @@ describe("TicketsView", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses neutral date wording for an empty past view", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="past"
+        state={{ block: { variant: "empty" }, optional: { ok: true } }}
+      />,
+    );
+
+    expect(
+      screen.getByText("直近7日以内に表示できる過去の日程はありません"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/受付はありません/u)).not.toBeInTheDocument();
+  });
+
   it("renders the error state as an alert with a generic retry hint (never a raw message)", () => {
     render(
       <TicketsView

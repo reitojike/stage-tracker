@@ -237,7 +237,7 @@ function emptyTitle(view: TicketsViewFilter): string {
     case "applied":
       return "自分の申込済みの受付はありません";
     case "past":
-      return "直近7日間に終了した受付はありません";
+      return "直近7日以内に表示できる過去の日程はありません";
   }
 }
 
