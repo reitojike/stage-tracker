@@ -64,14 +64,10 @@ function useHomeDeadlineFixtures(fixtures: readonly HomeDeadlineFixture[]) {
     opportunity_id: fixtureId("opportunity", index),
     milestone_type: fixture.milestoneType,
     temporal_precision: fixture.temporalPrecision,
-    date_value:
-      fixture.temporalPrecision === "date" ? fixture.value : null,
-    at:
-      fixture.temporalPrecision === "datetime" ? fixture.value : null,
-    starts_at:
-      fixture.temporalPrecision === "window" ? fixture.startsAt : null,
-    ends_at:
-      fixture.temporalPrecision === "window" ? fixture.endsAt : null,
+    date_value: fixture.temporalPrecision === "date" ? fixture.value : null,
+    at: fixture.temporalPrecision === "datetime" ? fixture.value : null,
+    starts_at: fixture.temporalPrecision === "window" ? fixture.startsAt : null,
+    ends_at: fixture.temporalPrecision === "window" ? fixture.endsAt : null,
     created_at: FIXTURE_STAMP,
     updated_at: FIXTURE_STAMP,
   }));
@@ -133,7 +129,9 @@ function useHomeDeadlineFixtures(fixtures: readonly HomeDeadlineFixture[]) {
       HttpResponse.json(states, {
         headers: {
           "content-range":
-            states.length === 0 ? "*/0" : `0-${states.length - 1}/${states.length}`,
+            states.length === 0
+              ? "*/0"
+              : `0-${states.length - 1}/${states.length}`,
         },
       }),
     ),
