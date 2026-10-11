@@ -960,7 +960,7 @@ describe("terminal-only failure semantics", () => {
     const harness = repositoryHarness();
     const draft: AcquisitionDraft = {
       candidateKind: "event",
-      get canonicalUrl() {
+      get canonicalUrl(): string {
         throw new Error(SENTINEL);
       },
       observedAt: "2026-10-11T00:00:00.000Z",
