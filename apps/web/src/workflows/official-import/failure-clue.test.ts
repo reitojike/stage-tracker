@@ -46,7 +46,9 @@ describe("bounded terminal clues", () => {
       null,
     ],
   ])("keeps only source locators %s %s", (id, url, expected) =>
-    expect(safeFailureUrl(requireEnabledShadowSource(id!), url)).toBe(expected),
+    expect(safeFailureUrl(requireEnabledShadowSource(id ?? ""), url)).toBe(
+      expected,
+    ),
   );
   it.each([
     null,
@@ -111,8 +113,8 @@ describe("bounded terminal clues", () => {
       ),
       "utf8",
     );
-    const patterns = [...sql.matchAll(/p_failure_url ~ '([^']+)'/g)].map(
-      (match) => new RegExp(match[1]!),
+    const patterns = [...sql.matchAll(/p_failure_url ~ '([^']+)'/g)].flatMap(
+      (match) => (match[1] === undefined ? [] : [new RegExp(match[1])]),
     );
     const urls = [
       safe,
@@ -131,18 +133,19 @@ describe("bounded terminal clues", () => {
       "ticket.takarazuka.revue-general-sale",
     ];
     expect(patterns).toHaveLength(5);
-    for (let i = 0; i < ids.length; i++)
+    for (const [i, id] of ids.entries())
       for (const url of urls) {
-        const canonical = safeFailureUrl(
-          requireEnabledShadowSource(ids[i]!),
-          url,
+        const indices = positions[i] ?? [];
+        const sourcePatterns = patterns.filter((_pattern, index) =>
+          indices.includes(index),
         );
+        const canonical = safeFailureUrl(requireEnabledShadowSource(id), url);
         if (canonical !== null)
           expect(
-            positions[i]!.some((index) => patterns[index]!.test(canonical)),
+            sourcePatterns.some((pattern) => pattern.test(canonical)),
           ).toBe(true);
         const sqlAllowed =
-          positions[i]!.some((index) => patterns[index]!.test(url)) &&
+          sourcePatterns.some((pattern) => pattern.test(url)) &&
           (i !== 3 || url.startsWith("https://kageki.hankyu.co.jp/sp/revue/"));
         if (!url.includes("?")) expect(canonical !== null).toBe(sqlAllowed);
       }

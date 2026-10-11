@@ -958,12 +958,21 @@ describe("terminal-only failure semantics", () => {
   const page = "https://www.kabuki-bito.jp/theaters/kabukiza/play/986";
   it("a throwing draft URL accessor cannot mask the original terminal failure", async () => {
     const harness = repositoryHarness();
-    const draft = {
+    const draft: AcquisitionDraft = {
       candidateKind: "event",
       get canonicalUrl() {
         throw new Error(SENTINEL);
       },
-    } as AcquisitionDraft;
+      observedAt: "2026-10-11T00:00:00.000Z",
+      contentHash: "a".repeat(64),
+      proposal: {
+        sourceKey: "example",
+        title: "Example",
+        startsOn: "2026-10-11",
+        endsOn: "2026-10-12",
+        occurrences: [],
+      },
+    };
     await expect(
       executeOfficialImportShadowRun(
         RUN_ID,
@@ -1073,7 +1082,8 @@ describe("terminal-only failure semantics", () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     const harness = repositoryHarness();
-    const original = harness.failRun.getMockImplementation()!;
+    const original = harness.failRun.getMockImplementation();
+    if (original === undefined) throw new Error("Missing failure harness");
     harness.failRun.mockImplementation(async (...args) =>
       Date.now() < 1000 ? original(...args) : "not_owner",
     );
@@ -1160,7 +1170,8 @@ describe("terminal-only failure semantics", () => {
   });
   it("a committed failure with a lost response replays its immutable terminal result without acquisition", async () => {
     const harness = repositoryHarness();
-    const original = harness.failRun.getMockImplementation()!;
+    const original = harness.failRun.getMockImplementation();
+    if (original === undefined) throw new Error("Missing failure harness");
     harness.failRun.mockImplementationOnce(async (...args) => {
       await original(...args);
       throw new Error("LOST_RESPONSE");
