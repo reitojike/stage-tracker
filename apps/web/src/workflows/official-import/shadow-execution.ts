@@ -16,7 +16,13 @@ import {
   type OfficialImportCandidatePlanner,
   type OfficialSourceAdapter,
   type HeldSourcePage,
+  type AcquisitionDraft,
 } from "./acquisition";
+import {
+  createFailureObservation,
+  safeObservationUrl,
+  type OfficialImportFailureObservation,
+} from "./failure-observation";
 import {
   OfficialSourceRegistryError,
   assertAllowedSourceUrl,
@@ -61,6 +67,12 @@ export type RunAttemptTransition =
   "released" | "not_owner" | "completed" | "failed";
 
 export interface OfficialImportStagingRepository {
+  recordFailureObservation(
+    runId: string,
+    sourceId: string,
+    attemptToken: string,
+    observation: OfficialImportFailureObservation,
+  ): Promise<boolean>;
   prepareRun(
     runId: string,
     sourceId: string,
@@ -216,8 +228,12 @@ export async function executeOfficialImportShadowRun(
     attemptToken,
     leaseHeartbeatIntervalMs,
   );
+  const heldPages: HeldSourcePage[] = [];
+  let phase: OfficialImportFailureObservation["phase"] = "acquisition";
+  let currentDraft: AcquisitionDraft | null = null;
+  let acquiredDraftCount: number | null = null;
+  let validatedCandidateCount = 0;
   try {
-    const heldPages: HeldSourcePage[] = [];
     const heldUrls = new Set<string>();
     const recordHeldPage = (page: HeldSourcePage) => {
       const canonicalUrl = assertAllowedSourceUrl(source, page.canonicalUrl);
@@ -249,11 +265,14 @@ export async function executeOfficialImportShadowRun(
       }
     };
     const drafts = await adapter.acquire(source, recordHeldPage);
+    acquiredDraftCount = drafts.length;
+    phase = "planning";
     lease.assertOwned();
     const eventCandidates: EventDurableCandidate[] = [];
     const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
     for (const draft of drafts) {
       lease.assertOwned();
+      currentDraft = draft;
       if (draft.candidateKind !== source.domainKind) {
         throw new DurableCandidateValidationError(
           `candidate kind ${draft.candidateKind} does not match source ${source.id}`,
@@ -321,6 +340,7 @@ export async function executeOfficialImportShadowRun(
           jevDecisionEvidence: planning.jevDecisionEvidence,
         });
         eventCandidates.push(candidate);
+        validatedCandidateCount += 1;
       } else {
         const proposal = createTicketOpportunityProposal(
           draft.proposal.sourceUrl === null ||
@@ -375,6 +395,7 @@ export async function executeOfficialImportShadowRun(
           jevDecisionEvidence: planning.jevDecisionEvidence,
         });
         ticketOpportunityCandidates.push(candidate);
+        validatedCandidateCount += 1;
       }
     }
 
@@ -383,6 +404,8 @@ export async function executeOfficialImportShadowRun(
     // the already committed count from that same serialization boundary.
     await lease.stopAndDrain();
     lease.assertOwned();
+    currentDraft = null;
+    phase = "publication";
     const candidates = [...eventCandidates, ...ticketOpportunityCandidates];
     const candidateCount =
       heldPages.length === 0
@@ -419,15 +442,41 @@ export async function executeOfficialImportShadowRun(
     }
     if (error instanceof OfficialImportAttemptRetryError) throw error;
     const failureClassification = classifyFailure(error);
+    const observation = createFailureObservation(
+      source,
+      error,
+      failureClassification,
+      phase,
+      currentDraft,
+      acquiredDraftCount,
+      validatedCandidateCount,
+      heldPages.length,
+    );
+    try {
+      const recorded = await repository.recordFailureObservation(
+        runId,
+        source.id,
+        attemptToken,
+        observation,
+      );
+      if (!recorded)
+        console.warn("Official import failure observation unavailable", {
+          runId,
+          sourceId: source.id,
+          phase,
+          reason: "not_owner",
+        });
+    } catch {
+      // Diagnostic persistence must never mask the original ingestion failure.
+      console.warn("Official import failure observation unavailable", {
+        runId,
+        sourceId: source.id,
+        phase,
+        reason: "storage_unavailable",
+      });
+    }
     if (error instanceof SourceParseFailure) {
-      let canonicalUrl: string | null = null;
-      if (error.canonicalUrl !== null) {
-        try {
-          canonicalUrl = assertAllowedSourceUrl(source, error.canonicalUrl);
-        } catch {
-          // Keep an invalid URL out of logs without masking the parse failure.
-        }
-      }
+      const canonicalUrl = safeObservationUrl(source, error.canonicalUrl);
       console.error(
         error.reason === "request_limit"
           ? "Official source request limit reached"

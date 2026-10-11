@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/data/database.types";
 import { deriveOfficialImportCandidateReviewStatus } from "../candidate-review";
 import type { HeldSourcePage } from "../acquisition";
+import type { OfficialImportFailureObservation } from "../failure-observation";
 import {
   OFFICIAL_IMPORT_ATTEMPT_LEASE_SECONDS,
   OfficialImportAttemptRetryError,
@@ -80,6 +81,37 @@ function parseAttemptTransition(value: string): RunAttemptTransition {
 
 class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRepository {
   constructor(private readonly client: SupabaseClient<Database>) {}
+
+  async recordFailureObservation(
+    runId: string,
+    sourceId: string,
+    attemptToken: string,
+    observation: OfficialImportFailureObservation,
+  ): Promise<boolean> {
+    const { data, error } = await this.client
+      .rpc("record_owned_official_import_failure_observation", {
+        p_run_id: runId,
+        p_source_id: sourceId,
+        p_attempt_token: attemptToken,
+        p_phase: observation.phase,
+        p_reason_code: observation.reasonCode,
+        ...(observation.canonicalUrl === null
+          ? {}
+          : { p_canonical_url: observation.canonicalUrl }),
+        ...(observation.officialExternalId === null
+          ? {}
+          : { p_official_external_id: observation.officialExternalId }),
+        ...(observation.acquiredDraftCount === null
+          ? {}
+          : { p_acquired_draft_count: observation.acquiredDraftCount }),
+        p_validated_candidate_count: observation.validatedCandidateCount,
+        p_held_page_count: observation.heldPageCount,
+      })
+      .abortSignal(AbortSignal.timeout(2_000));
+    if (error !== null || data === null)
+      throw new Error("Failed to record official import failure observation");
+    return data;
+  }
 
   async prepareRun(
     runId: string,
