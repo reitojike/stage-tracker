@@ -1,7 +1,7 @@
 \ir helpers/auth.psql
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(45);
+select plan(46);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
@@ -63,6 +63,7 @@ select throws_ok(format('delete from public.official_import_runs where id = %L',
 select gen_random_uuid() as cleanup_run_id \gset
 select public.claim_official_import_run_attempt(:'cleanup_run_id', 'observation-cleanup', 'cleanup-owner', 300) as claimed \gset
 select public.record_owned_official_import_failure_observation(:'cleanup_run_id', 'observation-cleanup', 'cleanup-owner', 'acquisition', 'source_fetch', null, null, null, 0, 0) as recorded \gset
+select is((select count(*) from public.official_import_failure_observations where run_id = :'cleanup_run_id'), 1::bigint, 'cleanup fixture contains a diagnostic before parent deletion');
 select public.release_official_import_run_attempt(:'cleanup_run_id', 'observation-cleanup', 'cleanup-owner') as released \gset
 select lives_ok(format('delete from public.official_import_runs where id = %L', :'cleanup_run_id'), 'existing released empty-run deletion stays permitted');
 select is((select count(*) from public.official_import_runs where id = :'cleanup_run_id'), 0::bigint, 'permitted cleanup removes the parent run');
