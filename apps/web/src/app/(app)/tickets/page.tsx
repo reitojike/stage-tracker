@@ -4,7 +4,12 @@ import { requireAuthenticatedUserId } from "@/app/_lib/require-authenticated-use
 import { resolveScreenNow } from "@/app/_lib/now";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import { loadTicketsTimeline } from "./_lib/tickets-loader";
+import { parseTicketsView } from "./_lib/tickets-view";
 import { TicketsView } from "./_components/TicketsView";
+
+interface TicketsPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
 /**
  * `/tickets` route and exact composition are runtime-owned. TicketOpportunity
@@ -12,7 +17,7 @@ import { TicketsView } from "./_components/TicketsView";
  * Spec 003. This page performs the authenticated read and delegates the
  * rendered surface to `TicketsView`.
  */
-export default async function TicketsPage() {
+export default async function TicketsPage({ searchParams }: TicketsPageProps) {
   const supabase = await createSupabaseServerClient();
   const userResult = await requireAuthenticatedUserId(supabase);
 
@@ -29,7 +34,14 @@ export default async function TicketsPage() {
   }
 
   const now = resolveScreenNow();
+  const params = await searchParams;
   const state = await loadTicketsTimeline(supabase, userResult.value, now);
 
-  return <TicketsView state={state} today={now.todayTokyoDate} />;
+  return (
+    <TicketsView
+      state={state}
+      today={now.todayTokyoDate}
+      view={parseTicketsView(params.view)}
+    />
+  );
 }

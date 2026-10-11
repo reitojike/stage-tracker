@@ -95,6 +95,43 @@ describe("TicketsView", () => {
     ).toBeInTheDocument();
   });
 
+  it("exposes URL-backed filters and marks the current view", () => {
+    render(<TicketsView today={TODAY} state={POPULATED} />);
+
+    expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "過去（7日）" })).toHaveAttribute(
+      "href",
+      "/tickets?view=past",
+    );
+  });
+
+  it("blocks personal filters when personal state is unknown", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="planned"
+        state={{
+          block: POPULATED.block,
+          optional: { ok: false, variant: "error" },
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "申し込み状態を読み込めないため、自分の申込状態で絞り込めません",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("自分の申込予定").closest("span")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.queryByText("テスト公演")).not.toBeInTheDocument();
+  });
+
   it("renders the empty state copy", () => {
     render(
       <TicketsView
@@ -103,7 +140,7 @@ describe("TicketsView", () => {
       />,
     );
     expect(
-      screen.getByText("現在表示できる抽選・販売スケジュールはありません"),
+      screen.getByText("今後の抽選・販売スケジュールはありません"),
     ).toBeInTheDocument();
   });
 
@@ -249,6 +286,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -278,6 +316,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -406,6 +445,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -520,6 +560,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",

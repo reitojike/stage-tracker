@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   isRenderableHttpUrl,
@@ -33,11 +34,16 @@ import type {
   TicketsTimelineRow,
   TicketsTimelineState,
 } from "../_lib/tickets-loader";
+import {
+  filterTicketsTimelineGroups,
+  type TicketsView as TicketsViewFilter,
+} from "../_lib/tickets-view";
 import { TicketOpportunityStateControls } from "./TicketOpportunityStateControls";
 
 export interface TicketsViewProps {
   readonly state: OptionalPartBlockState<TicketsTimelineState>;
   readonly today: TokyoCalendarDate;
+  readonly view?: TicketsViewFilter;
 }
 
 function ticketTimelineMonthGroupKey(
@@ -76,33 +82,71 @@ function ticketTimelineMonthGroupKey(
  * the caller's actual current state is unknown could silently overwrite it
  * incorrectly.
  */
-export function TicketsView({ state, today }: TicketsViewProps) {
+export function TicketsView({
+  state,
+  today,
+  view = "upcoming",
+}: TicketsViewProps) {
   const { block, optional } = state;
+  const personalStateUnknown = optional.ok === false;
+  const personalStateView = view === "planned" || view === "applied";
+  const visibleGroups =
+    block.variant === "populated"
+      ? filterTicketsTimelineGroups(block.data.groups, view)
+      : [];
 
   return (
     <div className="flex flex-col gap-section">
       <PageHeading>チケット</PageHeading>
+      <TicketsViewFilters
+        view={view}
+        personalStateKnown={!personalStateUnknown}
+      />
 
       {block.variant !== "populated" ? (
+        <>
+          <StatePanel
+            variant={block.variant}
+            title={
+              block.variant === "empty"
+                ? emptyTitle(view)
+                : block.variant === "unavailable"
+                  ? "チケット情報を確認できません"
+                  : "チケット情報を読み込めませんでした"
+            }
+            {...(block.variant === "error"
+              ? { description: READ_FAILURE_RETRY_HINT_JA }
+              : {})}
+          />
+          {personalStateUnknown ? (
+            <PersonalStateFailureNote variant={optional.variant} />
+          ) : null}
+        </>
+      ) : personalStateView && personalStateUnknown ? (
         <StatePanel
-          variant={block.variant}
+          variant={optional.variant}
           title={
-            block.variant === "empty"
-              ? "現在表示できる抽選・販売スケジュールはありません"
-              : block.variant === "unavailable"
-                ? "チケット情報を確認できません"
-                : "チケット情報を読み込めませんでした"
+            optional.variant === "unavailable"
+              ? "申し込み状態を確認できないため、自分の申込状態で絞り込めません"
+              : "申し込み状態を読み込めないため、自分の申込状態で絞り込めません"
           }
-          {...(block.variant === "error"
+          {...(optional.variant === "error"
             ? { description: READ_FAILURE_RETRY_HINT_JA }
             : {})}
         />
-      ) : (
-        <div className="flex flex-col gap-lg">
-          {optional.ok === false ? (
+      ) : visibleGroups.length === 0 ? (
+        <>
+          {personalStateUnknown ? (
             <PersonalStateFailureNote variant={optional.variant} />
           ) : null}
-          {block.data.groups.map((group) => (
+          <StatePanel variant="empty" title={emptyTitle(view)} />
+        </>
+      ) : (
+        <div className="flex flex-col gap-lg">
+          {personalStateUnknown ? (
+            <PersonalStateFailureNote variant={optional.variant} />
+          ) : null}
+          {visibleGroups.map((group) => (
             <section
               key={ticketTimelineMonthGroupKey(group)}
               aria-label={formatMonthJa(group.monthKey)}
@@ -129,6 +173,65 @@ export function TicketsView({ state, today }: TicketsViewProps) {
       )}
     </div>
   );
+}
+
+const TICKET_VIEW_FILTERS: readonly {
+  readonly value: TicketsViewFilter;
+  readonly label: string;
+  readonly requiresPersonalState: boolean;
+}[] = [
+  { value: "upcoming", label: "今後", requiresPersonalState: false },
+  { value: "planned", label: "自分の申込予定", requiresPersonalState: true },
+  { value: "applied", label: "自分の申込済み", requiresPersonalState: true },
+  { value: "past", label: "過去（7日）", requiresPersonalState: false },
+];
+
+function TicketsViewFilters({
+  view,
+  personalStateKnown,
+}: {
+  readonly view: TicketsViewFilter;
+  readonly personalStateKnown: boolean;
+}) {
+  return (
+    <nav aria-label="チケット一覧の絞り込み">
+      <ul className="flex flex-wrap gap-2xs">
+        {TICKET_VIEW_FILTERS.map((filter) => (
+          <li key={filter.value}>
+            {filter.requiresPersonalState && !personalStateKnown ? (
+              <span
+                aria-disabled="true"
+                className="inline-flex rounded-md border border-border px-sm py-xs text-body-sm text-muted-foreground opacity-60"
+              >
+                {filter.label}
+              </span>
+            ) : (
+              <Link
+                href={`/tickets?view=${filter.value}`}
+                aria-current={view === filter.value ? "page" : undefined}
+                className={`inline-flex rounded-md border border-border px-sm py-xs text-body-sm focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50 ${view === filter.value ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {filter.label}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function emptyTitle(view: TicketsViewFilter): string {
+  switch (view) {
+    case "upcoming":
+      return "今後の抽選・販売スケジュールはありません";
+    case "planned":
+      return "自分の申込予定はありません";
+    case "applied":
+      return "自分の申込済みの受付はありません";
+    case "past":
+      return "直近7日間に終了した受付はありません";
+  }
 }
 
 /**
