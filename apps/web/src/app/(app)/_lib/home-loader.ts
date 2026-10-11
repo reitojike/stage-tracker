@@ -3,8 +3,10 @@ import type { Database } from "@/lib/data/database.types";
 import {
   buildTicketOpportunityTimelineRows,
   compareInstants,
+  isTicketOpportunityDeadlineInHomeWindow,
+  isTicketOpportunityMilestonePast,
   isInstantSameOrAfter,
-  selectTicketOpportunityPrimaryRows,
+  ticketOpportunityDeadlineSortInstant,
   tokyoCalendarDayRangeUtc,
   type Event,
   type Instant,
@@ -51,7 +53,6 @@ import type { ScreenNow } from "@/app/_lib/now";
  * decides which combinator applies.
  */
 
-const HOME_TICKET_DEADLINE_LIMIT = 5;
 const HOME_UPCOMING_SCHEDULE_LIMIT = 5;
 
 export interface HomeTicketDeadlineRow {
@@ -64,22 +65,17 @@ export interface HomeTicketDeadlineRow {
 /**
  * "申し込み期限" block: `listTicketOpportunities` (shared catalog) +
  * `listMyTicketOpportunityStates` (personal planning state), reduced to the
- * chronologically-nearest still-relevant milestone per Opportunity
- * (`@stage-tracker/domain`'s `selectTicketOpportunityPrimaryRows`), excluding
- * post-final retained history (that belongs to `/tickets`'s full timeline,
- * not home's "upcoming deadlines" framing - AGENT decision, not specified by
- * the oracle at this granularity) and capped to
- * `HOME_TICKET_DEADLINE_LIMIT` rows (also an AGENT decision - the oracle
- * does not specify a home-page row limit; see this Task's report).
+ * every own planned `application_close` milestone due today through 14 Tokyo
+ * calendar days ahead. It filters the full timeline so an earlier sale or
+ * result milestone cannot hide the application deadline; there is no row cap.
  *
  * `listTicketOpportunities` is the **required** read here and
  * `listMyTicketOpportunityStates` is **optional**
  * (`classifyBlock2Optional`, PR #381 review finding 1): if only the
- * personal-state read fails, `block` still renders every opportunity with
- * `myState: null` per row (identical to a caller with 0 rows in that table -
- * `buildTicketOpportunityAggregates`'s own docstring), rather than hiding
- * the whole block. If the shared catalog read itself fails, there is no
- * opportunity data to show at all, so `block` reports that failure.
+ * personal-state read fails, the shared catalog remains independently
+ * classified, but no deadline rows are returned because the caller's
+ * `planned` state is unknown. The view exposes that failure rather than
+ * treating unknown state as untracked or planned.
  *
  * The returned `optional` field (PR #381 P4 follow-up review finding 2)
  * always reflects `listMyTicketOpportunityStates`'s own real status, so
@@ -114,28 +110,44 @@ export async function loadHomeTicketDeadlines(
             [detail.opportunityWithTargets.opportunity.id, detail] as const,
         ),
       );
-      const primaryRows = selectTicketOpportunityPrimaryRows(
-        timelineRows,
-        now.nowInstant,
-        now.todayTokyoDate,
-      );
-      return primaryRows
-        .filter((row) => !row.isPostFinalRetainedHistory)
-        .slice(0, HOME_TICKET_DEADLINE_LIMIT)
-        .map((row) => {
-          const detail = detailByOpportunityId.get(row.opportunityId);
-          if (detail === undefined) {
-            throw new Error(
-              `unreachable: timeline row has no source opportunity detail (${row.opportunityId})`,
-            );
-          }
-          return {
-            row,
-            eventTitle: detail.eventTitle,
-            isEffectivelyCanceled: detail.isEffectivelyCanceled,
-            targetScope: detail.opportunityWithTargets.opportunity.targetScope,
-          };
-        });
+      const deadlineRows = timelineRows
+        .filter(
+          (row) =>
+            row.myState === "planned" &&
+            row.milestone.milestoneType === "application_close" &&
+            !isTicketOpportunityMilestonePast(
+              row.milestone,
+              now.nowInstant,
+              now.todayTokyoDate,
+            ) &&
+            isTicketOpportunityDeadlineInHomeWindow(
+              row.milestone,
+              now.todayTokyoDate,
+            ) &&
+            detailByOpportunityId.get(row.opportunityId)
+              ?.isEffectivelyCanceled !== true,
+        )
+        .sort(
+          (a, b) =>
+            compareInstants(
+              ticketOpportunityDeadlineSortInstant(a.milestone),
+              ticketOpportunityDeadlineSortInstant(b.milestone),
+            ) || a.milestone.id.localeCompare(b.milestone.id),
+        );
+      return deadlineRows.map((row) => {
+        const detail = detailByOpportunityId.get(row.opportunityId);
+        if (detail === undefined) {
+          throw new Error(
+            `unreachable: timeline row has no source opportunity detail (${row.opportunityId})`,
+          );
+        }
+        return {
+          row,
+          eventTitle: detail.eventTitle,
+          isEffectivelyCanceled: detail.isEffectivelyCanceled,
+          targetScope: detail.opportunityWithTargets.opportunity.targetScope,
+        };
+      });
     },
     (data) => data.length === 0,
   );

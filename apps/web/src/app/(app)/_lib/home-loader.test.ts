@@ -121,6 +121,18 @@ describe("loadHomeTicketDeadlines", () => {
                   milestone_type: "sale_start",
                   temporal_precision: "datetime",
                   date_value: null,
+                  at: "2026-03-05T10:00:00Z",
+                  starts_at: null,
+                  ends_at: null,
+                  created_at: "2026-01-01T00:00:00Z",
+                  updated_at: "2026-01-01T00:00:00Z",
+                },
+                {
+                  id: "55555555-5555-4555-8555-555555555556",
+                  opportunity_id: OPPORTUNITY_ID,
+                  milestone_type: "application_close",
+                  temporal_precision: "datetime",
+                  date_value: null,
                   at: "2026-03-10T10:00:00Z",
                   starts_at: null,
                   ends_at: null,
@@ -133,8 +145,51 @@ describe("loadHomeTicketDeadlines", () => {
           { headers: { "content-range": "0-0/1" } },
         ),
       ),
+      http.get(`${REST_URL}/ticket_opportunity_milestones`, () =>
+        HttpResponse.json(
+          [
+            {
+              id: "55555555-5555-4555-8555-555555555555",
+              opportunity_id: OPPORTUNITY_ID,
+              milestone_type: "sale_start",
+              temporal_precision: "datetime",
+              date_value: null,
+              at: "2026-03-05T10:00:00Z",
+              starts_at: null,
+              ends_at: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+            },
+            {
+              id: "55555555-5555-4555-8555-555555555556",
+              opportunity_id: OPPORTUNITY_ID,
+              milestone_type: "application_close",
+              temporal_precision: "datetime",
+              date_value: null,
+              at: "2026-03-10T10:00:00Z",
+              starts_at: null,
+              ends_at: null,
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+            },
+          ],
+          { headers: { "content-range": "0-1/2" } },
+        ),
+      ),
       http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
-        HttpResponse.json([], { headers: { "content-range": "*/0" } }),
+        HttpResponse.json(
+          [
+            {
+              id: "88888888-8888-4888-8888-888888888888",
+              user_id: USER_ID,
+              opportunity_id: OPPORTUNITY_ID,
+              status: "planned",
+              created_at: "2026-01-01T00:00:00Z",
+              updated_at: "2026-01-01T00:00:00Z",
+            },
+          ],
+          { headers: { "content-range": "0-0/1" } },
+        ),
       ),
     );
 
@@ -149,6 +204,10 @@ describe("loadHomeTicketDeadlines", () => {
     if (state.block.variant === "populated") {
       expect(state.block.data).toHaveLength(1);
       expect(state.block.data[0]?.row.opportunityId).toBe(OPPORTUNITY_ID);
+      expect(state.block.data[0]?.row.milestone.milestoneType).toBe(
+        "application_close",
+      );
+      expect(state.block.data[0]?.row.myState).toBe("planned");
     }
   });
 
@@ -196,18 +255,16 @@ describe("loadHomeTicketDeadlines", () => {
     expect(state.block.variant).toBe("unavailable");
   });
 
-  it("stays populated from the shared catalog even when the personal-state read fails, and reports the personal-state read's own failure separately (P4 read-level degradation)", async () => {
+  it("does not return actionable deadlines when the personal-state read fails", async () => {
     // PR #381 review finding 1: `listTicketOpportunities` is required,
     // `listMyTicketOpportunityStates` is optional
     // (`classifyBlock2Optional`) - a failure fetching the caller's own
-    // planning state must not hide the shared opportunity itself, only the
-    // `myState` badge on it.
+    // planning state must not hide the shared opportunity read, but Home's
+    // personal deadline projection must remain empty until that state is known.
     //
     // PR #381 P4 follow-up review finding 2: `state.optional` must report
-    // the personal-state read's real failure - `state.block.data[0].myState`
-    // alone is `null`, indistinguishable from "no personal state exists for
-    // this opportunity", so a caller relying only on `block` would silently
-    // render this exactly like a real 0-row personal-state read.
+    // the personal-state read's real failure, so an empty projection remains
+    // distinguishable from a successful 0-row state read.
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
         HttpResponse.json(
@@ -232,7 +289,7 @@ describe("loadHomeTicketDeadlines", () => {
                 {
                   id: "55555555-5555-4555-8555-555555555555",
                   opportunity_id: OPPORTUNITY_ID,
-                  milestone_type: "sale_start",
+                  milestone_type: "application_close",
                   temporal_precision: "datetime",
                   date_value: null,
                   at: "2026-03-10T10:00:00Z",
@@ -261,12 +318,7 @@ describe("loadHomeTicketDeadlines", () => {
       NOW,
     );
 
-    expect(state.block.variant).toBe("populated");
-    if (state.block.variant === "populated") {
-      expect(state.block.data).toHaveLength(1);
-      expect(state.block.data[0]?.row.opportunityId).toBe(OPPORTUNITY_ID);
-      expect(state.block.data[0]?.row.myState).toBeNull();
-    }
+    expect(state.block).toEqual({ variant: "empty" });
     expect(state.optional).toEqual({ ok: false, variant: "error" });
   });
 });

@@ -85,6 +85,16 @@ const POPULATED: OptionalPartBlockState<TicketsTimelineState> = {
 };
 
 describe("TicketsView", () => {
+  it("gives each current Opportunity row a stable Home deep-link target", () => {
+    render(<TicketsView today={TODAY} state={POPULATED} />);
+
+    expect(
+      document.getElementById(
+        "ticket-opportunity-44444444-4444-4444-8444-444444444444",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders the empty state copy", () => {
     render(
       <TicketsView

@@ -208,6 +208,11 @@ timeline rowの保持を確認する。
 - **FR-033**: Opportunityがcurrent `/tickets` planning projectionにrowとして現れ、利用可能なofficial source URLがある場合、その`/tickets` rowは利用者がofficial sourceへ到達できるaccess pathを提供する。zero-milestoneまたはretention外などcurrent projectionにrowを生成しないOpportunityについて、この文書は別のsource access surfaceを要求しない。source URLはOpportunity identityそのものではなく、URLが存在しない、または利用可能なweb linkとして扱えない場合に架空のlinkやsource accessを補完してはならない。exact copy、link component、styling、browser遷移mechanicsはこの文書で定義しない。
 - **FR-034**: `selected_occurrences`のofficial target setは、Occurrenceのstandalone deletionによってsilentに狭められてはならない。selected targetを外す場合は、official target scopeを先にreconcileする。target integrityのためのこの境界は、Event-wide lifecycleのconsequenceやimport mechanicsをこの文書で定義するものではない。
 
+### Home の申込期限表示
+
+- **FR-035**: Home の「申し込み期限」は、本人の personal state が `planned` であるOpportunityの `application_close` milestoneのうち、effective cancellationではなく、過去ではなく、product-relevantなTokyo calendar dateが今日から14日後まで（両端を含む）のものだけを表示する。結果発表、販売開始、未追跡、`applied`、中止、期限切れはこの一覧に含めない。表示はmilestoneのtemporal precisionを保ち、window precisionは終了日時を期限として扱う。表示件数で打ち切らない。
+- **FR-036**: Homeの申込期限はOpportunity identityごとに表示し、同名・同日・出典の類似だけでOpportunityやpersonal stateを統合しない。チケット情報の主リンクは対応する`/tickets`行へ移動し、公演情報には別の明示的なリンクを残す。personal stateのreadが失敗した場合は失敗を空一覧と区別し、未知のstateから期限行を作らない。表示時にpersonal stateを変更しない。
+
 ## Key Entities
 
 - **TicketOpportunity**: 1つのEventに属するsharedな販売機会。source固有のdisplay name、target scope、source provenance、milestoneを持つ。
