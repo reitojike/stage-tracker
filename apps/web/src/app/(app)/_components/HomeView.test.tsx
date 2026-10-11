@@ -187,7 +187,7 @@ describe("HomeView", () => {
     );
 
     expect(screen.getByText(/^受付締切・/)).toBeInTheDocument();
-    expect(screen.getByText("申し込む予定")).toBeInTheDocument();
+    expect(screen.getByText("自分：申込予定")).toBeInTheDocument();
     expect(screen.getByText("一般発売").closest("a")).toHaveAttribute(
       "href",
       "/tickets?view=upcoming#ticket-opportunity-44444444-4444-4444-8444-444444444444",
@@ -226,7 +226,7 @@ describe("HomeView", () => {
       screen.getByText("申し込み状態を読み込めないため、期限を表示できません"),
     ).toBeInTheDocument();
     expect(screen.queryByText("一般発売")).not.toBeInTheDocument();
-    expect(screen.queryByText("申し込む予定")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込予定")).not.toBeInTheDocument();
     expect(
       screen.queryByText("期限が近い申し込みも、直近の予定もありません"),
     ).not.toBeInTheDocument();

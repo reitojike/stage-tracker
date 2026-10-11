@@ -298,7 +298,13 @@ function badgeForRow(row: TicketsTimelineRow, personalStateUnknown: boolean) {
     return <Badge variant="terminal">中止</Badge>;
   }
   if (row.isPostFinalRetainedHistory) {
-    return <Badge variant="terminal">受付終了</Badge>;
+    return (
+      <Badge variant="terminal">
+        {row.milestone.milestoneType === "application_close"
+          ? "受付終了"
+          : "過去"}
+      </Badge>
+    );
   }
   const display = ticketPersonalStateBadgeDisplay(
     row.myState,
@@ -323,6 +329,10 @@ function TicketTimelineRow({
     row.eventVenue === null
       ? row.displayName
       : `${row.eventVenue}・${row.displayName}`;
+  const sourceHost =
+    row.sourceUrl !== null && isRenderableHttpUrl(row.sourceUrl)
+      ? new URL(row.sourceUrl).hostname
+      : null;
   return (
     <ListRow>
       <ListRowOverlayLink
@@ -346,9 +356,14 @@ function TicketTimelineRow({
           <span className="text-title font-semibold leading-title text-foreground">
             {row.eventTitle}
           </span>
-          <span className="text-body-sm text-muted-foreground">
+          <span className="text-body-sm break-words text-muted-foreground">
             {secondaryLine}
           </span>
+          {sourceHost !== null ? (
+            <span className="text-caption text-muted-foreground">
+              公式サイト：{sourceHost}
+            </span>
+          ) : null}
           {row.targetScope === "selected_occurrences" ? (
             <span className="text-caption text-muted-foreground">
               {ticketTargetScopeLabel(row.targetScope, row.targetOccurrences)}

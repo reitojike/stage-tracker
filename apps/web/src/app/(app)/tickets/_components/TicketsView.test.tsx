@@ -7,6 +7,7 @@ import {
   ticketOpportunityMilestoneIdSchema,
   ticketOpportunityMilestoneSchema,
   tokyoCalendarDateSchema,
+  type TicketOpportunityMilestone,
 } from "@stage-tracker/domain";
 import type { OptionalPartBlockState } from "@/app/_lib/read-state";
 import type { TicketsTimelineState } from "../_lib/tickets-loader";
@@ -29,6 +30,7 @@ function row(
     displayName: string;
     opportunityId: string;
     milestoneId: string;
+    milestoneType: TicketOpportunityMilestone["milestoneType"];
     isFirstRowForOpportunity: boolean;
     isEffectivelyCanceled: boolean;
     sourceUrl: string | null;
@@ -41,6 +43,7 @@ function row(
     isFirstRowForOpportunity = true,
     isEffectivelyCanceled = false,
     sourceUrl = "https://example.com/tickets",
+    milestoneType = "sale_start",
   } = overrides;
   return {
     opportunityId: ticketOpportunityIdSchema.parse(
@@ -55,7 +58,7 @@ function row(
       opportunityId: ticketOpportunityIdSchema.parse(
         overrides.opportunityId ?? "44444444-4444-4444-8444-444444444444",
       ),
-      milestoneType: "sale_start",
+      milestoneType,
       temporalPrecision: "datetime",
       at: instantSchema.parse("2026-03-10T10:00:00.000Z"),
       createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
@@ -223,7 +226,7 @@ describe("TicketsView", () => {
   it("groups populated rows by month and shows the 申し込み済み badge", () => {
     render(<TicketsView today={TODAY} state={POPULATED} />);
     expect(screen.getByText("2026年3月")).toBeInTheDocument();
-    expect(screen.getByText("申し込み済み")).toBeInTheDocument();
+    expect(screen.getByText("自分：申込済み")).toBeInTheDocument();
     expect(screen.getByText("販売開始")).toBeInTheDocument();
   });
 
@@ -234,6 +237,77 @@ describe("TicketsView", () => {
       "href",
       "https://example.com/tickets",
     );
+    expect(screen.getByText("公式サイト：example.com")).toBeInTheDocument();
+  });
+
+  it("does not render a source hostname for an unrenderable URL", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [row({ sourceUrl: "javascript:alert(1)" })],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.queryByText(/^公式サイト：/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "公式情報" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps similarly named same-day opportunities distinct and shows each source host", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [
+                    row({
+                      displayName: "月組 第2抽選",
+                      opportunityId: "66666666-6666-4666-8666-666666666666",
+                      milestoneId: "77777777-7777-4777-8777-777777777777",
+                      sourceUrl: "https://ticket-a.example/apply",
+                    }),
+                    row({
+                      displayName: "月組 第2抽選",
+                      opportunityId: "88888888-8888-4888-8888-888888888888",
+                      milestoneId: "99999999-9999-4999-8999-999999999999",
+                      sourceUrl: "https://ticket-b.example/apply",
+                    }),
+                  ],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("テスト劇場・月組 第2抽選")).toHaveLength(2);
+    expect(
+      screen.getByText("公式サイト：ticket-a.example"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("公式サイト：ticket-b.example"),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -330,7 +404,7 @@ describe("TicketsView", () => {
     }
   });
 
-  it("prioritizes 受付終了 over the personal planning-state badge", () => {
+  it("labels a retained application-close row 受付終了 over the personal planning-state badge", () => {
     render(
       <TicketsView
         today={TODAY}
@@ -346,6 +420,7 @@ describe("TicketsView", () => {
                     row({
                       myState: "applied",
                       isPostFinalRetainedHistory: true,
+                      milestoneType: "application_close",
                     }),
                   ],
                 },
@@ -357,10 +432,10 @@ describe("TicketsView", () => {
       />,
     );
     expect(screen.getByText("受付終了")).toBeInTheDocument();
-    expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
   });
 
-  it("prioritizes 中止 over 受付終了, applied, and 不明", () => {
+  it("prioritizes 中止 over retained history, applied, and 不明", () => {
     render(
       <TicketsView
         today={TODAY}
@@ -377,6 +452,7 @@ describe("TicketsView", () => {
                       myState: "applied",
                       isPostFinalRetainedHistory: true,
                       isEffectivelyCanceled: true,
+                      milestoneType: "application_close",
                     }),
                   ],
                 },
@@ -390,7 +466,7 @@ describe("TicketsView", () => {
 
     expect(screen.getAllByText("中止")).toHaveLength(1);
     expect(screen.queryByText("受付終了")).not.toBeInTheDocument();
-    expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
     expect(screen.queryByText("不明")).not.toBeInTheDocument();
     expect(
       screen.getByText("申し込み状態を取得できませんでした"),
@@ -424,7 +500,33 @@ describe("TicketsView", () => {
     );
 
     expect(screen.getByText("中止")).toBeInTheDocument();
-    expect(screen.queryByText("申し込む予定")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込予定")).not.toBeInTheDocument();
+  });
+
+  it("labels a retained sale-start row 過去 instead of 受付終了", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="past"
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [row({ isPostFinalRetainedHistory: true })],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("過去")).toBeInTheDocument();
+    expect(screen.queryByText("受付終了")).not.toBeInTheDocument();
   });
 
   it("keeps the active planning-state badge when cancellation is false", () => {
@@ -448,7 +550,7 @@ describe("TicketsView", () => {
       />,
     );
 
-    expect(screen.getByText("申し込む予定")).toBeInTheDocument();
+    expect(screen.getByText("自分：申込予定")).toBeInTheDocument();
     expect(screen.queryByText("中止")).not.toBeInTheDocument();
   });
 
@@ -483,7 +585,7 @@ describe("TicketsView", () => {
     expect(screen.getByText("2026年3月")).toBeInTheDocument();
     expect(screen.getByText("販売開始")).toBeInTheDocument();
     expect(screen.getByText("不明")).toBeInTheDocument();
-    expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
     expect(
       screen.getByText("申し込み状態を取得できませんでした"),
     ).toBeInTheDocument();
@@ -505,6 +607,7 @@ describe("TicketsView", () => {
                     row({
                       myState: "applied",
                       isPostFinalRetainedHistory: true,
+                      milestoneType: "application_close",
                     }),
                   ],
                 },
