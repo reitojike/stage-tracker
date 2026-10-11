@@ -150,8 +150,7 @@ timeline rowの保持を確認する。
   projectionにはrowを生成しない。この不在はOpportunity identityの削除・invalid化や
   `event_wide`への再解釈を意味しない。
 - `/tickets`ではOpportunityの最後のmilestoneが過ぎても、その最終日から7日目までは
-  retained historyとして残し、8日目には落とす。Homeのdeadline blockはretained historyを
-  表示対象に含めず、milestone typeを限定せず最初のnon-past primary milestoneを表示する。
+  retained historyとして残し、8日目には落とす。HomeはFR-035に従い、本人plannedのapplication_closeだけを申込期限に表示する。
   `/tickets`ではeffective cancellationが最優先であり、cancellationでないretained-history row
   ではretained terminal meaningがpersonal stateより優先される。中止でもretentionは維持する。
 - row不在、`planned`、`applied`を相互に別の意味として扱い、row不在をerrorやthird statusと混同しない。
