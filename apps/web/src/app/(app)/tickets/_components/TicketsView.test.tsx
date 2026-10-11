@@ -241,6 +241,31 @@ describe("TicketsView", () => {
     expect(screen.getByText("公式サイト：example.com")).toBeInTheDocument();
   });
 
+  it("wraps a maximum-length valid source hostname", () => {
+    const host = `${"a".repeat(63)}.example.com`;
+    render(
+      <TicketsView
+        today={TODAY}
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [row({ sourceUrl: `https://${host}/tickets` })],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText(host, { exact: false })).toHaveClass("break-words");
+  });
+
   it("does not render a source hostname for an unrenderable URL", () => {
     render(
       <TicketsView

@@ -360,7 +360,7 @@ function TicketTimelineRow({
             {secondaryLine}
           </span>
           {sourceHost !== null ? (
-            <span className="text-caption text-muted-foreground">
+            <span className="text-caption text-muted-foreground break-words">
               公式サイト：{sourceHost}
             </span>
           ) : null}
