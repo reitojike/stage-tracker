@@ -1,4 +1,9 @@
 import {
+  createTerminalFailureClue,
+  safeFailureUrl,
+  type TerminalFailureClue,
+} from "./failure-clue";
+import {
   createEventDurableCandidate,
   createEventProposal,
   createEvidenceLocator,
@@ -16,13 +21,7 @@ import {
   type OfficialImportCandidatePlanner,
   type OfficialSourceAdapter,
   type HeldSourcePage,
-  type AcquisitionDraft,
 } from "./acquisition";
-import {
-  createFailureObservation,
-  safeObservationUrl,
-  type OfficialImportFailureObservation,
-} from "./failure-observation";
 import {
   OfficialSourceRegistryError,
   assertAllowedSourceUrl,
@@ -67,12 +66,6 @@ export type RunAttemptTransition =
   "released" | "not_owner" | "completed" | "failed";
 
 export interface OfficialImportStagingRepository {
-  recordFailureObservation(
-    runId: string,
-    sourceId: string,
-    attemptToken: string,
-    observation: OfficialImportFailureObservation,
-  ): Promise<boolean>;
   prepareRun(
     runId: string,
     sourceId: string,
@@ -97,6 +90,7 @@ export interface OfficialImportStagingRepository {
     sourceId: string,
     attemptToken: string,
     classification: RunFailureClassification,
+    clue?: TerminalFailureClue,
   ): Promise<RunAttemptTransition>;
 }
 
@@ -228,12 +222,10 @@ export async function executeOfficialImportShadowRun(
     attemptToken,
     leaseHeartbeatIntervalMs,
   );
-  const heldPages: HeldSourcePage[] = [];
-  let phase: OfficialImportFailureObservation["phase"] = "acquisition";
-  let currentDraft: AcquisitionDraft | null = null;
-  let acquiredDraftCount: number | null = null;
-  let validatedCandidateCount = 0;
+  let phase: TerminalFailureClue["phase"] = "acquisition";
+  let currentDraftUrl: string | null = null;
   try {
+    const heldPages: HeldSourcePage[] = [];
     const heldUrls = new Set<string>();
     const recordHeldPage = (page: HeldSourcePage) => {
       const canonicalUrl = assertAllowedSourceUrl(source, page.canonicalUrl);
@@ -265,20 +257,20 @@ export async function executeOfficialImportShadowRun(
       }
     };
     const drafts = await adapter.acquire(source, recordHeldPage);
-    acquiredDraftCount = drafts.length;
     phase = "planning";
     lease.assertOwned();
     const eventCandidates: EventDurableCandidate[] = [];
     const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
     for (const draft of drafts) {
       lease.assertOwned();
-      currentDraft = draft;
+      currentDraftUrl = null;
       if (draft.candidateKind !== source.domainKind) {
         throw new DurableCandidateValidationError(
           `candidate kind ${draft.candidateKind} does not match source ${source.id}`,
         );
       }
       const canonicalUrl = assertAllowedSourceUrl(source, draft.canonicalUrl);
+      currentDraftUrl = canonicalUrl;
       if (heldUrls.has(canonicalUrl))
         throw new DurableCandidateValidationError(
           "Official page cannot be both held and a candidate",
@@ -340,7 +332,6 @@ export async function executeOfficialImportShadowRun(
           jevDecisionEvidence: planning.jevDecisionEvidence,
         });
         eventCandidates.push(candidate);
-        validatedCandidateCount += 1;
       } else {
         const proposal = createTicketOpportunityProposal(
           draft.proposal.sourceUrl === null ||
@@ -395,17 +386,16 @@ export async function executeOfficialImportShadowRun(
           jevDecisionEvidence: planning.jevDecisionEvidence,
         });
         ticketOpportunityCandidates.push(candidate);
-        validatedCandidateCount += 1;
       }
     }
 
     // The repository publishes the complete validated typed batch and
     // completes the run in one database transaction. A competing retry gets
     // the already committed count from that same serialization boundary.
+    phase = "publication";
+    currentDraftUrl = null;
     await lease.stopAndDrain();
     lease.assertOwned();
-    currentDraft = null;
-    phase = "publication";
     const candidates = [...eventCandidates, ...ticketOpportunityCandidates];
     const candidateCount =
       heldPages.length === 0
@@ -442,41 +432,8 @@ export async function executeOfficialImportShadowRun(
     }
     if (error instanceof OfficialImportAttemptRetryError) throw error;
     const failureClassification = classifyFailure(error);
-    const observation = createFailureObservation(
-      source,
-      error,
-      failureClassification,
-      phase,
-      currentDraft,
-      acquiredDraftCount,
-      validatedCandidateCount,
-      heldPages.length,
-    );
-    try {
-      const recorded = await repository.recordFailureObservation(
-        runId,
-        source.id,
-        attemptToken,
-        observation,
-      );
-      if (!recorded)
-        console.warn("Official import failure observation unavailable", {
-          runId,
-          sourceId: source.id,
-          phase,
-          reason: "not_owner",
-        });
-    } catch {
-      // Diagnostic persistence must never mask the original ingestion failure.
-      console.warn("Official import failure observation unavailable", {
-        runId,
-        sourceId: source.id,
-        phase,
-        reason: "storage_unavailable",
-      });
-    }
     if (error instanceof SourceParseFailure) {
-      const canonicalUrl = safeObservationUrl(source, error.canonicalUrl);
+      const canonicalUrl = safeFailureUrl(source, error.canonicalUrl);
       console.error(
         error.reason === "request_limit"
           ? "Official source request limit reached"
@@ -497,6 +454,13 @@ export async function executeOfficialImportShadowRun(
       source.id,
       attemptToken,
       failureClassification,
+      createTerminalFailureClue(
+        source,
+        error,
+        failureClassification,
+        phase,
+        currentDraftUrl,
+      ),
     );
     if (transition === "failed") {
       const terminal = await repository.prepareRun(

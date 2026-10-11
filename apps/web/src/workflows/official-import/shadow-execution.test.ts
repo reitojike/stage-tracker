@@ -17,19 +17,12 @@ import {
   type RunPreparation,
 } from "./shadow-execution";
 import { requireEnabledShadowSource } from "./source-registry";
-import {
-  safeObservationUrl,
-  createFailureObservation,
-} from "./failure-observation";
 
 const SENTINEL = "RAW_SENTINEL_MUST_NOT_PERSIST";
 const RUN_ID = "00000000-0000-4000-8000-000000000001";
 const ATTEMPT_TOKEN = "a".repeat(64);
 
 function repositoryHarness() {
-  const recordFailureObservation = vi.fn<
-    OfficialImportStagingRepository["recordFailureObservation"]
-  >(async () => true);
   const eventCandidates: EventDurableCandidate[] = [];
   let recordedFailure: RunFailureClassification | null = null;
   const commitCandidates = vi.fn<
@@ -59,14 +52,12 @@ function repositoryHarness() {
           },
   );
   const repository: OfficialImportStagingRepository = {
-    recordFailureObservation,
     prepareRun,
     commitCandidates,
     releaseRun,
     failRun,
   };
   return {
-    recordFailureObservation,
     repository,
     eventCandidates,
     prepareRun,
@@ -106,378 +97,6 @@ const unusedPlanner: OfficialImportCandidatePlanner = {
 };
 
 describe("official import shadow execution", () => {
-  const observationSource = requireEnabledShadowSource(
-    "event.takarazuka.revue",
-  );
-  const observationDraft = (id: string): AcquisitionDraft => ({
-    candidateKind: "event",
-    canonicalUrl: `https://kageki.hankyu.co.jp/sp/revue/2026/${id}/index.html`,
-    officialExternalId: id,
-    observedAt: "2026-10-11T00:00:00.000Z",
-    contentHash: "a".repeat(64),
-    proposal: {
-      sourceKey: `takarazuka:${id}`,
-      title: "Observation fixture",
-      startsOn: "2026-11-01",
-      endsOn: "2026-11-01",
-      occurrences: [],
-    },
-  });
-  const observationPlanner: OfficialImportCandidatePlanner = {
-    async planEvent() {
-      return {
-        planFingerprint: "b".repeat(64),
-        plan: {
-          action: "unchanged",
-          detailsChanged: false,
-          rangeChanged: false,
-        },
-      };
-    },
-    async planTicketOpportunity() {
-      throw new Error("not used");
-    },
-  };
-
-  it("records unknown acquisition progress with sanitized parse identity", async () => {
-    const harness = repositoryHarness();
-    const page =
-      "https://kageki.hankyu.co.jp/sp/revue/2026/example/schedule_tokyo.html";
-    const acquire = vi.fn(async () => {
-      throw new SourceParseFailure(
-        `${page}?secret=${SENTINEL}#${SENTINEL}`,
-        "request_limit",
-      );
-    });
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const result = await executeOfficialImportShadowRun(
-        RUN_ID,
-        ATTEMPT_TOKEN,
-        observationSource,
-        { acquire },
-        unusedPlanner,
-        harness.repository,
-      );
-      expect(result).toMatchObject({
-        status: "failed",
-        failureClassification: "source_parse",
-      });
-      expect(harness.recordFailureObservation).toHaveBeenCalledWith(
-        RUN_ID,
-        observationSource.id,
-        ATTEMPT_TOKEN,
-        {
-          phase: "acquisition",
-          reasonCode: "request_limit",
-          canonicalUrl: page,
-          officialExternalId: null,
-          acquiredDraftCount: null,
-          validatedCandidateCount: 0,
-          heldPageCount: 0,
-        },
-      );
-      expect(
-        JSON.stringify([
-          harness.recordFailureObservation.mock.calls,
-          log.mock.calls,
-        ]),
-      ).not.toContain(SENTINEL);
-      expect(acquire).toHaveBeenCalledTimes(1);
-      expect(harness.commitCandidates).not.toHaveBeenCalled();
-    } finally {
-      log.mockRestore();
-    }
-  });
-
-  it("reports validated progress and the failing draft without publishing a partial batch", async () => {
-    const harness = repositoryHarness();
-    const acquire = vi.fn(async () => [
-      observationDraft("first"),
-      observationDraft("second"),
-    ]);
-    const planEvent = vi.fn(observationPlanner.planEvent);
-    // First candidate validates; the second item's planner fails.
-    planEvent
-      .mockImplementationOnce(observationPlanner.planEvent)
-      .mockRejectedValueOnce(new Error(SENTINEL));
-    const result = await executeOfficialImportShadowRun(
-      RUN_ID,
-      ATTEMPT_TOKEN,
-      observationSource,
-      { acquire },
-      { ...observationPlanner, planEvent },
-      harness.repository,
-    );
-    expect(result).toMatchObject({
-      status: "failed",
-      failureClassification: "unexpected",
-    });
-    expect(harness.recordFailureObservation.mock.calls[0]?.[3]).toEqual({
-      phase: "planning",
-      reasonCode: "unexpected",
-      canonicalUrl: observationDraft("second").canonicalUrl,
-      officialExternalId: "second",
-      acquiredDraftCount: 2,
-      validatedCandidateCount: 1,
-      heldPageCount: 0,
-    });
-    expect(
-      JSON.stringify(harness.recordFailureObservation.mock.calls),
-    ).not.toContain(SENTINEL);
-    expect(harness.commitCandidates).not.toHaveBeenCalled();
-    expect(acquire).toHaveBeenCalledTimes(1);
-  });
-
-  it("records publication failure without attributing it to the last item", async () => {
-    const harness = repositoryHarness();
-    harness.commitCandidates.mockRejectedValueOnce(new Error(SENTINEL));
-    await executeOfficialImportShadowRun(
-      RUN_ID,
-      ATTEMPT_TOKEN,
-      observationSource,
-      {
-        async acquire() {
-          return [observationDraft("first")];
-        },
-      },
-      observationPlanner,
-      harness.repository,
-    );
-    expect(harness.recordFailureObservation.mock.calls[0]?.[3]).toEqual({
-      phase: "publication",
-      reasonCode: "unexpected",
-      canonicalUrl: null,
-      officialExternalId: null,
-      acquiredDraftCount: 1,
-      validatedCandidateCount: 1,
-      heldPageCount: 0,
-    });
-    expect(harness.commitCandidates).toHaveBeenCalledTimes(1);
-  });
-
-  it.each(["rejected", "not_owner"])(
-    "keeps the original transient retry when observation is %s",
-    async (storage) => {
-      const harness = repositoryHarness();
-      if (storage === "rejected")
-        harness.recordFailureObservation.mockRejectedValueOnce(
-          new Error(SENTINEL),
-        );
-      else harness.recordFailureObservation.mockResolvedValueOnce(false);
-      const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const acquire = vi.fn(async () => {
-        throw new SourceFetchFailure();
-      });
-      try {
-        await expect(
-          executeOfficialImportShadowRun(
-            RUN_ID,
-            ATTEMPT_TOKEN,
-            observationSource,
-            { acquire },
-            unusedPlanner,
-            harness.repository,
-          ),
-        ).rejects.toMatchObject({ reason: "source_fetch" });
-        expect(harness.releaseRun).toHaveBeenCalledWith(
-          RUN_ID,
-          observationSource.id,
-          ATTEMPT_TOKEN,
-        );
-        expect(harness.failRun).not.toHaveBeenCalled();
-        expect(acquire).toHaveBeenCalledTimes(1);
-        expect(warning).toHaveBeenCalledWith(
-          "Official import failure observation unavailable",
-          {
-            runId: RUN_ID,
-            sourceId: observationSource.id,
-            phase: "acquisition",
-            reason:
-              storage === "rejected" ? "storage_unavailable" : "not_owner",
-          },
-        );
-        expect(JSON.stringify(warning.mock.calls)).not.toContain(SENTINEL);
-      } finally {
-        warning.mockRestore();
-      }
-    },
-  );
-
-  it("keeps a terminal validation failure when diagnostic storage fails", async () => {
-    const harness = repositoryHarness();
-    harness.recordFailureObservation.mockRejectedValueOnce(new Error(SENTINEL));
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const result = await executeOfficialImportShadowRun(
-        RUN_ID,
-        ATTEMPT_TOKEN,
-        observationSource,
-        {
-          async acquire() {
-            return [
-              {
-                ...observationDraft("bad"),
-                canonicalUrl: "https://untrusted.example/raw",
-                officialExternalId: SENTINEL + "<body>",
-              },
-            ];
-          },
-        },
-        observationPlanner,
-        harness.repository,
-      );
-      expect(result).toMatchObject({
-        status: "failed",
-        failureClassification: "validation",
-      });
-      expect(harness.recordFailureObservation.mock.calls[0]?.[3]).toMatchObject(
-        { canonicalUrl: null, officialExternalId: null },
-      );
-      expect(harness.failRun).toHaveBeenCalledWith(
-        RUN_ID,
-        observationSource.id,
-        ATTEMPT_TOKEN,
-        "validation",
-      );
-      expect(harness.commitCandidates).not.toHaveBeenCalled();
-    } finally {
-      warning.mockRestore();
-    }
-  });
-
-  it("does not write failure observations on a successful attempt", async () => {
-    const harness = repositoryHarness();
-    await expect(
-      executeOfficialImportShadowRun(
-        RUN_ID,
-        ATTEMPT_TOKEN,
-        observationSource,
-        {
-          async acquire() {
-            return [];
-          },
-        },
-        unusedPlanner,
-        harness.repository,
-      ),
-    ).resolves.toMatchObject({ status: "completed", candidateCount: 0 });
-    expect(harness.recordFailureObservation).not.toHaveBeenCalled();
-  });
-
-  it("drops user information, foreign paths, and oversized identities", () => {
-    expect(
-      safeObservationUrl(
-        observationSource,
-        "https://user:secret@kageki.hankyu.co.jp/sp/revue/2026/example/index.html",
-      ),
-    ).toBeNull();
-    expect(
-      safeObservationUrl(
-        observationSource,
-        "https://kageki.hankyu.co.jp/private/example",
-      ),
-    ).toBeNull();
-    expect(
-      safeObservationUrl(
-        observationSource,
-        "https://untrusted.example/sp/revue/2026/example/index.html",
-      ),
-    ).toBeNull();
-    expect(
-      createFailureObservation(
-        observationSource,
-        new Error(SENTINEL),
-        "unexpected",
-        "planning",
-        { ...observationDraft("example"), officialExternalId: "a".repeat(513) },
-        1,
-        0,
-        0,
-      ).officialExternalId,
-    ).toBeNull();
-  });
-
-  it("reports a discovered hold provisionally without publishing it after acquisition fails", async () => {
-    const harness = repositoryHarness();
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      await executeOfficialImportShadowRun(
-        RUN_ID,
-        ATTEMPT_TOKEN,
-        observationSource,
-        {
-          async acquire(_source, reportHeldPage) {
-            reportHeldPage?.({
-              canonicalUrl: observationDraft("held").canonicalUrl,
-              officialExternalId: "held",
-              title: "Held fixture",
-              startsOn: "2026-11-01",
-              endsOn: "2026-11-01",
-              reasonCode: "published_end_missing",
-            });
-            throw new SourceParseFailure();
-          },
-        },
-        unusedPlanner,
-        harness.repository,
-      );
-      expect(harness.recordFailureObservation.mock.calls[0]?.[3]).toMatchObject(
-        {
-          phase: "acquisition",
-          acquiredDraftCount: null,
-          validatedCandidateCount: 0,
-          heldPageCount: 1,
-        },
-      );
-      expect(harness.commitCandidates).not.toHaveBeenCalled();
-    } finally {
-      log.mockRestore();
-    }
-  });
-
-  it("converges after a lost publication response and performs no acquisition on completed replay", async () => {
-    const harness = repositoryHarness();
-    harness.commitCandidates.mockRejectedValueOnce(
-      new Error("publication response lost"),
-    );
-    harness.recordFailureObservation.mockResolvedValueOnce(false);
-    harness.failRun.mockResolvedValueOnce("completed");
-    const acquire = vi.fn(async () => [observationDraft("first")]);
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(
-        executeOfficialImportShadowRun(
-          RUN_ID,
-          ATTEMPT_TOKEN,
-          observationSource,
-          { acquire },
-          observationPlanner,
-          harness.repository,
-        ),
-      ).rejects.toMatchObject({ reason: "ownership_lost" });
-      harness.prepareRun.mockResolvedValueOnce({
-        status: "completed",
-        candidateCount: 1,
-      });
-      await expect(
-        executeOfficialImportShadowRun(
-          RUN_ID,
-          ATTEMPT_TOKEN,
-          observationSource,
-          { acquire },
-          observationPlanner,
-          harness.repository,
-        ),
-      ).resolves.toMatchObject({ status: "completed", candidateCount: 1 });
-      expect(acquire).toHaveBeenCalledTimes(1);
-      expect(harness.commitCandidates).toHaveBeenCalledTimes(1);
-      expect(harness.recordFailureObservation).toHaveBeenCalledTimes(1);
-    } finally {
-      warning.mockRestore();
-    }
-  });
-
   it("logs only the source and allowlisted page when an unsupported format fails a run", async () => {
     const source = requireEnabledShadowSource("event.takarazuka.revue");
     const harness = repositoryHarness();
@@ -618,7 +237,6 @@ describe("official import shadow execution", () => {
     await expect(execution).rejects.toMatchObject({
       reason: "ownership_lost",
     });
-    expect(harness.recordFailureObservation).not.toHaveBeenCalled();
     expect(harness.commitCandidates).not.toHaveBeenCalled();
     expect(harness.releaseRun).toHaveBeenCalledWith(
       RUN_ID,
@@ -657,7 +275,6 @@ describe("official import shadow execution", () => {
       ATTEMPT_TOKEN,
     );
     const callsAfterRelease = harness.prepareRun.mock.calls.length;
-    expect(harness.recordFailureObservation).not.toHaveBeenCalled();
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(harness.prepareRun).toHaveBeenCalledTimes(callsAfterRelease);
   });
@@ -1046,6 +663,7 @@ describe("official import shadow execution", () => {
       source.id,
       ATTEMPT_TOKEN,
       "validation",
+      expect.objectContaining({ phase: "planning", reason: "validation" }),
     );
     expect(harness.eventCandidates).toHaveLength(0);
   });
@@ -1118,6 +736,7 @@ describe("official import shadow execution", () => {
       source.id,
       ATTEMPT_TOKEN,
       "validation",
+      expect.objectContaining({ phase: "planning", reason: "validation" }),
     );
   });
 
@@ -1331,5 +950,251 @@ describe("official import shadow execution", () => {
       status: "failed",
       failureClassification: "source_parse",
     });
+  });
+});
+
+describe("terminal-only failure semantics", () => {
+  const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+  const page = "https://www.kabuki-bito.jp/theaters/kabukiza/play/986";
+  it("a throwing draft URL accessor cannot mask the original terminal failure", async () => {
+    const harness = repositoryHarness();
+    const draft = {
+      candidateKind: "event",
+      get canonicalUrl() {
+        throw new Error(SENTINEL);
+      },
+    } as AcquisitionDraft;
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          async acquire() {
+            return [draft];
+          },
+        },
+        unusedPlanner,
+        harness.repository,
+      ),
+    ).resolves.toMatchObject({
+      status: "failed",
+      failureClassification: "unexpected",
+    });
+    expect(harness.failRun).toHaveBeenCalledExactlyOnceWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+      "unexpected",
+      { phase: "planning", reason: "unexpected", url: null },
+    );
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
+  });
+  it.each(["unsupported_format", "request_limit"] as const)(
+    "records terminal reason %s through the existing single transition",
+    async (reason) => {
+      const harness = repositoryHarness();
+      const acquire = vi.fn(async () => {
+        throw new SourceParseFailure(
+          page + "?email=private@example.test#private",
+          reason,
+        );
+      });
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const result = await executeOfficialImportShadowRun(
+          RUN_ID,
+          ATTEMPT_TOKEN,
+          source,
+          { acquire },
+          unusedPlanner,
+          harness.repository,
+        );
+        expect(result).toMatchObject({
+          status: "failed",
+          candidateCount: 0,
+          failureClassification: "source_parse",
+        });
+        expect(harness.failRun).toHaveBeenCalledExactlyOnceWith(
+          RUN_ID,
+          source.id,
+          ATTEMPT_TOKEN,
+          "source_parse",
+          { phase: "acquisition", reason, url: page },
+        );
+        expect(harness.prepareRun).toHaveBeenCalledTimes(2);
+        expect(acquire).toHaveBeenCalledOnce();
+        expect(harness.releaseRun).not.toHaveBeenCalled();
+        expect(harness.commitCandidates).not.toHaveBeenCalled();
+        expect(JSON.stringify(log.mock.calls)).not.toContain(
+          "private@example.test",
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+  it.each([null, "https://evil.test/private"])(
+    "missing/unsafe page clue preserves original failed result %j",
+    async (url) => {
+      const harness = repositoryHarness();
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await expect(
+          executeOfficialImportShadowRun(
+            RUN_ID,
+            ATTEMPT_TOKEN,
+            source,
+            {
+              async acquire() {
+                throw new SourceParseFailure(url);
+              },
+            },
+            unusedPlanner,
+            harness.repository,
+          ),
+        ).resolves.toMatchObject({
+          status: "failed",
+          failureClassification: "source_parse",
+        });
+        expect(harness.failRun).toHaveBeenCalledExactlyOnceWith(
+          RUN_ID,
+          source.id,
+          ATTEMPT_TOKEN,
+          "source_parse",
+          { phase: "acquisition", reason: "unsupported_format", url: null },
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+  it("does not wait for diagnostics before a near-expiry failure", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const harness = repositoryHarness();
+    const original = harness.failRun.getMockImplementation()!;
+    harness.failRun.mockImplementation(async (...args) =>
+      Date.now() < 1000 ? original(...args) : "not_owner",
+    );
+    try {
+      const result = await executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          async acquire() {
+            vi.setSystemTime(999);
+            throw new Error(SENTINEL);
+          },
+        },
+        unusedPlanner,
+        harness.repository,
+      );
+      expect(result).toMatchObject({
+        status: "failed",
+        failureClassification: "unexpected",
+      });
+      expect(Date.now()).toBe(999);
+      expect(harness.failRun).toHaveBeenCalledOnce();
+      expect(harness.prepareRun).toHaveBeenCalledTimes(2);
+      expect(harness.releaseRun).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("superseded ownership remains the existing retry without overwriting failure", async () => {
+    const harness = repositoryHarness();
+    harness.failRun.mockResolvedValueOnce("not_owner");
+    const acquire = vi.fn(async () => {
+      throw new Error(SENTINEL);
+    });
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        { acquire },
+        unusedPlanner,
+        harness.repository,
+      ),
+    ).rejects.toMatchObject({ reason: "ownership_lost" });
+    expect(harness.failRun).toHaveBeenCalledOnce();
+    expect(harness.prepareRun).toHaveBeenCalledOnce();
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
+    expect(harness.releaseRun).not.toHaveBeenCalled();
+    expect(acquire).toHaveBeenCalledOnce();
+  });
+  it("publication failure has no previous-item URL", async () => {
+    const harness = repositoryHarness();
+    const original = harness.commitCandidates;
+    harness.repository.commitCandidates = vi.fn(async () => {
+      throw new Error(SENTINEL);
+    });
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          async acquire() {
+            return [];
+          },
+        },
+        unusedPlanner,
+        harness.repository,
+      ),
+    ).resolves.toMatchObject({
+      status: "failed",
+      failureClassification: "unexpected",
+    });
+    expect(harness.failRun).toHaveBeenCalledExactlyOnceWith(
+      RUN_ID,
+      source.id,
+      ATTEMPT_TOKEN,
+      "unexpected",
+      { phase: "publication", reason: "unexpected", url: null },
+    );
+    expect(harness.repository.commitCandidates).toHaveBeenCalledOnce();
+    expect(original).not.toHaveBeenCalled();
+  });
+  it("a committed failure with a lost response replays its immutable terminal result without acquisition", async () => {
+    const harness = repositoryHarness();
+    const original = harness.failRun.getMockImplementation()!;
+    harness.failRun.mockImplementationOnce(async (...args) => {
+      await original(...args);
+      throw new Error("LOST_RESPONSE");
+    });
+    const acquire = vi.fn(async () => {
+      throw new Error(SENTINEL);
+    });
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        { acquire },
+        unusedPlanner,
+        harness.repository,
+      ),
+    ).rejects.toThrow("LOST_RESPONSE");
+    await expect(
+      executeOfficialImportShadowRun(
+        RUN_ID,
+        "retry-owner",
+        source,
+        { acquire },
+        unusedPlanner,
+        harness.repository,
+      ),
+    ).resolves.toMatchObject({
+      status: "failed",
+      failureClassification: "unexpected",
+      candidateCount: 0,
+    });
+    expect(acquire).toHaveBeenCalledOnce();
+    expect(harness.failRun).toHaveBeenCalledOnce();
+    expect(harness.releaseRun).not.toHaveBeenCalled();
+    expect(harness.commitCandidates).not.toHaveBeenCalled();
   });
 });

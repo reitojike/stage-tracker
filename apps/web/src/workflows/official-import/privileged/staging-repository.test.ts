@@ -1,24 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/data/database.types";
-import type { OfficialImportFailureObservation } from "../failure-observation";
+import type { TerminalFailureClue } from "../failure-clue";
 import { createPrivilegedIngestionClient } from "./supabase";
-
 vi.mock("server-only", () => ({}));
 vi.mock("./supabase", () => ({ createPrivilegedIngestionClient: vi.fn() }));
 const { createOfficialImportStagingRepository } =
   await import("./staging-repository");
-
-const observation: OfficialImportFailureObservation = {
-  phase: "acquisition",
-  reasonCode: "source_fetch",
-  canonicalUrl: null,
-  officialExternalId: null,
-  acquiredDraftCount: null,
-  validatedCandidateCount: 0,
-  heldPageCount: 0,
+const clue: TerminalFailureClue = {
+  phase: "planning",
+  reason: "validation",
+  url: null,
 };
-
 function repositoryWithFetch(fetch: typeof globalThis.fetch) {
   vi.mocked(createPrivilegedIngestionClient).mockReturnValue(
     createClient<Database>("https://example.test", "public-test-key", {
@@ -27,79 +20,94 @@ function repositoryWithFetch(fetch: typeof globalThis.fetch) {
   );
   return createOfficialImportStagingRepository();
 }
-
-describe("failure observation persistence", () => {
-  it.each([true, false])(
-    "preserves the owned RPC result %s with an exact compact payload",
-    async (result) => {
+describe("terminal failure RPC compatibility", () => {
+  it.each([undefined, clue])(
+    "uses one authoritative request with optional clue %j",
+    async (value) => {
       const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
         expect(new URL(String(input)).pathname).toBe(
-          "/rest/v1/rpc/record_owned_official_import_failure_observation",
+          "/rest/v1/rpc/fail_official_import_run_attempt",
         );
         expect(JSON.parse(String(init?.body))).toEqual({
           p_run_id: "run",
           p_source_id: "source",
           p_attempt_token: "owner",
-          p_phase: "acquisition",
-          p_reason_code: "source_fetch",
-          p_validated_candidate_count: 0,
-          p_held_page_count: 0,
+          p_failure_classification: "validation",
+          ...(value === undefined
+            ? {}
+            : {
+                p_failure_phase: "planning",
+                p_failure_reason: "validation",
+                p_failure_url: "",
+              }),
         });
-        expect(init?.signal).toBeDefined();
-        return Response.json(result);
+        expect(init?.signal).toBeUndefined();
+        return Response.json("failed");
       });
       await expect(
-        repositoryWithFetch(fetch).recordFailureObservation(
+        repositoryWithFetch(fetch).failRun(
           "run",
           "source",
           "owner",
-          observation,
+          "validation",
+          value,
         ),
-      ).resolves.toBe(result);
+      ).resolves.toBe("failed");
       expect(fetch).toHaveBeenCalledTimes(1);
     },
   );
-
+  it.each(["failed", "completed", "not_owner"])(
+    "preserves transition %s",
+    async (transition) => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json(transition),
+      );
+      await expect(
+        repositoryWithFetch(fetch).failRun(
+          "run",
+          "source",
+          "owner",
+          "validation",
+          clue,
+        ),
+      ).resolves.toBe(transition);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
   it.each([
     { status: 500, code: "bad" },
     { status: 404, code: "PGRST202" },
   ])(
-    "does not retain provider or missing-schema error text ($code)",
+    "fails closed without fallback or raw provider text ($code)",
     async ({ status, code }) => {
-      const repository = repositoryWithFetch(async () =>
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
         Response.json({ code, message: "RAW_RESPONSE_SENTINEL" }, { status }),
       );
       await expect(
-        repository.recordFailureObservation(
+        repositoryWithFetch(fetch).failRun(
           "run",
           "source",
           "owner",
-          observation,
+          "validation",
+          clue,
         ),
-      ).rejects.toThrow("Failed to record official import failure observation");
+      ).rejects.toThrow("Failed to record official import run failure");
+      expect(fetch).toHaveBeenCalledTimes(1);
     },
   );
-
-  it("bounds a stalled diagnostic request without retrying it", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>(
-      (_input, init) =>
-        new Promise((_resolve, reject) => {
-          const signal = init?.signal;
-          if (signal?.aborted) reject(signal.reason);
-          else
-            signal?.addEventListener("abort", () => reject(signal.reason), {
-              once: true,
-            });
-        }),
-    );
+  it("preserves transport failure without an added retry", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+      throw new Error("LOST_RESPONSE_SENTINEL");
+    });
     await expect(
-      repositoryWithFetch(fetch).recordFailureObservation(
+      repositoryWithFetch(fetch).failRun(
         "run",
         "source",
         "owner",
-        observation,
+        "validation",
+        clue,
       ),
-    ).rejects.toThrow("Failed to record official import failure observation");
+    ).rejects.toThrow("Failed to record official import run failure");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
