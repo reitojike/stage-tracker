@@ -11,6 +11,9 @@ token, running status, and unexpired lease. It does not claim or renew a lease,
 publish candidates, complete or fail a run, approve a candidate, or apply catalog
 changes. Direct writes are denied. Catalog creators can read observations;
 ordinary authenticated users and anonymous clients cannot.
+The run foreign key cascades only an already-permitted run deletion, preserving
+the existing running/unclaimed cleanup boundary. It introduces no deletion job;
+claimed and terminal run deletion guards remain unchanged.
 
 The record contains a timestamp, source/run identity, phase, bounded reason code,
 optional safe official URL/identity, and provisional progress counts. There is no

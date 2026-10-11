@@ -2,7 +2,7 @@
 -- Migration ordering: additive; existing ingestion RPCs and state are unchanged.
 
 create table public.official_import_failure_observations (
-  run_id uuid primary key references public.official_import_runs (id),
+  run_id uuid primary key references public.official_import_runs (id) on delete cascade,
   source_id text not null check (char_length(source_id) between 1 and 128),
   observed_at timestamptz not null default clock_timestamp(),
   phase text not null check (phase in ('acquisition', 'planning', 'publication')),

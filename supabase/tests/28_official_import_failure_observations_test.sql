@@ -1,7 +1,7 @@
 \ir helpers/auth.psql
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(40);
+select plan(45);
 
 select pg_temp.create_test_user() as creator_id \gset
 select pg_temp.create_test_user() as other_id \gset
@@ -57,6 +57,16 @@ select is(public.commit_owned_official_import_candidate_batch(:'expired_run_id',
 select is(public.record_owned_official_import_failure_observation(:'expired_run_id', 'expiry-observation', 'completed-owner', 'publication', 'unexpected', null, null, 0, 0, 0), false, 'completed run rejects late clue');
 select is((select reason_code from public.official_import_failure_observations where run_id = :'expired_run_id'), 'source_fetch', 'successful retry preserves historical failure clue');
 select is((select count(*) from public.official_import_candidates where run_id in (:'run_id', :'expired_run_id')), 0::bigint, 'observations never create candidates');
+select throws_ok(format('delete from public.official_import_runs where id = %L', :'run_id'), '23514', null, 'observed failed run keeps terminal deletion guard');
+select throws_ok(format('delete from public.official_import_runs where id = %L', :'expired_run_id'), '23514', null, 'observed completed run keeps terminal deletion guard');
+
+select gen_random_uuid() as cleanup_run_id \gset
+select public.claim_official_import_run_attempt(:'cleanup_run_id', 'observation-cleanup', 'cleanup-owner', 300) as claimed \gset
+select public.record_owned_official_import_failure_observation(:'cleanup_run_id', 'observation-cleanup', 'cleanup-owner', 'acquisition', 'source_fetch', null, null, null, 0, 0) as recorded \gset
+select public.release_official_import_run_attempt(:'cleanup_run_id', 'observation-cleanup', 'cleanup-owner') as released \gset
+select lives_ok(format('delete from public.official_import_runs where id = %L', :'cleanup_run_id'), 'existing released empty-run deletion stays permitted');
+select is((select count(*) from public.official_import_runs where id = :'cleanup_run_id'), 0::bigint, 'permitted cleanup removes the parent run');
+select is((select count(*) from public.official_import_failure_observations where run_id = :'cleanup_run_id'), 0::bigint, 'diagnostic follows the already-permitted parent deletion');
 
 reset role;
 call pg_temp.auth_as_user(:'creator_id');
