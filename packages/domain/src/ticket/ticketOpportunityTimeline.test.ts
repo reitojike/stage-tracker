@@ -7,9 +7,12 @@ import type { TicketOpportunityMilestone } from './ticketOpportunityMilestone';
 import {
   buildTicketOpportunityTimelineRows,
   groupTicketOpportunityTimelineRowsByMonth,
+  HOME_TICKET_DEADLINE_WINDOW_DAYS,
+  isTicketOpportunityDeadlineInHomeWindow,
   isTicketOpportunityMilestonePast,
   isTicketOpportunityPostFinalRetained,
   selectTicketOpportunityPrimaryRows,
+  ticketOpportunityDeadlineSortInstant,
   ticketOpportunityMilestoneSortInstant,
   ticketOpportunityMilestoneTokyoCalendarDate,
   TICKET_POST_FINAL_RETENTION_DAYS,
@@ -99,6 +102,53 @@ describe('ticketOpportunityMilestoneSortInstant', () => {
     const milestone = dateMilestone(1, 'application_close', '2026-03-10');
     // 2026-03-10T00:00:00+09:00 == 2026-03-09T15:00:00Z
     expect(ticketOpportunityMilestoneSortInstant(milestone)).toBe('2026-03-09T15:00:00.000Z');
+  });
+});
+
+describe('Home ticket deadline window', () => {
+  const today = tokyoCalendarDateSchema.parse('2026-03-10');
+
+  it('uses a window deadline end for ordering', () => {
+    const milestone = windowMilestone(
+      1,
+      'application_close',
+      '2026-03-10T00:00:00Z',
+      '2026-03-15T00:00:00Z',
+    );
+    expect(ticketOpportunityDeadlineSortInstant(milestone)).toBe('2026-03-15T00:00:00.000Z');
+  });
+
+  it('includes today and the inclusive 14-day boundary, but excludes earlier and later dates', () => {
+    expect(HOME_TICKET_DEADLINE_WINDOW_DAYS).toBe(14);
+    expect(
+      isTicketOpportunityDeadlineInHomeWindow(
+        dateMilestone(1, 'application_close', '2026-03-10'),
+        today,
+      ),
+    ).toBe(true);
+    expect(
+      isTicketOpportunityDeadlineInHomeWindow(
+        dateMilestone(2, 'application_close', '2026-03-24'),
+        today,
+      ),
+    ).toBe(true);
+    expect(
+      isTicketOpportunityDeadlineInHomeWindow(
+        dateMilestone(3, 'application_close', '2026-03-25'),
+        today,
+      ),
+    ).toBe(false);
+    expect(
+      isTicketOpportunityDeadlineInHomeWindow(
+        dateMilestone(4, 'application_close', '2026-03-09'),
+        today,
+      ),
+    ).toBe(false);
+  });
+
+  it('uses the Tokyo date of an exact datetime deadline at a UTC date boundary', () => {
+    const milestone = datetimeMilestone(5, 'application_close', '2026-03-10T20:00:00Z');
+    expect(isTicketOpportunityDeadlineInHomeWindow(milestone, today)).toBe(true);
   });
 });
 

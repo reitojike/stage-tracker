@@ -111,7 +111,10 @@ export function TicketsView({ state, today }: TicketsViewProps) {
               <SectionHeading>{formatMonthJa(group.monthKey)}</SectionHeading>
               <CompactList>
                 {group.rows.map((row) => (
-                  <li key={`${row.opportunityId}-${row.milestone.id}`}>
+                  <li
+                    key={`${row.opportunityId}-${row.milestone.id}`}
+                    id={`ticket-opportunity-${row.opportunityId}`}
+                  >
                     <TicketTimelineRow
                       row={row}
                       personalStateUnknown={optional.ok === false}

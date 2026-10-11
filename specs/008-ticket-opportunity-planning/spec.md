@@ -150,8 +150,7 @@ timeline rowの保持を確認する。
   projectionにはrowを生成しない。この不在はOpportunity identityの削除・invalid化や
   `event_wide`への再解釈を意味しない。
 - `/tickets`ではOpportunityの最後のmilestoneが過ぎても、その最終日から7日目までは
-  retained historyとして残し、8日目には落とす。Homeのdeadline blockはretained historyを
-  表示対象に含めず、milestone typeを限定せず最初のnon-past primary milestoneを表示する。
+  retained historyとして残し、8日目には落とす。HomeはFR-035に従い、本人plannedのapplication_closeだけを申込期限に表示する。
   `/tickets`ではeffective cancellationが最優先であり、cancellationでないretained-history row
   ではretained terminal meaningがpersonal stateより優先される。中止でもretentionは維持する。
 - row不在、`planned`、`applied`を相互に別の意味として扱い、row不在をerrorやthird statusと混同しない。
@@ -182,7 +181,7 @@ timeline rowの保持を確認する。
 - **FR-013**: 親Eventがactiveな`event_wide` Opportunityは、Occurrence側の中止だけではeffectiveに中止にならない。
 - **FR-014**: 親Eventがactiveな`selected_occurrences` Opportunityは、対象Occurrence集合が完全に解決済みで非空、かつ全対象が中止の場合だけeffectiveに中止である。未解決・空集合・部分中止は全件中止の根拠にならない。
 - **FR-015**: `/tickets`におけるeffective cancellationはtimeline rowの削除を意味せず、semantic priorityの最上位である。effective cancellationでないpost-final retained-history rowでは、retained terminal meaningがpersonal planning stateより優先される。relevant date、past判定、month ownership、ordering、month labelingはSpec 003へ委譲する。Homeはretained historyをplanning preview対象に含めず、この`/tickets`のpriorityを暗黙に要求しない。
-- **FR-016**: `/tickets`は1つのOpportunityにつきprimary rowを最大1件に投影する。current/next milestoneがある場合は、そのOpportunityのchronologicalな最初のnon-past rowを選び、全milestoneがpastの場合だけ最終milestoneをpost-final retained historyとして最終日から7日目まで表示対象に残し、8日目以降は表示対象から外す。Homeのdeadline blockはretained historyをplanning preview対象に含めず、milestone typeを限定せず各Opportunityの最初のnon-past primary milestoneを選ぶ。effective cancellationであっても`/tickets`のretentionは短縮しない。milestoneのrelevant date、past判定、ordering、month ownership、month labelingの定義はSpec 003へ委譲する。
+- **FR-016**: `/tickets`は1つのOpportunityにつきprimary rowを最大1件に投影する。current/next milestoneがある場合は、そのOpportunityのchronologicalな最初のnon-past rowを選び、全milestoneがpastの場合だけ最終milestoneをpost-final retained historyとして最終日から7日目まで表示対象に残し、8日目以降は表示対象から外す。Homeの申込期限表示はFR-035に従い、保持履歴を含めない。effective cancellationであっても`/tickets`のretentionは短縮しない。milestoneのrelevant date、past判定、ordering、month ownership、month labelingの定義はSpec 003へ委譲する。
 
 ### Personal state
 
@@ -200,13 +199,18 @@ timeline rowの保持を確認する。
 - **FR-025**: `/tickets`とHomeのdeadline blockはこのTicketOpportunity planning modelを利用するが、各surfaceのretention/cancellation/presentation差異を新しい意味へ拡張しない。timelineのrelevant date、month ownership、ordering、month labelingはSpec 003へ委譲する。
 - **FR-026**: Event / Occurrenceのidentity、lifecycle、cancellation、deletionはSpec 005へ委譲し、TicketOpportunityはその状態をtarget scopeに応じて読む境界だけを扱う。Participationのlifecycle、cancellation、Invitationとの直接の意味はSpec 001へ委譲し、Ticket semantics全体をSpec 001へ移してはならない。
 - **FR-027**: deadline urgency classificationは、Spec 003が定めるproduct-relevant Tokyo calendar dateを使い、personal stateがknownな`planned`、milestone typeが`application_close`、effectively canceledでない、post-final retained historyでない、pastでない場合だけ対象とする。`applied`、rowなし／untracked、unknown state、other milestone type、effectively canceled、retained history、past deadlineはurgency対象外である。todayはdeadline-today class、1〜3日はhighest active urgency class、4〜13日はlower upcoming/countdown class、14日以上またはpastはurgency cueなしとする。Homeと`/tickets`は同じclassificationを使う。exact deadline timeを表示できることはpresentation上の能力として扱うが、時刻表示の形式は定義しない。
-- **FR-028**: shared TicketOpportunity readが成功しpersonal state readも成功した場合、rowありはknownな`planned`/`applied`、rowなしはknown untrackedとする。shared readが成功してpersonal state readが失敗した場合、shared Opportunity rowsは表示可能なまま保持し、personal stateはunknownとし、rowなし・`planned`・`applied`を推測してはならない。unknown stateはplanned-only urgencyの対象外であり、`/tickets`ではpersonal-state mutation controlsを提示しない。Homeと`/tickets`はpartial failureを保持する。shared readが失敗した場合はTicket block全体のread failureとし、empty listやpersonal-state-only viewにしない。exact copy、helper名、read-state型はこの文書で定義しない。
+- **FR-028**: shared TicketOpportunity readが成功しpersonal state readも成功した場合、rowありはknownな`planned`/`applied`、rowなしはknown untrackedとする。shared readが成功してpersonal state readが失敗した場合、shared Opportunity rowsは表示可能なまま保持し、personal stateはunknownとし、rowなし・`planned`・`applied`を推測してはならない。personal stateがunknownの場合はplanned-only urgencyの対象外とする。`/tickets`では個人状態のreadに失敗してもshared rowsを表示し、planned/applied filtersとmutation controlsを無効にする。HomeはFR-035に従い、planned stateがknownの場合だけdeadline rowsを表示する。両画面ともpersonal-state readの失敗状態を保持する。shared readが失敗した場合はTicket block全体のread failureとし、empty listやpersonal-state-only viewにしない。exact copy、helper名、read-state型はこの文書で定義しない。
 - **FR-029**: effective cancellationはpersonal planning stateを自動create、change、deleteしてはならない。non-retained rowでpersonal stateがknownな場合、cancellationそれ自体は`planned`/`applied`/removeのcurrent planning capabilityを自動的に禁止しない。cancellation presentation、retained-history presentation、exact control renderingはこの文書で再定義しない。
 - **FR-030**: Event deletion operation自体のauthorityはSpec 005である。Eventがhard-deleteされた場合、そのEventに属するTicketOpportunityはcurrent planning modelから消え、それに従属するpersonal planning stateもcurrent planning stateとして残らない。TicketOpportunityの存在だけを理由にEvent deletionをblockせず、selected targetの存在だけでもwhole-Event deletionをblockしない。orphanedなTicketOpportunityやpersonal planning stateを残さない。この文書はdeletion mechanismを定義しない。
 - **FR-031**: TicketOpportunityはmilestone 0件でもshared Opportunityとして存在し得る。milestoneが0件の場合、fabricated milestoneやplaceholder rowを作らず、Homeと`/tickets`のplanning projectionにはrowを出さない。このprojection上の不在はOpportunity identityの削除・invalid化・`event_wide`への再解釈を意味しない。
 - **FR-032**: `/tickets`のsemantic priorityは、effective cancellation、post-final retained history、personal planning stateの順である。retained-history rowでも`planned`/`applied`のpersonal state自体は削除しないが、current presentationではretained terminal meaningをactiveな`planned`/`applied` presentationとして扱わない。exact copy、Badge variant、color、componentはこの文書で定義しない。
 - **FR-033**: Opportunityがcurrent `/tickets` planning projectionにrowとして現れ、利用可能なofficial source URLがある場合、その`/tickets` rowは利用者がofficial sourceへ到達できるaccess pathを提供する。zero-milestoneまたはretention外などcurrent projectionにrowを生成しないOpportunityについて、この文書は別のsource access surfaceを要求しない。source URLはOpportunity identityそのものではなく、URLが存在しない、または利用可能なweb linkとして扱えない場合に架空のlinkやsource accessを補完してはならない。exact copy、link component、styling、browser遷移mechanicsはこの文書で定義しない。
 - **FR-034**: `selected_occurrences`のofficial target setは、Occurrenceのstandalone deletionによってsilentに狭められてはならない。selected targetを外す場合は、official target scopeを先にreconcileする。target integrityのためのこの境界は、Event-wide lifecycleのconsequenceやimport mechanicsをこの文書で定義するものではない。
+
+### Home の申込期限表示
+
+- **FR-035**: Home の「申し込み期限」は、本人の personal state が `planned` であるOpportunityの `application_close` milestoneのうち、effective cancellationではなく、過去ではなく、product-relevantなTokyo calendar dateが今日から14日後まで（両端を含む）のものだけを表示する。結果発表、販売開始、未追跡、`applied`、中止、期限切れはこの一覧に含めない。表示はmilestoneのtemporal precisionを保ち、window precisionは終了日時を期限として扱う。表示件数で打ち切らない。
+- **FR-036**: Homeの申込期限はOpportunity identityごとに表示し、同名・同日・出典の類似だけでOpportunityやpersonal stateを統合しない。チケット情報の主リンクは対応する`/tickets`行へ移動し、公演情報には別の明示的なリンクを残す。personal stateのreadが失敗した場合は失敗を空一覧と区別し、未知のstateから期限行を作らない。表示時にpersonal stateを変更しない。
 
 ## Key Entities
 
@@ -243,7 +247,7 @@ projection、retained-history priority、official source access、ならびに
 
 - **SC-001**: Event-wide、selected-occurrence、source provenance、date-only、exact datetime、windowの各current caseについて、利用者がshared Opportunityの意味を一意に判定できる。
 - **SC-002**: すべてのcurrent personal stateが`planned`、`applied`、row不在のいずれかとして解釈でき、third statusやactual application detailを必要としない。
-- **SC-003**: `/tickets`とHomeのdeadline blockは、同じOpportunity identityとuser stateを読み、Participationを代用しない。各surfaceのcurrentなretention、cancellation、presentation差異を新しい意味へ拡張しない。personal-state read failureはshared rowsを失わせず、unknownをuntrackedとして扱わない。
+- **SC-003**: `/tickets`とHomeのdeadline blockは、同じOpportunity identityとuser stateを読み、Participationを代用しない。各surfaceのcurrentなretention、cancellation、presentation差異を新しい意味へ拡張しない。personal-state read failureは`/tickets`のshared rowsを保持し、unknownをuntrackedとして扱わない。HomeはFR-035に従ってknownなplanned申込期限だけを表示し、shared readの状態は独立して保持する。
 - **SC-004**: Participationとの直接的な独立性検証はSpec 001 FR-035で完結し、このSpecはそのcross-domain boundaryを参照する。
 - **SC-005**: timelineの日付・月・orderingの検証はSpec 003で完結し、この文書との重複するtimeline ruleが0件である。
 - **SC-006**: shared dataのreadとpersonal stateのread/write境界が区別され、ordinary authenticated userによるshared mutationと他ユーザーのpersonal state参照が0件である。
