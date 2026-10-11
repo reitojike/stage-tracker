@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { formatMilestoneTypeJa } from "@/app/_lib/ticket-milestone-format";
 import {
   eventIdSchema,
   instantSchema,
@@ -553,6 +554,41 @@ describe("TicketsView", () => {
     expect(screen.getByText("自分：申込予定")).toBeInTheDocument();
     expect(screen.queryByText("中止")).not.toBeInTheDocument();
   });
+
+  it.each([
+    { myState: "planned" as const, label: "自分：申込予定" },
+    { myState: "applied" as const, label: "自分：申込済み" },
+  ])(
+    "keeps $myState as personal state on a result-announcement row",
+    ({ myState, label }) => {
+      render(
+        <TicketsView
+          today={TODAY}
+          state={{
+            block: {
+              variant: "populated",
+              data: {
+                groups: [
+                  {
+                    monthKey: "2026-03",
+                    rows: [
+                      row({ myState, milestoneType: "result_announcement" }),
+                    ],
+                  },
+                ],
+              },
+            },
+            optional: { ok: true },
+          }}
+        />,
+      );
+
+      expect(
+        screen.getByText(formatMilestoneTypeJa("result_announcement")),
+      ).toBeInTheDocument();
+      expect(screen.getByText(label)).toBeInTheDocument();
+    },
+  );
 
   /**
    * PR #381 P4 follow-up review finding 2: the shared timeline (`block`)
