@@ -108,30 +108,63 @@ describe("TicketsView", () => {
     );
   });
 
-  it("blocks personal filters when personal state is unknown", () => {
+  it.each([
+    { view: "planned" as const, filterLabel: "自分の申込予定" },
+    { view: "applied" as const, filterLabel: "自分の申込済み" },
+  ])(
+    "shows shared upcoming rows when $view state is unknown, without applying the personal filter",
+    ({ view, filterLabel }) => {
+      render(
+        <TicketsView
+          today={TODAY}
+          view={view}
+          state={{
+            block: POPULATED.block,
+            optional: { ok: false, variant: "error" },
+          }}
+        />,
+      );
+
+      expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(
+        screen.getByText("自分の申込予定").closest("span"),
+      ).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByText("テスト公演")).toBeInTheDocument();
+      expect(screen.getByText("不明")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        `「${filterLabel}」では絞り込めないため、フィルターを「今後」に切り替えました。申込状態は不明です。`,
+      );
+      expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /申込/u }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("does not claim a personal-filtered list is empty when its state is unknown", () => {
     render(
       <TicketsView
         today={TODAY}
         view="planned"
         state={{
-          block: POPULATED.block,
+          block: { variant: "empty" },
           optional: { ok: false, variant: "error" },
         }}
       />,
     );
 
-    expect(
-      screen.getByText(
-        "申し込み状態を読み込めないため、自分の申込状態で絞り込めません",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("自分の申込予定").closest("span")).toHaveAttribute(
-      "aria-disabled",
-      "true",
+    expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
-    expect(screen.queryByText("テスト公演")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("自分の申込予定はありません"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("自分の申込予定");
   });
-
   it("renders the empty state copy", () => {
     render(
       <TicketsView

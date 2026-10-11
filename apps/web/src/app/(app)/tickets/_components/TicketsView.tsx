@@ -90,16 +90,20 @@ export function TicketsView({
   const { block, optional } = state;
   const personalStateUnknown = optional.ok === false;
   const personalStateView = view === "planned" || view === "applied";
+  const personalFilterFailed = personalStateView && personalStateUnknown;
+  const displayedView: TicketsViewFilter = personalFilterFailed
+    ? "upcoming"
+    : view;
   const visibleGroups =
     block.variant === "populated"
-      ? filterTicketsTimelineGroups(block.data.groups, view)
+      ? filterTicketsTimelineGroups(block.data.groups, displayedView)
       : [];
 
   return (
     <div className="flex flex-col gap-section">
       <PageHeading>チケット</PageHeading>
       <TicketsViewFilters
-        view={view}
+        view={displayedView}
         personalStateKnown={!personalStateUnknown}
       />
 
@@ -109,7 +113,7 @@ export function TicketsView({
             variant={block.variant}
             title={
               block.variant === "empty"
-                ? emptyTitle(view)
+                ? emptyTitle(displayedView)
                 : block.variant === "unavailable"
                   ? "チケット情報を確認できません"
                   : "チケット情報を読み込めませんでした"
@@ -118,32 +122,35 @@ export function TicketsView({
               ? { description: READ_FAILURE_RETRY_HINT_JA }
               : {})}
           />
-          {personalStateUnknown ? (
+          {personalFilterFailed ? (
+            <PersonalStateFilterFallbackNote
+              view={view}
+              variant={optional.variant}
+            />
+          ) : personalStateUnknown ? (
             <PersonalStateFailureNote variant={optional.variant} />
           ) : null}
         </>
-      ) : personalStateView && personalStateUnknown ? (
-        <StatePanel
-          variant={optional.variant}
-          title={
-            optional.variant === "unavailable"
-              ? "申し込み状態を確認できないため、自分の申込状態で絞り込めません"
-              : "申し込み状態を読み込めないため、自分の申込状態で絞り込めません"
-          }
-          {...(optional.variant === "error"
-            ? { description: READ_FAILURE_RETRY_HINT_JA }
-            : {})}
-        />
       ) : visibleGroups.length === 0 ? (
         <>
-          {personalStateUnknown ? (
+          {personalFilterFailed ? (
+            <PersonalStateFilterFallbackNote
+              view={view}
+              variant={optional.variant}
+            />
+          ) : personalStateUnknown ? (
             <PersonalStateFailureNote variant={optional.variant} />
           ) : null}
-          <StatePanel variant="empty" title={emptyTitle(view)} />
+          <StatePanel variant="empty" title={emptyTitle(displayedView)} />
         </>
       ) : (
         <div className="flex flex-col gap-lg">
-          {personalStateUnknown ? (
+          {personalFilterFailed ? (
+            <PersonalStateFilterFallbackNote
+              view={view}
+              variant={optional.variant}
+            />
+          ) : personalStateUnknown ? (
             <PersonalStateFailureNote variant={optional.variant} />
           ) : null}
           {visibleGroups.map((group) => (
@@ -232,6 +239,29 @@ function emptyTitle(view: TicketsViewFilter): string {
     case "past":
       return "直近7日間に終了した受付はありません";
   }
+}
+
+function personalStateFilterLabel(view: "planned" | "applied"): string {
+  return view === "planned" ? "自分の申込予定" : "自分の申込済み";
+}
+
+function PersonalStateFilterFallbackNote({
+  view,
+  variant,
+}: {
+  readonly view: "planned" | "applied";
+  readonly variant: "unavailable" | "error";
+}) {
+  return (
+    <p
+      role={variant === "error" ? "alert" : undefined}
+      className="text-body-sm text-muted-foreground"
+    >
+      「{personalStateFilterLabel(view)}
+      」では絞り込めないため、フィルターを「今後」に切り替えました。申込状態は不明です。
+      {variant === "error" ? ` ${READ_FAILURE_RETRY_HINT_JA}` : null}
+    </p>
+  );
 }
 
 /**
