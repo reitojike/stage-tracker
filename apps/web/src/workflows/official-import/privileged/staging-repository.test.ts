@@ -60,22 +60,25 @@ describe("failure observation persistence", () => {
     },
   );
 
-  it("does not retain provider error text", async () => {
-    const repository = repositoryWithFetch(async () =>
-      Response.json(
-        { code: "bad", message: "RAW_RESPONSE_SENTINEL" },
-        { status: 500 },
-      ),
-    );
-    await expect(
-      repository.recordFailureObservation(
-        "run",
-        "source",
-        "owner",
-        observation,
-      ),
-    ).rejects.toThrow("Failed to record official import failure observation");
-  });
+  it.each([
+    { status: 500, code: "bad" },
+    { status: 404, code: "PGRST202" },
+  ])(
+    "does not retain provider or missing-schema error text ($code)",
+    async ({ status, code }) => {
+      const repository = repositoryWithFetch(async () =>
+        Response.json({ code, message: "RAW_RESPONSE_SENTINEL" }, { status }),
+      );
+      await expect(
+        repository.recordFailureObservation(
+          "run",
+          "source",
+          "owner",
+          observation,
+        ),
+      ).rejects.toThrow("Failed to record official import failure observation");
+    },
+  );
 
   it("bounds a stalled diagnostic request without retrying it", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(
