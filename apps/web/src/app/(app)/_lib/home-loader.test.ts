@@ -27,6 +27,118 @@ const USER_ID = userIdSchema.parse("11111111-1111-4111-8111-111111111111");
 const EVENT_ID = "22222222-2222-4222-8222-222222222222";
 const OCCURRENCE_ID = "33333333-3333-4333-8333-333333333333";
 const OPPORTUNITY_ID = "44444444-4444-4444-8444-444444444444";
+const FIXTURE_STAMP = "2026-01-01T00:00:00Z";
+
+type HomeDeadlineFixture = {
+  readonly label: string;
+  readonly milestoneType:
+    | "application_open"
+    | "application_close"
+    | "result_announcement"
+    | "sale_start"
+    | "payment_window";
+  readonly state?: "planned" | "applied";
+  readonly canceled?: boolean;
+} & (
+  | { readonly temporalPrecision: "date"; readonly value: string }
+  | { readonly temporalPrecision: "datetime"; readonly value: string }
+  | {
+      readonly temporalPrecision: "window";
+      readonly startsAt: string;
+      readonly endsAt: string;
+    }
+);
+
+function fixtureId(kind: "opportunity" | "milestone" | "state", index: number) {
+  const prefix = {
+    opportunity: "44444444-4444-4444-8444-",
+    milestone: "55555555-5555-4555-8555-",
+    state: "88888888-8888-4888-8888-",
+  }[kind];
+  return `${prefix}${String(index + 1).padStart(12, "0")}`;
+}
+
+function useHomeDeadlineFixtures(fixtures: readonly HomeDeadlineFixture[]) {
+  const milestones = fixtures.map((fixture, index) => ({
+    id: fixtureId("milestone", index),
+    opportunity_id: fixtureId("opportunity", index),
+    milestone_type: fixture.milestoneType,
+    temporal_precision: fixture.temporalPrecision,
+    date_value:
+      fixture.temporalPrecision === "date" ? fixture.value : null,
+    at:
+      fixture.temporalPrecision === "datetime" ? fixture.value : null,
+    starts_at:
+      fixture.temporalPrecision === "window" ? fixture.startsAt : null,
+    ends_at:
+      fixture.temporalPrecision === "window" ? fixture.endsAt : null,
+    created_at: FIXTURE_STAMP,
+    updated_at: FIXTURE_STAMP,
+  }));
+  const opportunities = fixtures.map((fixture, index) => ({
+    id: fixtureId("opportunity", index),
+    event_id: EVENT_ID,
+    target_scope: "event_wide",
+    display_name: fixture.label,
+    source_key: `fixture-${index}`,
+    source_url: null,
+    memo: null,
+    created_at: FIXTURE_STAMP,
+    updated_at: FIXTURE_STAMP,
+    events: {
+      title: fixture.label,
+      venue: null,
+      canceled_at: fixture.canceled ? FIXTURE_STAMP : null,
+    },
+    ticket_opportunity_target_occurrences: [],
+    ticket_opportunity_milestones: [milestones[index]],
+  }));
+  const states = fixtures.flatMap((fixture, index) =>
+    fixture.state === undefined
+      ? []
+      : [
+          {
+            id: fixtureId("state", index),
+            user_id: USER_ID,
+            opportunity_id: fixtureId("opportunity", index),
+            status: fixture.state,
+            created_at: FIXTURE_STAMP,
+            updated_at: FIXTURE_STAMP,
+          },
+        ],
+  );
+
+  server.use(
+    http.get(`${REST_URL}/ticket_opportunities`, () =>
+      HttpResponse.json(opportunities, {
+        headers: {
+          "content-range":
+            opportunities.length === 0
+              ? "*/0"
+              : `0-${opportunities.length - 1}/${opportunities.length}`,
+        },
+      }),
+    ),
+    http.get(`${REST_URL}/ticket_opportunity_milestones`, () =>
+      HttpResponse.json(milestones, {
+        headers: {
+          "content-range":
+            milestones.length === 0
+              ? "*/0"
+              : `0-${milestones.length - 1}/${milestones.length}`,
+        },
+      }),
+    ),
+    http.get(`${REST_URL}/user_ticket_opportunity_states`, () =>
+      HttpResponse.json(states, {
+        headers: {
+          "content-range":
+            states.length === 0 ? "*/0" : `0-${states.length - 1}/${states.length}`,
+        },
+      }),
+    ),
+  );
+}
 
 beforeEach(() => {
   server.use(
@@ -93,6 +205,177 @@ function occurrenceRow(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("loadHomeTicketDeadlines", () => {
+  it("includes only planned application closes and excludes canceled, applied, untracked, and other milestone types", async () => {
+    useHomeDeadlineFixtures([
+      {
+        label: "planned-close",
+        milestoneType: "application_close",
+        temporalPrecision: "datetime",
+        value: "2026-03-02T00:00:00Z",
+        state: "planned",
+      },
+      {
+        label: "sale-start",
+        milestoneType: "sale_start",
+        temporalPrecision: "datetime",
+        value: "2026-03-02T00:00:00Z",
+        state: "planned",
+      },
+      {
+        label: "result",
+        milestoneType: "result_announcement",
+        temporalPrecision: "datetime",
+        value: "2026-03-02T00:00:00Z",
+        state: "planned",
+      },
+      {
+        label: "application-open",
+        milestoneType: "application_open",
+        temporalPrecision: "datetime",
+        value: "2026-03-02T00:00:00Z",
+        state: "planned",
+      },
+      {
+        label: "payment-window",
+        milestoneType: "payment_window",
+        temporalPrecision: "window",
+        startsAt: "2026-03-02T00:00:00Z",
+        endsAt: "2026-03-02T02:00:00Z",
+        state: "planned",
+      },
+      {
+        label: "applied-close",
+        milestoneType: "application_close",
+        temporalPrecision: "datetime",
+        value: "2026-03-02T00:00:00Z",
+        state: "applied",
+      },
+      {
+        label: "untracked-close",
+        milestoneType: "application_close",
+        temporalPrecision: "datetime",
+        value: "2026-03-02T00:00:00Z",
+      },
+      {
+        label: "canceled-close",
+        milestoneType: "application_close",
+        temporalPrecision: "datetime",
+        value: "2026-03-02T00:00:00Z",
+        state: "planned",
+        canceled: true,
+      },
+      {
+        label: "past-same-tokyo-day-close",
+        milestoneType: "application_close",
+        temporalPrecision: "datetime",
+        value: "2026-02-28T23:59:59Z",
+        state: "planned",
+      },
+      {
+        label: "outside-window-close",
+        milestoneType: "application_close",
+        temporalPrecision: "date",
+        value: "2026-03-16",
+        state: "planned",
+      },
+      {
+        label: "expired-window-close",
+        milestoneType: "application_close",
+        temporalPrecision: "window",
+        startsAt: "2026-02-28T21:00:00Z",
+        endsAt: "2026-02-28T23:59:59Z",
+        state: "planned",
+      },
+    ]);
+
+    const state = await loadHomeTicketDeadlines(
+      createTestClient(),
+      USER_ID,
+      NOW,
+    );
+
+    expect(state.block.variant).toBe("populated");
+    if (state.block.variant === "populated") {
+      expect(state.block.data.map(({ eventTitle }) => eventTitle)).toEqual([
+        "planned-close",
+      ]);
+    }
+  });
+
+  it("keeps date, instant, and window boundaries inclusive without capping the Home list", async () => {
+    useHomeDeadlineFixtures([
+      {
+        label: "today-date",
+        milestoneType: "application_close",
+        temporalPrecision: "date",
+        value: "2026-03-01",
+        state: "planned",
+      },
+      {
+        label: "instant-after-now",
+        milestoneType: "application_close",
+        temporalPrecision: "datetime",
+        value: "2026-03-01T00:00:01Z",
+        state: "planned",
+      },
+      {
+        label: "window-containing-now",
+        milestoneType: "application_close",
+        temporalPrecision: "window",
+        startsAt: "2026-02-28T23:30:00Z",
+        endsAt: "2026-03-01T01:00:00Z",
+        state: "planned",
+      },
+      {
+        label: "last-day-date",
+        milestoneType: "application_close",
+        temporalPrecision: "date",
+        value: "2026-03-15",
+        state: "planned",
+      },
+      {
+        label: "last-day-instant",
+        milestoneType: "application_close",
+        temporalPrecision: "datetime",
+        value: "2026-03-15T14:59:59Z",
+        state: "planned",
+      },
+      {
+        label: "last-day-window",
+        milestoneType: "application_close",
+        temporalPrecision: "window",
+        startsAt: "2026-03-15T14:30:00Z",
+        endsAt: "2026-03-15T14:45:00Z",
+        state: "planned",
+      },
+      {
+        label: "day-after-window",
+        milestoneType: "application_close",
+        temporalPrecision: "date",
+        value: "2026-03-16",
+        state: "planned",
+      },
+    ]);
+
+    const state = await loadHomeTicketDeadlines(
+      createTestClient(),
+      USER_ID,
+      NOW,
+    );
+
+    expect(state.block.variant).toBe("populated");
+    if (state.block.variant === "populated") {
+      expect(state.block.data.map(({ eventTitle }) => eventTitle)).toEqual([
+        "today-date",
+        "instant-after-now",
+        "window-containing-now",
+        "last-day-date",
+        "last-day-window",
+        "last-day-instant",
+      ]);
+    }
+  });
+
   it("is populated when both the shared opportunities and personal state reads succeed", async () => {
     server.use(
       http.get(`${REST_URL}/ticket_opportunities`, () =>
