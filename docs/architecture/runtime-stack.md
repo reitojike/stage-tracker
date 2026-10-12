@@ -261,7 +261,7 @@ marker ではなく、依然として reviewer の運用規律が担う。
 
 ## Official import Workflow, review, and apply boundary（Issues #629, #630, #632, #633）
 
-- Vercel / Next.js の current stable path として `workflow@4.8.9` を固定し、
+- Vercel / Next.js の current stable path として `workflow@5.2.0` を固定し、
   `withWorkflow` と `"use workflow"` / `"use step"` を使用します。手動起動の
   shadow ingestion と承認済み candidate apply を durable に実行します。Cron は
   P8 の責務であり、ここには含めません。
