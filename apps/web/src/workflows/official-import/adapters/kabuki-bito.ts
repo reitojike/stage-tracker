@@ -97,6 +97,7 @@ export interface KabukiIndexFact {
 export function parseKabukiIndex(
   source: OfficialSourceDefinition,
   html: string,
+  options: { readonly requireUniqueOfficialIds?: boolean } = {},
 ): readonly KabukiIndexFact[] {
   const document = parseHtml(html);
   const items = descendants(document, (node) => hasClass(node, "item"));
@@ -118,6 +119,7 @@ export function parseKabukiIndex(
   const allPlayUrls = new Set<string>();
   const datedRowUrls = new Set<string>();
   const fullRowUrls = new Set<string>();
+  const workUrlsByOfficialId = new Map<string, string>();
   const facts: KabukiIndexFact[] = [];
   for (const item of candidateItems) {
     const anchor = descendants(item, (node) => {
@@ -140,6 +142,12 @@ export function parseKabukiIndex(
     const officialId = identity?.[2];
     if (theater === undefined || officialId === undefined)
       throw new SourceParseFailure();
+    if (options.requireUniqueOfficialIds === true) {
+      const previousUrl = workUrlsByOfficialId.get(officialId);
+      if (previousUrl !== undefined && previousUrl !== canonicalUrl)
+        throw new SourceParseFailure();
+      workUrlsByOfficialId.set(officialId, canonicalUrl);
+    }
     // News teasers can outlive their production's schedule row. A schedule row
     // without its title and term is still an unsupported format.
     if (titleNode === undefined && termNode === undefined) {
@@ -396,7 +404,9 @@ export function createKabukiBitoAdapter(
     ): Promise<readonly EventAcquisitionDraft[]> {
       const index = await fetcher(source, source.canonicalUrl);
       const facts = withSourceParsePage(index.url, () =>
-        parseKabukiIndex(source, index.body),
+        parseKabukiIndex(source, index.body, {
+          requireUniqueOfficialIds: true,
+        }),
       );
       if (facts.length > MAX_PLAYS_PER_SCAN)
         throw new SourceParseFailure(index.url, "request_limit");

@@ -451,6 +451,76 @@ describe("official import shadow execution", () => {
     );
   });
 
+  it.each(["candidate and hold", "two candidates", "two holds"])(
+    "rejects a Kabuki ID shared by %s on different work URLs before publication",
+    async (collision) => {
+      const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
+      const harness = repositoryHarness();
+      const held = (theater: string) => ({
+        canonicalUrl: `https://www.kabuki-bito.jp/theaters/${theater}/play/986`,
+        officialExternalId: "986",
+        title: "Held work",
+        startsOn: "2026-10-01",
+        endsOn: "2026-10-02",
+        reasonCode: "source_parse" as const,
+      });
+      const draft = (theater: string) => ({
+        candidateKind: "event" as const,
+        canonicalUrl: `https://www.kabuki-bito.jp/theaters/${theater}/play/986`,
+        officialExternalId: "986",
+        observedAt: "2026-09-22T00:00:00.000Z",
+        contentHash: "a".repeat(64),
+        proposal: {
+          sourceKey: `kabuki-bito:${theater}:play:986`,
+          title: "Verified work",
+          startsOn: "2026-10-01",
+          endsOn: "2026-10-02",
+          occurrences: [],
+        },
+      });
+      const result = await executeOfficialImportShadowRun(
+        RUN_ID,
+        ATTEMPT_TOKEN,
+        source,
+        {
+          async acquire(_source, reportHeldPage) {
+            if (collision !== "two candidates") reportHeldPage?.(held("other"));
+            if (collision === "two holds") {
+              reportHeldPage?.(held("kyoto"));
+              return [];
+            }
+            return collision === "two candidates"
+              ? [draft("kabukiza"), draft("kyoto")]
+              : [draft("kabukiza")];
+          },
+        },
+        {
+          async planEvent() {
+            return {
+              planFingerprint: "b".repeat(64),
+              plan: {
+                action: "create",
+                detailsChanged: false,
+                rangeChanged: false,
+              },
+            };
+          },
+          async planTicketOpportunity() {
+            throw new Error("not used");
+          },
+        },
+        harness.repository,
+      );
+      expect(result).toMatchObject({
+        status: "failed",
+        failureClassification: "validation",
+      });
+      expect(harness.commitCandidates).not.toHaveBeenCalled();
+      expect(harness.eventCandidates).toHaveLength(0);
+      expect(harness.releaseRun).not.toHaveBeenCalled();
+    },
+  );
+
   it("reports a vanished Kabuki end without staging an update for that play", async () => {
     const source = requireEnabledShadowSource("event.kabuki-bito.schedule");
     const harness = repositoryHarness();

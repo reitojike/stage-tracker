@@ -227,11 +227,16 @@ export async function executeOfficialImportShadowRun(
   try {
     const heldPages: HeldSourcePage[] = [];
     const heldUrls = new Set<string>();
+    const heldOfficialIds = new Set<string>();
+    const draftOfficialIds = new Set<string>();
+    const requireUniqueWorkIds = source.id === "event.kabuki-bito.schedule";
     const recordHeldPage = (page: HeldSourcePage) => {
       const canonicalUrl = assertAllowedSourceUrl(source, page.canonicalUrl);
       if (
         heldPages.length >= 30 ||
         heldUrls.has(canonicalUrl) ||
+        (requireUniqueWorkIds &&
+          heldOfficialIds.has(page.officialExternalId)) ||
         (page.reasonCode !== "source_parse" &&
           page.reasonCode !== "published_end_missing") ||
         page.officialExternalId.length < 1 ||
@@ -248,6 +253,7 @@ export async function executeOfficialImportShadowRun(
           "Invalid held official source page",
         );
       heldUrls.add(canonicalUrl);
+      if (requireUniqueWorkIds) heldOfficialIds.add(page.officialExternalId);
       heldPages.push({ ...page, canonicalUrl });
       if (page.reasonCode === "source_parse") {
         console.warn("Official source page has unsupported format", {
@@ -275,6 +281,19 @@ export async function executeOfficialImportShadowRun(
         throw new DurableCandidateValidationError(
           "Official page cannot be both held and a candidate",
         );
+      if (requireUniqueWorkIds) {
+        const officialExternalId = draft.officialExternalId;
+        if (officialExternalId != null) {
+          if (
+            heldOfficialIds.has(officialExternalId) ||
+            draftOfficialIds.has(officialExternalId)
+          )
+            throw new DurableCandidateValidationError(
+              "Official work identity is duplicated in the batch",
+            );
+          draftOfficialIds.add(officialExternalId);
+        }
+      }
       if (draft.candidateKind === "event") {
         const proposal = createEventProposal(
           draft.proposal.sourceUrl === null ||
