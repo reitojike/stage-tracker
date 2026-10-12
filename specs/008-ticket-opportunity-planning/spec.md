@@ -61,7 +61,7 @@ occurrence、source固有のdisplay name、date/datetime/window milestoneを確�
 5. **Given** source固有のdisplay nameまたはsource provenanceがある、**When** 利用者が確認する、
    **Then** sourceの識別情報は別のOpportunityやEventのsource identityと混同されない。
 6. **Given** Opportunityがcurrent `/tickets` planning projectionにrowとして現れ、利用可能なofficial source URLがある、**When** 利用者がそのrowを確認する、
-   **Then** そのofficial sourceへ到達できる。current projectionにrowを生成しないOpportunityに別のsource surfaceを要求せず、source URLが存在しない、または利用可能なweb linkとして扱えない場合に、
+   **Then** そのofficial sourceへ到達できる。選択表示ではFR-039に従い、source URLが存在しない、または利用可能なweb linkとして扱えない場合に、
    productは架空のofficial source accessを作らない。
 
 ### User Story 1a - 中止状態を販売機会の意味として読む (Priority: P1)
@@ -203,16 +203,18 @@ timeline rowの保持を確認する。
 - **FR-029**: effective cancellationはpersonal planning stateを自動create、change、deleteしてはならない。non-retained rowでpersonal stateがknownな場合、cancellationそれ自体は`planned`/`applied`/removeのcurrent planning capabilityを自動的に禁止しない。cancellation presentation、retained-history presentation、exact control renderingはこの文書で再定義しない。
 - **FR-030**: Event deletion operation自体のauthorityはSpec 005である。Eventがhard-deleteされた場合、そのEventに属するTicketOpportunityはcurrent planning modelから消え、それに従属するpersonal planning stateもcurrent planning stateとして残らない。TicketOpportunityの存在だけを理由にEvent deletionをblockせず、selected targetの存在だけでもwhole-Event deletionをblockしない。orphanedなTicketOpportunityやpersonal planning stateを残さない。この文書はdeletion mechanismを定義しない。
 - **FR-031**: TicketOpportunityはmilestone 0件でもshared Opportunityとして存在し得る。milestoneが0件の場合、fabricated milestoneやplaceholder rowを作らず、Homeと`/tickets`のplanning projectionにはrowを出さない。このprojection上の不在はOpportunity identityの削除・invalid化・`event_wide`への再解釈を意味しない。
-- **FR-032**: `/tickets`のsemantic priorityは、effective cancellation、post-final retained history、personal planning stateの順である。retained-history rowでも`planned`/`applied`のpersonal state自体は削除しないが、current presentationではretained terminal meaningをactiveな`planned`/`applied` presentationとして扱わない。exact copy、Badge variant、color、componentはこの文書で定義しない。
-- **FR-033**: Opportunityがcurrent `/tickets` planning projectionにrowとして現れ、利用可能なofficial source URLがある場合、その`/tickets` rowは利用者がofficial sourceへ到達できるaccess pathを提供する。zero-milestoneまたはretention外などcurrent projectionにrowを生成しないOpportunityについて、この文書は別のsource access surfaceを要求しない。source URLはOpportunity identityそのものではなく、URLが存在しない、または利用可能なweb linkとして扱えない場合に架空のlinkやsource accessを補完してはならない。exact copy、link component、styling、browser遷移mechanicsはこの文書で定義しない。
+- **FR-032**: `/tickets`一覧のsemantic priorityは、effective cancellation、post-final retained history、personal planning stateの順である。retained-history rowでも`planned`/`applied`のpersonal state自体は削除しないが、一覧のcurrent presentationではretained terminal meaningをactiveな`planned`/`applied` presentationとして扱わない。exact copy、Badge variant、color、componentはこの文書で定義しない。
+- **FR-033**: Opportunityがcurrent `/tickets` planning projectionにrowとして現れ、利用可能なofficial source URLがある場合、その`/tickets` rowは利用者がofficial sourceへ到達できるaccess pathを提供する。zero-milestoneまたはretention外などcurrent projectionにrowを生成しないOpportunityについて、選択表示ではFR-039に従う。source URLはOpportunity identityそのものではなく、URLが存在しない、または利用可能なweb linkとして扱えない場合に架空のlinkやsource accessを補完してはならない。exact copy、link component、styling、browser遷移mechanicsはこの文書で定義しない。
 - **FR-034**: `selected_occurrences`のofficial target setは、Occurrenceのstandalone deletionによってsilentに狭められてはならない。selected targetを外す場合は、official target scopeを先にreconcileする。target integrityのためのこの境界は、Event-wide lifecycleのconsequenceやimport mechanicsをこの文書で定義するものではない。
 
 ### Home の申込期限表示
 
 - **FR-035**: Home の「申し込み期限」は、本人の personal state が `planned` であるOpportunityの `application_close` milestoneのうち、effective cancellationではなく、過去ではなく、product-relevantなTokyo calendar dateが今日から14日後まで（両端を含む）のものだけを表示する。結果発表、販売開始、未追跡、`applied`、中止、期限切れはこの一覧に含めない。表示はmilestoneのtemporal precisionを保ち、window precisionは終了日時を期限として扱う。表示件数で打ち切らない。
-- **FR-036**: Homeの申込期限はOpportunity identityごとに表示し、同名・同日・出典の類似だけでOpportunityやpersonal stateを統合しない。チケット情報の主リンクは対応する`/tickets`行へ移動し、公演情報には別の明示的なリンクを残す。personal stateのreadが失敗した場合は失敗を空一覧と区別し、未知のstateから期限行を作らない。表示時にpersonal stateを変更しない。
+- **FR-036**: Homeの申込期限はOpportunity identityごとに表示し、同名・同日・出典の類似だけでOpportunityやpersonal stateを統合しない。チケット情報の主リンクは対応するOpportunityを選択した短い受付表示へ移動し、公演情報には別の明示的なリンクを残す。personal stateのreadが失敗した場合は失敗を空一覧と区別し、未知のstateから期限行を作らない。表示時にpersonal stateを変更しない。
 - **FR-037**: `/tickets`はURLの`view`により`upcoming`、`planned`、`applied`、`past`を選べる。未指定・不正値は`upcoming`とする。`upcoming`はcurrent/next row、`planned`と`applied`は本人のOpportunity-level stateが一致するcurrent/next row、`past`は既存の7日間post-final retained historyだけを表示し、履歴保持期間を拡張しない。個人stateのread失敗時はplanned/applied filterを利用不可とし、unknownをrow不在や別のstateとして扱わない。切替でpersonal stateを変更・統合しない。
 - **FR-038**: Ticket rowはmilestone typeとsource precisionに沿う日時を同時に示し、personal state badgeは本人のOpportunity-level状態だと明示する。post-final rowはeffective cancellationを最優先し、それ以外では`application_close` milestoneとその他のpast milestoneを区別する。前者は申込受付が締め切られたことを、後者はmilestoneの日付が過去であることだけを伝える。具体的な表示文言は本Specで規定しない。renderable official URLがある場合、推測したprovider名ではなくURL hostnameをsourceの比較手掛かりとして示し、既存の公式情報linkを保つ。
+- **FR-039**: 選択した受付表示は、公開Opportunity identityで受付を1件選び、受付名・公演・source precisionを保った全milestone・対象・本人の既存planning stateを示す。利用可能なHTTP(S)のofficial source URLへの主導線と、別の公演情報・受付一覧導線を提供する。source URLは出典ページであり、販売専用ページであると推測してはならない。URL不在・利用不可時は架空のリンクを作らない。timeline retention外およびzero-milestoneの公開Opportunityも選択表示では読めるが、FR-016/FR-031の一覧投影と保持期間は変えない。存在しない受付とread failureを区別する。
+- **FR-040**: 選択表示の指定は単一の有効な公開UUIDに限定し、不正値・重複指定を推測で解決しない。指定がある場合は一覧viewより選択表示を優先する。個人情報をURLに含めず、共有先も本人の認証・認可で本人状態を読む。personal-state read失敗はunknownとし変更操作を提供しない。effective cancellation、全milestoneがpast、zero-milestoneの受付では変更操作を提供しない。AからBへの再遷移でAのcontrol stateをBへ持ち越さず、表示・履歴移動・再読込で保存済みstateを変更しない。
 
 ## Key Entities
 
@@ -256,7 +258,7 @@ projection、retained-history priority、official source access、ならびに
 - **SC-007**: Event cancellation、event-wide、全対象中止、部分・未解決対象のcurrent casesを区別し、取りこぼしから全件中止を推測するケースが0件である。
 - **SC-008**: post-final retentionは7日目を含めて維持し、8日目に落ちる。cancellationによってこのretentionが短縮されるケースが0件である。
 - **SC-009**: Event deletion consequence、zero-milestone projection、`/tickets`のeffective cancellation > retained history > personal planning stateのpriorityが、mechanicsやexact presentation detailに依存せず一意に解釈できる。
-- **SC-010**: current `/tickets` planning projectionにrowとして現れ、official source URLが利用可能なOpportunityでは、そのrowからofficial sourceへ到達できる。current projectionにrowを生成しないOpportunityへ別のsource access surfaceを要求せず、source URLの有無・利用可否とOpportunity identityを混同せず、架空のsource accessを生成しないことを検証できる。
+- **SC-010**: current `/tickets` planning projectionにrowとして現れ、official source URLが利用可能なOpportunityでは、そのrowからofficial sourceへ到達できる。選択表示のsource accessはFR-039に従い、source URLの有無・利用可否とOpportunity identityを混同せず、架空のsource accessを生成しないことを検証できる。
 - **SC-011**: selected targetのofficial scopeがstandalone Occurrence deletionでsilentに狭まらず、target reconciliationを先に行う必要があること、およびselected targetの存在だけではwhole-Event deletionをblockしないことを検証できる。
 
 ## Assumptions
