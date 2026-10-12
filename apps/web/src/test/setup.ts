@@ -1,7 +1,10 @@
-import "@testing-library/jest-dom/vitest";
+import * as matchers from "@testing-library/jest-dom/matchers";
+import type {} from "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, expect } from "vitest";
 import { server } from "./msw/server";
+
+expect.extend(matchers);
 
 // テスト間で jsdom へ残った DOM をクリーンにする（React Testing Library）。
 afterEach(() => {
