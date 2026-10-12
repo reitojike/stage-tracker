@@ -330,6 +330,8 @@ export type Database = {
           plan_summary: Json
           proposal: Json
           proposal_version: string
+          recovery_hold_run_id: string | null
+          recovery_review_required: boolean
           resolved_event_id: string | null
           resolved_ticket_opportunity_id: string | null
           review_status: string
@@ -364,6 +366,8 @@ export type Database = {
           plan_summary?: Json
           proposal: Json
           proposal_version: string
+          recovery_hold_run_id?: string | null
+          recovery_review_required?: boolean
           resolved_event_id?: string | null
           resolved_ticket_opportunity_id?: string | null
           review_status?: string
@@ -398,6 +402,8 @@ export type Database = {
           plan_summary?: Json
           proposal?: Json
           proposal_version?: string
+          recovery_hold_run_id?: string | null
+          recovery_review_required?: boolean
           resolved_event_id?: string | null
           resolved_ticket_opportunity_id?: string | null
           review_status?: string
@@ -409,6 +415,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "official_import_candidates_recovery_hold_run_id_fkey"
+            columns: ["recovery_hold_run_id"]
+            isOneToOne: false
+            referencedRelation: "official_import_runs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "official_import_candidates_resolved_event_id_fkey"
             columns: ["resolved_event_id"]
@@ -487,6 +500,7 @@ export type Database = {
           failure_url: string | null
           finished_at: string | null
           id: string
+          publication_ordinal: number | null
           source_id: string
           started_at: string
           status: string
@@ -502,6 +516,7 @@ export type Database = {
           failure_url?: string | null
           finished_at?: string | null
           id?: string
+          publication_ordinal?: number | null
           source_id: string
           started_at?: string
           status?: string
@@ -517,6 +532,7 @@ export type Database = {
           failure_url?: string | null
           finished_at?: string | null
           id?: string
+          publication_ordinal?: number | null
           source_id?: string
           started_at?: string
           status?: string
@@ -841,6 +857,31 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      apply_official_import_kabuki_event_candidate: {
+        Args: {
+          p_action: string
+          p_attempt_token: string
+          p_candidate_id: string
+          p_ends_on: string
+          p_event_id: string
+          p_expected_current: Json
+          p_expected_proposed_groups: Json
+          p_genre_key: string
+          p_groups: Json
+          p_memo: string
+          p_occurrence_fixes: Json
+          p_occurrences: Json
+          p_owner_id: string
+          p_set_genre: boolean
+          p_set_groups: boolean
+          p_source_key: string
+          p_source_url: string
+          p_starts_on: string
+          p_title: string
+          p_venue: string
+        }
+        Returns: string
+      }
       apply_reviewed_import_event_plan: {
         Args: {
           p_action: string
@@ -941,6 +982,8 @@ export type Database = {
           plan_summary: Json
           proposal: Json
           proposal_version: string
+          recovery_hold_run_id: string | null
+          recovery_review_required: boolean
           resolved_event_id: string | null
           resolved_ticket_opportunity_id: string | null
           review_status: string
@@ -1314,6 +1357,8 @@ export type Database = {
           plan_summary: Json
           proposal: Json
           proposal_version: string
+          recovery_hold_run_id: string | null
+          recovery_review_required: boolean
           resolved_event_id: string | null
           resolved_ticket_opportunity_id: string | null
           review_status: string

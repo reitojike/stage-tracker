@@ -1,0 +1,126 @@
+-- Synthetic fixtures for compatibility expand only. No authority/backfill,
+-- recovery episodes, existing-function guards or provider acquisition.
+create function pg_temp.kb_payload(
+  p_id text, p_hash text default repeat('a',64), p_fingerprint text default 'plan-a',
+  p_action text default 'create', p_changed boolean default true,
+  p_event_id uuid default null, p_review text default 'pending',
+  p_match text default 'unmatched'
+) returns jsonb language sql as $$
+  select jsonb_build_array(jsonb_build_object(
+    'candidate_kind','event',
+    'canonical_url','https://www.kabuki-bito.jp/theaters/kabukiza/play/' || p_id,
+    'official_external_id',p_id,'observed_at','2027-01-01T00:00:00Z',
+    'content_hash',p_hash,'proposal_version','event.v1',
+    'proposal',jsonb_build_object(
+      'sourceKey','kabuki-bito:kabukiza:play:' || p_id,'title','Fixture',
+      'startsOn','2027-01-01','endsOn','2027-01-02','venue','Hall',
+      'sourceUrl','https://www.kabuki-bito.jp/theaters/kabukiza/play/' || p_id,
+      'memo',null,'occurrences','[]'::jsonb),
+    'evidence_locator','{}'::jsonb,'deterministic_match_status',p_match,
+    'semantic_match_status','not_used','resolved_event_id',p_event_id,
+    'plan_summary',jsonb_build_object(
+      'version','event_plan.v1','action',p_action,'detailsChanged',p_changed,
+      'rangeChanged',false,'newOccurrenceCount',0,'endsAtFixCount',0,
+      'doorsAtFixCount',0,'keptOccurrenceCount',0,
+      'genreChanged',false,'groupsChanged',false),
+    'plan_fingerprint',p_fingerprint,'review_status',p_review));
+$$;
+
+create function pg_temp.kb_publish(p_candidates jsonb) returns uuid
+language plpgsql as $$
+declare v_id uuid := gen_random_uuid();
+begin
+  if public.claim_official_import_run_attempt(v_id,'event.kabuki-bito.schedule','fixture-publish',300) <> 'claimed' then
+    raise exception 'fixture claim failed';
+  end if;
+  perform public.commit_owned_official_import_candidate_batch(
+    v_id,'event.kabuki-bito.schedule','fixture-publish',p_candidates);
+  return v_id;
+end;
+$$;
+
+create function pg_temp.kb_candidate(p_run uuid) returns uuid language sql as $$
+  select id from public.official_import_candidates where run_id=p_run;
+$$;
+
+create procedure pg_temp.kb_ready(p_candidate uuid,p_owner uuid,p_token text)
+language plpgsql as $$
+begin
+  call pg_temp.auth_as_user(p_owner);
+  perform public.review_official_import_candidate(p_candidate,'approved');
+  call pg_temp.auth_as_admin();
+  execute 'set local role service_role';
+  if public.claim_official_import_candidate_apply(p_candidate,p_token,300) <> 'claimed' then
+    raise exception 'fixture apply claim failed';
+  end if;
+end;
+$$;
+
+-- The reviewed RPC expects camel-case canonical Group labels, not table rows.
+create function pg_temp.kb_snapshot(p_event uuid) returns jsonb language sql as $$
+  select jsonb_build_object('event',to_jsonb(e),
+    'occurrences',coalesce((select jsonb_agg(to_jsonb(o) order by o.id)
+      from public.event_occurrences o where o.event_id=e.id),'[]'::jsonb),
+    'groups',coalesce((select jsonb_agg(jsonb_build_object('key',g.key,'displayName',g.display_name) order by g.key)
+      from public.event_groups eg join public.groups g on g.id=eg.group_id
+      where eg.event_id=e.id),'[]'::jsonb),
+    'genreKey',(select key from public.genres where id=e.genre_id))
+  from public.events e where e.id=p_event;
+$$;
+
+-- Full row snapshots catch child/facet/canonical-group changes and all staging
+-- writes, including late completion failure after a mutating catalog update.
+create function pg_temp.kb_all_rows() returns jsonb language sql as $$
+  select jsonb_build_object(
+    'events',(select coalesce(jsonb_agg(to_jsonb(r) order by id),'[]') from public.events r),
+    'occurrences',(select coalesce(jsonb_agg(to_jsonb(r) order by id),'[]') from public.event_occurrences r),
+    'genres',(select coalesce(jsonb_agg(to_jsonb(r) order by id),'[]') from public.genres r),
+    'groups',(select coalesce(jsonb_agg(to_jsonb(r) order by id),'[]') from public.groups r),
+    'event_groups',(select coalesce(jsonb_agg(to_jsonb(r) order by event_id,group_id),'[]') from public.event_groups r),
+    'runs',(select coalesce(jsonb_agg(to_jsonb(r) order by id),'[]') from public.official_import_runs r),
+    'candidates',(select coalesce(jsonb_agg(to_jsonb(r) order by id),'[]') from public.official_import_candidates r),
+    'holds',(select coalesce(jsonb_agg(to_jsonb(r) order by run_id,canonical_url),'[]') from public.official_import_held_pages r));
+$$;
+
+-- JSON overrides vary exact public arguments without manipulating product rows.
+-- The helper is SECURITY INVOKER and never grants/changes the caller's role.
+create function pg_temp.kb_apply_sql(p_candidate uuid,p_token text,p_owner uuid,p_overrides jsonb default '{}')
+returns text language plpgsql as $$
+declare c public.official_import_candidates; a jsonb;
+begin
+  select * into strict c from public.official_import_candidates where id=p_candidate;
+  a := jsonb_build_object(
+    'action',c.plan_summary->>'action','owner',p_owner,'event',c.resolved_event_id,
+    'sourceKey',c.proposal->>'sourceKey','title',c.proposal->>'title',
+    'startsOn',c.proposal->>'startsOn','endsOn',c.proposal->>'endsOn',
+    'occurrences',c.proposal->'occurrences','fixes','[]'::jsonb,
+    'venue',c.proposal->>'venue','sourceUrl',c.proposal->>'sourceUrl','memo',c.proposal->>'memo',
+    'setGenre',c.proposal ? 'genre','genre',c.proposal->>'genre',
+    'setGroups',c.proposal ? 'groups','groups',coalesce(c.proposal->'groups','[]'::jsonb)) || p_overrides;
+  a := a || jsonb_build_object('expected',pg_temp.kb_snapshot((a->>'event')::uuid),
+    'expectedGroups',coalesce((select jsonb_agg(jsonb_build_object('key',p.key,'displayName',g.display_name) order by p.key)
+      from jsonb_to_recordset(a->'groups') as p(key text,"displayName" text)
+      left join public.groups g on g.key=p.key),'[]'::jsonb));
+  return format($sql$select public.apply_official_import_kabuki_event_candidate(
+    p_candidate_id := %L::uuid,p_attempt_token := %L,
+    p_action := %L,p_owner_id := %L::uuid,p_event_id := %L::uuid,
+    p_source_key := %L,p_title := %L,p_starts_on := %L::date,p_ends_on := %L::date,
+    p_occurrences := %L::jsonb,p_occurrence_fixes := %L::jsonb,
+    p_venue := %L,p_source_url := %L,p_memo := %L,
+    p_set_genre := %L::boolean,p_genre_key := %L,
+    p_set_groups := %L::boolean,p_groups := %L::jsonb,
+    p_expected_current := %L::jsonb,p_expected_proposed_groups := %L::jsonb)$sql$,
+    p_candidate,p_token,a->>'action',a->>'owner',a->>'event',a->>'sourceKey',a->>'title',
+    a->>'startsOn',a->>'endsOn',a->'occurrences',a->'fixes',a->>'venue',a->>'sourceUrl',a->>'memo',
+    a->>'setGenre',a->>'genre',a->>'setGroups',a->'groups',nullif(a->'expected','null'::jsonb),a->'expectedGroups');
+end;
+$$;
+
+create function pg_temp.kb_apply(p_candidate uuid,p_token text,p_owner uuid,p_overrides jsonb default '{}')
+returns text language plpgsql as $$
+declare r text;
+begin
+  execute pg_temp.kb_apply_sql(p_candidate,p_token,p_owner,p_overrides) into r;
+  return r;
+end;
+$$;
