@@ -1,3 +1,4 @@
+import type { TerminalFailureClue } from "../failure-clue";
 import "server-only";
 import type {
   EventDurableCandidate,
@@ -203,6 +204,7 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
     sourceId: string,
     attemptToken: string,
     classification: RunFailureClassification,
+    clue?: TerminalFailureClue,
   ): Promise<RunAttemptTransition> {
     const { data, error } = await this.client.rpc(
       "fail_official_import_run_attempt",
@@ -211,6 +213,13 @@ class SupabaseOfficialImportStagingRepository implements OfficialImportStagingRe
         p_source_id: sourceId,
         p_attempt_token: attemptToken,
         p_failure_classification: classification,
+        ...(clue === undefined
+          ? {}
+          : {
+              p_failure_phase: clue.phase,
+              p_failure_reason: clue.reason,
+              p_failure_url: clue.url ?? "",
+            }),
       },
     );
     if (error !== null || data === null)

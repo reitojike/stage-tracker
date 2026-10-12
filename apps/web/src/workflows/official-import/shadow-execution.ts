@@ -1,4 +1,9 @@
 import {
+  createTerminalFailureClue,
+  safeFailureUrl,
+  type TerminalFailureClue,
+} from "./failure-clue";
+import {
   createEventDurableCandidate,
   createEventProposal,
   createEvidenceLocator,
@@ -85,6 +90,7 @@ export interface OfficialImportStagingRepository {
     sourceId: string,
     attemptToken: string,
     classification: RunFailureClassification,
+    clue?: TerminalFailureClue,
   ): Promise<RunAttemptTransition>;
 }
 
@@ -216,6 +222,8 @@ export async function executeOfficialImportShadowRun(
     attemptToken,
     leaseHeartbeatIntervalMs,
   );
+  let phase: TerminalFailureClue["phase"] = "acquisition";
+  let currentDraftUrl: string | null = null;
   try {
     const heldPages: HeldSourcePage[] = [];
     const heldUrls = new Set<string>();
@@ -249,17 +257,20 @@ export async function executeOfficialImportShadowRun(
       }
     };
     const drafts = await adapter.acquire(source, recordHeldPage);
+    phase = "planning";
     lease.assertOwned();
     const eventCandidates: EventDurableCandidate[] = [];
     const ticketOpportunityCandidates: TicketOpportunityDurableCandidate[] = [];
     for (const draft of drafts) {
       lease.assertOwned();
+      currentDraftUrl = null;
       if (draft.candidateKind !== source.domainKind) {
         throw new DurableCandidateValidationError(
           `candidate kind ${draft.candidateKind} does not match source ${source.id}`,
         );
       }
       const canonicalUrl = assertAllowedSourceUrl(source, draft.canonicalUrl);
+      currentDraftUrl = canonicalUrl;
       if (heldUrls.has(canonicalUrl))
         throw new DurableCandidateValidationError(
           "Official page cannot be both held and a candidate",
@@ -381,6 +392,8 @@ export async function executeOfficialImportShadowRun(
     // The repository publishes the complete validated typed batch and
     // completes the run in one database transaction. A competing retry gets
     // the already committed count from that same serialization boundary.
+    phase = "publication";
+    currentDraftUrl = null;
     await lease.stopAndDrain();
     lease.assertOwned();
     const candidates = [...eventCandidates, ...ticketOpportunityCandidates];
@@ -420,14 +433,7 @@ export async function executeOfficialImportShadowRun(
     if (error instanceof OfficialImportAttemptRetryError) throw error;
     const failureClassification = classifyFailure(error);
     if (error instanceof SourceParseFailure) {
-      let canonicalUrl: string | null = null;
-      if (error.canonicalUrl !== null) {
-        try {
-          canonicalUrl = assertAllowedSourceUrl(source, error.canonicalUrl);
-        } catch {
-          // Keep an invalid URL out of logs without masking the parse failure.
-        }
-      }
+      const canonicalUrl = safeFailureUrl(source, error.canonicalUrl);
       console.error(
         error.reason === "request_limit"
           ? "Official source request limit reached"
@@ -448,6 +454,13 @@ export async function executeOfficialImportShadowRun(
       source.id,
       attemptToken,
       failureClassification,
+      createTerminalFailureClue(
+        source,
+        error,
+        failureClassification,
+        phase,
+        currentDraftUrl,
+      ),
     );
     if (transition === "failed") {
       const terminal = await repository.prepareRun(
