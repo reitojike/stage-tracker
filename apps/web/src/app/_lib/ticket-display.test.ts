@@ -92,11 +92,11 @@ describe("ticketPersonalStateBadgeDisplay", () => {
     });
     expect(ticketPersonalStateBadgeDisplay("planned", false)).toEqual({
       variant: "subtle",
-      label: "申し込む予定",
+      label: "自分：申込予定",
     });
     expect(ticketPersonalStateBadgeDisplay("applied", false)).toEqual({
       variant: "done",
-      label: "申し込み済み",
+      label: "自分：申込済み",
     });
     expect(ticketPersonalStateBadgeDisplay(null, false)).toBeNull();
   });

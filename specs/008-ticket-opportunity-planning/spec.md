@@ -212,6 +212,7 @@ timeline rowの保持を確認する。
 - **FR-035**: Home の「申し込み期限」は、本人の personal state が `planned` であるOpportunityの `application_close` milestoneのうち、effective cancellationではなく、過去ではなく、product-relevantなTokyo calendar dateが今日から14日後まで（両端を含む）のものだけを表示する。結果発表、販売開始、未追跡、`applied`、中止、期限切れはこの一覧に含めない。表示はmilestoneのtemporal precisionを保ち、window precisionは終了日時を期限として扱う。表示件数で打ち切らない。
 - **FR-036**: Homeの申込期限はOpportunity identityごとに表示し、同名・同日・出典の類似だけでOpportunityやpersonal stateを統合しない。チケット情報の主リンクは対応する`/tickets`行へ移動し、公演情報には別の明示的なリンクを残す。personal stateのreadが失敗した場合は失敗を空一覧と区別し、未知のstateから期限行を作らない。表示時にpersonal stateを変更しない。
 - **FR-037**: `/tickets`はURLの`view`により`upcoming`、`planned`、`applied`、`past`を選べる。未指定・不正値は`upcoming`とする。`upcoming`はcurrent/next row、`planned`と`applied`は本人のOpportunity-level stateが一致するcurrent/next row、`past`は既存の7日間post-final retained historyだけを表示し、履歴保持期間を拡張しない。個人stateのread失敗時はplanned/applied filterを利用不可とし、unknownをrow不在や別のstateとして扱わない。切替でpersonal stateを変更・統合しない。
+- **FR-038**: Ticket rowはmilestone typeとsource precisionに沿う日時を同時に示し、personal state badgeは本人のOpportunity-level状態だと明示する。post-final rowはeffective cancellationを最優先し、それ以外では`application_close` milestoneとその他のpast milestoneを区別する。前者は申込受付が締め切られたことを、後者はmilestoneの日付が過去であることだけを伝える。具体的な表示文言は本Specで規定しない。renderable official URLがある場合、推測したprovider名ではなくURL hostnameをsourceの比較手掛かりとして示し、既存の公式情報linkを保つ。
 
 ## Key Entities
 
