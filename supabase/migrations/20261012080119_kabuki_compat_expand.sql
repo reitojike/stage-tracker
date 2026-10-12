@@ -118,8 +118,10 @@ begin
     or p_venue is distinct from v_candidate.proposal ->> 'venue'
     or p_source_url is distinct from v_candidate.proposal ->> 'sourceUrl'
     or p_memo is distinct from v_candidate.proposal ->> 'memo'
-    or (p_set_genre and p_genre_key is distinct from v_candidate.proposal ->> 'genre')
-    or (p_set_groups and p_groups is distinct from coalesce(v_candidate.proposal -> 'groups', '[]'::jsonb)) then
+    or (p_set_genre and (not (v_candidate.proposal ? 'genre')
+      or p_genre_key is distinct from v_candidate.proposal ->> 'genre'))
+    or (p_set_groups and (not (v_candidate.proposal ? 'groups')
+      or p_groups is distinct from coalesce(v_candidate.proposal -> 'groups', '[]'::jsonb))) then
     raise exception 'Kabuki atomic apply does not match its reviewed proposal' using errcode = '22023';
   end if;
   if v_candidate.resolved_event_id is not null then

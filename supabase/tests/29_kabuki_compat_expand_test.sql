@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 \ir helpers/kabuki-compat-expand.psql
-select plan(42);
+select plan(48);
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='apply_official_import_kabuki_event_candidate'),1::bigint,'atomic RPC has exactly one public signature');
 select is((select pronargs::integer from pg_proc where oid='public.apply_official_import_kabuki_event_candidate(uuid,text,text,uuid,uuid,text,text,date,date,jsonb,jsonb,text,text,text,boolean,text,boolean,jsonb,jsonb,jsonb)'::regprocedure),20,'atomic RPC requires twenty arguments');
 select is((select pronargdefaults::integer from pg_proc where oid='public.apply_official_import_kabuki_event_candidate(uuid,text,text,uuid,uuid,text,text,date,date,jsonb,jsonb,text,text,text,boolean,text,boolean,jsonb,jsonb,jsonb)'::regprocedure),0,'atomic RPC has no argument defaults');
@@ -94,6 +94,18 @@ select public.claim_official_import_run_attempt(:'other_run','event.compat-other
 select public.commit_owned_official_import_candidate_batch(:'other_run','event.compat-other','other-publish',pg_temp.kb_payload('9104')) as staged \gset
 select pg_temp.kb_candidate(:'other_run') as other_candidate \gset
 select throws_ok(pg_temp.kb_apply_sql(:'other_candidate','unused',:'creator'),'22023',null,'different candidate source is outside new RPC scope');
+
+-- Omitted facets preserve known classification; setter flags cannot invent clears.
+select pg_temp.kb_publish(pg_temp.kb_payload('9101',repeat('d',64),'omitted-facets','update',true,:'target_event','pending','matched')) as omitted_run \gset
+select pg_temp.kb_candidate(:'omitted_run') as omitted_candidate \gset
+call pg_temp.kb_ready(:'omitted_candidate',:'creator','omitted-owner');
+select pg_temp.kb_all_rows()::text as omitted_before \gset
+select throws_ok(pg_temp.kb_apply_sql(:'omitted_candidate','omitted-owner',:'creator','{"setGenre":true,"genre":null}'),'22023',null,'omitted reviewed Genre cannot be cleared by a setter flag');
+select throws_ok(pg_temp.kb_apply_sql(:'omitted_candidate','omitted-owner',:'creator','{"setGroups":true,"groups":[]}'),'22023',null,'omitted reviewed Groups cannot be cleared by a setter flag');
+select is(pg_temp.kb_all_rows()::text,:'omitted_before','omitted facet refusals preserve all catalog and staging rows');
+select is(pg_temp.kb_apply(:'omitted_candidate','omitted-owner',:'creator'),'applied','omitted facets apply normally with false setter flags');
+select is((select g.key from public.events e join public.genres g on g.id=e.genre_id where e.id=:'target_event'),'kabuki','omitted Genre preserves existing classification');
+select is((select g.display_name from public.groups g join public.event_groups eg on eg.group_id=g.id where eg.event_id=:'target_event'),'Compatibility group','omitted Groups preserve existing classification');
 
 -- A test-only completion trigger first observes changed catalog facts, then
 -- throws. P0001 instead of55000 would expose a failure before the real writes.
