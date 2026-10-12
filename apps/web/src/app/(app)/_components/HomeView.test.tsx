@@ -51,7 +51,7 @@ const POPULATED_TICKET_ROWS: readonly HomeTicketDeadlineRow[] = [
         opportunityId: ticketOpportunityIdSchema.parse(
           "44444444-4444-4444-8444-444444444444",
         ),
-        milestoneType: "sale_start",
+        milestoneType: "application_close",
         temporalPrecision: "datetime",
         at: instantSchema.parse("2026-03-10T10:00:00Z"),
         createdAt: instantSchema.parse("2026-01-01T00:00:00Z"),
@@ -186,8 +186,16 @@ describe("HomeView", () => {
       />,
     );
 
-    expect(screen.getByText(/^販売開始・/)).toBeInTheDocument();
-    expect(screen.getByText("申し込む予定")).toBeInTheDocument();
+    expect(screen.getByText(/^受付締切・/)).toBeInTheDocument();
+    expect(screen.getByText("自分：申込予定")).toBeInTheDocument();
+    expect(screen.getByText("一般発売").closest("a")).toHaveAttribute(
+      "href",
+      "/tickets?view=upcoming#ticket-opportunity-44444444-4444-4444-8444-444444444444",
+    );
+    expect(screen.getByRole("link", { name: "公演情報" })).toHaveAttribute(
+      "href",
+      "/catalog/events/22222222-2222-4222-8222-222222222222",
+    );
   });
 
   it("keeps 直近の予定 empty-but-independent when 申し込み期限 is populated", () => {
@@ -202,34 +210,26 @@ describe("HomeView", () => {
     expect(screen.getByText("直近の予定はありません")).toBeInTheDocument();
   });
 
-  /**
-   * PR #381 P4 follow-up review finding 2: a failed personal-state read must
-   * never be indistinguishable from every row genuinely having no personal
-   * state - the badge must say "不明", not silently disappear.
-   */
-  it("renders the ticket-state badge as 不明, not omitted, when the personal-state read fails", () => {
+  it("does not make personal deadlines actionable when the personal-state read fails", () => {
     render(
       <HomeView
         today={TODAY}
         ticketState={{
-          block: { variant: "populated", data: POPULATED_TICKET_ROWS },
+          block: { variant: "empty" },
           optional: { ok: false, variant: "error" },
         }}
         scheduleState={EMPTY_SCHEDULE}
       />,
     );
 
-    expect(screen.getByText("不明")).toBeInTheDocument();
-    // The row's own (fallback-derived) `myState` badge must not appear
-    // alongside/instead of 不明 - "不明" replaces it, it does not merely
-    // supplement it.
-    expect(screen.queryByText("申し込む予定")).not.toBeInTheDocument();
-    // The failure is also surfaced as its own inline note, not just via the
-    // badge - the block itself keeps rendering (title copy is never
-    // replaced by a StatePanel just because the optional read failed).
     expect(
-      screen.getByText("申し込み状態を取得できませんでした"),
+      screen.getByText("申し込み状態を読み込めないため、期限を表示できません"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("一般発売")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込予定")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("期限が近い申し込みも、直近の予定もありません"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not show the personal-state failure note when the optional read succeeds", () => {

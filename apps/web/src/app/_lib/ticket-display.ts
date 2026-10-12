@@ -31,10 +31,10 @@ export function ticketPersonalStateBadgeDisplay(
     return { variant: "outline", label: "不明" };
   }
   if (state === "planned") {
-    return { variant: "subtle", label: "申し込む予定" };
+    return { variant: "subtle", label: "自分：申込予定" };
   }
   if (state === "applied") {
-    return { variant: "done", label: "申し込み済み" };
+    return { variant: "done", label: "自分：申込済み" };
   }
   return null;
 }

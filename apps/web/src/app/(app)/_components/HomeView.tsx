@@ -9,7 +9,6 @@ import {
   Badge,
   LinkButton,
   CompactList,
-  ListRowChevron,
   ListRowLink,
   PageHeading,
   SectionHeading,
@@ -78,7 +77,9 @@ export interface HomeViewProps {
  */
 export function HomeView({ ticketState, scheduleState, today }: HomeViewProps) {
   const bothEmpty =
-    ticketState.block.variant === "empty" && scheduleState.variant === "empty";
+    ticketState.optional.ok &&
+    ticketState.block.variant === "empty" &&
+    scheduleState.variant === "empty";
 
   return (
     <div className="flex flex-col gap-section">
@@ -148,7 +149,7 @@ function TicketDeadlineSection({
         </LinkButton>
       </div>
 
-      {block.variant === "populated" ? (
+      {block.variant === "error" || block.variant === "unavailable" ? (
         <>
           {optional.ok === false ? (
             <PartFailureNote variant={optional.variant}>
@@ -157,7 +158,33 @@ function TicketDeadlineSection({
                 : "申し込み状態を取得できませんでした"}
             </PartFailureNote>
           ) : null}
-          <ul className="-mr-md flex w-[calc(100%+var(--spacing-md))] snap-x snap-proximity overflow-x-auto [scrollbar-width:thin] [&>li+li]:border-l [&>li+li]:border-border [&>li+li]:pl-compact">
+          <StatePanel
+            variant={block.variant}
+            title={
+              block.variant === "unavailable"
+                ? "申し込み期限を確認できません"
+                : "申し込み期限を読み込めませんでした"
+            }
+            {...(block.variant === "error"
+              ? { description: READ_FAILURE_RETRY_HINT_JA }
+              : {})}
+          />
+        </>
+      ) : optional.ok === false ? (
+        <StatePanel
+          variant={optional.variant}
+          title={
+            optional.variant === "unavailable"
+              ? "申し込み状態を確認できないため、期限を表示できません"
+              : "申し込み状態を読み込めないため、期限を表示できません"
+          }
+          {...(optional.variant === "error"
+            ? { description: READ_FAILURE_RETRY_HINT_JA }
+            : {})}
+        />
+      ) : block.variant === "populated" ? (
+        <>
+          <ul className="flex flex-col gap-xs">
             {block.data.map((deadline) => {
               const { row } = deadline;
               const deadlineBadge = ticketDeadlineBadgeDisplay(
@@ -169,64 +196,57 @@ function TicketDeadlineSection({
               );
               const personalStateBadge = ticketPersonalStateBadgeDisplay(
                 row.myState,
-                optional.ok === false,
+                false,
               );
               return (
                 <li
                   key={`${row.opportunityId}-${row.milestone.id}`}
-                  className="w-[150px] shrink-0 snap-start py-xs pr-compact"
+                  className="rounded-md border border-border p-sm"
                 >
-                  <Link
-                    href={`/catalog/events/${row.eventId}`}
-                    className="flex h-full flex-col gap-2xs text-foreground hover:opacity-80 focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"
-                  >
-                    {deadlineBadge !== null || personalStateBadge !== null ? (
-                      <span className="flex flex-wrap items-center gap-2xs">
-                        {deadlineBadge !== null ? (
-                          <Badge variant={deadlineBadge.variant}>
-                            {deadlineBadge.label}
-                          </Badge>
-                        ) : null}
-                        {personalStateBadge !== null ? (
-                          <Badge variant={personalStateBadge.variant}>
-                            {personalStateBadge.label}
-                          </Badge>
-                        ) : null}
+                  <div className="flex flex-col gap-xs">
+                    <Link
+                      href={`/tickets?view=upcoming#ticket-opportunity-${row.opportunityId}`}
+                      className="flex flex-col gap-2xs text-foreground hover:opacity-80 focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"
+                    >
+                      {deadlineBadge !== null || personalStateBadge !== null ? (
+                        <span className="flex flex-wrap items-center gap-2xs">
+                          {deadlineBadge !== null ? (
+                            <Badge variant={deadlineBadge.variant}>
+                              {deadlineBadge.label}
+                            </Badge>
+                          ) : null}
+                          {personalStateBadge !== null ? (
+                            <Badge variant={personalStateBadge.variant}>
+                              {personalStateBadge.label}
+                            </Badge>
+                          ) : null}
+                        </span>
+                      ) : null}
+                      <span className="text-title font-semibold leading-title">
+                        {deadline.eventTitle}
                       </span>
-                    ) : null}
-                    <span className="line-clamp-2 text-title font-semibold leading-title">
-                      {deadline.eventTitle}
-                    </span>
-                    <span className="truncate text-body-sm">
-                      {row.displayName}
-                    </span>
-                    <span className="mt-auto flex items-center gap-2xs text-body-sm text-muted-foreground">
-                      <span className="min-w-0 flex-1">
+                      <span className="text-body-sm font-medium break-words">
+                        {row.displayName}
+                      </span>
+                      <span className="text-body-sm text-muted-foreground">
                         {formatMilestoneTypeJa(row.milestone.milestoneType)}・
                         {formatMilestoneWhenJa(row.milestone)}
                       </span>
-                      <ListRowChevron className="min-h-0" />
-                    </span>
-                  </Link>
+                    </Link>
+                    <Link
+                      href={`/catalog/events/${row.eventId}`}
+                      className="w-fit text-body-sm text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"
+                    >
+                      公演情報
+                    </Link>
+                  </div>
                 </li>
               );
             })}
           </ul>
         </>
       ) : (
-        <StatePanel
-          variant={block.variant}
-          title={
-            block.variant === "empty"
-              ? "近日中の申し込み期限はありません"
-              : block.variant === "unavailable"
-                ? "申し込み期限を確認できません"
-                : "申し込み期限を読み込めませんでした"
-          }
-          {...(block.variant === "error"
-            ? { description: READ_FAILURE_RETRY_HINT_JA }
-            : {})}
-        />
+        <StatePanel variant="empty" title="近日中の申し込み期限はありません" />
       )}
     </section>
   );

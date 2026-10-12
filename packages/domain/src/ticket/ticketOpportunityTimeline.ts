@@ -60,6 +60,33 @@ import type { EventId } from '../ids';
  * implementation identifier. */
 export const TICKET_POST_FINAL_RETENTION_DAYS = 7;
 
+/** Home shows planned application deadlines from today through this many
+ * Asia/Tokyo calendar days ahead, inclusive. */
+export const HOME_TICKET_DEADLINE_WINDOW_DAYS = 14;
+
+/** The instant a deadline is ordered by. A window deadline is its end, not
+ * its opening instant; other precisions retain their normal sort instant. */
+export function ticketOpportunityDeadlineSortInstant(
+  milestone: TicketOpportunityMilestone,
+): Instant {
+  return milestone.temporalPrecision === 'window'
+    ? milestone.endsAt
+    : ticketOpportunityMilestoneSortInstant(milestone);
+}
+
+/** Whether a milestone's product-relevant Tokyo date is today through the
+ * inclusive Home deadline horizon. */
+export function isTicketOpportunityDeadlineInHomeWindow(
+  milestone: TicketOpportunityMilestone,
+  todayTokyoDate: TokyoCalendarDate,
+): boolean {
+  const daysAhead = differenceTokyoCalendarDates(
+    todayTokyoDate,
+    ticketOpportunityMilestoneTokyoCalendarDate(milestone),
+  );
+  return daysAhead >= 0 && daysAhead <= HOME_TICKET_DEADLINE_WINDOW_DAYS;
+}
+
 /**
  * The instant a milestone sorts by - ordering-only, never a display value
  * (a `date`-precision milestone's synthetic day-start instant must never be
