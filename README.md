@@ -6,7 +6,7 @@
 ユーザーへの展開は current scope 外です。product intentの詳細は
 [`docs/prd.md`](./docs/prd.md) を参照してください。
 
-GitHub Spec Kit v1.0.9 の standard harness を使い、事前プロビジョニングされた
+GitHub Spec Kit v1.1.3 の standard harness を使い、事前プロビジョニングされた
 家族内で shared event catalog と personal planning を扱います。既存の
 Foundation harness への runtime dependency は持ちません。
 
@@ -42,10 +42,11 @@ Spec Kit が管理する guidance surface と Next.js の自動生成 root guida
 競合しないよう、`apps/web/next.config.ts` の project-owned standard setting
 として維持します。
 
-Spec Kit の標準 helper scripts は、PowerShellへの依存を避け、Codex / Claudeで
-共通利用するため、v1.0.9 first-party `--script py` variantを使用します。生成された
-Skillは`python` commandでhelperを呼ぶため、Spec Kit workflowを実行するenvironment
-ではPython 3を`python` commandとして利用可能にしてください。repository側の
+Spec Kit CLI は固定した `uvx --from git+https://github.com/github/spec-kit.git@v1.1.3 specify`
+で実行します。標準 helper scripts は、PowerShellへの依存を避け、Codex / Claudeで
+共通利用するため、v1.1.3 first-party `--script py` variantを使用します。生成された
+Skillは`python3` commandでhelperを呼ぶため、Spec Kit workflowを実行するenvironment
+ではPython 3を`python3` commandとして利用可能にしてください。repository側の
 launcher wrapper、post-processing、managed fileの手編集は追加しません。
 
 Claude secondary integration利用時、Spec Kit shared prerequisite scriptがdefault
