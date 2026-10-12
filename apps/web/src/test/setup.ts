@@ -9,10 +9,10 @@ afterEach(() => {
 });
 
 // MSW server のライフサイクル。listen は最初に一度、resetHandlers は各テスト後、
-// close は全テスト終了後。`onUnhandledRequest: "error"` により、意図せず
+// close は全テスト終了後。`onUnhandledFrame: "error"` により、意図せず
 // mock されていないネットワークリクエストが飛んだ場合にテストを失敗させる。
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "error" });
+  server.listen({ onUnhandledFrame: "error" });
 });
 
 afterEach(() => {
