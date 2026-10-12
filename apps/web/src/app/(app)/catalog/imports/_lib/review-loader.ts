@@ -543,7 +543,7 @@ export async function loadOfficialImportReviewQueue(
       .from("official_import_candidates")
       .select(
         `*,
-         official_import_runs!inner(status),
+         official_import_runs!official_import_candidates_run_id_fkey!inner(status),
          current_event:events!official_import_candidates_resolved_event_id_fkey(
            id, source_key, title, venue, memo, source_url, starts_on, ends_on
          ),
