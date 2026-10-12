@@ -6,7 +6,7 @@ import {
   parseKabukiDetailedOccurrences,
   parseKabukiIndex,
 } from "./kabuki-bito";
-import type { OfficialHtmlDocument } from "./http";
+import type { OfficialHtmlDocument, OfficialHtmlFetcher } from "./http";
 
 const source = getOfficialSource("event.kabuki-bito.schedule");
 if (source === null) throw new Error("test source missing");
@@ -367,6 +367,85 @@ describe("Kabuki-bito adapter facts", () => {
       startsOn: "2026-10-01",
       endsOn: "2026-10-25",
     });
+  });
+
+  it.each(["dated row", "month-only row", "news teaser"])(
+    "rejects a conflicting work ID in a %s before fetching details",
+    async (shape) => {
+      const conflicting =
+        shape === "news teaser"
+          ? '<section class="l-update"><li class="item"><a href="/theaters/kyoto/play/978"><dl class="type-date"><dt><time>2026/09/25</time></dt><dd>news</dd></dl></a></li></section>'
+          : `<li class="item"><a href="/theaters/kyoto/play/978"><h3 class="ttl">Other work</h3></a><p class="term">${shape === "month-only row" ? "2027年4月" : "2026年10月1日～2日"}</p></li>`;
+      const index = `<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">First work</h3></a><p class="term">2026年10月1日～2日</p></li>${conflicting}`;
+      const fetcher = vi.fn<OfficialHtmlFetcher>(async (_source, url) =>
+        document(url, index),
+      );
+      const held = vi.fn();
+      const adapter = createKabukiBitoAdapter(fetcher);
+
+      await expect(adapter.acquire(source, held)).rejects.toThrow(
+        SourceParseFailure,
+      );
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher).toHaveBeenCalledWith(source, source.canonicalUrl);
+      expect(held).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps shared Ticket index parsing outside the Event uniqueness gate", () => {
+    const index = ["kabukiza", "kyoto"]
+      .map(
+        (theater) =>
+          `<li class="item"><a href="/theaters/${theater}/play/978"><h3 class="ttl">Work</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      )
+      .join("");
+    expect(parseKabukiIndex(source, index).map((fact) => fact.theater)).toEqual(
+      ["kabukiza", "kyoto"],
+    );
+  });
+
+  it.each([
+    "https://www.kabuki-bito.jp/theaters/kyoto/play/978",
+    "https://www.kabuki-bito.jp/theaters/kabukiza/play/979",
+  ])("rejects a final redirect to another work: %s", async (finalUrl) => {
+    const fetcher = vi.fn<OfficialHtmlFetcher>(async (_source, url) =>
+      document(
+        url === source.canonicalUrl ? url : finalUrl,
+        url === source.canonicalUrl
+          ? '<li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">Work</h3></a><p class="term">2026年10月1日～2日</p></li>'
+          : '<p class="text type-timetable">1日 午前11時～ 2日 午前11時～</p><p class="text type-theater">歌舞伎座</p>',
+      ),
+    );
+    const held = vi.fn();
+    await expect(
+      createKabukiBitoAdapter(fetcher).acquire(source, held),
+    ).rejects.toThrow(SourceParseFailure);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(held).not.toHaveBeenCalled();
+  });
+
+  it("preserves the Event identity when news repeats the same work URL", async () => {
+    const detailUrl = "https://www.kabuki-bito.jp/theaters/kabukiza/play/978";
+    const index =
+      '<section class="l-update"><li class="item"><a href="/theaters/kabukiza/play/978"><dl class="type-date"><dt><time>2026/09/25</time></dt><dd>news</dd></dl></a></li></section><li class="item"><a href="/theaters/kabukiza/play/978"><h3 class="ttl">Work</h3></a><p class="term">2026年10月1日～2日</p></li>';
+    const fetcher = vi.fn<OfficialHtmlFetcher>(async (_source, url) =>
+      document(
+        url,
+        url === source.canonicalUrl
+          ? index
+          : '<p class="text type-timetable">1日 午前11時～ 2日 午前11時～</p><p class="text type-theater">歌舞伎座</p>',
+      ),
+    );
+    const held = vi.fn();
+    const drafts = await createKabukiBitoAdapter(fetcher).acquire(source, held);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]).toMatchObject({
+      canonicalUrl: detailUrl,
+      officialExternalId: "978",
+      proposal: { sourceKey: "kabuki-bito:kabukiza:play:978" },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(held).not.toHaveBeenCalled();
   });
 
   it("deduplicates teaser links and stages only exact-dated full rows", () => {
