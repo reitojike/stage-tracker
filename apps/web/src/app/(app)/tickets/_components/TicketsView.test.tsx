@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { formatMilestoneTypeJa } from "@/app/_lib/ticket-milestone-format";
 import {
   eventIdSchema,
   instantSchema,
@@ -7,6 +8,7 @@ import {
   ticketOpportunityMilestoneIdSchema,
   ticketOpportunityMilestoneSchema,
   tokyoCalendarDateSchema,
+  type TicketOpportunityMilestone,
 } from "@stage-tracker/domain";
 import type { OptionalPartBlockState } from "@/app/_lib/read-state";
 import type { TicketsTimelineState } from "../_lib/tickets-loader";
@@ -29,6 +31,7 @@ function row(
     displayName: string;
     opportunityId: string;
     milestoneId: string;
+    milestoneType: TicketOpportunityMilestone["milestoneType"];
     isFirstRowForOpportunity: boolean;
     isEffectivelyCanceled: boolean;
     sourceUrl: string | null;
@@ -41,6 +44,7 @@ function row(
     isFirstRowForOpportunity = true,
     isEffectivelyCanceled = false,
     sourceUrl = "https://example.com/tickets",
+    milestoneType = "sale_start",
   } = overrides;
   return {
     opportunityId: ticketOpportunityIdSchema.parse(
@@ -55,7 +59,7 @@ function row(
       opportunityId: ticketOpportunityIdSchema.parse(
         overrides.opportunityId ?? "44444444-4444-4444-8444-444444444444",
       ),
-      milestoneType: "sale_start",
+      milestoneType,
       temporalPrecision: "datetime",
       at: instantSchema.parse("2026-03-10T10:00:00.000Z"),
       createdAt: instantSchema.parse("2026-01-01T00:00:00.000Z"),
@@ -85,6 +89,86 @@ const POPULATED: OptionalPartBlockState<TicketsTimelineState> = {
 };
 
 describe("TicketsView", () => {
+  it("gives each current Opportunity row a stable Home deep-link target", () => {
+    render(<TicketsView today={TODAY} state={POPULATED} />);
+
+    expect(
+      document.getElementById(
+        "ticket-opportunity-44444444-4444-4444-8444-444444444444",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes URL-backed filters and marks the current view", () => {
+    render(<TicketsView today={TODAY} state={POPULATED} />);
+
+    expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "過去（7日）" })).toHaveAttribute(
+      "href",
+      "/tickets?view=past",
+    );
+  });
+
+  it.each([
+    { view: "planned" as const, filterLabel: "自分の申込予定" },
+    { view: "applied" as const, filterLabel: "自分の申込済み" },
+  ])(
+    "shows shared upcoming rows when $view state is unknown, without applying the personal filter",
+    ({ view, filterLabel }) => {
+      render(
+        <TicketsView
+          today={TODAY}
+          view={view}
+          state={{
+            block: POPULATED.block,
+            optional: { ok: false, variant: "error" },
+          }}
+        />,
+      );
+
+      expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(
+        screen.getByText("自分の申込予定").closest("span"),
+      ).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByText("テスト公演")).toBeInTheDocument();
+      expect(screen.getByText("不明")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        `「${filterLabel}」では絞り込めないため、フィルターを「今後」に切り替えました。申込状態は不明です。`,
+      );
+      expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /申込/u }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("does not claim a personal-filtered list is empty when its state is unknown", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="planned"
+        state={{
+          block: { variant: "empty" },
+          optional: { ok: false, variant: "error" },
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.queryByText("自分の申込予定はありません"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("自分の申込予定");
+  });
   it("renders the empty state copy", () => {
     render(
       <TicketsView
@@ -93,8 +177,23 @@ describe("TicketsView", () => {
       />,
     );
     expect(
-      screen.getByText("現在表示できる抽選・販売スケジュールはありません"),
+      screen.getByText("今後の抽選・販売スケジュールはありません"),
     ).toBeInTheDocument();
+  });
+
+  it("uses neutral date wording for an empty past view", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="past"
+        state={{ block: { variant: "empty" }, optional: { ok: true } }}
+      />,
+    );
+
+    expect(
+      screen.getByText("直近7日以内に表示できる過去の日程はありません"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/受付はありません/u)).not.toBeInTheDocument();
   });
 
   it("renders the error state as an alert with a generic retry hint (never a raw message)", () => {
@@ -128,7 +227,7 @@ describe("TicketsView", () => {
   it("groups populated rows by month and shows the 申し込み済み badge", () => {
     render(<TicketsView today={TODAY} state={POPULATED} />);
     expect(screen.getByText("2026年3月")).toBeInTheDocument();
-    expect(screen.getByText("申し込み済み")).toBeInTheDocument();
+    expect(screen.getByText("自分：申込済み")).toBeInTheDocument();
     expect(screen.getByText("販売開始")).toBeInTheDocument();
   });
 
@@ -139,6 +238,102 @@ describe("TicketsView", () => {
       "href",
       "https://example.com/tickets",
     );
+    expect(screen.getByText("公式サイト：example.com")).toBeInTheDocument();
+  });
+
+  it("wraps a maximum-length valid source hostname", () => {
+    const host = `${"a".repeat(63)}.example.com`;
+    render(
+      <TicketsView
+        today={TODAY}
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [row({ sourceUrl: `https://${host}/tickets` })],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText(host, { exact: false })).toHaveClass("break-words");
+  });
+
+  it("does not render a source hostname for an unrenderable URL", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [row({ sourceUrl: "javascript:alert(1)" })],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.queryByText(/^公式サイト：/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "公式情報" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps similarly named same-day opportunities distinct and shows each source host", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [
+                    row({
+                      displayName: "月組 第2抽選",
+                      opportunityId: "66666666-6666-4666-8666-666666666666",
+                      milestoneId: "77777777-7777-4777-8777-777777777777",
+                      sourceUrl: "https://ticket-a.example/apply",
+                    }),
+                    row({
+                      displayName: "月組 第2抽選",
+                      opportunityId: "88888888-8888-4888-8888-888888888888",
+                      milestoneId: "99999999-9999-4999-8999-999999999999",
+                      sourceUrl: "https://ticket-b.example/apply",
+                    }),
+                  ],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("テスト劇場・月組 第2抽選")).toHaveLength(2);
+    expect(
+      screen.getByText("公式サイト：ticket-a.example"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("公式サイト：ticket-b.example"),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -235,10 +430,11 @@ describe("TicketsView", () => {
     }
   });
 
-  it("prioritizes 受付終了 over the personal planning-state badge", () => {
+  it("labels a retained application-close row 受付終了 over the personal planning-state badge", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -250,6 +446,7 @@ describe("TicketsView", () => {
                     row({
                       myState: "applied",
                       isPostFinalRetainedHistory: true,
+                      milestoneType: "application_close",
                     }),
                   ],
                 },
@@ -261,13 +458,14 @@ describe("TicketsView", () => {
       />,
     );
     expect(screen.getByText("受付終了")).toBeInTheDocument();
-    expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
   });
 
-  it("prioritizes 中止 over 受付終了, applied, and 不明", () => {
+  it("prioritizes 中止 over retained history, applied, and 不明", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -280,6 +478,7 @@ describe("TicketsView", () => {
                       myState: "applied",
                       isPostFinalRetainedHistory: true,
                       isEffectivelyCanceled: true,
+                      milestoneType: "application_close",
                     }),
                   ],
                 },
@@ -293,7 +492,7 @@ describe("TicketsView", () => {
 
     expect(screen.getAllByText("中止")).toHaveLength(1);
     expect(screen.queryByText("受付終了")).not.toBeInTheDocument();
-    expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
     expect(screen.queryByText("不明")).not.toBeInTheDocument();
     expect(
       screen.getByText("申し込み状態を取得できませんでした"),
@@ -327,7 +526,33 @@ describe("TicketsView", () => {
     );
 
     expect(screen.getByText("中止")).toBeInTheDocument();
-    expect(screen.queryByText("申し込む予定")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込予定")).not.toBeInTheDocument();
+  });
+
+  it("labels a retained sale-start row 過去 instead of 受付終了", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="past"
+        state={{
+          block: {
+            variant: "populated",
+            data: {
+              groups: [
+                {
+                  monthKey: "2026-03",
+                  rows: [row({ isPostFinalRetainedHistory: true })],
+                },
+              ],
+            },
+          },
+          optional: { ok: true },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("過去")).toBeInTheDocument();
+    expect(screen.queryByText("受付終了")).not.toBeInTheDocument();
   });
 
   it("keeps the active planning-state badge when cancellation is false", () => {
@@ -351,9 +576,44 @@ describe("TicketsView", () => {
       />,
     );
 
-    expect(screen.getByText("申し込む予定")).toBeInTheDocument();
+    expect(screen.getByText("自分：申込予定")).toBeInTheDocument();
     expect(screen.queryByText("中止")).not.toBeInTheDocument();
   });
+
+  it.each([
+    { myState: "planned" as const, label: "自分：申込予定" },
+    { myState: "applied" as const, label: "自分：申込済み" },
+  ])(
+    "keeps $myState as personal state on a result-announcement row",
+    ({ myState, label }) => {
+      render(
+        <TicketsView
+          today={TODAY}
+          state={{
+            block: {
+              variant: "populated",
+              data: {
+                groups: [
+                  {
+                    monthKey: "2026-03",
+                    rows: [
+                      row({ myState, milestoneType: "result_announcement" }),
+                    ],
+                  },
+                ],
+              },
+            },
+            optional: { ok: true },
+          }}
+        />,
+      );
+
+      expect(
+        screen.getByText(formatMilestoneTypeJa("result_announcement")),
+      ).toBeInTheDocument();
+      expect(screen.getByText(label)).toBeInTheDocument();
+    },
+  );
 
   /**
    * PR #381 P4 follow-up review finding 2: the shared timeline (`block`)
@@ -386,7 +646,7 @@ describe("TicketsView", () => {
     expect(screen.getByText("2026年3月")).toBeInTheDocument();
     expect(screen.getByText("販売開始")).toBeInTheDocument();
     expect(screen.getByText("不明")).toBeInTheDocument();
-    expect(screen.queryByText("申し込み済み")).not.toBeInTheDocument();
+    expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
     expect(
       screen.getByText("申し込み状態を取得できませんでした"),
     ).toBeInTheDocument();
@@ -396,6 +656,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -407,6 +668,7 @@ describe("TicketsView", () => {
                     row({
                       myState: "applied",
                       isPostFinalRetainedHistory: true,
+                      milestoneType: "application_close",
                     }),
                   ],
                 },
@@ -510,6 +772,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
