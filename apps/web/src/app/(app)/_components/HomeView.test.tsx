@@ -190,7 +190,7 @@ describe("HomeView", () => {
     expect(screen.getByText("自分：申込予定")).toBeInTheDocument();
     expect(screen.getByText("一般発売").closest("a")).toHaveAttribute(
       "href",
-      "/tickets?view=upcoming#ticket-opportunity-44444444-4444-4444-8444-444444444444",
+      "/tickets?opportunity=44444444-4444-4444-8444-444444444444",
     );
     expect(screen.getByRole("link", { name: "公演情報" })).toHaveAttribute(
       "href",

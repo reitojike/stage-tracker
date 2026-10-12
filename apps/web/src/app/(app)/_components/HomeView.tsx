@@ -205,7 +205,7 @@ function TicketDeadlineSection({
                 >
                   <div className="flex flex-col gap-xs">
                     <Link
-                      href={`/tickets?view=upcoming#ticket-opportunity-${row.opportunityId}`}
+                      href={`/tickets?opportunity=${row.opportunityId}`}
                       className="flex flex-col gap-2xs text-foreground hover:opacity-80 focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"
                     >
                       {deadlineBadge !== null || personalStateBadge !== null ? (
