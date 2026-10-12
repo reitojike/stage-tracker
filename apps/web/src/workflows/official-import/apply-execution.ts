@@ -65,7 +65,8 @@ export type CandidateApplyPreparation =
     }
   | { readonly status: "busy" }
   | { readonly status: "applied" }
-  | { readonly status: "not_approved" };
+  | { readonly status: "not_approved" }
+  | { readonly status: "freshness_refused" };
 
 export interface OfficialImportApplyRepository {
   prepareCandidate(
@@ -145,7 +146,8 @@ export type OfficialImportApplyResult =
       readonly candidateId: string;
       readonly failureClassification: CandidateApplyFailureClassification;
     }
-  | { readonly status: "not_approved"; readonly candidateId: string };
+  | { readonly status: "not_approved"; readonly candidateId: string }
+  | { readonly status: "freshness_refused"; readonly candidateId: string };
 
 function failure(classification: CandidateApplyFailureClassification): never {
   throw new OfficialImportCatalogFailure(classification);
@@ -319,6 +321,11 @@ export async function executeOfficialImportCandidateApply(
   }
   if (preparation.status === "not_approved") {
     return { status: "not_approved", candidateId };
+  }
+  // The refused claim established no ownership; nothing may be planned,
+  // written, completed or failed for this attempt.
+  if (preparation.status === "freshness_refused") {
+    return { status: "freshness_refused", candidateId };
   }
   const { candidate } = preparation;
   const requiresAtomicCompletion =

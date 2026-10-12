@@ -12,7 +12,10 @@ import {
   lookupOfficialImportBindingEventAction,
   reviewOfficialImportCandidateAction,
 } from "@/lib/actions/officialImportReview.actions";
-import { startOfficialImportApplyAction } from "@/lib/actions/officialImportApply.actions";
+import {
+  checkOfficialImportApplyResultAction,
+  startOfficialImportApplyAction,
+} from "@/lib/actions/officialImportApply.actions";
 import { OfficialImportReviewQueue } from "./_components/OfficialImportReviewQueue";
 import {
   KabukiHeldPageReport,
@@ -103,6 +106,7 @@ export default async function OfficialImportReviewPage() {
         dismissAction={dismissFailedOfficialImportCandidateAction}
         bindAction={bindOfficialImportTicketCandidateAction}
         lookupEventAction={lookupOfficialImportBindingEventAction}
+        applyResultAction={checkOfficialImportApplyResultAction}
       />
     </div>
   );

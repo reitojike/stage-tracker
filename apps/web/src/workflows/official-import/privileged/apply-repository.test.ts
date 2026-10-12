@@ -68,6 +68,52 @@ describe("official import candidate claim", () => {
     },
   );
 
+  it("returns a freshness refusal for the exact reserved claim marker without reading the candidate", async () => {
+    const { repository, calls } = harness(() =>
+      Response.json(
+        {
+          code: "40001",
+          details: "stage_tracker.kabuki_freshness_refused.v1",
+          message: "untrusted database detail",
+          hint: null,
+        },
+        { status: 400 },
+      ),
+    );
+    await expect(
+      repository.prepareCandidate(candidateId, attemptToken),
+    ).resolves.toEqual({ status: "freshness_refused" });
+    expect(calls.map((call) => call.path)).toEqual([
+      "/rest/v1/rpc/claim_official_import_candidate_apply",
+    ]);
+  });
+
+  it.each([
+    ["an unknown detail", "40001", "stage_tracker.other.v1"],
+    ["a null detail", "40001", null],
+    ["another code", "40P01", "stage_tracker.kabuki_freshness_refused.v1"],
+  ])("keeps a claim error with %s retryable", async (_label, code, details) => {
+    const { repository, calls } = harness(() =>
+      Response.json(
+        { code, details, message: "untrusted database detail", hint: null },
+        { status: 400 },
+      ),
+    );
+    await expect(
+      repository.prepareCandidate(candidateId, attemptToken),
+    ).rejects.toThrow("Failed to claim official import candidate apply");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps a transport failure retryable", async () => {
+    const { repository } = harness(() => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(
+      repository.prepareCandidate(candidateId, attemptToken),
+    ).rejects.toThrow("Failed to claim official import candidate apply");
+  });
+
   it("keeps other claim errors retryable without exposing database detail", async () => {
     const { repository, calls } = harness(() =>
       Response.json(
