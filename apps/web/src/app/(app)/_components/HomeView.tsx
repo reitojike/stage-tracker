@@ -204,7 +204,8 @@ function TicketDeadlineSection({
                   className="rounded-md border border-border p-sm"
                 >
                   <div className="flex flex-col gap-xs">
-                    <Link
+                    {/* Native navigation preserves the fragment on cached reentry. */}
+                    <a
                       href={`/tickets?view=upcoming#ticket-opportunity-${row.opportunityId}`}
                       className="flex flex-col gap-2xs text-foreground hover:opacity-80 focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"
                     >
@@ -232,7 +233,7 @@ function TicketDeadlineSection({
                         {formatMilestoneTypeJa(row.milestone.milestoneType)}・
                         {formatMilestoneWhenJa(row.milestone)}
                       </span>
-                    </Link>
+                    </a>
                     <Link
                       href={`/catalog/events/${row.eventId}`}
                       className="w-fit text-body-sm text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50"

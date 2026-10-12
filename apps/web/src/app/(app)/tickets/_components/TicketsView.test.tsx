@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatMilestoneTypeJa } from "@/app/_lib/ticket-milestone-format";
 import {
   eventIdSchema,
@@ -87,6 +87,87 @@ const POPULATED: OptionalPartBlockState<TicketsTimelineState> = {
   },
   optional: { ok: true },
 };
+
+describe("Opportunity fragment recovery", () => {
+  const targetId = "ticket-opportunity-44444444-4444-4444-8444-444444444444";
+  const scroll = vi.fn();
+  let previousScroll: PropertyDescriptor | undefined;
+  let previousUrl: string;
+
+  beforeEach(() => {
+    previousScroll = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    previousUrl = window.location.href;
+    scroll.mockClear();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scroll,
+    });
+    window.history.replaceState({}, "", `/tickets?view=upcoming#${targetId}`);
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, "", previousUrl);
+    if (previousScroll === undefined)
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    else
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "scrollIntoView",
+        previousScroll,
+      );
+  });
+
+  const anotherRow = row({
+    opportunityId: "66666666-6666-4666-8666-666666666666",
+    milestoneId: "77777777-7777-4777-8777-777777777777",
+  });
+
+  it("keeps the user's control focus when visible rows update after arrival", () => {
+    const { rerender } = render(
+      <TicketsView today={TODAY} state={POPULATED} />,
+    );
+    expect(document.getElementById(targetId)).toHaveFocus();
+    const control = screen.getAllByRole("button")[0];
+    if (control === undefined) throw new Error("missing fixture control");
+    control.focus();
+
+    const updated: OptionalPartBlockState<TicketsTimelineState> = {
+      block: {
+        variant: "populated",
+        data: {
+          groups: [
+            {
+              monthKey: "2026-03",
+              rows: [row({ myState: "applied" }), anotherRow],
+            },
+          ],
+        },
+      },
+      optional: { ok: true },
+    };
+    rerender(<TicketsView today={TODAY} state={updated} />);
+    expect(control).toHaveFocus();
+    expect(scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers a target that becomes available after the first render", () => {
+    const earlier: OptionalPartBlockState<TicketsTimelineState> = {
+      block: {
+        variant: "populated",
+        data: { groups: [{ monthKey: "2026-03", rows: [anotherRow] }] },
+      },
+      optional: { ok: true },
+    };
+    const { rerender } = render(<TicketsView today={TODAY} state={earlier} />);
+    expect(scroll).not.toHaveBeenCalled();
+    rerender(<TicketsView today={TODAY} state={POPULATED} />);
+    expect(document.getElementById(targetId)).toHaveFocus();
+    expect(scroll).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("TicketsView", () => {
   it("gives each current Opportunity row a stable Home deep-link target", () => {

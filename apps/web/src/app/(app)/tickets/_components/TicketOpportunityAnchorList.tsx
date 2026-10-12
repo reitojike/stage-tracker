@@ -14,19 +14,27 @@ export function TicketOpportunityAnchorList({
   readonly children: ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  const revealedTarget = useRef<string | null>(null);
 
   useEffect(() => {
     let targetId: string;
     try {
       targetId = decodeURIComponent(window.location.hash.slice(1));
     } catch {
+      revealedTarget.current = null;
       return;
     }
-    if (!anchorIds.split(" ").includes(targetId)) return;
+    if (!anchorIds.split(" ").includes(targetId)) {
+      revealedTarget.current = null;
+      return;
+    }
+    // Later data refreshes must leave the user's current control focus alone.
+    if (revealedTarget.current === targetId) return;
     const target = container.current?.querySelector<HTMLElement>(
       `[id="${targetId}"]`,
     );
     if (target === null || target === undefined) return;
+    revealedTarget.current = targetId;
     target.scrollIntoView({ block: "nearest", inline: "nearest" });
     target.focus({ preventScroll: true });
   }, [anchorIds, view]);

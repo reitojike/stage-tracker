@@ -184,12 +184,19 @@ test("Home deadline reveals the exact opportunity after load and history navigat
     await checkTarget("forward");
     await page.reload();
     await checkTarget("reload");
-    await page.goto("/");
-    await page.locator(`a[href="${href}"]`).click();
-    await page.waitForURL(
-      (url) => url.hash === `#${targetId}` && url.pathname === "/tickets",
-    );
-    await checkTarget("home-reentry");
+    await test.step("return via Home navigation and reopen the opportunity", async () => {
+      await page
+        .getByRole("navigation", { name: "主要ナビゲーション" })
+        .getByRole("link", { name: "ホーム", exact: true })
+        .click({ timeout: 10_000 });
+      await expect(page).toHaveURL(/\/$/, { timeout: 10_000 });
+      await expect(page.locator(`a[href="${href}"]`)).toBeVisible();
+      await page.locator(`a[href="${href}"]`).click();
+      await page.waitForURL(
+        (url) => url.hash === `#${targetId}` && url.pathname === "/tickets",
+      );
+      await checkTarget("home-reentry");
+    });
 
     await page.goto("/tickets?view=upcoming");
     await expect(page.locator(`[id="${targetId}"]`)).toBeVisible();
