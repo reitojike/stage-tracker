@@ -1,12 +1,20 @@
 ---
 name: "speckit-taskstoissues"
-description: "Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts."
+description: "Deprecated: Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts."
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
   author: "github-spec-kit"
   source: "templates/commands/taskstoissues.md"
 ---
 
+
+## Deprecation Notice
+
+You **MUST display the following concise warning first**, as the first step of this command and before the User Input and Pre-Execution Checks sections below:
+
+> ⚠️ `$speckit-taskstoissues` is deprecated and will be removed in a future minor release. Use the bundled `github` extension instead: run `specify extension add github`, then invoke `$speckit-github-taskstoissues`.
+
+Continue with the existing workflow unchanged. Do not install or enable the extension automatically, do not stop, and do not run the replacement command.
 
 ## User Input
 
@@ -54,7 +62,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-1. Run `python .specify/scripts/python/check_prerequisites.py --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. Run `python3 .specify/scripts/python/check_prerequisites.py --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 1. **IF EXISTS**: Load `.specify/memory/constitution.md` for project principles and governance constraints.
 1. From the executed script, extract the path to **tasks**.
 1. Get the Git remote by running:
