@@ -39,6 +39,7 @@ import {
   type TicketsView as TicketsViewFilter,
 } from "../_lib/tickets-view";
 import { TicketOpportunityStateControls } from "./TicketOpportunityStateControls";
+import { TicketOpportunityAnchorList } from "./TicketOpportunityAnchorList";
 
 export interface TicketsViewProps {
   readonly state: OptionalPartBlockState<TicketsTimelineState>;
@@ -144,7 +145,16 @@ export function TicketsView({
           <StatePanel variant="empty" title={emptyTitle(displayedView)} />
         </>
       ) : (
-        <div className="flex flex-col gap-lg">
+        <TicketOpportunityAnchorList
+          anchorIds={visibleGroups
+            .flatMap((group) =>
+              group.rows.map(
+                (row) => `ticket-opportunity-${row.opportunityId}`,
+              ),
+            )
+            .join(" ")}
+          view={displayedView}
+        >
           {personalFilterFailed ? (
             <PersonalStateFilterFallbackNote
               view={view}
@@ -165,6 +175,8 @@ export function TicketsView({
                   <li
                     key={`${row.opportunityId}-${row.milestone.id}`}
                     id={`ticket-opportunity-${row.opportunityId}`}
+                    tabIndex={-1}
+                    className="scroll-mt-md scroll-mb-[calc(5rem+env(safe-area-inset-bottom,0px))] rounded-md outline-offset-2 focus:outline-2 focus:outline-ring target:outline-2 target:outline-ring"
                   >
                     <TicketTimelineRow
                       row={row}
@@ -176,7 +188,7 @@ export function TicketsView({
               </CompactList>
             </section>
           ))}
-        </div>
+        </TicketOpportunityAnchorList>
       )}
     </div>
   );
