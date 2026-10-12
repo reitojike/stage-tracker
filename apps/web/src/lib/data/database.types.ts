@@ -482,6 +482,9 @@ export type Database = {
           active_attempt_token: string | null
           created_at: string
           failure_classification: string | null
+          failure_phase: string | null
+          failure_reason: string | null
+          failure_url: string | null
           finished_at: string | null
           id: string
           source_id: string
@@ -494,6 +497,9 @@ export type Database = {
           active_attempt_token?: string | null
           created_at?: string
           failure_classification?: string | null
+          failure_phase?: string | null
+          failure_reason?: string | null
+          failure_url?: string | null
           finished_at?: string | null
           id?: string
           source_id: string
@@ -506,6 +512,9 @@ export type Database = {
           active_attempt_token?: string | null
           created_at?: string
           failure_classification?: string | null
+          failure_phase?: string | null
+          failure_reason?: string | null
+          failure_url?: string | null
           finished_at?: string | null
           id?: string
           source_id?: string
@@ -1065,15 +1074,28 @@ export type Database = {
         }
         Returns: string
       }
-      fail_official_import_run_attempt: {
-        Args: {
-          p_attempt_token: string
-          p_failure_classification: string
-          p_run_id: string
-          p_source_id: string
-        }
-        Returns: string
-      }
+      fail_official_import_run_attempt:
+        | {
+            Args: {
+              p_attempt_token: string
+              p_failure_classification: string
+              p_run_id: string
+              p_source_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_attempt_token: string
+              p_failure_classification: string
+              p_failure_phase: string
+              p_failure_reason: string
+              p_failure_url: string
+              p_run_id: string
+              p_source_id: string
+            }
+            Returns: string
+          }
       import_event_classification: {
         Args: {
           p_event_id: string
