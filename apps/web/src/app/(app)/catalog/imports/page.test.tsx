@@ -25,6 +25,7 @@ vi.mock("@/lib/data/creator-capability", () => ({
 
 vi.mock("@/lib/actions/officialImportApply.actions", () => ({
   startOfficialImportApplyAction: vi.fn(),
+  checkOfficialImportApplyResultAction: vi.fn(),
 }));
 vi.mock("@/workflows/official-import/apply-workflow", () => ({
   officialImportApplyWorkflow: vi.fn(),

@@ -26,6 +26,7 @@ export interface OfficialImportReviewQueueProps {
   readonly dismissAction?: OfficialImportDismissAction | undefined;
   readonly bindAction?: OfficialImportBindAction | undefined;
   readonly lookupEventAction?: OfficialImportEventLookupAction | undefined;
+  readonly applyResultAction?: OfficialImportApplyResultAction | undefined;
 }
 
 interface BindableEvent {
@@ -76,6 +77,18 @@ export type OfficialImportApplyAction = (input: {
 }) => Promise<
   | {
       readonly data?: unknown | undefined;
+      readonly serverError?: { readonly message: string } | undefined;
+      readonly validationErrors?: unknown | undefined;
+    }
+  | undefined
+>;
+
+export type OfficialImportApplyResultAction = (input: {
+  readonly candidateId: string;
+  readonly workflowRunId: string;
+}) => Promise<
+  | {
+      readonly data?: { readonly outcome: string } | undefined;
       readonly serverError?: { readonly message: string } | undefined;
       readonly validationErrors?: unknown | undefined;
     }
@@ -652,14 +665,165 @@ function applyFailureMessage(
   return "反映処理に失敗しました。カタログへの不完全な変更は候補の完了として扱われていません。";
 }
 
+function startedWorkflowRunId(data: unknown): string | null {
+  return typeof data === "object" &&
+    data !== null &&
+    "workflowRunId" in data &&
+    typeof data.workflowRunId === "string" &&
+    data.workflowRunId.length > 0
+    ? data.workflowRunId
+    : null;
+}
+
+const KABUKI_EVENT_SOURCE_ID = "event.kabuki-bito.schedule";
+
+interface ApplyResultMessage {
+  readonly role: "status" | "alert";
+  readonly text: string;
+}
+
+const APPLY_RESULT_UNCONFIRMED: ApplyResultMessage = {
+  role: "alert",
+  text: "反映結果を確認できませんでした。画面を更新して候補の状態を確認してください。",
+};
+
+function applyResultMessage(outcome: string): ApplyResultMessage {
+  if (outcome === "pending") {
+    return {
+      role: "status",
+      text: "反映処理はまだ完了していません。しばらくしてから再度確認してください。",
+    };
+  }
+  if (outcome === "applied") {
+    return {
+      role: "status",
+      text: "カタログへの反映を確認しました。画面を更新すると一覧に反映されます。",
+    };
+  }
+  if (outcome === "freshness_refused") {
+    return {
+      role: "alert",
+      text: "最新の公式情報として扱えないため、この候補は反映しませんでした。新しい候補を取り込み、再確認してください。",
+    };
+  }
+  if (outcome === "not_applied") {
+    return {
+      role: "alert",
+      text: "反映は完了しませんでした。画面を更新して候補の状態を確認してください。",
+    };
+  }
+  return APPLY_RESULT_UNCONFIRMED;
+}
+
+interface StartedApplyRun {
+  readonly candidateId: string;
+  readonly workflowRunId: string;
+  readonly title: string;
+}
+
+// A manual, single read of one started run. It never starts another run.
+// Rendered by the queue so the check survives the candidate row leaving it.
+function StartedApplyRunCheck({
+  run,
+  applyResultAction,
+}: {
+  run: StartedApplyRun;
+  applyResultAction: OfficialImportApplyResultAction;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [resultMessage, setResultMessage] = useState<ApplyResultMessage | null>(
+    null,
+  );
+
+  function checkResult() {
+    setResultMessage(null);
+    startTransition(async () => {
+      let result: Awaited<ReturnType<OfficialImportApplyResultAction>>;
+      try {
+        result = await applyResultAction({
+          candidateId: run.candidateId,
+          workflowRunId: run.workflowRunId,
+        });
+      } catch {
+        // Fixed clue only; the rejected request's detail is not surfaced.
+        console.warn("[official import apply result] check request failed");
+        setResultMessage(APPLY_RESULT_UNCONFIRMED);
+        return;
+      }
+      // Server errors are never copied to the UI; the result stays unconfirmed.
+      if (result?.serverError || result?.validationErrors || !result?.data) {
+        setResultMessage(APPLY_RESULT_UNCONFIRMED);
+        return;
+      }
+      setResultMessage(applyResultMessage(result.data.outcome));
+    });
+  }
+
+  return (
+    <li className="flex flex-col gap-2xs">
+      <p className="text-body-sm">{run.title}</p>
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isPending}
+          onClick={checkResult}
+        >
+          反映結果を確認
+        </Button>
+      </div>
+      {resultMessage === null ? null : (
+        <p
+          role={resultMessage.role}
+          className={
+            resultMessage.role === "alert"
+              ? "text-body-sm text-destructive"
+              : "text-body-sm"
+          }
+        >
+          {resultMessage.text}
+        </p>
+      )}
+    </li>
+  );
+}
+
+function StartedApplyRunChecks({
+  runs,
+  applyResultAction,
+}: {
+  runs: readonly StartedApplyRun[];
+  applyResultAction: OfficialImportApplyResultAction;
+}) {
+  return (
+    <section className="flex flex-col gap-xs" aria-label="開始した反映処理">
+      <h2 className="font-semibold">開始した反映処理</h2>
+      <p className="text-body-sm text-muted-foreground">
+        この画面を開いている間だけ結果を確認できます。
+      </p>
+      <ul className="flex flex-col gap-sm">
+        {runs.map((run) => (
+          <StartedApplyRunCheck
+            key={run.workflowRunId}
+            run={run}
+            applyResultAction={applyResultAction}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ApplyControls({
   candidate,
   applyAction,
   dismissAction,
+  onKabukiApplyStarted,
 }: {
   candidate: OfficialImportReviewCandidate;
   applyAction: OfficialImportApplyAction;
   dismissAction?: OfficialImportDismissAction | undefined;
+  onKabukiApplyStarted?: ((run: StartedApplyRun) => void) | undefined;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -667,6 +831,8 @@ function ApplyControls({
   const [attempt, setAttempt] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const tracksApplyResult =
+    candidate.kind === "event" && candidate.sourceId === KABUKI_EVENT_SOURCE_ID;
   const queuedLeaseExpired = isQueuedApplyLeaseExpired(candidate);
   const retryable =
     candidate.applyStatus === "not_started" ||
@@ -690,6 +856,15 @@ function ApplyControls({
       }
       setCompleted(true);
       setNotice("反映処理を開始しました。");
+      if (tracksApplyResult && onKabukiApplyStarted !== undefined) {
+        const workflowRunId = startedWorkflowRunId(result.data);
+        if (workflowRunId !== null)
+          onKabukiApplyStarted({
+            candidateId: candidate.id,
+            workflowRunId,
+            title: displayTitle(candidate),
+          });
+      }
       router.refresh();
     });
   }
@@ -774,6 +949,7 @@ function CandidateCard({
   dismissAction,
   bindAction,
   lookupEventAction,
+  onKabukiApplyStarted,
 }: {
   candidate: OfficialImportReviewCandidate;
   reviewAction: OfficialImportReviewAction;
@@ -781,6 +957,7 @@ function CandidateCard({
   dismissAction?: OfficialImportDismissAction | undefined;
   bindAction?: OfficialImportBindAction | undefined;
   lookupEventAction?: OfficialImportEventLookupAction | undefined;
+  onKabukiApplyStarted?: ((run: StartedApplyRun) => void) | undefined;
 }) {
   return (
     <article
@@ -915,6 +1092,7 @@ function CandidateCard({
           candidate={candidate}
           applyAction={applyAction}
           dismissAction={dismissAction}
+          onKabukiApplyStarted={onKabukiApplyStarted}
         />
       )}
     </article>
@@ -928,7 +1106,56 @@ export function OfficialImportReviewQueue({
   dismissAction,
   bindAction,
   lookupEventAction,
+  applyResultAction,
 }: OfficialImportReviewQueueProps) {
+  // Started Kabuki runs live here, not in a row, because an applied candidate
+  // leaves the refreshed queue. Memory only: a hard reload clears them.
+  const [startedRuns, setStartedRuns] = useState<readonly StartedApplyRun[]>(
+    [],
+  );
+  const onKabukiApplyStarted =
+    applyResultAction === undefined
+      ? undefined
+      : (run: StartedApplyRun) =>
+          setStartedRuns((runs) =>
+            runs.some((item) => item.workflowRunId === run.workflowRunId)
+              ? runs
+              : [...runs, run],
+          );
+  const runChecks =
+    applyResultAction === undefined || startedRuns.length === 0 ? null : (
+      <StartedApplyRunChecks
+        runs={startedRuns}
+        applyResultAction={applyResultAction}
+      />
+    );
+  return (
+    <>
+      <QueueBody
+        state={state}
+        reviewAction={reviewAction}
+        applyAction={applyAction}
+        dismissAction={dismissAction}
+        bindAction={bindAction}
+        lookupEventAction={lookupEventAction}
+        onKabukiApplyStarted={onKabukiApplyStarted}
+      />
+      {runChecks}
+    </>
+  );
+}
+
+function QueueBody({
+  state,
+  reviewAction,
+  applyAction,
+  dismissAction,
+  bindAction,
+  lookupEventAction,
+  onKabukiApplyStarted,
+}: Omit<OfficialImportReviewQueueProps, "applyResultAction"> & {
+  onKabukiApplyStarted?: ((run: StartedApplyRun) => void) | undefined;
+}) {
   if (state.variant !== "populated") {
     return (
       <StatePanel
@@ -973,6 +1200,7 @@ export function OfficialImportReviewQueue({
           dismissAction={dismissAction}
           bindAction={bindAction}
           lookupEventAction={lookupEventAction}
+          onKabukiApplyStarted={onKabukiApplyStarted}
         />
       ))}
     </div>

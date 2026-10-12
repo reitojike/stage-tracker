@@ -9,6 +9,7 @@ import {
   type OfficialImportApplyCandidate,
   type OfficialImportApplyRepository,
 } from "../apply-execution";
+import { isKabukiFreshnessRefusal } from "../kabuki-freshness";
 import { createPrivilegedIngestionClient } from "./supabase";
 
 const CANDIDATE_SELECT =
@@ -125,6 +126,9 @@ class SupabaseOfficialImportApplyRepository implements OfficialImportApplyReposi
         p_lease_seconds: OFFICIAL_IMPORT_APPLY_LEASE_SECONDS,
       },
     );
+    if (error !== null && isKabukiFreshnessRefusal(error)) {
+      return { status: "freshness_refused" };
+    }
     if (error !== null || claimStatus === null) {
       throw new Error("Failed to claim official import candidate apply");
     }

@@ -6,6 +6,7 @@ import { OfficialImportReviewQueue } from "./OfficialImportReviewQueue";
 const mockReviewAction = vi.fn();
 const mockApplyAction = vi.fn();
 const mockDismissAction = vi.fn();
+const mockApplyResultAction = vi.fn();
 const mockRefresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -63,6 +64,7 @@ describe("OfficialImportReviewQueue", () => {
     mockReviewAction.mockReset();
     mockApplyAction.mockReset();
     mockDismissAction.mockReset();
+    mockApplyResultAction.mockReset();
     mockRefresh.mockReset();
   });
 
@@ -439,6 +441,304 @@ describe("OfficialImportReviewQueue", () => {
       await screen.findByText("反映処理を開始しました。"),
     ).toBeInTheDocument();
     expect(mockReviewAction).not.toHaveBeenCalled();
+  });
+
+  describe("Kabuki apply result check", () => {
+    const kabukiCandidate: OfficialImportReviewCandidate = {
+      ...candidate,
+      sourceId: "event.kabuki-bito.schedule",
+      reviewStatus: "approved",
+    };
+
+    function renderQueue(item: OfficialImportReviewCandidate) {
+      render(
+        <OfficialImportReviewQueue
+          state={{ variant: "populated", data: [item] }}
+          reviewAction={mockReviewAction}
+          applyAction={mockApplyAction}
+          applyResultAction={mockApplyResultAction}
+        />,
+      );
+    }
+
+    async function startApply() {
+      fireEvent.click(screen.getByRole("button", { name: "カタログへ反映" }));
+      expect(
+        await screen.findByText("反映処理を開始しました。"),
+      ).toBeInTheDocument();
+    }
+
+    it("reports start separately and checks the run only on manual request", async () => {
+      mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-k1" } });
+      mockApplyResultAction
+        .mockResolvedValueOnce({ data: { outcome: "pending" } })
+        .mockResolvedValueOnce({ data: { outcome: "applied" } });
+      renderQueue(kabukiCandidate);
+
+      await startApply();
+      expect(mockApplyResultAction).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText(/カタログへの反映を確認しました/),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+      expect(
+        await screen.findByText(/反映処理はまだ完了していません/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/カタログへの反映を確認しました/),
+      ).not.toBeInTheDocument();
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "反映結果を確認" }),
+        ).toBeEnabled(),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+      expect(
+        await screen.findByText(/カタログへの反映を確認しました/),
+      ).toBeInTheDocument();
+      expect(mockApplyResultAction).toHaveBeenCalledTimes(2);
+      expect(mockApplyResultAction).toHaveBeenCalledWith({
+        candidateId: candidate.id,
+        workflowRunId: "run-k1",
+      });
+      expect(mockApplyAction).toHaveBeenCalledOnce();
+    });
+
+    it("shows a freshness refusal without starting another apply", async () => {
+      mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-k2" } });
+      mockApplyResultAction.mockResolvedValue({
+        data: { outcome: "freshness_refused" },
+      });
+      renderQueue(kabukiCandidate);
+
+      await startApply();
+      fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+
+      const refusal = await screen.findByText(
+        "最新の公式情報として扱えないため、この候補は反映しませんでした。新しい候補を取り込み、再確認してください。",
+      );
+      expect(refusal).toHaveAttribute("role", "alert");
+      // The marker alone does not prove an observed official update.
+      expect(refusal).not.toHaveTextContent("更新を確認");
+      expect(
+        screen.queryByText(/カタログへの反映を確認しました/),
+      ).not.toBeInTheDocument();
+      expect(mockApplyAction).toHaveBeenCalledOnce();
+    });
+
+    it("treats a missing or unknown result as unconfirmed, not as a failure", async () => {
+      mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-k3" } });
+      mockApplyResultAction
+        .mockResolvedValueOnce({ data: undefined })
+        .mockResolvedValueOnce({ data: { outcome: "surprise" } });
+      renderQueue(kabukiCandidate);
+
+      await startApply();
+      fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+      expect(
+        await screen.findByText(/反映結果を確認できませんでした/),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "反映結果を確認" }),
+        ).toBeEnabled(),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+      await waitFor(() =>
+        expect(mockApplyResultAction).toHaveBeenCalledTimes(2),
+      );
+      expect(
+        await screen.findByText(/反映結果を確認できませんでした/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/反映処理に失敗しました/),
+      ).not.toBeInTheDocument();
+      expect(mockApplyAction).toHaveBeenCalledOnce();
+    });
+
+    it("shows the fixed unconfirmed message when the check request rejects", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        mockApplyAction.mockResolvedValue({
+          data: { workflowRunId: "run-k4" },
+        });
+        mockApplyResultAction.mockRejectedValue(
+          new Error("raw network detail"),
+        );
+        renderQueue(kabukiCandidate);
+
+        await startApply();
+        fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+
+        expect(
+          await screen.findByText(/反映結果を確認できませんでした/),
+        ).toHaveAttribute("role", "alert");
+        expect(
+          screen.queryByText(/raw network detail/),
+        ).not.toBeInTheDocument();
+        expect(warn).toHaveBeenCalledWith(
+          "[official import apply result] check request failed",
+        );
+        expect(JSON.stringify(warn.mock.calls)).not.toContain(
+          "raw network detail",
+        );
+        await waitFor(() =>
+          expect(
+            screen.getByRole("button", { name: "反映結果を確認" }),
+          ).toBeEnabled(),
+        );
+        expect(mockApplyResultAction).toHaveBeenCalledOnce();
+        expect(mockApplyAction).toHaveBeenCalledOnce();
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("does not copy server error text into the result message", async () => {
+      mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-k5" } });
+      mockApplyResultAction.mockResolvedValue({
+        serverError: { message: "raw server detail" },
+      });
+      renderQueue(kabukiCandidate);
+
+      await startApply();
+      fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+
+      expect(
+        await screen.findByText(/反映結果を確認できませんでした/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/raw server detail/)).not.toBeInTheDocument();
+      expect(mockApplyResultAction).toHaveBeenCalledOnce();
+      expect(mockApplyAction).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the started run checkable after the applied row leaves the queue", async () => {
+      mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-k6" } });
+      mockApplyResultAction.mockResolvedValue({ data: { outcome: "applied" } });
+      const { rerender } = render(
+        <OfficialImportReviewQueue
+          state={{ variant: "populated", data: [kabukiCandidate] }}
+          reviewAction={mockReviewAction}
+          applyAction={mockApplyAction}
+          applyResultAction={mockApplyResultAction}
+        />,
+      );
+
+      await startApply();
+      // The refreshed loader no longer returns the quickly applied candidate.
+      rerender(
+        <OfficialImportReviewQueue
+          state={{ variant: "empty" }}
+          reviewAction={mockReviewAction}
+          applyAction={mockApplyAction}
+          applyResultAction={mockApplyResultAction}
+        />,
+      );
+      expect(screen.queryByRole("article")).not.toBeInTheDocument();
+      expect(
+        screen.getAllByRole("button", { name: "反映結果を確認" }),
+      ).toHaveLength(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "反映結果を確認" }));
+
+      expect(
+        await screen.findByText(/カタログへの反映を確認しました/),
+      ).toBeInTheDocument();
+      expect(mockApplyResultAction).toHaveBeenCalledOnce();
+      expect(mockApplyResultAction).toHaveBeenCalledWith({
+        candidateId: candidate.id,
+        workflowRunId: "run-k6",
+      });
+      expect(mockApplyAction).toHaveBeenCalledOnce();
+    });
+
+    it("keeps separate Kabuki starts independently checkable", async () => {
+      const second: OfficialImportReviewCandidate = {
+        ...kabukiCandidate,
+        id: "55555555-5555-4555-8555-555555555555",
+      };
+      mockApplyAction
+        .mockResolvedValueOnce({ data: { workflowRunId: "run-a" } })
+        .mockResolvedValueOnce({ data: { workflowRunId: "run-b" } });
+      mockApplyResultAction.mockResolvedValue({ data: { outcome: "pending" } });
+      render(
+        <OfficialImportReviewQueue
+          state={{ variant: "populated", data: [kabukiCandidate, second] }}
+          reviewAction={mockReviewAction}
+          applyAction={mockApplyAction}
+          applyResultAction={mockApplyResultAction}
+        />,
+      );
+
+      const [firstStart, secondStart] = screen.getAllByRole("button", {
+        name: "カタログへ反映",
+      });
+      if (firstStart === undefined || secondStart === undefined)
+        throw new Error("expected two start buttons");
+      fireEvent.click(firstStart);
+      await waitFor(() =>
+        expect(
+          screen.getAllByRole("button", { name: "反映結果を確認" }),
+        ).toHaveLength(1),
+      );
+      fireEvent.click(secondStart);
+      await waitFor(() =>
+        expect(
+          screen.getAllByRole("button", { name: "反映結果を確認" }),
+        ).toHaveLength(2),
+      );
+
+      const [firstCheck, secondCheck] = screen.getAllByRole("button", {
+        name: "反映結果を確認",
+      });
+      if (firstCheck === undefined || secondCheck === undefined)
+        throw new Error("expected two check buttons");
+      fireEvent.click(firstCheck);
+      await waitFor(() =>
+        expect(mockApplyResultAction).toHaveBeenCalledWith({
+          candidateId: candidate.id,
+          workflowRunId: "run-a",
+        }),
+      );
+      fireEvent.click(secondCheck);
+      await waitFor(() =>
+        expect(mockApplyResultAction).toHaveBeenCalledWith({
+          candidateId: second.id,
+          workflowRunId: "run-b",
+        }),
+      );
+      expect(mockApplyAction).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not offer a result check before a Kabuki apply starts", () => {
+      renderQueue(kabukiCandidate);
+      expect(
+        screen.queryByRole("button", { name: "反映結果を確認" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps other sources on the existing start-only flow", async () => {
+      mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-o1" } });
+      renderQueue({ ...candidate, reviewStatus: "approved" });
+
+      await startApply();
+      expect(
+        screen.queryByRole("button", { name: "反映結果を確認" }),
+      ).not.toBeInTheDocument();
+      expect(mockApplyResultAction).not.toHaveBeenCalled();
+    });
+
+    it("keeps a Kabuki ticket candidate on the existing start-only flow", async () => {
+      mockApplyAction.mockResolvedValue({ data: { workflowRunId: "run-o2" } });
+      renderQueue({ ...kabukiCandidate, kind: "ticket_opportunity" });
+
+      await startApply();
+      expect(
+        screen.queryByRole("button", { name: "反映結果を確認" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("requires a fresh candidate after material review-to-apply drift", () => {

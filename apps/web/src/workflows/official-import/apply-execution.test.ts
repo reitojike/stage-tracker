@@ -544,6 +544,40 @@ describe("approved official import apply execution", () => {
     expect(harness.planner.planEvent).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["Kabuki Event", eventCandidate()],
+    ["other-source", ticketCandidate()],
+  ])(
+    "returns a candidate-bound freshness refusal for a %s claim without owning it",
+    async (_label, candidate) => {
+      const harness = setup(candidate);
+      harness.prepareCandidate.mockResolvedValueOnce({
+        status: "freshness_refused",
+      });
+
+      await expect(
+        executeOfficialImportCandidateApply(
+          CANDIDATE_ID,
+          ATTEMPT_TOKEN,
+          harness.planner,
+          harness.repository,
+          harness.catalog,
+        ),
+      ).resolves.toEqual({
+        status: "freshness_refused",
+        candidateId: CANDIDATE_ID,
+      });
+      expect(harness.planner.planEvent).not.toHaveBeenCalled();
+      expect(harness.planner.planTicketOpportunity).not.toHaveBeenCalled();
+      expect(harness.catalog.prepareEvent).not.toHaveBeenCalled();
+      expect(harness.catalog.prepareTicketOpportunity).not.toHaveBeenCalled();
+      expect(harness.eventPlan.apply).not.toHaveBeenCalled();
+      expect(harness.ticketPlan.apply).not.toHaveBeenCalled();
+      expect(harness.completeCandidate).not.toHaveBeenCalled();
+      expect(harness.failCandidate).not.toHaveBeenCalled();
+    },
+  );
+
   it("backs off beyond the lease while another attempt owns the candidate", async () => {
     const harness = setup(eventCandidate());
     harness.prepareCandidate.mockResolvedValueOnce({ status: "busy" });
