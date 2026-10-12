@@ -127,6 +127,31 @@ function ticketCandidateRow() {
 afterEach(() => server.resetHandlers());
 
 describe("loadOfficialImportReviewQueue", () => {
+  it("selects the publication run FK while preserving its completed filter and response key", async () => {
+    const row = candidateRow(1);
+    server.use(
+      http.get(`${REST_URL}/official_import_candidates`, ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        expect(params.get("select")).toContain(
+          "official_import_runs!official_import_candidates_run_id_fkey!inner(status)",
+        );
+        expect(params.get("official_import_runs.status")).toBe("eq.completed");
+        return HttpResponse.json([row], {
+          headers: { "content-range": "0-0/1" },
+        });
+      }),
+    );
+
+    await expect(
+      loadOfficialImportReviewQueue(createTestClient()),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: [
+        { id: row.id, proposal: { kind: "event", title: row.proposal.title } },
+      ],
+    });
+  });
+
   it("excludes dismissed failures at the database query boundary", async () => {
     server.use(
       http.get(`${REST_URL}/official_import_candidates`, ({ request }) => {
