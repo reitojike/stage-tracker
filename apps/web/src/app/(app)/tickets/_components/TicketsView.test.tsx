@@ -95,6 +95,76 @@ describe("TicketsView", () => {
     ).toBeInTheDocument();
   });
 
+  it("exposes URL-backed filters and marks the current view", () => {
+    render(<TicketsView today={TODAY} state={POPULATED} />);
+
+    expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "過去（7日）" })).toHaveAttribute(
+      "href",
+      "/tickets?view=past",
+    );
+  });
+
+  it.each([
+    { view: "planned" as const, filterLabel: "自分の申込予定" },
+    { view: "applied" as const, filterLabel: "自分の申込済み" },
+  ])(
+    "shows shared upcoming rows when $view state is unknown, without applying the personal filter",
+    ({ view, filterLabel }) => {
+      render(
+        <TicketsView
+          today={TODAY}
+          view={view}
+          state={{
+            block: POPULATED.block,
+            optional: { ok: false, variant: "error" },
+          }}
+        />,
+      );
+
+      expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(
+        screen.getByText("自分の申込予定").closest("span"),
+      ).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByText("テスト公演")).toBeInTheDocument();
+      expect(screen.getByText("不明")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        `「${filterLabel}」では絞り込めないため、フィルターを「今後」に切り替えました。申込状態は不明です。`,
+      );
+      expect(screen.queryByText("自分：申込済み")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /申込/u }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("does not claim a personal-filtered list is empty when its state is unknown", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="planned"
+        state={{
+          block: { variant: "empty" },
+          optional: { ok: false, variant: "error" },
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "今後" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.queryByText("自分の申込予定はありません"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("自分の申込予定");
+  });
   it("renders the empty state copy", () => {
     render(
       <TicketsView
@@ -103,8 +173,23 @@ describe("TicketsView", () => {
       />,
     );
     expect(
-      screen.getByText("現在表示できる抽選・販売スケジュールはありません"),
+      screen.getByText("今後の抽選・販売スケジュールはありません"),
     ).toBeInTheDocument();
+  });
+
+  it("uses neutral date wording for an empty past view", () => {
+    render(
+      <TicketsView
+        today={TODAY}
+        view="past"
+        state={{ block: { variant: "empty" }, optional: { ok: true } }}
+      />,
+    );
+
+    expect(
+      screen.getByText("直近7日以内に表示できる過去の日程はありません"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/受付はありません/u)).not.toBeInTheDocument();
   });
 
   it("renders the error state as an alert with a generic retry hint (never a raw message)", () => {
@@ -249,6 +334,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -278,6 +364,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -406,6 +493,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",
@@ -520,6 +608,7 @@ describe("TicketsView", () => {
     render(
       <TicketsView
         today={TODAY}
+        view="past"
         state={{
           block: {
             variant: "populated",

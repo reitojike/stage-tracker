@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   isRenderableHttpUrl,
@@ -33,11 +34,16 @@ import type {
   TicketsTimelineRow,
   TicketsTimelineState,
 } from "../_lib/tickets-loader";
+import {
+  filterTicketsTimelineGroups,
+  type TicketsView as TicketsViewFilter,
+} from "../_lib/tickets-view";
 import { TicketOpportunityStateControls } from "./TicketOpportunityStateControls";
 
 export interface TicketsViewProps {
   readonly state: OptionalPartBlockState<TicketsTimelineState>;
   readonly today: TokyoCalendarDate;
+  readonly view?: TicketsViewFilter;
 }
 
 function ticketTimelineMonthGroupKey(
@@ -76,33 +82,78 @@ function ticketTimelineMonthGroupKey(
  * the caller's actual current state is unknown could silently overwrite it
  * incorrectly.
  */
-export function TicketsView({ state, today }: TicketsViewProps) {
+export function TicketsView({
+  state,
+  today,
+  view = "upcoming",
+}: TicketsViewProps) {
   const { block, optional } = state;
+  const personalStateUnknown = optional.ok === false;
+  const personalStateView = view === "planned" || view === "applied";
+  const personalFilterFailed = personalStateView && personalStateUnknown;
+  const displayedView: TicketsViewFilter = personalFilterFailed
+    ? "upcoming"
+    : view;
+  const visibleGroups =
+    block.variant === "populated"
+      ? filterTicketsTimelineGroups(block.data.groups, displayedView)
+      : [];
 
   return (
     <div className="flex flex-col gap-section">
       <PageHeading>チケット</PageHeading>
+      <TicketsViewFilters
+        view={displayedView}
+        personalStateKnown={!personalStateUnknown}
+      />
 
       {block.variant !== "populated" ? (
-        <StatePanel
-          variant={block.variant}
-          title={
-            block.variant === "empty"
-              ? "現在表示できる抽選・販売スケジュールはありません"
-              : block.variant === "unavailable"
-                ? "チケット情報を確認できません"
-                : "チケット情報を読み込めませんでした"
-          }
-          {...(block.variant === "error"
-            ? { description: READ_FAILURE_RETRY_HINT_JA }
-            : {})}
-        />
-      ) : (
-        <div className="flex flex-col gap-lg">
-          {optional.ok === false ? (
+        <>
+          <StatePanel
+            variant={block.variant}
+            title={
+              block.variant === "empty"
+                ? emptyTitle(displayedView)
+                : block.variant === "unavailable"
+                  ? "チケット情報を確認できません"
+                  : "チケット情報を読み込めませんでした"
+            }
+            {...(block.variant === "error"
+              ? { description: READ_FAILURE_RETRY_HINT_JA }
+              : {})}
+          />
+          {personalFilterFailed ? (
+            <PersonalStateFilterFallbackNote
+              view={view}
+              variant={optional.variant}
+            />
+          ) : personalStateUnknown ? (
             <PersonalStateFailureNote variant={optional.variant} />
           ) : null}
-          {block.data.groups.map((group) => (
+        </>
+      ) : visibleGroups.length === 0 ? (
+        <>
+          {personalFilterFailed ? (
+            <PersonalStateFilterFallbackNote
+              view={view}
+              variant={optional.variant}
+            />
+          ) : personalStateUnknown ? (
+            <PersonalStateFailureNote variant={optional.variant} />
+          ) : null}
+          <StatePanel variant="empty" title={emptyTitle(displayedView)} />
+        </>
+      ) : (
+        <div className="flex flex-col gap-lg">
+          {personalFilterFailed ? (
+            <PersonalStateFilterFallbackNote
+              view={view}
+              variant={optional.variant}
+            />
+          ) : personalStateUnknown ? (
+            <PersonalStateFailureNote variant={optional.variant} />
+          ) : null}
+          {visibleGroups.map((group) => (
             <section
               key={ticketTimelineMonthGroupKey(group)}
               aria-label={formatMonthJa(group.monthKey)}
@@ -128,6 +179,88 @@ export function TicketsView({ state, today }: TicketsViewProps) {
         </div>
       )}
     </div>
+  );
+}
+
+const TICKET_VIEW_FILTERS: readonly {
+  readonly value: TicketsViewFilter;
+  readonly label: string;
+  readonly requiresPersonalState: boolean;
+}[] = [
+  { value: "upcoming", label: "今後", requiresPersonalState: false },
+  { value: "planned", label: "自分の申込予定", requiresPersonalState: true },
+  { value: "applied", label: "自分の申込済み", requiresPersonalState: true },
+  { value: "past", label: "過去（7日）", requiresPersonalState: false },
+];
+
+function TicketsViewFilters({
+  view,
+  personalStateKnown,
+}: {
+  readonly view: TicketsViewFilter;
+  readonly personalStateKnown: boolean;
+}) {
+  return (
+    <nav aria-label="チケット一覧の絞り込み">
+      <ul className="flex flex-wrap gap-2xs">
+        {TICKET_VIEW_FILTERS.map((filter) => (
+          <li key={filter.value}>
+            {filter.requiresPersonalState && !personalStateKnown ? (
+              <span
+                aria-disabled="true"
+                className="inline-flex rounded-md border border-border px-sm py-xs text-body-sm text-muted-foreground opacity-60"
+              >
+                {filter.label}
+              </span>
+            ) : (
+              <Link
+                href={`/tickets?view=${filter.value}`}
+                aria-current={view === filter.value ? "page" : undefined}
+                className={`inline-flex rounded-md border border-border px-sm py-xs text-body-sm focus-visible:outline-none focus-visible:ring-(length:--focus-ring-width) focus-visible:ring-ring/50 ${view === filter.value ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {filter.label}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function emptyTitle(view: TicketsViewFilter): string {
+  switch (view) {
+    case "upcoming":
+      return "今後の抽選・販売スケジュールはありません";
+    case "planned":
+      return "自分の申込予定はありません";
+    case "applied":
+      return "自分の申込済みの受付はありません";
+    case "past":
+      return "直近7日以内に表示できる過去の日程はありません";
+  }
+}
+
+function personalStateFilterLabel(view: "planned" | "applied"): string {
+  return view === "planned" ? "自分の申込予定" : "自分の申込済み";
+}
+
+function PersonalStateFilterFallbackNote({
+  view,
+  variant,
+}: {
+  readonly view: "planned" | "applied";
+  readonly variant: "unavailable" | "error";
+}) {
+  return (
+    <p
+      role={variant === "error" ? "alert" : undefined}
+      className="text-body-sm text-muted-foreground"
+    >
+      「{personalStateFilterLabel(view)}
+      」では絞り込めないため、フィルターを「今後」に切り替えました。申込状態は不明です。
+      {variant === "error" ? ` ${READ_FAILURE_RETRY_HINT_JA}` : null}
+    </p>
   );
 }
 
