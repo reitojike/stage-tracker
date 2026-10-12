@@ -626,9 +626,20 @@ export function formatEventPlanReport(plans, { apply, remote, ownerEmail, ownerI
 export async function applyEventPlans(
   admin,
   plans,
-  { ownerId, onApplied = () => {}, reviewed = false } = {},
+  { ownerId, onApplied = () => {}, reviewed = false, kabukiCandidate } = {},
 ) {
   const applied = [];
+  if (
+    kabukiCandidate !== undefined &&
+    (!reviewed || plans.length !== 1 || !plans[0].entry.sourceKey.startsWith('kabuki-bito:'))
+  ) {
+    return {
+      ok: false,
+      error: 'Candidate-aware Kabuki application requires one reviewed Kabuki Event plan',
+      stale: false,
+      applied,
+    };
+  }
   const canonicalLabelsAppliedInBatch = new Map();
   for (const plan of plans) {
     const { entry } = plan;
@@ -653,9 +664,19 @@ export async function applyEventPlans(
         ...group,
         displayName: canonicalLabelsAppliedInBatch.get(group.key) ?? group.displayName,
       }));
-      const { error } = await admin.rpc(
-        reviewed ? 'apply_reviewed_import_event_plan' : 'apply_import_event_plan',
+      const { data, error } = await admin.rpc(
+        kabukiCandidate !== undefined
+          ? 'apply_official_import_kabuki_event_candidate'
+          : reviewed
+            ? 'apply_reviewed_import_event_plan'
+            : 'apply_import_event_plan',
         {
+          ...(kabukiCandidate === undefined
+            ? {}
+            : {
+                p_candidate_id: kabukiCandidate.candidateId,
+                p_attempt_token: kabukiCandidate.attemptToken,
+              }),
           p_action: plan.action,
           p_owner_id: ownerId,
           p_event_id: plan.action === 'create' ? null : plan.event.id,
@@ -692,6 +713,13 @@ export async function applyEventPlans(
           ok: false,
           error: `Failed to apply ${entry.sourceKey}: ${error.message}`,
           stale: error.code === '40001',
+          applied,
+        };
+      if (kabukiCandidate !== undefined && data !== 'applied')
+        return {
+          ok: false,
+          error: `Candidate application did not confirm applied for ${entry.sourceKey}`,
+          stale: false,
           applied,
         };
       applied.push(entry.sourceKey);

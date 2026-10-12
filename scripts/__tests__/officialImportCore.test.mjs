@@ -277,6 +277,158 @@ void test('reviewed Event apply sends its read snapshot and surfaces a stale cat
   assert.equal(result.stale, true);
 });
 
+void test('candidate-aware Kabuki apply binds identity/token and requires atomic completion', async () => {
+  const admin = fakeAdmin();
+  const validated = validateEventEntries([
+    { raw: validEvent({ sourceKey: 'kabuki-bito:978' }), where: 'reviewed candidate' },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  const originalRpc = admin.rpc;
+  admin.rpc = async (name, args) => {
+    await originalRpc(name, args);
+    return { data: 'applied', error: null };
+  };
+  const context = {
+    candidateId: '00000000-0000-4000-8000-000000000101',
+    attemptToken: 'a'.repeat(64),
+  };
+  const result = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    reviewed: true,
+    kabukiCandidate: context,
+  });
+  assert.deepEqual(result, { ok: true, applied: ['kabuki-bito:978'] });
+  assert.equal(admin.rpcCalls[0].name, 'apply_official_import_kabuki_event_candidate');
+  assert.equal(Object.keys(admin.rpcCalls[0].args).length, 20);
+  assert.equal(admin.rpcCalls[0].args.p_candidate_id, context.candidateId);
+  assert.equal(admin.rpcCalls[0].args.p_attempt_token, context.attemptToken);
+  assert.equal(admin.rpcCalls[0].args.p_expected_current, null);
+  assert.deepEqual(admin.rpcCalls[0].args.p_expected_proposed_groups, []);
+  assert.equal(admin.rpcCalls[0].args.p_set_genre, false);
+  assert.equal(admin.rpcCalls[0].args.p_set_groups, false);
+
+  admin.rpc = async () => ({ data: 'queued', error: null });
+  const callbacks = [];
+  const uncertain = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    reviewed: true,
+    kabukiCandidate: context,
+    onApplied: (key) => callbacks.push(key),
+  });
+  assert.equal(uncertain.ok, false);
+  assert.deepEqual(uncertain.applied, []);
+  assert.deepEqual(callbacks, []);
+});
+
+void test('atomic Kabuki update preserves reviewed snapshots, child fixes and explicit facets', async () => {
+  const sourceKey = 'kabuki-bito:978';
+  const admin = fakeAdmin({
+    event: {
+      id: 'matched-event-1',
+      source_key: sourceKey,
+      owner_id: owner.id,
+      title: 'Older title',
+      venue: 'Example Hall',
+      source_url: 'https://example.test/event',
+      memo: null,
+      starts_on: '2026-07-11',
+      ends_on: '2026-07-11',
+      genre_id: null,
+      canceled_at: null,
+      occurrences: [
+        {
+          id: 'occurrence-1',
+          starts_at: '2026-07-11T04:00:00.000Z',
+          doors_at: null,
+          ends_at: null,
+          canceled_at: null,
+        },
+      ],
+    },
+  });
+  const validated = validateEventEntries([
+    {
+      raw: validEvent({
+        sourceKey,
+        genre: 'theatre',
+        groups: [{ key: 'cast', displayName: 'Cast' }],
+        occurrences: [
+          {
+            startsAt: '2026-07-11T13:00:00+09:00',
+            doorsAt: '2026-07-11T12:30:00+09:00',
+            endsAt: '2026-07-11T15:00:00+09:00',
+          },
+        ],
+      }),
+      where: 'reviewed update',
+    },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.plans[0].action, 'update');
+  await applyEventPlans(admin, resolved.plans, { ownerId: owner.id, reviewed: true });
+  const reviewedArgs = admin.rpcCalls[0].args;
+  const originalRpc = admin.rpc;
+  admin.rpc = async (name, args) => {
+    await originalRpc(name, args);
+    return { data: 'applied', error: null };
+  };
+  const context = {
+    candidateId: '00000000-0000-4000-8000-000000000101',
+    attemptToken: 'a'.repeat(64),
+  };
+  const result = await applyEventPlans(admin, resolved.plans, {
+    ownerId: owner.id,
+    reviewed: true,
+    kabukiCandidate: context,
+  });
+  assert.equal(result.ok, true);
+  const { p_candidate_id, p_attempt_token, ...atomicArgs } = admin.rpcCalls[1].args;
+  assert.equal(p_candidate_id, context.candidateId);
+  assert.equal(p_attempt_token, context.attemptToken);
+  assert.deepEqual(atomicArgs, reviewedArgs);
+  assert.equal(atomicArgs.p_expected_current.event.id, 'matched-event-1');
+  assert.deepEqual(atomicArgs.p_occurrence_fixes, [
+    {
+      id: 'occurrence-1',
+      endsAt: '2026-07-11T15:00:00+09:00',
+      doorsAt: '2026-07-11T12:30:00+09:00',
+    },
+  ]);
+  assert.equal(atomicArgs.p_set_genre, true);
+  assert.equal(atomicArgs.p_set_groups, true);
+});
+
+void test('candidate-aware mode refuses unrelated, multiple or unreviewed plans before RPC', async () => {
+  const admin = fakeAdmin();
+  const validated = validateEventEntries([
+    { raw: validEvent({ sourceKey: 'kabuki-bito:978' }), where: 'candidate' },
+    { raw: validEvent({ sourceKey: 'other:978' }), where: 'unrelated' },
+  ]);
+  assert.equal(validated.ok, true);
+  const resolved = await resolveEventPlans(admin, validated.entries, { owner });
+  assert.equal(resolved.ok, true);
+  const context = { candidateId: 'candidate-1', attemptToken: 'a'.repeat(64) };
+  for (const [plans, reviewed] of [
+    [[resolved.plans[0]], false],
+    [[resolved.plans[1]], true],
+    [resolved.plans, true],
+    [[], true],
+  ]) {
+    const result = await applyEventPlans(admin, plans, {
+      ownerId: owner.id,
+      reviewed,
+      kabukiCandidate: context,
+    });
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.applied, []);
+  }
+  assert.deepEqual(admin.rpcCalls, []);
+});
+
 void test('reviewed Event snapshots paginate all existing occurrences and groups', async () => {
   const occurrences = Array.from({ length: 1_001 }, (_, index) => ({
     id: `occurrence-${index}`,

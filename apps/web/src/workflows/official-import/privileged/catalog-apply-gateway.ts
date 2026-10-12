@@ -20,6 +20,7 @@ import {
   OfficialImportCatalogFailure,
   type OfficialImportCatalogApplyPlan,
   type OfficialImportCatalogGateway,
+  type OfficialImportKabukiApplyContext,
 } from "../apply-execution";
 import { createPrivilegedIngestionClient } from "./supabase";
 
@@ -38,6 +39,7 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
     proposal: EventProposalInput,
     reviewerId: string,
     targetEventId: string | null,
+    kabukiCandidate?: OfficialImportKabukiApplyContext,
   ): Promise<OfficialImportCatalogApplyPlan> {
     const validated = validateEventEntries([
       { raw: proposal, where: "approved official import candidate" },
@@ -73,10 +75,14 @@ class SupabaseOfficialImportCatalogGateway implements OfficialImportCatalogGatew
       hasChanges,
       resolvedEventId: plan.event?.id ?? null,
       resolvedTicketOpportunityId: null,
+      ...(kabukiCandidate === undefined
+        ? {}
+        : { candidateCompletion: "atomic" as const }),
       apply: async () => {
         const result = await applyEventPlans(this.client, [plan], {
           ownerId: reviewerId,
           reviewed: true,
+          ...(kabukiCandidate === undefined ? {} : { kabukiCandidate }),
         });
         if (!result.ok) {
           throw new OfficialImportCatalogFailure(

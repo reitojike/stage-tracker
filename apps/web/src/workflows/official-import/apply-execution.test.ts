@@ -127,7 +127,11 @@ function catalogPlan(
 
 function setup(candidate: OfficialImportApplyCandidate) {
   const harness = repositoryHarness(candidate);
-  const eventPlan = catalogPlan();
+  const eventPlan = catalogPlan(
+    candidate.sourceId === "event.kabuki-bito.schedule"
+      ? { candidateCompletion: "atomic" }
+      : {},
+  );
   const ticketPlan = catalogPlan({
     resolvedTicketOpportunityId: "ticket-1",
   });
@@ -207,6 +211,7 @@ describe("approved official import apply execution", () => {
       REVIEWER_ID,
       "event-1",
     );
+    expect(harness.completeCandidate).toHaveBeenCalledOnce();
   });
 
   it("freshly replans and applies an Event through the shared catalog gateway", async () => {
@@ -231,12 +236,10 @@ describe("approved official import apply execution", () => {
       expect.objectContaining({ sourceKey: "kabuki-bito:example" }),
       REVIEWER_ID,
       "event-1",
+      { candidateId: CANDIDATE_ID, attemptToken: ATTEMPT_TOKEN },
     );
     expect(harness.eventPlan.apply).toHaveBeenCalledOnce();
-    expect(harness.completeCandidate).toHaveBeenCalledWith(
-      CANDIDATE_ID,
-      ATTEMPT_TOKEN,
-    );
+    expect(harness.completeCandidate).not.toHaveBeenCalled();
     expect(harness.failCandidate).not.toHaveBeenCalled();
   });
 
@@ -619,7 +622,7 @@ describe("approved official import apply execution", () => {
       ),
     ).resolves.toMatchObject({ status: "applied", outcome: "converged" });
     expect(harness.eventPlan.apply).toHaveBeenCalledOnce();
-    expect(harness.completeCandidate).toHaveBeenCalledOnce();
+    expect(harness.completeCandidate).not.toHaveBeenCalled();
   });
 
   it("does not complete a converged retry when the locked catalog recheck finds drift", async () => {
@@ -735,7 +738,7 @@ describe("approved official import apply execution", () => {
   });
 
   it("retries after a successful idempotent write when completion loses ownership", async () => {
-    const harness = setup(eventCandidate());
+    const harness = setup(ticketCandidate());
     harness.completeCandidate.mockResolvedValueOnce("not_owner");
 
     await expect(
@@ -749,12 +752,12 @@ describe("approved official import apply execution", () => {
     ).rejects.toEqual(
       new OfficialImportApplyAttemptRetryError("ownership_lost"),
     );
-    expect(harness.eventPlan.apply).toHaveBeenCalledOnce();
+    expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
     expect(harness.failCandidate).not.toHaveBeenCalled();
   });
 
   it("retries without recording failure when completion recording throws after a write", async () => {
-    const harness = setup(eventCandidate());
+    const harness = setup(ticketCandidate());
     harness.completeCandidate.mockRejectedValueOnce(
       new Error("database unavailable"),
     );
@@ -770,7 +773,91 @@ describe("approved official import apply execution", () => {
     ).rejects.toEqual(
       new OfficialImportApplyAttemptRetryError("ownership_lost"),
     );
-    expect(harness.eventPlan.apply).toHaveBeenCalledOnce();
+    expect(harness.ticketPlan.apply).toHaveBeenCalledOnce();
     expect(harness.failCandidate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a separate-completion Kabuki plan before any catalog write", async () => {
+    const harness = setup(eventCandidate());
+    Object.assign(harness.eventPlan, { candidateCompletion: undefined });
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      failureClassification: "policy_blocked",
+    });
+    expect(harness.eventPlan.apply).not.toHaveBeenCalled();
+    expect(harness.completeCandidate).not.toHaveBeenCalled();
+  });
+
+  it("preserves a claim error without touching an unowned candidate", async () => {
+    const harness = setup(eventCandidate());
+    harness.prepareCandidate.mockRejectedValueOnce(
+      new Error("Failed to claim official import candidate apply"),
+    );
+    await expect(
+      executeOfficialImportCandidateApply(
+        CANDIDATE_ID,
+        ATTEMPT_TOKEN,
+        harness.planner,
+        harness.repository,
+        harness.catalog,
+      ),
+    ).rejects.toThrow("Failed to claim official import candidate apply");
+    expect(harness.planner.planEvent).not.toHaveBeenCalled();
+    expect(harness.catalog.prepareEvent).not.toHaveBeenCalled();
+    expect(harness.completeCandidate).not.toHaveBeenCalled();
+    expect(harness.failCandidate).not.toHaveBeenCalled();
+  });
+
+  it("recovers an atomic commit with a lost response without recording failure", async () => {
+    const harness = setup(eventCandidate());
+    vi.mocked(harness.eventPlan.apply).mockRejectedValueOnce(
+      new Error("response lost"),
+    );
+    harness.failCandidate.mockResolvedValueOnce("applied");
+    const result = await executeOfficialImportCandidateApply(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      harness.planner,
+      harness.repository,
+      harness.catalog,
+    );
+    expect(result).toMatchObject({
+      status: "applied",
+      outcome: "already_applied",
+    });
+    expect(harness.completeCandidate).not.toHaveBeenCalled();
+    expect(harness.failCandidate).toHaveBeenCalledWith(
+      CANDIDATE_ID,
+      ATTEMPT_TOKEN,
+      "unexpected",
+    );
+  });
+
+  it("keeps an unconfirmed atomic response retryable when the attempt no longer owns the candidate", async () => {
+    const harness = setup(eventCandidate());
+    vi.mocked(harness.eventPlan.apply).mockRejectedValueOnce(
+      new Error("response lost"),
+    );
+    harness.failCandidate.mockResolvedValueOnce("not_owner");
+    await expect(
+      executeOfficialImportCandidateApply(
+        CANDIDATE_ID,
+        ATTEMPT_TOKEN,
+        harness.planner,
+        harness.repository,
+        harness.catalog,
+      ),
+    ).rejects.toEqual(
+      new OfficialImportApplyAttemptRetryError("ownership_lost"),
+    );
+    expect(harness.eventPlan.apply).toHaveBeenCalledOnce();
+    expect(harness.completeCandidate).not.toHaveBeenCalled();
   });
 });
