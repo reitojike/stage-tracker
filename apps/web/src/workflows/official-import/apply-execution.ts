@@ -88,7 +88,13 @@ export interface OfficialImportCatalogApplyPlan {
   readonly hasChanges: boolean;
   readonly resolvedEventId: string | null;
   readonly resolvedTicketOpportunityId: string | null;
+  readonly candidateCompletion?: "atomic";
   apply(): Promise<void>;
+}
+
+export interface OfficialImportKabukiApplyContext {
+  readonly candidateId: string;
+  readonly attemptToken: string;
 }
 
 export interface OfficialImportCatalogGateway {
@@ -96,6 +102,7 @@ export interface OfficialImportCatalogGateway {
     proposal: EventProposalInput,
     reviewerId: string,
     targetEventId: string | null,
+    kabukiCandidate?: OfficialImportKabukiApplyContext,
   ): Promise<OfficialImportCatalogApplyPlan>;
   prepareTicketOpportunity(
     proposal: TicketOpportunityProposalInput,
@@ -313,8 +320,10 @@ export async function executeOfficialImportCandidateApply(
   if (preparation.status === "not_approved") {
     return { status: "not_approved", candidateId };
   }
-
   const { candidate } = preparation;
+  const requiresAtomicCompletion =
+    candidate.candidateKind === "event" &&
+    candidate.sourceId === "event.kabuki-bito.schedule";
   const manualBinding =
     candidate.candidateKind === "ticket_opportunity"
       ? (candidate.manualEventBinding ?? null)
@@ -347,11 +356,24 @@ export async function executeOfficialImportCandidateApply(
       freshFingerprint = planning.planFingerprint;
       freshEventId = planning.resolvedEventId ?? null;
       freshTicketOpportunityId = null;
-      catalogPlan = await catalog.prepareEvent(
-        planning.proposal ?? proposal,
-        candidate.reviewerId,
-        freshEventId,
-      );
+      catalogPlan = requiresAtomicCompletion
+        ? await catalog.prepareEvent(
+            planning.proposal ?? proposal,
+            candidate.reviewerId,
+            freshEventId,
+            { candidateId, attemptToken },
+          )
+        : await catalog.prepareEvent(
+            planning.proposal ?? proposal,
+            candidate.reviewerId,
+            freshEventId,
+          );
+      if (
+        requiresAtomicCompletion &&
+        catalogPlan.candidateCompletion !== "atomic"
+      ) {
+        failure("policy_blocked");
+      }
     } else {
       const proposal = createTicketOpportunityProposal(canonical);
       const planningInput =
@@ -410,12 +432,14 @@ export async function executeOfficialImportCandidateApply(
     if (!newlyBoundTicket && freshFingerprint !== candidate.planFingerprint) {
       if (!converged) failure("source_changed");
       await catalogPlan.apply();
-      await complete(repository, candidateId, attemptToken);
+      if (!requiresAtomicCompletion)
+        await complete(repository, candidateId, attemptToken);
       return { status: "applied", candidateId, outcome: "converged" };
     }
 
     await catalogPlan.apply();
-    await complete(repository, candidateId, attemptToken);
+    if (!requiresAtomicCompletion)
+      await complete(repository, candidateId, attemptToken);
     return {
       status: "applied",
       candidateId,

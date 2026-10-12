@@ -71,6 +71,10 @@ export function applyEventPlans(
     readonly ownerId: string;
     readonly onApplied?: (sourceKey: string) => void;
     readonly reviewed?: boolean;
+    readonly kabukiCandidate?: {
+      readonly candidateId: string;
+      readonly attemptToken: string;
+    };
   },
 ): Promise<
   | { readonly ok: true; readonly applied: readonly string[] }
