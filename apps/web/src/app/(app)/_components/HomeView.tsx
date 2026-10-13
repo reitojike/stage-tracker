@@ -222,7 +222,7 @@ function TicketDeadlineSection({
                           ) : null}
                         </span>
                       ) : null}
-                      <span className="text-title font-semibold leading-title">
+                      <span className="text-title font-semibold leading-title break-words">
                         {deadline.eventTitle}
                       </span>
                       <span className="text-body-sm font-medium break-words">
