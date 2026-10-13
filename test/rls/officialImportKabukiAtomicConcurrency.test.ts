@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import pg from 'pg';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
-// Issue #780, first bounded lock proof: the existing atomic Kabuki RPC vs.
-// the existing owner delete RPC, including its candidate FK update. This
+// Issue #780, bounded multi-session proofs: completed-parent candidate review
+// and replacement, plus atomic Kabuki apply vs. owner Event deletion. This
 // deliberately does not assert freshness, recovery or legacy-route closure.
 const status = readLocalSupabaseStatus();
 const clientErrors = new WeakMap<pg.Client, Error[]>();
@@ -15,9 +15,12 @@ interface Fixture {
   eventId: string;
   runId: string;
   candidateId: string;
+  sourceId: string;
   sourceKey: string;
   sourceUrl: string;
+  officialId: string;
   token: string;
+  replacementRunId?: string;
 }
 
 async function connect(): Promise<pg.Client> {
@@ -62,15 +65,24 @@ async function connectClients(): Promise<{
   }
 }
 
-async function createFixture(admin: pg.Client): Promise<Fixture> {
+async function createFixture(
+  admin: pg.Client,
+  options: { prepareForApply?: boolean; sourceId?: string } = {},
+): Promise<Fixture> {
   const identity = randomUUID().replaceAll(/[^0-9]/g, '');
+  const sourceId = options.sourceId ?? 'event.kabuki-bito.schedule';
+  const isKabuki = sourceId === 'event.kabuki-bito.schedule';
   const fixture: Fixture = {
     ownerId: randomUUID(),
     eventId: randomUUID(),
     runId: randomUUID(),
     candidateId: '',
-    sourceKey: `kabuki-bito:kabukiza:play:${identity}`,
-    sourceUrl: `https://www.kabuki-bito.jp/theaters/kabukiza/play/${identity}`,
+    sourceId,
+    sourceKey: `${isKabuki ? 'kabuki-bito:kabukiza:play' : 'secondary-feed:event'}:${identity}`,
+    sourceUrl: isKabuki
+      ? `https://www.kabuki-bito.jp/theaters/kabukiza/play/${identity}`
+      : `https://example.test/events/${identity}`,
+    officialId: identity,
     token: `apply-${randomUUID()}`,
   };
   const proposal = {
@@ -126,13 +138,13 @@ async function createFixture(admin: pg.Client): Promise<Fixture> {
     );
     await admin.query('set local role service_role');
     const claim = await admin.query<{ result: string }>(
-      "select public.claim_official_import_run_attempt($1,'event.kabuki-bito.schedule','publication',300) as result",
-      [fixture.runId],
+      "select public.claim_official_import_run_attempt($1,$2,'publication',300) as result",
+      [fixture.runId, fixture.sourceId],
     );
     assert.equal(claim.rows[0]?.result, 'claimed');
     await admin.query(
-      "select public.commit_owned_official_import_candidate_batch($1,'event.kabuki-bito.schedule','publication',$2::jsonb)",
-      [fixture.runId, JSON.stringify(payload)],
+      "select public.commit_owned_official_import_candidate_batch($1,$2,'publication',$3::jsonb)",
+      [fixture.runId, fixture.sourceId, JSON.stringify(payload)],
     );
     const candidates = await admin.query<{ id: string }>(
       'select id from public.official_import_candidates where run_id=$1',
@@ -142,23 +154,99 @@ async function createFixture(admin: pg.Client): Promise<Fixture> {
     const candidate = candidates.rows[0];
     assert.ok(candidate);
     fixture.candidateId = candidate.id;
-    await admin.query('reset role');
-    await admin.query('set local role authenticated');
-    await admin.query("select set_config('request.jwt.claims',$1,true)", [
-      JSON.stringify({ sub: fixture.ownerId, role: 'authenticated' }),
-    ]);
-    await admin.query("select public.review_official_import_candidate($1,'approved')", [
-      fixture.candidateId,
-    ]);
-    await admin.query('reset role');
-    await admin.query('set local role service_role');
-    const applyClaim = await admin.query<{ result: string }>(
-      'select public.claim_official_import_candidate_apply($1,$2,300) as result',
-      [fixture.candidateId, fixture.token],
-    );
-    assert.equal(applyClaim.rows[0]?.result, 'claimed');
+    if (options.prepareForApply ?? true) {
+      await admin.query('reset role');
+      await admin.query('set local role authenticated');
+      await admin.query("select set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({ sub: fixture.ownerId, role: 'authenticated' }),
+      ]);
+      await admin.query("select public.review_official_import_candidate($1,'approved')", [
+        fixture.candidateId,
+      ]);
+      await admin.query('reset role');
+      await admin.query('set local role service_role');
+      const applyClaim = await admin.query<{ result: string }>(
+        'select public.claim_official_import_candidate_apply($1,$2,300) as result',
+        [fixture.candidateId, fixture.token],
+      );
+      assert.equal(applyClaim.rows[0]?.result, 'claimed');
+    }
     await admin.query('commit');
     return fixture;
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function createRunningFixture(admin: pg.Client): Promise<Fixture> {
+  const identity = randomUUID().replaceAll(/[^0-9]/g, '');
+  const fixture: Fixture = {
+    ownerId: randomUUID(),
+    eventId: randomUUID(),
+    runId: randomUUID(),
+    candidateId: '',
+    sourceId: 'event.kabuki-bito.schedule',
+    sourceKey: `kabuki-bito:kabukiza:play:${identity}`,
+    sourceUrl: `https://www.kabuki-bito.jp/theaters/kabukiza/play/${identity}`,
+    officialId: identity,
+    token: `apply-${randomUUID()}`,
+  };
+  await admin.query('begin');
+  try {
+    await admin.query('set local role service_role');
+    await admin.query('insert into public.official_import_runs(id,source_id) values ($1,$2)', [
+      fixture.runId,
+      fixture.sourceId,
+    ]);
+    const inserted = await admin.query<{ id: string }>(
+      `insert into public.official_import_candidates(
+        run_id,source_id,candidate_kind,canonical_url,content_hash,proposal_version,proposal,plan_fingerprint
+      ) values ($1,$2,'event',$3,$4,'event.v1','{}'::jsonb,$5) returning id`,
+      [
+        fixture.runId,
+        fixture.sourceId,
+        fixture.sourceUrl,
+        'b'.repeat(64),
+        `running-lock-${identity}`,
+      ],
+    );
+    assert.equal(inserted.rows.length, 1);
+    const candidate = inserted.rows[0];
+    assert.ok(candidate);
+    fixture.candidateId = candidate.id;
+    await admin.query('commit');
+    return fixture;
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function createReplacementRun(admin: pg.Client, fixture: Fixture): Promise<void> {
+  fixture.replacementRunId = randomUUID();
+  await admin.query('begin');
+  try {
+    await admin.query('set local role service_role');
+    await admin.query('insert into public.official_import_runs(id,source_id) values ($1,$2)', [
+      fixture.replacementRunId,
+      fixture.sourceId,
+    ]);
+    await admin.query(
+      `insert into public.official_import_candidates(
+        run_id,source_id,candidate_kind,canonical_url,official_external_id,
+        content_hash,proposal_version,proposal,plan_fingerprint
+      ) values ($1,$2,'event',$3,$4,$5,'event.v1','{}'::jsonb,$6)`,
+      [
+        fixture.replacementRunId,
+        fixture.sourceId,
+        fixture.sourceUrl,
+        fixture.officialId,
+        'c'.repeat(64),
+        `replacement-lock-${fixture.officialId}`,
+      ],
+    );
+    await admin.query('commit');
   } catch (error) {
     await admin.query('rollback');
     throw error;
@@ -177,6 +265,14 @@ async function cleanup(admin: pg.Client, fixture: Fixture): Promise<void> {
     await admin.query('delete from public.official_import_candidates where id=$1', [
       fixture.candidateId,
     ]);
+    if (fixture.replacementRunId) {
+      await admin.query('delete from public.official_import_candidates where run_id=$1', [
+        fixture.replacementRunId,
+      ]);
+      await admin.query('delete from public.official_import_runs where id=$1', [
+        fixture.replacementRunId,
+      ]);
+    }
     await admin.query('delete from public.official_import_runs where id=$1', [fixture.runId]);
     await admin.query('delete from public.events where id=$1', [fixture.eventId]);
     await admin.query('delete from public.catalog_creators where user_id=$1', [fixture.ownerId]);
@@ -266,7 +362,7 @@ async function teardown(
   admin: pg.Client,
   owner: pg.Client,
   worker: pg.Client,
-  fixture: Fixture | undefined,
+  fixture: Fixture | Fixture[] | undefined,
   pending: Promise<unknown> | undefined,
   failure: { error: unknown } | null,
 ): Promise<void> {
@@ -289,7 +385,10 @@ async function teardown(
     clients.map(([label, client]) => attempt(`${label} rollback`, () => client.query('rollback'))),
   );
   if (pending) await attempt('pending query settlement', () => pending);
-  if (fixture) await attempt('fixture cleanup', () => cleanup(admin, fixture));
+  const fixtures = fixture ? (Array.isArray(fixture) ? fixture : [fixture]) : [];
+  for (const item of fixtures) {
+    await attempt('fixture cleanup', () => cleanup(admin, item));
+  }
   await Promise.all(
     clients.map(([label, client]) => attempt(`${label} close`, () => client.end())),
   );
@@ -306,6 +405,133 @@ async function teardown(
     );
   }
 }
+
+void test('completed Kabuki parent lock is not reacquired for review or supersession delete', async () => {
+  const { admin, owner, worker } = await connectClients();
+  let fixture: Fixture | undefined;
+  let failure: { error: unknown } | null = null;
+  try {
+    fixture = await createFixture(admin, { prepareForApply: false });
+    await createReplacementRun(admin, fixture);
+
+    // Keep the immutable completed parent row locked while each candidate
+    // trigger executes in another session. Both operations must finish first.
+    await owner.query('begin');
+    await owner.query('select id from public.official_import_runs where id=$1 for update', [
+      fixture.runId,
+    ]);
+    await beginOwner(worker, fixture);
+    await worker.query("set local statement_timeout = '3s'");
+    const reviewed = await worker.query<{ review_status: string }>(
+      "select (public.review_official_import_candidate($1,'approved')).review_status",
+      [fixture.candidateId],
+    );
+    assert.equal(reviewed.rows[0]?.review_status, 'approved');
+    await worker.query('commit');
+
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    await worker.query("set local statement_timeout = '3s'");
+    await worker.query(
+      "select set_config('stage_tracker.official_import_superseding_run_id',$1,true)",
+      [fixture.replacementRunId],
+    );
+    const deleted = await worker.query<{ id: string }>(
+      'delete from public.official_import_candidates where id=$1 returning id',
+      [fixture.candidateId],
+    );
+    assert.equal(deleted.rows[0]?.id, fixture.candidateId);
+    await worker.query('commit');
+
+    assert.equal((await snapshot(admin, fixture)).candidate, null);
+    await owner.query('commit');
+  } catch (error) {
+    failure = { error };
+    throw error;
+  } finally {
+    await teardown(admin, owner, worker, fixture, undefined, failure);
+  }
+});
+
+void test('running and non-Kabuki parents retain candidate update and delete locks', async () => {
+  const { admin, owner, worker } = await connectClients();
+  const fixtures: Fixture[] = [];
+  let pending: Promise<unknown> | undefined;
+  let failure: { error: unknown } | null = null;
+  try {
+    const running = await createRunningFixture(admin);
+    fixtures.push(running);
+    const otherSource = await createFixture(admin, {
+      prepareForApply: false,
+      sourceId: 'event.secondary-feed',
+    });
+    fixtures.push(otherSource);
+    await createReplacementRun(admin, otherSource);
+
+    for (const fixture of fixtures) {
+      await owner.query('begin');
+      await owner.query('select id from public.official_import_runs where id=$1 for update', [
+        fixture.runId,
+      ]);
+      await worker.query('begin');
+      await worker.query('set local role service_role');
+      const workerPid = await pid(worker);
+      const ownerPid = await pid(owner);
+      const update = worker
+        .query('update public.official_import_candidates set proposal=proposal where id=$1', [
+          fixture.candidateId,
+        ])
+        .then(
+          (result) => ({ result, error: null }),
+          (error: unknown) => ({ result: null, error }),
+        );
+      pending = update;
+      await waitForBlock(admin, workerPid, ownerPid);
+      await owner.query('commit');
+      const updateResult = await update;
+      assert.equal(updateResult.error, null);
+      assert.equal(updateResult.result?.rowCount, 1);
+      await worker.query('commit');
+      pending = undefined;
+
+      await owner.query('begin');
+      await owner.query('select id from public.official_import_runs where id=$1 for update', [
+        fixture.runId,
+      ]);
+      await worker.query('begin');
+      await worker.query('set local role service_role');
+      if (fixture.replacementRunId) {
+        await worker.query(
+          "select set_config('stage_tracker.official_import_superseding_run_id',$1,true)",
+          [fixture.replacementRunId],
+        );
+      }
+      const workerDeletePid = await pid(worker);
+      const ownerDeletePid = await pid(owner);
+      const remove = worker
+        .query('delete from public.official_import_candidates where id=$1 returning id', [
+          fixture.candidateId,
+        ])
+        .then(
+          (result) => ({ result, error: null }),
+          (error: unknown) => ({ result: null, error }),
+        );
+      pending = remove;
+      await waitForBlock(admin, workerDeletePid, ownerDeletePid);
+      await owner.query('commit');
+      const removeResult = await remove;
+      assert.equal(removeResult.error, null);
+      assert.equal(removeResult.result?.rows[0]?.id, fixture.candidateId);
+      await worker.query('commit');
+      pending = undefined;
+    }
+  } catch (error) {
+    failure = { error };
+    throw error;
+  } finally {
+    await teardown(admin, owner, worker, fixtures, pending, failure);
+  }
+});
 
 void test('Kabuki atomic apply waits before candidate lock when owner Event deletion wins', async () => {
   const { admin, owner, worker } = await connectClients();
