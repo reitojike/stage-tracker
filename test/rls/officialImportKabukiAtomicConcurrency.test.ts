@@ -233,6 +233,7 @@ async function createRunningFixture(admin: pg.Client): Promise<Fixture> {
 async function createPublisherFixture(
   admin: pg.Client,
   startedAt: string,
+  options: { claim?: boolean } = {},
 ): Promise<PublisherFixture> {
   const fixture: PublisherFixture = {
     runId: randomUUID(),
@@ -247,11 +248,13 @@ async function createPublisherFixture(
       'insert into public.official_import_runs(id,source_id,started_at) values ($1,$2,$3)',
       [fixture.runId, fixture.sourceId, fixture.startedAt],
     );
-    const claim = await admin.query<{ result: string }>(
-      'select public.claim_official_import_run_attempt($1,$2,$3,300) as result',
-      [fixture.runId, fixture.sourceId, fixture.token],
-    );
-    assert.equal(claim.rows[0]?.result, 'claimed');
+    if (options.claim ?? true) {
+      const claim = await admin.query<{ result: string }>(
+        'select public.claim_official_import_run_attempt($1,$2,$3,300) as result',
+        [fixture.runId, fixture.sourceId, fixture.token],
+      );
+      assert.equal(claim.rows[0]?.result, 'claimed');
+    }
     await admin.query('commit');
     return fixture;
   } catch (error) {
@@ -774,11 +777,7 @@ void test('owner Event deletion waits for Kabuki atomic commit and preserves app
   } catch (error) {
     failure = { error };
     throw error;
-  } finally {
-    await teardown(admin, owner, worker, fixture, pending, failure);
-  }
-});
-void test('owned Kabuki publications serialize and ignore equal or reversed start timestamps', async () => {
+  } fvoid test('owned Kabuki publications serialize and ignore equal or reversed start timestamps', async () => {
   const { admin, owner, worker } = await connectClients();
   const fixtures: PublisherFixture[] = [];
   let pending: Promise<unknown> | undefined;
@@ -786,7 +785,10 @@ void test('owned Kabuki publications serialize and ignore equal or reversed star
   try {
     const first = await createPublisherFixture(admin, '2030-01-01T00:00:00Z');
     fixtures.push(first);
-    const second = await createPublisherFixture(admin, '2020-01-01T00:00:00Z');
+    // The source lease admits one active run at a time. Insert the second
+    // unclaimed run before publication, then prove its claim waits on the
+    // first transaction's source lock.
+    const second = await createPublisherFixture(admin, '2020-01-01T00:00:00Z', { claim: false });
     fixtures.push(second);
 
     await owner.query('begin');
@@ -801,16 +803,16 @@ void test('owned Kabuki publications serialize and ignore equal or reversed star
     await worker.query('set local role service_role');
     const ownerPid = await pid(owner);
     const workerPid = await pid(worker);
-    const blocked = worker
-      .query<{ count: number }>(
-        'select public.commit_owned_official_import_candidate_batch($1,$2,$3,$4::jsonb) as count',
-        [second.runId, second.sourceId, second.token, '[]'],
+    const blockedClaim = worker
+      .query<{ result: string }>(
+        'select public.claim_official_import_run_attempt($1,$2,$3,300) as result',
+        [second.runId, second.sourceId, second.token],
       )
       .then(
         (result) => ({ result, error: null }),
         (error: unknown) => ({ result: null, error }),
       );
-    pending = blocked;
+    pending = blockedClaim;
     await waitForBlock(admin, workerPid, ownerPid);
     const whileWaiting = await admin.query<{ status: string; publication_ordinal: string | null }>(
       'select status,publication_ordinal from public.official_import_runs where id=$1',
@@ -820,9 +822,14 @@ void test('owned Kabuki publications serialize and ignore equal or reversed star
     assert.equal(whileWaiting.rows[0]?.publication_ordinal, null);
 
     await owner.query('commit');
-    const secondResult = await blocked;
-    assert.equal(secondResult.error, null);
-    assert.equal(secondResult.result?.rows[0]?.count, 0);
+    const claimResult = await blockedClaim;
+    assert.equal(claimResult.error, null);
+    assert.equal(claimResult.result?.rows[0]?.result, 'claimed');
+    const secondPublish = await worker.query<{ count: number }>(
+      'select public.commit_owned_official_import_candidate_batch($1,$2,$3,$4::jsonb) as count',
+      [second.runId, second.sourceId, second.token, '[]'],
+    );
+    assert.equal(secondPublish.rows[0]?.count, 0);
     await worker.query('commit');
     pending = undefined;
 
@@ -848,6 +855,8 @@ void test('owned Kabuki publications serialize and ignore equal or reversed star
     throw error;
   } finally {
     await teardownPublisherTest(admin, owner, worker, fixtures, pending, failure);
+  }
+});await teardownPublisherTest(admin, owner, worker, fixtures, pending, failure);
   }
 });
 
