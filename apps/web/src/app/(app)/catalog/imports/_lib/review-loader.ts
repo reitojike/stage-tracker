@@ -30,6 +30,7 @@ import type {
 } from "./review-types";
 
 const nullableText = z.string().nullable();
+const KABUKI_EVENT_SOURCE_ID = "event.kabuki-bito.schedule";
 const eventProposalSchema = z
   .object({
     sourceKey: z.string().min(1),
@@ -215,6 +216,8 @@ const candidateRowSchema = z
       .string()
       .refine((value) => !Number.isNaN(Date.parse(value)), "invalid timestamp"),
     official_external_id: nullableText,
+    recovery_review_required: z.boolean(),
+    recovery_hold_run_id: z.uuid().nullable(),
     proposal_version: z.string().min(1),
     proposal: z.unknown(),
     evidence_locator: z.unknown(),
@@ -261,7 +264,28 @@ const candidateRowSchema = z
     current_event: currentEventSchema.nullable(),
     current_ticket_opportunity: currentTicketOpportunitySchema.nullable(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((row, context) => {
+    if (!row.recovery_review_required && row.recovery_hold_run_id !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["recovery_hold_run_id"],
+        message: "A recovery hold run requires a recovery review marker",
+      });
+    }
+    if (
+      row.recovery_review_required &&
+      (row.candidate_kind !== "event" ||
+        row.source_id !== KABUKI_EVENT_SOURCE_ID)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["recovery_review_required"],
+        message:
+          "Recovery review markers are limited to Kabuki Event candidates",
+      });
+    }
+  });
 
 function currentEvent(
   value: z.infer<typeof currentEventSchema> | null,
@@ -488,6 +512,8 @@ function mapCandidateRow(
     canonicalUrl: row.canonical_url,
     observedAt: row.observed_at,
     officialExternalId: row.official_external_id,
+    recoveryReviewRequired: row.recovery_review_required,
+    recoveryHoldRunId: row.recovery_hold_run_id,
     reviewStatus: effectiveReviewStatus(row),
     applyStatus: row.apply_status,
     applyFailureClassification: row.failure_classification,

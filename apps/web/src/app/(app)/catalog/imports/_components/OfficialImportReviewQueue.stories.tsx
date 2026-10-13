@@ -14,6 +14,8 @@ const pendingCandidate: OfficialImportReviewCandidate = {
   canonicalUrl: "https://kageki.hankyu.co.jp/revue/2026/sample/index.html",
   observedAt: "2026-09-23T01:00:00.000Z",
   officialExternalId: "sample-2026",
+  recoveryReviewRequired: false,
+  recoveryHoldRunId: null,
   reviewStatus: "pending",
   applyStatus: "not_started",
   applyFailureClassification: null,
@@ -70,6 +72,50 @@ type Story = StoryObj<typeof OfficialImportReviewQueue>;
 export const Pending: Story = {
   args: {
     state: { variant: "populated", data: [pendingCandidate] },
+    reviewAction: storyReviewAction,
+    applyAction: storyApplyAction,
+  },
+};
+
+export const RecoveryReviewRequiredNoOp: Story = {
+  args: {
+    state: {
+      variant: "populated",
+      data: [
+        {
+          ...pendingCandidate,
+          id: "33333333-3333-4333-8333-333333333333",
+          sourceId: "event.kabuki-bito.schedule",
+          recoveryReviewRequired: true,
+          recoveryHoldRunId: null,
+          proposal: {
+            ...pendingCandidate.proposal,
+            sourceKey: "kabuki:sample-2026",
+          },
+          currentEvent: {
+            id: "44444444-4444-4444-8444-444444444444",
+            sourceKey: "kabuki:sample-2026",
+            title: "Sample revue",
+            venue: "Grand Theater",
+            memo: null,
+            sourceUrl: pendingCandidate.canonicalUrl,
+            startsOn: "2026-10-01",
+            endsOn: "2026-11-10",
+            occurrences: [],
+          },
+          plan: {
+            action: "unchanged",
+            hasChanges: false,
+            changes: ["Current Event has no changes"],
+          },
+          match: {
+            deterministicStatus: "matched",
+            semanticStatus: "not_used",
+            jev: null,
+          },
+        },
+      ],
+    },
     reviewAction: storyReviewAction,
     applyAction: storyApplyAction,
   },

@@ -106,6 +106,8 @@ export interface OfficialImportReviewCandidate {
   readonly canonicalUrl: string;
   readonly observedAt: string;
   readonly officialExternalId: string | null;
+  readonly recoveryReviewRequired: boolean;
+  readonly recoveryHoldRunId: string | null;
   readonly reviewStatus: OfficialImportReviewStatus | "approved";
   readonly applyStatus: OfficialImportApplyStatus;
   readonly applyFailureClassification: OfficialImportApplyFailureClassification | null;

@@ -104,6 +104,20 @@ restrictive guard activation remain later, separately authorized stages. This
 consumer performs no production drain, guard activation, freshness or recovery
 enablement, scheduled import, or cadence change.
 
+## Recovery review marker consumer
+
+The review loader requires both existing recovery marker columns and accepts
+only (false, NULL), (true, NULL), and (true, UUID). A true marker is limited to
+Kabuki Event candidates. Missing or malformed values and markers on other
+sources or candidate kinds fail the queue read closed. The existing completed-run
+FK embed and filter remain unchanged; the loader does not fetch the held run.
+
+Marked candidates remain visible when their exact-identity plan is unchanged.
+The queue keeps the honest no-change plan and adds a fixed re-review-required
+notice without inferring a hold episode from timestamps or creating local
+settlement state. The marker does not change identity, creator, review, apply,
+reject, failed-dismiss or lease controls; server props remain authoritative.
+
 ## Later guard activation
 
 Before a later restrictive guard activation, inspect the deployed runtime
