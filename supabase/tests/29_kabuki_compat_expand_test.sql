@@ -204,6 +204,8 @@ select format('select public.commit_owned_official_import_partial_batch(%L::uuid
   '[{"canonical_url":"https://www.kabuki-bito.jp/theaters/kabukiza/play/9114","official_external_id":"9114","title":"Rollback held","starts_on":"2027-01-01","ends_on":"2027-01-02","reason_code":"source_parse"}]') as held_rollback_sql \gset
 select throws_ok(:'held_rollback_sql','55000','synthetic ordinal completion failure',
   'late completion error aborts candidate and held publication');
+select public.release_official_import_run_attempt(
+  :'ordinal_rollback_held_run','event.kabuki-bito.schedule','rollback-held');
 select ok((select candidate_run.status='running'
     and candidate_run.publication_ordinal is null
     and (select count(*) from public.official_import_candidates where run_id=candidate_run.id)=0
