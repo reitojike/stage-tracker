@@ -10,6 +10,13 @@ import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 const status = readLocalSupabaseStatus();
 const clientErrors = new WeakMap<pg.Client, Error[]>();
 
+interface PublisherFixture {
+  runId: string;
+  sourceId: string;
+  token: string;
+  startedAt: string;
+}
+
 interface Fixture {
   ownerId: string;
   eventId: string;
@@ -223,6 +230,130 @@ async function createRunningFixture(admin: pg.Client): Promise<Fixture> {
   }
 }
 
+async function createPublisherFixture(
+  admin: pg.Client,
+  startedAt: string,
+): Promise<PublisherFixture> {
+  const fixture: PublisherFixture = {
+    runId: randomUUID(),
+    sourceId: 'event.kabuki-bito.schedule',
+    token: 'publisher-' + randomUUID(),
+    startedAt,
+  };
+  await admin.query('begin');
+  try {
+    await admin.query('set local role service_role');
+    await admin.query(
+      'insert into public.official_import_runs(id,source_id,started_at) values ($1,$2,$3)',
+      [fixture.runId, fixture.sourceId, fixture.startedAt],
+    );
+    const claim = await admin.query<{ result: string }>(
+      'select public.claim_official_import_run_attempt($1,$2,$3,300) as result',
+      [fixture.runId, fixture.sourceId, fixture.token],
+    );
+    assert.equal(claim.rows[0]?.result, 'claimed');
+    await admin.query('commit');
+    return fixture;
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function shortenPublisherLease(admin: pg.Client, fixture: PublisherFixture): Promise<void> {
+  await admin.query('begin');
+  try {
+    await admin.query('set local role service_role');
+    await admin.query("select set_config('stage_tracker.official_import_attempt_run_id',$1,true)", [
+      fixture.runId,
+    ]);
+    await admin.query("select set_config('stage_tracker.official_import_attempt_token',$1,true)", [
+      fixture.token,
+    ]);
+    await admin.query(
+      "update public.official_import_runs set active_attempt_lease_expires_at=clock_timestamp()+interval '300 milliseconds' where id=$1",
+      [fixture.runId],
+    );
+    await admin.query("select set_config('stage_tracker.official_import_attempt_token','',true)");
+    await admin.query("select set_config('stage_tracker.official_import_attempt_run_id','',true)");
+    await admin.query('commit');
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function cleanupPublisherFixtures(
+  admin: pg.Client,
+  fixtures: PublisherFixture[],
+): Promise<void> {
+  await admin.query('begin');
+  try {
+    await admin.query('set local session_replication_role = replica');
+    for (const fixture of fixtures) {
+      await admin.query('delete from public.official_import_runs where id=$1', [fixture.runId]);
+    }
+    await admin.query('commit');
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function teardownPublisherTest(
+  admin: pg.Client,
+  first: pg.Client,
+  second: pg.Client,
+  fixtures: PublisherFixture[],
+  pending: Promise<unknown> | undefined,
+  failure: unknown,
+): Promise<void> {
+  const errors: Error[] = [];
+  const rollback = async (client: pg.Client, label: string) => {
+    try {
+      await client.query('rollback');
+    } catch (error) {
+      errors.push(new Error(label + ' rollback', { cause: error }));
+    }
+  };
+  await Promise.all([
+    rollback(admin, 'admin'),
+    rollback(first, 'first'),
+    rollback(second, 'second'),
+  ]);
+  if (pending) {
+    try {
+      await pending;
+    } catch (error) {
+      errors.push(new Error('pending query settlement', { cause: error }));
+    }
+  }
+  try {
+    await cleanupPublisherFixtures(admin, fixtures);
+  } catch (error) {
+    errors.push(new Error('publisher fixture cleanup', { cause: error }));
+  }
+  await Promise.all(
+    [
+      ['admin', admin],
+      ['first', first],
+      ['second', second],
+    ].map(async ([label, client]) => {
+      try {
+        await (client as pg.Client).end();
+      } catch (error) {
+        errors.push(new Error(String(label) + ' close', { cause: error }));
+      }
+    }),
+  );
+  if (errors.length > 0) {
+    throw new AggregateError(
+      failure === null ? errors : [failure, ...errors],
+      'Kabuki publication ordinal test teardown failed',
+      { cause: failure },
+    );
+  }
+}
 async function createReplacementRun(admin: pg.Client, fixture: Fixture): Promise<void> {
   fixture.replacementRunId = randomUUID();
   await admin.query('begin');
@@ -567,8 +698,8 @@ void test('Kabuki atomic apply waits before candidate lock when owner Event dele
     const result = await outcome;
     assert.equal(result.value, null);
     assert.ok(result.error instanceof pg.DatabaseError);
-    assert.equal(result.error.code, '40001');
-    assert.equal(result.error.message, 'reviewed Event no longer exists');
+    assert.equal((result.error as pg.DatabaseError).code, '40001');
+    assert.equal((result.error as pg.DatabaseError).message, 'reviewed Event no longer exists');
     await worker.query('rollback');
     const after = await snapshot(admin, fixture);
     assert.equal(typeof after.candidate.updated_at, 'string');
@@ -645,5 +776,144 @@ void test('owner Event deletion waits for Kabuki atomic commit and preserves app
     throw error;
   } finally {
     await teardown(admin, owner, worker, fixture, pending, failure);
+  }
+});
+void test('owned Kabuki publications serialize and ignore equal or reversed start timestamps', async () => {
+  const { admin, owner, worker } = await connectClients();
+  const fixtures: PublisherFixture[] = [];
+  let pending: Promise<unknown> | undefined;
+  let failure: unknown = null;
+  try {
+    const first = await createPublisherFixture(admin, '2030-01-01T00:00:00Z');
+    fixtures.push(first);
+    const second = await createPublisherFixture(admin, '2020-01-01T00:00:00Z');
+    fixtures.push(second);
+
+    await owner.query('begin');
+    await owner.query('set local role service_role');
+    const firstPublish = await owner.query<{ count: number }>(
+      'select public.commit_owned_official_import_candidate_batch($1,$2,$3,$4::jsonb) as count',
+      [first.runId, first.sourceId, first.token, '[]'],
+    );
+    assert.equal(firstPublish.rows[0]?.count, 0);
+
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    const ownerPid = await pid(owner);
+    const workerPid = await pid(worker);
+    const blocked = worker
+      .query<{ count: number }>(
+        'select public.commit_owned_official_import_candidate_batch($1,$2,$3,$4::jsonb) as count',
+        [second.runId, second.sourceId, second.token, '[]'],
+      )
+      .then(
+        (result) => ({ result, error: null }),
+        (error: unknown) => ({ result: null, error }),
+      );
+    pending = blocked;
+    await waitForBlock(admin, workerPid, ownerPid);
+    const whileWaiting = await admin.query<{ status: string; publication_ordinal: string | null }>(
+      'select status,publication_ordinal from public.official_import_runs where id=$1',
+      [second.runId],
+    );
+    assert.equal(whileWaiting.rows[0]?.status, 'running');
+    assert.equal(whileWaiting.rows[0]?.publication_ordinal, null);
+
+    await owner.query('commit');
+    const secondResult = await blocked;
+    assert.equal(secondResult.error, null);
+    assert.equal(secondResult.result?.rows[0]?.count, 0);
+    await worker.query('commit');
+    pending = undefined;
+
+    const committed = await admin.query<{
+      first_ordinal: string;
+      second_ordinal: string;
+      first_started_at: Date;
+      second_started_at: Date;
+    }>(
+      'select first.publication_ordinal as first_ordinal, ' +
+        'second.publication_ordinal as second_ordinal, ' +
+        'first.started_at as first_started_at, second.started_at as second_started_at ' +
+        'from public.official_import_runs first ' +
+        'join public.official_import_runs second on second.id=$2 where first.id=$1',
+      [first.runId, second.runId],
+    );
+    const row = committed.rows[0];
+    assert.ok(row);
+    assert.ok(row.first_started_at > row.second_started_at);
+    assert.ok(BigInt(row.first_ordinal) < BigInt(row.second_ordinal));
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
+    await teardownPublisherTest(admin, owner, worker, fixtures, pending, failure);
+  }
+});
+
+void test('an owned publisher whose lease expires while waiting for the source lock allocates nothing', async () => {
+  const { admin, owner, worker } = await connectClients();
+  const fixtures: PublisherFixture[] = [];
+  let pending: Promise<unknown> | undefined;
+  let failure: unknown = null;
+  try {
+    const fixture = await createPublisherFixture(admin, '2027-01-01T00:00:00Z');
+    fixtures.push(fixture);
+    await shortenPublisherLease(admin, fixture);
+
+    await owner.query('begin');
+    await owner.query('set local role service_role');
+    await owner.query(
+      "select pg_advisory_xact_lock(pg_catalog.hashtextextended('official-import-candidates:' || $1,0))",
+      [fixture.sourceId],
+    );
+    const sequenceBefore = await admin.query<{ state: string }>(
+      "select last_value::text || ':' || is_called::text as state from public.official_import_kabuki_publication_ordinal_seq",
+    );
+    const before = sequenceBefore.rows[0]?.state;
+    assert.ok(before);
+
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    const ownerPid = await pid(owner);
+    const workerPid = await pid(worker);
+    const outcome = worker
+      .query('select public.commit_owned_official_import_candidate_batch($1,$2,$3,$4::jsonb)', [
+        fixture.runId,
+        fixture.sourceId,
+        fixture.token,
+        '[]',
+      ])
+      .then(
+        (result) => ({ result, error: null }),
+        (error: unknown) => ({ result: null, error }),
+      );
+    pending = outcome;
+    await waitForBlock(admin, workerPid, ownerPid);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await owner.query('commit');
+
+    const result = await outcome;
+    assert.equal(result.result, null);
+    assert.ok(result.error instanceof pg.DatabaseError);
+    assert.equal((result.error as pg.DatabaseError).code, '55000');
+    await worker.query('rollback');
+    pending = undefined;
+
+    const after = await admin.query<{ status: string; publication_ordinal: string | null }>(
+      'select status,publication_ordinal from public.official_import_runs where id=$1',
+      [fixture.runId],
+    );
+    assert.equal(after.rows[0]?.status, 'running');
+    assert.equal(after.rows[0]?.publication_ordinal, null);
+    const sequenceAfter = await admin.query<{ state: string }>(
+      "select last_value::text || ':' || is_called::text as state from public.official_import_kabuki_publication_ordinal_seq",
+    );
+    assert.equal(sequenceAfter.rows[0]?.state, before);
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
+    await teardownPublisherTest(admin, owner, worker, fixtures, pending, failure);
   }
 });

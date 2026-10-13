@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 \ir helpers/kabuki-compat-expand.psql
-select plan(48);
+select plan(78);
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='apply_official_import_kabuki_event_candidate'),1::bigint,'atomic RPC has exactly one public signature');
 select is((select pronargs::integer from pg_proc where oid='public.apply_official_import_kabuki_event_candidate(uuid,text,text,uuid,uuid,text,text,date,date,jsonb,jsonb,text,text,text,boolean,text,boolean,jsonb,jsonb,jsonb)'::regprocedure),20,'atomic RPC requires twenty arguments');
 select is((select pronargdefaults::integer from pg_proc where oid='public.apply_official_import_kabuki_event_candidate(uuid,text,text,uuid,uuid,text,text,date,date,jsonb,jsonb,text,text,text,boolean,text,boolean,jsonb,jsonb,jsonb)'::regprocedure),0,'atomic RPC has no argument defaults');
@@ -23,7 +23,7 @@ set local role service_role;
 -- Real create and inert replay, including all catalog/staging rows.
 select pg_temp.kb_publish(pg_temp.kb_payload('9101')) as create_run \gset
 select pg_temp.kb_candidate(:'create_run') as create_candidate \gset
-select ok((select publication_ordinal is null from public.official_import_runs where id=:'create_run'),'current publisher leaves nullable authority unallocated');
+select ok((select publication_ordinal > 0 from public.official_import_runs where id=:'create_run'),'owned Kabuki publication assigns a positive ordinal');
 call pg_temp.kb_ready(:'create_candidate',:'creator','create-owner');
 select is(pg_temp.kb_apply(:'create_candidate','create-owner',:'creator'),'applied','NULL-authority approved candidate can create atomically');
 select id as target_event from public.events where source_key='kabuki-bito:kabukiza:play:9101' \gset
@@ -32,6 +32,206 @@ select ok((select apply_status='applied' and applied_at is not null and active_a
 select pg_temp.kb_all_rows()::text as replay_before \gset
 select is(pg_temp.kb_apply(:'create_candidate','late-response',:'other_creator'),'applied','applied-state replay within transaction returns applied before inactive argument checks');
 select is(pg_temp.kb_all_rows()::text,:'replay_before','applied-state replay within transaction leaves every captured row unchanged');
+
+-- A completed owned replay returns the retained candidate count without
+-- allocating another ordinal or changing the run.
+select last_value::text || ':' || is_called::text as replay_sequence_before \gset
+select is(public.commit_owned_official_import_candidate_batch(
+  :'create_run','event.kabuki-bito.schedule','fixture-publish','[]'::jsonb),1,
+  'completed owned replay returns retained candidate count');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'replay_sequence_before',
+  'completed owned replay does not allocate another ordinal');
+select is(public.commit_owned_official_import_candidate_batch(
+  :'create_run','event.kabuki-bito.schedule','fixture-publish',null::jsonb),1,
+  'completed owned replay with NULL payload returns retained candidate count');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'replay_sequence_before',
+  'completed owned replay with NULL payload does not allocate an ordinal');
+select is(public.commit_owned_official_import_candidate_batch(
+  :'create_run','event.kabuki-bito.schedule','fixture-publish','{}'::jsonb),1,
+  'completed owned replay with non-array payload returns retained candidate count');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'replay_sequence_before',
+  'completed owned replay with non-array payload does not allocate an ordinal');
+
+-- Empty and held-only owned publications still receive authority atomically.
+select gen_random_uuid() as empty_publication_run \gset
+select public.claim_official_import_run_attempt(
+  :'empty_publication_run','event.kabuki-bito.schedule','empty-publication',300);
+select is(public.commit_owned_official_import_candidate_batch(
+  :'empty_publication_run','event.kabuki-bito.schedule','empty-publication','[]'::jsonb),0,
+  'empty owned publication completes with zero candidates');
+select ok((select status='completed' and publication_ordinal > 0
+  from public.official_import_runs where id=:'empty_publication_run'),
+  'empty owned publication receives an ordinal');
+
+select gen_random_uuid() as held_only_publication_run \gset
+select public.claim_official_import_run_attempt(
+  :'held_only_publication_run','event.kabuki-bito.schedule','held-only-publication',300);
+select is(public.commit_owned_official_import_partial_batch(
+  :'held_only_publication_run','event.kabuki-bito.schedule','held-only-publication','[]'::jsonb,
+  '[{"canonical_url":"https://www.kabuki-bito.jp/theaters/kabukiza/play/9111",
+     "official_external_id":"9111","title":"Held only","starts_on":"2027-01-01",
+     "ends_on":"2027-01-02","reason_code":"source_parse"}]'::jsonb),0,
+  'held-only partial publication completes with zero candidates');
+select ok((select status='completed' and publication_ordinal > 0
+  from public.official_import_runs where id=:'held_only_publication_run'),
+  'held-only partial publication receives an ordinal');
+select is((select count(*) from public.official_import_held_pages
+  where run_id=:'held_only_publication_run'),1::bigint,
+  'held-only evidence commits with its ordinal');
+
+-- Same and reverse started_at values do not define publication authority.
+select gen_random_uuid() as ordinal_same_first \gset
+select gen_random_uuid() as ordinal_same_second \gset
+select gen_random_uuid() as ordinal_reverse_third \gset
+insert into public.official_import_runs(id,source_id,status,started_at) values
+  (:'ordinal_same_first','event.kabuki-bito.schedule','running','2030-01-01T00:00:00Z'),
+  (:'ordinal_same_second','event.kabuki-bito.schedule','running','2030-01-01T00:00:00Z'),
+  (:'ordinal_reverse_third','event.kabuki-bito.schedule','running','2020-01-01T00:00:00Z');
+select public.claim_official_import_run_attempt(:'ordinal_same_first','event.kabuki-bito.schedule','ordinal-first',300);
+select public.claim_official_import_run_attempt(:'ordinal_same_second','event.kabuki-bito.schedule','ordinal-second',300);
+select public.claim_official_import_run_attempt(:'ordinal_reverse_third','event.kabuki-bito.schedule','ordinal-third',300);
+select public.commit_owned_official_import_candidate_batch(:'ordinal_same_first','event.kabuki-bito.schedule','ordinal-first','[]'::jsonb);
+select public.commit_owned_official_import_candidate_batch(:'ordinal_same_second','event.kabuki-bito.schedule','ordinal-second','[]'::jsonb);
+select public.commit_owned_official_import_candidate_batch(:'ordinal_reverse_third','event.kabuki-bito.schedule','ordinal-third','[]'::jsonb);
+select ok((select first.started_at=second.started_at
+  and second.started_at>third.started_at
+  and first.publication_ordinal<second.publication_ordinal
+  and second.publication_ordinal<third.publication_ordinal
+  from public.official_import_runs first
+  join public.official_import_runs second on second.id=:'ordinal_same_second'
+  join public.official_import_runs third on third.id=:'ordinal_reverse_third'
+  where first.id=:'ordinal_same_first'),
+  'ordinals follow serialized publication order despite same and reversed timestamps');
+
+-- Invalid source, token, and expired lease are rejected before sequence use.
+select gen_random_uuid() as ordinal_rejected_run \gset
+select public.claim_official_import_run_attempt(
+  :'ordinal_rejected_run','event.kabuki-bito.schedule','ordinal-valid-owner',300);
+select last_value::text || ':' || is_called::text as rejected_sequence_before \gset
+select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,%L::jsonb)',
+  :'ordinal_rejected_run','event.other','ordinal-valid-owner','[]') as wrong_source_sql \gset
+select throws_ok(:'wrong_source_sql','22023',null,
+  'owned publisher refuses a source mismatch before allocating an ordinal');
+select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,%L::jsonb)',
+  :'ordinal_rejected_run','event.kabuki-bito.schedule','wrong-owner','[]') as wrong_owner_sql \gset
+select throws_ok(:'wrong_owner_sql','55000',null,
+  'owned publisher refuses a displaced token before allocating an ordinal');
+select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,NULL::jsonb)',
+  :'ordinal_rejected_run','event.kabuki-bito.schedule','ordinal-valid-owner') as invalid_payload_sql \gset
+select throws_ok(:'invalid_payload_sql','22023',null,
+  'owned publisher refuses a NULL running payload before allocating an ordinal');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'rejected_sequence_before',
+  'invalid running payload does not consume an ordinal');
+select set_config('stage_tracker.official_import_attempt_run_id',:'ordinal_rejected_run',true);
+select set_config('stage_tracker.official_import_attempt_token','ordinal-valid-owner',true);
+update public.official_import_runs
+set active_attempt_lease_expires_at=clock_timestamp()-interval '1 second'
+where id=:'ordinal_rejected_run';
+select set_config('stage_tracker.official_import_attempt_token','',true);
+select set_config('stage_tracker.official_import_attempt_run_id','',true);
+select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,%L::jsonb)',
+  :'ordinal_rejected_run','event.kabuki-bito.schedule','ordinal-valid-owner','[]') as expired_owner_sql \gset
+select throws_ok(:'expired_owner_sql','55000',null,
+  'owned publisher refuses an expired lease before allocating an ordinal');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'rejected_sequence_before',
+  'source, token, and expiry refusals leave the ordinal sequence unchanged');
+
+-- Attempt lifecycle transitions (including same-token lease renewal) never
+-- allocate publication order.
+select gen_random_uuid() as release_without_ordinal_run \gset
+select gen_random_uuid() as failure_without_ordinal_run \gset
+select last_value::text || ':' || is_called::text as lifecycle_sequence_before \gset
+select public.claim_official_import_run_attempt(
+  :'release_without_ordinal_run','event.kabuki-bito.schedule','release-owner',300);
+select public.claim_official_import_run_attempt(
+  :'release_without_ordinal_run','event.kabuki-bito.schedule','release-owner',300);
+select public.release_official_import_run_attempt(
+  :'release_without_ordinal_run','event.kabuki-bito.schedule','release-owner');
+select public.claim_official_import_run_attempt(
+  :'failure_without_ordinal_run','event.kabuki-bito.schedule','failure-owner',300);
+select public.fail_official_import_run_attempt(
+  :'failure_without_ordinal_run','event.kabuki-bito.schedule','failure-owner',
+  'validation','planning','fixture failure','');
+select ok((select released.status='running' and released.active_attempt_token is null
+    and released.publication_ordinal is null and failed.status='failed'
+    and failed.publication_ordinal is null
+  from public.official_import_runs released, public.official_import_runs failed
+  where released.id=:'release_without_ordinal_run'
+    and failed.id=:'failure_without_ordinal_run'),
+  'claim renewal, release, and failure preserve NULL publication authority');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'lifecycle_sequence_before',
+  'claim renewal, release, and failure do not allocate an ordinal');
+
+-- A late completion error rolls back candidates, held evidence, and the run
+-- ordinal together. nextval gaps are intentionally allowed.
+reset role;
+create function pg_temp.kb_reject_ordinal_completion() returns trigger language plpgsql as $$
+begin
+  if new.publication_ordinal is not null
+    and current_setting('stage_tracker.test_fail_publication',true)='on' then
+    raise exception 'synthetic ordinal completion failure' using errcode='55000';
+  end if;
+  return new;
+end;
+$$;
+create trigger zzz_kb_reject_ordinal_completion before update
+on public.official_import_runs for each row
+execute function pg_temp.kb_reject_ordinal_completion();
+set local role service_role;
+select gen_random_uuid() as ordinal_rollback_candidate_run \gset
+select gen_random_uuid() as ordinal_rollback_held_run \gset
+select public.claim_official_import_run_attempt(
+  :'ordinal_rollback_candidate_run','event.kabuki-bito.schedule','rollback-candidate',300);
+select public.claim_official_import_run_attempt(
+  :'ordinal_rollback_held_run','event.kabuki-bito.schedule','rollback-held',300);
+select last_value::text || ':' || is_called::text as rollback_sequence_before \gset
+select set_config('stage_tracker.test_fail_publication','on',true);
+select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,%L::jsonb)',
+  :'ordinal_rollback_candidate_run','event.kabuki-bito.schedule','rollback-candidate',
+  pg_temp.kb_payload('9112')::text) as candidate_rollback_sql \gset
+select throws_ok(:'candidate_rollback_sql','55000','synthetic ordinal completion failure',
+  'late completion error aborts candidate publication');
+select format('select public.commit_owned_official_import_partial_batch(%L::uuid,%L,%L,%L::jsonb,%L::jsonb)',
+  :'ordinal_rollback_held_run','event.kabuki-bito.schedule','rollback-held',pg_temp.kb_payload('9113')::text,
+  '[{"canonical_url":"https://www.kabuki-bito.jp/theaters/kabukiza/play/9114","official_external_id":"9114","title":"Rollback held","starts_on":"2027-01-01","ends_on":"2027-01-02","reason_code":"source_parse"}]') as held_rollback_sql \gset
+select throws_ok(:'held_rollback_sql','55000','synthetic ordinal completion failure',
+  'late completion error aborts candidate and held publication');
+select ok((select candidate_run.status='running'
+    and candidate_run.publication_ordinal is null
+    and (select count(*) from public.official_import_candidates where run_id=candidate_run.id)=0
+    and held_run.status='running'
+    and held_run.publication_ordinal is null
+    and (select count(*) from public.official_import_held_pages where run_id=held_run.id)=0
+  from public.official_import_runs candidate_run
+  cross join public.official_import_runs held_run
+  where candidate_run.id=:'ordinal_rollback_candidate_run'
+    and held_run.id=:'ordinal_rollback_held_run'),
+  'late errors roll back candidate, held-page, and ordinal rows');
+select ok((select last_value > split_part(:'rollback_sequence_before',':',1)::bigint
+  from public.official_import_kabuki_publication_ordinal_seq),
+  'rolled-back publications may leave sequence gaps');
+select set_config('stage_tracker.test_fail_publication','off',true);
+
+-- A service-role update cannot fabricate a publication context or backfill a
+-- completed NULL row.
+select gen_random_uuid() as ordinal_guard_run \gset
+insert into public.official_import_runs(id,source_id,status)
+values(:'ordinal_guard_run','event.kabuki-bito.schedule','running');
+select set_config('stage_tracker.official_import_publication_ordinal','424242',true);
+select format('update public.official_import_runs set status=%L,finished_at=clock_timestamp(),publication_ordinal=424242 where id=%L::uuid',
+  'completed',:'ordinal_guard_run') as unauthorized_ordinal_sql \gset
+select throws_ok(:'unauthorized_ordinal_sql','23514',null,
+  'run guard rejects ordinal without owned publication scope');
+select set_config('stage_tracker.official_import_publication_ordinal','',true);
+select ok((select status='running' and publication_ordinal is null
+  from public.official_import_runs where id=:'ordinal_guard_run'),
+  'rejected ordinal assignment leaves the run unchanged');
 
 -- Mutating update: title, existing child correction, new child, Genre and Group.
 insert into public.event_occurrences(event_id,starts_at) values(:'target_event','2027-01-01T04:00:00Z') returning id as old_child \gset
@@ -91,8 +291,13 @@ select is(pg_temp.kb_all_rows()::text,:'expired_before','lease refusal leaves al
 -- Out-of-scope source is an entry-point validation, not global route closure.
 select gen_random_uuid() as other_run \gset
 select public.claim_official_import_run_attempt(:'other_run','event.compat-other','other-publish',300) as claimed \gset
+select last_value::text || ':' || is_called::text as other_source_sequence_before \gset
 select public.commit_owned_official_import_candidate_batch(:'other_run','event.compat-other','other-publish',pg_temp.kb_payload('9104')) as staged \gset
 select pg_temp.kb_candidate(:'other_run') as other_candidate \gset
+select ok((select publication_ordinal is null from public.official_import_runs where id=:'other_run'),'other-source publisher leaves the Kabuki ordinal NULL');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'other_source_sequence_before',
+  'other-source publisher does not consume a Kabuki ordinal');
 select throws_ok(pg_temp.kb_apply_sql(:'other_candidate','unused',:'creator'),'22023',null,'different candidate source is outside new RPC scope');
 
 -- Omitted facets preserve known classification; setter flags cannot invent clears.
@@ -157,6 +362,10 @@ insert into public.official_import_runs(id,source_id,status,started_at) values(:
 select is(public.commit_official_import_candidate_batch(:'unowned_run','event.kabuki-bito.schedule',pg_temp.kb_payload('9106')),1,'original unowned Kabuki publisher remains usable');
 select ok((select status='completed' and publication_ordinal is null from public.official_import_runs where id=:'unowned_run'),'unowned publication completes without authority allocation');
 select is((select count(*) from public.official_import_candidates where run_id=:'unowned_run'),1::bigint,'unowned publisher retains its proposal');
+select throws_ok(format('update public.official_import_runs set publication_ordinal=1 where id=%L::uuid',:'unowned_run'),
+  '23514',null,'completed NULL publication cannot be backfilled');
+select ok((select publication_ordinal is null from public.official_import_runs where id=:'unowned_run'),
+  'terminal backfill refusal preserves the historical NULL');
 
 select * from finish();
 rollback;
