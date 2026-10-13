@@ -285,10 +285,7 @@ describe("Takarazuka revue adapter facts", () => {
         takarazukaScheduleUrl,
         `<table><tr><th>4/3</th><td>13:30</td></tr></table>`,
       ],
-      [
-        tokyoScheduleUrl,
-        `<table><tr><th>6/1</th><td>13:30</td></tr></table>`,
-      ],
+      [tokyoScheduleUrl, `<table><tr><th>6/1</th><td>13:30</td></tr></table>`],
     ]);
     const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
       const body = pages.get(url);
@@ -309,7 +306,9 @@ describe("Takarazuka revue adapter facts", () => {
       }));
 
     expect(first).toHaveLength(2);
-    expect(new Set(first.map((draft) => draft.officialExternalId)).size).toBe(first.length);
+    expect(new Set(first.map((draft) => draft.officialExternalId)).size).toBe(
+      first.length,
+    );
     expect(first.map((draft) => draft.officialExternalId)).toEqual([
       "2027:fictionalwork:takarazuka",
       "2027:fictionalwork:tokyo",
@@ -319,7 +318,9 @@ describe("Takarazuka revue adapter facts", () => {
       "takarazuka:2027:fictionalwork:tokyo",
     ]);
     expect(first[0]?.officialExternalId).toBe("2027:fictionalwork:takarazuka");
-    expect(first[0]?.proposal.sourceKey).toBe("takarazuka:2027:fictionalwork:takarazuka");
+    expect(first[0]?.proposal.sourceKey).toBe(
+      "takarazuka:2027:fictionalwork:takarazuka",
+    );
     expect(first[0]?.contentHash).toMatch(/^[a-f0-9]{64}$/u);
     expect(identityAndHash(second)).toEqual(identityAndHash(first));
   });
