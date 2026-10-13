@@ -1,0 +1,14 @@
+diff --git a/dist/_browser-chunks/chunk-342N7CWU.js b/dist/_browser-chunks/chunk-342N7CWU.js
+index 342f9b9b78c04e71bef8f43a5b6d1a00d14a45c1..aa9e30ed792b86a5fed7a628bcc23aa2fde0f73e 100644
+--- a/dist/_browser-chunks/chunk-342N7CWU.js
++++ b/dist/_browser-chunks/chunk-342N7CWU.js
+@@ -118,6 +118,9 @@ var getParallelRoutes = (segmentsList) => {
+           // @ts-ignore Only available in Next.js >= v15.1.1
+           parentCacheNode: newLazyCacheNode,
+           // END
++          // START Next.js v16 support
++          parentRenderTree: { data: { bfcacheId: 0 } },
++          // END
+           url: pathname,
+           loading: null
+         }
