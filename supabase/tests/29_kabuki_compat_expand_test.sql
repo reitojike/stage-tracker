@@ -35,7 +35,7 @@ select is(pg_temp.kb_all_rows()::text,:'replay_before','applied-state replay wit
 
 -- A completed owned replay returns the retained candidate count without
 -- allocating another ordinal or changing the run.
-select last_value::text || ':' || is_called::text as replay_sequence_before \gset
+select last_value::text || ':' || is_called::text as replay_sequence_before from public.official_import_kabuki_publication_ordinal_seq \\gset
 select is(public.commit_owned_official_import_candidate_batch(
   :'create_run','event.kabuki-bito.schedule','fixture-publish','[]'::jsonb),1,
   'completed owned replay returns retained candidate count');
@@ -110,7 +110,7 @@ select ok((select first.started_at=second.started_at
 select gen_random_uuid() as ordinal_rejected_run \gset
 select public.claim_official_import_run_attempt(
   :'ordinal_rejected_run','event.kabuki-bito.schedule','ordinal-valid-owner',300);
-select last_value::text || ':' || is_called::text as rejected_sequence_before \gset
+select last_value::text || ':' || is_called::text as rejected_sequence_before from public.official_import_kabuki_publication_ordinal_seq \\gset
 select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,%L::jsonb)',
   :'ordinal_rejected_run','event.other','ordinal-valid-owner','[]') as wrong_source_sql \gset
 select throws_ok(:'wrong_source_sql','22023',null,
@@ -145,7 +145,7 @@ select is((select last_value::text || ':' || is_called::text
 -- allocate publication order.
 select gen_random_uuid() as release_without_ordinal_run \gset
 select gen_random_uuid() as failure_without_ordinal_run \gset
-select last_value::text || ':' || is_called::text as lifecycle_sequence_before \gset
+select last_value::text || ':' || is_called::text as lifecycle_sequence_before from public.official_import_kabuki_publication_ordinal_seq \\gset
 select public.claim_official_import_run_attempt(
   :'release_without_ordinal_run','event.kabuki-bito.schedule','release-owner',300);
 select public.claim_official_import_run_attempt(
@@ -190,7 +190,7 @@ select public.claim_official_import_run_attempt(
   :'ordinal_rollback_candidate_run','event.kabuki-bito.schedule','rollback-candidate',300);
 select public.claim_official_import_run_attempt(
   :'ordinal_rollback_held_run','event.kabuki-bito.schedule','rollback-held',300);
-select last_value::text || ':' || is_called::text as rollback_sequence_before \gset
+select last_value::text || ':' || is_called::text as rollback_sequence_before from public.official_import_kabuki_publication_ordinal_seq \\gset
 select set_config('stage_tracker.test_fail_publication','on',true);
 select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,%L::jsonb)',
   :'ordinal_rollback_candidate_run','event.kabuki-bito.schedule','rollback-candidate',
@@ -291,7 +291,7 @@ select is(pg_temp.kb_all_rows()::text,:'expired_before','lease refusal leaves al
 -- Out-of-scope source is an entry-point validation, not global route closure.
 select gen_random_uuid() as other_run \gset
 select public.claim_official_import_run_attempt(:'other_run','event.compat-other','other-publish',300) as claimed \gset
-select last_value::text || ':' || is_called::text as other_source_sequence_before \gset
+select last_value::text || ':' || is_called::text as other_source_sequence_before from public.official_import_kabuki_publication_ordinal_seq \\gset
 select public.commit_owned_official_import_candidate_batch(:'other_run','event.compat-other','other-publish',pg_temp.kb_payload('9104')) as staged \gset
 select pg_temp.kb_candidate(:'other_run') as other_candidate \gset
 select ok((select publication_ordinal is null from public.official_import_runs where id=:'other_run'),'other-source publisher leaves the Kabuki ordinal NULL');
