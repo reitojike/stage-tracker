@@ -7,3 +7,7 @@ allowBuilds:
   esbuild: false
   msw: false
   unrs-resolver: false
+# Temporary Next.js 16.4 App Router backport: https://github.com/storybookjs/storybook/pull/36732
+# Remove after upgrading to a Storybook release containing that fix.
+patchedDependencies:
+  '@storybook/nextjs-vite@10.6.1': patches/@storybook__nextjs-vite@10.6.1.patch
