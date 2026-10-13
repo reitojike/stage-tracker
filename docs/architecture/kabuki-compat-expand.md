@@ -30,10 +30,13 @@ later, separately authorized stages.
   transaction. A failure after catalog mutation must roll the whole operation
   back. Confirmed application replay returns `applied` without another write.
 
-Every existing function, its privileges, table grants, RLS policy and trigger
-remains unchanged, including publisher and standalone completion. Candidate
-state/delete guards retain their current parent locks. NULL ordinals do not
-cause new eligibility refusals. No adapter, scheduler or system-wide runtime route changes belong in this slice. Generic claim `40001` handling is a separate runtime gate.
+Existing grants, table grants, RLS policies and triggers remain unchanged.
+The owned Kabuki publisher is the function-body exception: its atomic commit
+path assigns publication ordinals. The unowned direct publisher and standalone
+completion keep their existing NULL-ordinal behavior. Candidate state/delete
+guards retain their current parent locks. NULL ordinals do not cause new
+eligibility refusals. No adapter, scheduler or system-wide runtime route changes
+belong in this slice. Generic claim `40001` handling is a separate runtime gate.
 
 ## Ordering and verification
 
