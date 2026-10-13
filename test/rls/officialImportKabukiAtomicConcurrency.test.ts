@@ -777,7 +777,11 @@ void test('owner Event deletion waits for Kabuki atomic commit and preserves app
   } catch (error) {
     failure = { error };
     throw error;
-  } fvoid test('owned Kabuki publications serialize and ignore equal or reversed start timestamps', async () => {
+  } finally {
+    await teardown(admin, owner, worker, fixture, pending, failure);
+  }
+});
+void test('owned Kabuki publications serialize and ignore equal or reversed start timestamps', async () => {
   const { admin, owner, worker } = await connectClients();
   const fixtures: PublisherFixture[] = [];
   let pending: Promise<unknown> | undefined;
@@ -855,8 +859,6 @@ void test('owner Event deletion waits for Kabuki atomic commit and preserves app
     throw error;
   } finally {
     await teardownPublisherTest(admin, owner, worker, fixtures, pending, failure);
-  }
-});await teardownPublisherTest(admin, owner, worker, fixtures, pending, failure);
   }
 });
 
