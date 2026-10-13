@@ -188,8 +188,6 @@ select gen_random_uuid() as ordinal_rollback_candidate_run \gset
 select gen_random_uuid() as ordinal_rollback_held_run \gset
 select public.claim_official_import_run_attempt(
   :'ordinal_rollback_candidate_run','event.kabuki-bito.schedule','rollback-candidate',300);
-select public.claim_official_import_run_attempt(
-  :'ordinal_rollback_held_run','event.kabuki-bito.schedule','rollback-held',300);
 select last_value::text || ':' || is_called::text as rollback_sequence_before from public.official_import_kabuki_publication_ordinal_seq \gset
 select set_config('stage_tracker.test_fail_publication','on',true);
 select format('select public.commit_owned_official_import_candidate_batch(%L::uuid,%L,%L,%L::jsonb)',
@@ -197,6 +195,10 @@ select format('select public.commit_owned_official_import_candidate_batch(%L::uu
   pg_temp.kb_payload('9112')::text) as candidate_rollback_sql \gset
 select throws_ok(:'candidate_rollback_sql','55000','synthetic ordinal completion failure',
   'late completion error aborts candidate publication');
+select public.release_official_import_run_attempt(
+  :'ordinal_rollback_candidate_run','event.kabuki-bito.schedule','rollback-candidate');
+select public.claim_official_import_run_attempt(
+  :'ordinal_rollback_held_run','event.kabuki-bito.schedule','rollback-held',300);
 select format('select public.commit_owned_official_import_partial_batch(%L::uuid,%L,%L,%L::jsonb,%L::jsonb)',
   :'ordinal_rollback_held_run','event.kabuki-bito.schedule','rollback-held',pg_temp.kb_payload('9113')::text,
   '[{"canonical_url":"https://www.kabuki-bito.jp/theaters/kabukiza/play/9114","official_external_id":"9114","title":"Rollback held","starts_on":"2027-01-01","ends_on":"2027-01-02","reason_code":"source_parse"}]') as held_rollback_sql \gset
