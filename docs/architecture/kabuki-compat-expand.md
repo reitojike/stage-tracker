@@ -1,17 +1,23 @@
 # Kabuki compatibility expand
 
 Issue #780's intermediate schema slice adds reserved metadata and a distinct
-atomic application RPC. It does not activate publication freshness or recovery.
-The schema slice was deployed in PR #792. The limited runtime adoption below was
-merged and deployed in PR #793. A freshness refusal producer and restrictive
-guard activation remain later, separately authorized stages.
+atomic application RPC. PR #804 also enables ordinal allocation in the owned
+Kabuki publisher. This records source-serialized publication order; it does not
+introduce freshness or recovery refusal conditions or complete a system-wide
+runtime transition. The schema slice was deployed in PR #792. The limited
+runtime adoption below was merged and deployed in PR #793. A freshness-refusal
+producer, recovery-refusal conditions and restrictive guard activation remain
+later, separately authorized stages.
 
 ## Schema and current application contract
 
 - `official_import_runs.publication_ordinal` is nullable, with a dedicated
   sequence, positive Kabuki-completed constraint and non-NULL unique index.
-  Existing publishers leave it NULL; this stage allocates no ordinal and
-  performs no historical backfill.
+  The owned Kabuki publisher assigns an increasing ordinal when it commits a
+  publication. Historical rows and unowned direct-publisher writes remain
+  NULL; there is no historical backfill. Ordinals record publication order,
+  but do not themselves refuse stale publications or activate freshness or
+  recovery refusal behavior.
 - Candidates gain `recovery_review_required` (default false) and nullable
   `recovery_hold_run_id`, with a marker constraint and a second run FK.
   Current writers leave the metadata inert.
@@ -27,8 +33,7 @@ guard activation remain later, separately authorized stages.
 Every existing function, its privileges, table grants, RLS policy and trigger
 remains unchanged, including publisher and standalone completion. Candidate
 state/delete guards retain their current parent locks. NULL ordinals do not
-cause new eligibility refusals. No adapter, scheduler or runtime routing changes
-belong in this slice. Generic claim `40001` handling is a separate runtime gate.
+cause new eligibility refusals. No adapter, scheduler or system-wide runtime route changes belong in this slice. Generic claim `40001` handling is a separate runtime gate.
 
 ## Ordering and verification
 
@@ -45,10 +50,11 @@ RLS and triggers. The existing SQL/RLS suites and actual PostgREST reader checks
 preserve unrelated and ordinary-user behavior. Generated types and the full
 local verification entry point are checked against the exact final schema.
 
-Later runtime adoption, old Workflow/server drain and restrictive guard
-activation are separate stages. This expand grants no freshness protection,
-recovery visibility or rejection of legacy application routes, and makes no
-claim that all deadlocks are impossible.
+Other runtime adoption, freshness-refusal production, recovery-refusal
+conditions, old Workflow/server drain and restrictive guard activation are
+separate stages. Ordinal allocation records publication order; it does not add a freshness-
+refusal condition or recovery-refusal behavior. Legacy application routes remain
+accepted, and this slice makes no claim that all deadlocks are impossible.
 
 ## Limited runtime adoption
 
