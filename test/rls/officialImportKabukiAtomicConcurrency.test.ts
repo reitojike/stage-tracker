@@ -1,0 +1,423 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { test } from 'node:test';
+import pg from 'pg';
+import { readLocalSupabaseStatus } from './support/localSupabase.ts';
+
+// Issue #780, first bounded lock proof: the existing atomic Kabuki RPC vs.
+// the existing owner delete RPC, including its candidate FK update. This
+// deliberately does not assert freshness, recovery or legacy-route closure.
+const status = readLocalSupabaseStatus();
+const clientErrors = new WeakMap<pg.Client, Error[]>();
+
+interface Fixture {
+  ownerId: string;
+  eventId: string;
+  runId: string;
+  candidateId: string;
+  sourceKey: string;
+  sourceUrl: string;
+  token: string;
+}
+
+async function connect(): Promise<pg.Client> {
+  const client = new pg.Client({
+    connectionString: status.dbUrl,
+    connectionTimeoutMillis: 5000,
+    query_timeout: 15_000,
+  });
+  const errors: Error[] = [];
+  clientErrors.set(client, errors);
+  // Idle disconnects emit 'error' outside the query promises. Record them
+  // here and report them in teardown so they cannot crash or silently pass.
+  client.on('error', (error: Error) => errors.push(error));
+  try {
+    await client.connect();
+    await client.query("set statement_timeout = '10s'");
+    await client.query("set idle_in_transaction_session_timeout = '15s'");
+    return client;
+  } catch (error) {
+    await Promise.allSettled([client.end()]);
+    throw error;
+  }
+}
+
+async function connectClients(): Promise<{
+  admin: pg.Client;
+  owner: pg.Client;
+  worker: pg.Client;
+}> {
+  const connected: pg.Client[] = [];
+  try {
+    const admin = await connect();
+    connected.push(admin);
+    const owner = await connect();
+    connected.push(owner);
+    const worker = await connect();
+    connected.push(worker);
+    return { admin, owner, worker };
+  } catch (error) {
+    await Promise.allSettled(connected.map((client) => client.end()));
+    throw error;
+  }
+}
+
+async function createFixture(admin: pg.Client): Promise<Fixture> {
+  const identity = randomUUID().replaceAll(/[^0-9]/g, '');
+  const fixture: Fixture = {
+    ownerId: randomUUID(),
+    eventId: randomUUID(),
+    runId: randomUUID(),
+    candidateId: '',
+    sourceKey: `kabuki-bito:kabukiza:play:${identity}`,
+    sourceUrl: `https://www.kabuki-bito.jp/theaters/kabukiza/play/${identity}`,
+    token: `apply-${randomUUID()}`,
+  };
+  const proposal = {
+    sourceKey: fixture.sourceKey,
+    sourceUrl: fixture.sourceUrl,
+    title: 'Reviewed concurrency fixture',
+    startsOn: '2027-01-01',
+    endsOn: '2027-01-02',
+    venue: 'Hall',
+    memo: null,
+    occurrences: [],
+  };
+  const payload = [
+    {
+      candidate_kind: 'event',
+      canonical_url: fixture.sourceUrl,
+      official_external_id: identity,
+      observed_at: '2027-01-01T00:00:00Z',
+      content_hash: 'a'.repeat(64),
+      proposal_version: 'event.v1',
+      proposal,
+      evidence_locator: {},
+      deterministic_match_status: 'matched',
+      semantic_match_status: 'not_used',
+      resolved_event_id: fixture.eventId,
+      plan_summary: {
+        version: 'event_plan.v1',
+        action: 'update',
+        detailsChanged: true,
+        rangeChanged: false,
+        newOccurrenceCount: 0,
+        endsAtFixCount: 0,
+        doorsAtFixCount: 0,
+        keptOccurrenceCount: 0,
+        genreChanged: false,
+        groupsChanged: false,
+      },
+      plan_fingerprint: `lock-proof-${identity}`,
+      review_status: 'pending',
+    },
+  ];
+  await admin.query('begin');
+  try {
+    // UUID-only synthetic users require no password, token or provider setup.
+    await admin.query('insert into auth.users(id) values ($1)', [fixture.ownerId]);
+    await admin.query('insert into public.catalog_creators(user_id) values ($1)', [
+      fixture.ownerId,
+    ]);
+    await admin.query(
+      `insert into public.events(id,owner_id,source_key,title,starts_on,ends_on,venue,source_url)
+      values ($1,$2,$3,'Before review','2027-01-01','2027-01-02','Hall',$4)`,
+      [fixture.eventId, fixture.ownerId, fixture.sourceKey, fixture.sourceUrl],
+    );
+    await admin.query('set local role service_role');
+    const claim = await admin.query<{ result: string }>(
+      "select public.claim_official_import_run_attempt($1,'event.kabuki-bito.schedule','publication',300) as result",
+      [fixture.runId],
+    );
+    assert.equal(claim.rows[0]?.result, 'claimed');
+    await admin.query(
+      "select public.commit_owned_official_import_candidate_batch($1,'event.kabuki-bito.schedule','publication',$2::jsonb)",
+      [fixture.runId, JSON.stringify(payload)],
+    );
+    const candidates = await admin.query<{ id: string }>(
+      'select id from public.official_import_candidates where run_id=$1',
+      [fixture.runId],
+    );
+    assert.equal(candidates.rows.length, 1);
+    const candidate = candidates.rows[0];
+    assert.ok(candidate);
+    fixture.candidateId = candidate.id;
+    await admin.query('reset role');
+    await admin.query('set local role authenticated');
+    await admin.query("select set_config('request.jwt.claims',$1,true)", [
+      JSON.stringify({ sub: fixture.ownerId, role: 'authenticated' }),
+    ]);
+    await admin.query("select public.review_official_import_candidate($1,'approved')", [
+      fixture.candidateId,
+    ]);
+    await admin.query('reset role');
+    await admin.query('set local role service_role');
+    const applyClaim = await admin.query<{ result: string }>(
+      'select public.claim_official_import_candidate_apply($1,$2,300) as result',
+      [fixture.candidateId, fixture.token],
+    );
+    assert.equal(applyClaim.rows[0]?.result, 'claimed');
+    await admin.query('commit');
+    return fixture;
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function cleanup(admin: pg.Client, fixture: Fixture): Promise<void> {
+  await admin.query('begin');
+  try {
+    // Terminal staging rows intentionally cannot be deleted through product
+    // routes. Bypass triggers only for these exact synthetic fixture IDs, in
+    // this admin cleanup transaction; never truncate shared test tables.
+    await admin.query('set local session_replication_role = replica');
+    await admin.query('delete from public.event_occurrences where event_id=$1', [fixture.eventId]);
+    await admin.query('delete from public.event_groups where event_id=$1', [fixture.eventId]);
+    await admin.query('delete from public.official_import_candidates where id=$1', [
+      fixture.candidateId,
+    ]);
+    await admin.query('delete from public.official_import_runs where id=$1', [fixture.runId]);
+    await admin.query('delete from public.events where id=$1', [fixture.eventId]);
+    await admin.query('delete from public.catalog_creators where user_id=$1', [fixture.ownerId]);
+    await admin.query('delete from auth.users where id=$1', [fixture.ownerId]);
+    await admin.query('commit');
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function pid(client: pg.Client): Promise<number> {
+  const result = await client.query<{ pid: number }>('select pg_backend_pid() as pid');
+  const row = result.rows[0];
+  assert.ok(row);
+  return row.pid;
+}
+
+async function waitForBlock(admin: pg.Client, blocked: number, blocker: number): Promise<void> {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const result = await admin.query<{ blocked: boolean }>(
+      'select $2::integer = any(pg_blocking_pids($1)) as blocked',
+      [blocked, blocker],
+    );
+    if (result.rows[0]?.blocked) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail('expected the second transaction to wait for the first transaction');
+}
+
+async function beginOwner(client: pg.Client, fixture: Fixture): Promise<void> {
+  await client.query('begin');
+  await client.query('set local role authenticated');
+  await client.query("select set_config('request.jwt.claims',$1,true)", [
+    JSON.stringify({ sub: fixture.ownerId, role: 'authenticated' }),
+  ]);
+}
+
+async function apply(client: pg.Client, fixture: Fixture): Promise<string> {
+  const result = await client.query<{ result: string }>(
+    `select public.apply_official_import_kabuki_event_candidate(
+    $1,$2,'update',$3,$4,$5,'Reviewed concurrency fixture','2027-01-01','2027-01-02',
+    '[]','[]','Hall',$6,null,false,null,false,'[]',
+    jsonb_build_object('event',to_jsonb(e),'occurrences','[]'::jsonb,'groups','[]'::jsonb,'genreKey',null),'[]') as result
+    from public.events e where e.id=$4`,
+    [
+      fixture.candidateId,
+      fixture.token,
+      fixture.ownerId,
+      fixture.eventId,
+      fixture.sourceKey,
+      fixture.sourceUrl,
+    ],
+  );
+  assert.equal(result.rows.length, 1, 'the atomic RPC must actually execute');
+  const row = result.rows[0];
+  assert.ok(row);
+  return row.result;
+}
+
+async function snapshot(
+  admin: pg.Client,
+  fixture: Fixture,
+): Promise<{
+  candidate: Record<string, unknown>;
+  run: Record<string, unknown>;
+  events: unknown[];
+}> {
+  const result = await admin.query<{
+    candidate: Record<string, unknown>;
+    run: Record<string, unknown>;
+    events: unknown[];
+  }>(
+    `select
+    (select to_jsonb(c) from public.official_import_candidates c where c.id=$1) as candidate,
+    (select to_jsonb(r) from public.official_import_runs r where r.id=$2) as run,
+    (select coalesce(jsonb_agg(to_jsonb(e)),'[]') from public.events e where e.id=$3) as events`,
+    [fixture.candidateId, fixture.runId, fixture.eventId],
+  );
+  const row = result.rows[0];
+  assert.ok(row);
+  return row;
+}
+
+async function teardown(
+  admin: pg.Client,
+  owner: pg.Client,
+  worker: pg.Client,
+  fixture: Fixture | undefined,
+  pending: Promise<unknown> | undefined,
+  failure: { error: unknown } | null,
+): Promise<void> {
+  const errors: Error[] = [];
+  const clients = [
+    ['admin', admin],
+    ['owner', owner],
+    ['worker', worker],
+  ] as const;
+  const attempt = async (label: string, action: () => Promise<unknown>): Promise<void> => {
+    try {
+      await action();
+    } catch (error) {
+      errors.push(new Error(label, { cause: error }));
+    }
+  };
+  // Start every rollback independently: a disconnected client must not
+  // prevent healthy peers from releasing their transactions and locks.
+  await Promise.all(
+    clients.map(([label, client]) => attempt(`${label} rollback`, () => client.query('rollback'))),
+  );
+  if (pending) await attempt('pending query settlement', () => pending);
+  if (fixture) await attempt('fixture cleanup', () => cleanup(admin, fixture));
+  await Promise.all(
+    clients.map(([label, client]) => attempt(`${label} close`, () => client.end())),
+  );
+  for (const [label, client] of clients) {
+    for (const error of clientErrors.get(client) ?? []) {
+      errors.push(new Error(`${label} idle client error`, { cause: error }));
+    }
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(
+      failure === null ? errors : [failure.error, ...errors],
+      'Kabuki concurrency test teardown failed',
+      { cause: failure?.error },
+    );
+  }
+}
+
+void test('Kabuki atomic apply waits before candidate lock when owner Event deletion wins', async () => {
+  const { admin, owner, worker } = await connectClients();
+  let fixture: Fixture | undefined;
+  let pending: Promise<unknown> | undefined;
+  let failure: { error: unknown } | null = null;
+  try {
+    fixture = await createFixture(admin);
+    const before = await snapshot(admin, fixture);
+    await beginOwner(owner, fixture);
+    await owner.query('select id from public.events where id=$1 for update', [fixture.eventId]);
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    const workerPid = await pid(worker);
+    const ownerPid = await pid(owner);
+    // Attach both handlers immediately: an early SQL failure must not become
+    // an unhandled rejection while the observer checks the blocking edge.
+    const outcome = apply(worker, fixture).then(
+      (value) => ({ value, error: null }),
+      (error: unknown) => ({ value: null, error }),
+    );
+    pending = outcome;
+    await waitForBlock(admin, workerPid, ownerPid);
+    assert.deepEqual(await snapshot(admin, fixture), before);
+    await admin.query('begin');
+    await admin.query(
+      'select id from public.official_import_candidates where id=$1 for update nowait',
+      [fixture.candidateId],
+    );
+    await admin.query('rollback');
+    await owner.query('select public.delete_event($1)', [fixture.eventId]);
+    await owner.query('commit');
+    const result = await outcome;
+    assert.equal(result.value, null);
+    assert.ok(result.error instanceof pg.DatabaseError);
+    assert.equal(result.error.code, '40001');
+    assert.equal(result.error.message, 'reviewed Event no longer exists');
+    await worker.query('rollback');
+    const after = await snapshot(admin, fixture);
+    assert.equal(typeof after.candidate.updated_at, 'string');
+    assert.deepEqual(after, {
+      ...before,
+      events: [],
+      // The owner's FK update legitimately touches updated_at as well.
+      candidate: {
+        ...before.candidate,
+        resolved_event_id: null,
+        updated_at: after.candidate.updated_at,
+      },
+    });
+  } catch (error) {
+    failure = { error };
+    throw error;
+  } finally {
+    await teardown(admin, owner, worker, fixture, pending, failure);
+  }
+});
+
+void test('owner Event deletion waits for Kabuki atomic commit and preserves applied replay', async () => {
+  const { admin, owner, worker } = await connectClients();
+  let fixture: Fixture | undefined;
+  let pending: Promise<unknown> | undefined;
+  let failure: { error: unknown } | null = null;
+  try {
+    fixture = await createFixture(admin);
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    assert.equal(await apply(worker, fixture), 'applied');
+    const applied = await snapshot(worker, fixture);
+    assert.equal(applied.candidate.apply_status, 'applied');
+    assert.ok(applied.candidate.applied_at);
+    assert.equal(applied.candidate.active_apply_attempt_token, null);
+    await beginOwner(owner, fixture);
+    const ownerPid = await pid(owner);
+    const workerPid = await pid(worker);
+    const outcome = owner.query('select public.delete_event($1)', [fixture.eventId]).then(
+      () => ({ error: null }),
+      (error: unknown) => ({ error }),
+    );
+    pending = outcome;
+    await waitForBlock(admin, ownerPid, workerPid);
+    await worker.query('commit');
+    assert.equal((await outcome).error, null, '40P01 is a failure, not an accepted race result');
+    await owner.query('commit');
+    const beforeReplay = await snapshot(admin, fixture);
+    assert.equal(typeof beforeReplay.candidate.updated_at, 'string');
+    assert.deepEqual(beforeReplay, {
+      ...applied,
+      events: [],
+      candidate: {
+        ...applied.candidate,
+        resolved_event_id: null,
+        updated_at: beforeReplay.candidate.updated_at,
+      },
+    });
+    // Deliberately stale target/arguments simulate a lost response after the
+    // committed apply, followed by owner deletion. Applied history wins.
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    const replay = await worker.query<{ result: string }>(
+      `select public.apply_official_import_kabuki_event_candidate(
+      $1,'lost-response','update',$2,$3,$4,'stale','2027-01-01','2027-01-02',
+      '[]','[]','Hall',$5,null,false,null,false,'[]',null,'[]') as result`,
+      [fixture.candidateId, fixture.ownerId, fixture.eventId, fixture.sourceKey, fixture.sourceUrl],
+    );
+    assert.equal(replay.rows[0]?.result, 'applied');
+    await worker.query('commit');
+    assert.deepEqual(await snapshot(admin, fixture), beforeReplay);
+  } catch (error) {
+    failure = { error };
+    throw error;
+  } finally {
+    await teardown(admin, owner, worker, fixture, pending, failure);
+  }
+});
