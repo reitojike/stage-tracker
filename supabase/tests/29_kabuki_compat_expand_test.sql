@@ -91,10 +91,10 @@ insert into public.official_import_runs(id,source_id,status,started_at) values
   (:'ordinal_same_second','event.kabuki-bito.schedule','running','2030-01-01T00:00:00Z'),
   (:'ordinal_reverse_third','event.kabuki-bito.schedule','running','2020-01-01T00:00:00Z');
 select public.claim_official_import_run_attempt(:'ordinal_same_first','event.kabuki-bito.schedule','ordinal-first',300);
-select public.claim_official_import_run_attempt(:'ordinal_same_second','event.kabuki-bito.schedule','ordinal-second',300);
-select public.claim_official_import_run_attempt(:'ordinal_reverse_third','event.kabuki-bito.schedule','ordinal-third',300);
 select public.commit_owned_official_import_candidate_batch(:'ordinal_same_first','event.kabuki-bito.schedule','ordinal-first','[]'::jsonb);
+select public.claim_official_import_run_attempt(:'ordinal_same_second','event.kabuki-bito.schedule','ordinal-second',300);
 select public.commit_owned_official_import_candidate_batch(:'ordinal_same_second','event.kabuki-bito.schedule','ordinal-second','[]'::jsonb);
+select public.claim_official_import_run_attempt(:'ordinal_reverse_third','event.kabuki-bito.schedule','ordinal-third',300);
 select public.commit_owned_official_import_candidate_batch(:'ordinal_reverse_third','event.kabuki-bito.schedule','ordinal-third','[]'::jsonb);
 select ok((select first.started_at=second.started_at
   and second.started_at>third.started_at
