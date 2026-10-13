@@ -181,8 +181,9 @@ export function parseTakarazukaIndex(
   });
   if (candidateItems.length !== facts.length) throw new SourceParseFailure();
   const eventIdentities = facts.flatMap((production) =>
-    production.venues.map((venue) =>
-      `${production.year}:${production.workSlug}:${venue.venueSlug}`,
+    production.venues.map(
+      (venue) =>
+        `${production.year}:${production.workSlug}:${venue.venueSlug}`,
     ),
   );
   if (new Set(eventIdentities).size !== eventIdentities.length) throw new SourceParseFailure();
