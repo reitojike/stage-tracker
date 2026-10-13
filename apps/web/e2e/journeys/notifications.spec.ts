@@ -142,6 +142,11 @@ test("notifications: older unread window converges the AppBar cue", async ({
       }),
     ).toHaveCount(0);
 
+    // Finish the rendered window's read action before navigation can abort it.
+    await expect(inviteePage.getByLabel("既読", { exact: true })).toHaveCount(
+      50,
+    );
+
     await inviteePage.getByRole("link", { name: "次の50件" }).click();
     await expect(
       inviteePage.getByRole("link", {
@@ -152,14 +157,13 @@ test("notifications: older unread window converges the AppBar cue", async ({
 
     await inviteePage.reload();
     await expect(
-      inviteePage.getByRole("link", { name: "お知らせ" }),
+      inviteePage.getByRole("link", { name: "お知らせ", exact: true }),
     ).toBeVisible();
-    expect(
-      await inviteePage
+    await expect(
+      inviteePage
         .getByRole("link", { name: /お知らせ/ })
-        .locator('[data-slot="notification-unread-indicator"]')
-        .count(),
-    ).toBe(0);
+        .locator('[data-slot="notification-unread-indicator"]'),
+    ).toHaveCount(0);
   } finally {
     await context.close();
     await admin

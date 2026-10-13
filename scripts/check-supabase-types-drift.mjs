@@ -28,7 +28,9 @@ if (result.status !== 0) {
   process.exit();
 }
 
-const generated = result.stdout;
+// Match generation's trailing-whitespace canonicalization without hiding
+// any schema/type differences from the byte-exact comparison below.
+const generated = result.stdout.replace(/[ \t]+$/gm, '');
 
 for (const committedPath of committedPaths) {
   let committed;

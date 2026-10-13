@@ -27,9 +27,14 @@ if (result.status !== 0) {
   process.exit();
 }
 
+// Native typegen (CLI 2.120+) emits trailing whitespace. Remove only line-end
+// spaces/tabs; the drift check applies the same normalization before its
+// byte-exact comparison, so schema differences remain failures.
+const generated = result.stdout.replace(/[ \t]+$/gm, '');
+
 for (const committedPath of committedPaths) {
   const tempPath = `${committedPath}.tmp`;
-  writeFileSync(tempPath, result.stdout);
+  writeFileSync(tempPath, generated);
   renameSync(tempPath, committedPath);
   console.log(`Wrote ${committedPath}`);
 }
