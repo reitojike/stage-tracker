@@ -67,7 +67,8 @@ describe("Takarazuka general-sale index adapter", () => {
       <dl><dt>宝塚大劇場</dt><dd>2026年10月17日～11月22日 一般前売：2026年9月26日</dd></dl>
     </div>`;
     const detail = `<a href="/sp/revue/2026/elisabeth/ticket_takarazuka.html">チケット</a>`;
-    const ticket = `<div class="set"><h4>宝塚友の会</h4><p class="txt">
+    const ticket = `<div class="set"><h4>架空の会場案内</h4><p class="txt">Fictional venue information.</p></div>
+    <div class="set"><h4>宝塚友の会</h4><p class="txt">
       ■「第1抽選方式」<br>申込期間：8月8日（土）10:00〜8月9日（日）23:00<br>結果照会：8月12日（水）10:00〜<br>
       ■「第2抽選方式」<br>申込期間：8月14日（金）10:00〜8月15日（土）23:00<br>結果照会：8月18日（火）10:00〜<br>
       ■「第3抽選方式」<br>申込期間：8月19日（水）10:00〜8月20日（木）23:00<br>結果照会：8月23日（日）10:00〜
@@ -219,5 +220,105 @@ describe("Takarazuka general-sale index adapter", () => {
       canonicalUrl:
         "https://kageki.hankyu.co.jp/sp/revue/2026/elisabeth/ticket_takarazuka.html",
     });
+  });
+
+  it("holds a supported lottery section when its published text has no phase marker", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2027/fictionalwork/index.html"><p class="title">Fictional Work</p></a>
+      <dl><dt>宝塚大劇場</dt><dd>2027年4月3日～5月16日 一般前売：2027年3月7日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_takarazuka.html")
+          ? `<div class="set"><h4>宝塚友の会</h4><p class="txt">申込期間：6月3日まで</p></div>`
+          : url.endsWith("fictionalwork/index.html")
+            ? `<a href="/sp/revue/2027/fictionalwork/ticket_takarazuka.html">Ticket</a>`
+            : index,
+        observedAt: "2026-10-01T00:00:00.000Z",
+        contentHash: "c".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/fictionalwork/ticket_takarazuka.html",
+    });
+  });
+
+  it("holds lottery evidence under an unrecognized ticket heading", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2027/fictionalwork/index.html"><p class="title">Fictional Work</p></a>
+      <dl><dt>宝塚大劇場</dt><dd>2027年4月3日～5月16日 一般前売：2027年3月7日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_takarazuka.html")
+          ? `<div class="set"><h4>架空の先行抽選</h4><p class="txt">受付情報を掲載</p></div>`
+          : url.endsWith("fictionalwork/index.html")
+            ? `<a href="/sp/revue/2027/fictionalwork/ticket_takarazuka.html">Ticket</a>`
+            : index,
+        observedAt: "2026-10-01T00:00:00.000Z",
+        contentHash: "d".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/fictionalwork/ticket_takarazuka.html",
+    });
+  });
+
+  it("holds a supported lottery block whose text is empty", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2027/fictionalwork/index.html"><p class="title">Fictional Work</p></a>
+      <dl><dt>宝塚大劇場</dt><dd>2027年4月3日～5月16日 一般前売：2027年3月7日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_takarazuka.html")
+          ? `<div class="set"><h4>宝塚友の会</h4><p class="txt"></p></div>`
+          : url.endsWith("fictionalwork/index.html")
+            ? `<a href="/sp/revue/2027/fictionalwork/ticket_takarazuka.html">Ticket</a>`
+            : index,
+        observedAt: "2026-10-01T00:00:00.000Z",
+        contentHash: "e".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+
+    await expect(adapter.acquire(source)).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/fictionalwork/ticket_takarazuka.html",
+    });
+  });
+
+  it("returns only the general sale when no supported lottery section is published", async () => {
+    const index = `<div class="item"><a href="/sp/revue/2027/fictionalwork/index.html"><p class="title">Fictional Work</p></a>
+      <dl><dt>宝塚大劇場</dt><dd>2027年4月3日～5月16日 一般前売：2027年3月7日</dd></dl></div>`;
+    const adapter = createTakarazukaGeneralSaleAdapter(
+      async (_source, url): Promise<OfficialHtmlDocument> => ({
+        url,
+        body: url.endsWith("ticket_takarazuka.html")
+          ? `<div class="set"><h4>架空の会場案内</h4><p class="txt">Fictional venue information.</p></div>`
+          : url.endsWith("fictionalwork/index.html")
+            ? `<a href="/sp/revue/2027/fictionalwork/ticket_takarazuka.html">Ticket</a>`
+            : index,
+        observedAt: "2026-10-01T00:00:00.000Z",
+        contentHash: "f".repeat(64),
+        etag: null,
+        lastModified: null,
+      }),
+    );
+
+    const drafts = await adapter.acquire(source);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]?.proposal.sourceKey).toBe(
+      "takarazuka:2027:fictionalwork:takarazuka:general-sale",
+    );
   });
 });

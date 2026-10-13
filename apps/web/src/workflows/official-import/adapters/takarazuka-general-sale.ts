@@ -101,6 +101,10 @@ function lotteryMilestones(
   ];
 }
 
+function hasLotteryEvidence(text: string): boolean {
+  return /■「|申込期間|結果照会|抽選方式|先行抽選/u.test(text);
+}
+
 function advanceSales(html: string, generalSaleOn: string): AdvanceSale[] {
   const document = parseHtml(html);
   const sections = descendants(document, (node) => hasClass(node, "set"));
@@ -110,21 +114,27 @@ function advanceSales(html: string, generalSaleOn: string): AdvanceSale[] {
       section,
       (node) => elementName(node) === "h4",
     )[0];
-    if (heading === undefined) continue;
-    const sectionLabel = normalizedText(heading);
-    if (
-      sectionLabel !== "宝塚友の会" &&
-      sectionLabel !== "宝塚歌劇共通ID＋（プラス）"
-    )
-      continue;
+    const sectionLabel = heading === undefined ? "" : normalizedText(heading);
     const paragraph = descendants(
       section,
       (node) => elementName(node) === "p" && hasClass(node, "txt"),
     )[0];
+    const text = paragraph === undefined ? "" : normalizedText(paragraph);
+    if (heading === undefined) {
+      if (hasLotteryEvidence(text)) throw new SourceParseFailure();
+      continue;
+    }
+    if (
+      sectionLabel !== "宝塚友の会" &&
+      sectionLabel !== "宝塚歌劇共通ID＋（プラス）"
+    ) {
+      if (hasLotteryEvidence(`${sectionLabel} ${text}`))
+        throw new SourceParseFailure();
+      continue;
+    }
     if (paragraph === undefined) throw new SourceParseFailure();
-    const text = normalizedText(paragraph);
     const markers = [...text.matchAll(/■「([^」]+)」/gu)];
-    if (markers.length === 0) continue;
+    if (markers.length === 0) throw new SourceParseFailure();
     for (const [index, marker] of markers.entries()) {
       const phase = marker[1];
       const key =

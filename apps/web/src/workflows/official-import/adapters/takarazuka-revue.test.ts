@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { getOfficialSource } from "../source-registry";
 import {
@@ -94,6 +95,17 @@ describe("Takarazuka revue adapter facts", () => {
         source,
         `<div class="item"><a href="/sp/revue/index.html">公演案内</a></div>
         <div class="item"><a href="/sp/revue/2027/example/performance.html">Example</a></div>`,
+      ),
+    ).toThrow("Official source parse failed");
+  });
+
+  it("fails closed when one production repeats a venue identity", () => {
+    expect(() =>
+      parseTakarazukaIndex(
+        source,
+        `<div class="item"><a href="/sp/revue/2027/fictionalwork/index.html"><p class="title">Fictional Work</p></a>
+        <dl><dt>宝塚大劇場</dt><dd>2027年4月3日～5月16日</dd></dl>
+        <dl><dt>宝塚大劇場</dt><dd>2027年7月1日～8月1日</dd></dl></div>`,
       ),
     ).toThrow("Official source parse failed");
   });
@@ -249,6 +261,71 @@ describe("Takarazuka revue adapter facts", () => {
     expect(draft.proposal.occurrences).toEqual([
       { startsAt: "2026-09-12T13:30:00+09:00", endsAt: null },
     ]);
+  });
+
+  it("keeps Event identity and content hash stable for identical mock pages", async () => {
+    const detailUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2027/fictionalwork/index.html";
+    const takarazukaScheduleUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2027/fictionalwork/schedule_takarazuka.html";
+    const tokyoScheduleUrl =
+      "https://kageki.hankyu.co.jp/sp/revue/2027/fictionalwork/schedule_tokyo.html";
+    const pages = new Map<string, string>([
+      [
+        source.canonicalUrl,
+        `<div class="item"><a href="/sp/revue/2027/fictionalwork/index.html"><p class="title">Fictional Work</p></a>
+        <dl><dt>宝塚大劇場</dt><dd>2027年4月3日～5月16日</dd></dl>
+        <dl><dt>東京宝塚劇場</dt><dd>2027年6月1日～7月15日</dd></dl></div>`,
+      ],
+      [
+        detailUrl,
+        `<title>星組公演 Fictional Work</title><a href="schedule_takarazuka.html">Schedule A</a><a href="schedule_tokyo.html">Schedule B</a>`,
+      ],
+      [
+        takarazukaScheduleUrl,
+        `<table><tr><th>4/3</th><td>13:30</td></tr></table>`,
+      ],
+      [
+        tokyoScheduleUrl,
+        `<table><tr><th>6/1</th><td>13:30</td></tr></table>`,
+      ],
+    ]);
+    const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+      const body = pages.get(url);
+      if (body === undefined) throw new Error(`unexpected URL ${url}`);
+      return {
+        ...document(url, body),
+        contentHash: createHash("sha256").update(body).digest("hex"),
+      };
+    });
+
+    const first = await adapter.acquire(source);
+    const second = await adapter.acquire(source);
+    const identityAndHash = (drafts: typeof first) =>
+      drafts.map(({ officialExternalId, contentHash, proposal }) => ({
+        officialExternalId,
+        sourceKey: proposal.sourceKey,
+        contentHash,
+      }));
+
+    expect(first).toHaveLength(2);
+    expect(new Set(first.map((draft) => draft.officialExternalId)).size).toBe(
+      first.length,
+    );
+    expect(first.map((draft) => draft.officialExternalId)).toEqual([
+      "2027:fictionalwork:takarazuka",
+      "2027:fictionalwork:tokyo",
+    ]);
+    expect(first.map((draft) => draft.proposal.sourceKey)).toEqual([
+      "takarazuka:2027:fictionalwork:takarazuka",
+      "takarazuka:2027:fictionalwork:tokyo",
+    ]);
+    expect(first[0]?.officialExternalId).toBe("2027:fictionalwork:takarazuka");
+    expect(first[0]?.proposal.sourceKey).toBe(
+      "takarazuka:2027:fictionalwork:takarazuka",
+    );
+    expect(first[0]?.contentHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(identityAndHash(second)).toEqual(identityAndHash(first));
   });
 
   it("keeps the established year/work/venue identity and extracts public performance times", () => {
