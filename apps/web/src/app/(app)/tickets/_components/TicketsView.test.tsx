@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { updateTicketOpportunityStateAction } from "@/lib/actions/ticketOpportunityState.actions";
 import { formatMilestoneTypeJa } from "@/app/_lib/ticket-milestone-format";
 import {
   eventIdSchema,
@@ -112,6 +114,40 @@ describe("TicketsView", () => {
     );
   });
 
+  it("activates planned and applied filters by keyboard without changing personal state", async () => {
+    const user = userEvent.setup();
+    const before = structuredClone(POPULATED);
+    const updateStateAction = vi.mocked(updateTicketOpportunityStateAction);
+    updateStateAction.mockClear();
+
+    render(<TicketsView today={TODAY} state={POPULATED} />);
+
+    const upcoming = screen.getByRole("link", { name: "今後" });
+    const planned = screen.getByRole("link", { name: "自分の申込予定" });
+    const applied = screen.getByRole("link", { name: "自分の申込済み" });
+
+    await user.tab();
+    expect(upcoming).toHaveFocus();
+    await user.tab();
+    expect(planned).toHaveFocus();
+    expect(planned).toHaveAttribute("href", "/tickets?view=planned");
+    planned.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
+    await user.keyboard("{Enter}");
+
+    await user.tab();
+    expect(applied).toHaveFocus();
+    expect(applied).toHaveAttribute("href", "/tickets?view=applied");
+    applied.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
+    await user.keyboard("{Enter}");
+
+    expect(POPULATED).toEqual(before);
+    expect(updateStateAction).not.toHaveBeenCalled();
+  });
+
   it.each([
     { view: "planned" as const, filterLabel: "自分の申込予定" },
     { view: "applied" as const, filterLabel: "自分の申込済み" },
@@ -181,6 +217,41 @@ describe("TicketsView", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    {
+      view: "planned" as const,
+      filterLabel: "自分の申込予定",
+      emptyCopy: "自分の申込予定はありません",
+      otherEmptyCopy: "自分の申込済みの受付はありません",
+    },
+    {
+      view: "applied" as const,
+      filterLabel: "自分の申込済み",
+      emptyCopy: "自分の申込済みの受付はありません",
+      otherEmptyCopy: "自分の申込予定はありません",
+    },
+  ])(
+    "shows the specific empty message for the $view filter",
+    ({ view, filterLabel, emptyCopy, otherEmptyCopy }) => {
+      render(
+        <TicketsView
+          today={TODAY}
+          view={view}
+          state={{ block: { variant: "empty" }, optional: { ok: true } }}
+        />,
+      );
+
+      expect(screen.getByRole("link", { name: filterLabel })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(screen.getByText(emptyCopy, { exact: true })).toBeInTheDocument();
+      expect(
+        screen.queryByText(otherEmptyCopy, { exact: true }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("uses neutral date wording for an empty past view", () => {
     render(
       <TicketsView
@@ -239,6 +310,45 @@ describe("TicketsView", () => {
       "https://example.com/tickets",
     );
     expect(screen.getByText("公式サイト：example.com")).toBeInTheDocument();
+  });
+
+  it("keeps the supplied personal state unchanged while rendering a result row", () => {
+    const state: OptionalPartBlockState<TicketsTimelineState> = {
+      block: {
+        variant: "populated",
+        data: {
+          groups: [
+            {
+              monthKey: "2026-03",
+              rows: [
+                row({
+                  myState: "applied",
+                  milestoneType: "result_announcement",
+                  sourceUrl: null,
+                }),
+              ],
+            },
+          ],
+        },
+      },
+      optional: { ok: true },
+    };
+    const before = structuredClone(state);
+    const updateStateAction = vi.mocked(updateTicketOpportunityStateAction);
+    updateStateAction.mockClear();
+
+    render(<TicketsView today={TODAY} state={state} />);
+
+    expect(
+      screen.getByText(formatMilestoneTypeJa("result_announcement")),
+    ).toBeInTheDocument();
+    expect(screen.getByText("自分：申込済み")).toBeInTheDocument();
+    expect(screen.queryByText(/^公式サイト：/u)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "公式情報" }),
+    ).not.toBeInTheDocument();
+    expect(state).toEqual(before);
+    expect(updateStateAction).not.toHaveBeenCalled();
   });
 
   it("wraps a maximum-length valid source hostname", () => {
@@ -360,6 +470,7 @@ describe("TicketsView", () => {
       expect(
         screen.queryByRole("link", { name: "公式情報" }),
       ).not.toBeInTheDocument();
+      expect(screen.queryByText(/^公式サイト：/u)).not.toBeInTheDocument();
     },
   );
 

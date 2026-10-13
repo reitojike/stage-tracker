@@ -42,6 +42,46 @@ async function unobscured(link: Locator) {
   });
 }
 
+async function wrappedTextLayout(text: Locator, container: Locator) {
+  const containerBounds = await container.boundingBox();
+  if (containerBounds === null)
+    throw new Error("Text container is not visible");
+  return text.evaluate((element, bounds) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const lineRects = Array.from(range.getClientRects());
+    return {
+      text: element.textContent?.trim() ?? "",
+      height: rect.height,
+      lineHeight: Number.parseFloat(style.lineHeight),
+      lineCount: lineRects.length,
+      fragmentsWithinContainer: lineRects.every(
+        (line) =>
+          line.left >= bounds.x - 1 &&
+          line.right <= bounds.x + bounds.width + 1,
+      ),
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+    };
+  }, containerBounds);
+}
+
+async function activateLinkWithKeyboard(
+  page: import("@playwright/test").Page,
+  link: Locator,
+) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await page.keyboard.press("Tab");
+    if (await link.evaluate((element) => element === document.activeElement)) {
+      await page.keyboard.press("Enter");
+      return;
+    }
+  }
+  throw new Error("Keyboard tab order did not reach the requested filter link");
+}
+
 test("Home selected receipt, official source, history and owner state isolation", async ({
   page,
   context,
@@ -60,13 +100,15 @@ test("Home selected receipt, official source, history and owner state isolation"
     old = randomUUID(),
     zero = randomUUID();
   const source = `https://tickets.example.test/receipt/${a}`;
+  const eventTitle = `${"長い公演名のE2E確認用テキスト".repeat(8)}-${a}`;
+  const opportunityName = `${"長い申込機会名のE2E確認用テキスト".repeat(8)}-${a}`;
   const observations: Record<string, unknown> = {};
   try {
     const today = tokyoTodayDateString(),
       eventDate = dateAfter(today, 30);
     const fixture = await seedEventWithOccurrence(admin, {
       ownerId: actor.userId,
-      title: `E2E selected receipt ${a}`,
+      title: eventTitle,
       tokyoDate: eventDate,
       occurrenceStartsAt: `${eventDate}T19:00:00+09:00`,
     });
@@ -79,7 +121,7 @@ test("Home selected receipt, official source, history and owner state isolation"
           event_id: fixture.eventId,
           display_name:
             id === a || id === b
-              ? "E2E 同名・同日でも別の受付 長い名前を省略せず表示"
+              ? opportunityName
               : `E2E ${id === old ? "過去" : "日程未登録"}の受付`,
           target_scope: "event_wide",
           source_key: `e2e-selected-${id}`,
@@ -146,6 +188,43 @@ test("Home selected receipt, official source, history and owner state isolation"
     const href = `/tickets?opportunity=${a}`;
     const home = page.locator(`a[href="${href}"]`);
     await expect(home).toHaveCount(1);
+    const longEventTitle = home.getByText(eventTitle, { exact: true });
+    const longOpportunityName = home.getByText(opportunityName, {
+      exact: true,
+    });
+    await expect(longEventTitle).toBeVisible();
+    await expect(longOpportunityName).toBeVisible();
+    const homeTitleLayout = await wrappedTextLayout(longEventTitle, home);
+    expect(homeTitleLayout.text).toBe(eventTitle);
+    expect(homeTitleLayout.lineHeight).toBeGreaterThan(0);
+    expect(homeTitleLayout.lineCount).toBeGreaterThan(1);
+    expect(homeTitleLayout.height).toBeGreaterThan(
+      homeTitleLayout.lineHeight * 1.5,
+    );
+    expect(homeTitleLayout.fragmentsWithinContainer).toBe(true);
+    expect(homeTitleLayout.documentWidth).toBeLessThanOrEqual(
+      homeTitleLayout.viewportWidth,
+    );
+    const homeOpportunityLayout = await wrappedTextLayout(
+      longOpportunityName,
+      home,
+    );
+    expect(homeOpportunityLayout.text).toBe(opportunityName);
+    expect(homeOpportunityLayout.lineHeight).toBeGreaterThan(0);
+    expect(homeOpportunityLayout.lineCount).toBeGreaterThan(1);
+    expect(homeOpportunityLayout.height).toBeGreaterThan(
+      homeOpportunityLayout.lineHeight * 1.5,
+    );
+    expect(homeOpportunityLayout.fragmentsWithinContainer).toBe(true);
+    expect(homeOpportunityLayout.documentWidth).toBeLessThanOrEqual(
+      homeOpportunityLayout.viewportWidth,
+    );
+    observations.homeLongEventTitle = homeTitleLayout;
+    observations.homeLongOpportunityName = homeOpportunityLayout;
+    await page.screenshot({
+      path: testInfo.outputPath("home-long-event-and-opportunity-titles.png"),
+      fullPage: true,
+    });
     await home.click();
     await page.waitForURL(
       (url) =>
@@ -289,6 +368,47 @@ test("Home selected receipt, official source, history and owner state isolation"
     } finally {
       await sharedContext.close();
     }
+
+    const beforeFilterNavigation = await snapshotStates();
+    await page.goto("/tickets?view=upcoming");
+    const plannedFilter = page.getByRole("link", {
+      name: "自分の申込予定",
+      exact: true,
+    });
+    await activateLinkWithKeyboard(page, plannedFilter);
+    await page.waitForURL(
+      (url) =>
+        url.pathname === "/tickets" &&
+        url.searchParams.get("view") === "planned",
+    );
+    await expect(
+      page.getByRole("link", { name: "自分の申込予定", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    const plannedFilterUrl = page.url();
+
+    await page.goto("/tickets?view=upcoming");
+    const appliedFilter = page.getByRole("link", {
+      name: "自分の申込済み",
+      exact: true,
+    });
+    await activateLinkWithKeyboard(page, appliedFilter);
+    await page.waitForURL(
+      (url) =>
+        url.pathname === "/tickets" &&
+        url.searchParams.get("view") === "applied",
+    );
+    await expect(
+      page.getByRole("link", { name: "自分の申込済み", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+
+    const afterFilterNavigation = await snapshotStates();
+    expect(afterFilterNavigation).toEqual(beforeFilterNavigation);
+    observations.keyboardFilters = {
+      plannedUrl: plannedFilterUrl,
+      appliedUrl: page.url(),
+      stateUnchanged: true,
+    };
+
     expect(await snapshotStates()).toEqual(before);
     observations.stateUnchanged = true;
   } finally {

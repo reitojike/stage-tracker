@@ -198,6 +198,40 @@ describe("HomeView", () => {
     );
   });
 
+  it("renders the complete long Event and Opportunity names in the Home preview", () => {
+    const source = POPULATED_TICKET_ROWS[0];
+    if (source === undefined)
+      throw new Error("Home deadline fixture is missing");
+    const eventTitle = "長い公演名の確認用テキスト".repeat(12);
+    const opportunityName = "長い申込機会名の確認用テキスト".repeat(12);
+    const ticketState: typeof POPULATED_TICKET = {
+      ...POPULATED_TICKET,
+      block: {
+        variant: "populated",
+        data: [
+          {
+            ...source,
+            eventTitle,
+            row: { ...source.row, displayName: opportunityName },
+          },
+        ],
+      },
+    };
+
+    render(
+      <HomeView
+        today={TODAY}
+        ticketState={ticketState}
+        scheduleState={EMPTY_SCHEDULE}
+      />,
+    );
+
+    expect(screen.getByText(eventTitle, { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(opportunityName, { exact: true })).toHaveClass(
+      "break-words",
+    );
+  });
+
   it("keeps 直近の予定 empty-but-independent when 申し込み期限 is populated", () => {
     render(
       <HomeView
