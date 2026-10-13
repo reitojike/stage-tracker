@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { OfficialImportReviewCandidate } from "../_lib/review-types";
 import { OfficialImportReviewQueue } from "./OfficialImportReviewQueue";
 
@@ -20,6 +26,8 @@ const candidate: OfficialImportReviewCandidate = {
   canonicalUrl: "https://cynhn.com/contents/123",
   observedAt: "2026-09-23T01:02:03.000Z",
   officialExternalId: "123",
+  recoveryReviewRequired: false,
+  recoveryHoldRunId: null,
   reviewStatus: "pending",
   applyStatus: "not_started",
   applyFailureClassification: null,
@@ -124,6 +132,150 @@ describe("OfficialImportReviewQueue", () => {
     expect(screen.getAllByRole("article")).toHaveLength(2);
     expect(screen.queryByText(/取得時点で変更なし/)).not.toBeInTheDocument();
   });
+
+  it.each([null, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"] as const)(
+    "keeps a marked exact-identity pending no-op visible with hold id %s",
+    (recoveryHoldRunId) => {
+      const sourceKey = "kabuki:work:123";
+      const markedNoop = {
+        ...candidate,
+        sourceId: "event.kabuki-bito.schedule",
+        recoveryReviewRequired: true,
+        recoveryHoldRunId,
+        proposal: { ...candidate.proposal, sourceKey },
+        currentEvent: {
+          id: "22222222-2222-4222-8222-222222222222",
+          sourceKey,
+          title: "Test show",
+          venue: "Test venue",
+          memo: null,
+          sourceUrl: candidate.canonicalUrl,
+          startsOn: "2026-10-01",
+          endsOn: "2026-10-02",
+          occurrences: [],
+        },
+        plan: {
+          action: "unchanged" as const,
+          hasChanges: false,
+          changes: ["Current Event has no changes"],
+        },
+        match: {
+          deterministicStatus: "matched" as const,
+          semanticStatus: "not_used" as const,
+          jev: null,
+        },
+      } satisfies OfficialImportReviewCandidate;
+
+      render(
+        <OfficialImportReviewQueue
+          state={{ variant: "populated", data: [markedNoop] }}
+          reviewAction={mockReviewAction}
+          applyAction={mockApplyAction}
+        />,
+      );
+
+      expect(screen.getByRole("article")).toBeInTheDocument();
+      expect(screen.getByText(/unchanged/)).toBeInTheDocument();
+      expect(
+        screen.getByText("Current Event has no changes"),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "再確認が必要です。",
+      );
+      expect(screen.getAllByRole("button")).toHaveLength(2);
+      expect(markedNoop.plan.hasChanges).toBe(false);
+    },
+  );
+
+  it("keeps an identity-blocked marker blocked and without approval controls", () => {
+    const blocked = {
+      ...candidate,
+      sourceId: "event.kabuki-bito.schedule",
+      recoveryReviewRequired: true,
+      recoveryHoldRunId: null,
+      reviewStatus: "blocked_for_identity_review" as const,
+      blockedReason: "identity remains blocked",
+    };
+    render(
+      <OfficialImportReviewQueue
+        state={{ variant: "populated", data: [blocked] }}
+        reviewAction={mockReviewAction}
+        applyAction={mockApplyAction}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "identity remains blocked",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("再確認が必要です。");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      applyStatus: "not_started" as const,
+      applyLeaseExpiresAt: null,
+      applyFailureClassification: null,
+    },
+    {
+      applyStatus: "queued" as const,
+      applyLeaseExpiresAt: "2999-01-01T00:00:00.000Z",
+      applyFailureClassification: null,
+    },
+    {
+      applyStatus: "failed" as const,
+      applyLeaseExpiresAt: null,
+      applyFailureClassification: "unexpected" as const,
+    },
+  ])(
+    "preserves existing apply controls for marked $applyStatus candidates",
+    (state) => {
+      const candidateWithStatus = {
+        ...candidate,
+        sourceId: "event.kabuki-bito.schedule",
+        reviewStatus: "approved" as const,
+        applyStatus: state.applyStatus,
+        applyLeaseExpiresAt: state.applyLeaseExpiresAt,
+        applyFailureClassification: state.applyFailureClassification,
+      };
+      render(
+        <OfficialImportReviewQueue
+          state={{
+            variant: "populated",
+            data: [
+              candidateWithStatus,
+              {
+                ...candidateWithStatus,
+                id: "66666666-6666-4666-8666-666666666666",
+                recoveryReviewRequired: true,
+                recoveryHoldRunId: null,
+              },
+            ],
+          }}
+          reviewAction={mockReviewAction}
+          applyAction={mockApplyAction}
+          dismissAction={mockDismissAction}
+        />,
+      );
+
+      const cards = screen.getAllByRole("article");
+      const baseline = cards[0];
+      const marked = cards[1];
+      const expectedChange = candidateWithStatus.plan.changes[0];
+      if (!baseline || !marked || !expectedChange) {
+        throw new Error("Expected both cards and a planned change.");
+      }
+      expect(
+        within(marked).getByText("再確認が必要です。"),
+      ).toBeInTheDocument();
+      expect(within(marked).getByText(/create/)).toBeInTheDocument();
+      expect(within(marked).getByText(expectedChange)).toBeInTheDocument();
+      expect(candidateWithStatus.plan.hasChanges).toBe(true);
+      expect(marked.querySelectorAll("button")).toHaveLength(
+        baseline.querySelectorAll("button").length,
+      );
+    },
+  );
 
   it("shows an empty review queue when every candidate needs no change", () => {
     render(

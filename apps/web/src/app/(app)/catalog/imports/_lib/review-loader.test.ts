@@ -25,6 +25,8 @@ function candidateRow(index: number, currentEvent: object | null = null) {
     canonical_url: `https://example.test/events/${index}`,
     observed_at: "2026-09-23T00:00:00Z",
     official_external_id: `event-${index}`,
+    recovery_review_required: false,
+    recovery_hold_run_id: null,
     proposal_version: "event.v1",
     proposal: {
       sourceKey: `test:${index}`,
@@ -74,6 +76,8 @@ function ticketCandidateRow() {
     canonical_url: "https://example.test/tickets/1",
     observed_at: "2026-09-23T00:00:00Z",
     official_external_id: "ticket-1",
+    recovery_review_required: false,
+    recovery_hold_run_id: null,
     proposal_version: "ticket_opportunity.v1",
     proposal: {
       eventSourceKey: "test:event",
@@ -127,7 +131,7 @@ function ticketCandidateRow() {
 afterEach(() => server.resetHandlers());
 
 describe("loadOfficialImportReviewQueue", () => {
-  it("selects the publication run FK while preserving its completed filter and response key", async () => {
+  it("keeps the active queue filters while selecting the publication run FK", async () => {
     const row = candidateRow(1);
     server.use(
       http.get(`${REST_URL}/official_import_candidates`, ({ request }) => {
@@ -136,6 +140,11 @@ describe("loadOfficialImportReviewQueue", () => {
           "official_import_runs!official_import_candidates_run_id_fkey!inner(status)",
         );
         expect(params.get("official_import_runs.status")).toBe("eq.completed");
+        expect(params.get("review_status")).toBe(
+          "in.(pending,approved,blocked_for_identity_review)",
+        );
+        expect(params.get("apply_status")).toBe("neq.applied");
+        expect(params.get("dismissed_at")).toBe("is.null");
         return HttpResponse.json([row], {
           headers: { "content-range": "0-0/1" },
         });
@@ -151,6 +160,136 @@ describe("loadOfficialImportReviewQueue", () => {
       ],
     });
   });
+
+  it.each([
+    {
+      name: "false with no hold run",
+      sourceId: "event.test",
+      required: false,
+      holdRunId: null,
+    },
+    {
+      name: "true with unknown hold history",
+      sourceId: "event.kabuki-bito.schedule",
+      required: true,
+      holdRunId: null,
+    },
+    {
+      name: "true with a known hold run",
+      sourceId: "event.kabuki-bito.schedule",
+      required: true,
+      holdRunId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    },
+  ])(
+    "maps the $name recovery marker without another run lookup",
+    async (marker) => {
+      const row = {
+        ...candidateRow(12),
+        source_id: marker.sourceId,
+        recovery_review_required: marker.required,
+        recovery_hold_run_id: marker.holdRunId,
+      };
+      let candidateRequests = 0;
+      server.use(
+        http.get(REST_URL + "/official_import_candidates", ({ request }) => {
+          candidateRequests += 1;
+          const params = new URL(request.url).searchParams;
+          expect(params.get("select")).toContain(
+            "official_import_runs!official_import_candidates_run_id_fkey!inner(status)",
+          );
+          expect(params.get("official_import_runs.status")).toBe(
+            "eq.completed",
+          );
+          return HttpResponse.json([row], {
+            headers: { "content-range": "0-0/1" },
+          });
+        }),
+      );
+
+      const result = await loadOfficialImportReviewQueue(createTestClient());
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value[0]).toMatchObject({
+          recoveryReviewRequired: marker.required,
+          recoveryHoldRunId: marker.holdRunId,
+        });
+      }
+      expect(candidateRequests).toBe(1);
+    },
+  );
+
+  const invalidRecoveryRows: {
+    readonly name: string;
+    readonly makeRow: () => Record<string, unknown>;
+  }[] = [
+    {
+      name: "missing required recovery flag",
+      makeRow: () => {
+        const row: Record<string, unknown> = { ...candidateRow(13) };
+        delete row.recovery_review_required;
+        return row;
+      },
+    },
+    {
+      name: "missing nullable hold id",
+      makeRow: () => {
+        const row: Record<string, unknown> = { ...candidateRow(14) };
+        delete row.recovery_hold_run_id;
+        return row;
+      },
+    },
+    {
+      name: "false marker with a hold id",
+      makeRow: () => ({
+        ...candidateRow(15),
+        recovery_review_required: false,
+        recovery_hold_run_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    },
+    {
+      name: "malformed hold id",
+      makeRow: () => ({
+        ...candidateRow(16),
+        source_id: "event.kabuki-bito.schedule",
+        recovery_review_required: true,
+        recovery_hold_run_id: "not-a-uuid",
+      }),
+    },
+    {
+      name: "true marker on another Event source",
+      makeRow: () => ({
+        ...candidateRow(17),
+        recovery_review_required: true,
+        recovery_hold_run_id: null,
+      }),
+    },
+    {
+      name: "true marker on a Ticket candidate",
+      makeRow: () => ({
+        ...ticketCandidateRow(),
+        recovery_review_required: true,
+        recovery_hold_run_id: null,
+      }),
+    },
+  ];
+
+  it.each(invalidRecoveryRows)(
+    "fails closed for $name recovery metadata",
+    async ({ makeRow }) => {
+      server.use(
+        http.get(REST_URL + "/official_import_candidates", () =>
+          HttpResponse.json([makeRow()], {
+            headers: { "content-range": "0-0/1" },
+          }),
+        ),
+      );
+
+      await expect(
+        loadOfficialImportReviewQueue(createTestClient()),
+      ).resolves.toMatchObject({ ok: false });
+    },
+  );
 
   it("excludes dismissed failures at the database query boundary", async () => {
     server.use(

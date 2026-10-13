@@ -676,6 +676,7 @@ function startedWorkflowRunId(data: unknown): string | null {
 }
 
 const KABUKI_EVENT_SOURCE_ID = "event.kabuki-bito.schedule";
+const RECOVERY_REVIEW_REQUIRED_MESSAGE = "再確認が必要です。";
 
 interface ApplyResultMessage {
   readonly role: "status" | "alert";
@@ -1057,6 +1058,11 @@ function CandidateCard({
             <li key={change}>{change}</li>
           ))}
         </ul>
+        {candidate.recoveryReviewRequired ? (
+          <p role="status" className="text-body-sm text-muted-foreground">
+            {RECOVERY_REVIEW_REQUIRED_MESSAGE}
+          </p>
+        ) : null}
       </section>
 
       {candidate.blockedReason !== null ? (
@@ -1177,6 +1183,7 @@ function QueueBody({
     candidate.reviewStatus === "pending" &&
     candidate.applyStatus === "not_started" &&
     !candidate.plan.hasChanges &&
+    !candidate.recoveryReviewRequired &&
     candidate.match.deterministicStatus === "matched" &&
     candidate.match.semanticStatus === "not_used" &&
     (candidate.kind === "event"
