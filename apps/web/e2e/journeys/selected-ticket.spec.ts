@@ -100,7 +100,7 @@ test("Home selected receipt, official source, history and owner state isolation"
     old = randomUUID(),
     zero = randomUUID();
   const source = `https://tickets.example.test/receipt/${a}`;
-  const eventTitle = `${"長い公演名のE2E確認用テキスト".repeat(8)}-${a}`;
+  const eventTitle = `${"LongE2EEventTitle".repeat(8)}${a}`;
   const opportunityName = `${"長い申込機会名のE2E確認用テキスト".repeat(8)}-${a}`;
   const observations: Record<string, unknown> = {};
   try {
