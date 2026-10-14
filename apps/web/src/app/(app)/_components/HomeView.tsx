@@ -184,7 +184,24 @@ function TicketDeadlineSection({
         />
       ) : block.variant === "populated" ? (
         <>
-          <ul className="flex flex-col gap-xs">
+          {block.data.length > 1 ? (
+            <p
+              id="home-ticket-deadlines-scroll-hint"
+              className="text-body-sm text-muted-foreground"
+            >
+              横にスクロールできます
+            </p>
+          ) : null}
+          <ul
+            aria-label="申込期限一覧"
+            aria-describedby={
+              block.data.length > 1
+                ? "home-ticket-deadlines-scroll-hint"
+                : undefined
+            }
+            tabIndex={block.data.length > 1 ? 0 : undefined}
+            className="-mr-md flex w-[calc(100%+var(--spacing-md))] snap-x snap-proximity overflow-x-auto [scrollbar-width:thin] gap-xs"
+          >
             {block.data.map((deadline) => {
               const { row } = deadline;
               const deadlineBadge = ticketDeadlineBadgeDisplay(
@@ -201,7 +218,7 @@ function TicketDeadlineSection({
               return (
                 <li
                   key={`${row.opportunityId}-${row.milestone.id}`}
-                  className="rounded-md border border-border p-sm"
+                  className="w-[min(80vw,18rem)] shrink-0 snap-start rounded-md border border-border p-sm"
                 >
                   <div className="flex flex-col gap-xs">
                     <Link

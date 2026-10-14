@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   eventIdSchema,
@@ -196,6 +196,75 @@ describe("HomeView", () => {
       "href",
       "/catalog/events/22222222-2222-4222-8222-222222222222",
     );
+  });
+
+  it("keeps every deadline in a keyboard-focusable horizontal strip", () => {
+    const source = POPULATED_TICKET_ROWS[0];
+    if (source === undefined)
+      throw new Error("Home deadline fixture is missing");
+    const deadlines = Array.from({ length: 7 }, (_, index) => {
+      const opportunityId = ticketOpportunityIdSchema.parse(
+        `44444444-4444-4444-8444-${String(index + 1).padStart(12, "0")}`,
+      );
+      const milestoneId = ticketOpportunityMilestoneIdSchema.parse(
+        `55555555-5555-4555-8555-${String(index + 1).padStart(12, "0")}`,
+      );
+      return {
+        ...source,
+        eventTitle: `テスト公演${index + 1}`,
+        row: {
+          ...source.row,
+          opportunityId,
+          displayName: `一般発売${index + 1}`,
+          milestone: {
+            ...source.row.milestone,
+            id: milestoneId,
+            opportunityId,
+          },
+        },
+      };
+    });
+
+    render(
+      <HomeView
+        today={TODAY}
+        ticketState={{
+          ...POPULATED_TICKET,
+          block: { variant: "populated", data: deadlines },
+        }}
+        scheduleState={POPULATED_SCHEDULE}
+      />,
+    );
+
+    const strip = screen.getByRole("list", { name: "申込期限一覧" });
+    expect(strip).toHaveAttribute("tabindex", "0");
+    expect(strip).toHaveAttribute(
+      "aria-describedby",
+      "home-ticket-deadlines-scroll-hint",
+    );
+    expect(strip).toHaveClass("overflow-x-auto", "snap-x");
+    const cards = within(strip).getAllByRole("listitem");
+    expect(cards).toHaveLength(7);
+    const firstCard = cards[0];
+    if (firstCard === undefined)
+      throw new Error("Expected rendered deadline cards");
+    expect(firstCard).toHaveClass(
+      "w-[min(80vw,18rem)]",
+      "shrink-0",
+      "snap-start",
+    );
+    expect(screen.getByText("横にスクロールできます")).toBeInTheDocument();
+    expect(
+      within(strip)
+        .getAllByRole("link")
+        .filter((link) =>
+          link.getAttribute("href")?.startsWith("/tickets?opportunity="),
+        ),
+    ).toHaveLength(7);
+    expect(
+      within(strip).getAllByRole("link", { name: "公演情報" }),
+    ).toHaveLength(7);
+    expect(screen.getByText("直近の予定", { exact: true })).toBeInTheDocument();
   });
 
   it("renders the complete long Event and Opportunity names in the Home preview", () => {
