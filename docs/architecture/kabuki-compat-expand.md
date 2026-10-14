@@ -1,26 +1,34 @@
 # Kabuki compatibility expand
 
-Issue #780's intermediate schema slice adds reserved metadata and a distinct
-atomic application RPC. PR #804 also enables ordinal allocation in the owned
-Kabuki publisher. This records source-serialized publication order; it does not
-introduce freshness or recovery refusal conditions or complete a system-wide
-runtime transition. The schema slice was deployed in PR #792. The limited
-runtime adoption below was merged and deployed in PR #793. A freshness-refusal
-producer, recovery-refusal conditions and restrictive guard activation remain
-later, separately authorized stages.
+Issue #780's schema slices add publication authority, recovery metadata, and a
+candidate-aware atomic application path. PR #804 enabled ordinal allocation in
+the owned Kabuki publisher. The follow-up schema migration activates freshness
+and recovery checks on Kabuki review, claim, and catalog-write boundaries; it
+also refuses unowned publication and the old split reviewed-write/completion
+route. The runtime adoption below was merged and deployed in PR #793. This
+schema stage does not broaden adapter catches or change schedules.
 
 ## Schema and current application contract
 
 - `official_import_runs.publication_ordinal` is nullable, with a dedicated
   sequence, positive Kabuki-completed constraint and non-NULL unique index.
   The owned Kabuki publisher assigns an increasing ordinal when it commits a
-  publication. Historical rows and unowned direct-publisher writes remain
-  NULL; there is no historical backfill. Ordinals record publication order,
-  but do not themselves refuse stale publications or activate freshness or
-  recovery refusal behavior.
-- Candidates gain `recovery_review_required` (default false) and nullable
-  `recovery_hold_run_id`, with a marker constraint and a second run FK.
-  Current writers leave the metadata inert.
+  publication. Historical rows and historical unowned publications remain
+  NULL; there is no historical backfill. The freshness gates use this order
+  and refuse NULL authority for new approval, claim, or catalog writes.
+- Candidates use `recovery_review_required` and nullable `recovery_hold_run_id`
+  to represent unresolved recovery obligations. The owned Kabuki publisher
+  derives markers from exact held-page identity and completed publication
+  history; input JSON cannot choose them. Markers are immutable after insert.
+  `true/NULL` preserves legacy unknown history, while a UUID identifies a
+  known held run. Rejection, failed dismissal, and atomic applied evidence
+  settle only the matching identity and episode.
+- New unowned Kabuki publication is refused. Partial publication acquires the
+  same source lock before writing held-page evidence, then rechecks the lease.
+  The three existing suppression paths preserve the first recovery proposal,
+  retain its current row on identical rescans, and require a new pending review
+  when identity content changes. Publication ordinals, not timestamps or UUIDs,
+  determine order. Historical NULL ordinals remain unknown.
 - The new `apply_official_import_kabuki_event_candidate` requires candidate ID,
   attempt token and the existing 18 reviewed Event arguments. It is a
   service-role-only, security-invoker function with an empty search path.
@@ -30,34 +38,35 @@ later, separately authorized stages.
   transaction. A failure after catalog mutation must roll the whole operation
   back. Confirmed application replay returns `applied` without another write.
 
-Existing grants, table grants, RLS policies and triggers remain unchanged.
-The owned Kabuki publisher is the function-body exception: its atomic commit
-path assigns publication ordinals. The unowned direct publisher and standalone
-completion keep their existing NULL-ordinal behavior. Candidate state/delete
-guards retain their current parent locks. NULL ordinals do not cause new
-eligibility refusals. No adapter, scheduler or system-wide runtime route changes
-belong in this slice. Generic claim `40001` handling is a separate runtime gate.
+Existing table grants and RLS policies remain unchanged. Two internal
+service-role-only SQL helpers derive recovery state and test candidate
+freshness; they are not client-executable RPCs. Candidate state/delete guards
+keep their terminal-parent lock rules. Legacy NULL candidates remain ineligible
+for new approval, claim, or catalog writes; an already-applied replay still
+returns without mutation. The run ledger and candidate rows remain the source
+of truth, with no receipt table or historical backfill.
 
 ## Ordering and verification
 
-The second run FK makes the old unqualified PostgREST embed ambiguous. Therefore
-this migration is **runtime-first-required**: reader PR #789 must be deployed and
-its explicit `official_import_candidates_run_id_fkey` selection verified before
-the schema is applied. A merged PR alone is not deployment evidence.
+The initial compatibility migration's second run FK makes the old unqualified
+PostgREST embed ambiguous; reader PR #789 uses the explicit
+`official_import_candidates_run_id_fkey` selection. This restrictive follow-up
+is also **runtime-first-required**: the candidate-aware atomic route and current
+freshness/recovery consumers must be deployed, and the old-route drain below
+must be verified before application. A merged PR alone is not deployment
+evidence.
 
-Local verification covers actual create/update/unchanged success, late completion
+The SQL and two-session regression suites cover create/update/unchanged success, late completion
 failure rollback of catalog and candidate snapshots, committed lost-response
-replay, ownership/identity/role refusals, and existing split-route compatibility.
-Before/after schema snapshots compare existing function definitions, grants,
-RLS and triggers. The existing SQL/RLS suites and actual PostgREST reader checks
-preserve unrelated and ordinary-user behavior. Generated types and the full
-local verification entry point are checked against the exact final schema.
+replay, ownership/identity/role refusals, and refusal of the old Kabuki split
+route. Additional cases cover all three recovery suppression boundaries,
+explicit settlement, legacy NULL authority, and both commit orders of held
+publication versus atomic application. Table grants and RLS policies are not
+changed. The private helpers do not add generated public RPC types.
 
-Other runtime adoption, freshness-refusal production, recovery-refusal
-conditions, old Workflow/server drain and restrictive guard activation are
-separate stages. Ordinal allocation records publication order; it does not add a freshness-
-refusal condition or recovery-refusal behavior. Legacy application routes remain
-accepted, and this slice makes no claim that all deadlocks are impossible.
+Production activation requires the old Workflow/server and transaction drain
+evidence described below. This local schema draft does not establish that
+evidence or claim that all deadlocks are impossible.
 
 ## Limited runtime adoption
 
@@ -108,10 +117,10 @@ never waits, polls, restarts or cancels the run, and returns only a fixed
 outcome. Pending runs and lookup failures do not assert candidate failure or
 start another apply. Other sources keep the start-only flow.
 
-No database producer emits the marker yet. The producer, legacy drain and
-restrictive guard activation remain later, separately authorized stages. This
-consumer performs no production drain, guard activation, freshness or recovery
-enablement, scheduled import, or cadence change.
+The existing claim consumer recognizes the database's exact
+`40001`/`stage_tracker.kabuki_freshness_refused.v1` result. The schema producer
+now emits that marker on stale Kabuki approval, claim, and final-write refusal.
+Other `40001` errors keep their existing retry behavior.
 
 ## Recovery review marker consumer
 
@@ -127,14 +136,16 @@ notice without inferring a hold episode from timestamps or creating local
 settlement state. The marker does not change identity, creator, review, apply,
 reject, failed-dismiss or lease controls; server props remain authoritative.
 
-## Later guard activation
+## Remaining cutover boundary
 
-Before a later restrictive guard activation, inspect the deployed runtime
+Before deploying this restrictive schema migration, inspect the deployed runtime
 identity and old-version Workflow history together. All old pinned apply runs
 must have naturally finished, including queued, waiting and retrying runs that
 could still issue the split RPCs. Separately confirm that database transactions
 which began before the cutover have naturally ended, including idle-in-transaction
 sessions. Candidate lease expiry or a successful deployment alone proves neither
-drain condition. Keep the compatibility functions while this evidence is absent.
-The runtime adoption slice performed no production drain, guard activation,
-freshness or recovery enablement, scheduled import, or cadence change.
+drain condition. The schema guard rejects old automated Kabuki routes while the
+new atomic route remains available. Broader adapter isolation and any later
+workflow retirement still require their own contract and evidence. This local
+schema slice performs no production drain, deployment, scheduled import, or
+cadence change.

@@ -6,7 +6,8 @@ import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 // Issue #780, bounded multi-session proofs: completed-parent candidate review
 // and replacement, plus atomic Kabuki apply vs. owner Event deletion. This
-// deliberately does not assert freshness, recovery or legacy-route closure.
+// also proves hold publication versus the final freshness check in both
+// commit orders. All fixtures are synthetic and local.
 const status = readLocalSupabaseStatus();
 const clientErrors = new WeakMap<pg.Client, Error[]>();
 
@@ -28,6 +29,7 @@ interface Fixture {
   officialId: string;
   token: string;
   replacementRunId?: string;
+  heldRunIds?: string[];
 }
 
 async function connect(): Promise<pg.Client> {
@@ -399,6 +401,10 @@ async function cleanup(admin: pg.Client, fixture: Fixture): Promise<void> {
     await admin.query('delete from public.official_import_candidates where id=$1', [
       fixture.candidateId,
     ]);
+    for (const runId of fixture.heldRunIds ?? []) {
+      await admin.query('delete from public.official_import_held_pages where run_id=$1', [runId]);
+      await admin.query('delete from public.official_import_runs where id=$1', [runId]);
+    }
     if (fixture.replacementRunId) {
       await admin.query('delete from public.official_import_candidates where run_id=$1', [
         fixture.replacementRunId,
@@ -423,6 +429,47 @@ async function pid(client: pg.Client): Promise<number> {
   const row = result.rows[0];
   assert.ok(row);
   return row.pid;
+}
+
+async function createHeldRun(admin: pg.Client, fixture: Fixture): Promise<string> {
+  const runId = randomUUID();
+  await admin.query('begin');
+  try {
+    await admin.query('set local role service_role');
+    const claim = await admin.query<{ result: string }>(
+      "select public.claim_official_import_run_attempt($1,$2,'held-publication',300) as result",
+      [runId, fixture.sourceId],
+    );
+    assert.equal(claim.rows[0]?.result, 'claimed');
+    await admin.query('commit');
+    (fixture.heldRunIds ??= []).push(runId);
+    return runId;
+  } catch (error) {
+    await admin.query('rollback');
+    throw error;
+  }
+}
+
+async function publishHeld(client: pg.Client, fixture: Fixture, runId: string): Promise<void> {
+  const result = await client.query<{ result: number }>(
+    `select public.commit_owned_official_import_partial_batch(
+      $1,$2,'held-publication','[]'::jsonb,$3::jsonb) as result`,
+    [
+      runId,
+      fixture.sourceId,
+      JSON.stringify([
+        {
+          canonical_url: fixture.sourceUrl,
+          official_external_id: fixture.officialId,
+          title: 'Held concurrency fixture',
+          starts_on: '2027-01-01',
+          ends_on: '2027-01-02',
+          reason_code: 'source_parse',
+        },
+      ]),
+    ],
+  );
+  assert.equal(result.rows[0]?.result, 0);
 }
 
 async function waitForBlock(admin: pg.Client, blocked: number, blocker: number): Promise<void> {
@@ -664,6 +711,117 @@ void test('running and non-Kabuki parents retain candidate update and delete loc
     throw error;
   } finally {
     await teardown(admin, owner, worker, fixtures, pending, failure);
+  }
+});
+
+void test('committed hold makes a waiting atomic apply refuse without mutation', async () => {
+  const { admin, owner, worker } = await connectClients();
+  let fixture: Fixture | undefined;
+  let pending: Promise<unknown> | undefined;
+  let failure: { error: unknown } | null = null;
+  try {
+    fixture = await createFixture(admin);
+    const runId = await createHeldRun(admin, fixture);
+    const before = await snapshot(admin, fixture);
+    await owner.query('begin');
+    await owner.query('set local role service_role');
+    await publishHeld(owner, fixture, runId);
+
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    const workerPid = await pid(worker);
+    const ownerPid = await pid(owner);
+    const outcome = apply(worker, fixture).then(
+      (value) => ({ value, error: null }),
+      (error: unknown) => ({ value: null, error }),
+    );
+    pending = outcome;
+    await waitForBlock(admin, workerPid, ownerPid);
+    assert.deepEqual(await snapshot(admin, fixture), before);
+    // Source serialization precedes Event and candidate locking, including
+    // while a publisher owns its own running parent.
+    await admin.query('begin');
+    await admin.query('select id from public.events where id=$1 for update nowait', [
+      fixture.eventId,
+    ]);
+    await admin.query(
+      'select id from public.official_import_candidates where id=$1 for update nowait',
+      [fixture.candidateId],
+    );
+    await admin.query('rollback');
+    await owner.query('commit');
+    const result = await outcome;
+    assert.equal(result.value, null);
+    assert.ok(result.error instanceof pg.DatabaseError);
+    assert.equal(result.error.code, '40001');
+    assert.equal(result.error.detail, 'stage_tracker.kabuki_freshness_refused.v1');
+    await worker.query('rollback');
+    pending = undefined;
+    assert.deepEqual(await snapshot(admin, fixture), before);
+    const held = await admin.query<{ newer: boolean }>(
+      `select held.publication_ordinal > candidate.publication_ordinal as newer
+      from public.official_import_runs held, public.official_import_runs candidate
+      where held.id=$1 and candidate.id=$2`,
+      [runId, fixture.runId],
+    );
+    assert.equal(held.rows[0]?.newer, true);
+  } catch (error) {
+    failure = { error };
+    throw error;
+  } finally {
+    await teardown(admin, owner, worker, fixture, pending, failure);
+  }
+});
+
+void test('atomic apply commits before a waiting hold and preserves applied replay', async () => {
+  const { admin, owner, worker } = await connectClients();
+  let fixture: Fixture | undefined;
+  let pending: Promise<unknown> | undefined;
+  let failure: { error: unknown } | null = null;
+  try {
+    fixture = await createFixture(admin);
+    const runId = await createHeldRun(admin, fixture);
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    assert.equal(await apply(worker, fixture), 'applied');
+    await owner.query('begin');
+    await owner.query('set local role service_role');
+    const ownerPid = await pid(owner);
+    const workerPid = await pid(worker);
+    const outcome = publishHeld(owner, fixture, runId).then(
+      () => ({ error: null }),
+      (error: unknown) => ({ error }),
+    );
+    pending = outcome;
+    await waitForBlock(admin, ownerPid, workerPid);
+    const evidenceLock = await admin.query<{ wrote: boolean }>(
+      `select exists(select 1 from pg_locks where pid=$1
+        and relation='public.official_import_held_pages'::regclass
+        and mode='RowExclusiveLock' and granted) as wrote`,
+      [ownerPid],
+    );
+    assert.equal(evidenceLock.rows[0]?.wrote, false, 'publisher waits before held-table writes');
+    const held = await admin.query<{ count: string }>(
+      'select count(*) from public.official_import_held_pages where run_id=$1',
+      [runId],
+    );
+    assert.equal(held.rows[0]?.count, '0', 'held evidence is written only after the source lock');
+    await worker.query('commit');
+    assert.equal((await outcome).error, null);
+    await owner.query('commit');
+    pending = undefined;
+    const applied = await snapshot(admin, fixture);
+    assert.equal(applied.candidate.apply_status, 'applied');
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    assert.equal(await apply(worker, fixture), 'applied');
+    await worker.query('commit');
+    assert.deepEqual(await snapshot(admin, fixture), applied);
+  } catch (error) {
+    failure = { error };
+    throw error;
+  } finally {
+    await teardown(admin, owner, worker, fixture, pending, failure);
   }
 });
 
