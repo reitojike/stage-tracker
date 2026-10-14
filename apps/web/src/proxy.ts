@@ -16,7 +16,7 @@ function copyCookies(from: NextResponse, to: NextResponse): void {
  *
  * `isPublicPath`（`src/lib/auth/public-paths.ts`）と、route 側の
  * Production / `CRON_SECRET` 検証に委ねる exact machine-auth Cron path 以外の
- * 全パスは、未認証アクセスを `/sign-in` へ redirect する。認証済みで
+ * matcher 対象の全パスは、未認証アクセスを `/sign-in` へ redirect する。認証済みで
  * `/sign-in` に来た場合は `/` へ redirect する。
  *
  * 「元の行き先」は保持しない（`next` パラメータは付与しない）。これは
@@ -87,6 +87,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
+// Workflow SDK の予約 prefix は browser session の対象外とし、内部 consumer /
+// webhook handler 自身の境界へ委ねる。dot は literal、末尾 slash は prefix 境界。
 // 明示的な非 application path のみを除外する。ファイル拡張子ベースの
 // 一般ルールは意図的に採用しない: `.*\.(png|svg|...)$` のようなパターンは
 // `.png` 等で終わる application pathname（例: `/events/future-page.png`）
@@ -100,6 +102,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 // 対応する asset 一覧との同期をテストで検証する。
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico$|manifest\\.webmanifest$|pwa/icon-192\\.png$|pwa/icon-512\\.png$|pwa/maskable-icon-512\\.png$|pwa/apple-touch-icon\\.png$).*)",
+    "/((?!_next/static|_next/image|\\.well-known/workflow/|favicon\\.ico$|manifest\\.webmanifest$|pwa/icon-192\\.png$|pwa/icon-512\\.png$|pwa/maskable-icon-512\\.png$|pwa/apple-touch-icon\\.png$).*)",
   ],
 };

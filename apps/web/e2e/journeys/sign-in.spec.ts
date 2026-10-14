@@ -32,6 +32,12 @@ test("anonymous routes are default-deny and public paths are exact", async ({
     "/auth/confirm/debug",
     "/pwa/secret.png",
     "/pwa/icon-192.png/sub",
+    "/.well-known/workflow",
+    "/.well-known/workflowevil/v1/flow",
+    "/xwell-known/workflow/v1/flow",
+    "/.well-known/other",
+    "/api/official-import/shadow",
+    "/api/other",
   ];
 
   for (const path of protectedPaths) {
@@ -64,6 +70,23 @@ test("anonymous routes are default-deny and public paths are exact", async ({
       "image/png",
     );
   }
+});
+
+test("sessionless Workflow flow requests reach SDK rejection without starting a run", async ({
+  request,
+}) => {
+  expect((await request.storageState()).cookies).toEqual([]);
+  // No queue headers or execution token: the real SDK must reject this before
+  // dispatching any workflow. Redirects are disabled to expose the auth boundary.
+  const response = await request.post("/.well-known/workflow/v1/flow", {
+    data: {},
+    maxRedirects: 0,
+  });
+
+  expect(response.status()).toBe(400);
+  expect(response.headers().location).toBeUndefined();
+  expect(response.headers()["content-type"]).toContain("application/json");
+  expect(await response.json()).toEqual({ error: "Missing required headers" });
 });
 
 interface SignInActionObservation {

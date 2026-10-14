@@ -70,6 +70,7 @@ describe("v2 PWA installability contract", () => {
     const expected = [
       "_next/static",
       "_next/image",
+      "\\.well-known/workflow/",
       "favicon\\.ico$",
       ...PWA_PUBLIC_ASSET_PATHS.map(
         (path) => `${path.slice(1).replaceAll(".", "\\.")}$`,
