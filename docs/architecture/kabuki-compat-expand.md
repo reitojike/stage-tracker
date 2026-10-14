@@ -136,16 +136,23 @@ notice without inferring a hold episode from timestamps or creating local
 settlement state. The marker does not change identity, creator, review, apply,
 reject, failed-dismiss or lease controls; server props remain authoritative.
 
-## Remaining cutover boundary
+## Cutover and rollback boundary
 
-Before deploying this restrictive schema migration, inspect the deployed runtime
-identity and old-version Workflow history together. All old pinned apply runs
-must have naturally finished, including queued, waiting and retrying runs that
-could still issue the split RPCs. Separately confirm that database transactions
-which began before the cutover have naturally ended, including idle-in-transaction
-sessions. Candidate lease expiry or a successful deployment alone proves neither
-drain condition. The schema guard rejects old automated Kabuki routes while the
-new atomic route remains available. Broader adapter isolation and any later
-workflow retirement still require their own contract and evidence. This local
-schema slice performs no production drain, deployment, scheduled import, or
-cadence change.
+Restrictive activation requires deployed-runtime compatibility and natural
+completion of old pinned apply Workflows and pre-cutover database transactions.
+Queued/waiting/retrying runs, idle-in-transaction sessions and prepared
+transactions are separate drain obligations. Lease expiry, response loss and
+application rollback do not establish either drain condition.
+
+The installed database guards and publication/held/recovery evidence remain
+authoritative after an application rollback. Old automated paths cannot bypass
+the guards; confirmed applied replay remains inert and incompatible callers fail
+closed. Broader adapter isolation and later Workflow retirement retain their own
+contracts.
+
+[PR #806](https://github.com/reitojike/stage-tracker/pull/806) records the completed
+activation and drain observations for that cutover. The current operator order
+and fresh-evidence requirements belong to the
+[Kabuki application rollback runbook](../runbooks/official-source-scheduling.md#kabuki-application-rollback).
+SQL transaction rollback and applied replay tests establish their respective
+data contracts; no deployment rollback drill was performed.

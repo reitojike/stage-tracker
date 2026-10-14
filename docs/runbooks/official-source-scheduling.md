@@ -2,6 +2,7 @@
 
 このrunbookでは、すでに動作しているshadow sourceをscheduled ingestionへ昇格する手順を扱います。scheduled runはreview candidateを
 stageするだけであり、catalog dataを自動でapprove、apply、deleteすることはありません。Issue #634でrolloutを追跡します。
+KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手順で扱います。
 
 ## 現在のrollout状態
 
@@ -138,3 +139,23 @@ databaseに残ります。close操作でcatalog dataを削除したり、失敗�
 Vercel Cron deliveryは重複または遅延する場合があり、自動retryはありません。routeのsame-slot identityとdatabase lease guardで重複workを制限しますが、
 exactly-once deliveryを前提とせず、operatorは失敗runや欠落runを確認してください。あるsourceのfailureによって、routeが他のdue sourceを試す処理を
 停止してはなりません。
+
+## Kabuki application rollback
+
+DBガード有効化後は、[互換性境界](../architecture/kabuki-compat-expand.md#cutover-and-rollback-boundary)を維持し、次の順で行います。
+
+1. 適用済みmigration、publication ordinal、held/recovery evidence、DBガードを保持します。application rollbackはDB状態を戻しません。
+   過去の権限のbackfill、ガード解除、split-write経路の復活は行いません。
+2. 適用済みschemaと互換性がある、成功確認済みのruntimeを選びます。publication-run FKの明示reader、candidate-aware atomic apply、
+   正確なfreshness-marker consumer、recovery-marker loader/UI、Workflow予約pathのproxy境界を備えることを確認します。
+   旧automated経路はガードを迂回できず、確認済みapplied replayは無変更のまま、不適合callerはfail closedです。不適合runtimeを復旧先にしません。
+3. scheduled開始と新しい手動start/applyがない、範囲を限定した運用窓をoperatorと確保します。切替前に、旧queued/waiting/retrying Workflowと、
+   切替前からのDB transactionが自然に終了したことを別々に確認します。idle-in-transactionとprepared transactionも含みます。
+   lease期限切れ、応答消失、application rollbackだけをdrainの証拠にしません。
+4. 互換runtimeを通常のmain/deployment経路でリリースします。意図したProduction commitのREADY、repositoryとmigration履歴の一致、
+   必要なRPC/guardの残存を確認してから運用窓を終えます。実取込や過去source evidenceのreplayをdeploy確認の代わりにしません。
+   互換性またはdrainが不明なら保留し、ガードを維持した互換修正を用意します。
+
+[#806](https://github.com/reitojike/stage-tracker/pull/806)の有効化・drain観測は当時の切替の証拠であり、後のrollback窓に流用しません。
+これはdeployment rollbackの順序定義です。実地のdeployment rollback演習は未実施であり、SQL transaction rollbackとapplied replayの
+テスト結果を演習済みの証拠として扱いません。
