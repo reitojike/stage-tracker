@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { SourceFetchFailure, SourceParseFailure } from "../acquisition";
+import {
+  SourceFetchFailure,
+  SourceParseFailure,
+  type HeldSourcePage,
+} from "../acquisition";
 import { getOfficialSource } from "../source-registry";
 import {
   createKabukiBitoAdapter,
@@ -7,6 +11,7 @@ import {
   parseKabukiIndex,
 } from "./kabuki-bito";
 import type { OfficialHtmlDocument, OfficialHtmlFetcher } from "./http";
+import * as performanceTimes from "./kabuki-performance-times";
 
 const source = getOfficialSource("event.kabuki-bito.schedule");
 if (source === null) throw new Error("test source missing");
@@ -327,8 +332,10 @@ describe("Kabuki-bito adapter facts", () => {
       return document(url, `<p class="text type-theater">歌舞伎座</p>`);
     });
     const acquisition = adapter.acquire(source);
-    const outcome =
-      expect(acquisition).rejects.toBeInstanceOf(SourceParseFailure);
+    const outcome = expect(acquisition).rejects.toMatchObject({
+      canonicalUrl: "https://www.kabuki-bito.jp/theaters/kabukiza/play/2",
+      reason: "unsupported_format",
+    });
     await vi.waitFor(() => expect(secondRequested).toBe(true));
     await new Promise((resolve) => setTimeout(resolve, 0));
     failFirst(new SourceFetchFailure());
@@ -686,6 +693,212 @@ describe("Kabuki-bito adapter facts", () => {
       await expect(adapter.acquire(source)).rejects.toThrow(SourceParseFailure);
     },
   );
+});
+
+describe("Kabuki detail timetable isolation", () => {
+  const period = '<p class="type-term">2026年10月1日～2日</p>';
+  const timetable =
+    '<p class="type-timetable">1日（木） 午前11時～ 2日（金） 午前11時～</p>';
+  const urlFor = (id: number) =>
+    `https://www.kabuki-bito.jp/theaters/kabukiza/play/${id}`;
+  const indexFor = (...ids: number[]) =>
+    ids
+      .map(
+        (id) =>
+          `<li class="item"><a href="/theaters/kabukiza/play/${id}"><h3 class="ttl">公演${id}</h3></a><p class="term">2026年10月1日～2日</p></li>`,
+      )
+      .join("");
+
+  it.each([
+    ["missing", ""],
+    ["duplicate", timetable + timetable],
+    ["nested markup", '<p class="type-timetable"><em>午前11時～</em></p>'],
+    ["wrong container", `<aside>${timetable}</aside>`],
+  ])(
+    "holds a %s timetable while retaining a verified sibling",
+    async (_name, malformed) => {
+      const fetcher = vi.fn<OfficialHtmlFetcher>(async (_source, url) =>
+        document(
+          url,
+          url === source.canonicalUrl
+            ? indexFor(1, 2)
+            : period + (url === urlFor(1) ? malformed : timetable),
+        ),
+      );
+      const held = vi.fn();
+      const drafts = await createKabukiBitoAdapter(fetcher).acquire(
+        source,
+        held,
+      );
+      expect(drafts.map((draft) => draft.officialExternalId)).toEqual(["2"]);
+      const verified = drafts[0];
+      if (verified?.candidateKind !== "event")
+        throw new Error("event draft missing");
+      expect(
+        verified.proposal.occurrences.map((item) => item.startsAt),
+      ).toEqual(["2026-10-01T11:00:00+09:00", "2026-10-02T11:00:00+09:00"]);
+      expect(held.mock.calls).toEqual([
+        [
+          {
+            canonicalUrl: urlFor(1),
+            officialExternalId: "1",
+            title: "公演1",
+            startsOn: "2026-10-01",
+            endsOn: "2026-10-02",
+            reasonCode: "source_parse",
+          },
+        ],
+      ]);
+      expect(fetcher.mock.calls.map((call) => call[1])).toEqual([
+        source.canonicalUrl,
+        urlFor(1),
+        urlFor(2),
+      ]);
+    },
+  );
+
+  it.each([
+    ["missing period", ""],
+    ["duplicate period", period + period],
+    ["unreadable period", '<p class="type-term">2026年秋</p>'],
+    ["invalid date", '<p class="type-term">2026年10月32日</p>'],
+    [
+      "wrong weekday",
+      '<p class="type-term">2026年10月1日（金）～2日（金）</p>',
+    ],
+    ["reversed period", '<p class="type-term">2026年10月2日～1日</p>'],
+    ["month-only period", '<p class="type-term">2026年10月</p>'],
+    [
+      "index/detail contradiction",
+      '<p class="type-term">2026年10月10日～11日</p>',
+    ],
+  ])(
+    "keeps %s fatal even with an unreadable timetable",
+    async (_name, invalidPeriod) => {
+      const adapter = createKabukiBitoAdapter(async (_source, url) =>
+        url === source.canonicalUrl
+          ? document(url, indexFor(1, 2))
+          : {
+              ...document(url, period),
+              // Bypass the fixture's automatic missing-period insertion.
+              body: `<div class="box type-content">${url === urlFor(1) ? invalidPeriod : period}</div>`,
+            },
+      );
+      const held = vi.fn();
+      await expect(adapter.acquire(source, held)).rejects.toMatchObject({
+        canonicalUrl: urlFor(1),
+        reason: "unsupported_format",
+      });
+      expect(held).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the no-callback path strict and permits an explicit all-held batch", async () => {
+    const fetcher: OfficialHtmlFetcher = async (_source, url) =>
+      document(url, url === source.canonicalUrl ? indexFor(1, 2) : period);
+    await expect(
+      createKabukiBitoAdapter(fetcher).acquire(source),
+    ).rejects.toMatchObject({
+      canonicalUrl: urlFor(1),
+      reason: "unsupported_format",
+    });
+    const held = vi.fn<(page: HeldSourcePage) => void>();
+    await expect(
+      createKabukiBitoAdapter(fetcher).acquire(source, held),
+    ).resolves.toEqual([]);
+    expect(held.mock.calls.map(([page]) => page.officialExternalId)).toEqual([
+      "1",
+      "2",
+    ]);
+  });
+
+  it.each([false, true])(
+    "drains both siblings and preserves a fatal request error (fatal first: %s)",
+    async (fatalFirst) => {
+      let finishHeld!: (value: OfficialHtmlDocument) => void;
+      let failSibling!: (error: Error) => void;
+      const fatal = new SourceParseFailure(urlFor(2), "request_limit");
+      const fetcher: OfficialHtmlFetcher = async (_source, url) => {
+        if (url === source.canonicalUrl) return document(url, indexFor(1, 2));
+        return new Promise<OfficialHtmlDocument>((resolve, reject) => {
+          if (url === urlFor(1)) finishHeld = resolve;
+          else failSibling = reject;
+        });
+      };
+      const held = vi.fn();
+      const acquisition = createKabukiBitoAdapter(fetcher).acquire(
+        source,
+        held,
+      );
+      let completed = false;
+      void acquisition.then(
+        () => {
+          completed = true;
+        },
+        () => {
+          completed = true;
+        },
+      );
+      const outcome = expect(acquisition).rejects.toBe(fatal);
+      await vi.waitFor(() => expect(failSibling).toBeTypeOf("function"));
+      if (fatalFirst) failSibling(fatal);
+      else finishHeld(document(urlFor(1), period));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(completed).toBe(false);
+      expect(held).not.toHaveBeenCalled();
+      if (fatalFirst) finishHeld(document(urlFor(1), period));
+      else failSibling(fatal);
+      await outcome;
+      expect(completed).toBe(true);
+      expect(held).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    new SourceParseFailure(null, "request_limit"),
+    new SourceFetchFailure(),
+    new Error("unexpected parser failure"),
+  ])(
+    "does not hold non-format errors inside the parse boundary: %s",
+    async (fatal) => {
+      const parser = vi
+        .spyOn(performanceTimes, "withKabukiPerformanceEnds")
+        .mockImplementation(() => {
+          throw fatal;
+        });
+      try {
+        const adapter = createKabukiBitoAdapter(async (_source, url) =>
+          document(
+            url,
+            url === source.canonicalUrl ? indexFor(1) : period + timetable,
+          ),
+        );
+        const held = vi.fn();
+        const outcome = expect(adapter.acquire(source, held)).rejects;
+        if (fatal instanceof SourceParseFailure)
+          await outcome.toMatchObject({
+            canonicalUrl: null,
+            reason: "request_limit",
+          });
+        else await outcome.toBe(fatal);
+        expect(held).not.toHaveBeenCalled();
+      } finally {
+        parser.mockRestore();
+      }
+    },
+  );
+
+  it("propagates a held-report callback failure", async () => {
+    const fatal = new Error("report callback failed");
+    const adapter = createKabukiBitoAdapter(async (_source, url) =>
+      document(url, url === source.canonicalUrl ? indexFor(1) : period),
+    );
+    await expect(
+      adapter.acquire(source, () => {
+        throw fatal;
+      }),
+    ).rejects.toBe(fatal);
+  });
 });
 
 function document(url: string, body: string): OfficialHtmlDocument {

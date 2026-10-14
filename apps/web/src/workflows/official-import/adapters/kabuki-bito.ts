@@ -332,30 +332,30 @@ function verifiedDetailText(
   return normalizedText(node);
 }
 
-function verifiedDetailSchedule(html: string): {
-  timetable: string;
-  period: { startsOn: string; endsOn: string };
+function verifiedDetailPeriod(html: string): {
+  startsOn: string;
+  endsOn: string;
 } {
   const document = parseHtml(html);
-  const timetables = descendants(document, (node) =>
-    hasClass(node, "type-timetable"),
-  );
   const periods = descendants(
     document,
     (node) =>
       hasClass(node, "type-term") && /^\d{4}年/u.test(normalizedText(node)),
   );
-  if (
-    timetables.length !== 1 ||
-    timetables[0] === undefined ||
-    periods.length !== 1 ||
-    periods[0] === undefined
-  )
+  if (periods.length !== 1 || periods[0] === undefined)
     throw new SourceParseFailure();
-  const timetable = verifiedDetailText(timetables[0], "type-timetable");
   const period = parseKabukiPeriod(verifiedDetailText(periods[0], "type-term"));
   if (period === null) throw new SourceParseFailure();
-  return { timetable, period };
+  return period;
+}
+
+function verifiedDetailTimetable(html: string): string {
+  const timetables = descendants(parseHtml(html), (node) =>
+    hasClass(node, "type-timetable"),
+  );
+  if (timetables.length !== 1 || timetables[0] === undefined)
+    throw new SourceParseFailure();
+  return verifiedDetailText(timetables[0], "type-timetable");
 }
 
 function hasUnpublishedOpeningTime(
@@ -428,9 +428,10 @@ export function createKabukiBitoAdapter(
                 finalPath?.[2] !== fact.officialId
               )
                 throw new SourceParseFailure(detail.url);
-              const { timetable, period } = withSourceParsePage(
-                detail.url,
-                () => verifiedDetailSchedule(detail.body),
+              // Period failures and index/detail contradictions remain fatal,
+              // including when the same page also has an unreadable timetable.
+              const period = withSourceParsePage(detail.url, () =>
+                verifiedDetailPeriod(detail.body),
               );
               if (
                 period.startsOn !== fact.startsOn ||
@@ -444,11 +445,15 @@ export function createKabukiBitoAdapter(
               let performanceEndsVerified = false;
               let headlineParts: readonly KabukiHeadlinePart[] | null = null;
               let calendarHasOnlyHeadlineClocks = false;
+              let timetable: string;
               let occurrences: {
                 startsAt: string;
                 endsAt: string | null;
               }[];
               try {
+                timetable = withSourceParsePage(detail.url, () =>
+                  verifiedDetailTimetable(detail.body),
+                );
                 occurrences = hasUnpublishedOpeningTime(
                   timetable,
                   detail.body,
@@ -484,7 +489,8 @@ export function createKabukiBitoAdapter(
               } catch (error) {
                 if (
                   reportHeldPage === undefined ||
-                  !(error instanceof SourceParseFailure)
+                  !(error instanceof SourceParseFailure) ||
+                  error.reason !== "unsupported_format"
                 )
                   throw error;
                 const held: HeldSourcePage = {

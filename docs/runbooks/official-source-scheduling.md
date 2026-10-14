@@ -62,8 +62,10 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   candidateを生成できるのは、timetableが空、休演日listが検証済み、またはKabukiza #997で観測された非schedule noteのfingerprintが正確に一致する場合に
   限られます。部だけを記載したnoteを含む他のnoticeはholdのままにし、月だけ示されたteaserはskipします。開演時刻が公開済みの場合やscheduleを解決
   できない場合、Event-onlyへ格下げしてはなりません。
-  厳格なschedule解析に失敗したdetail pageは、検証済みの関連pageがreview candidateをstageする一方でheld pageとして報告できます。held recordに含めるのは
-  official URL、id、title、日付range、範囲を限定したreason codeだけであり、raw pageやerror本文は含みません。index、fetch/provider、ownershipのfailureは
+  厳格なschedule解析に失敗したdetail pageは、検証済みの関連pageがreview candidateをstageする一方でheld pageとして報告できます。
+  詳細ページの期間を検証してindexと一致した後は、timetableの欠落・重複・構造不適合も既存の`source_parse`保留として扱います。期間の欠落・不正・曜日矛盾・
+  indexとの不一致はrun全体の失敗のままです。既存のOccurrence／終演時刻解析の保留境界は維持し、取得上限エラーを保留へ変換しません。
+  held recordに含めるのはofficial URL、id、title、日付range、範囲を限定したreason codeだけであり、raw pageやerror本文は含みません。index、fetch/provider、ownershipのfailureは
   引き続きrun全体を失敗させます。partial runが完了しただけではclean promotion canaryとは**みなせません**。正確な日付を持つindex rowすべてについて
   stage済みまたはheldのidentityと照合し、主要theaterのcoverageとhold理由を調べ、除外内容をoperatorが受け入れたことを記録してからscheduleします。
   月だけ示すteaserは引き続き除外します。2026-09-25のread-only full-index auditでは、重複しないplay linkが26件見つかりました。正確な日付のrowは21件で、
