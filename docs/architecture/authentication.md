@@ -193,7 +193,8 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
 1. `verifyOtp()` 成功時、`@supabase/ssr` の `createServerClient` が
    `setAll()` コールバック経由でセッション Cookie を Response へ書き込みます
    （`createSupabaseServerClient()` 内、通常の Cookie 書き込みパス）。
-2. 以降のアプリケーションリクエストは、`matcher` の静的 resource 除外を除き、
+2. 以降のアプリケーションリクエストは、`matcher` の静的 resource と
+   Workflow SDK 予約 prefix の除外を除き、
    [apps/web/src/proxy.ts](../../apps/web/src/proxy.ts) の `proxy()` を経由します。
    Next.js 16.3 以降で `middleware.ts` に代わって使われる規約
    （`proxy()` エクスポート + `config.matcher`）で書かれた、この
@@ -217,6 +218,19 @@ operator-owned です。設定完了を agent が推測で扱わず、operator-c
      書かれています。両者の一致は
      `apps/web/src/lib/pwa/app-identity.test.ts` が、実 HTTP 上の挙動は
      `apps/web/e2e/journeys/sign-in.spec.ts` が検証します。
+   - `/.well-known/workflow/` は、[公式Next integration](https://workflow-sdk.dev/docs/getting-started/next#configure-proxy-handler)
+     に従い、browser session proxy の matcher から除外します。dot はエスケープし、
+     末尾 slash を境界とするため、`/.well-known/workflowevil` や
+     `/xwell-known/workflow/`、他の `.well-known` / API / application path は除外しません。
+     `PUBLIC_PATHS` への追加や、browser Cookie の queue への転送は行いません。
+     Vercel の flow consumer は [SDK / Vercel Queues の consumer 保護](https://workflow-sdk.dev/worlds/vercel#consumer-function-security)
+     に委ねます。local World は loopback 内だけで使い、queue headers のない
+     空JSONのflow POSTが SDK の400 JSONへ到達することを実HTTPで検証します。
+     この検証は新しいWorkflowを開始しません。
+   - Webhook handler はSDKが生成する別の公開入口です。現行の業務コードは
+     hook / webhook 待受を作成していませんが、handlerの不存在を意味しません。
+     flow consumerの保護をwebhookの送信元検証と同一視せず、将来利用するときは
+     待受側で送信元の検証を定義します。過去全deploymentの待受不存在は主張しません。
    - exact path `/api/official-import/cron` は機械認証用の例外として、
      Supabase user session の確認前に route handler へ通します。この path は
      `PUBLIC_PATHS` には含めません。route handler が Production 限定と

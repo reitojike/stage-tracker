@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -19,8 +20,39 @@ vi.mock("@/workflows/official-import/scheduled-shadow-workflow", () => ({
   officialImportScheduledShadowWorkflow: vi.fn(),
 }));
 
-const { proxy } = await import("./proxy");
+const { config, proxy } = await import("./proxy");
 const { GET } = await import("./app/api/official-import/cron/route");
+
+describe("Workflow reserved proxy matcher boundary", () => {
+  it.each([
+    "/.well-known/workflow/",
+    "/.well-known/workflow/v1/flow",
+    "/.well-known/workflow/v1/flow/child",
+    "/.well-known/workflow/v1/webhook/example",
+    "/.well-known/workflow/v1/webhook/example/child",
+  ])("leaves %s to the SDK handler", (pathname) => {
+    expect(
+      unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: pathname }),
+    ).toBe(false);
+  });
+
+  it.each([
+    "/.well-known/workflow",
+    "/.well-known/workflowevil/v1/flow",
+    "/.well-known/workflows/v1/flow",
+    "/xwell-known/workflow/v1/flow",
+    "/.well-known/other",
+    "/events/.well-known/workflow/v1/flow",
+    "/api/official-import/shadow",
+    "/api/other",
+    "/events/some-future-page.png",
+    "/catalog",
+  ])("keeps %s inside the application proxy", (pathname) => {
+    expect(
+      unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: pathname }),
+    ).toBe(true);
+  });
+});
 
 function request(pathname: string, authorization?: string): NextRequest {
   return new NextRequest(`https://stage-tracker.com${pathname}`, {
