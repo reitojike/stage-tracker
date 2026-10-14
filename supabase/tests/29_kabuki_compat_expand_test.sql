@@ -1,6 +1,5 @@
--- Issue #780 compatibility expand: only the new atomic entry point is tested.
--- Existing publication, approval, split write/completion and NULL authority
--- remain usable. No freshness/recovery or old-entry-point closure is expected.
+-- Issue #780 freshness/recovery activation on the existing atomic Kabuki path.
+-- Old unowned publication and split reviewed write/completion fail closed.
 \ir helpers/auth.psql
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -25,7 +24,7 @@ select pg_temp.kb_publish(pg_temp.kb_payload('9101')) as create_run \gset
 select pg_temp.kb_candidate(:'create_run') as create_candidate \gset
 select ok((select publication_ordinal > 0 from public.official_import_runs where id=:'create_run'),'owned Kabuki publication assigns a positive ordinal');
 call pg_temp.kb_ready(:'create_candidate',:'creator','create-owner');
-select is(pg_temp.kb_apply(:'create_candidate','create-owner',:'creator'),'applied','NULL-authority approved candidate can create atomically');
+select is(pg_temp.kb_apply(:'create_candidate','create-owner',:'creator'),'applied','owned ordinal-approved candidate can create atomically');
 select id as target_event from public.events where source_key='kabuki-bito:kabukiza:play:9101' \gset
 select is((select title from public.events where id=:'target_event'),'Fixture','actual create realizes reviewed title');
 select ok((select apply_status='applied' and applied_at is not null and active_apply_attempt_token is null from public.official_import_candidates where id=:'create_candidate'),'actual create completes candidate');
@@ -349,27 +348,37 @@ select throws_ok(pg_temp.kb_apply_sql(:'late_candidate','late-owner',:'creator',
 select is(pg_temp.kb_all_rows()::text,:'rollback_before','late completion failure rolls back every catalog and staging row');
 select set_config('stage_tracker.test_late_failure','off',true) as late_failure \gset
 
--- Compatibility promise: original split reviewed write/completion remains usable.
+-- The old split reviewed write cannot bypass atomic freshness and completion.
 select pg_temp.kb_publish(pg_temp.kb_payload('9105')) as split_run \gset
 select pg_temp.kb_candidate(:'split_run') as split_candidate \gset
 call pg_temp.kb_ready(:'split_candidate',:'creator','split-owner');
-select lives_ok($sql$select public.apply_reviewed_import_event_plan(
+select throws_ok($sql$select public.apply_reviewed_import_event_plan(
   'create',current_setting('stage_tracker.test_creator')::uuid,null,'kabuki-bito:kabukiza:play:9105','Fixture',
   '2027-01-01','2027-01-02','[]','[]','Hall','https://www.kabuki-bito.jp/theaters/kabukiza/play/9105',null,
-  false,null,false,'[]',null,'[]')$sql$,'original reviewed Kabuki write remains usable');
-select is(public.complete_official_import_candidate_apply(:'split_candidate','split-owner'),'applied','original standalone completion remains usable');
-select is((select count(*) from public.events where source_key='kabuki-bito:kabukiza:play:9105'),1::bigint,'split route still writes the catalog');
+  false,null,false,'[]',null,'[]')$sql$,'55000',null,'old reviewed Kabuki write requires candidate atomic context');
+select throws_ok(format('select public.complete_official_import_candidate_apply(%L::uuid,%L)',
+  :'split_candidate','split-owner'),'23514',null,'standalone Kabuki completion is refused');
+select is((select count(*) from public.events where source_key='kabuki-bito:kabukiza:play:9105'),0::bigint,'old split route leaves the catalog unchanged');
 
--- The old unowned publisher also remains callable for a new unclaimed run.
+-- The old unowned Kabuki publisher cannot mint a fresh publication ordinal.
 select gen_random_uuid() as unowned_run \gset
 insert into public.official_import_runs(id,source_id,status,started_at) values(:'unowned_run','event.kabuki-bito.schedule','running',clock_timestamp());
-select is(public.commit_official_import_candidate_batch(:'unowned_run','event.kabuki-bito.schedule',pg_temp.kb_payload('9106')),1,'original unowned Kabuki publisher remains usable');
-select ok((select status='completed' and publication_ordinal is null from public.official_import_runs where id=:'unowned_run'),'unowned publication completes without authority allocation');
-select is((select count(*) from public.official_import_candidates where run_id=:'unowned_run'),1::bigint,'unowned publisher retains its proposal');
-select throws_ok(format('update public.official_import_runs set publication_ordinal=1 where id=%L::uuid',:'unowned_run'),
-  '23514',null,'completed NULL publication cannot be backfilled');
-select ok((select publication_ordinal is null from public.official_import_runs where id=:'unowned_run'),
-  'terminal backfill refusal preserves the historical NULL');
+select last_value::text || ':' || is_called::text as unowned_sequence_before from public.official_import_kabuki_publication_ordinal_seq \gset
+select throws_ok(format('select public.commit_official_import_candidate_batch(%L::uuid,%L,%L::jsonb)',
+  :'unowned_run','event.kabuki-bito.schedule',pg_temp.kb_payload('9106')::text),
+  '55000',null,'unowned Kabuki publisher is refused');
+select ok((select status='running' and publication_ordinal is null
+    and (select count(*) from public.official_import_candidates where run_id=:'unowned_run')=0
+  from public.official_import_runs where id=:'unowned_run'),
+  'refused unowned publication leaves the run and candidates unchanged');
+select throws_ok(format('update public.official_import_runs set status=%L,finished_at=clock_timestamp(),publication_ordinal=1 where id=%L::uuid',
+  'completed',:'unowned_run'),'23514',null,'unowned publisher cannot backfill completion authority');
+select ok((select status='running' and publication_ordinal is null
+  from public.official_import_runs where id=:'unowned_run'),
+  'backfill refusal preserves the unclaimed run');
+select is((select last_value::text || ':' || is_called::text
+  from public.official_import_kabuki_publication_ordinal_seq),:'unowned_sequence_before',
+  'unowned refusal does not consume a publication ordinal');
 
 select * from finish();
 rollback;
