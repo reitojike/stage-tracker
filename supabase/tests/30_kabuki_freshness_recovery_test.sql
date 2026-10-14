@@ -47,7 +47,7 @@ exception when others then
 end;
 $$;
 
-select plan(74);
+select plan(85);
 select ok(has_function_privilege('service_role',
   'private.official_import_kabuki_recovery_marker_internal(text,text,text,text,text,text,text)',
   'EXECUTE'), 'owned publisher can call the private recovery derivation helper');
@@ -61,6 +61,68 @@ select ok(not has_function_privilege('anon',
 select pg_temp.create_test_user() as creator \gset
 insert into public.catalog_creators(user_id) values (:'creator');
 set local role service_role;
+
+-- Table writes cannot bypass the owned publisher's completion authority.
+select gen_random_uuid() as direct_empty_run \gset
+insert into public.official_import_runs(id,source_id)
+values(:'direct_empty_run','event.kabuki-bito.schedule');
+select throws_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp() where id=%L',
+  'completed',:'direct_empty_run'),'23514',null,
+  'even an empty unclaimed Kabuki run cannot complete with NULL authority');
+select lives_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp(),failure_classification=%L where id=%L',
+  'failed','unexpected',:'direct_empty_run'),
+  'an unclaimed Kabuki run can still fail without publication authority');
+
+select gen_random_uuid() as guarded_owned_run \gset
+select public.claim_official_import_run_attempt(
+  :'guarded_owned_run','event.kabuki-bito.schedule','guarded-publisher',300) as guarded_claim \gset
+select set_config('stage_tracker.official_import_attempt_run_id',:'guarded_owned_run',true);
+select set_config('stage_tracker.official_import_attempt_token','guarded-publisher',true);
+select throws_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp(),active_attempt_token=null,active_attempt_lease_expires_at=null where id=%L',
+  'completed',:'guarded_owned_run'),'23514',null,
+  'a correctly owned attempt still cannot complete with NULL authority');
+select set_config('stage_tracker.official_import_publication_ordinal','123456',true);
+select set_config('stage_tracker.official_import_attempt_token','wrong-publisher',true);
+select throws_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp(),active_attempt_token=null,active_attempt_lease_expires_at=null,publication_ordinal=123456 where id=%L',
+  'completed',:'guarded_owned_run'),'23514',null,
+  'non-NULL completion still checks the owned attempt token');
+select set_config('stage_tracker.official_import_attempt_token','guarded-publisher',true);
+select set_config('stage_tracker.official_import_attempt_run_id',:'direct_empty_run',true);
+select throws_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp(),active_attempt_token=null,active_attempt_lease_expires_at=null,publication_ordinal=123456 where id=%L',
+  'completed',:'guarded_owned_run'),'23514',null,
+  'non-NULL completion still checks the owned run scope');
+select set_config('stage_tracker.official_import_attempt_run_id',:'guarded_owned_run',true);
+select set_config('stage_tracker.official_import_publication_ordinal','123455',true);
+select throws_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp(),active_attempt_token=null,active_attempt_lease_expires_at=null,publication_ordinal=123456 where id=%L',
+  'completed',:'guarded_owned_run'),'23514',null,
+  'non-NULL completion still checks the publication ordinal scope');
+select ok((select status='running' and publication_ordinal is null
+    and active_attempt_token='guarded-publisher'
+  from public.official_import_runs where id=:'guarded_owned_run'),
+  'refused direct completions leave the owned run and attempt unchanged');
+select set_config('stage_tracker.official_import_attempt_run_id','',true);
+select set_config('stage_tracker.official_import_attempt_token','',true);
+select set_config('stage_tracker.official_import_publication_ordinal','',true);
+select public.commit_owned_official_import_candidate_batch(
+  :'guarded_owned_run','event.kabuki-bito.schedule','guarded-publisher','[]') as guarded_commit \gset
+select ok((select status='completed' and publication_ordinal > 0
+    and active_attempt_token is null and active_attempt_lease_expires_at is null
+  from public.official_import_runs where id=:'guarded_owned_run'),
+  'the same attempt completes through the legitimate owned empty publisher');
+
+select gen_random_uuid() as direct_other_run \gset
+insert into public.official_import_runs(id,source_id)
+values(:'direct_other_run','event.compat-other');
+select lives_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp() where id=%L',
+  'completed',:'direct_other_run'),
+  'direct non-Kabuki completion remains compatible with NULL authority');
 
 -- A committed hold wins over approval, an already-owned claim, and the final write.
 select pg_temp.kb_publish(pg_temp.kb_payload('9301')) as stale_review_run \gset
@@ -348,8 +410,22 @@ from jsonb_to_recordset(pg_temp.kb_payload('9501')) as candidate(
   deterministic_match_status text,semantic_match_status text,plan_summary jsonb,
   plan_fingerprint text
 ) returning id as legacy_candidate \gset
+select throws_ok(format(
+  'update public.official_import_runs set status=%L,finished_at=clock_timestamp() where id=%L',
+  'completed',:'legacy_run'),'23514',null,
+  'a default-marker candidate cannot make a new NULL-ordinal Kabuki publication');
+select ok((select status='running' and publication_ordinal is null
+    and exists (select 1 from public.official_import_candidates
+      where id=:'legacy_candidate' and not recovery_review_required and recovery_hold_run_id is null)
+  from public.official_import_runs where id=:'legacy_run'),
+  'refused direct publication leaves the run and default-marker candidate unchanged');
+-- Reconstruct pre-guard history explicitly; runtime writes get no date exception.
+call pg_temp.auth_as_admin();
+set local session_replication_role=replica;
 update public.official_import_runs set status='completed',finished_at=clock_timestamp()
 where id=:'legacy_run';
+set local session_replication_role=origin;
+set local role service_role;
 call pg_temp.auth_as_user(:'creator');
 select is(pg_temp.kb_error(format(
   'select public.review_official_import_candidate(%L::uuid,%L)',

@@ -2,6 +2,130 @@
 -- source-serialized publication and candidate-aware application paths.
 -- No raw source payload, new table, or client-executable RPC is introduced.
 
+create or replace function public.enforce_official_import_run_state() returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_scope_run_id text := current_setting(
+    'stage_tracker.official_import_attempt_run_id',
+    true
+  );
+  v_scope_token text := current_setting(
+    'stage_tracker.official_import_attempt_token',
+    true
+  );
+  v_attempt_changed boolean;
+  v_expected_token text;
+  v_publication_scope_ordinal text := nullif(
+    current_setting('stage_tracker.official_import_publication_ordinal', true),
+    ''
+  );
+begin
+  if tg_op = 'INSERT' then
+    if new.status <> 'running'
+      or new.finished_at is not null
+      or new.failure_classification is not null
+      or new.failure_phase is not null
+      or new.failure_reason is not null
+      or new.failure_url is not null
+      or new.publication_ordinal is not null
+      or new.active_attempt_token is not null
+      or new.active_attempt_lease_expires_at is not null then
+      raise exception 'import runs must enter in unclaimed running state'
+        using errcode = '23514';
+    end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    if old.status <> 'running' or old.active_attempt_token is not null then
+      raise exception 'terminal or claimed import runs cannot be deleted'
+        using errcode = '23514';
+    end if;
+    return old;
+  end if;
+
+  if old.status <> 'running' then
+    raise exception 'completed or failed import runs are immutable'
+      using errcode = '23514';
+  end if;
+
+  -- Clues use the same trusted service-role/attempt scope as the transition.
+  if new.failure_phase is not null or new.failure_reason is not null or new.failure_url is not null then
+    if new.status <> 'failed' or old.active_attempt_token is null
+      or v_scope_run_id is distinct from old.id::text
+      or v_scope_token is distinct from old.active_attempt_token then
+      raise exception 'terminal clues require an owned failure transition' using errcode = '23514';
+    end if;
+  end if;
+
+  if old.id is distinct from new.id
+    or old.source_id is distinct from new.source_id
+    or old.started_at is distinct from new.started_at
+    or old.created_at is distinct from new.created_at then
+    raise exception 'import run identity and start metadata are immutable'
+      using errcode = '23514';
+  end if;
+
+  -- Future Kabuki publications must carry owned ordinal authority even when
+  -- a caller writes staging tables directly instead of using the batch RPC.
+  -- Historical terminal NULL rows remain immutable under the guard above.
+  if old.source_id = 'event.kabuki-bito.schedule'
+    and new.status = 'completed'
+    and new.publication_ordinal is null then
+    raise exception 'Kabuki completion requires owned publication authority'
+      using errcode = '23514';
+  end if;
+
+  if old.publication_ordinal is distinct from new.publication_ordinal then
+    if old.publication_ordinal is not null
+      or new.publication_ordinal is null
+      or old.status <> 'running'
+      or new.status <> 'completed'
+      or old.source_id <> 'event.kabuki-bito.schedule'
+      or new.source_id <> 'event.kabuki-bito.schedule'
+      or old.active_attempt_token is null
+      or new.active_attempt_token is not null
+      or new.active_attempt_lease_expires_at is not null
+      or new.finished_at is null
+      or v_scope_run_id is distinct from old.id::text
+      or v_scope_token is distinct from old.active_attempt_token
+      or v_publication_scope_ordinal is distinct from new.publication_ordinal::text then
+      raise exception 'publication ordinal requires an owned Kabuki publication completion'
+        using errcode = '23514';
+    end if;
+  end if;
+
+  v_attempt_changed :=
+    old.active_attempt_token is distinct from new.active_attempt_token
+    or old.active_attempt_lease_expires_at is distinct from new.active_attempt_lease_expires_at;
+
+  v_expected_token := case
+    when new.active_attempt_token is not null then new.active_attempt_token
+    else old.active_attempt_token
+  end;
+
+  if v_attempt_changed or (old.status is distinct from new.status and old.active_attempt_token is not null) then
+    if v_scope_run_id is null
+      or v_scope_run_id <> old.id::text
+      or v_scope_token is null
+      or v_scope_token is distinct from v_expected_token then
+      raise exception 'claimed import runs may only be changed by their attempt RPC'
+        using errcode = '23514';
+    end if;
+  end if;
+
+  if old.status is distinct from new.status
+    and new.status not in ('completed', 'failed') then
+    raise exception 'running import runs may only complete or fail'
+      using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
 create index official_import_held_pages_source_identity_run_idx
   on public.official_import_held_pages (source_id, official_external_id, canonical_url, run_id);
 
