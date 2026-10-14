@@ -878,11 +878,16 @@ void test('an owned publisher whose lease expires while waiting for the source l
       "select pg_advisory_xact_lock(pg_catalog.hashtextextended('official-import-candidates:' || $1,0))",
       [fixture.sourceId],
     );
-    const sequenceBefore = await admin.query<{ state: string }>(
-      "select last_value::text || ':' || is_called::text as state from public.official_import_kabuki_publication_ordinal_seq",
-    );
-    const before = sequenceBefore.rows[0]?.state;
-    assert.ok(before);
+    // currval is session-local, so concurrent publishers cannot race this proof.
+    const assertWorkerHasNotAllocatedOrdinal = async () => {
+      await assert.rejects(
+        worker.query(
+          "select pg_catalog.currval('public.official_import_kabuki_publication_ordinal_seq'::regclass)",
+        ),
+        { code: '55000' },
+      );
+    };
+    await assertWorkerHasNotAllocatedOrdinal();
 
     await worker.query('begin');
     await worker.query('set local role service_role');
@@ -917,10 +922,8 @@ void test('an owned publisher whose lease expires while waiting for the source l
     );
     assert.equal(after.rows[0]?.status, 'running');
     assert.equal(after.rows[0]?.publication_ordinal, null);
-    const sequenceAfter = await admin.query<{ state: string }>(
-      "select last_value::text || ':' || is_called::text as state from public.official_import_kabuki_publication_ordinal_seq",
-    );
-    assert.equal(sequenceAfter.rows[0]?.state, before);
+    // currval survives rollback, so this also proves the rejected call used no nextval.
+    await assertWorkerHasNotAllocatedOrdinal();
   } catch (error) {
     failure = error;
     throw error;
