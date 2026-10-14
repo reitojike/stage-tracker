@@ -136,7 +136,7 @@ notice without inferring a hold episode from timestamps or creating local
 settlement state. The marker does not change identity, creator, review, apply,
 reject, failed-dismiss or lease controls; server props remain authoritative.
 
-## Remaining cutover boundary
+## Cutover and rollback order
 
 Before deploying this restrictive schema migration, inspect the deployed runtime
 identity and old-version Workflow history together. All old pinned apply runs
@@ -146,6 +146,34 @@ which began before the cutover have naturally ended, including idle-in-transacti
 sessions. Candidate lease expiry or a successful deployment alone proves neither
 drain condition. The schema guard rejects old automated Kabuki routes while the
 new atomic route remains available. Broader adapter isolation and any later
-workflow retirement still require their own contract and evidence. This local
-schema slice performs no production drain, deployment, scheduled import, or
-cadence change.
+workflow retirement still require their own contract and evidence. The completed
+activation and drain observations are recorded in
+[PR #806](https://github.com/reitojike/stage-tracker/pull/806); they are evidence
+for that cutover, not for a later rollback window.
+
+After guard activation, use this order for an application rollback:
+
+1. Retain the installed migrations, publication ordinals, held/recovery evidence
+   and database guards. Application rollback does not undo database state. Do not
+   backfill historical authority, remove guards or restore the split-write route.
+2. Select a known-good runtime compatible with the installed schema: the explicit
+   publication-run FK reader, candidate-aware atomic apply, exact freshness-marker
+   consumer, recovery-marker loader/UI and Workflow reserved-path proxy boundary.
+   Old automated paths cannot bypass the installed guards. Confirmed applied
+   replay remains inert; incompatible callers fail closed. An incompatible
+   runtime is not a recovery target.
+3. Arrange a bounded operator window without scheduled starts or new manual
+   start/apply requests. Before switching, independently confirm natural completion
+   of old queued/waiting/retrying Workflows and pre-switch database transactions,
+   including idle-in-transaction and prepared transactions. Lease expiry, response
+   loss and application rollback alone are not drain evidence.
+4. Release the compatible runtime through the normal main/deployment path. Confirm
+   the intended Production commit is READY, migration history matches the
+   repository and the required RPC/guards remain installed before ending the
+   operator window. An import or replay of historical source evidence is not a
+   deployment check. If compatibility or drain is unconfirmed, hold and prepare a
+   compatible forward correction while retaining the guards.
+
+This defines the deployment rollback order; no deployment rollback drill was
+performed. SQL transaction rollback and applied replay tests establish their
+respective data contracts, not an executed deployment rollback.
