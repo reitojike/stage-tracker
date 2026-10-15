@@ -104,7 +104,7 @@ export function parseKabukiBaseTimes(base: string): readonly Part[] {
   return parts;
 }
 
-function validateApproximateClosingTimes(
+export function validateApproximateClosingTimes(
   note: string,
   parts: readonly Part[],
 ): ReadonlyMap<string, Clock> {

@@ -51,6 +51,9 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   approvalとcatalog applyは人が別々に行います。古いcandidateに対処する前に最新のofficial pageとheld reportを確認します。
   stageされた終了時刻にもhuman reviewが必要です。単月のdaily calendarを読み取るのは、許可されたheadline note全体とPC/mobile両方のtable viewが、
   各日・各部について一致する場合だけです。A/B演目および丸印markerはその部の明示的な基準時刻を使い、数値cellはそれぞれの正確な時刻を維持します。
+  calendarに併記された概算終演は、`終演予定時間：`から固定の変更可能性注意まで一件のblockとして検証します。部名・順序・全時刻と開演後の終演を
+  既存の検証器で確認し、休演・貸切を除いた各部に対応付けます。A/B・丸印は検証済みの部の基準時刻を使いますが、異なる数値開演時刻には概算終演を
+  投影せずholdします。後続の学校団体・既知の案内noteも従来どおり全体を検証し、終演blockの重複・欠落した境界・未知の説明を無視しません。
   不明なtable記号、note、または既知のnote形式同士の未知の組み合わせは、別途検証されるまでholdします。
   数値時刻についた単独の`★`は、同じ日付/部markerが両calendar viewに現れ、headline noteとcalendar footerが対象を示す内容で一致し、noteにschedule変更を
   示す文言がない場合に限り、その正確な時刻を維持してよいものとします。この場合candidateにはreview/apply前にofficial pageを確認する固定reminderを
