@@ -15,6 +15,7 @@ import {
   hasClass,
   normalizedText,
   parseHtml,
+  type HtmlNode,
 } from "./html";
 import { type OfficialHtmlFetcher, fetchOfficialHtml } from "./http";
 import { calendarDate, tokyoDateTime } from "./japanese-date";
@@ -105,10 +106,82 @@ function hasLotteryEvidence(text: string): boolean {
   return /■「|申込期間|結果照会|抽選方式|先行抽選/u.test(text);
 }
 
+function isUnpublishedCommonIdSection(section: HtmlNode): boolean {
+  if (
+    normalizedText(section).replace(/\s+/gu, "") !==
+    "宝塚歌劇共通ID＋（プラス）一般前売に先がけてチケット先行販売を実施いたします。詳細が決まり次第掲載いたします。"
+  )
+    return false;
+  const nodes = descendants(section, (node) => elementName(node) !== null);
+  if (
+    elementName(section) !== "div" ||
+    nodes.filter((node) => elementName(node) === "h4").length !== 1 ||
+    nodes.filter((node) => elementName(node) === "p").length !== 1
+  )
+    return false;
+  const children = (node: HtmlNode) =>
+    "childNodes" in node
+      ? node.childNodes.filter(
+          (child) =>
+            child.nodeName !== "#comment" &&
+            !(
+              child.nodeName === "#text" &&
+              "value" in child &&
+              child.value.trim() === ""
+            ),
+        )
+      : [];
+  const [heading, paragraph, ...extra] = children(section);
+  if (
+    !heading ||
+    !paragraph ||
+    extra.length !== 0 ||
+    elementName(heading) !== "h4" ||
+    elementName(paragraph) !== "p"
+  )
+    return false;
+  const parts = children(paragraph);
+  if (
+    parts.length !== 3 ||
+    parts[0]?.nodeName !== "#text" ||
+    !("value" in parts[0]) ||
+    parts[0].value.replace(/\s+/gu, "") !==
+      "一般前売に先がけてチケット先行販売を実施いたします。" ||
+    !parts[1] ||
+    elementName(parts[1]) !== "br" ||
+    parts[2]?.nodeName !== "#text" ||
+    !("value" in parts[2]) ||
+    parts[2].value.replace(/\s+/gu, "") !== "詳細が決まり次第掲載いたします。"
+  )
+    return false;
+  return nodes.every((node) => {
+    const tag = elementName(node);
+    if (node !== section) {
+      if (!("parentNode" in node)) return false;
+      if (tag === "br") {
+        if (node.parentNode === null || elementName(node.parentNode) !== "p")
+          return false;
+      } else if (
+        !["h4", "p"].includes(tag ?? "") ||
+        node.parentNode !== section
+      )
+        return false;
+    }
+    const allowedClass = node === section ? "set" : tag === "p" ? "txt" : null;
+    return (
+      "attrs" in node &&
+      node.attrs.every(
+        (attr) => attr.name === "class" && attr.value.trim() === allowedClass,
+      )
+    );
+  });
+}
+
 function advanceSales(html: string, generalSaleOn: string): AdvanceSale[] {
   const document = parseHtml(html);
   const sections = descendants(document, (node) => hasClass(node, "set"));
   const sales: AdvanceSale[] = [];
+  let commonIdSections = 0;
   for (const section of sections) {
     const heading = descendants(
       section,
@@ -133,6 +206,11 @@ function advanceSales(html: string, generalSaleOn: string): AdvanceSale[] {
       continue;
     }
     if (paragraph === undefined) throw new SourceParseFailure();
+    if (sectionLabel === "宝塚歌劇共通ID＋（プラス）") {
+      commonIdSections += 1;
+      if (commonIdSections > 1) throw new SourceParseFailure();
+      if (isUnpublishedCommonIdSection(section)) continue;
+    }
     const markers = [...text.matchAll(/■「([^」]+)」/gu)];
     if (markers.length === 0) throw new SourceParseFailure();
     for (const [index, marker] of markers.entries()) {
