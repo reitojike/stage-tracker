@@ -13,6 +13,7 @@ import {
 import {
   parseKabukiBaseTimes,
   parseKabukiDaySet,
+  validateApproximateClosingTimes,
   type KabukiHeadlinePart,
 } from "./kabuki-headline-period";
 import { calendarDate, enumerateDates, tokyoDateTime } from "./japanese-date";
@@ -332,6 +333,44 @@ function validateSchoolGroupNote(
   }
 }
 
+function parseCalendarClosingTimeBlock(
+  note: string,
+  parts: readonly KabukiHeadlinePart[],
+): {
+  calendarNote: string;
+  closingTimes: ReturnType<typeof validateApproximateClosingTimes> | null;
+} {
+  const prefix = "終演予定時間：";
+  const terminator = "※終演予定時間は変更になる可能性があります";
+  const start = note.indexOf(prefix);
+  if (start < 0) return { calendarNote: note, closingTimes: null };
+  const end = note.indexOf(terminator, start + prefix.length);
+  if (
+    end < 0 ||
+    note.indexOf(prefix, start + prefix.length) >= 0 ||
+    note.indexOf(terminator) !== end ||
+    note.indexOf(terminator, end + terminator.length) >= 0
+  )
+    throw new SourceParseFailure();
+  const following = note.slice(end + terminator.length).trim();
+  // The observed block ends before the already verified school-group or
+  // informational note. It must not split a private-date list or hide text.
+  if (
+    following !== "" &&
+    !following.startsWith("※下記日程は学校団体様がいらっしゃいます") &&
+    !following.startsWith("昼の部では、古式に則り、")
+  )
+    throw new SourceParseFailure();
+  const closingTimes = validateApproximateClosingTimes(
+    note.slice(start + prefix.length, end).trim(),
+    parts,
+  );
+  return {
+    calendarNote: `${note.slice(0, start).trim()} ${following}`.trim(),
+    closingTimes,
+  };
+}
+
 function validateCalendarNotes(
   note: string,
   rows: CalendarRows,
@@ -475,7 +514,7 @@ export function parseKabukiVerifiedCalendar(
   timetable: string,
   html: string,
 ): {
-  readonly occurrences: readonly { startsAt: string; endsAt: null }[];
+  readonly occurrences: readonly { startsAt: string; endsAt: string | null }[];
   readonly hasAnnotation: boolean;
   readonly headlineParts: readonly KabukiHeadlinePart[];
   readonly hasOnlyHeadlineClocks: boolean;
@@ -564,8 +603,12 @@ export function parseKabukiVerifiedCalendar(
     )
       throw new SourceParseFailure();
   }
-  const annotationFooter = validateCalendarNotes(
+  const { calendarNote, closingTimes } = parseCalendarClosingTimeBlock(
     note,
+    parts,
+  );
+  const annotationFooter = validateCalendarNotes(
+    calendarNote,
     mobileRows,
     parts,
     startsOn,
@@ -595,10 +638,23 @@ export function parseKabukiVerifiedCalendar(
         ? cell.replace(/★$/u, "").split(":").map(Number)
         : [parts[index]?.clock.hour, parts[index]?.clock.minute];
       const [hour, minute] = clock;
+      const part = parts[index];
+      const closingClock = closingTimes?.get(part?.name ?? "");
+      if (
+        closingTimes !== null &&
+        (part === undefined ||
+          closingClock === undefined ||
+          hour !== part.clock.hour ||
+          minute !== part.clock.minute)
+      )
+        throw new SourceParseFailure();
       return [
         {
           startsAt: tokyoDateTime(date, hour ?? -1, minute ?? -1),
-          endsAt: null,
+          endsAt:
+            closingClock === undefined
+              ? null
+              : tokyoDateTime(date, closingClock.hour, closingClock.minute),
         },
       ];
     }),
