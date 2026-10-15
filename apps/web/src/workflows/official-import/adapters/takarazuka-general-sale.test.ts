@@ -411,6 +411,16 @@ describe("observed unpublished common-ID announcement", () => {
       "<s>詳細が決まり次第掲載いたします。</s>",
     ),
     unpublishedPlus.replace("<br>", '<br title="変更">'),
+    unpublishedPlus.replace("<br>", ""),
+    unpublishedPlus.replace("<br>", "<br><br>"),
+    unpublishedPlus.replace(
+      "詳細が決まり次第掲載いたします。</p>",
+      "</p>詳細が決まり次第掲載いたします。",
+    ),
+    unpublishedPlus.replace(
+      '<p class="txt">一般前売に先がけてチケット先行販売を実施いたします。',
+      '一般前売に先がけてチケット先行販売を実施いたします。<p class="txt">',
+    ),
     unpublishedPlus.replace("</p>", "</p><p>申込期間が変更されました。</p>"),
     unpublishedPlus.replace("</div>", "<h4>申込開始</h4></div>"),
     unpublishedPlus + unpublishedPlus,
