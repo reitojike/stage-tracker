@@ -239,11 +239,16 @@ export function parseTakarazukaSchedule(
   const tables = descendants(
     document,
     (node) => elementName(node) === "table",
-  ).filter((table) =>
-    descendants(table, (node) => elementName(node) === "th").some((heading) =>
-      datePattern.test(normalizedText(heading)),
-    ),
-  );
+  ).filter((table) => {
+    const headings = descendants(
+      table,
+      (node) => elementName(node) === "th",
+    ).map(normalizedText);
+    return (
+      headings.some((text) => datePattern.test(text)) ||
+      (headings.includes("日付") && headings.includes("開演時間"))
+    );
+  });
   if (tables.length === 0) throw new SourceParseFailure();
   const occurrences: { startsAt: string; endsAt: null }[] = [];
   for (const table of tables) {
@@ -260,12 +265,19 @@ export function parseTakarazukaSchedule(
           month: Number(dateMatch[1]),
           day: Number(dateMatch[2]),
         };
+      const cells = descendants(row, (node) => elementName(node) === "td");
+      const hasNonemptyCell = cells.some((cell) => normalizedText(cell) !== "");
+      // Header rows have no time cells. A nonempty data row must have a
+      // recognized date or continue it without introducing another heading.
+      if (
+        hasNonemptyCell &&
+        (activeMonthDay === null ||
+          (heading !== undefined && dateMatch === null))
+      )
+        throw new SourceParseFailure();
       if (activeMonthDay === null) continue;
       const monthDay = activeMonthDay;
-      for (const cell of descendants(
-        row,
-        (node) => elementName(node) === "td",
-      )) {
+      for (const cell of cells) {
         const text = normalizedText(cell);
         if (text === "" || /^(?:休演日|貸切公演(?:\s*※\s*\d+)?)$/u.test(text))
           continue;

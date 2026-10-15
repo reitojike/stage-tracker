@@ -381,6 +381,22 @@ describe("Takarazuka revue adapter facts", () => {
       "an ambiguously changed time",
       `<table><tr><th>9/12</th><td>13:30（15:30に変更）</td></tr></table>`,
     ],
+    [
+      "an unreadable date before a recognized date",
+      `<table><tr><th>9月12日</th><td>13:30</td></tr><tr><th>9/13</th><td>11:00</td></tr></table>`,
+    ],
+    [
+      "an undated time before a recognized date",
+      `<table><tr><td>13:30</td></tr><tr><th>9/13</th><td>11:00</td></tr></table>`,
+    ],
+    [
+      "an unreadable date after a recognized date",
+      `<table><tr><th>9/12</th><td>13:30</td></tr><tr><th>9月13日</th><td>11:00</td></tr></table>`,
+    ],
+    [
+      "a known schedule table with only unreadable dates beside a valid table",
+      `<table><tr><th>日付</th><th>開演時間</th></tr><tr><th>9月12日</th><td>13:30</td></tr></table><table><tr><th>9/13</th><td>11:00</td></tr></table>`,
+    ],
   ])(
     "rejects %s at both the parser and adapter boundary",
     async (_label, schedule) => {
@@ -417,6 +433,7 @@ describe("Takarazuka revue adapter facts", () => {
     const occurrences = parseTakarazukaSchedule(
       `<table class="edgenone center">
       <tr><th colspan="2">日付</th><th>開演時間</th></tr>
+      <tr><td></td></tr>
       <tr><th rowspan="2">9/12</th><th rowspan="2">土</th><td>★13:30</td></tr>
       <tr><td></td></tr>
       <tr><th>9/13</th><th>日</th><td>休演日</td></tr>
