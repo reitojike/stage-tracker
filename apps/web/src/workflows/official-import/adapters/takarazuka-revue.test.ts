@@ -397,6 +397,22 @@ describe("Takarazuka revue adapter facts", () => {
       "a known schedule table with only unreadable dates beside a valid table",
       `<table><tr><th>日付</th><th>開演時間</th></tr><tr><th>9月12日</th><td>13:30</td></tr></table><table><tr><th>9/13</th><td>11:00</td></tr></table>`,
     ],
+    [
+      "an unreadable rowspan date with an empty first slot after a valid day",
+      `<table><tr><th>9/12</th><td>13:30</td></tr><tr><th rowspan="2">9月13日</th><td></td></tr><tr><td>11:00</td></tr></table>`,
+    ],
+    [
+      "an unreadable rowspan date with an empty first slot before a valid day",
+      `<table><tr><th rowspan="2">9月12日</th><td></td></tr><tr><td>13:30</td></tr><tr><th>9/13</th><td>11:00</td></tr></table>`,
+    ],
+    [
+      "an unreadable date heading without a time cell",
+      `<table><tr><th>9/12</th><td>13:30</td></tr><tr><th>日付調整中</th></tr><tr><td>11:00</td></tr></table>`,
+    ],
+    [
+      "an orphan time after a repeated table header",
+      `<table><tr><th>9/12</th><td>13:30</td></tr><tr><th>日付</th><th>開演時間</th></tr><tr><td>11:00</td></tr></table>`,
+    ],
   ])(
     "rejects %s at both the parser and adapter boundary",
     async (_label, schedule) => {

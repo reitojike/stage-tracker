@@ -255,7 +255,8 @@ export function parseTakarazukaSchedule(
     const rows = descendants(table, (node) => elementName(node) === "tr");
     let activeMonthDay: { month: number; day: number } | null = null;
     for (const row of rows) {
-      const heading = descendants(row, (node) => elementName(node) === "th")[0];
+      const headings = descendants(row, (node) => elementName(node) === "th");
+      const heading = headings[0];
       const dateMatch =
         heading === undefined
           ? null
@@ -266,14 +267,22 @@ export function parseTakarazukaSchedule(
           day: Number(dateMatch[2]),
         };
       const cells = descendants(row, (node) => elementName(node) === "td");
+      const headingTexts = headings.map(normalizedText);
+      const isTableHeader =
+        cells.length === 0 &&
+        headings.length === 2 &&
+        headingTexts[0] === "日付" &&
+        headingTexts[1] === "開演時間";
+      if (isTableHeader) {
+        activeMonthDay = null;
+        continue;
+      }
+      // Even an empty first slot must not carry an unreadable date into its
+      // populated rowspan continuation under the previous day's identity.
+      if (heading !== undefined && dateMatch === null)
+        throw new SourceParseFailure();
       const hasNonemptyCell = cells.some((cell) => normalizedText(cell) !== "");
-      // Header rows have no time cells. A nonempty data row must have a
-      // recognized date or continue it without introducing another heading.
-      if (
-        hasNonemptyCell &&
-        (activeMonthDay === null ||
-          (heading !== undefined && dateMatch === null))
-      )
+      if (hasNonemptyCell && activeMonthDay === null)
         throw new SourceParseFailure();
       if (activeMonthDay === null) continue;
       const monthDay = activeMonthDay;
