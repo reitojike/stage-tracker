@@ -236,19 +236,15 @@ export function parseTakarazukaSchedule(
 ): readonly { readonly startsAt: string; readonly endsAt: null }[] {
   const document = parseHtml(html);
   const datePattern = /(\d{1,2})\s*[/.]\s*(\d{1,2})/u;
+  // Select by structure, not readable dates: a headerless schedule with an
+  // unsupported date must reach the row guard instead of disappearing.
   const tables = descendants(
     document,
     (node) => elementName(node) === "table",
-  ).filter((table) => {
-    const headings = descendants(
-      table,
-      (node) => elementName(node) === "th",
-    ).map(normalizedText);
-    return (
-      headings.some((text) => datePattern.test(text)) ||
-      (headings.includes("日付") && headings.includes("開演時間"))
-    );
-  });
+  ).filter(
+    (table) =>
+      descendants(table, (node) => elementName(node) === "th").length > 0,
+  );
   if (tables.length === 0) throw new SourceParseFailure();
   const occurrences: { startsAt: string; endsAt: null }[] = [];
   for (const table of tables) {

@@ -398,6 +398,22 @@ describe("Takarazuka revue adapter facts", () => {
       `<table><tr><th>日付</th><th>開演時間</th></tr><tr><th>9月12日</th><td>13:30</td></tr></table><table><tr><th>9/13</th><td>11:00</td></tr></table>`,
     ],
     [
+      "a headerless unreadable-date table before a valid table",
+      `<table><tr><th>9月12日</th><td>13:30</td></tr></table><table><tr><th>9/13</th><td>11:00</td></tr></table>`,
+    ],
+    [
+      "a headerless unreadable-date table after a valid table",
+      `<table><tr><th>9/12</th><td>13:30</td></tr></table><table><tr><th>9月13日</th><td>11:00</td></tr></table>`,
+    ],
+    [
+      "a standalone headerless unreadable-date table",
+      `<table><tr><th>9月12日</th><td>13:30</td></tr></table>`,
+    ],
+    [
+      "a headerless unreadable-date sibling with an empty first slot",
+      `<table><tr><th>9/12</th><td>13:30</td></tr></table><table><tr><th rowspan="2">9月13日</th><td></td></tr><tr><td>11:00</td></tr></table>`,
+    ],
+    [
       "an unreadable rowspan date with an empty first slot after a valid day",
       `<table><tr><th>9/12</th><td>13:30</td></tr><tr><th rowspan="2">9月13日</th><td></td></tr><tr><td>11:00</td></tr></table>`,
     ],
@@ -492,6 +508,20 @@ describe("Takarazuka revue adapter facts", () => {
         "2026-09-12",
       ),
     ).toEqual([{ startsAt: "2026-09-12T13:30:00+09:00", endsAt: null }]);
+  });
+
+  it("keeps valid headerless and headed schedule tables on the same page", () => {
+    expect(
+      parseTakarazukaSchedule(
+        `<table><tr><th rowspan="2">9/12</th><td>13:30</td></tr><tr><td></td></tr></table>
+      <table><tr><th>日付</th><th>開演時間</th></tr><tr><th>9/13</th><td>11:00</td><td>貸切公演</td></tr></table>`,
+        "2026-09-12",
+        "2026-09-13",
+      ),
+    ).toEqual([
+      { startsAt: "2026-09-12T13:30:00+09:00", endsAt: null },
+      { startsAt: "2026-09-13T11:00:00+09:00", endsAt: null },
+    ]);
   });
 
   it("rejects an unrelated table without a dated heading", () => {
