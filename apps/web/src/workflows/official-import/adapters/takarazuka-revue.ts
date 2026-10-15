@@ -235,42 +235,68 @@ export function parseTakarazukaSchedule(
   endsOn: string,
 ): readonly { readonly startsAt: string; readonly endsAt: null }[] {
   const document = parseHtml(html);
-  const rows = descendants(document, (node) => elementName(node) === "tr");
+  const datePattern = /(\d{1,2})\s*[/.]\s*(\d{1,2})/u;
+  const tables = descendants(
+    document,
+    (node) => elementName(node) === "table",
+  ).filter((table) =>
+    descendants(table, (node) => elementName(node) === "th").some((heading) =>
+      datePattern.test(normalizedText(heading)),
+    ),
+  );
+  if (tables.length === 0) throw new SourceParseFailure();
   const occurrences: { startsAt: string; endsAt: null }[] = [];
-  let activeMonthDay: { month: number; day: number } | null = null;
-  for (const row of rows) {
-    const heading = descendants(row, (node) => elementName(node) === "th")[0];
-    const dateMatch =
-      heading === undefined
-        ? null
-        : normalizedText(heading).match(/(\d{1,2})\s*[/.]\s*(\d{1,2})/u);
-    if (dateMatch !== null)
-      activeMonthDay = {
-        month: Number(dateMatch[1]),
-        day: Number(dateMatch[2]),
-      };
-    if (activeMonthDay === null) continue;
-    const monthDay = activeMonthDay;
-    for (const cell of descendants(row, (node) => elementName(node) === "td")) {
-      const text = normalizedText(cell);
-      if (text === "" || /休演日|貸切公演/u.test(text)) continue;
-      const clock = parseJapaneseClock(text);
-      if (clock === null) continue;
-      const candidateYears = [
-        ...new Set([Number(startsOn.slice(0, 4)), Number(endsOn.slice(0, 4))]),
-      ];
-      const date = candidateYears
-        .map((year) => calendarDate(year, monthDay.month, monthDay.day))
-        .find((candidate) => candidate >= startsOn && candidate <= endsOn);
-      if (date === undefined) throw new SourceParseFailure();
-      occurrences.push({
-        startsAt: tokyoDateTime(date, clock.hour, clock.minute),
-        endsAt: null,
-      });
+  for (const table of tables) {
+    const rows = descendants(table, (node) => elementName(node) === "tr");
+    let activeMonthDay: { month: number; day: number } | null = null;
+    for (const row of rows) {
+      const heading = descendants(row, (node) => elementName(node) === "th")[0];
+      const dateMatch =
+        heading === undefined
+          ? null
+          : normalizedText(heading).match(datePattern);
+      if (dateMatch !== null)
+        activeMonthDay = {
+          month: Number(dateMatch[1]),
+          day: Number(dateMatch[2]),
+        };
+      if (activeMonthDay === null) continue;
+      const monthDay = activeMonthDay;
+      for (const cell of descendants(
+        row,
+        (node) => elementName(node) === "td",
+      )) {
+        const text = normalizedText(cell);
+        if (text === "" || /^(?:休演日|貸切公演(?:\s*※\s*\d+)?)$/u.test(text))
+          continue;
+        // Only observed presentation marks may surround a complete clock. A
+        // substring match would silently accept cancellations or time changes.
+        if (
+          !/^★?\s*(?:\d{1,2}\s*[:：]\s*\d{2}|(?:午前|午後)?\s*\d{1,2}時(?:\s*\d{1,2}分)?)(?:\s*[（(]新人公演[）)])?$/u.test(
+            text,
+          )
+        )
+          throw new SourceParseFailure();
+        const clock = parseJapaneseClock(text);
+        if (clock === null) throw new SourceParseFailure();
+        const candidateYears = [
+          ...new Set([
+            Number(startsOn.slice(0, 4)),
+            Number(endsOn.slice(0, 4)),
+          ]),
+        ];
+        const date = candidateYears
+          .map((year) => calendarDate(year, monthDay.month, monthDay.day))
+          .find((candidate) => candidate >= startsOn && candidate <= endsOn);
+        if (date === undefined) throw new SourceParseFailure();
+        occurrences.push({
+          startsAt: tokyoDateTime(date, clock.hour, clock.minute),
+          endsAt: null,
+        });
+      }
     }
   }
-  if (rows.length > 0 && occurrences.length === 0)
-    throw new SourceParseFailure();
+  if (occurrences.length === 0) throw new SourceParseFailure();
   return occurrences;
 }
 

@@ -82,6 +82,10 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   site policyに関して残る不確実性をoperatorが受け入れたことを記録し、source固有の厳格なrequest上限を適用し、個別のclean shadow canaryを完了してください。
   2026-09-27の読み取り専用監査では、7作品・14会場をEvent 14件（公開済み日別表からOccurrenceを得られる9件、
   日別表リンク未掲載でEvent-onlyの5件）として説明できました。Event adapterは1 run最大30 requestに制限し、この監査で17 requestを使用しました。
+  日別表リンク先に日付見出し付きの表がない場合、時刻セルが非空で読めない場合、中止・変更等の未対応表記が混在する場合は、
+  Event adapterがsource全体を`SourceParseFailure`で停止します。空セル、休演日、貸切公演（脚注番号付きも含む）、
+  ★付き時刻と新人公演の既知表記は維持します。リンク先の解析失敗をEvent-onlyへ降格させず、
+  日別表リンク未掲載を公演詳細で検証できた経路だけがEvent-onlyです。
   同じ公式一覧に明記された会場別の一般前売日は14件をdate-onlyのTicketOpportunity候補として解析でき、14件すべてがEvent source keyに対応しました。
   このHTML ticket sourceは管理者の手動shadow取得に限り`enabled: true`/`scheduledEnabled: false`とします。公演別ticket pageへの公開済みlinkがある場合、
   宝塚友の会の第1〜第3抽選と宝塚歌劇共通ID＋の抽選について、明記された申込開始・締切・結果照会を時刻付きで別候補にします。link未掲載の先行販売は

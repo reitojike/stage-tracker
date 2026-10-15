@@ -364,6 +364,113 @@ describe("Takarazuka revue adapter facts", () => {
     ).toThrow();
   });
 
+  it.each([
+    [
+      "an unreadable sibling time",
+      `<table><tr><th>9/12</th><td>13:30</td><td>開演時刻調整中</td></tr></table>`,
+    ],
+    [
+      "a linked page without a day table",
+      `<main><h2>公演日程</h2><p>調整中</p></main>`,
+    ],
+    [
+      "a cancelled time",
+      `<table><tr><th>9/12</th><td>13:30（公演中止）</td></tr></table>`,
+    ],
+    [
+      "an ambiguously changed time",
+      `<table><tr><th>9/12</th><td>13:30（15:30に変更）</td></tr></table>`,
+    ],
+  ])(
+    "rejects %s at both the parser and adapter boundary",
+    async (_label, schedule) => {
+      expect(() =>
+        parseTakarazukaSchedule(schedule, "2026-09-12", "2026-09-13"),
+      ).toThrow("Official source parse failed");
+      const detailUrl =
+        "https://kageki.hankyu.co.jp/sp/revue/2026/fictionalwork/index.html";
+      const scheduleUrl = new URL("schedule_takarazuka.html", detailUrl).href;
+      const pages = new Map([
+        [
+          source.canonicalUrl,
+          `<div class="item"><a href="${detailUrl}"><p class="title">『架空公演』</p></a><dl><dt>宝塚大劇場</dt><dd>2026年9月12日～13日</dd></dl></div>`,
+        ],
+        [
+          detailUrl,
+          `<title>星組公演 『架空公演』</title><a href="schedule_takarazuka.html">公演日程を見る</a>`,
+        ],
+        [scheduleUrl, schedule],
+      ]);
+      const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+        const body = pages.get(url);
+        if (body === undefined) throw new Error(`unexpected URL ${url}`);
+        return document(url, body);
+      });
+      await expect(adapter.acquire(source)).rejects.toMatchObject({
+        name: "SourceParseFailure",
+        canonicalUrl: scheduleUrl,
+      });
+    },
+  );
+
+  it("keeps empty rowspan cells, closed days, private shows and observed clock marks", () => {
+    const occurrences = parseTakarazukaSchedule(
+      `<table class="edgenone center">
+      <tr><th colspan="2">日付</th><th>開演時間</th></tr>
+      <tr><th rowspan="2">9/12</th><th rowspan="2">土</th><td>★13:30</td></tr>
+      <tr><td></td></tr>
+      <tr><th>9/13</th><th>日</th><td>休演日</td></tr>
+      <tr><th rowspan="2">9/14</th><th rowspan="2">月</th><td>貸切公演 ※1</td></tr>
+      <tr><td>18:30(新人公演)</td></tr>
+      <tr><th>9/15</th><td>貸切公演</td><td>11：00</td></tr>
+      </table>`,
+      "2026-09-12",
+      "2026-09-15",
+    );
+    expect(occurrences.map(({ startsAt }) => startsAt)).toEqual([
+      "2026-09-12T13:30:00+09:00",
+      "2026-09-14T18:30:00+09:00",
+      "2026-09-15T11:00:00+09:00",
+    ]);
+  });
+
+  it.each([
+    "開演時刻調整中",
+    "13:30 未確認",
+    "貸切公演（中止）",
+    "休演日（変更予定）",
+    "★13:30（中止）",
+    "13:30 15:30",
+  ])("does not discard or partially read an unknown time cell: %s", (text) => {
+    expect(() =>
+      parseTakarazukaSchedule(
+        `<table><tr><th>9/12</th><td>11:00</td></tr><tr><td>${text}</td></tr></table>`,
+        "2026-09-12",
+        "2026-09-12",
+      ),
+    ).toThrow("Official source parse failed");
+  });
+
+  it("does not carry a date into an unrelated table", () => {
+    expect(
+      parseTakarazukaSchedule(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table><table><tr><td>連絡先 03:00</td></tr></table>`,
+        "2026-09-12",
+        "2026-09-12",
+      ),
+    ).toEqual([{ startsAt: "2026-09-12T13:30:00+09:00", endsAt: null }]);
+  });
+
+  it("rejects an unrelated table without a dated heading", () => {
+    expect(() =>
+      parseTakarazukaSchedule(
+        `<table><tr><th>開演時間</th><td>13:30</td></tr></table>`,
+        "2026-09-12",
+        "2026-09-12",
+      ),
+    ).toThrow("Official source parse failed");
+  });
+
   it("rejects a production when any venue block is only partially parseable", () => {
     expect(() =>
       parseTakarazukaIndex(
