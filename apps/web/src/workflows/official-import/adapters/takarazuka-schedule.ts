@@ -216,6 +216,7 @@ function frameContents(region: HtmlNode, startsOn: string, endsOn: string) {
   const tables: HtmlNode[] = [];
   let castColors = new Set<string>();
   let castLegendSeen = false;
+  const privateNotes = new Map<string, { date: string; startsAt: string }>();
   for (const child of elements(region)) {
     const tag = elementName(child);
     if (tag === "table") {
@@ -297,20 +298,27 @@ function frameContents(region: HtmlNode, startsOn: string, endsOn: string) {
       )
         continue;
       const note = line.match(
-        /^※\d+ (\d{1,2})月(\d{1,2})日（([日月火水木金土])）(\d{1,2}):(\d{2})開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。$/u,
+        /^※(\d+) (\d{1,2})月(\d{1,2})日（([日月火水木金土])）(\d{1,2}):(\d{2})開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。$/u,
       );
       if (!note) fail();
-      const date = resolveDate(`${note[1]}/${note[2]}`, startsOn, endsOn);
-      if (weekday(date) !== note[3]) fail();
-      clock(Number(note[4]), Number(note[5]));
+      const [, id, month, day, dayOfWeek, hour, minute] = note;
+      if (id === undefined || privateNotes.has(id)) fail();
+      const date = resolveDate(`${month}/${day}`, startsOn, endsOn);
+      if (weekday(date) !== dayOfWeek) fail();
+      const time = clock(Number(hour), Number(minute));
+      privateNotes.set(id, {
+        date,
+        startsAt: tokyoDateTime(date, time.hour, time.minute),
+      });
     }
   }
   if (tables.length === 0) fail();
-  return { tables, castColors };
+  return { tables, castColors, privateNotes };
 }
 
 type Slot =
-  | { kind: "empty" | "closed" | "private" }
+  | { kind: "empty" | "closed" }
+  | { kind: "private"; noteId: string | null }
   | { kind: "public"; hour: number; minute: number };
 function slot(node: HtmlNode, colors: ReadonlySet<string>): Slot {
   attrs(node, ["class"]);
@@ -323,7 +331,10 @@ function slot(node: HtmlNode, colors: ReadonlySet<string>): Slot {
   if (text === "") result = { kind: "empty" };
   else if (text === "休演日") result = { kind: "closed" };
   else if (/^貸切公演(?:\s*※\s*\d+)?$/u.test(text))
-    result = { kind: "private" };
+    result = {
+      kind: "private",
+      noteId: text.match(/※\s*(\d+)$/u)?.[1] ?? null,
+    };
   else {
     const plain = text
       .replace(/^★\s*/u, "")
@@ -373,13 +384,14 @@ export function parseTakarazukaSchedule(
     Number(endsOn.slice(0, 4)) - Number(startsOn.slice(0, 4)) > 1
   )
     fail();
-  const { tables, castColors } = frameContents(
+  const { tables, castColors, privateNotes } = frameContents(
     scheduleRegion(parseHtml(html)),
     startsOn,
     endsOn,
   );
   const occurrences: { startsAt: string; endsAt: null }[] = [];
   const starts = new Set<string>();
+  const privateSlots = new Map<string, string>();
   const days = new Map<string, { closed: boolean; performances: number }>();
   for (const table of tables) {
     attrs(table, ["class"]);
@@ -465,6 +477,10 @@ export function parseTakarazukaSchedule(
           }
           if (day.closed) fail();
           day.performances += 1;
+          if (value.kind === "private" && value.noteId !== null) {
+            if (privateSlots.has(value.noteId)) fail();
+            privateSlots.set(value.noteId, active.date);
+          }
           if (value.kind === "public") {
             const startsAt = tokyoDateTime(
               active.date,
@@ -482,6 +498,18 @@ export function parseTakarazukaSchedule(
       if (active && active.remaining !== 0) fail();
     }
     if (!dated) fail();
+  }
+  if (privateNotes.size !== privateSlots.size) fail();
+  const privateStarts = new Set<string>();
+  for (const [id, note] of privateNotes) {
+    if (
+      privateSlots.get(id) !== note.date ||
+      days.get(note.date)?.closed ||
+      starts.has(note.startsAt) ||
+      privateStarts.has(note.startsAt)
+    )
+      fail();
+    privateStarts.add(note.startsAt);
   }
   if (occurrences.length === 0) fail();
   return occurrences;

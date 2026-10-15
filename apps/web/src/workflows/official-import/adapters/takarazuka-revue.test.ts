@@ -555,7 +555,8 @@ describe("Takarazuka revue adapter facts", () => {
 
   it("keeps empty rowspan cells, closed days, private shows and observed clock marks", () => {
     const occurrences = parseTakarazukaSchedule(
-      schedulePage(`<table class="edgenone center">
+      schedulePage(
+        `<table class="edgenone center">
       <tr><th colspan="2">日付</th><th>開演時間</th></tr>
       <tr><td></td></tr>
       <tr><th rowspan="2">9/12</th><th rowspan="2">土</th><td>★13:30</td></tr>
@@ -564,7 +565,10 @@ describe("Takarazuka revue adapter facts", () => {
       <tr><th rowspan="2">9/14</th><th rowspan="2">月</th><td>貸切公演 ※1</td></tr>
       <tr><td>18:30(新人公演)</td></tr>
       <tr><th>9/15</th><td>貸切公演</td><td>11：00</td></tr>
-      </table>`),
+      </table>`,
+        "",
+        `<p class="txt3">※1 9月14日（月）13:30開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。</p>`,
+      ),
       "2026-09-12",
       "2026-09-15",
     );
@@ -653,9 +657,9 @@ describe("Takarazuka revue adapter facts", () => {
   });
 });
 
-function schedulePage(tables: string, outside = ""): string {
+function schedulePage(tables: string, outside = "", notes = ""): string {
   return `<div id="contents"><article><div><h1>公演日程</h1></div>
-    <section class="article02"><div class="table03"><div class="table01 list">${tables}</div></div></section>
+    <section class="article02"><div class="table03">${notes}<div class="table01 list">${tables}</div></div></section>
     <section>${outside}</section></article></div>`;
 }
 

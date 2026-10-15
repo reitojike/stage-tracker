@@ -9,6 +9,9 @@ const mark = (color = blue) => `<font color="${color}">●</font>`;
 const legend = `<p class="txt">◇この公演は役替わりがあります。<a href="https://kageki.hankyu.co.jp/news/20260526_003.html" target="_self">こちらのニュース</a>をご確認ください。<br>
 ＜役替わり日程＞<br>${mark()}＝ルドルフ：侑輝 大弥<br>${mark(yellow)}＝ルドルフ：希波 らいと<br></p>`;
 const caution = `<p class="txt3">※一部の公演ならびに席種において、取り扱いがない場合がございます。<br>※今後、都合により開演時間等の変更が生じることがございますので、ご了承ください。（公演時間は休憩を含め約3時間です）</p>`;
+function privateNote(id = "1", date = "9月12日（土）", time = "15:30") {
+  return `<p class="txt3">※${id} ${date}${time}開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。</p>`;
+}
 function page(rows: string, notes = "") {
   return `<div id="contents"><article><h1>公演日程</h1><section class="article02"><div class="table03">${notes}<div class="table01 list"><table>${rows}</table></div></div></section></article></div>`;
 }
@@ -64,6 +67,7 @@ describe("Takarazuka schedule accepted forms", () => {
       starts(
         `<tr><th rowspan="2">9/12</th><th rowspan="2">土</th><td></td></tr><tr><td>13:30</td><td class="blue">貸切公演 ※1</td></tr>` +
           `<tr><th>9/13</th><th class="sun">日</th><td class="red">休演日</td></tr>`,
+        privateNote(),
       ),
     ).toEqual(["2026-09-12T13:30:00+09:00"]);
   });
@@ -183,7 +187,7 @@ describe("page-confirmed role markers", () => {
       starts(
         `<tr><th rowspan="2">9/12</th><td>★13:30${mark()}</td></tr><tr><td>貸切公演 ※1${mark(yellow)}</td></tr>` +
           row("9/13", `11:00${mark(yellow)}`),
-        legend,
+        legend + privateNote(),
       ),
     ).toEqual(["2026-09-12T13:30:00+09:00", "2026-09-13T11:00:00+09:00"]);
   });
@@ -243,13 +247,49 @@ describe("page-confirmed role markers", () => {
       row("12/21", "休演日") +
       `<tr><th rowspan="2">12/29</th><td>貸切公演 ※1${mark(yellow)}</td></tr><tr><td>15:30${mark(yellow)}</td></tr>` +
       row("1/5", `13:30${mark()}`);
-    expect(starts(tokyo, legend + caution, "2026-12-19", "2027-02-07")).toEqual(
-      [
-        "2026-12-19T13:30:00+09:00",
-        "2026-12-20T15:30:00+09:00",
-        "2026-12-29T15:30:00+09:00",
-        "2027-01-05T13:30:00+09:00",
-      ],
-    );
+    expect(
+      starts(
+        tokyo,
+        legend + caution + privateNote("1", "12月29日（火）", "13:30"),
+        "2026-12-19",
+        "2027-02-07",
+      ),
+    ).toEqual([
+      "2026-12-19T13:30:00+09:00",
+      "2026-12-20T15:30:00+09:00",
+      "2026-12-29T15:30:00+09:00",
+      "2027-01-05T13:30:00+09:00",
+    ]);
+  });
+});
+
+describe("dated private notes agree with the table", () => {
+  const normal = `<tr><th>9/12</th><td>13:30</td><td>貸切公演 ※1</td></tr>`;
+  it.each([
+    [normal, ""],
+    [normal, privateNote("2")],
+    [normal, privateNote("1", "9月13日（日）")],
+    [normal, privateNote("1", "9月12日（土）", "13:30")],
+    [normal, privateNote() + privateNote()],
+    [normal + row("9/12", "貸切公演 ※1"), privateNote()],
+    [row("9/12", "休演日") + row("9/13", "11:00"), privateNote()],
+    [row("9/12", "13:30"), privateNote()],
+    [
+      `<tr><th>9/12</th><td>13:30</td><td>貸切公演 ※1</td><td>貸切公演 ※2</td></tr>`,
+      privateNote() + privateNote("2"),
+    ],
+  ])(
+    "rejects a missing, wrong, closed-day or colliding note",
+    (rows, notes) => {
+      expect(() => starts(rows, notes)).toThrow("Official source parse failed");
+    },
+  );
+  it("keeps two distinct numbered private slots and their public siblings", () => {
+    expect(
+      starts(
+        normal + `<tr><th>9/13</th><td>11:00</td><td>貸切公演 ※2</td></tr>`,
+        privateNote() + privateNote("2", "9月13日（日）", "15:30"),
+      ),
+    ).toEqual(["2026-09-12T13:30:00+09:00", "2026-09-13T11:00:00+09:00"]);
   });
 });
