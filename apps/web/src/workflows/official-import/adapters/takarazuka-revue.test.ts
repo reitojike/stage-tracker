@@ -574,6 +574,7 @@ describe("Takarazuka revue adapter facts", () => {
     );
     expect(occurrences.map(({ startsAt }) => startsAt)).toEqual([
       "2026-09-12T13:30:00+09:00",
+      "2026-09-14T13:30:00+09:00",
       "2026-09-14T18:30:00+09:00",
       "2026-09-15T11:00:00+09:00",
     ]);

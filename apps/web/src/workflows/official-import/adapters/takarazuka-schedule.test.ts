@@ -69,7 +69,7 @@ describe("Takarazuka schedule accepted forms", () => {
           `<tr><th>9/13</th><th class="sun">日</th><td class="red">休演日</td></tr>`,
         privateNote(),
       ),
-    ).toEqual(["2026-09-12T13:30:00+09:00"]);
+    ).toEqual(["2026-09-12T13:30:00+09:00", "2026-09-12T15:30:00+09:00"]);
   });
   it("accepts known caution including the generic future-change notice", () => {
     expect(starts(row("9/12", "13:30"), caution)).toHaveLength(1);
@@ -83,7 +83,7 @@ describe("Takarazuka schedule accepted forms", () => {
     const note = `<p class="txt3">※1 9月12日（土）15:30開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。</p>`;
     expect(
       starts(`<tr><th>9/12</th><td>13:30</td><td>貸切公演 ※1</td></tr>`, note),
-    ).toHaveLength(1);
+    ).toEqual(["2026-09-12T13:30:00+09:00", "2026-09-12T15:30:00+09:00"]);
   });
 
   it.each([
@@ -189,7 +189,11 @@ describe("page-confirmed role markers", () => {
           row("9/13", `11:00${mark(yellow)}`),
         legend + privateNote(),
       ),
-    ).toEqual(["2026-09-12T13:30:00+09:00", "2026-09-13T11:00:00+09:00"]);
+    ).toEqual([
+      "2026-09-12T13:30:00+09:00",
+      "2026-09-12T15:30:00+09:00",
+      "2026-09-13T11:00:00+09:00",
+    ]);
   });
   it.each([
     [mark(), ""],
@@ -257,6 +261,7 @@ describe("page-confirmed role markers", () => {
     ).toEqual([
       "2026-12-19T13:30:00+09:00",
       "2026-12-20T15:30:00+09:00",
+      "2026-12-29T13:30:00+09:00",
       "2026-12-29T15:30:00+09:00",
       "2027-01-05T13:30:00+09:00",
     ]);
@@ -290,6 +295,21 @@ describe("dated private notes agree with the table", () => {
         normal + `<tr><th>9/13</th><td>11:00</td><td>貸切公演 ※2</td></tr>`,
         privateNote() + privateNote("2", "9月13日（日）", "15:30"),
       ),
-    ).toEqual(["2026-09-12T13:30:00+09:00", "2026-09-13T11:00:00+09:00"]);
+    ).toEqual([
+      "2026-09-12T13:30:00+09:00",
+      "2026-09-12T15:30:00+09:00",
+      "2026-09-13T11:00:00+09:00",
+      "2026-09-13T15:30:00+09:00",
+    ]);
+  });
+  it("imports a page with only a dated joint performance", () => {
+    expect(starts(row("9/12", "貸切公演 ※1"), privateNote())).toEqual([
+      "2026-09-12T15:30:00+09:00",
+    ]);
+  });
+  it("does not invent a time for an ordinary private performance", () => {
+    expect(() => starts(row("9/12", "貸切公演"))).toThrow(
+      "Official source parse failed",
+    );
   });
 });

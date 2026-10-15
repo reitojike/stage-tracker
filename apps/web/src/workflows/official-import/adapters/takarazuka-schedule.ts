@@ -391,6 +391,11 @@ export function parseTakarazukaSchedule(
   );
   const occurrences: { startsAt: string; endsAt: null }[] = [];
   const starts = new Set<string>();
+  const addOccurrence = (startsAt: string) => {
+    if (starts.has(startsAt)) fail();
+    starts.add(startsAt);
+    occurrences.push({ startsAt, endsAt: null });
+  };
   const privateSlots = new Map<string, string>();
   const days = new Map<string, { closed: boolean; performances: number }>();
   for (const table of tables) {
@@ -479,7 +484,12 @@ export function parseTakarazukaSchedule(
           day.performances += 1;
           if (value.kind === "private" && value.noteId !== null) {
             if (privateSlots.has(value.noteId)) fail();
+            const note = privateNotes.get(value.noteId);
+            if (note === undefined || note.date !== active.date) fail();
             privateSlots.set(value.noteId, active.date);
+            // The recognized dated note explicitly offers residual tickets
+            // through general sale; this is the documented joint-show exception.
+            addOccurrence(note.startsAt);
           }
           if (value.kind === "public") {
             const startsAt = tokyoDateTime(
@@ -487,9 +497,7 @@ export function parseTakarazukaSchedule(
               value.hour,
               value.minute,
             );
-            if (starts.has(startsAt)) fail();
-            starts.add(startsAt);
-            occurrences.push({ startsAt, endsAt: null });
+            addOccurrence(startsAt);
           }
         }
         days.set(active.date, day);
@@ -500,16 +508,9 @@ export function parseTakarazukaSchedule(
     if (!dated) fail();
   }
   if (privateNotes.size !== privateSlots.size) fail();
-  const privateStarts = new Set<string>();
   for (const [id, note] of privateNotes) {
-    if (
-      privateSlots.get(id) !== note.date ||
-      days.get(note.date)?.closed ||
-      starts.has(note.startsAt) ||
-      privateStarts.has(note.startsAt)
-    )
+    if (privateSlots.get(id) !== note.date || days.get(note.date)?.closed)
       fail();
-    privateStarts.add(note.startsAt);
   }
   if (occurrences.length === 0) fail();
   return occurrences;
