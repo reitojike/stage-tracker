@@ -6,6 +6,28 @@ import type { OfficialHtmlDocument } from "./http";
 const source = getOfficialSource("ticket.takarazuka.revue-general-sale");
 if (source === null) throw new Error("test source missing");
 
+const unpublishedPlus = `<div class="set"><h4>宝塚歌劇共通ID＋（プラス）</h4><p class="txt">一般前売に先がけてチケット先行販売を実施いたします。<br>詳細が決まり次第掲載いたします。</p></div>`;
+const londonFriends = `<div class="set"><h4>宝塚友の会</h4><p class="txt">
+■「第1抽選方式」申込期間：11月28日（土）10:00〜11月29日（日）23:00 結果照会：12月2日（水）10:00〜
+■「第2抽選方式」申込期間：12月4日（金）10:00〜12月5日（土）23:00 結果照会：12月8日（火）10:00〜
+■「第3抽選方式」申込期間：12月9日（水）10:00〜12月10日（木）23:00 結果照会：12月13日（日）10:00〜
+</p></div>`;
+const publishedPlus = `<div class="set"><h4>宝塚歌劇共通ID＋（プラス）</h4><p class="txt">■「抽選方式」申込期間：12月15日（火）10:00〜12月16日（水）23:00 結果照会：12月19日（土）10:00〜</p></div>`;
+function londonAdapter(ticket: () => string) {
+  return createTakarazukaGeneralSaleAdapter(async (_source, url) => ({
+    url,
+    body: url.endsWith("ticket_takarazuka.html")
+      ? ticket()
+      : url.endsWith("thelondonway/index.html")
+        ? `<a href="/sp/revue/2027/thelondonway/ticket_takarazuka.html">チケット</a>`
+        : `<div class="item"><a href="/sp/revue/2027/thelondonway/index.html"><p class="title">『The London Way』</p></a><dl><dt>宝塚大劇場</dt><dd>2027年1月30日～3月14日 一般前売：2027年1月9日</dd></dl></div>`,
+    observedAt: "2026-10-15T00:00:00.000Z",
+    contentHash: "a".repeat(64),
+    etag: null,
+    lastModified: null,
+  }));
+}
+
 describe("Takarazuka general-sale index adapter", () => {
   it("fails closed when a published general-sale field cannot be parsed", async () => {
     const adapter = createTakarazukaGeneralSaleAdapter(
@@ -320,5 +342,102 @@ describe("Takarazuka general-sale index adapter", () => {
     expect(drafts[0]?.proposal.sourceKey).toBe(
       "takarazuka:2027:fictionalwork:takarazuka:general-sale",
     );
+  });
+});
+
+describe("observed unpublished common-ID announcement", () => {
+  it("keeps the general sale and three London Friends lotteries without inventing common-ID dates", async () => {
+    const drafts = await londonAdapter(
+      () => londonFriends + unpublishedPlus,
+    ).acquire(source);
+    expect(drafts.map((d) => d.proposal.sourceKey)).toEqual([
+      "takarazuka:2027:thelondonway:takarazuka:general-sale",
+      "takarazuka:2027:thelondonway:takarazuka:friends-lottery-1",
+      "takarazuka:2027:thelondonway:takarazuka:friends-lottery-2",
+      "takarazuka:2027:thelondonway:takarazuka:friends-lottery-3",
+    ]);
+    expect(drafts[1]?.proposal).toMatchObject({
+      milestones: [
+        {
+          type: "application_open",
+          precision: "datetime",
+          at: "2026-11-28T10:00:00+09:00",
+        },
+        {},
+        {},
+      ],
+    });
+    expect(drafts[3]?.proposal).toMatchObject({
+      milestones: [
+        {},
+        {},
+        {
+          type: "result_announcement",
+          precision: "datetime",
+          at: "2026-12-13T10:00:00+09:00",
+        },
+      ],
+    });
+  });
+  it("adds the ordinary stable common-ID identity when a later snapshot publishes complete facts", async () => {
+    let plus = unpublishedPlus;
+    const adapter = londonAdapter(() => londonFriends + plus);
+    expect(await adapter.acquire(source)).toHaveLength(4);
+    plus = publishedPlus;
+    const next = await adapter.acquire(source);
+    expect(next).toHaveLength(5);
+    expect(next[4]?.proposal.sourceKey).toBe(
+      "takarazuka:2027:thelondonway:takarazuka:common-id-plus-lottery",
+    );
+    expect(next[4]?.proposal).toMatchObject({
+      milestones: [
+        {
+          type: "application_open",
+          precision: "datetime",
+          at: "2026-12-15T10:00:00+09:00",
+        },
+        {},
+        {},
+      ],
+    });
+  });
+  it.each([
+    unpublishedPlus.replace("詳細が決まり次第掲載いたします。", "未定です。"),
+    unpublishedPlus.replace("</p>", "申込期間：12月15日10:00</p>"),
+    unpublishedPlus.replace("</p>", "受付中止</p>"),
+    unpublishedPlus.replace('<p class="txt">', '<p class="txt" hidden>'),
+    unpublishedPlus.replace(
+      "詳細が決まり次第掲載いたします。",
+      "<s>詳細が決まり次第掲載いたします。</s>",
+    ),
+    unpublishedPlus.replace("<br>", '<br title="変更">'),
+    unpublishedPlus.replace("</p>", "</p><p>申込期間が変更されました。</p>"),
+    unpublishedPlus.replace("</div>", "<h4>申込開始</h4></div>"),
+    unpublishedPlus + unpublishedPlus,
+    unpublishedPlus + publishedPlus,
+    publishedPlus + unpublishedPlus,
+    unpublishedPlus.replace("宝塚歌劇共通ID＋（プラス）", "宝塚友の会"),
+    unpublishedPlus.replace('<p class="txt">', '<p class="txt unknown">'),
+    unpublishedPlus.replace(
+      "一般前売に先がけてチケット先行販売を実施いたします。<br>詳細が決まり次第掲載いたします。",
+      "",
+    ),
+  ])("holds every unsupported or contradictory announcement", async (plus) => {
+    await expect(
+      londonAdapter(() => londonFriends + plus).acquire(source),
+    ).rejects.toMatchObject({
+      name: "SourceParseFailure",
+      canonicalUrl:
+        "https://kageki.hankyu.co.jp/sp/revue/2027/thelondonway/ticket_takarazuka.html",
+    });
+  });
+  it("does not hide malformed published Friends facts next to the known unpublished notice", async () => {
+    await expect(
+      londonAdapter(
+        () =>
+          londonFriends.replace("11月29日（日）23:00", "11月29日（日）未定") +
+          unpublishedPlus,
+      ).acquire(source),
+    ).rejects.toThrow("Official source parse failed");
   });
 });
