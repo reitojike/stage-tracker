@@ -12,6 +12,12 @@ const caution = `<p class="txt3">※一部の公演ならびに席種におい�
 function privateNote(id = "1", date = "9月12日（土）", time = "15:30") {
   return `<p class="txt3">※${id} ${date}${time}開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。</p>`;
 }
+function afterShowNote(
+  first = "1月23日（土）15:30",
+  last = "1月24日（日）13:00",
+) {
+  return `<p class="txt3">※2 この公演は、鳳月杏、天紫珠李の退団公演となります。${first}公演、${last}公演終了後、引き続き、サヨナラショーを行います。</p>`;
+}
 function page(rows: string, notes = "") {
   return `<div id="contents"><article><h1>公演日程</h1><section class="article02"><div class="table03">${notes}<div class="table01 list"><table>${rows}</table></div></div></section></article></div>`;
 }
@@ -312,4 +318,73 @@ describe("dated private notes agree with the table", () => {
       "Official source parse failed",
     );
   });
+});
+
+describe("observed farewell and holiday notes", () => {
+  const rows = row("1/23", "15:30※2") + row("1/24", "13:00 ※2");
+  const parse = (table = rows, note = afterShowNote()) =>
+    parseTakarazukaSchedule(page(table, note), "2026-12-12", "2027-01-24");
+
+  it("keeps only the two explicitly marked Artemis Takarazuka starts", () => {
+    expect(parse()).toEqual([
+      { startsAt: "2027-01-23T15:30:00+09:00", endsAt: null },
+      { startsAt: "2027-01-24T13:00:00+09:00", endsAt: null },
+    ]);
+  });
+  it("keeps the observed Artemis Tokyo starts without inventing an after-show time", () => {
+    expect(
+      starts(
+        row("3/27", "15:30※2") + row("3/28", "12:00※2"),
+        afterShowNote("3月27日（土）15:30", "3月28日（日）12:00"),
+        "2027-02-13",
+        "2027-03-28",
+      ),
+    ).toEqual(["2027-03-27T15:30:00+09:00", "2027-03-28T12:00:00+09:00"]);
+  });
+  it("accepts the observed holiday suffix on the London joint-show weekday", () => {
+    expect(
+      starts(
+        row("5/5", "貸切公演 ※1"),
+        privateNote("1", "5月5日（水・祝）", "13:30"),
+        "2027-04-03",
+        "2027-05-16",
+      ),
+    ).toEqual(["2027-05-05T13:30:00+09:00"]);
+  });
+  it.each([
+    [rows, ""],
+    [row("1/23", "15:30") + row("1/24", "13:00※2"), afterShowNote()],
+    [row("1/23", "15:30※2"), afterShowNote()],
+    [row("1/23", "13:00※2") + row("1/24", "13:00※2"), afterShowNote()],
+    [rows + row("1/22", "13:00※2"), afterShowNote()],
+    [rows.replace("15:30※2", "貸切公演 ※2"), afterShowNote()],
+    [rows, afterShowNote().replace("※2", "※1")],
+    [rows, afterShowNote() + afterShowNote()],
+    [rows, afterShowNote() + privateNote("2", "1月23日（土）", "15:30")],
+    [rows, afterShowNote("1月23日（日）15:30")],
+    [rows, afterShowNote("1月23日（土）24:00")],
+    [rows, afterShowNote("1月23日（土）15:30", "1月25日（月）13:00")],
+    [rows, afterShowNote("1月24日（日）13:00", "1月23日（土）15:30")],
+    [rows, afterShowNote().replace("サヨナラショー", "開演時間の変更")],
+    [rows, afterShowNote().replace("天紫珠李", "未確認の出演者")],
+    [rows, afterShowNote().replace("</p>", "公演中止</p>")],
+  ])(
+    "rejects an unverified farewell note or mismatched slot",
+    (table, note) => {
+      expect(() => parse(table, note)).toThrow("Official source parse failed");
+    },
+  );
+  it.each(["水・祝・変更", "木・祝", "水・振休"])(
+    "rejects an unsupported or wrong holiday weekday: %s",
+    (weekday) => {
+      expect(() =>
+        starts(
+          row("5/5", "貸切公演 ※1"),
+          privateNote("1", `5月5日（${weekday}）`, "13:30"),
+          "2027-04-03",
+          "2027-05-16",
+        ),
+      ).toThrow("Official source parse failed");
+    },
+  );
 });

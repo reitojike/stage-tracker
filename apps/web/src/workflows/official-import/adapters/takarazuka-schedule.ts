@@ -217,6 +217,7 @@ function frameContents(region: HtmlNode, startsOn: string, endsOn: string) {
   let castColors = new Set<string>();
   let castLegendSeen = false;
   const privateNotes = new Map<string, { date: string; startsAt: string }>();
+  const afterShowNotes = new Map<string, ReadonlySet<string>>();
   for (const child of elements(region)) {
     const tag = elementName(child);
     if (tag === "table") {
@@ -297,12 +298,37 @@ function frameContents(region: HtmlNode, startsOn: string, endsOn: string) {
           "※今後、都合により開演時間等の変更が生じることがございますので、ご了承ください。（公演時間は休憩を含め約3時間です）"
       )
         continue;
+      const afterShow = line.match(
+        /^※(\d+) この公演は、鳳月杏、天紫珠李の退団公演となります。(\d{1,2})月(\d{1,2})日（([日月火水木金土])）(\d{1,2}):(\d{2})公演、(\d{1,2})月(\d{1,2})日（([日月火水木金土])）(\d{1,2}):(\d{2})公演終了後、引き続き、サヨナラショーを行います。$/u,
+      );
+      if (afterShow) {
+        const id = afterShow[1];
+        if (!id || privateNotes.has(id) || afterShowNotes.has(id)) fail();
+        const starts: string[] = [];
+        for (const offset of [2, 7]) {
+          const date = resolveDate(
+            `${afterShow[offset]}/${afterShow[offset + 1]}`,
+            startsOn,
+            endsOn,
+          );
+          if (weekday(date) !== afterShow[offset + 2]) fail();
+          const time = clock(
+            Number(afterShow[offset + 3]),
+            Number(afterShow[offset + 4]),
+          );
+          starts.push(tokyoDateTime(date, time.hour, time.minute));
+        }
+        if ((starts[0] ?? "") >= (starts[1] ?? "")) fail();
+        afterShowNotes.set(id, new Set(starts));
+        continue;
+      }
       const note = line.match(
-        /^※(\d+) (\d{1,2})月(\d{1,2})日（([日月火水木金土])）(\d{1,2}):(\d{2})開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。$/u,
+        /^※(\d+) (\d{1,2})月(\d{1,2})日（([日月火水木金土])(?:・祝)?）(\d{1,2}):(\d{2})開演は三井住友カードと宝塚友の会の共同開催となり、予定枚数に達しなかった場合にのみ、一般前売で販売いたします。$/u,
       );
       if (!note) fail();
       const [, id, month, day, dayOfWeek, hour, minute] = note;
-      if (id === undefined || privateNotes.has(id)) fail();
+      if (id === undefined || privateNotes.has(id) || afterShowNotes.has(id))
+        fail();
       const date = resolveDate(`${month}/${day}`, startsOn, endsOn);
       if (weekday(date) !== dayOfWeek) fail();
       const time = clock(Number(hour), Number(minute));
@@ -313,13 +339,13 @@ function frameContents(region: HtmlNode, startsOn: string, endsOn: string) {
     }
   }
   if (tables.length === 0) fail();
-  return { tables, castColors, privateNotes };
+  return { tables, castColors, privateNotes, afterShowNotes };
 }
 
 type Slot =
   | { kind: "empty" | "closed" }
   | { kind: "private"; noteId: string | null }
-  | { kind: "public"; hour: number; minute: number };
+  | { kind: "public"; hour: number; minute: number; noteId: string | null };
 function slot(node: HtmlNode, colors: ReadonlySet<string>): Slot {
   attrs(node, ["class"]);
   classes(node, ["red", "blue", "orange"]);
@@ -336,7 +362,9 @@ function slot(node: HtmlNode, colors: ReadonlySet<string>): Slot {
       noteId: text.match(/※\s*(\d+)$/u)?.[1] ?? null,
     };
   else {
+    const noteId = text.match(/\s*※\s*(\d+)$/u)?.[1] ?? null;
     const plain = text
+      .replace(/\s*※\s*\d+$/u, "")
       .replace(/^★\s*/u, "")
       .replace(/\s*(?:\(新人公演\)|（新人公演）)$/u, "");
     const colon = plain.match(/^(\d{1,2})\s*[:：]\s*(\d{2})$/u);
@@ -344,13 +372,21 @@ function slot(node: HtmlNode, colors: ReadonlySet<string>): Slot {
       /^(午前|午後)?\s*(\d{1,2})時(?:\s*(\d{1,2})分)?$/u,
     );
     if (colon)
-      result = { kind: "public", ...clock(Number(colon[1]), Number(colon[2])) };
+      result = {
+        kind: "public",
+        noteId,
+        ...clock(Number(colon[1]), Number(colon[2])),
+      };
     else if (japanese) {
       let hour = Number(japanese[2]);
       if (japanese[1] !== undefined && hour > 12) fail();
       if (japanese[1] === "午後" && hour < 12) hour += 12;
       if (japanese[1] === "午前" && hour === 12) hour = 0;
-      result = { kind: "public", ...clock(hour, Number(japanese[3] ?? 0)) };
+      result = {
+        kind: "public",
+        noteId,
+        ...clock(hour, Number(japanese[3] ?? 0)),
+      };
     } else fail();
   }
   if (marked && (result.kind === "empty" || result.kind === "closed")) fail();
@@ -384,7 +420,7 @@ export function parseTakarazukaSchedule(
     Number(endsOn.slice(0, 4)) - Number(startsOn.slice(0, 4)) > 1
   )
     fail();
-  const { tables, castColors, privateNotes } = frameContents(
+  const { tables, castColors, privateNotes, afterShowNotes } = frameContents(
     scheduleRegion(parseHtml(html)),
     startsOn,
     endsOn,
@@ -397,6 +433,7 @@ export function parseTakarazukaSchedule(
     occurrences.push({ startsAt, endsAt: null });
   };
   const privateSlots = new Map<string, string>();
+  const afterShowSlots = new Map<string, Set<string>>();
   const days = new Map<string, { closed: boolean; performances: number }>();
   for (const table of tables) {
     attrs(table, ["class"]);
@@ -497,6 +534,13 @@ export function parseTakarazukaSchedule(
               value.hour,
               value.minute,
             );
+            if (value.noteId !== null) {
+              if (!afterShowNotes.get(value.noteId)?.has(startsAt)) fail();
+              const slots =
+                afterShowSlots.get(value.noteId) ?? new Set<string>();
+              slots.add(startsAt);
+              afterShowSlots.set(value.noteId, slots);
+            }
             addOccurrence(startsAt);
           }
         }
@@ -511,6 +555,9 @@ export function parseTakarazukaSchedule(
   for (const [id, note] of privateNotes) {
     if (privateSlots.get(id) !== note.date || days.get(note.date)?.closed)
       fail();
+  }
+  for (const [id, note] of afterShowNotes) {
+    if (afterShowSlots.get(id)?.size !== note.size) fail();
   }
   if (occurrences.length === 0) fail();
   return occurrences;
