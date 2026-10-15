@@ -15,19 +15,15 @@ import {
   hasClass,
   normalizedText,
   parseHtml,
-  type HtmlNode,
 } from "./html";
 import {
   type OfficialHtmlFetcher,
   fetchOfficialHtml,
   hashOfficialDocuments,
 } from "./http";
-import {
-  calendarDate,
-  parseJapaneseClock,
-  parseJapaneseDateRange,
-  tokyoDateTime,
-} from "./japanese-date";
+import { calendarDate, parseJapaneseDateRange } from "./japanese-date";
+import { parseTakarazukaSchedule } from "./takarazuka-schedule";
+export { parseTakarazukaSchedule } from "./takarazuka-schedule";
 
 interface TakarazukaVenueFact {
   readonly venue: string;
@@ -228,138 +224,6 @@ function assertNoPublishedDaySchedule(
   const range = parseJapaneseDateRange(text);
   if (range.startsOn !== venue.startsOn || range.endsOn !== venue.endsOn)
     throw new SourceParseFailure();
-}
-
-function scheduleRegion(document: HtmlNode): HtmlNode {
-  const direct = (node: HtmlNode, tag: string) =>
-    "childNodes" in node
-      ? node.childNodes.filter((child) => elementName(child) === tag)
-      : [];
-  const contents = descendants(
-    document,
-    (node) => attribute(node, "id") === "contents",
-  );
-  const [content] = contents;
-  if (content === undefined || contents.length !== 1)
-    throw new SourceParseFailure();
-  const headings = descendants(content, (node) => elementName(node) === "h1");
-  const [heading] = headings;
-  if (
-    heading === undefined ||
-    headings.length !== 1 ||
-    normalizedText(heading) !== "公演日程"
-  )
-    throw new SourceParseFailure();
-  const sections = direct(content, "article")
-    .flatMap((article) => direct(article, "section"))
-    .filter((section) => hasClass(section, "article02"));
-  const [section] = sections;
-  if (section === undefined || sections.length !== 1)
-    throw new SourceParseFailure();
-  const regions = direct(section, "div").filter((region) =>
-    hasClass(region, "table03"),
-  );
-  const [region] = regions;
-  if (region === undefined || regions.length !== 1)
-    throw new SourceParseFailure();
-  return region;
-}
-
-export function parseTakarazukaSchedule(
-  html: string,
-  startsOn: string,
-  endsOn: string,
-): readonly { readonly startsAt: string; readonly endsAt: null }[] {
-  const document = parseHtml(html);
-  const datePattern = /(\d{1,2})\s*[/.]\s*(\d{1,2})/u;
-  // Every table inside the observed schedule region must pass the row guard.
-  // Outside tables are unrelated; neither dates nor headings select tables.
-  const tables = descendants(
-    scheduleRegion(document),
-    (node) => elementName(node) === "table",
-  );
-  if (
-    tables.length === 0 ||
-    tables.some(
-      (table) =>
-        descendants(table, (node) => elementName(node) === "table").length !==
-        1,
-    )
-  )
-    throw new SourceParseFailure();
-  const occurrences: { startsAt: string; endsAt: null }[] = [];
-  for (const table of tables) {
-    const rows = descendants(table, (node) => elementName(node) === "tr");
-    let activeMonthDay: { month: number; day: number } | null = null;
-    let hasDatedRow = false;
-    for (const row of rows) {
-      const headings = descendants(row, (node) => elementName(node) === "th");
-      const heading = headings[0];
-      const dateMatch =
-        heading === undefined
-          ? null
-          : normalizedText(heading).match(datePattern);
-      if (dateMatch !== null) {
-        hasDatedRow = true;
-        activeMonthDay = {
-          month: Number(dateMatch[1]),
-          day: Number(dateMatch[2]),
-        };
-      }
-      const cells = descendants(row, (node) => elementName(node) === "td");
-      const headingTexts = headings.map(normalizedText);
-      const isTableHeader =
-        cells.length === 0 &&
-        headings.length === 2 &&
-        headingTexts[0] === "日付" &&
-        headingTexts[1] === "開演時間";
-      if (isTableHeader) {
-        activeMonthDay = null;
-        continue;
-      }
-      // Even an empty first slot must not carry an unreadable date into its
-      // populated rowspan continuation under the previous day's identity.
-      if (heading !== undefined && dateMatch === null)
-        throw new SourceParseFailure();
-      const hasNonemptyCell = cells.some((cell) => normalizedText(cell) !== "");
-      if (hasNonemptyCell && activeMonthDay === null)
-        throw new SourceParseFailure();
-      if (activeMonthDay === null) continue;
-      const monthDay = activeMonthDay;
-      for (const cell of cells) {
-        const text = normalizedText(cell);
-        if (text === "" || /^(?:休演日|貸切公演(?:\s*※\s*\d+)?)$/u.test(text))
-          continue;
-        // Only observed presentation marks may surround a complete clock. A
-        // substring match would silently accept cancellations or time changes.
-        if (
-          !/^★?\s*(?:\d{1,2}\s*[:：]\s*\d{2}|(?:午前|午後)?\s*\d{1,2}時(?:\s*\d{1,2}分)?)(?:\s*[（(]新人公演[）)])?$/u.test(
-            text,
-          )
-        )
-          throw new SourceParseFailure();
-        const clock = parseJapaneseClock(text);
-        if (clock === null) throw new SourceParseFailure();
-        const candidateYears = [
-          ...new Set([
-            Number(startsOn.slice(0, 4)),
-            Number(endsOn.slice(0, 4)),
-          ]),
-        ];
-        const date = candidateYears
-          .map((year) => calendarDate(year, monthDay.month, monthDay.day))
-          .find((candidate) => candidate >= startsOn && candidate <= endsOn);
-        if (date === undefined) throw new SourceParseFailure();
-        occurrences.push({
-          startsAt: tokyoDateTime(date, clock.hour, clock.minute),
-          endsAt: null,
-        });
-      }
-    }
-    if (!hasDatedRow) throw new SourceParseFailure();
-  }
-  if (occurrences.length === 0) throw new SourceParseFailure();
-  return occurrences;
 }
 
 export function createTakarazukaRevueAdapter(
