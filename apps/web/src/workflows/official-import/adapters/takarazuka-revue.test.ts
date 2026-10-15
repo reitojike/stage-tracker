@@ -188,7 +188,9 @@ describe("Takarazuka revue adapter facts", () => {
           ? index
           : url.endsWith("/index.html")
             ? `<title>星組公演 Work</title><a href="schedule_tokyo.html">日程</a>`
-            : `<table><tr><th>4/3</th><td>13:30</td></tr></table>`;
+            : schedulePage(
+                `<table><tr><th>4/3</th><td>13:30</td></tr></table>`,
+              );
       return document(url, body);
     });
     await expect(adapter.acquire(source)).rejects.toMatchObject({
@@ -215,7 +217,10 @@ describe("Takarazuka revue adapter facts", () => {
         detailUrl,
         `<title>雪組公演 『ポーの一族』</title><a href="schedule_tokyo.html">日程</a><a href="schedule_tokyo.html">日程</a>`,
       ],
-      [scheduleUrl, `<table><tr><th>9/12</th><td>13:30</td></tr></table>`],
+      [
+        scheduleUrl,
+        schedulePage(`<table><tr><th>9/12</th><td>13:30</td></tr></table>`),
+      ],
     ]);
     const requests: string[] = [];
     const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
@@ -241,7 +246,7 @@ describe("Takarazuka revue adapter facts", () => {
       ],
       [
         "https://kageki.hankyu.co.jp/sp/revue/2026/ponoichizoku/schedule_tokyo.html",
-        `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+        schedulePage(`<table><tr><th>9/12</th><td>13:30</td></tr></table>`),
       ],
     ]);
     const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
@@ -283,9 +288,12 @@ describe("Takarazuka revue adapter facts", () => {
       ],
       [
         takarazukaScheduleUrl,
-        `<table><tr><th>4/3</th><td>13:30</td></tr></table>`,
+        schedulePage(`<table><tr><th>4/3</th><td>13:30</td></tr></table>`),
       ],
-      [tokyoScheduleUrl, `<table><tr><th>6/1</th><td>13:30</td></tr></table>`],
+      [
+        tokyoScheduleUrl,
+        schedulePage(`<table><tr><th>6/1</th><td>13:30</td></tr></table>`),
+      ],
     ]);
     const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
       const body = pages.get(url);
@@ -343,7 +351,9 @@ describe("Takarazuka revue adapter facts", () => {
       endsOn: "2026-10-25",
     });
     const occurrences = parseTakarazukaSchedule(
-      `<table><tr><th>9/12</th><td>13:30</td><td>貸切公演</td></tr><tr><th>9/13</th><td>11:00</td><td>15:30</td></tr></table>`,
+      schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td><td>貸切公演</td></tr><tr><th>9/13</th><td>11:00</td><td>15:30</td></tr></table>`,
+      ),
       "2026-09-12",
       "2026-10-25",
     );
@@ -357,7 +367,7 @@ describe("Takarazuka revue adapter facts", () => {
   it("fails closed when a schedule table has no usable occurrence", () => {
     expect(() =>
       parseTakarazukaSchedule(
-        "<table><tr><th>9/12</th><td>休演日</td></tr></table>",
+        schedulePage("<table><tr><th>9/12</th><td>休演日</td></tr></table>"),
         "2026-09-12",
         "2026-09-12",
       ),
@@ -432,38 +442,120 @@ describe("Takarazuka revue adapter facts", () => {
   ])(
     "rejects %s at both the parser and adapter boundary",
     async (_label, schedule) => {
-      expect(() =>
-        parseTakarazukaSchedule(schedule, "2026-09-12", "2026-09-13"),
-      ).toThrow("Official source parse failed");
-      const detailUrl =
-        "https://kageki.hankyu.co.jp/sp/revue/2026/fictionalwork/index.html";
-      const scheduleUrl = new URL("schedule_takarazuka.html", detailUrl).href;
-      const pages = new Map([
-        [
-          source.canonicalUrl,
-          `<div class="item"><a href="${detailUrl}"><p class="title">『架空公演』</p></a><dl><dt>宝塚大劇場</dt><dd>2026年9月12日～13日</dd></dl></div>`,
-        ],
-        [
-          detailUrl,
-          `<title>星組公演 『架空公演』</title><a href="schedule_takarazuka.html">公演日程を見る</a>`,
-        ],
-        [scheduleUrl, schedule],
-      ]);
-      const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
-        const body = pages.get(url);
-        if (body === undefined) throw new Error(`unexpected URL ${url}`);
-        return document(url, body);
-      });
-      await expect(adapter.acquire(source)).rejects.toMatchObject({
-        name: "SourceParseFailure",
-        canonicalUrl: scheduleUrl,
-      });
+      await expectInvalidSchedulePage(schedulePage(schedule));
+    },
+  );
+
+  it.each([
+    ["bare tables", `<table><tr><th>9/12</th><td>13:30</td></tr></table>`],
+    [
+      "no schedule region",
+      `<div id="contents"><article><h1>公演日程</h1><table><tr><th>9/12</th><td>13:30</td></tr></table></article></div>`,
+    ],
+    [
+      "two schedule regions",
+      `<div id="contents"><article><h1>公演日程</h1><section class="article02"><div class="table03"><table><tr><th>9/12</th><td>13:30</td></tr></table></div><div class="table03"><table><tr><th>9/13</th><td>11:00</td></tr></table></div></section></article></div>`,
+    ],
+    [
+      "two content roots",
+      schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+      ).repeat(2),
+    ],
+    [
+      "two schedule sections even when one has no frame",
+      schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+      ).replace(
+        "</article>",
+        '<section class="article02"></section></article>',
+      ),
+    ],
+    [
+      "wrong page heading",
+      schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+      ).replace("公演日程", "料金"),
+    ],
+    [
+      "duplicate page headings",
+      schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+      ).replace("</h1>", "</h1><h1>公演日程</h1>"),
+    ],
+    [
+      "unknown region class",
+      schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+      ).replace('class="article02"', 'class="changed"'),
+    ],
+    [
+      "empty region with only an outside table",
+      schedulePage("", `<table><tr><th>9/12</th><td>13:30</td></tr></table>`),
+    ],
+    [
+      "nested tables",
+      schedulePage(
+        `<table><tr><td><table><tr><th>9/12</th><td>13:30</td></tr></table></td></tr></table>`,
+      ),
+    ],
+    [
+      "a headingless nonempty table inside the region",
+      schedulePage(
+        `<table><tr><td>13:30</td></tr></table><table><tr><th>9/13</th><td>11:00</td></tr></table>`,
+      ),
+    ],
+    [
+      "an ambiguous fee table inside the region",
+      schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table><table><tr><th>料金</th><td>1000円</td></tr></table>`,
+      ),
+    ],
+    [
+      "an empty table beside a valid table inside the region",
+      schedulePage(
+        `<table></table><table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+      ),
+    ],
+    [
+      "a header-only table beside a valid table inside the region",
+      schedulePage(
+        `<table><tr><th>日付</th><th>開演時間</th></tr></table><table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+      ),
+    ],
+  ])(
+    "rejects %s without falling back to other tables",
+    async (_label, page) => {
+      await expectInvalidSchedulePage(page);
+    },
+  );
+
+  it.each([
+    `<table><tr><th>料金</th><td>1000円</td></tr></table>`,
+    `<table><tr><th>連絡先</th><td>03:00</td></tr></table>`,
+  ])(
+    "ignores an unrelated headed table outside the schedule region: %s",
+    async (outside) => {
+      const page = schedulePage(
+        `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+        outside,
+      );
+      const expected = [
+        { startsAt: "2026-09-12T13:30:00+09:00", endsAt: null },
+      ];
+      expect(parseTakarazukaSchedule(page, "2026-09-12", "2026-09-13")).toEqual(
+        expected,
+      );
+      const [draft] = await acquireSchedulePage(page);
+      if (draft?.candidateKind !== "event")
+        throw new Error("event draft missing");
+      expect(draft?.proposal.occurrences).toEqual(expected);
     },
   );
 
   it("keeps empty rowspan cells, closed days, private shows and observed clock marks", () => {
     const occurrences = parseTakarazukaSchedule(
-      `<table class="edgenone center">
+      schedulePage(`<table class="edgenone center">
       <tr><th colspan="2">日付</th><th>開演時間</th></tr>
       <tr><td></td></tr>
       <tr><th rowspan="2">9/12</th><th rowspan="2">土</th><td>★13:30</td></tr>
@@ -472,7 +564,7 @@ describe("Takarazuka revue adapter facts", () => {
       <tr><th rowspan="2">9/14</th><th rowspan="2">月</th><td>貸切公演 ※1</td></tr>
       <tr><td>18:30(新人公演)</td></tr>
       <tr><th>9/15</th><td>貸切公演</td><td>11：00</td></tr>
-      </table>`,
+      </table>`),
       "2026-09-12",
       "2026-09-15",
     );
@@ -493,7 +585,9 @@ describe("Takarazuka revue adapter facts", () => {
   ])("does not discard or partially read an unknown time cell: %s", (text) => {
     expect(() =>
       parseTakarazukaSchedule(
-        `<table><tr><th>9/12</th><td>11:00</td></tr><tr><td>${text}</td></tr></table>`,
+        schedulePage(
+          `<table><tr><th>9/12</th><td>11:00</td></tr><tr><td>${text}</td></tr></table>`,
+        ),
         "2026-09-12",
         "2026-09-12",
       ),
@@ -503,7 +597,10 @@ describe("Takarazuka revue adapter facts", () => {
   it("does not carry a date into an unrelated table", () => {
     expect(
       parseTakarazukaSchedule(
-        `<table><tr><th>9/12</th><td>13:30</td></tr></table><table><tr><td>連絡先 03:00</td></tr></table>`,
+        schedulePage(
+          `<table><tr><th>9/12</th><td>13:30</td></tr></table>`,
+          `<table><tr><td>連絡先 03:00</td></tr></table>`,
+        ),
         "2026-09-12",
         "2026-09-12",
       ),
@@ -513,8 +610,8 @@ describe("Takarazuka revue adapter facts", () => {
   it("keeps valid headerless and headed schedule tables on the same page", () => {
     expect(
       parseTakarazukaSchedule(
-        `<table><tr><th rowspan="2">9/12</th><td>13:30</td></tr><tr><td></td></tr></table>
-      <table><tr><th>日付</th><th>開演時間</th></tr><tr><th>9/13</th><td>11:00</td><td>貸切公演</td></tr></table>`,
+        schedulePage(`<table><tr><th rowspan="2">9/12</th><td>13:30</td></tr><tr><td></td></tr></table>
+      <table><tr><th>日付</th><th>開演時間</th></tr><tr><th>9/13</th><td>11:00</td><td>貸切公演</td></tr></table>`),
         "2026-09-12",
         "2026-09-13",
       ),
@@ -527,7 +624,7 @@ describe("Takarazuka revue adapter facts", () => {
   it("rejects an unrelated table without a dated heading", () => {
     expect(() =>
       parseTakarazukaSchedule(
-        `<table><tr><th>開演時間</th><td>13:30</td></tr></table>`,
+        schedulePage(`<table><tr><th>開演時間</th><td>13:30</td></tr></table>`),
         "2026-09-12",
         "2026-09-12",
       ),
@@ -555,6 +652,47 @@ describe("Takarazuka revue adapter facts", () => {
     ).toThrow("Official source parse failed");
   });
 });
+
+function schedulePage(tables: string, outside = ""): string {
+  return `<div id="contents"><article><div><h1>公演日程</h1></div>
+    <section class="article02"><div class="table03"><div class="table01 list">${tables}</div></div></section>
+    <section>${outside}</section></article></div>`;
+}
+
+async function expectInvalidSchedulePage(page: string) {
+  expect(() =>
+    parseTakarazukaSchedule(page, "2026-09-12", "2026-09-13"),
+  ).toThrow("Official source parse failed");
+  await expect(acquireSchedulePage(page)).rejects.toMatchObject({
+    name: "SourceParseFailure",
+    canonicalUrl:
+      "https://kageki.hankyu.co.jp/sp/revue/2026/fictionalwork/schedule_takarazuka.html",
+  });
+}
+
+function acquireSchedulePage(page: string) {
+  if (source === null) throw new Error("test source missing");
+  const detailUrl =
+    "https://kageki.hankyu.co.jp/sp/revue/2026/fictionalwork/index.html";
+  const scheduleUrl = new URL("schedule_takarazuka.html", detailUrl).href;
+  const pages = new Map([
+    [
+      source.canonicalUrl,
+      `<div class="item"><a href="${detailUrl}"><p class="title">『架空公演』</p></a><dl><dt>宝塚大劇場</dt><dd>2026年9月12日～13日</dd></dl></div>`,
+    ],
+    [
+      detailUrl,
+      `<title>星組公演 『架空公演』</title><a href="schedule_takarazuka.html">公演日程を見る</a>`,
+    ],
+    [scheduleUrl, page],
+  ]);
+  const adapter = createTakarazukaRevueAdapter(async (_source, url) => {
+    const body = pages.get(url);
+    if (body === undefined) throw new Error(`unexpected URL ${url}`);
+    return document(url, body);
+  });
+  return adapter.acquire(source);
+}
 
 function document(url: string, body: string): OfficialHtmlDocument {
   return {

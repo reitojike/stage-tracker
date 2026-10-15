@@ -15,6 +15,7 @@ import {
   hasClass,
   normalizedText,
   parseHtml,
+  type HtmlNode,
 } from "./html";
 import {
   type OfficialHtmlFetcher,
@@ -229,6 +230,41 @@ function assertNoPublishedDaySchedule(
     throw new SourceParseFailure();
 }
 
+function scheduleRegion(document: HtmlNode): HtmlNode {
+  const direct = (node: HtmlNode, tag: string) =>
+    "childNodes" in node
+      ? node.childNodes.filter((child) => elementName(child) === tag)
+      : [];
+  const contents = descendants(
+    document,
+    (node) => attribute(node, "id") === "contents",
+  );
+  const [content] = contents;
+  if (content === undefined || contents.length !== 1)
+    throw new SourceParseFailure();
+  const headings = descendants(content, (node) => elementName(node) === "h1");
+  const [heading] = headings;
+  if (
+    heading === undefined ||
+    headings.length !== 1 ||
+    normalizedText(heading) !== "公演日程"
+  )
+    throw new SourceParseFailure();
+  const sections = direct(content, "article")
+    .flatMap((article) => direct(article, "section"))
+    .filter((section) => hasClass(section, "article02"));
+  const [section] = sections;
+  if (section === undefined || sections.length !== 1)
+    throw new SourceParseFailure();
+  const regions = direct(section, "div").filter((region) =>
+    hasClass(region, "table03"),
+  );
+  const [region] = regions;
+  if (region === undefined || regions.length !== 1)
+    throw new SourceParseFailure();
+  return region;
+}
+
 export function parseTakarazukaSchedule(
   html: string,
   startsOn: string,
@@ -236,20 +272,26 @@ export function parseTakarazukaSchedule(
 ): readonly { readonly startsAt: string; readonly endsAt: null }[] {
   const document = parseHtml(html);
   const datePattern = /(\d{1,2})\s*[/.]\s*(\d{1,2})/u;
-  // Select by structure, not readable dates: a headerless schedule with an
-  // unsupported date must reach the row guard instead of disappearing.
+  // Every table inside the observed schedule region must pass the row guard.
+  // Outside tables are unrelated; neither dates nor headings select tables.
   const tables = descendants(
-    document,
+    scheduleRegion(document),
     (node) => elementName(node) === "table",
-  ).filter(
-    (table) =>
-      descendants(table, (node) => elementName(node) === "th").length > 0,
   );
-  if (tables.length === 0) throw new SourceParseFailure();
+  if (
+    tables.length === 0 ||
+    tables.some(
+      (table) =>
+        descendants(table, (node) => elementName(node) === "table").length !==
+        1,
+    )
+  )
+    throw new SourceParseFailure();
   const occurrences: { startsAt: string; endsAt: null }[] = [];
   for (const table of tables) {
     const rows = descendants(table, (node) => elementName(node) === "tr");
     let activeMonthDay: { month: number; day: number } | null = null;
+    let hasDatedRow = false;
     for (const row of rows) {
       const headings = descendants(row, (node) => elementName(node) === "th");
       const heading = headings[0];
@@ -257,11 +299,13 @@ export function parseTakarazukaSchedule(
         heading === undefined
           ? null
           : normalizedText(heading).match(datePattern);
-      if (dateMatch !== null)
+      if (dateMatch !== null) {
+        hasDatedRow = true;
         activeMonthDay = {
           month: Number(dateMatch[1]),
           day: Number(dateMatch[2]),
         };
+      }
       const cells = descendants(row, (node) => elementName(node) === "td");
       const headingTexts = headings.map(normalizedText);
       const isTableHeader =
@@ -312,6 +356,7 @@ export function parseTakarazukaSchedule(
         });
       }
     }
+    if (!hasDatedRow) throw new SourceParseFailure();
   }
   if (occurrences.length === 0) throw new SourceParseFailure();
   return occurrences;

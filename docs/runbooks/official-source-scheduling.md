@@ -86,6 +86,9 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   Event adapterがsource全体を`SourceParseFailure`で停止します。空セル、休演日、貸切公演（脚注番号付きも含む）、
   ★付き時刻と新人公演の既知表記は維持します。リンク先の解析失敗をEvent-onlyへ降格させず、
   日別表リンク未掲載を公演詳細で検証できた経路だけがEvent-onlyです。
+  日程ページは`#contents`内の「公演日程」見出しと、`#contents > article > section.article02 > div.table03`の
+  一意な日程領域を必須とします。領域内の表は日付の読解成否や見出しセルの有無で選別せず、すべて検証し、領域外の料金表等は除外します。
+  領域の欠落・重複、表なし、入れ子の表、領域内の判別不能な表は停止し、ページ全体の表を探すフォールバックは行いません。
   同じ公式一覧に明記された会場別の一般前売日は14件をdate-onlyのTicketOpportunity候補として解析でき、14件すべてがEvent source keyに対応しました。
   このHTML ticket sourceは管理者の手動shadow取得に限り`enabled: true`/`scheduledEnabled: false`とします。公演別ticket pageへの公開済みlinkがある場合、
   宝塚友の会の第1〜第3抽選と宝塚歌劇共通ID＋の抽選について、明記された申込開始・締切・結果照会を時刻付きで別候補にします。link未掲載の先行販売は
