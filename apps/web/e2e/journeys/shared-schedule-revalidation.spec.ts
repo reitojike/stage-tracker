@@ -7,7 +7,7 @@ import {
 import { completeMagicLinkSignIn } from "../support/signIn";
 import { tokyoTodayDateString } from "../support/seedCatalog";
 
-// Legacy grants are synthetic fixtures: no registration-gate override or DB
+// Shares are synthetic fixtures: no registration-gate override or DB
 // permission change. The application reads them through ordinary auth and RLS.
 test("shared schedule revalidation: history, tab resume, slow/offline read and own input", async ({
   browser,
@@ -39,10 +39,40 @@ test("shared schedule revalidation: history, tab resume, slow/offline read and o
     if (!entryId) throw new Error("missing fixture entry ID");
     await completeMagicLinkSignIn(page, recipient.email);
     const ownDetail = await create(page, ownTitle);
+    const { data: registrationEnabled, error: capabilityError } =
+      await admin.rpc("schedule_contact_registration_enabled");
+    if (capabilityError)
+      throw new Error(
+        `could not detect schedule contact capability: ${capabilityError.message}`,
+      );
+    if (typeof registrationEnabled !== "boolean")
+      throw new Error("schedule contact capability did not return a boolean");
+
+    let acceptedContactId: string | undefined;
+    if (registrationEnabled) {
+      // This trusted setup represents an already-accepted generation only for
+      // the cache-read fixture. Contact consent/acceptance is covered by the
+      // separate personal-schedule journey's real UI flow.
+      const [userLowId, userHighId] = [owner.userId, recipient.userId].sort();
+      if (!userLowId || !userHighId)
+        throw new Error("missing contact participants");
+      const { data: contact, error } = await admin
+        .from("schedule_contacts")
+        .insert({ user_low_id: userLowId, user_high_id: userHighId })
+        .select("id")
+        .single();
+      if (error || !contact)
+        throw new Error(
+          `could not seed accepted contact generation: ${error?.message ?? "missing contact"}`,
+        );
+      acceptedContactId = contact.id;
+    }
+
     const seed = async () => {
       const { error } = await admin.from("personal_schedule_shares").insert({
         schedule_entry_id: entryId,
         shared_with_user_id: recipient.userId,
+        ...(acceptedContactId ? { contact_id: acceptedContactId } : {}),
       });
       if (error) throw error;
     };
@@ -132,6 +162,44 @@ test("shared schedule revalidation: history, tab resume, slow/offline read and o
       await page.evaluate(() => {
         document.dispatchEvent(new Event("stop-shared-probe"));
         return document.documentElement.dataset.sharedProbe;
+      }),
+    ).toBe("[]");
+
+    // Forward restore also starts from the calendar snapshot that previously
+    // contained the grant. Watch the restore itself for a stale-title flash.
+    await page.evaluate((secret) => {
+      const samples: string[] = [];
+      let stopped = false;
+      window.addEventListener(
+        "popstate",
+        () => {
+          const scan = () => {
+            if (stopped) return;
+            if (document.body.innerText.includes(secret))
+              samples.push("visible");
+            requestAnimationFrame(scan);
+          };
+          requestAnimationFrame(scan);
+        },
+        { once: true },
+      );
+      document.addEventListener(
+        "stop-shared-forward-probe",
+        () => {
+          stopped = true;
+          document.documentElement.dataset.sharedForwardProbe =
+            JSON.stringify(samples);
+        },
+        { once: true },
+      );
+    }, title);
+    await page.goForward();
+    await expect(page).toHaveURL(/\/calendar/);
+    await hidden();
+    expect(
+      await page.evaluate(() => {
+        document.dispatchEvent(new Event("stop-shared-forward-probe"));
+        return document.documentElement.dataset.sharedForwardProbe;
       }),
     ).toBe("[]");
 
