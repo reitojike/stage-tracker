@@ -155,85 +155,51 @@ export function parseScheduleEntryTemporal(
  * `parseScheduleEntryTemporal` へ委譲して `ctx.addIssue` で該当フィールドへ
  * 差し戻す（`validationErrors` として画面がフィールド直下に表示できる形）。
  */
-const scheduleEntryBaseShape = {
-  title: z
-    .string()
-    .trim()
-    .min(1, "件名を入力してください。")
-    .max(200, "件名は200文字以内で入力してください。"),
-  memo: z
-    .string()
-    .trim()
-    .max(2000, "メモは2000文字以内で入力してください。")
-    .optional(),
-  blocking: z.boolean(),
-  temporalMode: z.enum(
-    ["all-day", "time-bounded"],
-    "予定の種類を選択してください。",
-  ),
-  allDayStartsOn: z.string().optional(),
-  allDayEndsOn: z.string().optional(),
-  timeBoundedStartsAt: z.string().optional(),
-  timeBoundedEndsAt: z.string().optional(),
-};
-
-/**
- * `parseScheduleEntryTemporal` の失敗結果を zod issue へ変換する共有
- * helper（`{code:"custom", path, message}` の組み立てだけを共通化する）。
- * `superRefine` の callback 自体は `scheduleEntryFormSchema` /
- * `scheduleEntryFormWithIdSchema` それぞれで inline に定義する - zod v4 の
- * `z.object<Shape>()` は generic な `Shape` に対しては output 型を
- * `Record<keyof Shape & string, unknown>` 相当までしか解決できず、
- * `ScheduleEntryFormInput` として扱えなくなるため、generic 関数への
- * 抽出は行わず、TS の contextual typing に `data`/`ctx` の型推論を
- * 任せる（zod 自身の `personalScheduleEntryTemporalSchema` の
- * `superRefine` と同じ書き方）。
- */
-function addTemporalIssue(
-  result: ReturnType<typeof parseScheduleEntryTemporal>,
-  addIssue: (issue: {
-    code: "custom";
-    path: string[];
-    message: string;
-  }) => void,
-): void {
-  if (!result.ok) {
-    addIssue({
-      code: "custom",
-      path: [result.error.field],
-      message: result.error.message,
-    });
-  }
-}
-
 export const scheduleEntryFormSchema = z
-  .object(scheduleEntryBaseShape)
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "件名を入力してください。")
+      .max(200, "件名は200文字以内で入力してください。"),
+    memo: z
+      .string()
+      .trim()
+      .max(2000, "メモは2000文字以内で入力してください。")
+      .optional(),
+    blocking: z.boolean(),
+    temporalMode: z.enum(
+      ["all-day", "time-bounded"],
+      "予定の種類を選択してください。",
+    ),
+    allDayStartsOn: z.string().optional(),
+    allDayEndsOn: z.string().optional(),
+    timeBoundedStartsAt: z.string().optional(),
+    timeBoundedEndsAt: z.string().optional(),
+  })
   .superRefine((data, ctx) => {
-    addTemporalIssue(parseScheduleEntryTemporal(data), (issue) =>
-      ctx.addIssue(issue),
-    );
+    const result = parseScheduleEntryTemporal(data);
+    if (!result.ok) {
+      ctx.addIssue({
+        code: "custom",
+        path: [result.error.field],
+        message: result.error.message,
+      });
+    }
   });
 
 export type ScheduleEntryFormValues = z.infer<typeof scheduleEntryFormSchema>;
 
 /**
  * `/schedule/[entryId]/edit` 用: 同じフィールド集合に `entryId` を追加した
- * schema。`scheduleEntryFormSchema.and(z.object({entryId: ...}))`
- * （intersection）ではなく、同じ base shape を展開したフラットな
- * `z.object` にしているのは、`next-safe-action` のデフォルト
- * （nested）validation error 形状を create/edit の両フォームで同一に保ち、
- * 画面側の field error 読み取りヘルパーを1つに共通化するため
- * （intersection だと validationErrors のノード構造が両辺の合成になり、
- * フラットな `{ title: {...}, allDayStartsOn: {...} }` という前提が
- * 崩れる）。
+ * schema。`safeExtend` で temporal refinement とフラットな field path を
+ * 継承し、`entryId` の branded ID 型を維持する。
  */
-export const scheduleEntryFormWithIdSchema = z
-  .object({ ...scheduleEntryBaseShape, entryId: personalScheduleEntryIdSchema })
-  .superRefine((data, ctx) => {
-    addTemporalIssue(parseScheduleEntryTemporal(data), (issue) =>
-      ctx.addIssue(issue),
-    );
-  });
+export const scheduleEntryFormWithIdSchema = scheduleEntryFormSchema.safeExtend(
+  {
+    entryId: personalScheduleEntryIdSchema,
+  },
+);
 
 /** `memo` の空文字は「未入力」= `null` として永続化する（product は空文字とnullを二重化しない）。 */
 export function normalizeMemo(memo: string | undefined): string | null {

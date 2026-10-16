@@ -12,4 +12,10 @@ describe("instantToDateTimeLocalValue", () => {
     // UTC 09:30 -> Asia/Tokyo 18:30
     expect(instantToDateTimeLocalValue(instant)).toBe("2026-05-10T18:30");
   });
+
+  it("keeps Tokyo year rollover and minute precision", () => {
+    expect(
+      instantToDateTimeLocalValue(instantSchema.parse("2026-12-31T15:04:59Z")),
+    ).toBe("2027-01-01T00:04");
+  });
 });
