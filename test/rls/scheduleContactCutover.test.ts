@@ -333,15 +333,15 @@ void test('P3 refuses to activate when the accepted-pair validation trigger is d
     assert.deepEqual(await snapshot(f), before);
   }));
 
-for (const conditional of [true, false]) {
-  void test(`P3 refuses a validator with ${conditional ? 'a WHEN qualifier' : 'trigger arguments'}`, async () =>
+for (const kind of ['conditional', 'arguments', 'columns'] as const) {
+  void test(`P3 refuses validator drift: ${kind}`, async () =>
     fixture(async (f) => {
       await f.admin.query(`drop trigger personal_schedule_shares_validate_contact
         on ${f.name}.personal_schedule_shares;
         create trigger personal_schedule_shares_validate_contact
-        before insert or update on ${f.name}.personal_schedule_shares
-        for each row ${conditional ? 'when (new.contact_id is null)' : ''}
-        execute function ${f.secret}.validate_schedule_share_contact(${conditional ? '' : "'unexpected'"})`);
+        before insert or update ${kind === 'columns' ? 'of contact_id' : ''} on ${f.name}.personal_schedule_shares
+        for each row ${kind === 'conditional' ? 'when (new.contact_id is null)' : ''}
+        execute function ${f.secret}.validate_schedule_share_contact(${kind === 'arguments' ? "'unexpected'" : ''})`);
       const before = await snapshot(f);
       await assert.rejects(f.admin.query(f.rewrite(cutover)), { code: '55000' });
       await f.admin.query('rollback');
