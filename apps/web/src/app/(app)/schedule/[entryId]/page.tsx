@@ -10,7 +10,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REAUTH_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import { READ_FAILURE_RETRY_HINT_JA } from "@/app/_lib/read-state";
 import {
-  getOwnScheduleShareId,
   getVisiblePersonalScheduleEntry,
   listScheduleShareRecipientEmails,
 } from "@/lib/data";
@@ -23,7 +22,7 @@ import {
 import { ScheduleEntryDetailView } from "../_components/ScheduleEntryDetailView";
 import { ContactSharePicker } from "../_components/ContactSharePicker";
 import { RecipientList } from "../_components/RecipientList";
-import { LeaveShareButton } from "../_components/LeaveShareButton";
+import { SharedScheduleDetail } from "../_components/SharedScheduleDetail";
 import { DeleteEntryButton } from "../_components/DeleteEntryButton";
 
 type ScheduleEntryPageProps = {
@@ -77,46 +76,6 @@ async function OwnerShareManagement({
       )}
     </section>
   );
-}
-
-/**
- * 非owner向けの自分の共有状態。自分の share 行取得失敗
- * （Spec 012 の recipient capability boundary）を entry 本体とは
- * 別枠で表示する。`description` は上記 `OwnerShareManagement` と同じ理由で
- * 固定文言にする。
- */
-async function NonOwnerShareStatus({
-  supabase,
-  entryId,
-  userId,
-}: {
-  readonly supabase: SupabaseClient<Database>;
-  readonly entryId: PersonalScheduleEntryId;
-  readonly userId: string;
-}) {
-  const result = await getOwnScheduleShareId(
-    supabase,
-    entryId,
-    userIdSchema.parse(userId),
-  );
-
-  if (!result.ok) {
-    return (
-      <StatePanel
-        variant="error"
-        title="共有状態を確認できませんでした"
-        description={READ_FAILURE_RETRY_HINT_JA}
-      />
-    );
-  }
-  // null は「自分の share 行が見つからない」= 通常は起こらない
-  // （RLS 上そもそもこの entry が見えているのは owner か recipient の
-  // どちらかであり、非owner ならこの場合 recipient のはずのため）が、
-  // 万一の場合はボタン自体を非表示にする（エラー表示はしない）。
-  if (result.value === null) {
-    return null;
-  }
-  return <LeaveShareButton entryId={entryId} />;
 }
 
 export default async function ScheduleEntryDetailPage({
@@ -208,6 +167,13 @@ async function ScheduleEntryDetailBody({
 
   const entry = entryState.data;
   const isOwner = entry.ownerId === user.id;
+  if (!isOwner)
+    return (
+      <SharedScheduleDetail
+        entryId={entryId}
+        actorId={userIdSchema.parse(user.id)}
+      />
+    );
 
   return (
     <div className="flex flex-col gap-section">
@@ -229,13 +195,7 @@ async function ScheduleEntryDetailBody({
             <DeleteEntryButton entryId={entryId} />
           </section>
         </>
-      ) : (
-        <NonOwnerShareStatus
-          supabase={supabase}
-          entryId={entryId}
-          userId={user.id}
-        />
-      )}
+      ) : null}
     </div>
   );
 }

@@ -179,6 +179,26 @@ P4 の既存共有 bind は別段階であり、未承認ペアの自動承認�
 
 ## 後続の依存関係
 
+### 共有投影の再読取（P2b 後の runtime 専用差分）
+
+#832 は人間の承認により main `027f326` と同 SHA の Production へ採用済み。
+main Verify・Apply Migrations は成功し、87 migrations 一致・追加適用なし、登録 gate=false を確認した。
+
+履歴復帰で残る Next App Router の画面と共有投影を分ける。Home/Calendar の初期 props は
+本人の予定・参加予定・チケットだけを渡し、共有予定は session/RLS による read-only Server Action の
+新しい返答で追加する。詳細の owner 画面と入力は従来のまま維持し、recipient 本文だけを同じ境界へ置く。
+tab 非表示・pagehide・blur・履歴復帰・保持画面の再入場では共有投影を隠し、新しい結果を待つ。
+local request version は古い非同期返答の破棄にだけ使い、認可の根拠にしない。
+本人が変わった返答では旧本人の projection も表示しない。
+
+router.refresh() は完了結果を返さないため、時間待機や transition 完了を認可結果と解釈しない。
+通信失敗・低速応答では共有本文・件数・月帯・overflow/aria label を戻さず、本人の表示と入力を保つ。
+再試行も同じ read のみ。新しい認可基盤、共有解除の polling、URL/cookie nonce、登録 gate の変更、
+旧 email RPC の閉鎖、migration は加えない。専用 DB の legacy 合成共有を用いた E2E は gate=false で行う。
+P3 有効化やインストール済み実機 PWA の検証を、この runtime PR の採用と混同しない。
+
+### 実装・有効化の順序
+
 1. P1b（本 PR）: bounded な受信/登録一覧、本人用 alias、関係解除、新しい共有作成の DB 基盤。
    accepted 関係の世代と share を結び、解除/add の同一 pair lock を徹底する。
 2. P2: DB 適用の実証後に型付き read/action と登録管理・選択式共有 UI を別 PR で追加。

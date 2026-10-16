@@ -12,7 +12,7 @@ import {
   loadCalendarOccurrences,
   loadCalendarSchedule,
 } from "./_lib/calendar-loader";
-import { CalendarView } from "./_components/CalendarView";
+import { SharedScheduleCalendar } from "./_components/SharedScheduleCalendar";
 
 interface CalendarPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -66,11 +66,11 @@ export default async function CalendarPage({
 
   const [occurrenceState, scheduleState] = await Promise.all([
     loadCalendarOccurrences(supabase, userResult.value, gridStart, gridEnd),
-    loadCalendarSchedule(supabase, gridStart, gridEnd),
+    loadCalendarSchedule(supabase, gridStart, gridEnd, userResult.value),
   ]);
 
   return (
-    <CalendarView
+    <SharedScheduleCalendar
       month={month}
       today={now.todayTokyoDate}
       selectedDate={selectedDate}
