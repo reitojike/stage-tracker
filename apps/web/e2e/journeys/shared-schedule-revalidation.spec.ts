@@ -6,6 +6,7 @@ import {
 } from "../support/adminClient";
 import { completeMagicLinkSignIn } from "../support/signIn";
 import { tokyoTodayDateString } from "../support/seedCatalog";
+import { readScheduleContactCapability } from "../support/scheduleContactCapability";
 
 // Shares are synthetic fixtures: no registration-gate override or DB
 // permission change. The application reads them through ordinary auth and RLS.
@@ -39,14 +40,10 @@ test("shared schedule revalidation: history, tab resume, slow/offline read and o
     if (!entryId) throw new Error("missing fixture entry ID");
     await completeMagicLinkSignIn(page, recipient.email);
     const ownDetail = await create(page, ownTitle);
-    const { data: registrationEnabled, error: capabilityError } =
-      await admin.rpc("schedule_contact_registration_enabled");
-    if (capabilityError)
-      throw new Error(
-        `could not detect schedule contact capability: ${capabilityError.message}`,
-      );
-    if (typeof registrationEnabled !== "boolean")
-      throw new Error("schedule contact capability did not return a boolean");
+    const registrationEnabled = await readScheduleContactCapability(
+      page,
+      recipient.userId,
+    );
 
     let acceptedContactId: string | undefined;
     if (registrationEnabled) {
@@ -193,8 +190,20 @@ test("shared schedule revalidation: history, tab resume, slow/offline read and o
         { once: true },
       );
     }, title);
+    mode = "hold";
     await page.goForward();
     await expect(page).toHaveURL(/\/calendar/);
+    await expect.poll(() => held.length).toBeGreaterThan(0);
+    await hidden();
+    const forwardRead = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        !!response.request().headers()["next-action"],
+    );
+    await release();
+    expect(await (await forwardRead).finished()).toBeNull();
+    await expect(page.getByRole("link", { name: ownTitle })).toBeVisible();
+    await expect(page.getByText("共有予定を確認中です")).toHaveCount(0);
     await hidden();
     expect(
       await page.evaluate(() => {

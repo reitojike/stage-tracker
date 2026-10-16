@@ -6,6 +6,7 @@ import {
 } from "../support/adminClient";
 import { tokyoTodayDateString } from "../support/seedCatalog";
 import { completeMagicLinkSignIn } from "../support/signIn";
+import { readScheduleContactCapability } from "../support/scheduleContactCapability";
 
 /**
  * Personal schedule CRUD journey (Issue #380 primary journey 3): create an
@@ -107,10 +108,10 @@ test("personal schedule sharing: phase-aware consent, revoke, leave and unlink",
     if (!entryId) throw new Error("missing entry id");
     await ownerPage.goto("/mypage/schedule-contacts");
     const requestEmail = ownerPage.getByLabel("相手の登録メールアドレス");
-    const { data: registrationEnabled, error: capabilityError } =
-      await admin.rpc("schedule_contact_registration_enabled");
-    if (capabilityError || typeof registrationEnabled !== "boolean")
-      throw new Error("schedule contact capability could not be read");
+    const registrationEnabled = await readScheduleContactCapability(
+      ownerPage,
+      owner.userId,
+    );
     if (registrationEnabled) await expect(requestEmail).toBeVisible();
     if (!registrationEnabled) {
       await expect(
