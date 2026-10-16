@@ -22,6 +22,7 @@ export * from './invitation/inviteOpacity';
 export * from './schedule/ids';
 export * from './schedule/scheduleEntry';
 export * from './schedule/scheduleShare';
+export * from './schedule/scheduleContact';
 
 export * from './ticket/ids';
 export * from './ticket/ticketOpportunity';

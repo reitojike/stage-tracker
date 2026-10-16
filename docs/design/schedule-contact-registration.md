@@ -131,6 +131,30 @@ pgTAP は実 schema を transaction 内だけ有効化して rollback する。�
 有効時 HTTP の status/body/header/Cookie/公開ログ/応答時間と cache の検証も後続の
 有効化条件であり、今回の SQL/無効時 HTTP の合格を存在推測対策の完成とは扱わない。
 
+## P2a: runtime の read/write・Action 準備
+
+P1b の main `043a424b`、migration 履歴一致・Production READY の採用証拠を前提に、
+runtime 専用 PR で型付きの本人限定 read、7 操作の write と Server Action を追加する。
+DB、権限、旧 email 共有、既存 UI は変更しない。Current Spec の昇格もしない。
+
+既存の session client、`ReadResult`、`authActionClient`、再検証境界を使う。
+capability は厳密な boolean のみ受理し、false/不明/失敗なら操作を開始しない。
+一覧の拒否を空の成功へ変換せず、送信一覧・存在照会は追加しない。write の成功は
+opaque acknowledgement だけで、内部 row/ID/件数を返さない。SQL/通信の生詳細や
+対象メールをログ・返却文言へ載せず、旧 email の 90010 文言も流用しない。
+
+Action の strict input は当該操作の email/request ID/contact generation ID/entry ID/
+alias だけを受け取る。actor/owner/recipient UUID を入力にせず、世代の再解決や retry は
+しない。最終的な所有者・当事者・失効世代の検証は DB RPC が担う。alias は空欄で自分の
+値だけ解除し、Postgres に合わせた 80 code point 上限を検証する。
+
+関係解除は My Page/Home/Calendar と `/(app)/schedule/[entryId]` の page pattern を
+再検証し、削除対象の列挙を返さず全 detail を対象にする。これは端末上の既読内容の
+遠隔消去や別タブへの push 更新ではない。画面・戻る/別タブ/PWA の検証は P2b/P3 に残す。
+既存 UI は新 Action/read を参照せず、無効時の全 Action は mutation と再検証を行わない。
+DB 世代/競合の根拠は P1b のテスト、runtime の契約は unit/MSW/実 auth middleware の
+Action テストで分けて検証し、mock の成功を本番登録の実施とは扱わない。
+
 ## 後続の依存関係
 
 1. P1b（本 PR）: bounded な受信/登録一覧、本人用 alias、関係解除、新しい共有作成の DB 基盤。

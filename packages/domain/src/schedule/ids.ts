@@ -14,3 +14,8 @@ export type PersonalScheduleEntryId = z.infer<typeof personalScheduleEntryIdSche
 
 export const scheduleShareIdSchema = z.uuid().brand<'ScheduleShareId'>();
 export type ScheduleShareId = z.infer<typeof scheduleShareIdSchema>;
+
+export const scheduleContactIdSchema = z.uuid().brand<'ScheduleContactId'>();
+export type ScheduleContactId = z.infer<typeof scheduleContactIdSchema>;
+export const scheduleContactRequestIdSchema = z.uuid().brand<'ScheduleContactRequestId'>();
+export type ScheduleContactRequestId = z.infer<typeof scheduleContactRequestIdSchema>;
