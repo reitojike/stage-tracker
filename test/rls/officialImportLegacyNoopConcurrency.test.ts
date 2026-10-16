@@ -407,3 +407,111 @@ test('a catalog edit waits until the no-op proof commits; a later observation re
     for (const client of clients) assert.deepEqual(errors.get(client), []);
   }
 });
+
+for (const operation of ['review', 'claim'] as const) {
+  test(`reconciled no-op ${operation} waits before candidate lock while owner deletes Event`, async () => {
+    const clients: pg.Client[] = [];
+    let data: Awaited<ReturnType<typeof fixture>> | undefined;
+    let pending: Promise<{ error: unknown }> | undefined;
+    try {
+      const observer = await connect();
+      clients.push(observer);
+      const reviewer = await connect();
+      clients.push(reviewer);
+      const deleter = await connect();
+      clients.push(deleter);
+      data = await fixture(observer, true);
+      await observer.query('begin');
+      await observer.query('set local session_replication_role=replica');
+      await observer.query(
+        'update public.official_import_candidates set recovery_review_required=false where run_id=$1',
+        [data.runs[1]],
+      );
+      await observer.query('commit');
+      const candidate = (
+        await observer.query<{ id: string }>(
+          'select id from public.official_import_candidates where run_id=$1',
+          [data.runs[1]],
+        )
+      ).rows[0]!.id;
+      // Claim begins from a real owner-approved candidate, without claiming or
+      // applying it. Review begins from the pending post-reconciliation state.
+      if (operation === 'claim') {
+        await observer.query('begin');
+        await observer.query('set local role authenticated');
+        await observer.query("select set_config('request.jwt.claims',$1,true)", [
+          JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+        ]);
+        await observer.query("select public.review_official_import_candidate($1,'approved')", [
+          candidate,
+        ]);
+        await observer.query('commit');
+      }
+      const wait = await blockedBy(observer, reviewer, deleter);
+      await reviewer.query('begin');
+      await reviewer.query(
+        operation === 'claim' ? 'set local role service_role' : 'set local role authenticated',
+      );
+      await reviewer.query("select set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+      ]);
+      await deleter.query('begin');
+      // Pause deletion after its first Event lock, before the FK update.
+      await deleter.query('select id from public.events where id=$1 for update', [data.event]);
+      await deleter.query('set local role authenticated');
+      await deleter.query("select set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+      ]);
+      pending = reviewer
+        .query(
+          operation === 'claim'
+            ? "select public.claim_official_import_candidate_apply($1,'delete-proof',300)"
+            : "select public.review_official_import_candidate($1,'approved')",
+          [candidate],
+        )
+        .then(
+          () => ({ error: null }),
+          (error: unknown) => ({ error }),
+        );
+      await wait();
+      // The waiting RPC must not own the candidate FK target yet. Owner deletion
+      // can finish, after which the RPC must refuse the now-missing catalog.
+      await deleter.query('select public.delete_event($1)', [data.event]);
+      await deleter.query('commit');
+      const outcome = await pending;
+      assert.ok(outcome.error && typeof outcome.error === 'object');
+      assert.equal(Reflect.get(outcome.error, 'code'), '40001');
+      assert.equal(
+        Reflect.get(outcome.error, 'detail'),
+        'stage_tracker.kabuki_freshness_refused.v1',
+      );
+      await reviewer.query('rollback');
+      assert.deepEqual(
+        (
+          await observer.query<{
+            review_status: string;
+            apply_status: string;
+            resolved_event_id: string | null;
+          }>(
+            'select review_status,apply_status,resolved_event_id from public.official_import_candidates where id=$1',
+            [candidate],
+          )
+        ).rows[0],
+        {
+          review_status: operation === 'claim' ? 'approved' : 'pending',
+          apply_status: 'not_started',
+          resolved_event_id: null,
+        },
+      );
+    } finally {
+      await Promise.allSettled(clients.map((client) => client.query('rollback')));
+      if (pending) await Promise.allSettled([pending]);
+      try {
+        if (data) await data.cleanup();
+      } finally {
+        await Promise.allSettled(clients.map((client) => client.end()));
+      }
+      for (const client of clients) assert.deepEqual(errors.get(client), []);
+    }
+  });
+}

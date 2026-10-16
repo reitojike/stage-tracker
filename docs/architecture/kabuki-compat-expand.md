@@ -151,7 +151,10 @@ Any actual held history, conflicting identity, unresolved non-applied legacy row
 different rejected facts/owner, or approved unresolved recovery keeps the gate.
 Catalog/occurrence edits invalidate the equality proof. The source lock and
 parent-before-child catalog locks serialize this proof with publication and
-catalog writes. Real differences still need human review.
+catalog writes. Approval and non-applied apply claims lock the Event before the
+candidate, matching atomic apply, so owner deletion's candidate FK update cannot
+reverse that order. Applied claim replay does not acquire a new catalog lock.
+Real differences still need human review.
 
 The migration reconciles only saved pending/not-started, ordered, legacy-only
 markers that meet the same proof. It changes the recovery flag, preserving old

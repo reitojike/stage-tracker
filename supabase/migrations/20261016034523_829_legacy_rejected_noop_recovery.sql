@@ -455,6 +455,231 @@ begin
 end;
 $$;
 
+-- Keep freshness callers compatible with the catalog-locking proof above.
+create or replace function public.review_official_import_candidate(
+  p_candidate_id uuid,
+  p_review_status text
+) returns public.official_import_candidates
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_candidate public.official_import_candidates;
+  v_actor uuid := auth.uid();
+  v_source_id text;
+  v_candidate_kind text;
+begin
+  if v_actor is null then
+    raise exception 'authentication required' using errcode = '42501';
+  end if;
+
+  if p_review_status is null or p_review_status not in ('approved', 'rejected') then
+    raise exception 'review status must be approved or rejected'
+      using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1 from public.catalog_creators cc where cc.user_id = v_actor
+  ) then
+    raise exception 'review is restricted to designated catalog creators'
+      using errcode = '42501';
+  end if;
+
+  select candidate.source_id, candidate.candidate_kind
+    into v_source_id, v_candidate_kind
+  from public.official_import_candidates as candidate
+  where candidate.id = p_candidate_id;
+  if found
+    and v_source_id = 'event.kabuki-bito.schedule'
+    and v_candidate_kind = 'event' then
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('official-import-candidates:' || v_source_id, 0)
+    );
+    -- Freshness can prove a reconciled no-op against catalog. Match atomic
+    -- apply's source -> Event -> candidate order so owner deletion's FK
+    -- SET NULL cannot wait on a candidate that is itself waiting on Event.
+    if p_review_status = 'approved' then
+      perform 1
+      from public.events as event
+      join public.official_import_candidates as candidate
+        on candidate.resolved_event_id = event.id
+      where candidate.id = p_candidate_id and candidate.review_status = 'pending'
+      for update of event;
+    end if;
+  end if;
+
+  select * into v_candidate
+  from public.official_import_candidates
+  where id = p_candidate_id
+    and (
+      review_status = 'pending'
+      or (
+        p_review_status = 'rejected'
+        and candidate_kind = 'ticket_opportunity'
+        and review_status = 'blocked_for_identity_review'
+      )
+    )
+  for update;
+
+  if not found then
+    raise exception 'official import candidate is missing or no longer reviewable'
+      using errcode = '22023';
+  end if;
+  if p_review_status = 'approved'
+    and v_candidate.source_id = 'event.kabuki-bito.schedule'
+    and v_candidate.candidate_kind = 'event'
+    and not private.official_import_kabuki_candidate_fresh_internal(v_candidate.id) then
+    raise exception 'Kabuki candidate is not based on a fresh committed observation'
+      using errcode = '40001', detail = 'stage_tracker.kabuki_freshness_refused.v1';
+  end if;
+
+  if p_review_status = 'approved'
+    and v_candidate.semantic_match_status <> 'not_used' then
+    raise exception 'Jev-dependent identity requires deterministic resolution before approval'
+      using errcode = '22023';
+  end if;
+
+  if p_review_status = 'approved'
+    and v_candidate.candidate_kind = 'event'
+    and v_candidate.resolved_event_id is not null
+    and not exists (
+      select 1 from public.events e
+      where e.id = v_candidate.resolved_event_id and e.owner_id = v_actor
+    ) then
+    raise exception 'only the matched Event owner may approve its import'
+      using errcode = '42501';
+  end if;
+
+  update public.official_import_candidates as candidate
+  set review_status = p_review_status,
+      reviewer = v_actor,
+      reviewed_at = now()
+  from public.official_import_runs as run
+  where candidate.id = p_candidate_id
+    and (
+      candidate.review_status = 'pending'
+      or (
+        p_review_status = 'rejected'
+        and candidate.candidate_kind = 'ticket_opportunity'
+        and candidate.review_status = 'blocked_for_identity_review'
+      )
+    )
+    and run.id = candidate.run_id
+    and run.status = 'completed'
+  returning candidate.* into v_candidate;
+
+  if not found then
+    raise exception 'official import candidate is missing or no longer reviewable'
+      using errcode = '22023';
+  end if;
+
+  return v_candidate;
+end;
+$$;
+
+create or replace function public.claim_official_import_candidate_apply(
+  p_candidate_id uuid,
+  p_attempt_token text,
+  p_lease_seconds integer
+) returns text
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_candidate public.official_import_candidates;
+  v_source_id text;
+  v_candidate_kind text;
+begin
+  if p_candidate_id is null
+    or p_attempt_token is null
+    or p_attempt_token is distinct from btrim(p_attempt_token)
+    or char_length(p_attempt_token) not between 1 and 256
+    or p_lease_seconds is null
+    or p_lease_seconds not between 30 and 3600 then
+    raise exception 'invalid official import candidate apply claim'
+      using errcode = '22023';
+  end if;
+
+  select candidate.source_id, candidate.candidate_kind
+    into v_source_id, v_candidate_kind
+  from public.official_import_candidates as candidate
+  where candidate.id = p_candidate_id;
+  if found
+    and v_source_id = 'event.kabuki-bito.schedule'
+    and v_candidate_kind = 'event' then
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('official-import-candidates:' || v_source_id, 0)
+    );
+    -- Acquire catalog before candidate, as in review/atomic apply. Applied
+    -- replay stays inert and does not acquire an additional catalog lock.
+    perform 1
+    from public.events as event
+    join public.official_import_candidates as candidate
+      on candidate.resolved_event_id = event.id
+    where candidate.id = p_candidate_id and candidate.review_status = 'approved'
+      and candidate.apply_status <> 'applied'
+    for update of event;
+  end if;
+
+  select candidate.* into v_candidate
+  from public.official_import_candidates as candidate
+  where candidate.id = p_candidate_id
+  for update;
+
+  if not found then
+    raise exception 'official import candidate is missing'
+      using errcode = '22023';
+  end if;
+
+  if v_candidate.apply_status = 'applied' then
+    return 'applied';
+  end if;
+  if v_candidate.review_status = 'approved'
+    and v_candidate.source_id = 'event.kabuki-bito.schedule'
+    and v_candidate.candidate_kind = 'event'
+    and not private.official_import_kabuki_candidate_fresh_internal(v_candidate.id) then
+    raise exception 'Kabuki candidate is not based on a fresh committed observation'
+      using errcode = '40001', detail = 'stage_tracker.kabuki_freshness_refused.v1';
+  end if;
+  if v_candidate.review_status <> 'approved' then
+    return 'not_approved';
+  end if;
+  if v_candidate.apply_status = 'queued'
+    and v_candidate.active_apply_attempt_token is not null
+    and v_candidate.active_apply_attempt_token is distinct from p_attempt_token
+    and v_candidate.active_apply_lease_expires_at > clock_timestamp() then
+    return 'busy';
+  end if;
+
+  perform set_config(
+    'stage_tracker.official_import_apply_candidate_id',
+    p_candidate_id::text,
+    true
+  );
+  perform set_config(
+    'stage_tracker.official_import_apply_attempt_token',
+    p_attempt_token,
+    true
+  );
+
+  update public.official_import_candidates as candidate
+  set apply_status = 'queued',
+      applied_at = null,
+      failure_classification = null,
+      active_apply_attempt_token = p_attempt_token,
+      active_apply_lease_expires_at =
+        clock_timestamp() + p_lease_seconds * interval '1 second'
+  where candidate.id = p_candidate_id;
+
+  perform set_config('stage_tracker.official_import_apply_attempt_token', '', true);
+  perform set_config('stage_tracker.official_import_apply_candidate_id', '', true);
+
+  return 'claimed';
+end;
+$$;
+
 -- Reconcile saved pending metadata under the publisher's source lock. The
 -- temporary guard exception exists only inside this migration transaction; the
 -- exact original trigger definition is restored before commit. No trigger is
