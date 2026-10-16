@@ -18,6 +18,7 @@ export type ReadSurface =
   | "eventDetail"
   | "eventEdit"
   | "scheduleDetail"
+  | "scheduleDetails"
   | "notifications"
   | "officialImportReview"
   | "appShell";
@@ -26,16 +27,25 @@ export type ReadSurfaceDescriptor =
   | {
       readonly surface: Exclude<
         ReadSurface,
-        "eventDetail" | "eventEdit" | "scheduleDetail" | "appShell"
+        | "eventDetail"
+        | "eventEdit"
+        | "scheduleDetail"
+        | "scheduleDetails"
+        | "appShell"
       >;
     }
   | { readonly surface: "eventDetail" | "eventEdit"; readonly eventId: string }
   | { readonly surface: "scheduleDetail"; readonly entryId: string }
+  | { readonly surface: "scheduleDetails" }
   | { readonly surface: "appShell" };
 
 type StaticSurface = Exclude<
   ReadSurface,
-  "eventDetail" | "eventEdit" | "scheduleDetail" | "appShell"
+  | "eventDetail"
+  | "eventEdit"
+  | "scheduleDetail"
+  | "scheduleDetails"
+  | "appShell"
 >;
 
 const STATIC_SURFACE_PATHS: Readonly<Record<StaticSurface, string>> = {
@@ -58,7 +68,10 @@ function pathForSurface(descriptor: ReadSurfaceDescriptor): string {
     case "scheduleDetail":
       return `/schedule/${descriptor.entryId}`;
     case "appShell":
-      throw new Error("AppShell must be revalidated as a layout descriptor");
+    case "scheduleDetails":
+      throw new Error(
+        "Pattern and layout surfaces require explicit revalidation types",
+      );
     default:
       return STATIC_SURFACE_PATHS[descriptor.surface];
   }
@@ -73,6 +86,12 @@ export function revalidateReadSurfaces(
   surfaces: readonly ReadSurfaceDescriptor[],
 ): void {
   for (const surface of surfaces) {
+    if (surface.surface === "scheduleDetails") {
+      // unlink affects an opaque set of both-direction shares. Invalidate the
+      // bounded detail route pattern without enumerating the other user's data.
+      revalidatePath("/(app)/schedule/[entryId]", "page");
+      continue;
+    }
     if (surface.surface === "appShell") {
       // The authenticated routes use the `(app)` route-group layout for the
       // AppShell. Revalidate that layout only; the root layout also contains
@@ -191,6 +210,15 @@ export const affectedReadSurfaces = {
       staticSurface("calendar"),
       staticSurface("home"),
       scheduleSurface(entryId),
+    ] as const,
+
+  scheduleContactWrite: () => [staticSurface("myPage")] as const,
+  scheduleContactUnlink: () =>
+    [
+      staticSurface("myPage"),
+      staticSurface("home"),
+      staticSurface("calendar"),
+      { surface: "scheduleDetails" },
     ] as const,
 
   ticketOpportunityStateWrite: () =>
