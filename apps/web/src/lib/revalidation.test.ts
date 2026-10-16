@@ -25,6 +25,16 @@ function revalidatedPaths(
 }
 
 describe("affected read-surface contracts", () => {
+  it("invalidates every schedule detail after opaque two-direction contact unlink", () => {
+    revalidatePathMock.mockClear();
+    revalidateReadSurfaces(affectedReadSurfaces.scheduleContactUnlink());
+    expect(revalidatePathMock.mock.calls).toEqual([
+      ["/mypage"],
+      ["/"],
+      ["/calendar"],
+      ["/(app)/schedule/[entryId]", "page"],
+    ]);
+  });
   beforeEach(() => {
     revalidatePathMock.mockClear();
   });
@@ -93,7 +103,7 @@ describe("affected read-surface contracts", () => {
       revalidatedPaths(affectedReadSurfaces.scheduleEntryWrite(ENTRY_ID)),
     ).toEqual(["/calendar", "/", `/schedule/${ENTRY_ID}`]);
     expect(revalidatePathMock.mock.calls).not.toContainEqual([
-      "/schedule/[entryId]",
+      "/(app)/schedule/[entryId]",
       "page",
     ]);
   });
