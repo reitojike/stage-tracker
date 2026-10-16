@@ -2,7 +2,9 @@
 
 追跡は [#825](https://github.com/reitojike/stage-tracker/issues/825)、
 承認済み仕様案と分割は [登録の設計案](../design/schedule-contact-registration.md)。
-現段階は P1a に続く P1b の無効な DB 基盤であり、登録機能をリリースする手順ではない。
+P1a / P1b と P2 runtime は採用済み。#834 の共有再読取修正も採用済みで、
+P3 の DB write 切替は未適用、登録 gate は false のままである。
+下記の P1 検証手順は当時の基盤検証の手順であり、現在の配備状況の代わりに扱わない。
 本番 apply・main merge・実利用者への申請・既存共有変更は別の実行フェーズとする。
 
 ## P1a のローカル検証
@@ -71,6 +73,24 @@ deployment READY の既確認証跡を維持する。Vercel runtime log API の 
 この段階で gate を有効化せず、P3 の閉鎖を必須とする。
 
 ## 有効化の前提（P1b → P2 → P3）
+
+### P2c の試験準備と実機確認
+
+P2c の E2E は実 DB の capability を読み、false では停止 UI と既存 share の解除・離脱を、
+true では実申請・本人承認・選択共有・解除・再登録を検証する。RPC エラーを false と扱わない。
+test が gate を変更する仕組みや本番向け fixture 経路は追加しない。
+切替後の共有 read fixture は accepted 世代に bind するが、それを本人承認の証拠とは扱わない。
+本物の legacy NULL 行の保持は、P3 migration 検証で切替前に作った行を使う。
+
+P2c 単独の CI は false 段階を検証する。有効時の journey は P3 を適用した専用 local DB と、
+P2c を取り込んだ P3 head の CI で検証する。P3 を main へ先に merge して準備することはない。
+P3 が P2c の未採用 head に依存する間は Draft / HOLD とし、採用後に main との差分を DB / tests / docs
+だけへ揃える。migration と E2E/runtime を同じ PR へ混ぜて artifact fence を回避しない。
+
+実機で必要な相手・データ・gate=false での実行範囲と停止境界は
+[共有予定の実機復帰確認](schedule-contact-device-acceptance.md) を参照する。
+その手順の記載と実施済み証跡を区別する。#834 の実履歴「戻る」・低速読取・通信失敗の E2E と
+既存の DB / lifecycle / privacy QA は引き継ぎ、同じ結果を得るためだけの再試験は行わない。
 
 P2b の実 DB E2E は gate=false のまま、mobile/desktop の登録管理・共有追加の停止と、
 legacy fixture の owner 個別解除・recipient 自己離脱を検証する。正の登録 UI 操作は

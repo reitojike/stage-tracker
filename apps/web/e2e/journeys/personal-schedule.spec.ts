@@ -6,6 +6,7 @@ import {
 } from "../support/adminClient";
 import { tokyoTodayDateString } from "../support/seedCatalog";
 import { completeMagicLinkSignIn } from "../support/signIn";
+import { readScheduleContactCapability } from "../support/scheduleContactCapability";
 
 /**
  * Personal schedule CRUD journey (Issue #380 primary journey 3): create an
@@ -80,11 +81,12 @@ test("personal schedule: create, view, edit, then delete an entry", async ({
   }
 });
 
-/** P2b: new sharing is unavailable while registration is disabled. Existing
- * legacy grants are fixtures only; owner revoke and recipient leave remain real UI operations. */
-test("personal schedule sharing: disabled creation, existing revoke and leave", async ({
+/** Phase-aware sharing journey: the disabled phase uses legacy grants only for
+ * existing-share revoke/leave proof; enabled sharing uses real contact consent. */
+test("personal schedule sharing: phase-aware consent, revoke, leave and unlink", async ({
   browser,
 }) => {
+  test.setTimeout(90_000);
   const admin = createE2eAdminClient();
   const owner = await provisionActor(admin, "e2e-schedule-owner");
   const recipient = await provisionActor(admin, "e2e-schedule-recipient");
@@ -104,6 +106,196 @@ test("personal schedule sharing: disabled creation, existing revoke and leave", 
     const entryUrl = ownerPage.url();
     const entryId = new URL(entryUrl).pathname.split("/").at(-1) ?? "";
     if (!entryId) throw new Error("missing entry id");
+    await ownerPage.goto("/mypage/schedule-contacts");
+    const requestEmail = ownerPage.getByLabel("相手の登録メールアドレス");
+    const registrationEnabled = await readScheduleContactCapability(
+      ownerPage,
+      owner.userId,
+    );
+    if (registrationEnabled) await expect(requestEmail).toBeVisible();
+    if (!registrationEnabled) {
+      await expect(
+        ownerPage.getByText("共有相手の登録は準備中です"),
+      ).toBeVisible();
+      await ownerPage.goto(entryUrl);
+    }
+    if (registrationEnabled) {
+      const recipientPage = await recipientContext.newPage();
+      await completeMagicLinkSignIn(recipientPage, recipient.email);
+      const recipientTitle = `E2E-reciprocal-share-${Date.now()}`;
+      await recipientPage.goto("/schedule/new");
+      await recipientPage.getByLabel("件名").fill(recipientTitle);
+      await recipientPage.getByLabel("開始日").fill(tokyoTodayDateString());
+      await recipientPage.getByRole("button", { name: "作成する" }).click();
+      await recipientPage.waitForURL(/\/calendar/);
+      await recipientPage.getByRole("link", { name: recipientTitle }).click();
+      await expect(recipientPage).toHaveURL(/\/schedule\/[0-9a-f-]+(?:\?.*)?$/);
+      const recipientEntryUrl = recipientPage.url();
+      const recipientEntryId =
+        new URL(recipientEntryUrl).pathname.split("/").at(-1) ?? "";
+      if (!recipientEntryId) throw new Error("missing recipient entry id");
+
+      await ownerPage.goto("/mypage/schedule-contacts");
+      await ownerPage
+        .getByLabel("相手の登録メールアドレス")
+        .fill(recipient.email);
+      await ownerPage.getByRole("button", { name: "登録を申請する" }).click();
+      await expect(ownerPage.getByRole("status")).toBeVisible();
+      await recipientPage.goto("/mypage/schedule-contacts");
+      const accept = recipientPage.getByRole("button", {
+        name: `${owner.email}からの申請を承認`,
+      });
+      await expect(accept).toBeVisible();
+      await accept.click();
+      await expect(accept).toHaveCount(0);
+      await expect(
+        recipientPage.getByText(owner.email, { exact: true }),
+      ).toBeVisible();
+
+      async function expectShareCount(
+        scheduleEntryId: string,
+        userId: string,
+        count: number,
+      ) {
+        const { data, error } = await admin
+          .from("personal_schedule_shares")
+          .select("id")
+          .eq("schedule_entry_id", scheduleEntryId)
+          .eq("shared_with_user_id", userId);
+        if (error)
+          throw new Error(`share verification failed: ${error.message}`);
+        expect(data).toHaveLength(count);
+      }
+
+      // Registration alone must not share either user's schedule.
+      await expectShareCount(entryId, recipient.userId, 0);
+      await expectShareCount(recipientEntryId, owner.userId, 0);
+
+      async function shareOwnerEntry() {
+        await ownerPage.goto(entryUrl);
+        await ownerPage.getByRole("button", { name: "+ 追加" }).click();
+        const dialog = ownerPage.getByRole("dialog");
+        await dialog
+          .getByLabel("共有する相手")
+          .selectOption({ label: recipient.email });
+        await dialog.getByRole("button", { name: "追加する" }).click();
+        const revoke = ownerPage.getByRole("button", {
+          name: `${recipient.email}の共有を解除`,
+        });
+        await expect(revoke).toBeVisible();
+        await expectShareCount(entryId, recipient.userId, 1);
+        return revoke;
+      }
+
+      const revoke = await shareOwnerEntry();
+      await recipientPage.goto("/calendar");
+      await recipientPage.getByRole("link", { name: title }).click();
+      await expect(
+        recipientPage.getByRole("heading", { name: title }),
+      ).toBeVisible();
+      await revoke.click();
+      await expect(revoke).toHaveCount(0);
+      await recipientPage.reload();
+      await expect(
+        recipientPage.getByRole("heading", { name: title }),
+      ).toHaveCount(0);
+      await expectShareCount(entryId, recipient.userId, 0);
+
+      await shareOwnerEntry();
+      await recipientPage.goto(entryUrl);
+      await recipientPage
+        .getByRole("button", { name: "共有から外れる" })
+        .click();
+      await recipientPage.waitForURL(/\/calendar/);
+      await expect(
+        recipientPage.getByRole("link", { name: title }),
+      ).toHaveCount(0);
+      await expectShareCount(entryId, recipient.userId, 0);
+
+      // Prove unlink removes grants in both directions, then re-register and
+      // verify the new relationship does not revive either old grant.
+      await shareOwnerEntry();
+      await recipientPage.goto(recipientEntryUrl);
+      await recipientPage.getByRole("button", { name: "+ 追加" }).click();
+      const reciprocalDialog = recipientPage.getByRole("dialog");
+      await reciprocalDialog
+        .getByLabel("共有する相手")
+        .selectOption({ label: owner.email });
+      await reciprocalDialog.getByRole("button", { name: "追加する" }).click();
+      await expect(
+        recipientPage.getByRole("button", {
+          name: `${owner.email}の共有を解除`,
+        }),
+      ).toBeVisible();
+      await expectShareCount(recipientEntryId, owner.userId, 1);
+      await ownerPage.goto("/calendar");
+      await expect(
+        ownerPage.getByRole("link", { name: recipientTitle }),
+      ).toBeVisible();
+
+      await recipientPage.goto("/mypage/schedule-contacts");
+      const unlink = recipientPage.getByRole("button", {
+        name: `${owner.email}の登録を解除`,
+      });
+      await expect(unlink).toBeVisible();
+      await unlink.click();
+      await expect(
+        recipientPage.getByRole("heading", {
+          name: "共有相手の登録を解除しますか？",
+        }),
+      ).toBeVisible();
+      await recipientPage
+        .getByRole("button", {
+          name: "登録と両方向の共有を解除する",
+        })
+        .click();
+      await expect(
+        recipientPage.getByText(owner.email, { exact: true }),
+      ).toHaveCount(0);
+      await expectShareCount(entryId, recipient.userId, 0);
+      await expectShareCount(recipientEntryId, owner.userId, 0);
+      await ownerPage.goto("/calendar");
+      await expect(
+        ownerPage.getByRole("link", { name: recipientTitle }),
+      ).toHaveCount(0);
+
+      await ownerPage.goto("/mypage/schedule-contacts");
+      await ownerPage
+        .getByLabel("相手の登録メールアドレス")
+        .fill(recipient.email);
+      await ownerPage.getByRole("button", { name: "登録を申請する" }).click();
+      await expect(ownerPage.getByRole("status")).toBeVisible();
+      await recipientPage.goto("/mypage/schedule-contacts");
+      const reaccept = recipientPage.getByRole("button", {
+        name: `${owner.email}からの申請を承認`,
+      });
+      await expect(reaccept).toBeVisible();
+      await reaccept.click();
+      await expect(reaccept).toHaveCount(0);
+      await expect(
+        recipientPage.getByText(owner.email, { exact: true }),
+      ).toBeVisible();
+      await expectShareCount(entryId, recipient.userId, 0);
+      await expectShareCount(recipientEntryId, owner.userId, 0);
+      await ownerPage.goto(entryUrl);
+      await expect(
+        ownerPage.getByRole("button", { name: "+ 追加" }),
+      ).toBeVisible();
+      await expect(
+        ownerPage.getByRole("button", {
+          name: `${recipient.email}の共有を解除`,
+        }),
+      ).toHaveCount(0);
+      await recipientPage.goto("/calendar");
+      await expect(
+        recipientPage.getByRole("link", { name: title }),
+      ).toHaveCount(0);
+      await ownerPage.goto("/calendar");
+      await expect(
+        ownerPage.getByRole("link", { name: recipientTitle }),
+      ).toHaveCount(0);
+      return;
+    }
     await expect(ownerPage.getByText(/新しい共有の追加は準備中/)).toBeVisible();
     await expect(ownerPage.getByRole("button", { name: "+ 追加" })).toHaveCount(
       0,
