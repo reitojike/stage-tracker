@@ -20,7 +20,8 @@ begin
     where t.tgrelid = 'public.personal_schedule_shares'::regclass
       and t.tgname = 'personal_schedule_shares_validate_contact'
       and t.tgfoid = 'private.validate_schedule_share_contact()'::regprocedure
-      and t.tgenabled in ('O', 'A') and t.tgtype = 23 and not t.tgisinternal) then
+      and t.tgenabled in ('O', 'A') and t.tgtype = 23 and not t.tgisinternal
+      and t.tgqual is null and t.tgnargs = 0) then
     raise exception 'accepted generation validation is unavailable' using errcode = '55000';
   end if;
   if not exists (select 1 from pg_catalog.pg_proc p
