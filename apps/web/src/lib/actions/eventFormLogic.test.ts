@@ -79,6 +79,23 @@ describe("parseEventRangeFields", () => {
     });
   });
 
+  it("trims both dates before parsing", () => {
+    expect(parseEventRangeFields(" 2026-05-10 ", " 2026-05-11 ")).toEqual({
+      kind: "ok",
+      value: { startsOn: "2026-05-10", endsOn: "2026-05-11" },
+    });
+  });
+
+  it("reports malformed start and end dates together", () => {
+    expect(parseEventRangeFields("not-a-date", "also-not-a-date")).toEqual({
+      kind: "errors",
+      errors: {
+        startsOn: "開始日の形式が正しくありません。",
+        endsOn: "終了日の形式が正しくありません。",
+      },
+    });
+  });
+
   it("rejects endsOn before startsOn", () => {
     const result = parseEventRangeFields("2026-05-10", "2026-05-01");
     expect(result).toEqual({

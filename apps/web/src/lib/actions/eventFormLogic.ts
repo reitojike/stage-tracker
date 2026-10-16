@@ -115,33 +115,24 @@ export function parseEventRangeFields(
   const errors: Partial<Record<EventRangeFieldError, string>> = {};
 
   const startsOnTrimmed = startsOnRaw.trim();
+  const startsOnParsed = tokyoCalendarDateSchema.safeParse(startsOnTrimmed);
   if (startsOnTrimmed.length === 0) {
     errors.startsOn = "開催期間の開始日を入力してください。";
-  } else if (!tokyoCalendarDateSchema.safeParse(startsOnTrimmed).success) {
+  } else if (!startsOnParsed.success) {
     errors.startsOn = "開始日の形式が正しくありません。";
   }
 
   const endsOnTrimmed = endsOnRaw.trim();
+  const endsOnParsed = tokyoCalendarDateSchema.safeParse(endsOnTrimmed);
   if (endsOnTrimmed.length === 0) {
     errors.endsOn = "開催期間の終了日を入力してください。";
-  } else if (!tokyoCalendarDateSchema.safeParse(endsOnTrimmed).success) {
+  } else if (!endsOnParsed.success) {
     errors.endsOn = "終了日の形式が正しくありません。";
   }
 
-  if (Object.keys(errors).length > 0) {
+  if (!startsOnParsed.success || !endsOnParsed.success) {
     return { kind: "errors", errors };
   }
-
-  const startsOnParsed = tokyoCalendarDateSchema.safeParse(startsOnTrimmed);
-  const endsOnParsed = tokyoCalendarDateSchema.safeParse(endsOnTrimmed);
-  /* c8 ignore start -- unreachable: both already validated above */
-  if (!startsOnParsed.success || !endsOnParsed.success) {
-    return {
-      kind: "errors",
-      errors: { startsOn: "開始日の形式が正しくありません。" },
-    };
-  }
-  /* c8 ignore stop */
 
   if (compareTokyoCalendarDates(startsOnParsed.data, endsOnParsed.data) > 0) {
     return {
