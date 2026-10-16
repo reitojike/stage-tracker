@@ -302,7 +302,7 @@ test('real migration repairs saved pending metadata and preserves all reviewed a
   }
 });
 
-for (const target of ['event', 'occurrence'] as const) {
+for (const target of ['event', 'occurrence', 'occurrence-start'] as const) {
   test(`legacy no-op proof waits for a concurrent ${target} edit and preserves review`, async () => {
     const clients: pg.Client[] = [];
     let data: Awaited<ReturnType<typeof fixture>> | undefined;
@@ -320,7 +320,9 @@ for (const target of ['event', 'occurrence'] as const) {
       await editor.query(
         target === 'event'
           ? "update public.events set title='Owner edit' where id=$1"
-          : "update public.event_occurrences set ends_at=ends_at+interval '1 minute' where event_id=$1",
+          : target === 'occurrence-start'
+            ? "update public.event_occurrences set starts_at=starts_at+interval '1 minute' where event_id=$1"
+            : "update public.event_occurrences set ends_at=ends_at+interval '1 minute' where event_id=$1",
         [data.event],
       );
       await publisher.query('begin');
@@ -515,3 +517,217 @@ for (const operation of ['review', 'claim'] as const) {
     }
   });
 }
+
+for (const operation of ['review', 'claim'] as const) {
+  test(`reconciled no-op ${operation} is compatible with starts_at containment checks`, async () => {
+    const clients: pg.Client[] = [];
+    let data: Awaited<ReturnType<typeof fixture>> | undefined;
+    let pending: Promise<{ error: unknown }> | undefined;
+    try {
+      const observer = await connect();
+      clients.push(observer);
+      const worker = await connect();
+      clients.push(worker);
+      const editor = await connect();
+      clients.push(editor);
+      data = await fixture(observer, true);
+      await observer.query('begin');
+      await observer.query('set local session_replication_role=replica');
+      await observer.query(
+        'update public.official_import_candidates set recovery_review_required=false where run_id=$1',
+        [data.runs[1]],
+      );
+      await observer.query('commit');
+      const candidate = (
+        await observer.query<{ id: string }>(
+          'select id from public.official_import_candidates where run_id=$1',
+          [data.runs[1]],
+        )
+      ).rows[0]!.id;
+      if (operation === 'claim') {
+        await observer.query('begin');
+        await observer.query('set local role authenticated');
+        await observer.query("select set_config('request.jwt.claims',$1,true)", [
+          JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+        ]);
+        await observer.query("select public.review_official_import_candidate($1,'approved')", [
+          candidate,
+        ]);
+        await observer.query('commit');
+      }
+      const wait = await blockedBy(observer, worker, editor);
+      await editor.query('begin');
+      // Pause a normal UPDATE after its child row lock but before containment.
+      await editor.query('select id from public.event_occurrences where event_id=$1 for update', [
+        data.event,
+      ]);
+      await editor.query('set local role authenticated');
+      await editor.query("select set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+      ]);
+      await worker.query('begin');
+      await worker.query(
+        operation === 'claim' ? 'set local role service_role' : 'set local role authenticated',
+      );
+      await worker.query("select set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+      ]);
+      pending = worker
+        .query(
+          operation === 'claim'
+            ? "select public.claim_official_import_candidate_apply($1,'containment-proof',300)"
+            : "select public.review_official_import_candidate($1,'approved')",
+          [candidate],
+        )
+        .then(
+          () => ({ error: null }),
+          (error: unknown) => ({ error }),
+        );
+      await wait();
+      await editor.query(
+        "update public.event_occurrences set starts_at=starts_at+interval '1 minute' where event_id=$1",
+        [data.event],
+      );
+      await editor.query('commit');
+      const outcome = await pending;
+      assert.ok(outcome.error && typeof outcome.error === 'object');
+      assert.equal(Reflect.get(outcome.error, 'code'), '40001');
+      assert.equal(
+        Reflect.get(outcome.error, 'detail'),
+        'stage_tracker.kabuki_freshness_refused.v1',
+      );
+      await worker.query('rollback');
+      assert.deepEqual(
+        (
+          await observer.query<{ review_status: string; apply_status: string }>(
+            'select review_status,apply_status from public.official_import_candidates where id=$1',
+            [candidate],
+          )
+        ).rows[0],
+        {
+          review_status: operation === 'claim' ? 'approved' : 'pending',
+          apply_status: 'not_started',
+        },
+      );
+    } finally {
+      await Promise.allSettled(clients.map((client) => client.query('rollback')));
+      if (pending) await Promise.allSettled([pending]);
+      try {
+        if (data) await data.cleanup();
+      } finally {
+        await Promise.allSettled(clients.map((client) => client.end()));
+      }
+      for (const client of clients) assert.deepEqual(errors.get(client), []);
+    }
+  });
+}
+
+test('freshness proof does not add child locks under an atomic-style exclusive parent lock', async () => {
+  const clients: pg.Client[] = [];
+  let data: Awaited<ReturnType<typeof fixture>> | undefined;
+  let edit: Promise<pg.QueryResult> | undefined;
+  try {
+    const observer = await connect();
+    clients.push(observer);
+    const worker = await connect();
+    clients.push(worker);
+    const editor = await connect();
+    clients.push(editor);
+    data = await fixture(observer, true);
+    await observer.query('begin');
+    await observer.query('set local session_replication_role=replica');
+    await observer.query(
+      'update public.official_import_candidates set recovery_review_required=false where run_id=$1',
+      [data.runs[1]],
+    );
+    await observer.query('commit');
+    const candidate = (
+      await observer.query<{ id: string }>(
+        'select id from public.official_import_candidates where run_id=$1',
+        [data.runs[1]],
+      )
+    ).rows[0]!.id;
+    await observer.query('begin');
+    await observer.query('set local role authenticated');
+    await observer.query("select set_config('request.jwt.claims',$1,true)", [
+      JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+    ]);
+    await observer.query("select public.review_official_import_candidate($1,'approved')", [
+      candidate,
+    ]);
+    await observer.query('commit');
+    await observer.query('begin');
+    await observer.query('set local role service_role');
+    assert.equal(
+      (
+        await observer.query<{ result: string }>(
+          "select public.claim_official_import_candidate_apply($1,'atomic-child-proof',300) result",
+          [candidate],
+        )
+      ).rows[0]!.result,
+      'claimed',
+    );
+    await observer.query('commit');
+    const wait = await blockedBy(observer, editor, worker);
+    await editor.query('begin');
+    await editor.query('select id from public.event_occurrences where event_id=$1 for update', [
+      data.event,
+    ]);
+    await editor.query('set local role authenticated');
+    await editor.query("select set_config('request.jwt.claims',$1,true)", [
+      JSON.stringify({ sub: data.owner, role: 'authenticated' }),
+    ]);
+    await worker.query('begin');
+    await worker.query('set local role service_role');
+    await worker.query(
+      "select pg_advisory_xact_lock(hashtextextended('official-import-candidates:'||$1,0))",
+      [source],
+    );
+    await worker.query('select id from public.events where id=$1 for update', [data.event]);
+    await worker.query('select id from public.official_import_candidates where id=$1 for update', [
+      candidate,
+    ]);
+    await worker.query("set local statement_timeout='5s'");
+    const result = await worker.query<{ result: boolean }>(
+      'select private.official_import_kabuki_candidate_fresh_internal($1) result',
+      [candidate],
+    );
+    assert.equal(result.rows[0]!.result, true);
+    edit = editor.query(
+      "update public.event_occurrences set starts_at=starts_at+interval '1 minute' where event_id=$1",
+      [data.event],
+    );
+    void edit.catch(() => {});
+    await wait();
+    await worker.query('commit');
+    await edit;
+    await editor.query('commit');
+    assert.equal(
+      (
+        await observer.query<{ apply_status: string }>(
+          'select apply_status from public.official_import_candidates where id=$1',
+          [candidate],
+        )
+      ).rows[0]!.apply_status,
+      'queued',
+    );
+    assert.equal(
+      (
+        await observer.query<{ result: boolean }>(
+          'select private.official_import_kabuki_candidate_fresh_internal($1) result',
+          [candidate],
+        )
+      ).rows[0]!.result,
+      false,
+    );
+  } finally {
+    await Promise.allSettled(clients.map((client) => client.query('rollback')));
+    if (edit) await Promise.allSettled([edit]);
+    try {
+      if (data) await data.cleanup();
+    } finally {
+      await Promise.allSettled(clients.map((client) => client.end()));
+    }
+    for (const client of clients) assert.deepEqual(errors.get(client), []);
+  }
+});

@@ -51,9 +51,11 @@ begin
     return false;
   end if;
 
-  -- Callers already hold the source lock. Lock the parent before children so
-  -- catalog edits/FK inserts cannot race the equality proof and suppression.
-  select * into v_event from public.events where id = p_candidate.resolved_event_id for update;
+  -- Callers hold the source lock and acquire observed child locks before any
+  -- candidate lock when needed. SHARE agrees with the containment trigger's
+  -- parent lock. Never upgrade it or lock children from this freshness helper:
+  -- atomic apply may already own the parent before an owner changes a child.
+  select * into v_event from public.events where id = p_candidate.resolved_event_id for share;
   if not found or v_event.canceled_at is not null
     or not exists (select 1 from public.catalog_creators where user_id = v_event.owner_id)
     or v_event.source_key is distinct from p_candidate.proposal ->> 'sourceKey'
@@ -116,7 +118,6 @@ begin
     return false;
   end if;
 
-  perform 1 from public.event_occurrences where event_id = v_event.id for share;
   -- Compare all occurrences, not merely the planner's summary. A duplicate,
   -- missing, extra, canceled, or changed occurrence cannot be a proven no-op.
   for v_occurrence in select value from jsonb_array_elements(p_candidate.proposal -> 'occurrences') loop
@@ -424,9 +425,14 @@ begin
     );
     new.recovery_review_required := v_recovery.recovery_review_required;
     new.recovery_hold_run_id := v_recovery.recovery_hold_run_id;
-    if new.recovery_review_required and new.recovery_hold_run_id is null
-      and private.official_import_kabuki_legacy_rejected_noop_internal(new) then
-      new.recovery_review_required := false;
+    if new.recovery_review_required and new.recovery_hold_run_id is null then
+      -- Derive a new exemption only under parent/observed-child read locks.
+      -- SHARE permits an in-flight starts_at containment check to finish.
+      perform 1 from public.events where id = new.resolved_event_id for share;
+      perform 1 from public.event_occurrences where event_id = new.resolved_event_id for share;
+      if private.official_import_kabuki_legacy_rejected_noop_internal(new) then
+        new.recovery_review_required := false;
+      end if;
     end if;
   elsif new.recovery_review_required or new.recovery_hold_run_id is not null then
     raise exception 'recovery metadata must be derived by the owned Kabuki publisher'
@@ -505,7 +511,13 @@ begin
       join public.official_import_candidates as candidate
         on candidate.resolved_event_id = event.id
       where candidate.id = p_candidate_id and candidate.review_status = 'pending'
-      for update of event;
+      for share of event;
+      perform 1
+      from public.event_occurrences as occurrence
+      join public.official_import_candidates as candidate
+        on candidate.resolved_event_id = occurrence.event_id
+      where candidate.id = p_candidate_id and candidate.review_status = 'pending'
+      for share of occurrence;
     end if;
   end if;
 
@@ -620,7 +632,14 @@ begin
       on candidate.resolved_event_id = event.id
     where candidate.id = p_candidate_id and candidate.review_status = 'approved'
       and candidate.apply_status <> 'applied'
-    for update of event;
+    for share of event;
+    perform 1
+    from public.event_occurrences as occurrence
+    join public.official_import_candidates as candidate
+      on candidate.resolved_event_id = occurrence.event_id
+    where candidate.id = p_candidate_id and candidate.review_status = 'approved'
+      and candidate.apply_status <> 'applied'
+    for share of occurrence;
   end if;
 
   select candidate.* into v_candidate
