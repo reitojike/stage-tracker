@@ -8,6 +8,7 @@ import {
 } from "@stage-tracker/domain";
 import { server } from "@/test/msw/server";
 import type { Database } from "@/lib/data/database.types";
+import { GENERIC_FAILURE_MESSAGE_JA } from "@/lib/action-error";
 import * as writes from "./schedule-contact-write";
 
 const REST = "https://contact-write.supabase.test/rest/v1/rpc";
@@ -234,7 +235,7 @@ describe("prepared schedule contact writes", () => {
       writes.unlinkScheduleContact(connection, CONTACT),
     ).rejects.toMatchObject({
       kind: "failure",
-      message: expect.not.stringContaining("secret@example.test"),
+      message: GENERIC_FAILURE_MESSAGE_JA,
     });
   });
 });
