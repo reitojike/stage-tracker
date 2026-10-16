@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { Instant } from "@stage-tracker/domain";
 import { parseDateTimeLocal } from "../datetime-local";
 
@@ -23,36 +22,4 @@ export function parseTokyoDateTimeLocal(raw: string): Instant | null {
     syntax: "optional-seconds",
   });
   return result.kind === "ok" ? result.value : null;
-}
-
-/** 必須の datetime-local フィールド用 Zod schema。値は `Instant`（domain
- * のブランド型）まで変換する。next-safe-action の `inputSchema` に渡すと、
- * 形式不正はそのまま field-level `validationErrors` として client へ返る
- * （A12: 手書き `FieldErrors` reader を作らない）。 */
-export function requiredTokyoInstantSchema(invalidMessage: string) {
-  return z.string().transform((value, ctx) => {
-    const instant = parseTokyoDateTimeLocal(value);
-    if (instant === null) {
-      ctx.addIssue({ code: "custom", message: invalidMessage });
-      return z.NEVER;
-    }
-    return instant;
-  });
-}
-
-/** 空文字を「未設定（null）」として受理する datetime-local 用 Zod schema
- * （開場/終演等、未公表を正当な状態として扱うフィールド向け）。 */
-export function optionalTokyoInstantSchema(invalidMessage: string) {
-  return z.string().transform((value, ctx) => {
-    const trimmed = value.trim();
-    if (trimmed.length === 0) {
-      return null;
-    }
-    const instant = parseTokyoDateTimeLocal(trimmed);
-    if (instant === null) {
-      ctx.addIssue({ code: "custom", message: invalidMessage });
-      return z.NEVER;
-    }
-    return instant;
-  });
 }
