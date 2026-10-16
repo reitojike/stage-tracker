@@ -25,13 +25,21 @@ supporting evidence であり、この文書へ mechanics として再定義し�
 
 ## User Scenarios & Testing
 
+### 段階移行中の画面操作
+
+共有相手登録の利用開始までは、画面からの新しい共有追加を停止します。
+登録申請・承認・呼び名・登録解除も、利用可能な状態を確認できなければ操作できません。
+既存共有の owner による確認・個別解除と、recipient の閲覧・自己離脱は維持します。
+これは登録済み相手への共有や friends-only 切替の完了を意味しません。以下の exact email
+targeting と narrow disclosure は、移行中も残る従来の bounded sharing 契約です。
+
 ### Scenario 1: private entry を特定の recipient と共有する
 
 Personal Schedule entry は private by default です。sharing は entry 単位かつ recipient
 単位の visibility grant であり、share によって entry の owner、identity、時間表現、
 blocking、lifecycle は変わりません。recipient は owner にはなりません。
 
-sharing を開始できるのは entry の owner だけです。user-facing な target は exact な
+sharing を開始できるのは entry の owner だけです。従来の bounded sharing の target は exact な
 registered email address であり、raw internal user UUID を入力させません。generic directory、
 user list、autocomplete、partial / fuzzy lookup、generic email-to-user lookup は current
 behavior ではありません。
@@ -102,7 +110,7 @@ source entry より長く存続しません。recipient はその entry を見�
   recipient 単位の visibility grant である。
 - **PSH-002**: sharing によって entry の identity、owner、時間表現、blocking、lifecycle は
   変化せず、recipient は owner にならない。
-- **PSH-003**: sharing を開始できるのは owner だけであり、user-facing target は exact な
+- **PSH-003**: sharing を開始できるのは owner だけであり、従来の bounded sharing の target は exact な
   registered email address である。
 - **PSH-004**: raw internal user UUID、generic directory、user list、autocomplete、partial /
   fuzzy lookup、generic email-to-user lookup は current targeting surface ではない。
@@ -144,6 +152,9 @@ source entry より長く存続しません。recipient はその entry を見�
   non-owner に区別させない。
 - **PSH-018**: owner hard-delete の後は source entry が存在しないため、share visibility grant
   が recipient に残ってその entry を見せ続けることはない。
+- **PSH-019**: 段階移行中、共有相手登録が利用可能でない間は画面から新しい共有を追加せず、
+  確認できない状態を利用可能や空の成功として扱わない。既存共有の確認・個別解除・閲覧・
+  自己離脱は維持する。登録済み相手への新しい共有を従来の email 入力へ fallback しない。
 
 ## Cross-domain Boundary
 

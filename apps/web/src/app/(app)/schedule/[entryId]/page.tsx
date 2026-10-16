@@ -21,7 +21,7 @@ import {
   SectionHeading,
 } from "../_components/PageChrome";
 import { ScheduleEntryDetailView } from "../_components/ScheduleEntryDetailView";
-import { ShareAddForm } from "../_components/ShareAddForm";
+import { ContactSharePicker } from "../_components/ContactSharePicker";
 import { RecipientList } from "../_components/RecipientList";
 import { LeaveShareButton } from "../_components/LeaveShareButton";
 import { DeleteEntryButton } from "../_components/DeleteEntryButton";
@@ -55,14 +55,17 @@ async function OwnerShareManagement({
   readonly supabase: SupabaseClient<Database>;
   readonly entryId: PersonalScheduleEntryId;
 }) {
-  const result = await listScheduleShareRecipientEmails(supabase, entryId);
+  const [result, picker] = await Promise.all([
+    listScheduleShareRecipientEmails(supabase, entryId),
+    ContactSharePicker({ supabase, entryId }),
+  ]);
 
   return (
     <section className="flex flex-col gap-sm border-t-2 border-border pt-card-block">
       <div className="flex items-center justify-between gap-sm">
         <SectionHeading>共有</SectionHeading>
-        <ShareAddForm entryId={entryId} />
       </div>
+      {picker}
       {result.ok ? (
         <RecipientList entryId={entryId} recipients={result.value} />
       ) : (

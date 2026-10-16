@@ -97,6 +97,7 @@ describe("schedule contact Server Actions", () => {
       if (name === "unlink_schedule_contact")
         expect(revalidate.mock.calls).toEqual([
           ["/mypage"],
+          ["/mypage/schedule-contacts"],
           ["/"],
           ["/calendar"],
           ["/(app)/schedule/[entryId]", "page"],
@@ -107,7 +108,12 @@ describe("schedule contact Server Actions", () => {
           ["/"],
           [`/schedule/${ENTRY}`],
         ]);
-      else expect(revalidate.mock.calls).toEqual([["/mypage"]]);
+      else
+        expect(revalidate.mock.calls).toEqual([
+          ["/mypage"],
+          ["/mypage/schedule-contacts"],
+          ["/(app)/schedule/[entryId]", "page"],
+        ]);
     },
   );
   it.each(cases)(

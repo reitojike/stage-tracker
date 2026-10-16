@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { useAction } from "next-safe-action/hooks";
 import { useRouter } from "next/navigation";
-import { Button, Field, Input } from "@stage-tracker/ui";
+import { Button, Field, StatePanel } from "@stage-tracker/ui";
 import {
   Sheet,
   SheetContent,
@@ -13,65 +14,65 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@stage-tracker/ui/components/sheet";
-import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
-import { addScheduleShareByEmailAction } from "@/lib/actions/schedule/schedule-share-actions";
+import type {
+  PersonalScheduleEntryId,
+  ScheduleContact,
+} from "@stage-tracker/domain";
+import { shareScheduleEntryWithContactAction } from "@/lib/actions/schedule/schedule-contact-actions";
 import { fieldErrorMessage } from "@/lib/actions/validationErrors";
 
 interface ShareAddFormProps {
   readonly entryId: PersonalScheduleEntryId;
+  readonly contacts: readonly ScheduleContact[];
 }
 
-/**
- * Owner share-add consumer. `addScheduleShareByEmailAction`, `ShareAddSheet`,
- * and the success close behavior are exact runtime mechanics; Spec 012 owns
- * the sharing/privacy semantics. The Sheet owns presentation and lifecycle.
- *
- * email が未登録の場合、この operation は「知らせてよい」
- * （Spec 012 PSH-006 and its Invitation-opacity boundaryとは異なり、この
- * operation には opacity 要件がない）。この画面は
- * サーバから返る `validation` kind の `ActionError.message` をそのまま
- * 表示するだけで、未登録かどうかで分岐や隠蔽を一切行わない - それ自体が
- * 「知らせてよい」という判断の実装である。この `message` は生の PostgREST
- * メッセージではなく、`lib/actions/schedule/postgrest-error.ts`
- * （`classifyRpcError`）と `schedule-share-write.ts`
- * （`resolveShareByEmailBusinessRuleMessage`）が既に
- * 「未登録メールアドレスです」という classified な安全文言へ分類済みの
- * ものである（生メッセージを画面へ運ばない設計 - PR #381 review finding 2
- * の write 側への適用）。それ以外の業務ルール違反は generic な安全文言に
- * 分類される。
- */
-export function ShareAddForm({ entryId }: ShareAddFormProps) {
+/** The server renders this selector only after a successful enabled contact read.
+ * The action and DB independently check capability, ownership and generation. */
+export function ShareAddForm({ entryId, contacts }: ShareAddFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const formId = `share-add-${entryId}`;
+  const selectId = `share-contact-${entryId}`;
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { execute, result, isExecuting, reset } = useAction(
-    addScheduleShareByEmailAction,
+    shareScheduleEntryWithContactAction,
     {
       onSuccess: () => {
         formRef.current?.reset();
         setOpen(false);
         router.refresh();
       },
+      onError: () => router.refresh(),
     },
   );
-
+  const error = fieldErrorMessage(result.validationErrors, "contactId")
+    ? "共有する相手を選択してください。"
+    : undefined;
   function handleOpenChange(nextOpen: boolean) {
+    if (isExecuting) return;
     setOpen(nextOpen);
-    if (!nextOpen) {
-      reset();
-    }
+    if (!nextOpen) reset();
   }
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const email = new FormData(event.currentTarget).get("recipientEmail");
+    const contactId = new FormData(event.currentTarget).get("contactId");
     execute({
       entryId,
-      recipientEmail: typeof email === "string" ? email : "",
+      contactId: typeof contactId === "string" ? contactId : "",
     });
   }
-
+  if (contacts.length === 0)
+    return (
+      <div className="flex flex-col gap-xs">
+        <StatePanel variant="empty" title="登録済みの共有相手がいません" />
+        <Link
+          className="text-body-sm underline"
+          href="/mypage/schedule-contacts"
+        >
+          共有相手を登録する
+        </Link>
+      </div>
+    );
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger
@@ -81,11 +82,11 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
           </Button>
         }
       />
-      <SheetContent side="bottom">
+      <SheetContent side="bottom" showCloseButton={!isExecuting}>
         <SheetHeader>
           <SheetTitle>共有相手を追加</SheetTitle>
-          <SheetDescription className="sr-only">
-            予定を共有する相手のメールアドレスを入力します。
+          <SheetDescription>
+            登録済みの相手から選び、この予定だけを閲覧できるようにします。
           </SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-md py-md">
@@ -93,19 +94,29 @@ export function ShareAddForm({ entryId }: ShareAddFormProps) {
             ref={formRef}
             id={formId}
             onSubmit={handleSubmit}
-            className="flex flex-col gap-2"
+            className="flex flex-col gap-sm"
             noValidate
           >
-            <Field
-              id="recipientEmail"
-              label="共有する相手のメールアドレス"
-              required
-              error={fieldErrorMessage(
-                result.validationErrors,
-                "recipientEmail",
-              )}
-            >
-              <Input name="recipientEmail" type="email" required />
+            <Field id={selectId} label="共有する相手" required error={error}>
+              <select
+                id={selectId}
+                name="contactId"
+                defaultValue=""
+                required
+                disabled={isExecuting}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? `${selectId}-error` : undefined}
+                className="h-9 w-full rounded-control border border-input bg-background px-sm text-body focus-visible:outline-ring"
+              >
+                <option value="">相手を選択してください</option>
+                {contacts.map((contact) => (
+                  <option key={contact.contactId} value={contact.contactId}>
+                    {contact.ownAlias
+                      ? `${contact.ownAlias}（${contact.counterpartEmail}）`
+                      : contact.counterpartEmail}
+                  </option>
+                ))}
+              </select>
             </Field>
             {result.serverError ? (
               <p role="alert" className="text-body-sm text-destructive">

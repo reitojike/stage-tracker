@@ -28,6 +28,11 @@ export function ScheduleAndEventSection({
       </SectionHeading>
       <CompactList>
         <li>
+          <ListRowLink href="/mypage/schedule-contacts">
+            共有相手の登録
+          </ListRowLink>
+        </li>
+        <li>
           <ListRowLink href="/catalog/invitations">
             <span className="flex items-center justify-between gap-sm">
               <span>招待一覧</span>
