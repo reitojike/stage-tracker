@@ -365,6 +365,7 @@ language plpgsql
 set search_path = ''
 as $$
 declare
+  v_catalog_lock_timeout text;
   v_run_status text;
   v_run_source_id text;
   v_cleanup_run_id text := current_setting(
@@ -418,6 +419,23 @@ begin
       raise exception 'Kabuki candidate identity does not match its canonical work URL'
         using errcode = '22023';
     end if;
+    -- One catalog observation boundary, before marker derivation/candidate
+    -- locks. SHARE table locks cover new child INSERTs as well as existing rows.
+    -- Preserve a caller's shorter timeout, and restore its setting on success;
+    -- an error rolls back this statement's locks, GUCs and staging changes.
+    v_catalog_lock_timeout := current_setting('lock_timeout');
+    if v_catalog_lock_timeout::interval = interval '0'
+      or v_catalog_lock_timeout::interval > interval '2 seconds' then
+      perform set_config('lock_timeout', '2s', true);
+    end if;
+    -- Finish existing row-lock waits before taking table SHARE: an owner
+    -- holding a row lock can still complete its DELETE/containment UPDATE.
+    perform 1 from public.events where id = new.resolved_event_id for share;
+    perform 1 from public.event_occurrences
+      where event_id = new.resolved_event_id order by id for share;
+    lock table public.events in share mode;
+    lock table public.event_occurrences in share mode;
+    perform set_config('lock_timeout', v_catalog_lock_timeout, true);
     select * into v_recovery
     from private.official_import_kabuki_recovery_marker_internal(
       new.source_id, new.candidate_kind, new.official_external_id,
@@ -426,10 +444,7 @@ begin
     new.recovery_review_required := v_recovery.recovery_review_required;
     new.recovery_hold_run_id := v_recovery.recovery_hold_run_id;
     if new.recovery_review_required and new.recovery_hold_run_id is null then
-      -- Derive a new exemption only under parent/observed-child read locks.
-      -- SHARE permits an in-flight starts_at containment check to finish.
-      perform 1 from public.events where id = new.resolved_event_id for share;
-      perform 1 from public.event_occurrences where event_id = new.resolved_event_id for share;
+      -- Both the marker and exemption use the same protected catalog.
       if private.official_import_kabuki_legacy_rejected_noop_internal(new) then
         new.recovery_review_required := false;
       end if;
@@ -461,6 +476,359 @@ begin
 end;
 $$;
 
+create or replace function public.commit_official_import_candidate_batch(
+  p_run_id uuid,
+  p_source_id text,
+  p_candidates jsonb
+) returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_catalog_lock_timeout text;
+  v_run_status text;
+  v_run_source_id text;
+  v_active_attempt_token text;
+  v_candidate_count integer;
+  v_attempt_scope_run_id text := nullif(
+    current_setting('stage_tracker.official_import_attempt_run_id', true), ''
+  );
+  v_attempt_scope_token text := nullif(
+    current_setting('stage_tracker.official_import_attempt_token', true), ''
+  );
+  v_publication_ordinal_text text := nullif(
+    current_setting('stage_tracker.official_import_publication_ordinal', true), ''
+  );
+  v_publication_ordinal bigint;
+  v_owned_attempt boolean;
+begin
+  if p_candidates is null or jsonb_typeof(p_candidates) <> 'array' then
+    raise exception 'official import candidates must be a JSON array'
+      using errcode = '22023';
+  end if;
+
+  select run.status, run.source_id, run.active_attempt_token
+    into v_run_status, v_run_source_id, v_active_attempt_token
+  from public.official_import_runs as run
+  where run.id = p_run_id
+  for update;
+
+  if not found then
+    raise exception 'official import run is missing'
+      using errcode = '22023';
+  end if;
+  if v_run_source_id is distinct from p_source_id then
+    raise exception 'official import run source does not match'
+      using errcode = '22023';
+  end if;
+  if v_run_status = 'completed' then
+    select count(*)::integer into v_candidate_count
+    from public.official_import_candidates as candidate
+    where candidate.run_id = p_run_id;
+    return v_candidate_count;
+  end if;
+  if v_run_status <> 'running' then
+    raise exception 'official import run is not writable'
+      using errcode = '22023';
+  end if;
+  v_owned_attempt :=
+    v_active_attempt_token is not null
+    and v_attempt_scope_run_id is not distinct from p_run_id::text
+    and v_attempt_scope_token is not null
+    and v_attempt_scope_token is not distinct from v_active_attempt_token;
+
+  if v_active_attempt_token is not null and not v_owned_attempt then
+    raise exception 'claimed import runs must use the owned batch RPC'
+      using errcode = '55000';
+  end if;
+
+  if v_publication_ordinal_text is not null then
+    if not v_owned_attempt
+      or p_source_id is distinct from 'event.kabuki-bito.schedule' then
+      raise exception 'publication ordinal is outside its owned Kabuki publisher scope'
+        using errcode = '23514';
+    end if;
+    v_publication_ordinal := v_publication_ordinal_text::bigint;
+    if v_publication_ordinal <= 0 then
+      raise exception 'publication ordinal must be positive'
+        using errcode = '23514';
+    end if;
+  end if;
+
+  if p_source_id = 'event.kabuki-bito.schedule'
+    and (not v_owned_attempt or v_publication_ordinal is null) then
+    raise exception 'Kabuki publication requires the owned ordinal publisher'
+      using errcode = '55000';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('official-import-candidates:' || p_source_id, 0)
+  );
+
+  if p_source_id = 'event.kabuki-bito.schedule' and exists (
+    select 1
+    from jsonb_to_recordset(p_candidates) as incoming(
+      candidate_kind text, canonical_url text, official_external_id text, proposal jsonb
+    )
+    where incoming.candidate_kind <> 'event'
+      or incoming.official_external_id is null
+      or (pg_catalog.regexp_match(incoming.canonical_url,
+        '^https://www\.kabuki-bito\.jp/theaters/([^/?#]+)/play/([0-9]+)/?$'))[2]
+        is distinct from incoming.official_external_id
+      or incoming.proposal ->> 'sourceKey' is distinct from
+        ('kabuki-bito:' || ((pg_catalog.regexp_match(incoming.canonical_url,
+          '^https://www\.kabuki-bito\.jp/theaters/([^/?#]+)/play/([0-9]+)/?$'))[1])
+          || ':play:' || incoming.official_external_id)
+      or incoming.proposal ->> 'sourceUrl' is distinct from incoming.canonical_url
+  ) then
+    raise exception 'Kabuki candidate identity is not a verified work identity'
+      using errcode = '22023';
+  end if;
+
+  -- One observation per source identity is required even when one of the
+  -- duplicate versions would otherwise be suppressed as unchanged.
+  if exists (
+    select 1
+    from jsonb_to_recordset(p_candidates) as candidate(
+      candidate_kind text, canonical_url text, official_external_id text
+    )
+    group by candidate.candidate_kind,
+      (candidate.official_external_id is null),
+      coalesce(candidate.official_external_id, candidate.canonical_url)
+    having count(*) > 1
+  ) then
+    raise exception 'official import batch contains duplicate source identities'
+      using errcode = '22023';
+  end if;
+
+  if p_source_id = 'event.kabuki-bito.schedule' then
+    -- One catalog observation boundary, before marker derivation/candidate
+    -- locks. SHARE table locks cover new child INSERTs as well as existing rows.
+    -- Preserve a caller's shorter timeout, and restore its setting on success;
+    -- an error rolls back this statement's locks, GUCs and staging changes.
+    v_catalog_lock_timeout := current_setting('lock_timeout');
+    if v_catalog_lock_timeout::interval = interval '0'
+      or v_catalog_lock_timeout::interval > interval '2 seconds' then
+      perform set_config('lock_timeout', '2s', true);
+    end if;
+    perform 1 from public.events as event
+    where event.id in (select incoming.resolved_event_id
+      from jsonb_to_recordset(p_candidates) as incoming(resolved_event_id uuid))
+    order by event.id for share;
+    perform 1 from public.event_occurrences as occurrence
+    where occurrence.event_id in (select incoming.resolved_event_id
+      from jsonb_to_recordset(p_candidates) as incoming(resolved_event_id uuid))
+    order by occurrence.id for share;
+    lock table public.events in share mode;
+    lock table public.event_occurrences in share mode;
+    perform set_config('lock_timeout', v_catalog_lock_timeout, true);
+  end if;
+
+  perform set_config('stage_tracker.official_import_batch_run_id', p_run_id::text, true);
+  delete from public.official_import_candidates as candidate
+  where candidate.run_id = p_run_id;
+
+  insert into public.official_import_candidates (
+    run_id, source_id, candidate_kind, canonical_url, official_external_id,
+    observed_at, content_hash, etag, last_modified, proposal_version,
+    proposal, evidence_locator, deterministic_match_status,
+    semantic_match_status, resolved_event_id, resolved_ticket_opportunity_id,
+    jev_decision_evidence, plan_summary, plan_fingerprint, review_status
+  )
+  select
+    p_run_id, p_source_id, candidate.candidate_kind, candidate.canonical_url,
+    candidate.official_external_id, candidate.observed_at,
+    candidate.content_hash, candidate.etag, candidate.last_modified,
+    candidate.proposal_version, candidate.proposal, candidate.evidence_locator,
+    candidate.deterministic_match_status, candidate.semantic_match_status,
+    candidate.resolved_event_id, candidate.resolved_ticket_opportunity_id,
+    candidate.jev_decision_evidence, candidate.plan_summary,
+    candidate.plan_fingerprint, candidate.review_status
+  from jsonb_to_recordset(p_candidates) as candidate(
+    candidate_kind text, canonical_url text, official_external_id text,
+    observed_at timestamptz, content_hash text, etag text, last_modified text,
+    proposal_version text, proposal jsonb, evidence_locator jsonb,
+    deterministic_match_status text, semantic_match_status text,
+    resolved_event_id uuid, resolved_ticket_opportunity_id uuid,
+    jev_decision_evidence jsonb, plan_summary jsonb,
+    plan_fingerprint text, review_status text
+  )
+  left join lateral (
+    select prior.id, prior.content_hash, prior.proposal_version,
+      prior.plan_fingerprint
+    from public.official_import_candidates as prior
+    join public.official_import_runs as prior_run on prior_run.id = prior.run_id
+    where prior_run.status = 'completed'
+      and prior.source_id = p_source_id
+      and prior.candidate_kind = candidate.candidate_kind
+      and (
+        (candidate.official_external_id is not null
+          and prior.official_external_id = candidate.official_external_id)
+        or (candidate.official_external_id is null
+          and prior.official_external_id is null
+          and prior.canonical_url = candidate.canonical_url)
+      )
+    order by
+      case when p_source_id = 'event.kabuki-bito.schedule'
+        then prior_run.publication_ordinal end desc nulls last,
+      case when p_source_id <> 'event.kabuki-bito.schedule'
+        then prior_run.finished_at end desc nulls last,
+      case when p_source_id <> 'event.kabuki-bito.schedule'
+        then prior.created_at end desc nulls last,
+      case when p_source_id <> 'event.kabuki-bito.schedule'
+        then prior.id end desc nulls last
+    limit 1
+  ) as latest on true
+  left join lateral private.official_import_kabuki_recovery_marker_internal(
+    p_source_id, candidate.candidate_kind, candidate.official_external_id,
+    candidate.canonical_url, candidate.content_hash,
+    candidate.proposal_version, candidate.plan_fingerprint
+  ) as recovery on true
+  where latest.id is null
+    or (latest.content_hash, latest.proposal_version, latest.plan_fingerprint)
+      is distinct from
+      (candidate.content_hash, candidate.proposal_version, candidate.plan_fingerprint)
+    or (coalesce(recovery.recovery_review_required, false)
+      and not coalesce(recovery.same_open_proposal, false));
+
+  -- Live scans enter through commit_owned_official_import_candidate_batch.
+  -- Their source lease prevents simultaneous acquisition, and that wrapper
+  -- rechecks ownership after taking this same source lock. Thus a displaced
+  -- older scan cannot reach this deletion after a newer scan commits.
+  -- The incoming row is temporarily present even when its final outcome is
+  -- suppression, so the delete guard can verify the exact source identity.
+  perform set_config(
+    'stage_tracker.official_import_superseding_run_id', p_run_id::text, true
+  );
+  delete from public.official_import_candidates as prior
+  using public.official_import_runs as prior_run,
+    public.official_import_candidates as replacement
+  where prior.run_id = prior_run.id
+    and prior_run.status = 'completed'
+    and replacement.run_id = p_run_id
+    and prior.source_id = p_source_id
+    and prior.source_id = replacement.source_id
+    and prior.candidate_kind = replacement.candidate_kind
+    and (
+      (replacement.official_external_id is not null
+        and prior.official_external_id = replacement.official_external_id)
+      or (replacement.official_external_id is null
+        and prior.official_external_id is null
+        and prior.canonical_url = replacement.canonical_url)
+    )
+    and prior.apply_status = 'not_started'
+    and prior.review_status in ('pending', 'approved', 'blocked_for_identity_review');
+  perform set_config('stage_tracker.official_import_superseding_run_id', '', true);
+
+  -- A reviewed rejection need not be presented again while the catalog's
+  -- apply epoch is unchanged. Comparing the plan fingerprint as well as the
+  -- source content prevents a different catalog change from being suppressed.
+  -- An earlier applied A is not a veto after a later B was applied.
+  delete from public.official_import_candidates as incoming
+    where incoming.run_id = p_run_id
+      and not incoming.recovery_review_required
+      and exists (
+      select 1
+      from public.official_import_candidates as judged
+      join public.official_import_runs as judged_run on judged_run.id = judged.run_id
+      where judged_run.status = 'completed'
+        and judged.source_id = incoming.source_id
+        and judged.candidate_kind = incoming.candidate_kind
+        and (
+          (incoming.official_external_id is not null
+            and judged.official_external_id = incoming.official_external_id)
+          or (incoming.official_external_id is null
+            and judged.official_external_id is null
+            and judged.canonical_url = incoming.canonical_url)
+        )
+        and judged.review_status = 'rejected'
+        and judged.content_hash = incoming.content_hash
+        and judged.proposal_version = incoming.proposal_version
+        and judged.plan_fingerprint = incoming.plan_fingerprint
+        and judged.reviewed_at > coalesce(
+          (
+            select max(applied.applied_at)
+            from public.official_import_candidates as applied
+            where applied.source_id = incoming.source_id
+              and applied.candidate_kind = incoming.candidate_kind
+              and (
+                (incoming.official_external_id is not null
+                  and applied.official_external_id = incoming.official_external_id)
+                or (incoming.official_external_id is null
+                  and applied.official_external_id is null
+                  and applied.canonical_url = incoming.canonical_url)
+              )
+              and applied.apply_status = 'applied'
+          ),
+          '-infinity'::timestamptz
+        )
+    );
+
+  -- Match the existing UI's confirmed-no-change definition. Do not infer a
+  -- no-op from action='unchanged' alone: auxiliary Event/Ticket fields can
+  -- still change. If an older apply is in flight, keep the new observation;
+  -- its catalog comparison may become relevant when that apply completes.
+  delete from public.official_import_candidates as incoming
+    where incoming.run_id = p_run_id
+    and not incoming.recovery_review_required
+    and incoming.review_status = 'pending'
+    and incoming.deterministic_match_status = 'matched'
+    and incoming.semantic_match_status = 'not_used'
+    and (
+      (incoming.candidate_kind = 'event'
+        and incoming.plan_summary @> '{"version":"event_plan.v1","action":"unchanged","detailsChanged":false,"rangeChanged":false,"newOccurrenceCount":0,"endsAtFixCount":0,"doorsAtFixCount":0,"genreChanged":false,"groupsChanged":false}'::jsonb
+        and exists (
+          select 1 from public.events as event
+          where event.id = incoming.resolved_event_id
+            and event.source_key = incoming.proposal ->> 'sourceKey'
+        ))
+      or (incoming.candidate_kind = 'ticket_opportunity'
+        and incoming.plan_summary @> '{"version":"ticket_opportunity_plan.v1","action":"unchanged","eventChanged":false,"detailsChanged":false,"occurrencesChanged":false,"milestonesChanged":false}'::jsonb
+        and exists (
+          select 1 from public.ticket_opportunities as opportunity
+          where opportunity.id = incoming.resolved_ticket_opportunity_id
+            and opportunity.source_key = incoming.proposal ->> 'sourceKey'
+        ))
+    )
+    and not exists (
+      select 1 from public.official_import_candidates as applying
+      where applying.source_id = incoming.source_id
+        and applying.candidate_kind = incoming.candidate_kind
+        and (
+          (incoming.official_external_id is not null
+            and applying.official_external_id = incoming.official_external_id)
+          or (incoming.official_external_id is null
+            and applying.official_external_id is null
+            and applying.canonical_url = incoming.canonical_url)
+        )
+        and applying.apply_status = 'queued'
+    );
+
+  select count(*)::integer into v_candidate_count
+  from public.official_import_candidates as candidate
+  where candidate.run_id = p_run_id;
+
+  update public.official_import_runs as run
+  set status = 'completed',
+      finished_at = clock_timestamp(),
+      active_attempt_token = case
+        when v_owned_attempt then null
+        else run.active_attempt_token
+      end,
+      active_attempt_lease_expires_at = case
+        when v_owned_attempt then null
+        else run.active_attempt_lease_expires_at
+      end,
+      publication_ordinal = case
+        when v_publication_ordinal is not null then v_publication_ordinal
+        else run.publication_ordinal
+      end
+  where run.id = p_run_id;
+
+  return v_candidate_count;
+end;
+$$;
+
 -- Keep freshness callers compatible with the catalog-locking proof above.
 create or replace function public.review_official_import_candidate(
   p_candidate_id uuid,
@@ -471,6 +839,7 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_catalog_lock_timeout text;
   v_candidate public.official_import_candidates;
   v_actor uuid := auth.uid();
   v_source_id text;
@@ -505,7 +874,19 @@ begin
     -- Freshness can prove a reconciled no-op against catalog. Match atomic
     -- apply's source -> Event -> candidate order so owner deletion's FK
     -- SET NULL cannot wait on a candidate that is itself waiting on Event.
-    if p_review_status = 'approved' then
+    if p_review_status = 'approved' and exists (
+      select 1 from public.official_import_candidates
+      where id = p_candidate_id and review_status = 'pending'
+    ) then
+      -- One catalog observation boundary, before marker derivation/candidate
+      -- locks. SHARE table locks cover new child INSERTs as well as existing rows.
+      -- Preserve a caller's shorter timeout, and restore its setting on success;
+      -- an error rolls back this statement's locks, GUCs and staging changes.
+      v_catalog_lock_timeout := current_setting('lock_timeout');
+      if v_catalog_lock_timeout::interval = interval '0'
+        or v_catalog_lock_timeout::interval > interval '2 seconds' then
+        perform set_config('lock_timeout', '2s', true);
+      end if;
       perform 1
       from public.events as event
       join public.official_import_candidates as candidate
@@ -518,6 +899,9 @@ begin
         on candidate.resolved_event_id = occurrence.event_id
       where candidate.id = p_candidate_id and candidate.review_status = 'pending'
       for share of occurrence;
+      lock table public.events in share mode;
+      lock table public.event_occurrences in share mode;
+      perform set_config('lock_timeout', v_catalog_lock_timeout, true);
     end if;
   end if;
 
@@ -600,6 +984,7 @@ security invoker
 set search_path = ''
 as $$
 declare
+  v_catalog_lock_timeout text;
   v_candidate public.official_import_candidates;
   v_source_id text;
   v_candidate_kind text;
@@ -624,22 +1009,38 @@ begin
     perform pg_catalog.pg_advisory_xact_lock(
       pg_catalog.hashtextextended('official-import-candidates:' || v_source_id, 0)
     );
-    -- Acquire catalog before candidate, as in review/atomic apply. Applied
-    -- replay stays inert and does not acquire an additional catalog lock.
-    perform 1
-    from public.events as event
-    join public.official_import_candidates as candidate
-      on candidate.resolved_event_id = event.id
-    where candidate.id = p_candidate_id and candidate.review_status = 'approved'
-      and candidate.apply_status <> 'applied'
-    for share of event;
-    perform 1
-    from public.event_occurrences as occurrence
-    join public.official_import_candidates as candidate
-      on candidate.resolved_event_id = occurrence.event_id
-    where candidate.id = p_candidate_id and candidate.review_status = 'approved'
-      and candidate.apply_status <> 'applied'
-    for share of occurrence;
+    -- Applied replay must not acquire any catalog lock.
+    if exists (select 1 from public.official_import_candidates
+      where id = p_candidate_id and review_status = 'approved' and apply_status <> 'applied') then
+      -- One catalog observation boundary, before marker derivation/candidate
+      -- locks. SHARE table locks cover new child INSERTs as well as existing rows.
+      -- Preserve a caller's shorter timeout, and restore its setting on success;
+      -- an error rolls back this statement's locks, GUCs and staging changes.
+      v_catalog_lock_timeout := current_setting('lock_timeout');
+      if v_catalog_lock_timeout::interval = interval '0'
+        or v_catalog_lock_timeout::interval > interval '2 seconds' then
+        perform set_config('lock_timeout', '2s', true);
+      end if;
+      -- Acquire catalog before candidate, as in review/atomic apply. Applied
+      -- replay stays inert and does not acquire an additional catalog lock.
+      perform 1
+      from public.events as event
+      join public.official_import_candidates as candidate
+        on candidate.resolved_event_id = event.id
+      where candidate.id = p_candidate_id and candidate.review_status = 'approved'
+        and candidate.apply_status <> 'applied'
+      for share of event;
+      perform 1
+      from public.event_occurrences as occurrence
+      join public.official_import_candidates as candidate
+        on candidate.resolved_event_id = occurrence.event_id
+      where candidate.id = p_candidate_id and candidate.review_status = 'approved'
+        and candidate.apply_status <> 'applied'
+      for share of occurrence;
+      lock table public.events in share mode;
+      lock table public.event_occurrences in share mode;
+      perform set_config('lock_timeout', v_catalog_lock_timeout, true);
+    end if;
   end if;
 
   select candidate.* into v_candidate

@@ -135,6 +135,14 @@ async function createFixture(
   ];
   await admin.query('begin');
   try {
+    // Same-source setup reserves publication before touching catalog tables.
+    await admin.query('set local role service_role');
+    const claim = await admin.query<{ result: string }>(
+      "select public.claim_official_import_run_attempt($1,$2,'publication',300) as result",
+      [fixture.runId, fixture.sourceId],
+    );
+    assert.equal(claim.rows[0]?.result, 'claimed');
+    await admin.query('reset role');
     // UUID-only synthetic users require no password, token or provider setup.
     await admin.query('insert into auth.users(id) values ($1)', [fixture.ownerId]);
     await admin.query('insert into public.catalog_creators(user_id) values ($1)', [
@@ -146,11 +154,6 @@ async function createFixture(
       [fixture.eventId, fixture.ownerId, fixture.sourceKey, fixture.sourceUrl],
     );
     await admin.query('set local role service_role');
-    const claim = await admin.query<{ result: string }>(
-      "select public.claim_official_import_run_attempt($1,$2,'publication',300) as result",
-      [fixture.runId, fixture.sourceId],
-    );
-    assert.equal(claim.rows[0]?.result, 'claimed');
     await admin.query(
       "select public.commit_owned_official_import_candidate_batch($1,$2,'publication',$3::jsonb)",
       [fixture.runId, fixture.sourceId, JSON.stringify(payload)],
@@ -392,6 +395,13 @@ async function createReplacementRun(admin: pg.Client, fixture: Fixture): Promise
 async function cleanup(admin: pg.Client, fixture: Fixture): Promise<void> {
   await admin.query('begin');
   try {
+    // Teardown follows the runtime source/catalog order too; deleting children
+    // first must not invert a parallel publisher's Event/Occurrence boundary.
+    await admin.query(
+      "select pg_advisory_xact_lock(hashtextextended('official-import-candidates:'||$1,0))",
+      [fixture.sourceId],
+    );
+    await admin.query('lock table public.events,public.event_occurrences in row exclusive mode');
     // Terminal staging rows intentionally cannot be deleted through product
     // routes. Bypass triggers only for these exact synthetic fixture IDs, in
     // this admin cleanup transaction; never truncate shared test tables.
