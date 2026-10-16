@@ -2,7 +2,7 @@
 
 追跡は [#825](https://github.com/reitojike/stage-tracker/issues/825)、
 承認済み仕様案と分割は [登録の設計案](../design/schedule-contact-registration.md)。
-現段階は P1a の無効な DB 基盤であり、登録機能をリリースする手順ではない。
+現段階は P1a に続く P1b の無効な DB 基盤であり、登録機能をリリースする手順ではない。
 本番 apply・main merge・実利用者への申請・既存共有変更は別の実行フェーズとする。
 
 ## P1a のローカル検証
@@ -36,11 +36,39 @@ pgTAP の gate 置換・synthetic actor・既存共有の回帰 fixture は tran
 - account 削除後の申請/関係/budget cleanup と、相手 owner の予定本体の維持
 - 登録で既存共有行が増減しないこと、旧 email RPC と既存 recipient read の回帰
 
-これは full feature の AC 完了ではない。別 session の並行操作、応答時間と HTTP parity、
-bounded read、alias、unlink、share generation の検証は後続で追加する。
+これは full feature の AC 完了ではない。有効時の HTTP 応答時間・cache の検証は後続で追加する。
 
 PR 前は [pre-pr-verification](pre-pr-verification.md) の floor と、DB/型の検証を実施。
 migration PR は `Migration ordering: additive` とし、runtime と同居させない。
+
+## P1b のローカル検証と停止境界
+
+P1b も上記の専用コピーで起動する。実際の public capability は false のまま、
+`supabase test db --local` に一覧の本人境界、alias の隔離、generation/trigger 制約、
+双方向解除、再登録、メール変更と account cleanup の pgTAP を追加する。
+
+`test/rls/scheduleContactConcurrency.test.ts` は実 migration SQL を一意な専用 schema に
+展開し、その schema 内の gate だけ true にする。user FK は同じ schema の代理表を使い、
+並列 suite の auth.users と DDL lock を競合させない。前後で public gate=false を検証し、
+専用 schema のみを削除する。client 操作は authenticated role と本物の auth.uid() で行う。
+二接続の勝者 transaction を保持し、`pg_blocking_pids` で待機を確認してから commit する。
+重複/逆向き申請、accept/cancel、unlink/share、unlink/alias、account 削除/share・accept の
+両順序を検証する。これは本物の auth.users FK cleanup の逐次 pgTAP と組み合わせた証跡で、
+Auth サービス全体の並行削除の完全な検証とは扱わない。
+
+専用コピーを cwd にして repository の絶対 test path を Node に渡し、repository の
+node_modules/.bin を process-local PATH に加えれば、共有 stack を触らず実行できる。
+CI は通常の `test:rls` から自動発見するので runner/config の変更は不要。
+`scheduleContactAccess.test.ts` は実 PostgREST で無効時の known/unknown 応答一致、
+一覧/alias/新共有/解除の拒否、直接表アクセスの拒否を検証する。
+
+P1b の提出境界は Draft PR・required CI・head に対応する Codex review。merge、本番適用、
+有効化、実ユーザー操作は行わない。P1a 採用時の main e31c49d、DB/CI 合格と production
+deployment READY の既確認証跡を維持する。Vercel runtime log API の 403 を P1b 開始条件に
+せず、その解消のための資格情報設定や対象拡大もしない。
+
+旧 email RPC はまだ存在するため、unlink と旧経路からの再共有を防ぐ保証は未完成。
+この段階で gate を有効化せず、P3 の閉鎖を必須とする。
 
 ## 有効化の前提（P1b → P2 → P3）
 

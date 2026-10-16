@@ -88,9 +88,52 @@ Spec Kit の標準 spec 構成を評価し、シナリオ・要件・成功基�
 これは登録機能のリリースではない。内部の opaque な戻り値や試行制限だけで、応答時間を
 含む実在推測対策が完成したとも扱わない。無効化は後続の安全条件がそろうまで維持する。
 
+## 一覧・管理・共有世代の限定実装（P1b）
+
+P1a を含む main `e31c49d` から独立した migration PR とする。登録 capability は
+false のままで、実ユーザーの関係・共有を作成/解除しない。Current Spec の昇格、UI、
+旧 email 作成経路の閉鎖、既存行の backfill は含めない。
+
+- `list_received_schedule_contact_requests()` は本人宛 pending の ID、申請者の現メール、
+  申請日時だけを返す。送信履歴・対象メールの存在・件数照会は提供しない。
+- `list_schedule_contacts()` は本人が参加する accepted generation と相手の現メール、
+  本人だけの alias、承認日時を返す。メール変更後も関係は account UUID に結び付く。
+- `set_schedule_contact_alias(contact_id, alias)` は本人の値だけを設定する。前後の空白を
+  除き 1–80 文字、空値/null は自分の値だけを削除する。相手・第三者には公開しない。
+- `share_schedule_entry_with_contact(entry_id, contact_id)` は所有者だけが、参加中の
+  accepted generation に明示共有する。登録自体では予定を公開しない。同じ予定/相手への
+  再実行は同じ共有行。既存 legacy 行の binding はこの明示操作時だけ可能にする。
+- `unlink_schedule_contact(contact_id)` はどちらの参加者からでも、当該ペアの双方向共有
+  （legacy NULL を含む）、両者の alias、関係を同一 transaction で削除する。予定本体と
+  第三者共有は残す。古い/無関係な ID は opaque no-op。再承認には新しい UUID が必要で、
+  過去の共有と alias は復活しない。
+
+共有行の nullable `contact_id` FK は関係削除で cascade し、新経路の共有だけを世代に
+拘束する。trigger は予定 owner と recipient が当該関係の二者であることを検証し、
+一度 bind した共有の generation/予定/recipient の変更や binding 解除を拒否する。
+alias 表は直接 client CRUD を許可せず、share の直接 INSERT/UPDATE 権限も追加しない。
+既存の SELECT/DELETE RLS と recipient 離脱は維持する。
+
+新しい share/alias/unlink は account の KEY SHARE → canonical pair advisory lock →
+当該 generation の再取得を同じ順序で行う。share が先なら解除がその共有も削除し、
+解除が先なら待機後の追加は失敗する。並行する二接続で実際の blocking PID を観測する。
+account 削除による FK cascade を待つ間に、先に request/contact/share 行を変更しない。
+
+pgTAP は実 schema を transaction 内だけ有効化して rollback する。複数接続の検証は
+実 migration SQL の schema 名と auth.users 参照を fixture 専用 schema/代理 user 表へ
+置換し、その専用 gate だけ有効化する。実際の auth.uid/role/FK/row lock を使うが、
+これは実 Auth サービスとの並行削除の完全な代替ではない。実 auth.users の逐次 cleanup
+は pgTAP、無効時の PostgREST/権限/known-unknown 応答一致は HTTP テストで補う。
+共有 public gate を別 session へ公開するテスト用の有効化は行わない。
+
+**リリース上の残件:** P1b の旧 email RPC は従来どおり NULL 世代の共有を作成できる。
+旧 RPC と unlink の競合を安全にする friends-only 保証は P3 の旧経路閉鎖まで成立しない。
+有効時 HTTP の status/body/header/Cookie/公開ログ/応答時間と cache の検証も後続の
+有効化条件であり、今回の SQL/無効時 HTTP の合格を存在推測対策の完成とは扱わない。
+
 ## 後続の依存関係
 
-1. P1b: bounded な受信/登録一覧、本人用 alias、関係解除、新しい共有作成の DB 基盤。
+1. P1b（本 PR）: bounded な受信/登録一覧、本人用 alias、関係解除、新しい共有作成の DB 基盤。
    accepted 関係の世代と share を結び、解除/add の同一 pair lock を徹底する。
 2. P2: DB 適用の実証後に型付き read/action と登録管理・選択式共有 UI を別 PR で追加。
    capability 不明/無効なら新操作を止める。

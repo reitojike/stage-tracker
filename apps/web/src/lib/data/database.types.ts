@@ -275,21 +275,47 @@ isOneToOne: false
                   ]
                 },"personal_schedule_shares": {
                   Row: {
-                    "created_at": string,"id": string,"schedule_entry_id": string,"shared_with_user_id": string
+                    "contact_id": string | null,"created_at": string,"id": string,"schedule_entry_id": string,"shared_with_user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"schedule_entry_id": string,"shared_with_user_id": string
+                    "contact_id"?: string | null,"created_at"?: string,"id"?: string,"schedule_entry_id": string,"shared_with_user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"schedule_entry_id"?: string,"shared_with_user_id"?: string
+                    "contact_id"?: string | null,"created_at"?: string,"id"?: string,"schedule_entry_id"?: string,"shared_with_user_id"?: string
                   }
                   Relationships: [
                     {
+      foreignKeyName: "personal_schedule_shares_contact_id_fkey"
+      columns: ["contact_id"]
+isOneToOne: false
+      referencedRelation: "schedule_contacts"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "personal_schedule_shares_schedule_entry_id_fkey"
       columns: ["schedule_entry_id"]
 isOneToOne: false
       referencedRelation: "personal_schedule_entries"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"schedule_contact_aliases": {
+                  Row: {
+                    "alias": string,"contact_id": string,"owner_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "alias": string,"contact_id": string,"owner_id": string
+                  }
+                  Update: {
+                    "alias"?: string,"contact_id"?: string,"owner_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "schedule_contact_aliases_contact_id_fkey"
+      columns: ["contact_id"]
+isOneToOne: false
+      referencedRelation: "schedule_contacts"
       referencedColumns: ["id"]
     }
                   ]
@@ -698,6 +724,16 @@ isOneToOne: false
 "is_personal_schedule_entry_owner":
 { Args: { "p_entry_id": string }; Returns: boolean
                            },
+"list_received_schedule_contact_requests":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "request_id": string,"requested_at": string,"requester_email": string
+            }[]
+                           },
+"list_schedule_contacts":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "accepted_at": string,"contact_id": string,"counterpart_email": string,"own_alias": string
+            }[]
+                           },
 "list_schedule_share_recipient_emails":
 { Args: { "p_schedule_entry_id": string }; Returns: {
               "recipient_email": string,"share_id": string,"shared_at": string
@@ -787,9 +823,13 @@ isOneToOne: false
 "schedule_contact_registration_enabled":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"set_schedule_contact_alias":
+{ Args: { "p_alias": string,"p_contact_id": string }; Returns: undefined
+                           },
 "share_schedule_entry_by_email":
 { Args: { "p_recipient_email": string,"p_schedule_entry_id": string }; Returns: {
-              "created_at": string,
+              "contact_id": string | null,
+"created_at": string,
 "id": string,
 "schedule_entry_id": string,
 "shared_with_user_id": string
@@ -799,7 +839,24 @@ isOneToOne: false
         to: "personal_schedule_shares"
         isOneToOne: true
         isSetofReturn: false
-      } }
+      } },
+"share_schedule_entry_with_contact":
+{ Args: { "p_contact_id": string,"p_schedule_entry_id": string }; Returns: {
+              "contact_id": string | null,
+"created_at": string,
+"id": string,
+"schedule_entry_id": string,
+"shared_with_user_id": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "personal_schedule_shares"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
+"unlink_schedule_contact":
+{ Args: { "p_contact_id": string }; Returns: undefined
+                           }
           }
           Enums: {
             "notification_kind": "invitation_received","participation_status": "considering"|"attending","participation_visibility": "private"|"public"
