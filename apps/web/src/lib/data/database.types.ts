@@ -293,6 +293,34 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"schedule_contact_requests": {
+                  Row: {
+                    "created_at": string,"id": string,"recipient_id": string,"requested_email": string,"requester_id": string,"user_high_id": string | null,"user_low_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"recipient_id": string,"requested_email": string,"requester_id": string,"user_high_id"?: never,"user_low_id"?: never
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"recipient_id"?: string,"requested_email"?: string,"requester_id"?: string,"user_high_id"?: never,"user_low_id"?: never
+                  }
+                  Relationships: [
+
+                  ]
+                },"schedule_contacts": {
+                  Row: {
+                    "created_at": string,"id": string,"user_high_id": string,"user_low_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"user_high_id": string,"user_low_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"user_high_id"?: string,"user_low_id"?: string
+                  }
+                  Relationships: [
+
+                  ]
                 },"ticket_opportunities": {
                   Row: {
                     "created_at": string,"display_name": string,"event_id": string,"id": string,"memo": string | null,"source_key": string,"source_url": string | null,"target_scope": string,"updated_at": string
@@ -385,7 +413,10 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "apply_import_event_plan":
+            "accept_schedule_contact_request":
+{ Args: { "p_request_id": string }; Returns: undefined
+                           },
+"apply_import_event_plan":
 { Args: { "p_action": string,"p_ends_on": string,"p_event_id": string,"p_genre_key": string,"p_groups": Json,"p_memo": string,"p_occurrence_fixes": Json,"p_occurrences": Json,"p_owner_id": string,"p_set_genre": boolean,"p_set_groups": boolean,"p_source_key": string,"p_source_url": string,"p_starts_on": string,"p_title": string,"p_venue": string }; Returns: {
               "canceled_at": string | null,
 "created_at": string,
@@ -493,6 +524,9 @@ isOneToOne: false
         isOneToOne: true
         isSetofReturn: false
       } },
+"cancel_schedule_contact_request_by_email":
+{ Args: { "p_recipient_email": string }; Returns: undefined
+                           },
 "claim_official_import_candidate_apply":
 { Args: { "p_attempt_token": string,"p_candidate_id": string,"p_lease_seconds": number }; Returns: string
                            },
@@ -548,6 +582,9 @@ isOneToOne: false
         isOneToOne: true
         isSetofReturn: false
       } },
+"decline_schedule_contact_request":
+{ Args: { "p_request_id": string }; Returns: undefined
+                           },
 "delete_event":
 { Args: { "p_event_id": string }; Returns: undefined
                            },
@@ -684,6 +721,9 @@ isOneToOne: false
 "release_official_import_run_attempt":
 { Args: { "p_attempt_token": string,"p_run_id": string,"p_source_id": string }; Returns: string
                            },
+"request_schedule_contact_by_email":
+{ Args: { "p_recipient_email": string }; Returns: undefined
+                           },
 "reschedule_event":
 { Args: { "p_ends_on": string,"p_event_id": string,"p_occurrences"?: Json,"p_starts_on": string }; Returns: {
               "canceled_at": string | null,
@@ -744,6 +784,9 @@ isOneToOne: false
         isOneToOne: true
         isSetofReturn: false
       } },
+"schedule_contact_registration_enabled":
+{ Args: Record<PropertyKey, never>; Returns: boolean
+                           },
 "share_schedule_entry_by_email":
 { Args: { "p_recipient_email": string,"p_schedule_entry_id": string }; Returns: {
               "created_at": string,
