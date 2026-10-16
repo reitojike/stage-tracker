@@ -1,3 +1,7 @@
+import {
+  scheduleEntrySortInstant,
+  isUpcomingScheduleEntry,
+} from "../schedule/_lib/shared-schedule-projection";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import {
@@ -7,7 +11,6 @@ import {
   isTicketOpportunityMilestonePast,
   isInstantSameOrAfter,
   ticketOpportunityDeadlineSortInstant,
-  tokyoCalendarDayRangeUtc,
   type Event,
   type Instant,
   type Occurrence,
@@ -176,26 +179,6 @@ function isUpcomingParticipation(
   return isInstantSameOrAfter(relevantEnd, now.nowInstant);
 }
 
-function scheduleEntrySortInstant(entry: PersonalScheduleEntry): Instant {
-  return entry.temporal.kind === "all-day"
-    ? tokyoCalendarDayRangeUtc(entry.temporal.startsOn).startInstant
-    : entry.temporal.startsAt;
-}
-
-function isUpcomingScheduleEntry(
-  entry: PersonalScheduleEntry,
-  now: ScreenNow,
-): boolean {
-  if (entry.temporal.kind === "all-day") {
-    return (
-      tokyoCalendarDayRangeUtc(entry.temporal.endsOn).endInstantExclusive >
-      now.nowInstant
-    );
-  }
-  const relevantEnd = entry.temporal.endsAt ?? entry.temporal.startsAt;
-  return isInstantSameOrAfter(relevantEnd, now.nowInstant);
-}
-
 function compareUpcomingItems(
   a: HomeUpcomingItem,
   b: HomeUpcomingItem,
@@ -230,6 +213,7 @@ export async function loadHomeUpcomingSchedule(
   supabase: SupabaseClient<Database>,
   userId: UserId,
   now: ScreenNow,
+  ownedOnly = false,
 ): Promise<MergedListBlockState<readonly HomeUpcomingItem[]>> {
   const [participationsResult, scheduleResult] = await Promise.all([
     listMyParticipations(supabase, userId),
@@ -251,6 +235,7 @@ export async function loadHomeUpcomingSchedule(
         }));
 
       const scheduleItems: HomeUpcomingItem[] = scheduleEntries
+        .filter((entry) => !ownedOnly || entry.ownerId === userId)
         .filter((entry) => isUpcomingScheduleEntry(entry, now))
         .map((entry) => ({
           kind: "schedule",

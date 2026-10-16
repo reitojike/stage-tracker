@@ -1,3 +1,4 @@
+import { UNKNOWN_RETRY_HINT_JA as READ_FAILURE_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import Link from "next/link";
 import {
   isEffectivelyCanceled,
@@ -34,10 +35,7 @@ import {
 } from "@/app/_lib/format";
 import { formatTokyoCalendarDateJa } from "@/lib/tokyo-format";
 import { ScheduleEntryBadges } from "@/app/_components/ScheduleEntryBadges";
-import {
-  READ_FAILURE_RETRY_HINT_JA,
-  type BlockState,
-} from "@/app/_lib/read-state";
+import { type BlockState } from "@/app/_lib/read-state";
 import { formatScheduleEntryTemporal } from "../../schedule/_components/formatScheduleEntryTemporal";
 import { catalogEventHref } from "../../catalog/_lib/catalog-links";
 import type {
@@ -59,6 +57,7 @@ import {
 } from "../_lib/calendar-view-model";
 
 export interface CalendarViewProps {
+  readonly isSharedScheduleUnknown?: boolean;
   readonly month: TokyoYearMonth;
   readonly today: TokyoCalendarDate;
   readonly selectedDate: TokyoCalendarDate | null;
@@ -130,6 +129,7 @@ export function CalendarView({
   userId,
   occurrenceState,
   scheduleState,
+  isSharedScheduleUnknown = false,
 }: CalendarViewProps) {
   const occurrenceIndex =
     occurrenceState.variant === "populated"
@@ -191,9 +191,11 @@ export function CalendarView({
         <StatePanel
           variant="empty"
           title={
-            selectedDate === null
-              ? "この月の予定はありません"
-              : "この日の予定はまだありません"
+            isSharedScheduleUnknown
+              ? "自分の予定と参加予定はありません"
+              : selectedDate === null
+                ? "この月の予定はありません"
+                : "この日の予定はまだありません"
           }
           action={<ScheduleAddLink selectedDate={selectedDate} primary />}
         />
@@ -206,6 +208,7 @@ export function CalendarView({
             groups={occurrenceGroups}
           />
           <ScheduleSection
+            isSharedScheduleUnknown={isSharedScheduleUnknown}
             state={scheduleState}
             month={month}
             selectedDate={selectedDate}
@@ -545,6 +548,7 @@ function OccurrenceRow({
 }
 
 function ScheduleSection({
+  isSharedScheduleUnknown,
   state,
   month,
   selectedDate,
@@ -554,6 +558,7 @@ function ScheduleSection({
   readonly month: TokyoYearMonth;
   readonly selectedDate: TokyoCalendarDate | null;
   readonly groups: readonly CalendarScheduleDateGroup[];
+  readonly isSharedScheduleUnknown: boolean;
 }) {
   return (
     <section
@@ -563,6 +568,7 @@ function ScheduleSection({
       <SectionHeading id="calendar-schedule-heading">個人の予定</SectionHeading>
       {state.variant === "populated" ? (
         <ScheduleList
+          isSharedScheduleUnknown={isSharedScheduleUnknown}
           month={month}
           selectedDate={selectedDate}
           groups={groups}
@@ -572,7 +578,9 @@ function ScheduleSection({
           variant={state.variant}
           title={blockPanelCopy(
             state.variant,
-            "個人の予定はありません",
+            isSharedScheduleUnknown
+              ? "自分の予定はありません"
+              : "個人の予定はありません",
             "個人の予定を確認できません",
             "個人の予定を読み込めませんでした",
           )}
@@ -586,6 +594,7 @@ function ScheduleSection({
 }
 
 function ScheduleList({
+  isSharedScheduleUnknown,
   month,
   selectedDate,
   groups,
@@ -593,13 +602,16 @@ function ScheduleList({
   readonly month: TokyoYearMonth;
   readonly selectedDate: TokyoCalendarDate | null;
   readonly groups: readonly CalendarScheduleDateGroup[];
+  readonly isSharedScheduleUnknown: boolean;
 }) {
   if (groups.length === 0) {
     return (
       <p className="text-body-sm text-muted-foreground">
-        {selectedDate !== null
-          ? "この日の個人の予定はありません"
-          : "この月の個人の予定はありません"}
+        {isSharedScheduleUnknown
+          ? "自分の予定はありません"
+          : selectedDate !== null
+            ? "この日の個人の予定はありません"
+            : "この月の個人の予定はありません"}
       </p>
     );
   }
