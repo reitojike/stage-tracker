@@ -7,7 +7,7 @@ import {
   loadHomeTicketDeadlines,
   loadHomeUpcomingSchedule,
 } from "./_lib/home-loader";
-import { HomeView } from "./_components/HomeView";
+import { SharedScheduleHome } from "./_components/SharedScheduleHome";
 
 /**
  * `/` home. Read-only - no Server Action/mutation on this screen (this
@@ -36,11 +36,13 @@ export default async function HomePage() {
   const now = resolveScreenNow();
   const [ticketState, scheduleState] = await Promise.all([
     loadHomeTicketDeadlines(supabase, userResult.value, now),
-    loadHomeUpcomingSchedule(supabase, userResult.value, now),
+    loadHomeUpcomingSchedule(supabase, userResult.value, now, true),
   ]);
 
   return (
-    <HomeView
+    <SharedScheduleHome
+      actorId={userResult.value}
+      now={now}
       ticketState={ticketState}
       scheduleState={scheduleState}
       today={now.todayTokyoDate}

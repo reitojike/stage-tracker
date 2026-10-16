@@ -1,3 +1,4 @@
+import { UNKNOWN_RETRY_HINT_JA as READ_FAILURE_RETRY_HINT_JA } from "@/lib/user-facing-copy";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
@@ -29,7 +30,6 @@ import {
   ticketPersonalStateBadgeDisplay,
 } from "@/app/_lib/ticket-display";
 import {
-  READ_FAILURE_RETRY_HINT_JA,
   type MergedListBlockState,
   type OptionalPartBlockState,
   type PartState,
@@ -41,6 +41,7 @@ import type {
 import { formatScheduleEntryTemporal } from "../schedule/_components/formatScheduleEntryTemporal";
 
 export interface HomeViewProps {
+  readonly isSharedScheduleUnknown?: boolean;
   readonly ticketState: OptionalPartBlockState<
     readonly HomeTicketDeadlineRow[]
   >;
@@ -75,7 +76,12 @@ export interface HomeViewProps {
  * silently collapsing into the same "no data"/"0 rows" shape a caller would
  * see with no failure at all.
  */
-export function HomeView({ ticketState, scheduleState, today }: HomeViewProps) {
+export function HomeView({
+  ticketState,
+  scheduleState,
+  today,
+  isSharedScheduleUnknown = false,
+}: HomeViewProps) {
   const bothEmpty =
     ticketState.optional.ok &&
     ticketState.block.variant === "empty" &&
@@ -88,12 +94,19 @@ export function HomeView({ ticketState, scheduleState, today }: HomeViewProps) {
       {bothEmpty ? (
         <StatePanel
           variant="empty"
-          title="期限が近い申し込みも、直近の予定もありません"
+          title={
+            isSharedScheduleUnknown
+              ? "期限が近い申し込みや、自分の予定・参加予定はありません"
+              : "期限が近い申し込みも、直近の予定もありません"
+          }
         />
       ) : (
         <>
           <TicketDeadlineSection state={ticketState} today={today} />
-          <UpcomingScheduleSection state={scheduleState} />
+          <UpcomingScheduleSection
+            state={scheduleState}
+            isSharedScheduleUnknown={isSharedScheduleUnknown}
+          />
         </>
       )}
     </div>
@@ -298,8 +311,10 @@ function UpcomingSchedulePartialNotes({
 
 function UpcomingScheduleSection({
   state,
+  isSharedScheduleUnknown,
 }: {
   readonly state: MergedListBlockState<readonly HomeUpcomingItem[]>;
+  readonly isSharedScheduleUnknown: boolean;
 }) {
   return (
     <section
@@ -339,7 +354,9 @@ function UpcomingScheduleSection({
           variant={state.variant}
           title={
             state.variant === "empty"
-              ? "直近の予定はありません"
+              ? isSharedScheduleUnknown
+                ? "直近の自分の予定・参加予定はありません"
+                : "直近の予定はありません"
               : state.variant === "unavailable"
                 ? "予定を確認できません"
                 : "予定を読み込めませんでした"

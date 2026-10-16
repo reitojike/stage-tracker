@@ -115,10 +115,17 @@ test("official import review: only a designated catalog creator can inspect revi
       candidateCard.getByText(/開演.*10:00.*終演.*12:30/),
     ).toBeVisible();
     await candidateCard.getByRole("button", { name: "承認" }).click();
-    await expect(candidateCard.getByText("承認しました。")).toBeVisible();
+    // Refresh replaces ReviewControls and its transient notice. The component
+    // test covers that notice; this journey verifies the persisted approval.
+    await expect(
+      candidateCard.getByText("承認済み・反映待ち", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      candidateCard.getByRole("button", { name: "カタログへ反映" }),
+    ).toBeEnabled();
     await expect(
       candidateCard.getByRole("button", { name: "承認" }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
 
     const { data: reviewed, error: reviewReadError } = await admin
       .from("official_import_candidates")

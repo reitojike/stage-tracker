@@ -12,7 +12,7 @@ import {
 } from "@stage-tracker/domain";
 import { listMyParticipations, listVisiblePersonalSchedule } from "@/lib/data";
 import { classifyBlock1, type BlockState } from "@/app/_lib/read-state";
-import { scheduleEntryDatesInRange } from "./calendar-view-model";
+import { buildScheduleIndex } from "../../schedule/_lib/shared-schedule-projection";
 
 /**
  * `/calendar` data loading and read-state classification are owned by this
@@ -107,35 +107,19 @@ export async function loadCalendarSchedule(
   supabase: SupabaseClient<Database>,
   gridStart: TokyoCalendarDate,
   gridEnd: TokyoCalendarDate,
+  ownerId?: UserId,
 ): Promise<BlockState<TokyoDateIndex<CalendarScheduleItem>>> {
   const result = await listVisiblePersonalSchedule(supabase);
   return classifyBlock1(
     result,
-    (entries) => {
-      const touchedByEntry = entries.map(
-        (entry) =>
-          [
-            entry,
-            scheduleEntryDatesInRange(entry, gridStart, gridEnd),
-          ] as const,
-      );
-      const items: CalendarScheduleItem[] = touchedByEntry
-        .filter(([, dates]) => dates.length > 0)
-        .map(([entry]) => ({ entry }));
-      const byDate = new Map<TokyoCalendarDate, CalendarScheduleItem[]>();
-      for (const [entry, dates] of touchedByEntry) {
-        for (const date of dates) {
-          const item: CalendarScheduleItem = { entry };
-          const existing = byDate.get(date);
-          if (existing === undefined) {
-            byDate.set(date, [item]);
-          } else {
-            existing.push(item);
-          }
-        }
-      }
-      return { items, byDate };
-    },
+    (entries) =>
+      buildScheduleIndex(
+        entries.filter(
+          (entry) => ownerId === undefined || entry.ownerId === ownerId,
+        ),
+        gridStart,
+        gridEnd,
+      ),
     (index) => index.items.length === 0,
   );
 }
