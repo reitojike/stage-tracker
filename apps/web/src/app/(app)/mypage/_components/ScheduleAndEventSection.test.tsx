@@ -12,6 +12,9 @@ describe("ScheduleAndEventSection", () => {
       screen.getByRole("link", { name: "イベントを追加" }),
     ).toHaveAttribute("href", "/catalog/events/new");
     expect(
+      screen.getByRole("link", { name: "共有相手の登録" }),
+    ).toHaveAttribute("href", "/mypage/schedule-contacts");
+    expect(
       screen.getByRole("link", { name: "公式情報の確認" }),
     ).toHaveAttribute("href", "/catalog/imports");
 

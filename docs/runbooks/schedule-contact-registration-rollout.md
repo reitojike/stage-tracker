@@ -72,6 +72,12 @@ deployment READY の既確認証跡を維持する。Vercel runtime log API の 
 
 ## 有効化の前提（P1b → P2 → P3）
 
+P2b の実 DB E2E は gate=false のまま、mobile/desktop の登録管理・共有追加の停止と、
+legacy fixture の owner 個別解除・recipient 自己離脱を検証する。正の登録 UI 操作は
+synthetic Action 応答と実 useAction の component tests で検証する。有効時の実ブラウザ
+journey と cache/timing の証跡をこれで代替しない。P3 前にはその検証と無効時専用 E2E の
+切替互換を runtime-only PR で準備する。E2E/runtime の更新を P3 migration PR に混在させない。
+
 次がすべてそろうまで gate を false のまま維持する。client GUC、環境変数、管理画面で
 切り替える抜け道を作らず、将来の明示的な migration によってのみ切り替える。
 
