@@ -114,6 +114,62 @@ P3 は `runtime-first-required`。現在の migration 自動適用と Vercel 配
 [runtime-stack](../architecture/runtime-stack.md) の ordering evidence を必須にする。
 P4 を P1a と同時に merge/apply できる形で先に積まない。
 
+## P3 の限定された write 切替（未採用）
+
+P3 migration は `20261016154603_schedule_contact_write_cutover.sql`。
+これは採用・本番 apply の承認を意味しない。P2c を base にした Draft の間は main へ merge しない。
+P2c 採用後に main へ retarget し、差分が DB / DB・RLS tests / docs だけであることと
+fresh な CI / exact-head review を再確認する。runtime-first-required の実配備証拠は必須。
+準備時の read-only 確認では main `0fd6e27123ba35efa7270cbfb5d6c4b342b76533` の
+Production deployment が READY で、`stage-tracker.com` もその deployment を指していた。
+P2c は test / runbook 変更だけで対応 app runtime はこの版に含まれる。採用直前にも再確認する。
+Current Living Spec の登録 lifecycle と切替段階への同期も、採用時に runtime と分離して扱う。
+
+repository の共有 INSERT は旧 email RPC の履歴定義と新 contact RPC に限られる。
+旧 runtime caller は `schedule-share-actions.ts` → `schedule-share-write.ts` に残るが、
+現行 UI の import はなく、P3 後は DB の拒否 stub / ACL により実行できない。
+mock を使う旧 helper unit test を、切替後の正の認可証明として扱わない。
+旧 export / helper / signature の削除は、利用不在を確認して後続 cleanup に分離する。
+
+採用直前は read-only catalog で同名全 schema / overload、関数 body と caller、
+ACL と role membership、table / 全 column の実効 INSERT・UPDATE、validation trigger を再確認する。
+2026-10-16 の本番 read-only inventory は旧 `public.share_schedule_entry_by_email(uuid,text)` 1 件、
+authenticated EXECUTE 可 / anon 不可、client の table / column INSERT・UPDATE 不可、
+両 client に追加の継承 role なしだった。writer / legacy caller の source scan は旧 RPC と新 contact RPC。
+この観測を将来の drift なしの保証にしない。local default grant と本番 ACL の差も推測で補わない。
+
+同一 transaction 内で、10 秒の lock_timeout と shares の SHARE ROW EXCLUSIVE lock を取得し、
+旧 INSERT transaction を drain する。期待外 overload、既存 accepted 検証 trigger / RPC の差異、
+除去後の継承 write privilege が残れば例外で全体を rollback する。知らない継承 role を一括変更しない。
+旧 signature は SECURITY INVOKER の 42501 stub とし PUBLIC / anon / authenticated EXECUTE を剥奪する。
+新 INSERT は role / gate にかかわらず contact_id を必須にし、既存 trigger が当事者・現世代を検証する。
+最後に gate=true を公開する。既存行の bind / UPDATE / DELETE、accepted 作成、read policy 変更はしない。
+
+`scheduleContactCutover.test.ts` は実 SQL の専用 schema 再生で、故障 rollback、overload、
+明示・継承 grant、無効な trigger、INSERT 済み transaction の待機、INSERT 前の旧 RPC の再開を検証する。
+`scheduleContactConcurrency.test.ts` は同じ切替を適用して既存の両順序 race を検証する。
+切替前 legacy 行は guard 導入前にだけ fixture 作成し、管理 role の guard 除外は設けない。
+local PostgREST / RLS での切替前後確認と、その後の有効時 UI journey も組み合わせる。
+
+実機用 fixture が本番にない場合、gate=false の UI から新規作成して補わない。
+端末 QA を準備する別承認では、次を範囲にする。
+
+- 本番と別の QA app / Supabase を使い、端末から到達できる HTTPS origin と API、
+  その origin だけの sign-in callback を設定する。PC の localhost を端末へそのまま渡さない。
+- operator が synthetic A / B を事前 provision し、秘密鍵は server / test setup 内に限定する。
+  public signup、実利用者の credential、外部通知、本番 share の作成は使わない。
+- false 段階を確認する legacy fixture は切替前にだけ準備する。切替後は実申請・本人承認・
+  明示共有で準備し、管理 role による NULL INSERT / guard 回避は使わない。
+- 実機で home screen 追加・standalone 起動を確認し、端末手順の対象 share を明示してから実施する。
+  環境準備・表示確認の承認と、対象 share の解除承認を混同しない。
+
+この準備案は未実施であり、新しい deployment / network 公開や実機合格の証拠ではない。
+
+適用失敗 / lock timeout は transaction rollback。適用後の緊急停止は、対応 runtime を保った
+前進 migration で gate=false とする。新 INSERT guard と旧 email RPC 閉鎖は維持する。
+false は既存 read の停止ではないため、read 漏えいには別途限定した修正・封じ込めを判断する。
+旧 email 経路再開・accepted 自動生成・解除済み共有復元を rollback に使わない。
+
 ## 既存共有の切替（P4）
 
 利用者自身が相互承認する。既存 share から accepted を生成しない。過去に共有 0 件でも、

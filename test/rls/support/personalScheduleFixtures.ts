@@ -5,8 +5,8 @@ import type { TestActor } from './testActors.ts';
 // schedule_type vocabulary to free-form title + blocking by Issue #121).
 // Unlike events, entry creation has no atomicity invariant that requires an
 // RPC (see 20260822000000_create_personal_schedule.sql): a plain INSERT is
-// the supported create path. Share creation is different: the exact-email RPC
-// is the only supported authenticated path.
+// the supported create path. Sharing requires an accepted contact created
+// through the authenticated request/accept flow.
 
 export function scheduleEntryTitle(): string {
   return `rls test schedule entry ${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
@@ -83,27 +83,76 @@ export async function createTimedScheduleEntry(
   return data;
 }
 
-/**
- * Shares an existing entry with a recipient, as the entry owner, through the
- * supported exact-email RPC. Returns the created personal_schedule_shares
- * row.
- */
+/** Establishes an accepted contact through both authenticated actors. */
+export async function ensureAcceptedScheduleContact(
+  ownerActor: TestActor,
+  recipientActor: TestActor,
+) {
+  const ownerEmail = ownerActor.user.email;
+  const recipientEmail = recipientActor.user.email;
+  if (!ownerEmail) throw new Error(`fixture owner ${ownerActor.user.id} has no email`);
+  if (!recipientEmail) throw new Error(`fixture recipient ${recipientActor.user.id} has no email`);
+  const normalizedRecipientEmail = recipientEmail.toLowerCase();
+
+  async function findContact() {
+    const { data, error } = await ownerActor.client.rpc('list_schedule_contacts');
+    if (error) throw new Error(`fixture list_schedule_contacts failed: ${error.message}`);
+    return data.find(
+      (contact) => contact.counterpart_email.toLowerCase() === normalizedRecipientEmail,
+    );
+  }
+
+  const existingContact = await findContact();
+  if (existingContact) return existingContact.contact_id;
+
+  const { error: requestError } = await ownerActor.client.rpc('request_schedule_contact_by_email', {
+    p_recipient_email: recipientEmail,
+  });
+  if (requestError) {
+    throw new Error(`fixture request_schedule_contact_by_email failed: ${requestError.message}`);
+  }
+
+  const { data: requests, error: listError } = await recipientActor.client.rpc(
+    'list_received_schedule_contact_requests',
+  );
+  if (listError) {
+    throw new Error(`fixture list_received_schedule_contact_requests failed: ${listError.message}`);
+  }
+  const request = requests.find(
+    (item) => item.requester_email.toLowerCase() === ownerEmail.toLowerCase(),
+  );
+  if (!request) {
+    throw new Error(`fixture contact request from ${ownerEmail} was not received`);
+  }
+
+  const { error: acceptError } = await recipientActor.client.rpc(
+    'accept_schedule_contact_request',
+    { p_request_id: request.request_id },
+  );
+  if (acceptError) {
+    throw new Error(`fixture accept_schedule_contact_request failed: ${acceptError.message}`);
+  }
+
+  const acceptedContact = await findContact();
+  if (!acceptedContact) {
+    throw new Error(`fixture accepted contact with ${recipientEmail} was not listed`);
+  }
+  return acceptedContact.contact_id;
+}
+
+/** Shares an entry through its accepted contact and returns its share row. */
 export async function shareScheduleEntry(
   ownerActor: TestActor,
   scheduleEntryId: string,
   recipientActor: TestActor,
 ) {
-  const recipientEmail = recipientActor.user.email;
-  if (recipientEmail === undefined) {
-    throw new Error(`fixture recipient ${recipientActor.user.id} has no email`);
-  }
-
-  const { data, error } = await ownerActor.client.rpc('share_schedule_entry_by_email', {
+  const contactId = await ensureAcceptedScheduleContact(ownerActor, recipientActor);
+  const { data, error } = await ownerActor.client.rpc('share_schedule_entry_with_contact', {
     p_schedule_entry_id: scheduleEntryId,
-    p_recipient_email: recipientEmail,
+    p_contact_id: contactId,
   });
   if (error) {
-    throw new Error(`fixture share_schedule_entry_by_email failed: ${error.message}`);
+    throw new Error(`fixture share_schedule_entry_with_contact failed: ${error.message}`);
   }
   return data;
 }

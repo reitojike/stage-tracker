@@ -6,7 +6,7 @@ import pg from 'pg';
 import { readLocalSupabaseStatus } from './support/localSupabase.ts';
 
 // Execute the actual migrations in fixture-owned namespaces. Only the fixture's
-// gate is true; the public release gate is never replaced across sessions.
+// gate is enabled by the real P3 cutover; public release state is unchanged.
 // auth.uid(), roles, row/advisory locks and FK cascades are real PostgreSQL.
 // A surrogate users table avoids DDL locks on auth.users in the parallel suite.
 // Actual auth.users/RLS/PostgREST integration is covered separately by pgTAP
@@ -27,6 +27,20 @@ const management = readFileSync(
   ),
   'utf8',
 );
+const legacy = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260908010000_add_share_by_email_sqlstates.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const cutover = readFileSync(
+  new URL(
+    '../../supabase/migrations/20261016154603_schedule_contact_write_cutover.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
 async function connect(): Promise<pg.Client> {
   const client = new pg.Client({ connectionString: status.dbUrl, statement_timeout: 10000 });
@@ -34,12 +48,13 @@ async function connect(): Promise<pg.Client> {
   return client;
 }
 
-async function fixture(run: (f: Fixture) => Promise<void>): Promise<void> {
+async function fixture(run: (f: Fixture) => Promise<void>, legacyShares = false): Promise<void> {
   const admin = await connect();
   const first = await connect();
   const second = await connect();
   const name = `contact_p1b_${randomUUID().replaceAll('-', '')}`;
   const secret = `${name}_private`;
+  const legacyName = `legacy_${name}`;
   assert.match(name, /^contact_p1b_[a-f0-9]{32}$/);
   const ids = {
     a: randomUUID(),
@@ -48,12 +63,10 @@ async function fixture(run: (f: Fixture) => Promise<void>): Promise<void> {
     entry: randomUUID(),
     reverse: randomUUID(),
   };
+  const publicGate = (
+    await admin.query('select public.schedule_contact_registration_enabled() as enabled')
+  ).rows[0].enabled;
   try {
-    assert.equal(
-      (await admin.query('select public.schedule_contact_registration_enabled() as enabled'))
-        .rows[0].enabled,
-      false,
-    );
     await admin.query(`create schema ${name}; create schema ${secret};
       grant usage on schema ${name} to authenticated;
       create table ${secret}.users(id uuid primary key, email text, deleted_at timestamptz);
@@ -64,17 +77,25 @@ async function fixture(run: (f: Fixture) => Promise<void>): Promise<void> {
         schedule_entry_id uuid not null references ${name}.personal_schedule_entries on delete cascade,
         shared_with_user_id uuid not null references ${secret}.users on delete cascade,
         created_at timestamptz not null default now(),
-        unique(schedule_entry_id,shared_with_user_id));`);
+        unique(schedule_entry_id,shared_with_user_id));
+      create function ${name}.is_personal_schedule_entry_owner(p_entry_id uuid)
+      returns boolean language sql stable security definer set search_path='' as $$
+        select exists(select 1 from ${name}.personal_schedule_entries
+          where id=p_entry_id and owner_id=auth.uid());
+      $$;
+      revoke all on function ${name}.is_personal_schedule_entry_owner(uuid) from public,anon;
+      grant execute on function ${name}.is_personal_schedule_entry_owner(uuid) to authenticated;`);
     const rewrite = (sql: string): string =>
       sql
+        // Keep the real migration's global overload inventory, independently
+        // of the actual public function and concurrently running fixtures.
+        .replaceAll('share_schedule_entry_by_email', legacyName)
         .replaceAll('public.', `${name}.`)
         .replaceAll('private.', `${secret}.`)
         .replaceAll('auth.users', `${secret}.users`);
-    assert.equal(foundation.split('as $$ select false; $$;').length, 2);
-    await admin.query(
-      rewrite(foundation).replace('as $$ select false; $$;', () => 'as $$ select true; $$;'),
-    );
+    await admin.query(rewrite(foundation));
     await admin.query(rewrite(management));
+    await admin.query(rewrite(legacy));
     await admin.query(
       `insert into ${secret}.users(id,email) values ($1,'a@example.test'),($2,'b@example.test'),($3,'c@example.test')`,
       [ids.a, ids.b, ids.c],
@@ -85,6 +106,22 @@ async function fixture(run: (f: Fixture) => Promise<void>): Promise<void> {
       ids.reverse,
       ids.b,
     ]);
+    if (legacyShares) {
+      // Both directions and unrelated legacy visibility predate the cutover.
+      // The new INSERT boundary applies to all roles, including fixture admin.
+      await admin.query(
+        `insert into ${name}.personal_schedule_shares(schedule_entry_id,shared_with_user_id)
+        values($1,$2),($3,$4),($1,$5)`,
+        [ids.entry, ids.b, ids.reverse, ids.a, ids.c],
+      );
+    }
+    await admin.query(rewrite(cutover));
+    assert.equal(
+      (await admin.query(`select ${name}.schedule_contact_registration_enabled() as enabled`))
+        .rows[0].enabled,
+      true,
+      'the actual cutover enables only this fixture',
+    );
     await run({ admin, first, second, name, secret, ...ids });
   } finally {
     await first.query('rollback');
@@ -97,7 +134,8 @@ async function fixture(run: (f: Fixture) => Promise<void>): Promise<void> {
     assert.equal(
       (await admin.query('select public.schedule_contact_registration_enabled() as enabled'))
         .rows[0].enabled,
-      false,
+      publicGate,
+      'the public gate remains at its initial value',
     );
     await admin.end();
   }
@@ -248,12 +286,6 @@ for (const unlinkFirst of [false, true]) {
     void test(`unlink/${operation} serializes with ${unlinkFirst ? 'unlink' : operation} first`, async () =>
       fixture(async (f) => {
         const contact = await accepted(f);
-        // Both directions and unrelated legacy visibility exist before the race.
-        await f.admin.query(
-          `insert into ${f.name}.personal_schedule_shares(schedule_entry_id,shared_with_user_id)
-        values($1,$2),($3,$4),($1,$5)`,
-          [f.entry, f.b, f.reverse, f.a, f.c],
-        );
         const unlink = (client: pg.Client): Promise<pg.QueryResult> =>
           rpc(client, f, 'unlink_schedule_contact', [contact]);
         const write = (client: pg.Client): Promise<pg.QueryResult> =>
@@ -294,7 +326,7 @@ for (const unlinkFirst of [false, true]) {
           ).rows[0].n,
           2,
         );
-      }));
+      }, true));
   }
 }
 

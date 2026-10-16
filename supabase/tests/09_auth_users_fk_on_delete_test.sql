@@ -78,7 +78,8 @@ select is(
 -- --------------------------------------------------------------------
 -- 3. personal_schedule_shares.shared_with_user_id: ON DELETE CASCADE
 --    (only the share link is personal to the recipient; the entry itself
---    belongs to its owner and must survive).
+--    belongs to its owner and must survive). The fixture relationship and
+--    share use the current request/accept/contact-share RPCs.
 -- --------------------------------------------------------------------
 select pg_temp.create_test_user() as share_entry_owner_id \gset
 select pg_temp.create_test_user() as share_recipient_id \gset
@@ -87,9 +88,22 @@ insert into personal_schedule_entries (owner_id, title, is_all_day, starts_on, e
 values (:'share_entry_owner_id', 'fk fixture: shared entry', true, '2026-11-03', '2026-11-03', false)
 returning id as shared_entry_id \gset
 
-insert into personal_schedule_shares (schedule_entry_id, shared_with_user_id)
-values (:'shared_entry_id', :'share_recipient_id')
-returning id as share_id \gset
+select email as share_recipient_email from auth.users where id = :'share_recipient_id' \gset
+call pg_temp.auth_as_user(:'share_entry_owner_id');
+select public.request_schedule_contact_by_email(:'share_recipient_email');
+call pg_temp.auth_as_admin();
+select id as share_contact_request_id from public.schedule_contact_requests
+where requester_id = :'share_entry_owner_id' and recipient_id = :'share_recipient_id' \gset
+call pg_temp.auth_as_user(:'share_recipient_id');
+select public.accept_schedule_contact_request(:'share_contact_request_id');
+call pg_temp.auth_as_admin();
+select id as share_contact_id from public.schedule_contacts
+where user_low_id = least(:'share_entry_owner_id'::uuid, :'share_recipient_id'::uuid)
+  and user_high_id = greatest(:'share_entry_owner_id'::uuid, :'share_recipient_id'::uuid) \gset
+call pg_temp.auth_as_user(:'share_entry_owner_id');
+select id as share_id from public.share_schedule_entry_with_contact(
+  :'shared_entry_id', :'share_contact_id') \gset
+call pg_temp.auth_as_admin();
 
 delete from auth.users where id = :'share_recipient_id';
 

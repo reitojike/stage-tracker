@@ -15,7 +15,7 @@ values (:'b','B1',true,'2026-10-16','2026-10-16',true) returning id as b1 \gset
 insert into public.personal_schedule_entries(owner_id,title,is_all_day,starts_on,ends_on,blocking)
 values (:'c','C1',true,'2026-10-16','2026-10-16',true) returning id as c1 \gset
 
-select is(public.schedule_contact_registration_enabled(),false,'P1b does not enable registration');
+select is(public.schedule_contact_registration_enabled(),true,'P3 enables registration after the write cutover');
 select ok((select relrowsecurity from pg_class where oid='public.schedule_contact_aliases'::regclass),
   'aliases have RLS');
 select is((select count(*)::int from (values ('anon'),('authenticated'),('public')) r(name)
@@ -24,6 +24,12 @@ select is((select count(*)::int from (values ('anon'),('authenticated'),('public
 select ok(not has_any_column_privilege('authenticated','public.personal_schedule_shares','INSERT')
   and not has_any_column_privilege('authenticated','public.personal_schedule_shares','UPDATE'),
   'generation column does not reopen direct share writes');
+
+-- Preserve disabled-operation coverage with a transaction-local fixture even
+-- though the P3 migration enables the real gate.
+create or replace function public.schedule_contact_registration_enabled()
+returns boolean language sql immutable set search_path='' as $$ select false; $$;
+
 call pg_temp.auth_as_user(:'a');
 select throws_ok('select public.list_received_schedule_contact_requests()','0A000',null,'received list is gated');
 select throws_ok('select public.list_schedule_contacts()','0A000',null,'contact list is gated');
@@ -32,20 +38,21 @@ select throws_ok('select public.unlink_schedule_contact(gen_random_uuid())','0A0
 select throws_ok(format('select public.share_schedule_entry_with_contact(%L,gen_random_uuid())',:'a1'),
   '0A000',null,'new share path is gated');
 select throws_ok('select * from public.schedule_contact_aliases','42501',null,'aliases are not a direct directory');
-select lives_ok(format('select public.share_schedule_entry_by_email(%L,%L)',:'a1','p1b-b@example.test'),
-  'legacy email path still works while registration is disabled');
+select throws_ok(format('select public.share_schedule_entry_by_email(%L,%L)',:'a1','p1b-b@example.test'),
+  '42501',null,'closed email path stays closed while registration is disabled');
 call pg_temp.auth_as_user(:'b');
-select is((select count(*)::int from public.personal_schedule_entries where id=:'a1'),1,
-  'legacy recipient visibility is unchanged');
+select is((select count(*)::int from public.personal_schedule_entries where id=:'a1'),0,
+  'closed email sharing grants no recipient visibility');
 call pg_temp.auth_as_admin();
-select is((select contact_id from public.personal_schedule_shares where schedule_entry_id=:'a1'),null::uuid,
-  'legacy share is not automatically bound');
+select is((select count(*)::int from public.personal_schedule_shares where schedule_entry_id=:'a1'),0,
+  'closed email path creates no share row');
 call pg_temp.auth_as_anon();
 select throws_ok('select public.list_schedule_contacts()','42501',null,'anon cannot list contacts');
 select throws_ok('select public.unlink_schedule_contact(gen_random_uuid())','42501',null,'anon cannot unlink');
 call pg_temp.auth_as_admin();
 
--- Only this rollback-only fixture enables the real public operations.
+-- Restore the enabled gate inside the rollback-only transaction for positive
+-- registration, contact management, and share operations.
 create or replace function public.schedule_contact_registration_enabled()
 returns boolean language sql immutable set search_path='' as $$ select true; $$;
 call pg_temp.auth_as_user(:'a');
@@ -68,7 +75,7 @@ select public.accept_schedule_contact_request(:'req_ab');
 call pg_temp.auth_as_admin();
 select id as ab from public.schedule_contacts where user_low_id=least(:'a'::uuid,:'b'::uuid)
   and user_high_id=greatest(:'a'::uuid,:'b'::uuid) \gset
-select is((select count(*)::int from public.personal_schedule_shares),1,'acceptance grants no schedule');
+select is((select count(*)::int from public.personal_schedule_shares),0,'acceptance grants no schedule');
 call pg_temp.auth_as_user(:'a');
 select public.set_schedule_contact_alias(:'ab','  妻  ');
 select results_eq('select counterpart_email,own_alias from public.list_schedule_contacts()',
@@ -104,14 +111,13 @@ select id as duplicate_share from public.share_schedule_entry_with_contact(:'a2'
 select is(:'share_ab'::uuid,:'duplicate_share'::uuid,'new path is entry/recipient idempotent');
 select is((select contact_id from public.personal_schedule_shares where id=:'share_ab'),:'ab'::uuid,'share binds current generation');
 select public.share_schedule_entry_with_contact(:'a1',:'ab');
-select public.share_schedule_entry_by_email(:'a2','p1b-c@example.test');
 delete from public.personal_schedule_shares where id=:'share_ab';
 select is((select count(*)::int from public.list_schedule_contacts()),1,'owner revoke preserves relation');
 select id as share_again from public.share_schedule_entry_with_contact(:'a2',:'ab') \gset
 call pg_temp.auth_as_user(:'b');
 delete from public.personal_schedule_shares where id=:'share_again';
 select is((select count(*)::int from public.list_schedule_contacts()),1,'self-leave preserves relation');
-select public.share_schedule_entry_by_email(:'b1','p1b-a@example.test');
+select id as share_ba from public.share_schedule_entry_with_contact(:'b1',:'ab') \gset
 call pg_temp.auth_as_user(:'a');
 select public.share_schedule_entry_with_contact(:'a2',:'ab');
 call pg_temp.auth_as_admin();
@@ -130,8 +136,7 @@ call pg_temp.auth_as_admin();
 select is((select count(*)::int from public.schedule_contacts),0,'either participant can unlink');
 select is((select count(*)::int from public.schedule_contact_aliases),0,'unlink clears both private aliases');
 select is((select count(*)::int from public.personal_schedule_shares where shared_with_user_id in (:'a',:'b')),0,
-  'unlink clears both directions, including legacy NULL shares');
-select is((select count(*)::int from public.personal_schedule_shares where shared_with_user_id=:'c'),1,'third recipient share survives');
+  'unlink clears contact-bound shares in both directions');
 select is((select count(*)::int from public.personal_schedule_entries),4,'unlink preserves every source entry');
 select is((select count(*)::int from public.schedule_contact_requests),1,'unrelated pending request survives');
 call pg_temp.auth_as_user(:'a');
