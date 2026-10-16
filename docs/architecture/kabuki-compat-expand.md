@@ -136,6 +136,51 @@ notice without inferring a hold episode from timestamps or creating local
 settlement state. The marker does not change identity, creator, review, apply,
 reject, failed-dismiss or lease controls; server props remain authoritative.
 
+## Explicitly rejected legacy no-op observations
+
+The #829 database refinement distinguishes an explicit legacy rejection from a
+real held episode only when the fresh Event proposal exactly equals the current
+catalog. It requires a canonical identity, deterministic match, unchanged plan
+with every change counter/flag clear, identical Event fields and the complete
+uncanceled occurrence set, and a current catalog owner who explicitly rejected
+the same normalized legacy proposal. The old plan may have proposed creation;
+the current equality proof does not invent a historical application. HTML hashes
+may differ. Unknown proposal fields and classification payloads fail closed.
+
+Any actual held history, conflicting identity, unresolved non-applied legacy row,
+different rejected facts/owner, or approved unresolved recovery keeps the gate.
+Catalog/occurrence edits invalidate the equality proof. The source lock serializes
+publication. The Kabuki batch publisher, owned insert guard, approval and
+non-applied apply claims acquire catalog protection before marker derivation or
+candidate row locks. Existing Event then occurrence row SHARE locks let a prior
+owner row-lock holder finish deletion/containment edits before table SHARE locks
+are acquired in Event then Occurrence order. Table SHARE also serializes new
+occurrence INSERTs, including rows absent from the first observation. Protection
+is unconditional for a cached false marker. It lasts to transaction end and
+temporarily blocks writes to both catalog tables, including unrelated Events;
+ordinary reads remain compatible. Each acquisition honors a shorter caller
+lock_timeout, otherwise caps waits at two seconds; the caller setting is restored
+on success. Lock timeout retains SQLSTATE 55P03 and rolls back staging/lease/marker
+changes with the statement, distinct from the exact 40001 freshness refusal.
+The freshness predicate does not acquire child locks from inside atomic apply's
+existing exclusive parent context; the atomic writer retains its expected-snapshot
+checks. Later catalog changes are rechecked by freshness and apply. Applied claim
+replay does not acquire a new catalog lock. Real differences still need human review.
+
+The migration reconciles only saved pending/not-started, ordered, legacy-only
+markers that meet the same proof. It changes the recovery flag, preserving old
+rejections, review/apply fields and catalog rows. Its temporary trigger exception
+is restored to the exact original definition inside the migration transaction;
+there is no permanent maintenance endpoint or flag-update permission. Subsequent
+fresh publications derive an ordinary false/NULL marker and use the existing
+no-op suppression. A matching unresolved pending marker cannot prevent that
+fresh publication. Approved, queued and applied history is not reconciled.
+
+This is an additive relaxation compatible with the deployed false/NULL marker
+consumer; no runtime artifact accompanies it. Adoption requires the normal DB
+verification/review and separately authorized merge/migration. The implementation
+PR does not authorize applying a production migration or operating candidates.
+
 ## Cutover and rollback boundary
 
 Restrictive activation requires deployed-runtime compatibility and natural
