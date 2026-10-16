@@ -129,6 +129,7 @@ test("personal schedule sharing: phase-aware consent, revoke, leave and unlink",
       await recipientPage.getByRole("button", { name: "作成する" }).click();
       await recipientPage.waitForURL(/\/calendar/);
       await recipientPage.getByRole("link", { name: recipientTitle }).click();
+      await expect(recipientPage).toHaveURL(/\/schedule\/[0-9a-f-]+(?:\?.*)?$/);
       const recipientEntryUrl = recipientPage.url();
       const recipientEntryId =
         new URL(recipientEntryUrl).pathname.split("/").at(-1) ?? "";
@@ -238,10 +239,12 @@ test("personal schedule sharing: phase-aware consent, revoke, leave and unlink",
       });
       await expect(unlink).toBeVisible();
       await unlink.click();
-      const unlinkDialog = recipientPage.getByRole("alertdialog", {
-        name: "共有相手の登録解除の確認",
-      });
-      await unlinkDialog
+      await expect(
+        recipientPage.getByRole("heading", {
+          name: "共有相手の登録を解除しますか？",
+        }),
+      ).toBeVisible();
+      await recipientPage
         .getByRole("button", {
           name: "登録と両方向の共有を解除する",
         })
