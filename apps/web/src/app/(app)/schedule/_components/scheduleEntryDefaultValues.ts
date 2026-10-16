@@ -1,16 +1,6 @@
-import type { Instant, PersonalScheduleEntry } from "@stage-tracker/domain";
-import { instantToTokyoWallClock } from "@stage-tracker/domain";
+import type { PersonalScheduleEntry } from "@stage-tracker/domain";
+import { instantToDateTimeLocalValue } from "@/lib/datetime-local-value";
 import type { ScheduleEntryDefaultValues } from "./ScheduleEntryFields";
-
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-/** `Instant` を `<input type="datetime-local">` の値（Asia/Tokyo ローカル、秒なし）へ変換する。 */
-function instantToDatetimeLocalValue(instant: Instant): string {
-  const wallClock = instantToTokyoWallClock(instant);
-  return `${wallClock.year}-${pad2(wallClock.month)}-${pad2(wallClock.day)}T${pad2(wallClock.hour)}:${pad2(wallClock.minute)}`;
-}
 
 /**
  * `/schedule/[entryId]/edit` が、既存 entry を `ScheduleEntryFields` の
@@ -40,10 +30,10 @@ export function toScheduleEntryDefaultValues(
   return {
     ...base,
     temporalMode: "time-bounded",
-    timeBoundedStartsAt: instantToDatetimeLocalValue(entry.temporal.startsAt),
+    timeBoundedStartsAt: instantToDateTimeLocalValue(entry.temporal.startsAt),
     timeBoundedEndsAt:
       entry.temporal.endsAt === null
         ? undefined
-        : instantToDatetimeLocalValue(entry.temporal.endsAt),
+        : instantToDateTimeLocalValue(entry.temporal.endsAt),
   };
 }

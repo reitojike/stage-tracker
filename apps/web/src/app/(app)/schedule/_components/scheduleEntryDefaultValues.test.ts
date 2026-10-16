@@ -69,6 +69,20 @@ describe("toScheduleEntryDefaultValues", () => {
     expect(result.timeBoundedEndsAt).toBeUndefined();
   });
 
+  it("keeps Tokyo year rollover and omits seconds for both temporal fields", () => {
+    const result = toScheduleEntryDefaultValues(
+      entry({
+        temporal: {
+          kind: "time-bounded",
+          startsAt: instantSchema.parse("2026-12-31T14:59:30Z"),
+          endsAt: instantSchema.parse("2026-12-31T15:04:59Z"),
+        },
+      }),
+    );
+    expect(result.timeBoundedStartsAt).toBe("2026-12-31T23:59");
+    expect(result.timeBoundedEndsAt).toBe("2027-01-01T00:04");
+  });
+
   it("maps a null memo to undefined (not the literal string 'null')", () => {
     const result = toScheduleEntryDefaultValues(entry({ memo: null }));
     expect(result.memo).toBeUndefined();

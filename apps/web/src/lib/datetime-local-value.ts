@@ -1,9 +1,6 @@
 import { instantToTokyoWallClock, type Instant } from "@stage-tracker/domain";
 
-/** `../../events/[eventId]/edit/_lib/instantFormat.ts` と同じ変換
- * （route-local な重複 — 既存の `_lib/today.ts` 的な per-route 重複方針を
- * 踏襲する）。Asia/Tokyo の wall-clock 表記（"YYYY-MM-DDTHH:mm"）へ変換
- * する。 */
+/** `datetime-local` 用の Tokyo wall-clock 表記（秒なし）。空欄の扱いは呼出元が持つ。 */
 export function instantToDateTimeLocalValue(instant: Instant): string {
   const wall = instantToTokyoWallClock(instant);
   const pad2 = (value: number) => String(value).padStart(2, "0");

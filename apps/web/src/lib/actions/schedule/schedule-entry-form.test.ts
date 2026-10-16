@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
+import type { z } from "zod";
+import type { PersonalScheduleEntryId } from "@stage-tracker/domain";
 import {
   normalizeMemo,
   parseScheduleEntryTemporal,
   scheduleEntryFormSchema,
+  scheduleEntryFormWithIdSchema,
 } from "./schedule-entry-form";
 
 describe("parseScheduleEntryTemporal", () => {
@@ -169,22 +172,29 @@ describe("parseScheduleEntryTemporal", () => {
   });
 });
 
-describe("scheduleEntryFormSchema", () => {
+describe.each([
+  { name: "create", schema: scheduleEntryFormSchema, extra: {} },
+  {
+    name: "edit",
+    schema: scheduleEntryFormWithIdSchema,
+    extra: { entryId: "11111111-1111-4111-8111-111111111111" },
+  },
+])("$name schedule entry schema", ({ schema, extra }) => {
   const baseAllDay = {
     title: "旅行",
     blocking: true,
     temporalMode: "all-day" as const,
     allDayStartsOn: "2026-03-05",
     allDayEndsOn: "2026-03-06",
+    ...extra,
   };
 
   it("accepts a well-formed all-day submission", () => {
-    const result = scheduleEntryFormSchema.safeParse(baseAllDay);
-    expect(result.success).toBe(true);
+    expect(schema.parse(baseAllDay)).toEqual(baseAllDay);
   });
 
   it("reports a missing title as a field error, not a thrown exception", () => {
-    const result = scheduleEntryFormSchema.safeParse({
+    const result = schema.safeParse({
       ...baseAllDay,
       title: "",
     });
@@ -197,18 +207,134 @@ describe("scheduleEntryFormSchema", () => {
   });
 
   it("surfaces the temporal ordering violation on the exact field, via superRefine delegating to parseScheduleEntryTemporal", () => {
-    const result = scheduleEntryFormSchema.safeParse({
+    const result = schema.safeParse({
       ...baseAllDay,
       allDayStartsOn: "2026-03-06",
       allDayEndsOn: "2026-03-05",
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(
-        result.error.issues.some((issue) => issue.path[0] === "allDayEndsOn"),
-      ).toBe(true);
+      expect(result.error.issues).toEqual([
+        {
+          code: "custom",
+          path: ["allDayEndsOn"],
+          message: "終了日は開始日以降の日付を入力してください。",
+        },
+      ]);
     }
   });
+
+  const baseTimed = {
+    title: "  旅行  ",
+    memo: "  持ち物  ",
+    blocking: false,
+    temporalMode: "time-bounded" as const,
+    timeBoundedStartsAt: " 2026-03-10T09:00 ",
+    ...extra,
+  };
+
+  it("preserves trimmed title/memo, raw temporal input and omitted optional fields", () => {
+    expect(schema.parse(baseTimed)).toEqual({
+      ...baseTimed,
+      title: "旅行",
+      memo: "持ち物",
+    });
+  });
+
+  it.each([
+    [
+      "timeBoundedEndsAt",
+      "2026-03-10T08:59",
+      "終了日時は開始日時以降の日時を入力してください。",
+    ],
+    [
+      "timeBoundedStartsAt",
+      "2026-02-30T09:00",
+      "実在する日時を入力してください。",
+    ],
+    [
+      "timeBoundedEndsAt",
+      "2026-02-30T09:00",
+      "実在する日時を入力してください。",
+    ],
+    [
+      "timeBoundedStartsAt",
+      "2026-03-10T24:00",
+      "実在する日時を入力してください。",
+    ],
+    [
+      "timeBoundedStartsAt",
+      "2026-03-10T09:00:30",
+      "日時の形式が正しくありません。",
+    ],
+    [
+      "timeBoundedEndsAt",
+      "2026-03-10T18:00:00",
+      "日時の形式が正しくありません。",
+    ],
+  ])(
+    "rejects %s=%s with the existing field path and Japanese message",
+    (field, value, message) => {
+      const result = schema.safeParse({ ...baseTimed, [field]: value });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues).toEqual([
+          { code: "custom", path: [field], message },
+        ]);
+      }
+    },
+  );
+});
+
+describe("schedule schema types and entry identity", () => {
+  interface ExpectedForm {
+    title: string;
+    memo?: string | undefined;
+    blocking: boolean;
+    temporalMode: "all-day" | "time-bounded";
+    allDayStartsOn?: string | undefined;
+    allDayEndsOn?: string | undefined;
+    timeBoundedStartsAt?: string | undefined;
+    timeBoundedEndsAt?: string | undefined;
+  }
+  interface ExpectedEditInput extends ExpectedForm {
+    entryId: string;
+  }
+  interface ExpectedEditOutput extends ExpectedForm {
+    entryId: PersonalScheduleEntryId;
+  }
+
+  it("preserves input/output shapes and the edit output's branded ID", () => {
+    expectTypeOf<
+      z.input<typeof scheduleEntryFormSchema>
+    >().toEqualTypeOf<ExpectedForm>();
+    expectTypeOf<
+      z.output<typeof scheduleEntryFormSchema>
+    >().toEqualTypeOf<ExpectedForm>();
+    expectTypeOf<
+      z.input<typeof scheduleEntryFormWithIdSchema>
+    >().toEqualTypeOf<ExpectedEditInput>();
+    expectTypeOf<
+      z.output<typeof scheduleEntryFormWithIdSchema>
+    >().toEqualTypeOf<ExpectedEditOutput>();
+  });
+
+  it.each([undefined, "invalid-id"])(
+    "requires a valid entryId (%s)",
+    (entryId) => {
+      const result = scheduleEntryFormWithIdSchema.safeParse({
+        title: "旅行",
+        blocking: true,
+        temporalMode: "all-day",
+        allDayStartsOn: "2026-03-05",
+        entryId,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.path).toEqual(["entryId"]);
+      }
+    },
+  );
 });
 
 describe("normalizeMemo", () => {
