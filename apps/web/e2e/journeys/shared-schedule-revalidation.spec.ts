@@ -13,6 +13,9 @@ import { readScheduleContactCapability } from "../support/scheduleContactCapabil
 test("shared schedule revalidation: history, tab resume, slow/offline read and own input", async ({
   browser,
 }) => {
+  // This journey covers several fresh reads and two signed-in contexts. Keep
+  // per-assertion waits unchanged; CI needs more than the default 30s overall.
+  test.setTimeout(60_000);
   const admin = createE2eAdminClient();
   const owner = await provisionActor(admin, "e2e-cache-owner");
   const recipient = await provisionActor(admin, "e2e-cache-recipient");
