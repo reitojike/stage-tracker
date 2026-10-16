@@ -26,6 +26,7 @@ test("anonymous routes are default-deny and public paths are exact", async ({
   const protectedPaths = [
     "/",
     "/catalog?probe=must-not-survive",
+    "/mypage/schedule-contacts",
     "/events/some-future-page",
     "/events/some-future-page.png",
     "/sign-in/internal",

@@ -30,6 +30,7 @@ describe("affected read-surface contracts", () => {
     revalidateReadSurfaces(affectedReadSurfaces.scheduleContactUnlink());
     expect(revalidatePathMock.mock.calls).toEqual([
       ["/mypage"],
+      ["/mypage/schedule-contacts"],
       ["/"],
       ["/calendar"],
       ["/(app)/schedule/[entryId]", "page"],
@@ -37,6 +38,15 @@ describe("affected read-surface contracts", () => {
   });
   beforeEach(() => {
     revalidatePathMock.mockClear();
+  });
+
+  it("refreshes the management route and schedule selectors after contact changes", () => {
+    revalidateReadSurfaces(affectedReadSurfaces.scheduleContactWrite());
+    expect(revalidatePathMock.mock.calls).toEqual([
+      ["/mypage"],
+      ["/mypage/schedule-contacts"],
+      ["/(app)/schedule/[entryId]", "page"],
+    ]);
   });
 
   it("covers every event detail dependency for event detail writes", () => {

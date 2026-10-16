@@ -155,6 +155,28 @@ alias だけを受け取る。actor/owner/recipient UUID を入力にせず、�
 DB 世代/競合の根拠は P1b のテスト、runtime の契約は unit/MSW/実 auth middleware の
 Action テストで分けて検証し、mock の成功を本番登録の実施とは扱わない。
 
+## P2b: 利用開始前の UI 準備
+
+採用済み P2a の main `8b22c0e` を基準に、My Page の共有相手登録画面と、予定詳細の
+登録済み相手 selector を runtime 専用 PR で接続する。共有相手の受信申請・承認/拒否、
+opaque な email 申請/取消、私的 alias、確認付き unlink をそれぞれ P2a Action へ渡す。
+送信済み一覧・相手の存在照会・自動共有は作らない。旧 email RPC/権限は変更しない。
+
+capability=false/取得失敗では申請・登録管理の control を出さず、新規共有の email UI も
+提供しない。旧共有の owner projection・個別解除・recipient 自己離脱は維持する。
+この利用開始前の画面 guard だけを Spec 012 に同期し、将来の登録動作や friends-only
+read を Current authority へ昇格しない。有効時の UI は typed な本人限定 read だけを使い、
+独立した受信/登録一覧の読取失敗を sibling のデータや空件数へ置き換えない。
+
+contact write の再検証対象に管理画面と予定 detail selector を加え、unlink では Home /
+Calendar / 全 detail も再検証する。別タブ/戻る/PWA の有効時の実ブラウザ検証は P3 の
+条件として残す。UI の正の操作は synthetic な Action 応答と実 useAction で検証し、
+実 DB の E2E は gate=false のまま mobile/desktop で新規操作停止と旧共有の解除・離脱を
+検証する。ブラウザ試験のために public gate を有効化したり抜け道を追加したりしない。
+
+P2b は Draft PR・CI・head review まで。本番配備/merge、P3 の旧経路閉鎖/有効化、
+P4 の既存共有 bind は別段階であり、未承認ペアの自動承認・自動失効を行わない。
+
 ## 後続の依存関係
 
 1. P1b（本 PR）: bounded な受信/登録一覧、本人用 alias、関係解除、新しい共有作成の DB 基盤。

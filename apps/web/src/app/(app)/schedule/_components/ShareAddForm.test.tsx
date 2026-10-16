@@ -1,149 +1,149 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { personalScheduleEntryIdSchema } from "@stage-tracker/domain";
+import {
+  personalScheduleEntryIdSchema,
+  scheduleContactSchema,
+} from "@stage-tracker/domain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ShareAddForm } from "./ShareAddForm";
 
-const mocks = vi.hoisted(() => {
-  let onSuccess: (() => void) | undefined;
-  const result: {
-    serverError: { message: string } | undefined;
-    validationErrors: { recipientEmail?: { _errors?: string[] } } | undefined;
-  } = { serverError: undefined, validationErrors: undefined };
-  return {
-    execute: vi.fn(),
-    reset: vi.fn(),
-    refresh: vi.fn(),
-    onSuccess,
-    result,
-  };
-});
-
-vi.mock("next-safe-action/hooks", () => ({
-  useAction: (_action: unknown, options?: { onSuccess?: () => void }) => {
-    mocks.onSuccess = options?.onSuccess;
-    return {
-      execute: mocks.execute,
-      isExecuting: false,
-      result: mocks.result,
-      reset: mocks.reset,
-    };
-  },
+type Reply = {
+  data?: { ok: true };
+  serverError?: { kind: "permission-denied"; message: string };
+  validationErrors?: { contactId: { _errors: string[] } };
+};
+const mocks = vi.hoisted(() => ({
+  action: vi.fn<(input: unknown) => Promise<Reply>>(),
+  refresh: vi.fn<() => void>(),
 }));
-
+vi.mock("@/lib/actions/schedule/schedule-contact-actions", () => ({
+  shareScheduleEntryWithContactAction: mocks.action,
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh }),
 }));
+const entryId = personalScheduleEntryIdSchema.parse(
+  "11111111-1111-4111-8111-111111111111",
+);
+const contact = scheduleContactSchema.parse({
+  contactId: "22222222-2222-4222-8222-222222222222",
+  counterpartEmail: "b@example.test",
+  ownAlias: "妻",
+  acceptedAt: "2026-10-16T00:00:00Z",
+});
 
-vi.mock("@/lib/actions/schedule/schedule-share-actions", () => ({
-  addScheduleShareByEmailAction: {},
-}));
-
-describe("ShareAddForm", () => {
-  const entryId = personalScheduleEntryIdSchema.parse(
-    "11111111-1111-4111-8111-111111111111",
-  );
-
-  beforeEach(() => {
-    mocks.execute.mockReset();
-    mocks.reset.mockReset();
-    mocks.refresh.mockReset();
-    mocks.onSuccess = undefined;
-    mocks.result.serverError = undefined;
-    mocks.result.validationErrors = undefined;
-  });
-
-  it("opens the shared Sheet from the owner add affordance", async () => {
+beforeEach(() => {
+  mocks.action.mockReset().mockResolvedValue({ data: { ok: true } });
+  mocks.refresh.mockReset();
+});
+describe("registered contact share selector", () => {
+  it("selects a generation rather than entering email, then refreshes and resets the Sheet", async () => {
     const user = userEvent.setup();
-    render(<ShareAddForm entryId={entryId} />);
-
-    expect(
-      screen.queryByRole("heading", { name: "共有相手を追加" }),
-    ).not.toBeInTheDocument();
-
+    render(<ShareAddForm entryId={entryId} contacts={[contact]} />);
     await user.click(screen.getByRole("button", { name: "+ 追加" }));
-
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /共有する相手/ }),
+      contact.contactId,
+    );
     expect(
-      screen.getByRole("heading", { name: "共有相手を追加" }),
+      screen.getByRole("option", { name: "妻（b@example.test）" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText(/共有する相手のメールアドレス/),
-    ).toBeInTheDocument();
-  });
-
-  it("resets the transient input, refreshes the owner state, and closes after success", async () => {
-    const user = userEvent.setup();
-    render(<ShareAddForm entryId={entryId} />);
-
-    await user.click(screen.getByRole("button", { name: "+ 追加" }));
-    const input = screen.getByLabelText(/共有する相手のメールアドレス/);
-    await user.type(input, "friend@example.com");
     await user.click(screen.getByRole("button", { name: "追加する" }));
-    expect(mocks.execute).toHaveBeenCalledWith({
-      entryId,
-      recipientEmail: "friend@example.com",
-    });
-
-    act(() => {
-      mocks.onSuccess?.();
-    });
-
     await waitFor(() =>
-      expect(
-        screen.queryByRole("heading", { name: "共有相手を追加" }),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+    expect(mocks.action).toHaveBeenCalledExactlyOnceWith({
+      entryId,
+      contactId: contact.contactId,
+    });
     expect(mocks.refresh).toHaveBeenCalledOnce();
-
     await user.click(screen.getByRole("button", { name: "+ 追加" }));
-    expect(screen.getByLabelText(/共有する相手のメールアドレス/)).toHaveValue(
-      "",
-    );
-    expect(screen.queryByText("共有に追加しました。")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveValue("");
   });
-
-  it("keeps the Sheet open and preserves input for validation errors", async () => {
+  it("supports Escape and restores focus to the add affordance", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<ShareAddForm entryId={entryId} />);
-
-    await user.click(screen.getByRole("button", { name: "+ 追加" }));
-    const input = screen.getByLabelText(/共有する相手のメールアドレス/);
-    await user.type(input, "not-an-email");
-    mocks.result.validationErrors = {
-      recipientEmail: { _errors: ["メールアドレスの形式が正しくありません。"] },
-    };
-    rerender(<ShareAddForm entryId={entryId} />);
-
-    expect(
-      screen.getByRole("heading", { name: "共有相手を追加" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "メールアドレスの形式が正しくありません。",
+    render(<ShareAddForm entryId={entryId} contacts={[contact]} />);
+    const add = screen.getByRole("button", { name: "+ 追加" });
+    add.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
-    expect(input).toHaveValue("not-an-email");
+    expect(add).toHaveFocus();
+    expect(mocks.action).not.toHaveBeenCalled();
   });
-
-  it.each([
-    [
-      "unregistered email",
-      "このメールアドレスは、Stage Trackerに登録されていません。",
-    ],
-    ["server failure", "共有を追加できませんでした。"],
-  ])("keeps the Sheet open and shows %s feedback", async (_kind, message) => {
+  it("shows missing-selection validation without closing or returning to email entry", async () => {
+    mocks.action.mockResolvedValue({
+      validationErrors: {
+        contactId: { _errors: ["相手を選択してください。"] },
+      },
+    });
     const user = userEvent.setup();
-    const { rerender } = render(<ShareAddForm entryId={entryId} />);
-
+    render(<ShareAddForm entryId={entryId} contacts={[contact]} />);
     await user.click(screen.getByRole("button", { name: "+ 追加" }));
-    const input = screen.getByLabelText(/共有する相手のメールアドレス/);
-    await user.type(input, "friend@example.com");
-    mocks.result.serverError = { message };
-    rerender(<ShareAddForm entryId={entryId} />);
-
+    await user.click(screen.getByRole("button", { name: "追加する" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "共有する相手を選択してください。",
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+  it("refreshes a stale-generation rejection without retrying or claiming success", async () => {
+    mocks.action.mockResolvedValue({
+      serverError: {
+        kind: "permission-denied",
+        message: "対象を操作できません。",
+      },
+    });
+    const user = userEvent.setup();
+    render(<ShareAddForm entryId={entryId} contacts={[contact]} />);
+    await user.click(screen.getByRole("button", { name: "+ 追加" }));
+    await user.selectOptions(screen.getByRole("combobox"), contact.contactId);
+    await user.click(screen.getByRole("button", { name: "追加する" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "対象を操作できません。",
+    );
+    expect(mocks.action).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+  it("does not offer sharing when there are no accepted contacts", () => {
+    render(<ShareAddForm entryId={entryId} contacts={[]} />);
     expect(
-      screen.getByRole("heading", { name: "共有相手を追加" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(message);
-    expect(input).not.toHaveAttribute("aria-invalid");
-    expect(input).toHaveValue("friend@example.com");
+      screen.getByRole("link", { name: "共有相手を登録する" }),
+    ).toHaveAttribute("href", "/mypage/schedule-contacts");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(mocks.action).not.toHaveBeenCalled();
+  });
+  it("prevents a second submit and closing while a share is in flight", async () => {
+    let finish: (() => void) | undefined;
+    mocks.action.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ data: { ok: true } });
+        }),
+    );
+    const user = userEvent.setup();
+    render(<ShareAddForm entryId={entryId} contacts={[contact]} />);
+    await user.click(screen.getByRole("button", { name: "+ 追加" }));
+    await user.selectOptions(screen.getByRole("combobox"), contact.contactId);
+    await user.click(screen.getByRole("button", { name: "追加する" }));
+    expect(screen.getByRole("button", { name: "追加中…" })).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mocks.action).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish?.();
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 });

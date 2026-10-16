@@ -17,6 +17,7 @@ describe("PUBLIC_PATHS / isPublicPath", () => {
       "/catalog",
       "/catalog/events/new",
       "/mypage",
+      "/mypage/schedule-contacts",
       "/calendar",
       "/tickets",
       "/schedule/new",
