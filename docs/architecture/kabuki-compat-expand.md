@@ -136,6 +136,37 @@ notice without inferring a hold episode from timestamps or creating local
 settlement state. The marker does not change identity, creator, review, apply,
 reject, failed-dismiss or lease controls; server props remain authoritative.
 
+## Explicitly rejected legacy no-op observations
+
+The #829 database refinement distinguishes an explicit legacy rejection from a
+real held episode only when the fresh Event proposal exactly equals the current
+catalog. It requires a canonical identity, deterministic match, unchanged plan
+with every change counter/flag clear, identical Event fields and the complete
+uncanceled occurrence set, and a current catalog owner who explicitly rejected
+the same normalized legacy proposal. The old plan may have proposed creation;
+the current equality proof does not invent a historical application. HTML hashes
+may differ. Unknown proposal fields and classification payloads fail closed.
+
+Any actual held history, conflicting identity, unresolved non-applied legacy row,
+different rejected facts/owner, or approved unresolved recovery keeps the gate.
+Catalog/occurrence edits invalidate the equality proof. The source lock and
+parent-before-child catalog locks serialize this proof with publication and
+catalog writes. Real differences still need human review.
+
+The migration reconciles only saved pending/not-started, ordered, legacy-only
+markers that meet the same proof. It changes the recovery flag, preserving old
+rejections, review/apply fields and catalog rows. Its temporary trigger exception
+is restored to the exact original definition inside the migration transaction;
+there is no permanent maintenance endpoint or flag-update permission. Subsequent
+fresh publications derive an ordinary false/NULL marker and use the existing
+no-op suppression. A matching unresolved pending marker cannot prevent that
+fresh publication. Approved, queued and applied history is not reconciled.
+
+This is an additive relaxation compatible with the deployed false/NULL marker
+consumer; no runtime artifact accompanies it. Adoption requires the normal DB
+verification/review and separately authorized merge/migration. The implementation
+PR does not authorize applying a production migration or operating candidates.
+
 ## Cutover and rollback boundary
 
 Restrictive activation requires deployed-runtime compatibility and natural
