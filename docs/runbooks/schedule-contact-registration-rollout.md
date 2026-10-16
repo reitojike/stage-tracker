@@ -117,10 +117,10 @@ P4 を P1a と同時に merge/apply できる形で先に積まない。
 ## P3 の限定された write 切替（未採用）
 
 P3 migration は `20261016154603_schedule_contact_write_cutover.sql`。
-これは採用・本番 apply の承認を意味しない。P2c を base にした Draft の間は main へ merge しない。
-P2c 採用後に main へ retarget し、差分が DB / DB・RLS tests / docs だけであることと
-fresh な CI / exact-head review を再確認する。runtime-first-required の実配備証拠は必須。
-準備時の read-only 確認では main `0fd6e27123ba35efa7270cbfb5d6c4b342b76533` の
+これは採用・本番 apply の承認を意味しない。P2c #836 の採用後、P3 は main ベースの Draft。
+差分が DB / DB・RLS tests / docs だけであることと、fresh な CI / exact-head review を再確認する。
+runtime-first-required の実配備証拠は必須。
+P2c 採用後の read-only 確認では main `c13c024a1574e493893ef2e8c4b5c2974af2a53f` の
 Production deployment が READY で、`stage-tracker.com` もその deployment を指していた。
 P2c は test / runbook 変更だけで対応 app runtime はこの版に含まれる。採用直前にも再確認する。
 Current Living Spec の登録 lifecycle と切替段階への同期も、採用時に runtime と分離して扱う。
@@ -139,14 +139,19 @@ authenticated EXECUTE 可 / anon 不可、client の table / column INSERT・UPD
 この観測を将来の drift なしの保証にしない。local default grant と本番 ACL の差も推測で補わない。
 
 同一 transaction 内で、10 秒の lock_timeout と shares の SHARE ROW EXCLUSIVE lock を取得し、
-旧 INSERT transaction を drain する。期待外 overload、既存 accepted 検証 trigger / RPC の差異、
+旧 INSERT transaction を drain する。validator は P1b の正式な本体（CRLF/LF 差だけを正規化）、
+postgres owner、PL/pgSQL / trigger 型、SECURITY DEFINER、空 search_path と既定実行属性、
+client EXECUTE 不可を transaction 内で照合する。同じ OID の CREATE OR REPLACE も検出し、
+想定外の定義を上書きして補修しない。期待外 overload、既存 accepted 検証 trigger / RPC の差異、
 除去後の継承 write privilege が残れば例外で全体を rollback する。知らない継承 role を一括変更しない。
 旧 signature は SECURITY INVOKER の 42501 stub とし PUBLIC / anon / authenticated EXECUTE を剥奪する。
 新 INSERT は role / gate にかかわらず contact_id を必須にし、既存 trigger が当事者・現世代を検証する。
 最後に gate=true を公開する。既存行の bind / UPDATE / DELETE、accepted 作成、read policy 変更はしない。
 
 `scheduleContactCutover.test.ts` は実 SQL の専用 schema 再生で、故障 rollback、overload、
-明示・継承 grant、無効な trigger、INSERT 済み transaction の待機、INSERT 前の旧 RPC の再開を検証する。
+明示・継承 grant、無効な trigger、同 OID の弱化 body / SECURITY INVOKER / search_path / owner /
+EXECUTE drift、INSERT 済み transaction の待機、INSERT 前の旧 RPC の再開を検証する。
+失敗後は validator の定義・owner・ACL を含む snapshot、gate、旧 RPC / ACL、既存行が不変であることを確認する。
 `scheduleContactConcurrency.test.ts` は同じ切替を適用して既存の両順序 race を検証する。
 切替前 legacy 行は guard 導入前にだけ fixture 作成し、管理 role の guard 除外は設けない。
 local PostgREST / RLS での切替前後確認と、その後の有効時 UI journey も組み合わせる。

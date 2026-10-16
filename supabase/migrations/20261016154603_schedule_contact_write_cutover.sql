@@ -10,11 +10,62 @@ lock table public.personal_schedule_shares in share row exclusive mode;
 do $$
 declare
   v_rpc text;
+  -- Exact foundation body from 20261016021552; normalize line endings only.
+  -- Unexpected deployed code is a HOLD, never silently overwritten here.
+  v_validator_body constant text := $validator$
+declare
+  v_owner uuid;
+begin
+  if tg_op = 'UPDATE' and old.contact_id is not null then
+    if new.contact_id is distinct from old.contact_id
+      or new.schedule_entry_id <> old.schedule_entry_id
+      or new.shared_with_user_id <> old.shared_with_user_id then
+      raise exception 'bound share identity is immutable' using errcode = '23514';
+    end if;
+    -- The binding cannot change, and the FK still enforces its lifetime.
+    -- Avoid taking a pair lock after an UPDATE has already locked this row.
+    return new;
+  end if;
+  if new.contact_id is null then return new; end if;
+  select e.owner_id into v_owner from public.personal_schedule_entries e
+    where e.id = new.schedule_entry_id;
+  if v_owner is null or v_owner = new.shared_with_user_id then
+    raise exception 'share contact participants do not match' using errcode = '23514';
+  end if;
+  perform 1 from auth.users u where u.id in (v_owner, new.shared_with_user_id)
+    order by u.id for key share;
+  perform private.lock_schedule_contact_pair(v_owner, new.shared_with_user_id);
+  perform 1 from public.schedule_contacts c
+    where c.id = new.contact_id
+      and c.user_low_id = least(v_owner, new.shared_with_user_id)
+      and c.user_high_id = greatest(v_owner, new.shared_with_user_id)
+    for key share;
+  if not found then
+    raise exception 'share contact participants do not match' using errcode = '23514';
+  end if;
+  return new;
+end;
+$validator$;
 begin
   if (select count(*) from pg_catalog.pg_proc p
       where p.proname = 'share_schedule_entry_by_email') <> 1
     or pg_catalog.to_regprocedure('public.share_schedule_entry_by_email(uuid,text)') is null then
     raise exception 'unexpected legacy sharing overloads; inventory required' using errcode = '55000';
+  end if;
+  -- An unchanged OID/trigger is insufficient after CREATE OR REPLACE FUNCTION.
+  if not exists (select 1 from pg_catalog.pg_proc p
+    where p.oid = 'private.validate_schedule_share_contact()'::regprocedure
+      and p.prokind = 'f' and p.pronargs = 0
+      and p.prorettype = 'pg_catalog.trigger'::regtype
+      and p.prolang = (select oid from pg_catalog.pg_language where lanname = 'plpgsql')
+      and p.proowner = 'postgres'::regrole and p.prosecdef
+      and p.proconfig = array['search_path=""']
+      and p.provolatile = 'v' and p.proparallel = 'u'
+      and not p.proisstrict and not p.proleakproof
+      and replace(p.prosrc, E'\r\n', E'\n') = replace(v_validator_body, E'\r\n', E'\n'))
+    or has_function_privilege('anon', 'private.validate_schedule_share_contact()', 'EXECUTE')
+    or has_function_privilege('authenticated', 'private.validate_schedule_share_contact()', 'EXECUTE') then
+    raise exception 'accepted generation validator definition differs; inventory required' using errcode = '55000';
   end if;
   if not exists (select 1 from pg_catalog.pg_trigger t
     where t.tgrelid = 'public.personal_schedule_shares'::regclass

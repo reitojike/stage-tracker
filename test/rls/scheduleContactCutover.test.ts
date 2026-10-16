@@ -141,6 +141,11 @@ async function snapshot(f: Fixture): Promise<unknown> {
     ${f.name}.schedule_contact_registration_enabled() as enabled,
     pg_get_functiondef('${f.name}.${f.legacyName}(uuid,text)'::regprocedure) as legacy_definition,
     (select proacl::text from pg_proc where oid='${f.name}.${f.legacyName}(uuid,text)'::regprocedure) as legacy_acl,
+    (select jsonb_build_object('definition',pg_get_functiondef(p.oid),
+      'owner',p.proowner::regrole::text,'acl',p.proacl::text,'config',p.proconfig,
+      'definer',p.prosecdef,'volatile',p.provolatile,'parallel',p.proparallel,
+      'strict',p.proisstrict,'leakproof',p.proleakproof,'language',p.prolang)
+      from pg_proc p where p.oid='${f.secret}.validate_schedule_share_contact()'::regprocedure) as validator,
     (select jsonb_agg(jsonb_build_object('name',tgname,'enabled',tgenabled,'definition',pg_get_triggerdef(oid)) order by tgname)
       from pg_trigger where tgrelid='${f.name}.personal_schedule_shares'::regclass and not tgisinternal) as triggers,
     (select jsonb_agg(to_jsonb(s) order by s.id) from ${f.name}.personal_schedule_shares s) as shares,
@@ -342,6 +347,34 @@ for (const kind of ['conditional', 'arguments', 'columns'] as const) {
         before insert or update ${kind === 'columns' ? 'of contact_id' : ''} on ${f.name}.personal_schedule_shares
         for each row ${kind === 'conditional' ? 'when (new.contact_id is null)' : ''}
         execute function ${f.secret}.validate_schedule_share_contact(${kind === 'arguments' ? "'unexpected'" : ''})`);
+      const before = await snapshot(f);
+      await assert.rejects(f.admin.query(f.rewrite(cutover)), { code: '55000' });
+      await f.admin.query('rollback');
+      assert.deepEqual(await snapshot(f), before);
+    }));
+}
+
+for (const drift of ['body', 'invoker', 'search-path', 'owner', 'execute'] as const) {
+  void test(`P3 refuses same-OID validator definition drift: ${drift}`, async () =>
+    fixture(async (f) => {
+      const fn = `${f.secret}.validate_schedule_share_contact()`;
+      const oid = (await f.admin.query(`select '${fn}'::regprocedure::oid as oid`)).rows[0].oid;
+      const mutation = {
+        body: `create or replace function ${fn} returns trigger
+          language plpgsql security definer set search_path='' as $$ begin return new; end; $$`,
+        invoker: `alter function ${fn} security invoker`,
+        'search-path': `alter function ${fn} set search_path=public`,
+        // Ownership transfer requires CREATE on this disposable fixture schema.
+        owner: `grant usage,create on schema ${f.secret} to service_role;
+          alter function ${fn} owner to service_role`,
+        execute: `grant execute on function ${fn} to authenticated`,
+      }[drift];
+      await f.admin.query(mutation);
+      assert.equal(
+        (await f.admin.query(`select '${fn}'::regprocedure::oid as oid`)).rows[0].oid,
+        oid,
+        'definition drift must preserve the OID referenced by the unchanged trigger',
+      );
       const before = await snapshot(f);
       await assert.rejects(f.admin.query(f.rewrite(cutover)), { code: '55000' });
       await f.admin.query('rollback');
