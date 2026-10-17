@@ -47,7 +47,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     scheduledEnabled: true,
     shadow: true,
     policyState: "approved",
-    fetchCadenceHint: "daily",
+    fetchCadenceHint: "weekly",
   },
   {
     id: "event.takarazuka.revue",
@@ -58,7 +58,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     extractor: "takarazuka_revue",
     domainKind: "event",
     enabled: true,
-    scheduledEnabled: false,
+    scheduledEnabled: true,
     shadow: true,
     policyState: "approved",
     fetchCadenceHint: "weekly",
@@ -193,7 +193,7 @@ const SOURCES: readonly OfficialSourceDefinition[] = [
     scheduledEnabled: true,
     shadow: true,
     policyState: "approved",
-    fetchCadenceHint: "daily",
+    fetchCadenceHint: "weekly",
   },
   {
     id: "ticket.takarazuka.revue-general-sale",
