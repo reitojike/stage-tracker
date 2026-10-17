@@ -6,7 +6,7 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
 
 ## 現在のrollout状態
 
-- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。#781の運用ゲートを非公開で確認し、両sourceを同時に週次へ戻しています。既存の日次Cronのうち月曜00:00 UTC（09時台JST）のslotだけがdueとなります。配信の遅延や重複は引き続き観測対象です。週次復旧後の最初の2 slotを、coverage、held理由、候補重複、failure、request量について非公開で確認します。復旧だけで#634を完了としません。
+- `scheduledEnabled: true`なのはKabuki Event、Takarazuka Event、Shochiku Ticketです。他のsourceはすべてunscheduledです。#781の運用ゲートを非公開で確認し、Kabuki EventとShochiku Ticketを同時に週次へ戻した後、別の#782 rolloutでTakarazuka Eventだけを有効にしています。3 sourceとも既存の日次Cronのうち月曜00:00 UTC（09時台JST）のslotだけがdueとなります。配信の遅延や重複は引き続き観測対象です。各sourceの最初の2 slotを、coverage、held理由、候補重複、failure、request量について非公開で確認します。設定変更だけで#634を完了としません。宝塚HTML Ticketは無効のまま、Eventの初回自然週次が健全と確認された後に別PRで判断します。
 - `ticket.shochiku.schedule`は週次のshadow取得です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
   general saleの暫定evidenceとして読み、その後Shochiku東西のsale rowを読みます。同じEventのgeneral saleは1つのsource/run内でreconcileします。
   Shochikuの日付が後から変われば暫定日付を置き換えますが、同じ日のShochiku date-only rowによってKabuki-bitoが明示した時刻を消すことは
@@ -26,7 +26,7 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   同じCronがEventを先に取得し、そのWorkflow stepが完了してからTicketを取得するため、合計のaccess量も確認します。Eventのstepが失敗してもTicketは試行し、失敗したsourceはrun結果に残します。追加のCronやsecretは不要です。
 - Production専用machine-auth routeは正確に`/api/official-import/cron`です。proxyによりSupabase user sessionがなくてもこのpathからroute handlerへ
   到達できますが、handlerは引き続き`CRON_SECRET` bearerを要求します。この例外は`/api/official-import/shadow`や他のapplication/API pathには
-  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。月曜JSTだけKabuki EventとShochiku Ticketがdueとなり、Eventの取得完了後にTicketの取得を開始します。他の曜日と他sourceはdueになりません。Cronは
+  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。月曜JSTだけKabuki Event、Takarazuka Event、Shochiku Ticketの順にdue sourceを逐次取得し、Eventの取得完了後にTicketの取得を開始します。他の曜日と他sourceはdueになりません。Cronは
   sourceをapproveもapplyもしません。
 - このrouteには32文字以上のProduction `CRON_SECRET`とVercelの`Authorization: Bearer <secret>` headerが必要です。設定がなければfail closedと
   なります。値をrepository、PR、logに保存または表示してはなりません。
@@ -75,11 +75,11 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   時刻付きproposalが15件、Event-only proposalが5件、London現地時刻のheld page（#1006）が1件でした。Kabukiza、Minamiza、Misonoza、Hakatazaにある正確な
   日付付きpageは全14件を、時刻付きまたはEvent-onlyとして説明できました。operatorは#1006をholdのままにすることを受け入れ、その後の変更なしmanual
   Production runで新しいcandidateが作られなかったことを確認しました。30-linkのindex上限はfail-closedの運用監視点として維持します。
-  Takarazuka Eventにも週次cadenceの希望がありますが、まだscheduleされていません。private-householdのproduct境界は[#681](https://github.com/reitojike/stage-tracker/issues/681)
+  Takarazuka Eventは#781の週次復旧・本番反映確認後、#782のsource固有gateを確認した別PRで週次scheduleへ昇格しています。private-householdのproduct境界は[#681](https://github.com/reitojike/stage-tracker/issues/681)
   で確定し、Cron machine-authの正確なpathは[#682](https://github.com/reitojike/stage-tracker/issues/682)で実装されています。
   [Issue #677](https://github.com/reitojike/stage-tracker/issues/677#issuecomment-5796382733)では、後日行う範囲限定のprivate-household・facts-only rolloutは
-  妥当と判断されましたが、自動的に許可されたわけではありません。昇格前に[official site policy](https://kageki.hankyu.co.jp/rules.html)を再確認し、
-  site policyに関して残る不確実性をoperatorが受け入れたことを記録し、source固有の厳格なrequest上限を適用し、個別のclean shadow canaryを完了してください。
+  妥当と判断されましたが、自動的に許可されたわけではありません。今回の条件付きrollout承認と既存のprivate-household判断の範囲で、[official site policy](https://kageki.hankyu.co.jp/rules.html)を再確認しています。サイト規約の残余不確実性に関する運用判断は法的許可の判断と区別し、正規化済み事実/canonical linkのみ、raw content非保持、人によるreview/applyを維持します。
+  2026-10-17の公開読み取り専用canaryは7作品・14会場（日別表9会場386回、Event-only 5会場）、17 request/上限30、最大並行数1、identity重複0でした。メモリ内再解析でidentity/hash/proposalが安定し、HTML/DOMは保存していません。robots.txtは404であり、許可の証明とは扱いません。Production shadow・catalog照合・手動review/apply・変更なし再実行の証拠は非公開で確認し、公開parser検証と区別します。次は最初の自然週次slotを観測し、completed-with-heldはpartialのまま扱います。
   2026-09-27の読み取り専用監査では、7作品・14会場をEvent 14件（公開済み日別表からOccurrenceを得られる9件、
   日別表リンク未掲載でEvent-onlyの5件）として説明できました。Event adapterは1 run最大30 requestに制限し、この監査で17 requestを使用しました。
   日別表リンク先に日付見出し付きの表がない場合、時刻セルが非空で読めない場合、中止・変更等の未対応表記が混在する場合は、
@@ -100,8 +100,7 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   宝塚友の会の第1〜第3抽選と宝塚歌劇共通ID＋の抽選について、明記された申込開始・締切・結果照会を時刻付きで別候補にします。link未掲載の先行販売は
   推測せず、読み取れない時刻はfail closedにします。2026-09-27の読み取り専用canaryでは14 requestで一般前売14件と、公開済みの先行抽選15件
   （友の会第1〜第3抽選が各4件、共通ID＋抽選が3件）を解析しました。これはProduction candidateのstageや正確性gateの完了を意味しません。
-  PDF sourceの抽出精度gateは未解決のままです。宝塚Eventを先に手動取得し、候補確認・反映と変更なし再取得を確認してからHTML ticketを手動取得してください。TicketのEvent紐づけと候補内容を人が確認し、
-  変更なし再取得を確認する前に定期取得へ昇格しません。手動取得の有効化は定期取得の許可や正確性の証明を意味しません。
+  PDF sourceの抽出精度gateは未解決のままです。初期のmanual gateではEvent取得・候補確認/反映・変更なし再取得を先に行い、その後にHTML TicketのEvent紐づけ/候補内容と変更なし再取得を個別に確認します。この手順は追加取得の許可ではありません。現在のHTML TicketはscheduledEnabled=falseを維持し、Eventの初回自然週次が健全と確認された後、Ticket固有の新鮮なgateと別PRで昇格を判断します。手動取得の有効化は定期取得の許可や正確性の証明を意味しません。
   Londonの共通ID＋で確認した、先行販売の詳細を後日掲載する定型案内は、全文と既知のsection構造が一致する場合だけ未公表として候補を作りません。友の会の公開済み抽選と一般前売は通常どおり解析し、未知の案内・日時・markupや同sectionの重複は停止します。後日、完全な抽選日時が公開された場合は通常の安定したidentityで解析します。
   HTML候補が別のsource identityの既存Ticketと重なる場合、既存ID・source key・memoを保持し、自動統合・改名は行いません。後の人による候補確認で同一抽選と確認できた場合に限り、重複候補を「取り込み不要として却下」します。この手順自体は候補操作や本番取込の実行許可ではなく、Eventへの紐づけ操作もTicket同士の統合ではありません。
 
