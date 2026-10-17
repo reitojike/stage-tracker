@@ -75,17 +75,72 @@ async function createScheduleEntryAsOwner(actor) {
   return data;
 }
 
-async function shareScheduleEntryByEmailAsOwner(owner, entryId, recipient) {
+async function ensureAcceptedScheduleContactAsOwner(owner, recipient) {
+  const ownerEmail = owner.user.email;
   const recipientEmail = recipient.user.email;
-  if (!recipientEmail) {
-    throw new Error(`fixture recipient ${recipient.user.id} has no email`);
+  if (!ownerEmail || !recipientEmail) {
+    throw new Error(`fixture actor ${owner.user.id} or ${recipient.user.id} has no email`);
   }
-  const { data, error } = await owner.client.rpc('share_schedule_entry_by_email', {
-    p_schedule_entry_id: entryId,
+
+  const { data: existingContacts, error: contactsError } =
+    await owner.client.rpc('list_schedule_contacts');
+  if (contactsError) {
+    throw new Error(`fixture list_schedule_contacts failed: ${contactsError.message}`);
+  }
+  const existingContact = existingContacts.find(
+    (contact) => contact.counterpart_email.toLowerCase() === recipientEmail.toLowerCase(),
+  );
+  if (existingContact) return existingContact.contact_id;
+
+  const { error: requestError } = await owner.client.rpc('request_schedule_contact_by_email', {
     p_recipient_email: recipientEmail,
   });
+  if (requestError) {
+    throw new Error(`fixture request_schedule_contact_by_email failed: ${requestError.message}`);
+  }
+
+  const { data: requests, error: requestsError } = await recipient.client.rpc(
+    'list_received_schedule_contact_requests',
+  );
+  if (requestsError) {
+    throw new Error(
+      `fixture list_received_schedule_contact_requests failed: ${requestsError.message}`,
+    );
+  }
+  const request = requests.find(
+    (item) => item.requester_email.toLowerCase() === ownerEmail.toLowerCase(),
+  );
+  if (!request) throw new Error(`fixture contact request from ${ownerEmail} was not received`);
+
+  const { error: acceptError } = await recipient.client.rpc('accept_schedule_contact_request', {
+    p_request_id: request.request_id,
+  });
+  if (acceptError) {
+    throw new Error(`fixture accept_schedule_contact_request failed: ${acceptError.message}`);
+  }
+
+  const { data: acceptedContacts, error: acceptedContactsError } =
+    await owner.client.rpc('list_schedule_contacts');
+  if (acceptedContactsError) {
+    throw new Error(`fixture list_schedule_contacts failed: ${acceptedContactsError.message}`);
+  }
+  const acceptedContact = acceptedContacts.find(
+    (contact) => contact.counterpart_email.toLowerCase() === recipientEmail.toLowerCase(),
+  );
+  if (!acceptedContact) {
+    throw new Error(`fixture accepted contact with ${recipientEmail} was not listed`);
+  }
+  return acceptedContact.contact_id;
+}
+
+async function shareScheduleEntryWithContactAsOwner(owner, entryId, recipient) {
+  const contactId = await ensureAcceptedScheduleContactAsOwner(owner, recipient);
+  const { data, error } = await owner.client.rpc('share_schedule_entry_with_contact', {
+    p_schedule_entry_id: entryId,
+    p_contact_id: contactId,
+  });
   if (error || !data) {
-    throw new Error(`fixture share_schedule_entry_by_email failed: ${error?.message}`);
+    throw new Error(`fixture share_schedule_entry_with_contact failed: ${error?.message}`);
   }
   return data;
 }
@@ -612,7 +667,7 @@ try {
        using (owner_id = auth.uid()) with check (owner_id = auth.uid());`,
     async () => {
       const created = await createScheduleEntryAsOwner(actorA);
-      await shareScheduleEntryByEmailAsOwner(actorA, created.id, actorB);
+      await shareScheduleEntryWithContactAsOwner(actorA, created.id, actorB);
       const hijackedMemo = `hijacked while policy is broken ${Date.now()}-${Math.random().toString(36).slice(2)}`;
       // No .select() here, for the same reason as guardrail item 11 above:
       // personal_schedule_entries' SELECT policy stays intact throughout,
@@ -677,7 +732,7 @@ try {
        );`,
     async () => {
       const created = await createScheduleEntryAsOwner(actorA);
-      const share = await shareScheduleEntryByEmailAsOwner(actorA, created.id, actorB);
+      const share = await shareScheduleEntryWithContactAsOwner(actorA, created.id, actorB);
       const { data, error } = await stranger.client
         .from('personal_schedule_shares')
         .delete()

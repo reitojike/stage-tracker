@@ -1,5 +1,5 @@
--- P1a is disabled in the shipped schema. Only this rollback-only fixture
--- replaces the migration-owned gate to exercise the future operations.
+-- P3 ships with registration enabled. Rollback-only gate fixtures below
+-- preserve coverage for both disabled and enabled operation paths.
 \ir helpers/auth.psql
 
 begin;
@@ -11,7 +11,7 @@ select pg_temp.create_test_user('contact-b-825@example.test') as b \gset
 select pg_temp.create_test_user('contact-c-825@example.test') as c \gset
 select pg_temp.create_test_user('contact-d-825@example.test') as d \gset
 
-select is(public.schedule_contact_registration_enabled(), false, 'registration ships disabled');
+select is(public.schedule_contact_registration_enabled(), true, 'P3 enables registration after the write cutover');
 select is((select count(*)::int from public.schedule_contacts), 0, 'no automatic accepted backfill');
 select ok((select bool_and(relrowsecurity) from pg_class
   where oid in ('public.schedule_contacts'::regclass,
@@ -28,6 +28,11 @@ select is((select count(*)::int from
 select ok(not has_any_column_privilege('authenticated', 'public.schedule_contacts', 'INSERT')
   and not has_any_column_privilege('authenticated', 'public.schedule_contact_requests', 'INSERT'),
   'no latent client column INSERT grant');
+
+-- Preserve disabled-operation coverage with a transaction-local fixture even
+-- though the P3 migration enables the real gate.
+create or replace function public.schedule_contact_registration_enabled()
+returns boolean language sql immutable set search_path = '' as $$ select false; $$;
 
 call pg_temp.auth_as_user(:'a');
 select throws_ok($$select public.request_schedule_contact_by_email('contact-b-825@example.test')$$,
@@ -62,17 +67,18 @@ call pg_temp.auth_as_admin();
 select is((select count(*)::int from public.schedule_contact_requests), 0, 'disabled operations wrote no requests');
 select is((select count(*)::int from private.schedule_contact_request_budgets), 0, 'disabled operations wrote no budgets');
 
--- Existing supported email sharing must be unchanged by this additive slice.
+-- The legacy email creation boundary is closed independently of the gate.
 insert into public.personal_schedule_entries
   (owner_id, title, is_all_day, starts_on, ends_on, blocking)
-values (:'a', 'contact foundation legacy regression', true, '2026-10-16', '2026-10-16', true)
+values (:'a', 'contact write cutover regression', true, '2026-10-16', '2026-10-16', true)
 returning id as entry_id \gset
+select email as contact_b_email from auth.users where id = :'b' \gset
 call pg_temp.auth_as_user(:'a');
-select lives_ok(format('select public.share_schedule_entry_by_email(%L,%L)',
-  :'entry_id', 'contact-b-825@example.test'), 'existing email sharing still succeeds');
+select throws_ok(format('select public.share_schedule_entry_by_email(%L,%L)',
+  :'entry_id', :'contact_b_email'), '42501', null, 'closed email sharing rejects even a registered recipient');
 call pg_temp.auth_as_user(:'b');
 select is((select count(*)::int from public.personal_schedule_entries where id = :'entry_id'),
-  1, 'existing shared recipient read is unchanged');
+  0, 'closed email sharing grants no recipient visibility');
 call pg_temp.auth_as_admin();
 select count(*)::int as share_count from public.personal_schedule_shares \gset
 
@@ -155,6 +161,8 @@ select is((select count(*)::int from public.schedule_contacts), 1, 'recipient ac
 select is((select count(*)::int from public.schedule_contact_requests), 0, 'accept consumes pending');
 select id as contact_id from public.schedule_contacts \gset
 select isnt(:'contact_id'::uuid, :'accepted_request_id'::uuid, 'accepted generation does not reuse request ID');
+select throws_ok(format('insert into public.personal_schedule_shares(schedule_entry_id,shared_with_user_id) values (%L,%L)',
+  :'entry_id', :'b'), '42501', null, 'administrator cannot create an unbound share');
 select is((select count(*)::int from public.personal_schedule_shares), :share_count,
   'registration neither adds nor removes any schedule share');
 select throws_ok(format('insert into public.schedule_contacts(user_low_id,user_high_id) values (%L,%L)',

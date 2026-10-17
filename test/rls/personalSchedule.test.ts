@@ -10,6 +10,7 @@ import {
 import {
   createAllDayScheduleEntry,
   createTimedScheduleEntry,
+  ensureAcceptedScheduleContact,
   scheduleEntryMemo,
   shareScheduleEntry,
 } from './support/personalScheduleFixtures.ts';
@@ -300,7 +301,7 @@ void test('authenticated owner cannot directly insert a self-share UUID', async 
   assert.ok(error, 'expected direct self-share INSERT to be denied');
 });
 
-void test('the owner self-share email is rejected by the RPC', async () => {
+void test('the legacy email share RPC is revoked after the contact cutover', async () => {
   const entry = await createTimedScheduleEntry(owner);
   const ownerEmail = owner.user.email;
   assert.ok(ownerEmail);
@@ -309,10 +310,10 @@ void test('the owner self-share email is rejected by the RPC', async () => {
     p_schedule_entry_id: entry.id,
     p_recipient_email: ownerEmail,
   });
-  assert.ok(error, 'expected the RPC to reject an owner sharing with themselves');
+  assert.equal(error?.code, '42501');
 });
 
-void test('sharing the same entry with the same recipient is idempotent through the RPC', async () => {
+void test('sharing the same entry with the same recipient is idempotent through the contact RPC', async () => {
   const entry = await createTimedScheduleEntry(owner);
   const firstShare = await shareScheduleEntry(owner, entry.id, recipient);
   const secondShare = await shareScheduleEntry(owner, entry.id, recipient);
@@ -354,13 +355,22 @@ void test('a recipient cannot add another recipient to an entry they don’t own
   const entry = await createTimedScheduleEntry(owner);
   await shareScheduleEntry(owner, entry.id, recipient);
 
-  const strangerEmail = stranger.user.email;
-  assert.ok(strangerEmail);
-  const { error } = await recipient.client.rpc('share_schedule_entry_by_email', {
+  const strangerContactId = await ensureAcceptedScheduleContact(recipient, stranger);
+  const { error } = await recipient.client.rpc('share_schedule_entry_with_contact', {
     p_schedule_entry_id: entry.id,
-    p_recipient_email: strangerEmail,
+    p_contact_id: strangerContactId,
   });
-  assert.ok(error, 'expected the RPC to reject a non-owner adding another recipient');
+  assert.equal(error?.code, '42501');
+
+  const { data: shares, error: sharesError } = await owner.client
+    .from('personal_schedule_shares')
+    .select('shared_with_user_id')
+    .eq('schedule_entry_id', entry.id);
+  assert.equal(sharesError, null);
+  assert.deepEqual(
+    shares.map((share) => share.shared_with_user_id),
+    [recipient.user.id],
+  );
 });
 
 void test('a recipient cannot remove another recipient’s share', async () => {
