@@ -139,7 +139,8 @@ authenticated EXECUTE 可 / anon 不可、client の table / column INSERT・UPD
 この観測を将来の drift なしの保証にしない。local default grant と本番 ACL の差も推測で補わない。
 
 登録 gate・申請/承認/拒否/取消・一覧・呼び名・共有/解除とその private helper についても、
-P1a/P1b の有限な 15 関数の正式 body と owner、言語、戻り型、SECURITY DEFINER、search_path、
+P1a/P1b の有限な 15 関数の正式 body と owner、言語、戻り型、引数名・全引数型・mode・既定値なし、
+SECURITY DEFINER、search_path、
 実行属性を同じ transaction で直接照合する。既知 validator と合わせて承認経路の差異を検出し、
 EXECUTE grant が同じでも未知の承認処理を有効化しない。期待外定義の再宣言・補修はしない。
 
@@ -157,7 +158,8 @@ client EXECUTE 不可を transaction 内で照合する。同じ OID の CREATE 
 明示・継承 grant、無効な trigger、同 OID の弱化 body / SECURITY INVOKER / search_path / owner /
 EXECUTE drift、INSERT 済み transaction の待機、INSERT 前の旧 RPC の再開を検証する。
 承認 RPC の同 OID 弱化 body / SECURITY INVOKER / search_path / owner / 言語 / 実行属性と、
-残る 14 関数の body 差異も拒否する。失敗後は全関数の定義・owner・ACL を含む snapshot、
+残る 14 関数の body 差異、同一本体の入力名・返却列名/型・default 差異も拒否する。
+失敗後は全関数の定義・owner・ACL を含む snapshot、
 gate、旧 RPC / ACL、既存行が不変であることを確認する。
 `scheduleContactConcurrency.test.ts` は同じ切替を適用して既存の両順序 race を検証する。
 切替前 legacy 行は guard 導入前にだけ fixture 作成し、管理 role の guard 除外は設けない。

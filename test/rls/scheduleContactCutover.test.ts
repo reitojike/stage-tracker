@@ -469,6 +469,41 @@ for (const drift of [
     }));
 }
 
+for (const drift of ['input-name', 'output-name', 'output-type', 'default'] as const) {
+  void test(`P3 refuses RPC signature drift: ${drift}`, async () =>
+    fixture(async (f) => {
+      const signature =
+        drift === 'input-name' || drift === 'default'
+          ? `${f.name}.accept_schedule_contact_request(uuid)`
+          : `${f.name}.list_received_schedule_contact_requests()`;
+      const definition = (
+        await f.admin.query('select pg_get_functiondef($1::regprocedure) as definition', [
+          signature,
+        ])
+      ).rows[0].definition as string;
+      const headerEnd = definition.indexOf('AS $function$');
+      assert.ok(headerEnd > 0);
+      const header = definition.slice(0, headerEnd);
+      const changed =
+        drift === 'input-name'
+          ? header.replace('p_request_id uuid', 'renamed_request_id uuid')
+          : drift === 'output-name'
+            ? header.replace('requester_email text', 'renamed_email text')
+            : drift === 'output-type'
+              ? header.replace('requester_email text', 'requester_email character varying')
+              : header.replace('p_request_id uuid', 'p_request_id uuid DEFAULT NULL::uuid');
+      assert.notEqual(changed, header);
+      await f.admin.query(`drop function ${signature}`);
+      await f.admin.query(changed + definition.slice(headerEnd));
+      await f.admin.query(`revoke all on function ${signature} from public,anon;
+        grant execute on function ${signature} to authenticated`);
+      const before = await snapshot(f);
+      await assert.rejects(f.admin.query(f.rewrite(cutover)), { code: '55000' });
+      await f.admin.query('rollback');
+      assert.deepEqual(await snapshot(f), before);
+    }));
+}
+
 void test('P3 inherited EXECUTE fails closed and rolls back the entire cutover', async () =>
   fixture(async (f) => {
     const role = `contact_grant_${randomUUID().replaceAll('-', '')}`;

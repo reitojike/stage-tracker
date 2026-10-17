@@ -57,8 +57,8 @@ begin
   -- still have the reviewed bodies. Grants alone cannot prove mutual consent.
   -- Do not replace or repair unexpected deployed functions during cutover.
   for v_expected in select * from (values
-    ('public.schedule_contact_registration_enabled()', 'sql', 'boolean', false, 'i', false, $contract$ select false; $contract$),
-    ('private.require_schedule_contact_registration()', 'plpgsql', 'uuid', false, 'v', false, $contract$
+    ('public.schedule_contact_registration_enabled()', 'sql', 'boolean', false, 'i', false, null::text[], null::oid[], null::"char"[], $contract$ select false; $contract$),
+    ('private.require_schedule_contact_registration()', 'plpgsql', 'uuid', false, 'v', false, null::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := auth.uid();
 begin
@@ -78,12 +78,12 @@ begin
   return v_actor;
 end;
 $contract$),
-    ('private.lock_schedule_contact_pair(uuid,uuid)', 'sql', 'void', false, 'v', false, $contract$
+    ('private.lock_schedule_contact_pair(uuid,uuid)', 'sql', 'void', false, 'v', false, array['p_a','p_b']::text[], null::oid[], null::"char"[], $contract$
   select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
     'schedule-contact:' || least(p_a, p_b)::text || ':' || greatest(p_a, p_b)::text, 0
   ));
 $contract$),
-    ('private.consume_schedule_contact_request_budget(uuid)', 'plpgsql', 'boolean', false, 'v', false, $contract$
+    ('private.consume_schedule_contact_request_budget(uuid)', 'plpgsql', 'boolean', false, 'v', false, array['p_actor']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_now timestamptz := clock_timestamp();
   v_attempts integer;
@@ -100,7 +100,7 @@ begin
   return v_attempts <= 10;
 end;
 $contract$),
-    ('public.request_schedule_contact_by_email(text)', 'plpgsql', 'void', true, 'v', false, $contract$
+    ('public.request_schedule_contact_by_email(text)', 'plpgsql', 'void', true, 'v', false, array['p_recipient_email']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
   v_email text := lower(btrim(p_recipient_email));
@@ -141,7 +141,7 @@ begin
   on conflict (user_low_id, user_high_id) do nothing;
 end;
 $contract$),
-    ('public.accept_schedule_contact_request(uuid)', 'plpgsql', 'void', true, 'v', false, $contract$
+    ('public.accept_schedule_contact_request(uuid)', 'plpgsql', 'void', true, 'v', false, array['p_request_id']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
   v_request public.schedule_contact_requests;
@@ -167,7 +167,7 @@ begin
   on conflict (user_low_id, user_high_id) do nothing;
 end;
 $contract$),
-    ('public.decline_schedule_contact_request(uuid)', 'plpgsql', 'void', true, 'v', false, $contract$
+    ('public.decline_schedule_contact_request(uuid)', 'plpgsql', 'void', true, 'v', false, array['p_request_id']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
   v_request public.schedule_contact_requests;
@@ -180,7 +180,7 @@ begin
     where r.id = p_request_id and r.recipient_id = v_actor;
 end;
 $contract$),
-    ('public.cancel_schedule_contact_request_by_email(text)', 'plpgsql', 'void', true, 'v', false, $contract$
+    ('public.cancel_schedule_contact_request_by_email(text)', 'plpgsql', 'void', true, 'v', false, array['p_recipient_email']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
   v_email text := lower(btrim(p_recipient_email));
@@ -204,7 +204,7 @@ begin
   end loop;
 end;
 $contract$),
-    ('private.lock_schedule_contact(uuid,uuid)', 'plpgsql', 'public.schedule_contacts', false, 'v', false, $contract$
+    ('private.lock_schedule_contact(uuid,uuid)', 'plpgsql', 'public.schedule_contacts', false, 'v', false, array['p_contact_id','p_actor']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_contact public.schedule_contacts;
 begin
@@ -221,7 +221,7 @@ begin
   return v_contact;
 end;
 $contract$),
-    ('private.validate_schedule_contact_alias()', 'plpgsql', 'trigger', true, 'v', false, $contract$
+    ('private.validate_schedule_contact_alias()', 'plpgsql', 'trigger', true, 'v', false, null::text[], null::oid[], null::"char"[], $contract$
 begin
   if tg_op = 'UPDATE' and (new.contact_id <> old.contact_id or new.owner_id <> old.owner_id) then
     raise exception 'alias identity is immutable' using errcode = '23514';
@@ -233,7 +233,7 @@ begin
   return new;
 end;
 $contract$),
-    ('public.list_received_schedule_contact_requests()', 'plpgsql', 'record', true, 'v', true, $contract$
+    ('public.list_received_schedule_contact_requests()', 'plpgsql', 'record', true, 'v', true, array['request_id','requester_email','requested_at']::text[], array['uuid'::regtype::oid,'text'::regtype::oid,'timestamptz'::regtype::oid]::oid[], array['t','t','t']::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
 begin
@@ -245,7 +245,7 @@ begin
     order by r.created_at, r.id;
 end;
 $contract$),
-    ('public.list_schedule_contacts()', 'plpgsql', 'record', true, 'v', true, $contract$
+    ('public.list_schedule_contacts()', 'plpgsql', 'record', true, 'v', true, array['contact_id','counterpart_email','own_alias','accepted_at']::text[], array['uuid'::regtype::oid,'text'::regtype::oid,'text'::regtype::oid,'timestamptz'::regtype::oid]::oid[], array['t','t','t','t']::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
 begin
@@ -259,7 +259,7 @@ begin
     order by c.created_at, c.id;
 end;
 $contract$),
-    ('public.set_schedule_contact_alias(uuid,text)', 'plpgsql', 'void', true, 'v', false, $contract$
+    ('public.set_schedule_contact_alias(uuid,text)', 'plpgsql', 'void', true, 'v', false, array['p_contact_id','p_alias']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
   v_contact public.schedule_contacts;
@@ -281,7 +281,7 @@ begin
   end if;
 end;
 $contract$),
-    ('public.share_schedule_entry_with_contact(uuid,uuid)', 'plpgsql', 'public.personal_schedule_shares', true, 'v', false, $contract$
+    ('public.share_schedule_entry_with_contact(uuid,uuid)', 'plpgsql', 'public.personal_schedule_shares', true, 'v', false, array['p_schedule_entry_id','p_contact_id']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
   v_contact public.schedule_contacts;
@@ -310,7 +310,7 @@ begin
   return v_share;
 end;
 $contract$),
-    ('public.unlink_schedule_contact(uuid)', 'plpgsql', 'void', true, 'v', false, $contract$
+    ('public.unlink_schedule_contact(uuid)', 'plpgsql', 'void', true, 'v', false, array['p_contact_id']::text[], null::oid[], null::"char"[], $contract$
 declare
   v_actor uuid := private.require_schedule_contact_registration();
   v_contact public.schedule_contacts;
@@ -327,11 +327,16 @@ begin
   delete from public.schedule_contacts c where c.id = p_contact_id;
 end;
 $contract$)
-  ) as expected(signature, language, return_type, definer, volatility, returns_set, body)
+  ) as expected(signature, language, return_type, definer, volatility, returns_set,
+    argument_names, all_argument_types, argument_modes, body)
   loop
     if not exists (select 1 from pg_catalog.pg_proc p
       where p.oid = pg_catalog.to_regprocedure(v_expected.signature)
         and p.prokind = 'f' and p.proowner = 'postgres'::regrole
+        and p.pronargdefaults = 0 and p.provariadic = 0
+        and p.proargnames is not distinct from v_expected.argument_names
+        and p.proallargtypes is not distinct from v_expected.all_argument_types
+        and p.proargmodes is not distinct from v_expected.argument_modes
         and p.prolang = (select oid from pg_catalog.pg_language where lanname = v_expected.language)
         and p.prorettype = v_expected.return_type::regtype
         and p.proretset = v_expected.returns_set and p.prosecdef = v_expected.definer
