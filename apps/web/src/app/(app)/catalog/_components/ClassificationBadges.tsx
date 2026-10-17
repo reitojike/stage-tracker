@@ -3,10 +3,9 @@ import { Badge } from "@stage-tracker/ui";
 
 export interface ClassificationBadgesProps {
   readonly classification: EventClassification | null;
-  /** Resolved group `displayName`s, keyed by id
-   * (`../_lib/catalog-filters.ts`'s `groupDisplayNameById`) -
-   * `EventClassification.groupIds` only carries ids (see that type's own
-   * doc comment), never resolved `Group` rows. */
+  /** Group display names resolved from the catalog lookup and keyed by id.
+   * `EventClassification.groupIds` only carries ids, never resolved `Group`
+   * rows. */
   readonly groupNameById: ReadonlyMap<GroupId, string>;
   readonly canceled: boolean;
 }
