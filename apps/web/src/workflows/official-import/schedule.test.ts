@@ -45,7 +45,7 @@ describe("official source schedule slots", () => {
   });
 
   it.each([20, 21, 22, 23, 24, 25])(
-    "excludes both cleared sources on October %i",
+    "excludes all cleared weekly sources on October %i",
     (day) => {
       expect(
         dueScheduledSourceSlots(
@@ -65,10 +65,10 @@ describe("official source schedule slots", () => {
         deriveOfficialImportScheduledRunId(source.id, tokyoDate),
       );
     const first = runIds("2026-10-19T00:00:00.000Z");
-    expect(first).toHaveLength(2);
-    expect(new Set(first).size).toBe(2);
+    expect(first).toHaveLength(3);
+    expect(new Set(first).size).toBe(3);
     expect(runIds("2026-10-19T00:10:00.000Z")).toEqual(first);
-    expect(runIds("2026-10-26T00:00:00.000Z")).toHaveLength(2);
+    expect(runIds("2026-10-26T00:00:00.000Z")).toHaveLength(3);
     for (const next of runIds("2026-10-26T00:00:00.000Z")) {
       expect(first).not.toContain(next);
     }
@@ -78,5 +78,18 @@ describe("official source schedule slots", () => {
     expect(() =>
       dueScheduledSourceSlots([daily], new Date("invalid")),
     ).toThrow();
+  });
+
+  it("includes Takarazuka Event before Ticket only in the shared Monday slot", () => {
+    expect(
+      dueScheduledSourceSlots(
+        listScheduledShadowSources(),
+        new Date("2026-10-19T00:00:00.000Z"),
+      ).map(({ source, tokyoDate }) => ({ sourceId: source.id, tokyoDate })),
+    ).toEqual([
+      { sourceId: "event.kabuki-bito.schedule", tokyoDate: "2026-10-19" },
+      { sourceId: "event.takarazuka.revue", tokyoDate: "2026-10-19" },
+      { sourceId: "ticket.shochiku.schedule", tokyoDate: "2026-10-19" },
+    ]);
   });
 });

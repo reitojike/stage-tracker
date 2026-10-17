@@ -18,9 +18,10 @@ describe("official source registry", () => {
     expect(source.canonicalUrl).toBe("https://www.kabuki-bito.jp/schedule/");
   });
 
-  it("schedules only the cleared Kabuki Event and Shochiku Ticket sources weekly", () => {
+  it("schedules only the cleared Kabuki Event, Takarazuka Event, and Shochiku Ticket sources weekly", () => {
     expect(listScheduledShadowSources().map((source) => source.id)).toEqual([
       "event.kabuki-bito.schedule",
+      "event.takarazuka.revue",
       "ticket.shochiku.schedule",
     ]);
     expect(
@@ -28,6 +29,7 @@ describe("official source registry", () => {
         .filter(
           (source) =>
             source.id !== "event.kabuki-bito.schedule" &&
+            source.id !== "event.takarazuka.revue" &&
             source.id !== "ticket.shochiku.schedule",
         )
         .every((source) => !source.scheduledEnabled),
@@ -44,6 +46,13 @@ describe("official source registry", () => {
     expect(getOfficialSource("event.takarazuka.revue")?.fetchCadenceHint).toBe(
       "weekly",
     );
+    expect(requireEnabledShadowSource("event.takarazuka.revue")).toMatchObject({
+      enabled: true,
+      scheduledEnabled: true,
+      shadow: true,
+      policyState: "approved",
+      fetchCadenceHint: "weekly",
+    });
     const approved = requireEnabledShadowSource("event.kabuki-bito.schedule");
     expect(isScheduledShadowSource(approved)).toBe(true);
     expect(
