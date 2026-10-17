@@ -830,7 +830,13 @@ begin
   if not exists (select 1 from pg_catalog.pg_proc p
     where p.oid = 'private.can_read_current_schedule_share(uuid)'::regprocedure
       and p.proowner = 'postgres'::regrole and p.prosecdef and p.provolatile = 's'
-      and p.proconfig = array['search_path=""'] and p.prorettype = 'boolean'::regtype)
+      and p.proconfig = array['search_path=""'] and p.prorettype = 'boolean'::regtype
+      -- CREATE FUNCTION also inherits custom default EXECUTE grants. Reject
+      -- every unknown grantee/grantor/grant option rather than repairing it.
+      and (select array_agg(x.grantee::regrole::text order by x.grantee::regrole::text)
+        from pg_catalog.aclexplode(p.proacl) x) = array['authenticated','postgres']::text[]
+      and not exists (select 1 from pg_catalog.aclexplode(p.proacl) x
+        where x.grantor <> 'postgres'::regrole or x.privilege_type <> 'EXECUTE' or x.is_grantable))
     or not has_function_privilege('authenticated', 'private.can_read_current_schedule_share(uuid)', 'EXECUTE')
     or has_function_privilege('anon', 'private.can_read_current_schedule_share(uuid)', 'EXECUTE')
     or has_function_privilege('authenticated', 'public.share_schedule_entry_by_email(uuid,text)', 'EXECUTE')

@@ -477,6 +477,25 @@ for (const drift of [
     }));
 }
 
+void test('P4 rejects unexpected private-function default EXECUTE and rolls back the cutover', async () =>
+  fixture(async (f) => {
+    const role = `p4_acl_${randomUUID().replaceAll('-', '')}`;
+    try {
+      await f.admin.query(`create role ${role};
+        grant usage on schema ${f.secret} to ${role};
+        alter default privileges for role postgres in schema ${f.secret}
+          grant execute on functions to ${role}`);
+      await rejectedUnchanged(f);
+    } finally {
+      await f.admin.query('rollback');
+      await f.admin.query(`alter default privileges for role postgres in schema ${f.secret}
+          revoke execute on functions from ${role};
+        revoke all privileges on all functions in schema ${f.secret} from ${role};
+        revoke usage on schema ${f.secret} from ${role};
+        drop role ${role}`);
+    }
+  }));
+
 void test('P4 rejects EXECUTE grant options on a legacy read function', async () =>
   fixture(async (f) => {
     await f.admin.query(
