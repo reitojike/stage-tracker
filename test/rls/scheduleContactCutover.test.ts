@@ -146,6 +146,10 @@ async function snapshot(f: Fixture): Promise<unknown> {
       'definer',p.prosecdef,'volatile',p.provolatile,'parallel',p.proparallel,
       'strict',p.proisstrict,'leakproof',p.proleakproof,'language',p.prolang)
       from pg_proc p where p.oid='${f.secret}.validate_schedule_share_contact()'::regprocedure) as validator,
+    (select jsonb_agg(jsonb_build_object('name',p.proname,
+      'definition',pg_get_functiondef(p.oid),'owner',p.proowner::regrole::text,
+      'acl',p.proacl::text) order by p.proname,p.oid)
+      from pg_proc p where p.pronamespace in ('${f.name}'::regnamespace,'${f.secret}'::regnamespace)) as contact_functions,
     (select jsonb_agg(jsonb_build_object('name',tgname,'enabled',tgenabled,'definition',pg_get_triggerdef(oid)) order by tgname)
       from pg_trigger where tgrelid='${f.name}.personal_schedule_shares'::regclass and not tgisinternal) as triggers,
     (select jsonb_agg(to_jsonb(s) order by s.id) from ${f.name}.personal_schedule_shares s) as shares,
@@ -379,6 +383,89 @@ for (const drift of ['body', 'invoker', 'search-path', 'owner', 'execute'] as co
       await assert.rejects(f.admin.query(f.rewrite(cutover)), { code: '55000' });
       await f.admin.query('rollback');
       assert.deepEqual(await snapshot(f), before);
+    }));
+}
+
+for (const signature of [
+  'public.schedule_contact_registration_enabled()',
+  'private.require_schedule_contact_registration()',
+  'private.lock_schedule_contact_pair(uuid,uuid)',
+  'private.consume_schedule_contact_request_budget(uuid)',
+  'public.request_schedule_contact_by_email(text)',
+  'public.decline_schedule_contact_request(uuid)',
+  'public.cancel_schedule_contact_request_by_email(text)',
+  'private.lock_schedule_contact(uuid,uuid)',
+  'private.validate_schedule_contact_alias()',
+  'public.list_received_schedule_contact_requests()',
+  'public.list_schedule_contacts()',
+  'public.set_schedule_contact_alias(uuid,text)',
+  'public.share_schedule_entry_with_contact(uuid,uuid)',
+  'public.unlink_schedule_contact(uuid)',
+]) {
+  void test(`P3 refuses other registration function body drift: ${signature}`, async () =>
+    fixture(async (f) => {
+      const fn = f.rewrite(signature);
+      const row = (
+        await f.admin.query(
+          `select oid,pg_get_functiondef(oid) as definition,prosrc as body
+          from pg_proc where oid=$1::regprocedure`,
+          [fn],
+        )
+      ).rows[0];
+      await f.admin.query(
+        row.definition.replace(row.body, () => `${row.body}\n-- unexpected deployed body\n`),
+      );
+      assert.equal(
+        (await f.admin.query(`select '${fn}'::regprocedure::oid as oid`)).rows[0].oid,
+        row.oid,
+      );
+      const before = await snapshot(f);
+      await assert.rejects(f.admin.query(f.rewrite(cutover)), { code: '55000' });
+      await f.admin.query('rollback');
+      assert.deepEqual(await snapshot(f), before);
+    }));
+}
+
+for (const drift of [
+  'body',
+  'invoker',
+  'search-path',
+  'owner',
+  'language',
+  'volatility',
+] as const) {
+  void test(`P3 refuses same-OID acceptance RPC definition drift: ${drift}`, async () =>
+    fixture(async (f) => {
+      const fn = `${f.name}.accept_schedule_contact_request(uuid)`;
+      const oid = (await f.admin.query(`select '${fn}'::regprocedure::oid as oid`)).rows[0].oid;
+      const mutation = {
+        body: `create or replace function ${f.name}.accept_schedule_contact_request(p_request_id uuid)
+          returns void language plpgsql security definer set search_path='' as $$ begin
+            insert into ${f.name}.schedule_contacts(user_low_id,user_high_id)
+              select least(requester_id,recipient_id),greatest(requester_id,recipient_id)
+              from ${f.name}.schedule_contact_requests where id=p_request_id;
+          end; $$`,
+        invoker: `alter function ${fn} security invoker`,
+        'search-path': `alter function ${fn} set search_path=public`,
+        owner: `grant usage,create on schema ${f.name} to service_role;
+          alter function ${fn} owner to service_role`,
+        language: `create or replace function ${f.name}.accept_schedule_contact_request(p_request_id uuid)
+          returns void language sql security definer set search_path='' as $$ select null::void; $$`,
+        volatility: `alter function ${fn} stable`,
+      }[drift];
+      await f.admin.query(mutation);
+      assert.equal(
+        (await f.admin.query(`select '${fn}'::regprocedure::oid as oid`)).rows[0].oid,
+        oid,
+      );
+      const before = await snapshot(f);
+      await assert.rejects(f.admin.query(f.rewrite(cutover)), { code: '55000' });
+      await f.admin.query('rollback');
+      assert.deepEqual(
+        await snapshot(f),
+        before,
+        'unknown acceptance implementation is not repaired',
+      );
     }));
 }
 
