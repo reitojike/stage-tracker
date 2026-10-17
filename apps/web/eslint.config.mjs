@@ -50,6 +50,7 @@ const eslintConfig = defineConfig([
       "@eslint-react/no-missing-key": "error",
       "@eslint-react/jsx-no-comment-textnodes": "error",
       "@eslint-react/jsx-no-children-prop": "error",
+      "@eslint-react/jsx-no-children-prop-with-children": "error",
       "@eslint-react/dom-no-dangerously-set-innerhtml-with-children": "error",
       "@eslint-react/no-direct-mutation-state": "error",
       "@eslint-react/dom-no-find-dom-node": "error",
