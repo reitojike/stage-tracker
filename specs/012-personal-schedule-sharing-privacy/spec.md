@@ -27,11 +27,13 @@ supporting evidence であり、この文書へ mechanics として再定義し�
 
 ### 段階移行中の画面操作
 
-共有相手登録の利用開始までは、画面からの新しい共有追加を停止します。
-登録申請・承認・呼び名・登録解除も、利用可能な状態を確認できなければ操作できません。
-既存共有の owner による確認・個別解除と、recipient の閲覧・自己離脱は維持します。
-これは登録済み相手への共有や friends-only 切替の完了を意味しません。以下の exact email
-targeting と narrow disclosure は、移行中も残る従来の bounded sharing 契約です。
+新しい共有は、owner が登録済みの相手を選んで追加します。共有相手登録の申請・承認・
+呼び名・登録解除は [Spec 013](../013-schedule-contact-registration/spec.md) が所有します。
+利用可能な状態を確認できなければ新操作を止め、旧email入力による共有へ戻しません。
+
+登録導入前の既存共有は、owner による確認・個別解除とrecipient の閲覧・自己離脱を維持します。
+既存共有を登録世代へ一括移行し、すべての読取でその関係を必須とする後続段階は未採用です。
+この移行中の既存可視性を、相互承認の成立や全readの登録必須化とみなしません。
 
 ### Scenario 1: private entry を特定の recipient と共有する
 
@@ -39,23 +41,19 @@ Personal Schedule entry は private by default です。sharing は entry 単位
 単位の visibility grant であり、share によって entry の owner、identity、時間表現、
 blocking、lifecycle は変わりません。recipient は owner にはなりません。
 
-sharing を開始できるのは entry の owner だけです。従来の bounded sharing の target は exact な
-registered email address であり、raw internal user UUID を入力させません。generic directory、
-user list、autocomplete、partial / fuzzy lookup、generic email-to-user lookup は current
-behavior ではありません。
-
-対象 email が registered account でない場合、owner が自分の entry に対して行うこの
-operation-specific な bounded flow では、その exact email が未登録であることを知らせて
-よい。ただしこれは generic account existence query、people search、directory、または
-arbitrary account enumeration API ではありません。
+sharing を開始できるのは entry の owner だけです。新しい共有では、本人が参加する有効な
+登録関係から相手を選択します。メールやraw internal user UUIDを共有先キーとして入力させず、
+generic directory、全利用者の一覧、partial / fuzzy lookup、generic email-to-user lookup を提供しません。
+初回の登録申請にだけ使う完全一致メールと、その存在推測を抑える受付は Spec 013 の責務です。
 
 registered account だけが recipient になれます。self-share、pending account、external
 share、external email delivery は current behavior ではありません。
 
 ### Scenario 2: share は即時の visibility grant である
 
-registered recipient への successful share は即時に visibility を付与します。recipient の
-approval、invitation、pending acceptance state machine はありません。
+登録済みrecipient への successful share は即時に visibility を付与します。
+登録時の相手本人の承認と、予定ごとの明示共有は別です。予定ごとのrecipient approval、
+Invitation、pending acceptance state machine はありません。登録だけでは予定を公開しません。
 
 同じ entry と recipient の active share は一つです。supported な再共有は idempotent で、
 duplicate grant や share-history event を作りません。
@@ -82,7 +80,7 @@ recipient は自分自身の share relation だけを self-leave のために re
 self-leave は自分の visibility と share relation だけを外す operation です。entry の
 delete ではなく、owner や他 recipient に影響しません。durable な rejection、decline、
 opt-out、share-history は作らず、permanent opt-out でもありません。owner は later に
-同じ entry を再共有できます。
+同じ entry を、有効な登録関係に基づき再共有できます。
 
 ### Scenario 5: recipient が読む内容と privacy boundary
 
@@ -110,19 +108,18 @@ source entry より長く存続しません。recipient はその entry を見�
   recipient 単位の visibility grant である。
 - **PSH-002**: sharing によって entry の identity、owner、時間表現、blocking、lifecycle は
   変化せず、recipient は owner にならない。
-- **PSH-003**: sharing を開始できるのは owner だけであり、従来の bounded sharing の target は exact な
-  registered email address である。
-- **PSH-004**: raw internal user UUID、generic directory、user list、autocomplete、partial /
-  fuzzy lookup、generic email-to-user lookup は current targeting surface ではない。
+- **PSH-003**: sharing を開始できるのはowner だけであり、新しい共有は本人が参加する有効な登録関係から相手を選ぶ。
+- **PSH-004**: メールやraw internal user UUIDの入力、generic directory、全利用者の一覧、partial /
+  fuzzy lookup、generic email-to-user lookup を新規共有先の指定に使わない。
 - **PSH-005**: registered account だけが recipient になり、self-share、pending account、
   external share、external email delivery を作成しない。
-- **PSH-006**: owner が自分の entry に対して exact email で行う bounded share operation では、
-  未登録 email であることを知らせてよい。ただし generic account existence query や account
-  enumeration API へ一般化しない。
+- **PSH-006**: 初回の完全一致メールによる登録申請と存在推測を抑える受付は Spec 013 に従う。
+  旧email共有経路をaccount existence query や新規共有のfallback として利用できない。
 
 ### Grant and owner management
 
-- **PSH-007**: successful share は recipient approval なしに即時 visibility grant になる。
+- **PSH-007**: 登録済み相手へのsuccessful share は予定ごとの追加承認なしに即時visibility grant になる。
+  登録時の相手本人の承認は必要であり、登録だけでは予定を公開しない。
 - **PSH-008**: active share は entry と recipient の組ごとに一つであり、supported な再共有は
   idempotent で duplicate grant / share-history event を作らない。
 - **PSH-009**: owner は自分の entry の existing recipients を bounded な email projection
@@ -138,7 +135,7 @@ source entry より長く存続しません。recipient はその entry を見�
 - **PSH-013**: recipient は self-leave に必要な自分自身の share relation だけを resolve / read
   でき、他 recipient の relation、owner の email projection、arbitrary share relation を
   enumerate / manage できない。
-- **PSH-014**: self-leave は自分の share relation と visibility だけを解除し、entry delete、
+- **PSH-014**: self-leave は自分の share relation と visibility だけを解除して登録関係を維持し、entry delete、
   owner・他 recipientへの影響、durable rejection / decline / opt-out history、permanent
   opt-out を導入しない。later re-share を禁止しない。
 
@@ -152,13 +149,17 @@ source entry より長く存続しません。recipient はその entry を見�
   non-owner に区別させない。
 - **PSH-018**: owner hard-delete の後は source entry が存在しないため、share visibility grant
   が recipient に残ってその entry を見せ続けることはない。
-- **PSH-019**: 段階移行中、共有相手登録が利用可能でない間は画面から新しい共有を追加せず、
+- **PSH-019**: 共有相手登録が利用可能でない場合は画面から新しい共有を追加せず、
   確認できない状態を利用可能や空の成功として扱わない。既存共有の確認・個別解除・閲覧・
   自己離脱は維持する。登録済み相手への新しい共有を従来の email 入力へ fallback しない。
 - **PSH-020**: Home・Calendar・共有された予定の詳細へ履歴で戻る場合やタブを再表示する場合、
   共有予定は新しい認証付き読取結果を確認してから表示する。確認中、低速応答、通信断、読取失敗では
   過去の共有予定を再表示しない。自分の予定と入力中の状態は維持し、共有予定の件数・帯・補助ラベルも
   同じ確認結果に従う。共有失効後の詳細と存在しない詳細は区別させない。
+- **PSH-021**: 登録解除はSpec 013 に従い二者間の両方向の既存共有を失効させる。
+  予定本体と第三者共有は維持し、再登録で過去の共有を復活させない。
+- **PSH-022**: 登録導入前の既存共有のread・個別解除・自己離脱を維持し、自動承認・一括失効を行わない。
+  既存共有の登録世代への一括移行と全readの登録必須化を、実装済みとして扱わない。
 
 ## Cross-domain Boundary
 
@@ -167,14 +168,14 @@ source entry より長く存続しません。recipient はその entry を見�
   自体の意味、owner create / edit / delete、hard-delete lifecycle、Calendar / Home composition
   は [Spec 007](../007-personal-schedule-lifecycle/spec.md) が authority です。この文書は
   sharing がそれらを変えないことだけを定義します。
+- 共有相手の登録・申請・承認・呼び名・登録解除とメール変更時の本人境界は
+  [Spec 013](../013-schedule-contact-registration/spec.md) が authority です。
 - Invitation の pending coordination、exact email targeting、invitee private state の
   opacity、Invitation row の opacity は [Spec 006](../006-invitation-coordination-opacity/spec.md)
-  が authority です。Invitation の opacity を Schedule sharing へコピーせず、Schedule
-  sharing の narrow unregistered-email disclosure を Invitation へ一般化しません。
+  が authority です。共有相手登録や予定共有を公演Invitation と同じ同意関係として扱いません。
 - Magic Link request の registered / unregistered、send success / failure を enumeration
   oracle にしない保証は [Spec 009](../009-authentication-account-access/spec.md) が authority
-  です。authenticated owner の自分の entry に対する operation-specific な share flow を、
-  「authenticated なら account lookup 可能」という一般則にしません。
+  です。共有相手登録を「authenticated ならaccount lookup 可能」という一般則にしません。
 - Share Sheet、recipient list、button placement、owner / shared UI state、empty / loading /
   error / success presentation と exact copy は current runtime と tests が所有し、
   cross-screen UX convention は [`docs/ux-ui.md`](../../docs/ux-ui.md) に従います。
@@ -184,8 +185,8 @@ source entry より長く存続しません。recipient はその entry を見�
 この仕様は Personal Schedule sharing / recipient privacy の finite current semantics を
 扱います。次は current behavior として扱いません。
 
-- collaborative editing、recipient edit capability、recipient approval、pending share
-- external share、external email delivery、generic user directory、people search、social graph
+- collaborative editing、recipient edit capability、予定ごとのrecipient approval、pending share
+- external share、external email delivery、generic user directory、people search、公開SNS・group
 - profiles subsystem、field-level permission、per-recipient permission set、busy-only privacy
 - per-recipient blocking override、permanent never-share-again、durable rejection、share / revoke /
   rejection history
@@ -200,15 +201,15 @@ product authority ではありません。
 
 - **SC-001**: private default、entry × recipient grant、owner / recipient の identity と
   lifecycle の分離を説明・検証できる。
-- **SC-002**: owner-only exact registered-email targeting、self-share 禁止、registered-only
-  boundary、narrow unregistered-email disclosure と generic lookup 禁止を区別できる。
-- **SC-003**: immediate grant、approval / pending state machine の不在、entry × recipient の
-  idempotency を検証できる。
+- **SC-002**: owner-onlyの登録済み相手選択、self-share 禁止、registered-only boundary、
+  初回登録のexact-email指定とgeneric lookup 禁止を区別できる。
+- **SC-003**: 登録時の相互承認、予定ごとのimmediate grant と追加承認の不在、entry × recipient の
+  idempotency を区別して検証できる。
 - **SC-004**: bounded owner recipient projection、owner revoke、recipient read-only capability、
   self-leave と他 recipient privacy を検証できる。
 - **SC-005**: current full content、blocking override の不在、non-visible / nonexistent の
   indistinguishable detail outcome、owner delete 後の share consequence を検証できる。
-- **SC-006**: Spec 006 / 007 / 009、screens presentation、runtime / DB / RLS mechanics の
+- **SC-006**: Spec 006 / 007 / 009 / 013、screens presentation、runtime / DB / RLS mechanics の
   authority boundary が混線していない。
 - **SC-007**: future semantics や implementation mechanics が current product behavior として
   昇格していない。

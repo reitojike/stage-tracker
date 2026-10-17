@@ -1,13 +1,17 @@
-# 共有相手登録の段階移行（Draft）
+# 共有相手登録の段階移行
 
 追跡は [#825](https://github.com/reitojike/stage-tracker/issues/825)、
 承認済み仕様案と分割は [登録の設計案](../design/schedule-contact-registration.md)。
-P1a / P1b と P2 runtime は採用済み。#834 の共有再読取修正も採用済みで、
-P3 の DB write 切替は未適用、登録 gate は false のままである。
+P1a / P1b、P2 runtime、#834の共有再読取修正、P3のDB write切替は採用済み。
+P3の採用完了は [#837の完了記録](https://github.com/reitojike/stage-tracker/pull/837#issuecomment-6233186580)
+を参照する。新規共有は登録済み相手を選び、登録機能は有効化済みである。
+P4の既存共有bindと全readの登録必須化は未採用。現行の製品動作は
+[登録Spec 013](../../specs/013-schedule-contact-registration/spec.md) と
+[共有Spec 012](../../specs/012-personal-schedule-sharing-privacy/spec.md) が所有する。
 下記の P1 検証手順は当時の基盤検証の手順であり、現在の配備状況の代わりに扱わない。
-本番 apply・main merge・実利用者への申請・既存共有変更は別の実行フェーズとする。
+追加の本番apply・main merge、実利用者への申請・共有変更は、その対象を明示した実行範囲で扱う。
 
-## P1a のローカル検証
+## P1a のローカル検証（当時の基盤検証）
 
 既存の `stage-tracker` local stack を reset しない。専用の一時ディレクトリへ
 `supabase/` をコピーし、そのコピーの `project_id` と API/DB/shadow/Studio/mail の
@@ -43,7 +47,7 @@ pgTAP の gate 置換・synthetic actor・既存共有の回帰 fixture は tran
 PR 前は [pre-pr-verification](pre-pr-verification.md) の floor と、DB/型の検証を実施。
 migration PR は `Migration ordering: additive` とし、runtime と同居させない。
 
-## P1b のローカル検証と停止境界
+## P1b のローカル検証と停止境界（当時の記録）
 
 P1b も上記の専用コピーで起動する。実際の public capability は false のまま、
 `supabase test db --local` に一覧の本人境界、alias の隔離、generation/trigger 制約、
@@ -56,7 +60,7 @@ P1b も上記の専用コピーで起動する。実際の public capability は
 二接続の勝者 transaction を保持し、`pg_blocking_pids` で待機を確認してから commit する。
 重複/逆向き申請、accept/cancel、unlink/share、unlink/alias、account 削除/share・accept の
 両順序を検証する。これは本物の auth.users FK cleanup の逐次 pgTAP と組み合わせた証跡で、
-Auth サービス全体の並行削除の完全な検証とは扱わない。
+Auth サービス全体の並行削除の完全な検証や、HTTP応答時間の証拠とは扱わない。
 
 専用コピーを cwd にして repository の絶対 test path を Node に渡し、repository の
 node_modules/.bin を process-local PATH に加えれば、共有 stack を触らず実行できる。
@@ -72,7 +76,12 @@ deployment READY の既確認証跡を維持する。Vercel runtime log API の 
 旧 email RPC はまだ存在するため、unlink と旧経路からの再共有を防ぐ保証は未完成。
 この段階で gate を有効化せず、P3 の閉鎖を必須とする。
 
-## 有効化の前提（P1b → P2 → P3）
+## 有効化の前提（P1b → P2 → P3の採用時条件）
+
+以下の検証対象と採用記録を、#825の全ACの完了証拠として一括で扱わない。
+存在非依存の受付・試行制限の試験と、直RPC / HTTPのケース別の応答形・時間差の反復測定は別の証拠である。
+保存された測定証拠が確認できなければ該当ACは未達とし、固定待機だけを完全な対策とは扱わない。
+実機PWA確認も報告された操作だけに限定し、未依頼の取消後権限テストまで実施済みとしない。
 
 ### P2c の試験準備と実機確認
 
@@ -114,16 +123,18 @@ P3 は `runtime-first-required`。現在の migration 自動適用と Vercel 配
 [runtime-stack](../architecture/runtime-stack.md) の ordering evidence を必須にする。
 P4 を P1a と同時に merge/apply できる形で先に積まない。
 
-## P3 の限定された write 切替（未採用）
+## P3 の限定された write 切替（採用済み）
 
 P3 migration は `20261016154603_schedule_contact_write_cutover.sql`。
-これは採用・本番 apply の承認を意味しない。P2c #836 の採用後、P3 は main ベースの Draft。
-差分が DB / DB・RLS tests / docs だけであることと、fresh な CI / exact-head review を再確認する。
-runtime-first-required の実配備証拠は必須。
+P2c #836の採用後、P3は #837で採用された。以下は当時の切替前確認とtransactionの契約である。
+文書を読んだことを再実行や本番変更の承認として扱わない。
+採用時には差分がDB / DB・RLS tests / docsだけであること、freshなCI / exact-head reviewと
+runtime-first-requiredの実配備証拠を確認した。
 P2c 採用後の read-only 確認では main `c13c024a1574e493893ef2e8c4b5c2974af2a53f` の
 Production deployment が READY で、`stage-tracker.com` もその deployment を指していた。
 P2c は test / runbook 変更だけで対応 app runtime はこの版に含まれる。採用直前にも再確認する。
-Current Living Spec の登録 lifecycle と切替段階への同期も、採用時に runtime と分離して扱う。
+Current Living Specの登録lifecycleとP3の切替段階は、runtimeと分けた文書artifactで同期する。
+P4のread強制まで完了したと記載しない。
 
 repository の共有 INSERT は旧 email RPC の履歴定義と新 contact RPC に限られる。
 旧 runtime caller は `schedule-share-actions.ts` → `schedule-share-write.ts` に残るが、

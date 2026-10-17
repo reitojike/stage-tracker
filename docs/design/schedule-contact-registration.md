@@ -1,10 +1,14 @@
 # 共有相手登録の仕様案と最初の DB 基盤
 
-**Status: Draft / 実装途中。Current behavior contract ではない。**
+**Status: 設計・段階実装の履歴。Current behavior contract ではない。**
 
 変更意図は [Issue #825](https://github.com/reitojike/stage-tracker/issues/825)。
-現在の予定共有は引き続き [Spec 012](../../specs/012-personal-schedule-sharing-privacy/spec.md)
-が所有する。この文書は承認済みの将来動作と、最初の限定実装の境界を記録する。
+現在の予定共有は [Spec 012](../../specs/012-personal-schedule-sharing-privacy/spec.md)、
+共有相手登録は [Spec 013](../../specs/013-schedule-contact-registration/spec.md) が所有する。
+この文書は当初の設計と各段階の実装範囲を記録する。以下のP1/P2のgate=falseやDraft停止境界は
+当時の記録であり、現在の配備状況ではない。P3は [#837](https://github.com/reitojike/stage-tracker/pull/837)
+で採用済み。P4の既存共有bindと全readの登録必須化は未採用であり、
+現在の手順は [段階移行runbook](../runbooks/schedule-contact-registration-rollout.md) に従う。
 
 ## User scenarios and testing
 
