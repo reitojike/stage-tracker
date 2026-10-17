@@ -3,6 +3,7 @@ import {
   createE2eAdminClient,
   deleteActor,
   provisionActor,
+  seedLegacyScheduleShare,
 } from "../support/adminClient";
 import { tokyoTodayDateString } from "../support/seedCatalog";
 import { completeMagicLinkSignIn } from "../support/signIn";
@@ -321,12 +322,7 @@ test("personal schedule sharing: phase-aware consent, revoke, leave and unlink",
       contentType: "image/png",
     });
     async function seedLegacyShare() {
-      const { error } = await admin.from("personal_schedule_shares").insert({
-        schedule_entry_id: entryId,
-        shared_with_user_id: recipient.userId,
-      });
-      if (error)
-        throw new Error(`legacy fixture insert failed: ${error.message}`);
+      await seedLegacyScheduleShare(entryId, recipient.userId);
     }
     await seedLegacyShare();
     await ownerPage.goto(entryUrl);

@@ -21,6 +21,45 @@ export function createE2eAdminClient(): SupabaseClient<Database> {
   });
 }
 
+/**
+ * Fixture only for a pre-P3 local database, where shares have no accepted
+ * contact binding. Its historical JSON shape intentionally does not use the
+ * current generated Insert type. The normal enabled-contact fixture remains
+ * typed, and the database's P3/P4 guards must still reject this legacy payload.
+ */
+export async function seedLegacyScheduleShare(
+  scheduleEntryId: string,
+  recipientUserId: string,
+): Promise<void> {
+  const status = readLocalSupabaseStatus();
+  if (
+    !["127.0.0.1", "localhost", "[::1]"].includes(
+      new URL(status.apiUrl).hostname,
+    )
+  )
+    throw new Error("legacy share fixtures require a local Supabase API");
+  const response = await fetch(
+    `${status.apiUrl}/rest/v1/personal_schedule_shares`,
+    {
+      method: "POST",
+      redirect: "error",
+      headers: {
+        apikey: status.serviceRoleKey,
+        Authorization: `Bearer ${status.serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        schedule_entry_id: scheduleEntryId,
+        shared_with_user_id: recipientUserId,
+      }),
+    },
+  );
+  if (!response.ok)
+    throw new Error(
+      `legacy fixture insert failed with HTTP ${response.status}`,
+    );
+}
+
 export interface ProvisionedActor {
   readonly userId: string;
   readonly email: string;
