@@ -6,8 +6,8 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
 
 ## 現在のrollout状態
 
-- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。運用観測を早めるため、両sourceを一時的に日次（毎日09:00 JST）のdue slotで取得します。両sourceで連続するscheduled runの結果を確認した後、安定していれば同じPRで両方を週次へ戻します。片方だけ先に週次へ戻し、もう片方だけが日次で動く期間を作りません。
-- `ticket.shochiku.schedule`は短期の日次shadow試行中です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
+- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。#781の運用ゲートを非公開で確認し、両sourceを同時に週次へ戻しています。既存の日次Cronのうち月曜00:00 UTC（09時台JST）のslotだけがdueとなります。配信の遅延や重複は引き続き観測対象です。週次復旧後の最初の2 slotを、coverage、held理由、候補重複、failure、request量について非公開で確認します。復旧だけで#634を完了としません。
+- `ticket.shochiku.schedule`は週次のshadow取得です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
   general saleの暫定evidenceとして読み、その後Shochiku東西のsale rowを読みます。同じEventのgeneral saleは1つのsource/run内でreconcileします。
   Shochikuの日付が後から変われば暫定日付を置き換えますが、同じ日のShochiku date-only rowによってKabuki-bitoが明示した時刻を消すことは
   ありません。Shochikuの会員tierは別々のopportunityとして扱います。月単位の予告と、正確な開始日に続いて終了月が「未定」と明記された予告
@@ -19,14 +19,14 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   detail pageから13件、Shochiku東西から58件で、held play pageは0件でした。Kabukiza #986では[official ticket section](https://www.kabuki-bito.jp/theaters/kabukiza/play/986)
   からgeneral sale 2026-10-14 10:00 JSTを取得しました。このread-only scan自体はProduction candidateをstageしていません。その後、operatorは
   Production手動取得の候補を一通り確認・整理し、変更なし再取得で追加差分が出なかったことを2026-09-27に報告しました。このevidenceを基に、
-  短期の日次shadow試行へ昇格しています。[Shochiku terms](https://www1.ticket-web-shochiku.com/t/info/rules.html)はsite contentの権利を留保しています。
+  当時は短期の日次shadow試行へ昇格しました。日次試行は#781のゲート確認をもって終了し、現在は両sourceとも週次です。[Shochiku terms](https://www1.ticket-web-shochiku.com/t/info/rules.html)はsite contentの権利を留保しています。
   2026-09-27の再確認でも`/robots.txt`は404でしたが、これは許可を示すものではありません。operatorが指定したprivate-household境界内で正規化済みfactと
   source linkだけを再利用し、pageのprose、image、raw HTMLを保持または再公開してはなりません。初回のscheduled runから、source別のcandidate、
   held、failure、request量を観測します。adapterはKabuki-bitoのindexと最大30 detail page、Shochikuの東西2 pageに範囲を制限します。
   同じCronがEventを先に取得し、そのWorkflow stepが完了してからTicketを取得するため、合計のaccess量も確認します。Eventのstepが失敗してもTicketは試行し、失敗したsourceはrun結果に残します。追加のCronやsecretは不要です。
 - Production専用machine-auth routeは正確に`/api/official-import/cron`です。proxyによりSupabase user sessionがなくてもこのpathからroute handlerへ
   到達できますが、handlerは引き続き`CRON_SECRET` bearerを要求します。この例外は`/api/official-import/shadow`や他のapplication/API pathには
-  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。日次試行中はKabuki EventとShochiku Ticketが毎日dueとなり、Eventの取得完了後にTicketの取得を開始します。週次に戻した後も同じ順序です。他sourceはdueになりません。Cronは
+  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。月曜JSTだけKabuki EventとShochiku Ticketがdueとなり、Eventの取得完了後にTicketの取得を開始します。他の曜日と他sourceはdueになりません。Cronは
   sourceをapproveもapplyもしません。
 - このrouteには32文字以上のProduction `CRON_SECRET`とVercelの`Authorization: Bearer <secret>` headerが必要です。設定がなければfail closedと
   なります。値をrepository、PR、logに保存または表示してはなりません。
@@ -151,7 +151,7 @@ databaseに残ります。close操作でcatalog dataを削除したり、失敗�
 3. repositoryのpre-PR gateとpost-PR convergenceを実行します。merge後、Cronを有効と扱う前にProduction deploymentの成功を確認します。
 4. 最初のdue slotを2回以上観測します: `official_import_runs`の件数とstatus、candidate/review/applyの結果、変更なしrunでcandidateが0件となるbehavior、
    failure分類、request量、provider costの概算。同じEventを扱う別々のofficial sourceがcatalog Eventを重複作成していないことを確認します。evidenceを#634に
-   記録します。Kabuki EventとShochiku Ticketの日次試行は、各sourceのrunごとにindex/detail coverage、held page、意図しない候補の増加、重複起動、fetch failureも確認します。両sourceの安定を確認できたら、同じPRで両方を週次cadenceへ戻します。問題が出たら週次復帰を待たずに該当sourceを停止するか修正します。
+   記録します。Productionのrun ID、snapshot、世帯データは公開Issueではなく非公開の親レポートに残します。Kabuki EventとShochiku Ticketは週次復旧後の最初の2 slotについて、各sourceのrunごとにindex/detail coverage、held pageと理由、意図しない候補の増加、候補重複、重複起動、fetch failure、request量を確認します。heldを含む完了はpartialのまま評価し、回帰があれば該当sourceを停止するか修正します。週次への切替だけで#781や#634を完了としません。
    `source_parse`が発生した場合は、保留ページのreportと実行ログの`Official source page has unsupported format`を確認し、`sourceId`と`canonicalUrl`を記録します。取得上限は別の`Official source request limit reached`として扱います。runの失敗区分だけでは対象ページを特定できないため、ログが残っている間に確認してください。
 5. acquisitionまたはpolicyのevidenceが後退した場合、rollback PRで`scheduledEnabled`を`false`に戻します。candidate approvalとcatalog applyは別操作の
    ままとし、rollback手段として使わないでください。
