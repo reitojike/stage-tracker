@@ -6,8 +6,8 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
 
 ## 現在のrollout状態
 
-- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。運用観測を早めるため、両sourceを一時的に日次（毎日09:00 JST）のdue slotで取得します。両sourceで連続するscheduled runの結果を確認した後、安定していれば同じPRで両方を週次へ戻します。片方だけ先に週次へ戻し、もう片方だけが日次で動く期間を作りません。
-- `ticket.shochiku.schedule`は短期の日次shadow試行中です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
+- `scheduledEnabled: true`なのはKabuki EventとShochiku Ticketだけで、他のsourceはすべてunscheduledです。#781の運用ゲートを非公開で確認し、両sourceを同時に週次へ戻しています。既存の日次Cronのうち月曜00:00 UTC（09時台JST）のslotだけがdueとなります。配信の遅延や重複は引き続き観測対象です。週次復旧後の最初の2 slotを、coverage、held理由、候補重複、failure、request量について非公開で確認します。復旧だけで#634を完了としません。
+- `ticket.shochiku.schedule`は週次のshadow取得です。そのadapterは、まず公開されているKabuki-bitoのplay detailにあるticket開始時刻を
   general saleの暫定evidenceとして読み、その後Shochiku東西のsale rowを読みます。同じEventのgeneral saleは1つのsource/run内でreconcileします。
   Shochikuの日付が後から変われば暫定日付を置き換えますが、同じ日のShochiku date-only rowによってKabuki-bitoが明示した時刻を消すことは
   ありません。Shochikuの会員tierは別々のopportunityとして扱います。月単位の予告と、正確な開始日に続いて終了月が「未定」と明記された予告
@@ -26,7 +26,7 @@ KabukiのDBガード有効化後のapplication rollbackは、末尾の専用手�
   同じCronがEventを先に取得し、そのWorkflow stepが完了してからTicketを取得するため、合計のaccess量も確認します。Eventのstepが失敗してもTicketは試行し、失敗したsourceはrun結果に残します。追加のCronやsecretは不要です。
 - Production専用machine-auth routeは正確に`/api/official-import/cron`です。proxyによりSupabase user sessionがなくてもこのpathからroute handlerへ
   到達できますが、handlerは引き続き`CRON_SECRET` bearerを要求します。この例外は`/api/official-import/shadow`や他のapplication/API pathには
-  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。日次試行中はKabuki EventとShochiku Ticketが毎日dueとなり、Eventの取得完了後にTicketの取得を開始します。週次に戻した後も同じ順序です。他sourceはdueになりません。Cronは
+  適用されません。`apps/web/vercel.json`には毎日00:00 UTCのCron callが1つ登録されています。月曜JSTだけKabuki EventとShochiku Ticketがdueとなり、Eventの取得完了後にTicketの取得を開始します。他の曜日と他sourceはdueになりません。Cronは
   sourceをapproveもapplyもしません。
 - このrouteには32文字以上のProduction `CRON_SECRET`とVercelの`Authorization: Bearer <secret>` headerが必要です。設定がなければfail closedと
   なります。値をrepository、PR、logに保存または表示してはなりません。
