@@ -5,7 +5,11 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
-import { createE2eAdminClient, provisionActor } from "../support/adminClient";
+import {
+  createE2eAdminClient,
+  provisionActor,
+  seedLegacyScheduleShare,
+} from "../support/adminClient";
 import { completeMagicLinkSignIn } from "../support/signIn";
 import { tokyoTodayDateString } from "../support/seedCatalog";
 import { readScheduleContactCapability } from "../support/scheduleContactCapability";
@@ -130,10 +134,12 @@ test("shared schedule revalidation: history, tab resume, slow/offline read and o
   }
 
   const seed = async () => {
+    if (!acceptedContactId)
+      return seedLegacyScheduleShare(entryId, recipient.userId);
     const { error } = await admin.from("personal_schedule_shares").insert({
       schedule_entry_id: entryId,
       shared_with_user_id: recipient.userId,
-      ...(acceptedContactId ? { contact_id: acceptedContactId } : {}),
+      contact_id: acceptedContactId,
     });
     if (error) throw error;
   };
