@@ -285,20 +285,26 @@ void test('recipient can see their own share row', async () => {
 
 void test('authenticated owner cannot directly insert a share for another user UUID', async () => {
   const entry = await createTimedScheduleEntry(owner);
+  const contactId = await ensureAcceptedScheduleContact(owner, recipient);
 
-  const { error } = await owner.client
-    .from('personal_schedule_shares')
-    .insert({ schedule_entry_id: entry.id, shared_with_user_id: recipient.user.id });
-  assert.ok(error, 'expected direct raw-UUID share INSERT to be denied');
+  const { error } = await owner.client.from('personal_schedule_shares').insert({
+    schedule_entry_id: entry.id,
+    shared_with_user_id: recipient.user.id,
+    contact_id: contactId,
+  });
+  assert.equal(error?.code, '42501', 'even an accepted contact cannot bypass the sharing RPC');
 });
 
 void test('authenticated owner cannot directly insert a self-share UUID', async () => {
   const entry = await createTimedScheduleEntry(owner);
+  const contactId = await ensureAcceptedScheduleContact(owner, recipient);
 
-  const { error } = await owner.client
-    .from('personal_schedule_shares')
-    .insert({ schedule_entry_id: entry.id, shared_with_user_id: owner.user.id });
-  assert.ok(error, 'expected direct self-share INSERT to be denied');
+  const { error } = await owner.client.from('personal_schedule_shares').insert({
+    schedule_entry_id: entry.id,
+    shared_with_user_id: owner.user.id,
+    contact_id: contactId,
+  });
+  assert.equal(error?.code, '42501', 'self-share insertion is denied before constraint evaluation');
 });
 
 void test('the legacy email share RPC is revoked after the contact cutover', async () => {
@@ -476,11 +482,14 @@ void test('anonymous cannot read schedule shares', async () => {
 
 void test('anonymous cannot insert schedule shares', async () => {
   const entry = await createTimedScheduleEntry(owner);
+  const contactId = await ensureAcceptedScheduleContact(owner, recipient);
   const anon = createAnonymousClient();
-  const { error } = await anon
-    .from('personal_schedule_shares')
-    .insert({ schedule_entry_id: entry.id, shared_with_user_id: recipient.user.id });
-  assert.ok(error, 'expected a permission error for anonymous insert');
+  const { error } = await anon.from('personal_schedule_shares').insert({
+    schedule_entry_id: entry.id,
+    shared_with_user_id: recipient.user.id,
+    contact_id: contactId,
+  });
+  assert.equal(error?.code, '42501', 'anonymous insertion is denied before constraint evaluation');
 });
 
 void test('anonymous cannot delete schedule shares', async () => {
