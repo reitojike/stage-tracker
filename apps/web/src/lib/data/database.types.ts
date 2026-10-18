@@ -275,14 +275,14 @@ isOneToOne: false
                   ]
                 },"personal_schedule_shares": {
                   Row: {
-                    "contact_id": string | null,"created_at": string,"id": string,"schedule_entry_id": string,"shared_with_user_id": string
+                    "contact_id": string,"created_at": string,"id": string,"schedule_entry_id": string,"shared_with_user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "contact_id"?: string | null,"created_at"?: string,"id"?: string,"schedule_entry_id": string,"shared_with_user_id": string
+                    "contact_id": string,"created_at"?: string,"id"?: string,"schedule_entry_id": string,"shared_with_user_id": string
                   }
                   Update: {
-                    "contact_id"?: string | null,"created_at"?: string,"id"?: string,"schedule_entry_id"?: string,"shared_with_user_id"?: string
+                    "contact_id"?: string,"created_at"?: string,"id"?: string,"schedule_entry_id"?: string,"shared_with_user_id"?: string
                   }
                   Relationships: [
                     {
@@ -828,7 +828,7 @@ isOneToOne: false
                            },
 "share_schedule_entry_by_email":
 { Args: { "p_recipient_email": string,"p_schedule_entry_id": string }; Returns: {
-              "contact_id": string | null,
+              "contact_id": string,
 "created_at": string,
 "id": string,
 "schedule_entry_id": string,
@@ -842,7 +842,7 @@ isOneToOne: false
       } },
 "share_schedule_entry_with_contact":
 { Args: { "p_contact_id": string,"p_schedule_entry_id": string }; Returns: {
-              "contact_id": string | null,
+              "contact_id": string,
 "created_at": string,
 "id": string,
 "schedule_entry_id": string,

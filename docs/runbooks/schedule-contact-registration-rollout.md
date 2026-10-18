@@ -213,6 +213,56 @@ project identifier を貼らず、非公開証跡へ最小件数だけを残す�
 - 適用後に未承認/不整合/legacy-null=0、旧経路拒否、正常な owner/recipient read と型を確認。
   本番 smoke のために実利用者への申請や share の作成/解除を勝手に行わない。
 
+### P4 candidate のロックと停止条件（未採用）
+
+この candidate の実装・local synthetic 検証と、本番へ適用する判断は別である。
+main push は migration apply を起動するため、PR の CI / review が通っても、追加の
+採用判断前に merge しない。採用直前には配備 runtime、migration history、catalog と
+上記の最小集計を再確認し、transaction 内でも再検証する。
+
+transaction は `lock_timeout = '10s'` とし、次の順に lock する。
+
+1. `auth.users EXCLUSIVE` で、guard の `KEY SHARE` を保持する既存 contact RPC と
+   account DELETE を drain する。
+2. `personal_schedule_entries SHARE ROW EXCLUSIVE NOWAIT` で、owner の直接書込みと
+   entry DELETE からの share cascade を止める。所有者判定の通常読取りは許可する。
+3. `schedule_contacts SHARE ROW EXCLUSIVE NOWAIT` で accepted generation を固定する。
+4. `personal_schedule_shares ACCESS EXCLUSIVE NOWAIT` で bind / NOT NULL / policy を変更する。
+
+初回以降の `NOWAIT` は必須である。auth lock 後に開始した entry INSERT が、先に entry の
+write lock を取り、FK の auth lock を待つ場合がある。このとき migration が entry lock を
+待つと循環する。競合時は `55P03` で transaction 全体を中止し、同じ transaction 内で
+待ち直し・続行しない。必要なら利用の少ない時間を選び、fresh preflight から再判断する。
+
+この間、認証の user 更新、contact 操作、entry 書込み、share 操作が短時間待つ可能性がある。
+`auth.users` の FK を確認するイベント・参加等の書込みも同じ待機の対象になりうる。
+一般の auth 読取りと owner entry 読取りは最初の lock と両立するが、共有を調べる読取りは
+shares lock により待ちうる。初回の取得待ちは最大10秒で、後続取得は競合時に即時中止する。
+10秒は transaction 全体の所要時間を保証する値ではない。local の lock / rollback 検証と
+実行直前の件数から作業時間を判断する。
+
+未知の permissive policy、function body / signature / owner / ACL、trigger、FK、account / pair
+不整合があれば修復せず HOLD。既存 NULL share だけを現在の accepted relation ID に bind し、
+非 NULL の世代を付け替えない。予定・申請・関係・呼び名の作成や削除は行わない。
+
+既存の owner Boolean helper と owner email projection の EXECUTE ACL は、Production では
+postgres / authenticated、fresh local / CI では Supabase bootstrap default により
+postgres / anon / authenticated / service_role となる。歴史的 migration は PUBLIC だけを
+revoke しており、この差を本番 drift と誤認しない。確認済みのこの二つの完全な grant 集合だけを
+許容し、余分な role / PUBLIC / grant option / 継承経路は停止する。既存 ACL を修復・拡張せず、
+正規の本体内の caller / owner 判定を維持する。新しい private read helper は authenticated
+だけに EXECUTE を許し、anon の共有表読取りや contact 表の権限を増やさない。
+
+shared read は private Boolean helper が actual share ID、当事者、現在の relation ID と
+有効 account を検証する。shares SELECT と owner email projection をこの判定へ限定し、
+entries SELECT の既存 shares EXISTS を通じて recipient read にも適用する。
+entries policy の DDL や contact table の client grant を追加しない。
+
+local 検証では実 migration の専用 schema replay と実 PostgREST を併用する。
+未承認・catalog drift・途中失敗・lock 競合の rollback、child FK の逆順、entry/share 読取りの
+逆順、share / unlink / accept / account DELETE、owner revoke / self-leave / entry DELETE を
+確認する。成功時も旧 share の ID / 時刻と予定、第三者共有を保存し、再登録で復活しないことを確認する。
+
 ## 復旧と報告
 
 P1a は gate=false なので旧 runtime のまま待てる。P4 の transaction 失敗は旧可視性へ戻り、
