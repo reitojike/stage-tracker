@@ -25,15 +25,17 @@ supporting evidence であり、この文書へ mechanics として再定義し�
 
 ## User Scenarios & Testing
 
-### 段階移行中の画面操作
+### 現在の共有操作と閲覧条件
 
 新しい共有は、owner が登録済みの相手を選んで追加します。共有相手登録の申請・承認・
 呼び名・登録解除は [Spec 013](../013-schedule-contact-registration/spec.md) が所有します。
 利用可能な状態を確認できなければ新操作を止め、旧email入力による共有へ戻しません。
 
-登録導入前の既存共有は、owner による確認・個別解除とrecipient の閲覧・自己離脱を維持します。
-既存共有を登録世代へ一括移行し、すべての読取でその関係を必須とする後続段階は未採用です。
-この移行中の既存可視性を、相互承認の成立や全readの登録必須化とみなしません。
+共有を通じた閲覧には、予定ごとの明示共有に加え、その共有に対応する現在の有効な登録関係と、
+owner・recipient 双方の有効なaccount が必要です。共有の存在だけでは閲覧できません。
+owner自身の予定本体の閲覧は登録関係の有無に左右されません。
+owner による個別解除とrecipient の自己離脱は維持します。既存共有から相互承認を自動生成せず、
+登録解除後の再登録で過去の共有を復活させません。
 
 ### Scenario 1: private entry を特定の recipient と共有する
 
@@ -158,8 +160,9 @@ source entry より長く存続しません。recipient はその entry を見�
   同じ確認結果に従う。共有失効後の詳細と存在しない詳細は区別させない。
 - **PSH-021**: 登録解除はSpec 013 に従い二者間の両方向の既存共有を失効させる。
   予定本体と第三者共有は維持し、再登録で過去の共有を復活させない。
-- **PSH-022**: 登録導入前の既存共有のread・個別解除・自己離脱を維持し、自動承認・一括失効を行わない。
-  既存共有の登録世代への一括移行と全readの登録必須化を、実装済みとして扱わない。
+- **PSH-022**: すべての共有の閲覧に、当該共有と同じ現在の有効な登録関係と双方の有効なaccount を要求する。
+  共有の存在だけや再登録した別の関係では閲覧を許さない。既存共有から相互承認を自動生成せず、
+  移行のために未承認共有を自動失効させない。
 
 ## Cross-domain Boundary
 
@@ -206,7 +209,7 @@ product authority ではありません。
 - **SC-003**: 登録時の相互承認、予定ごとのimmediate grant と追加承認の不在、entry × recipient の
   idempotency を区別して検証できる。
 - **SC-004**: bounded owner recipient projection、owner revoke、recipient read-only capability、
-  self-leave と他 recipient privacy を検証できる。
+  self-leave、現在の登録関係を要求する共有read と他 recipient privacy を検証できる。
 - **SC-005**: current full content、blocking override の不在、non-visible / nonexistent の
   indistinguishable detail outcome、owner delete 後の share consequence を検証できる。
 - **SC-006**: Spec 006 / 007 / 009 / 013、screens presentation、runtime / DB / RLS mechanics の
@@ -217,7 +220,7 @@ product authority ではありません。
 ## Assumptions
 
 - 対象利用者は authenticated account を持ち、recipient は registered account です。
-- existing share relation は visibility grant そのものであり、pending invitation の代替では
-  ありません。
+- existing share relation は予定ごとの visibility grant であり、閲覧には現在の有効な登録関係も必要です。
+  pending invitation の代替ではありません。
 - runtime、schema、RLS、tests はこの current behavior を機械的に enforce / verify する
   supporting evidence です。
