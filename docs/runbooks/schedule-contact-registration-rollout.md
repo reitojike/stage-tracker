@@ -5,7 +5,8 @@
 P1a / P1b、P2 runtime、#834の共有再読取修正、P3のDB write切替は採用済み。
 P3の採用完了は [#837の完了記録](https://github.com/reitojike/stage-tracker/pull/837#issuecomment-6233186580)
 を参照する。新規共有は登録済み相手を選び、登録機能は有効化済みである。
-P4の既存共有bindと全readの登録必須化は未採用。現行の製品動作は
+P4の既存共有bindと全readの登録必須化も [#849](https://github.com/reitojike/stage-tracker/pull/849) で採用済み。
+現行の製品動作は
 [登録Spec 013](../../specs/013-schedule-contact-registration/spec.md) と
 [共有Spec 012](../../specs/012-personal-schedule-sharing-privacy/spec.md) が所有する。
 下記の P1 検証手順は当時の基盤検証の手順であり、現在の配備状況の代わりに扱わない。
@@ -96,7 +97,7 @@ P2c を取り込んだ P3 head の CI で検証する。P3 を main へ先に me
 P3 が P2c の未採用 head に依存する間は Draft / HOLD とし、採用後に main との差分を DB / tests / docs
 だけへ揃える。migration と E2E/runtime を同じ PR へ混ぜて artifact fence を回避しない。
 
-実機で必要な相手・データ・gate=false での実行範囲と停止境界は
+実機で必要な相手・データ・現在の実行範囲と停止境界は
 [共有予定の実機復帰確認](schedule-contact-device-acceptance.md) を参照する。
 その手順の記載と実施済み証跡を区別する。#834 の実履歴「戻る」・低速読取・通信失敗の E2E と
 既存の DB / lifecycle / privacy QA は引き継ぎ、同じ結果を得るためだけの再試験は行わない。
@@ -133,8 +134,8 @@ runtime-first-requiredの実配備証拠を確認した。
 P2c 採用後の read-only 確認では main `c13c024a1574e493893ef2e8c4b5c2974af2a53f` の
 Production deployment が READY で、`stage-tracker.com` もその deployment を指していた。
 P2c は test / runbook 変更だけで対応 app runtime はこの版に含まれる。採用直前にも再確認する。
-Current Living Specの登録lifecycleとP3の切替段階は、runtimeと分けた文書artifactで同期する。
-P4のread強制まで完了したと記載しない。
+当時のCurrent Living Specの登録lifecycleとP3の切替段階は、runtimeと分けた文書artifactで同期した。
+P3単独はread強制の完了証拠ではない。P4の採用結果は下記に分けて記録する。
 
 repository の共有 INSERT は旧 email RPC の履歴定義と新 contact RPC に限られる。
 旧 runtime caller は `schedule-share-actions.ts` → `schedule-share-write.ts` に残るが、
@@ -195,7 +196,20 @@ local PostgREST / RLS での切替前後確認と、その後の有効時 UI jou
 false は既存 read の停止ではないため、read 漏えいには別途限定した修正・封じ込めを判断する。
 旧 email 経路再開・accepted 自動生成・解除済み共有復元を rollback に使わない。
 
-## 既存共有の切替（P4）
+## 既存共有の切替（P4、採用済み）
+
+2026-10-18 に [#849](https://github.com/reitojike/stage-tracker/pull/849) を main `882f585` へ採用した。
+migration は `20261017122928_schedule_contact_read_cutover.sql`。
+[Apply Migrations](https://github.com/reitojike/stage-tracker/actions/runs/39087844868) による自動適用と、
+[main Verify](https://github.com/reitojike/stage-tracker/actions/runs/39087844858) の Code / Build / Database / E2E が成功した。
+本番のread-only postflightで履歴の完全一致、関数定義、NOT NULL、RLS / ACL、旧経路・直接書込み・
+未認証時の拒否を確認し、公開ドメインのProduction deploymentも同じSHAでREADYを確認した。
+メール・本人ID・予定内容や実データの集計は公開記録へ載せない。
+
+以下は採用時のpreflight・transactionの契約であり、再適用の指示ではない。
+有効な当事者間の正負read、競合、再登録による非復活は専用synthetic QA / CIで検証した。
+本番確認のための実ユーザー申請・共有・解除は行っていない。
+実機PWAの失効確認と#825全ACの確認は別であり、この採用結果だけで完了扱いにしない。
 
 利用者自身が相互承認する。既存 share から accepted を生成しない。過去に共有 0 件でも、
 実行直前の許可された read-only 接続で再集計する。公開 Issue へメール、本人 ID、予定内容、
@@ -213,12 +227,12 @@ project identifier を貼らず、非公開証跡へ最小件数だけを残す�
 - 適用後に未承認/不整合/legacy-null=0、旧経路拒否、正常な owner/recipient read と型を確認。
   本番 smoke のために実利用者への申請や share の作成/解除を勝手に行わない。
 
-### P4 candidate のロックと停止条件（未採用）
+### 採用済みP4のロックと停止条件
 
-この candidate の実装・local synthetic 検証と、本番へ適用する判断は別である。
-main push は migration apply を起動するため、PR の CI / review が通っても、追加の
-採用判断前に merge しない。採用直前には配備 runtime、migration history、catalog と
-上記の最小集計を再確認し、transaction 内でも再検証する。
+採用時は実装・local synthetic 検証と本番への適用判断を分けた。
+main push が migration apply を起動するため、freshなCI / exact-head reviewに加えて
+明示の採用判断を得てからmergeした。直前に配備 runtime、migration history、catalog と
+上記の最小集計を再確認し、transaction 内でも再検証した。
 
 transaction は `lock_timeout = '10s'` とし、次の順に lock する。
 
@@ -252,6 +266,8 @@ revoke しており、この差を本番 drift と誤認しない。確認済み
 許容し、余分な role / PUBLIC / grant option / 継承経路は停止する。既存 ACL を修復・拡張せず、
 正規の本体内の caller / owner 判定を維持する。新しい private read helper は authenticated
 だけに EXECUTE を許し、anon の共有表読取りや contact 表の権限を増やさない。
+新しいhelperがcustom defaultから継承するEXECUTEも完全なACL検査の対象とし、
+未知のgrantee / grantor / grant optionがあれば全体をrollbackする。
 
 shared read は private Boolean helper が actual share ID、当事者、現在の relation ID と
 有効 account を検証する。shares SELECT と owner email projection をこの判定へ限定し、
