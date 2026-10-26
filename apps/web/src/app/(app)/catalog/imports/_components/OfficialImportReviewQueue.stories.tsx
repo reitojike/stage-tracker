@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { getRouter } from "@storybook/nextjs-vite/navigation.mock";
+import { expect, userEvent, within } from "storybook/test";
 import { OfficialImportReviewQueue } from "./OfficialImportReviewQueue";
 import type { OfficialImportReviewCandidate } from "../_lib/review-types";
 
@@ -74,6 +76,14 @@ export const Pending: Story = {
     state: { variant: "populated", data: [pendingCandidate] },
     reviewAction: storyReviewAction,
     applyAction: storyApplyAction,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Exercise the Next.js App Router context and refresh after a successful review.
+    getRouter().refresh.mockClear();
+    await userEvent.click(canvas.getByRole("button", { name: "承認" }));
+    await expect(canvas.findByText("承認しました。")).resolves.toBeVisible();
+    await expect(getRouter().refresh).toHaveBeenCalledOnce();
   },
 };
 
