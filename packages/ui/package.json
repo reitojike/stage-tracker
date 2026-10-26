@@ -26,8 +26,8 @@
     "lucide-react": "^1.41.0"
   },
   "devDependencies": {
-    "@storybook/nextjs-vite": "10.6.1",
-    "storybook": "10.6.1",
+    "@storybook/nextjs-vite": "10.6.2",
+    "storybook": "10.6.2",
     "tailwindcss": "^4"
   },
   "peerDependencies": {
