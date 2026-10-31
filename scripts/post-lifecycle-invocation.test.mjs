@@ -5,7 +5,7 @@ import { test } from 'node:test';
 
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 function runPackageScript(script, args) {
-  const command = ['corepack', 'pnpm', 'run', script, ...args].join(' ');
+  const command = ['pnpm', 'run', script, ...args].join(' ');
   return spawnSync(command, {
     cwd: repoRoot,
     encoding: 'utf8',

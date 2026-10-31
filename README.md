@@ -31,6 +31,10 @@ historical / supporting record であり、current authority ではありませ�
 
 ## Setup
 
+Node.js 26系とroot `package.json`の`packageManager`に指定されたpnpmを使用します。
+Node.js 25以降はCorepackが同梱されません。pnpmの準備と検証手順は
+[`docs/runbooks/pre-pr-verification.md`](./docs/runbooks/pre-pr-verification.md)を参照してください。
+
 ```bash
 pnpm install
 ```

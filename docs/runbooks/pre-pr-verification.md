@@ -14,23 +14,28 @@ Database、E2E等のrequired GitHub CI lanesは、引き続きpost-PR convergenc
 ## Normal path
 
 このrepositoryのpackage managerはroot `package.json`の`packageManager`で指定されます。
-Windows managed環境で子プロセスが別のpnpm shimを拾う場合は、Corepackの公式shimを
-repo外の一時ディレクトリへprocess-localに生成します。恒久的な環境変数、registry、
-repository内wrapperは変更しません。
+Node.jsはrootと`apps/web/package.json`に指定した26系を使用します。Node.js 25以降は
+Corepackが同梱されないため、`pnpm`を直接実行します。CIは既存の`pnpm/action-setup`を
+使用します。
+Windows managed環境で子プロセスが別のpnpm shimを拾う場合は、指定されたpnpmを
+repo外の一時ディレクトリへnpmでインストールし、process-localにPATHを設定します。
+恒久的な環境変数、registry、repository内wrapperは変更しません。
 
 PowerShellの例:
 
 ```powershell
-$probeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('stage-tracker-corepack-' + [guid]::NewGuid().ToString('N'))
-$shimDir = Join-Path $probeRoot 'bin'
+$probeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('stage-tracker-pnpm-' + [guid]::NewGuid().ToString('N'))
+$shimDir = Join-Path $probeRoot 'node_modules\.bin'
 $tempDir = Join-Path $probeRoot 'tmp'
 New-Item -ItemType Directory -Force $shimDir, $tempDir | Out-Null
 
 $env:TEMP = $tempDir
 $env:TMP = $tempDir
-corepack enable pnpm --install-directory $shimDir
+$packageManager = (Get-Content -Raw package.json | ConvertFrom-Json).packageManager
+npm install --prefix $probeRoot --no-save --package-lock=false $packageManager
 $env:PATH = "$shimDir;$env:PATH"
 
+node --version
 pnpm --version
 cmd.exe /d /c pnpm.cmd --version
 ```
@@ -38,8 +43,8 @@ cmd.exe /d /c pnpm.cmd --version
 両方のversionがrepositoryの指定と一致することを確認してから、次を順番に実行します。
 
 ```powershell
-corepack pnpm install --frozen-lockfile
-corepack pnpm run verify:code
+pnpm install --frozen-lockfile
+pnpm run verify:code
 git diff --check origin/main...HEAD
 ```
 
