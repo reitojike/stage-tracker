@@ -109,6 +109,12 @@ flowchart LR
 
 ### main-only Git deployment と merge-ready contract（Issue #583）
 
+Node.jsはrepo rootとVercel Root Directoryである`apps/web`の`package.json`で
+`engines.node: "26.x"`を明示します。Vercelはproject rootのpackage指定でDashboardの
+Node.js Versionを上書きするため、Dashboardが24.xでも本指定のdeploymentは26系を
+選択します。CIとローカル検証も26系を使用します。Root Directoryやアクセス設定は
+変更しません。反映確認と復帰手順は[`Node runtime upgrade`](../runbooks/node-runtime-upgrade.md)を参照してください。
+
 Vercel Project はこの repository に接続され、Production Branch は `main`、
 Root Directory は `apps/web` です。Vercel の project root に置く設定として
 `apps/web/vercel.json` の `git.deploymentEnabled` を使用します。`**: false`
