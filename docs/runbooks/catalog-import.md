@@ -333,10 +333,14 @@ supabase link --project-ref <project-ref>
 `auth.uid()` の own-row にしか SELECT を許しません）、designated
 catalog creator の email は `auth.users` との join でしか得られません。
 service_role key は不要です — 3a で link 済みの CLI session から
-Management API 経由（`--linked`）で問い合わせます。
+Management API 経由（`--remote`）で問い合わせます。
+
+この照会は repository 指定の Supabase CLI v3 を `pnpm exec` で実行します。
+`--read-only` で read-only transaction を指定するため、hosted 変更の確認は不要です
+（v3 では SELECT だけでも、この指定がなければ確認対象になります）。
 
 ```bash
-supabase db query --linked "select au.email from public.catalog_creators cc join auth.users au on au.id = cc.user_id;"
+pnpm exec supabase db query "select au.email from public.catalog_creators cc join auth.users au on au.id = cc.user_id;" --remote --read-only
 ```
 
 #### 3c. service_role key の取得（出力・記録しない）
