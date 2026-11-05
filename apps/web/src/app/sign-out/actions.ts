@@ -10,6 +10,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  */
 export async function signOut(): Promise<void> {
   const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    throw new Error("サインアウトできませんでした。もう一度お試しください。");
+  }
   redirect("/sign-in");
 }
