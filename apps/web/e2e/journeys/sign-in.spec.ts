@@ -77,17 +77,22 @@ test("sessionless Workflow flow requests reach SDK rejection without starting a 
   request,
 }) => {
   expect((await request.storageState()).cookies).toEqual([]);
-  // No queue headers or execution token: the real SDK must reject this before
-  // dispatching any workflow. Redirects are disabled to expose the auth boundary.
+  // Workflow 5.5 authenticates Local World queue deliveries before reading the
+  // request body or touching a run. The SDK refusal marker distinguishes this
+  // from an application/proxy 401. Redirects stay disabled at this boundary.
   const response = await request.post("/.well-known/workflow/v1/flow", {
     data: {},
     maxRedirects: 0,
   });
 
-  expect(response.status()).toBe(400);
+  expect(response.status()).toBe(401);
   expect(response.headers().location).toBeUndefined();
+  expect(response.headers()["x-workflow-auth-refused"]).toBe("1");
   expect(response.headers()["content-type"]).toContain("application/json");
-  expect(await response.json()).toEqual({ error: "Missing required headers" });
+  expect(await response.json()).toEqual({
+    error: "Unauthorized queue delivery",
+    code: "QUEUE_AUTH_REFUSED",
+  });
 });
 
 interface SignInActionObservation {
