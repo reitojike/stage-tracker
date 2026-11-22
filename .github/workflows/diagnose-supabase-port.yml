@@ -1,0 +1,82 @@
+name: Diagnose local Supabase port
+on:
+  push:
+    branches: [diag/supabase-port-54322]
+    paths: [.github/workflows/diagnose-supabase-port.yml]
+permissions:
+  contents: read
+jobs:
+  database-startup:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/diag/supabase-port-54322'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '26'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Sample local TCP 54322 during Supabase startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          sample_ss() {
+            local mode="$1" label="$2" data
+            if data=$(sudo -n ss "$mode" '( sport = :54322 )' 2>/dev/null); then
+              printf '%s\n' "$data" | awk -v label="$label" '
+                BEGIN { split("LISTEN ESTAB TIME-WAIT CLOSE-WAIT FIN-WAIT-1 FIN-WAIT-2 SYN-SENT SYN-RECV LAST-ACK CLOSING CLOSE UNCONN", names); for (i in names) known[names[i]]=1 }
+                NF { state=($1 in known ? $1 : "other"); count[state]++; if ($0 ~ /"docker-proxy"/) proxy++; else if ($0 ~ /users:/) owned++ }
+                END { printf "%s", label; for (i=1;i<=length(names);i++) if (count[names[i]]) printf " %s=%d", names[i],count[names[i]]; printf " other=%d docker-proxy=%d other-owned=%d\n",count["other"],proxy,owned }'
+            else
+              printf '%s unavailable\n' "$label"
+            fi
+          }
+          read -r low high < /proc/sys/net/ipv4/ip_local_port_range
+          printf 'Runner image version=%s ephemeral-range=%s-%s\n' "${ImageVersion:-unknown}" "$low" "$high"
+          awk -F, '{ for(i=1;i<=NF;i++){ n=split($i,a,"-"); if(a[1]<=54322 && (n==1?a[1]:a[2])>=54322) found=1 }} END { print "tcp-54322-reserved=" (found?"yes":"no") }' /proc/sys/net/ipv4/ip_local_reserved_ports
+          sample() { sample_ss -Htanp tcp; sample_ss -HtBnp bound-inactive; }
+          mappings() {
+            local data
+            if data=$(docker ps -a --format '{{.Ports}}' 2>/dev/null); then
+              printf '%s\n' "$data" | awk '/:54322->/ {n++} END {printf "docker-published-54322=%d\n", n}'
+            else
+              printf 'docker-published-54322=unknown\n'
+            fi
+          }
+          sample
+          mappings
+          sample_loop() {
+            local previous="" observed i=0
+            while (( i < 600 )); do
+              observed=$(sample)
+              if [[ "$observed" != "$previous" ]]; then
+                printf '%(%H:%M:%S)T UTC\n%s\n' -1 "$observed"
+                mappings
+                previous="$observed"
+              fi
+              i=$((i+1))
+              sleep 0.2
+            done
+          }
+          export TZ=UTC
+          startup_log=$(mktemp)
+          sample_loop &
+          sampler=$!
+          cleanup() { kill "$sampler" 2>/dev/null || true; wait "$sampler" 2>/dev/null || true; rm -f -- "$startup_log"; }
+          trap cleanup EXIT
+          status=0
+          pnpm run verify:database:start >"$startup_log" 2>&1 || status=$?
+          if grep -qE '(failed to bind host port|listen tcp4).*:54322.*address already in use' "$startup_log"; then
+            printf 'supabase-start=port-54322-conflict\n'
+          elif (( status == 0 )); then
+            printf 'supabase-start=success\n'
+          else
+            printf 'supabase-start=other-failure\n'
+          fi
+          sample
+          mappings
+          exit "$status"
