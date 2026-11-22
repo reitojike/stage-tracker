@@ -58,14 +58,14 @@ describe('Sheet', () => {
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     expect(screen.getByRole('dialog')).toContainElement(activeElement);
     await user.keyboard('{Escape}');
-    await waitFor(() =>
-      expect(screen.queryByRole('heading', { name: 'Test sheet' })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Test sheet' })).not.toBeInTheDocument();
+    });
     await user.click(trigger);
     await user.click(screen.getByTestId('sheet-backdrop'));
-    await waitFor(() =>
-      expect(screen.queryByRole('heading', { name: 'Test sheet' })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Test sheet' })).not.toBeInTheDocument();
+    });
   });
 
   it('keeps footer outside the scrollable body', () => {
